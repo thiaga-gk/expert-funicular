@@ -393,6 +393,60 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(finding.value, 8.0)
         self.assertEqual(finding.threshold, self.t.failure_cancel_pct_downsize_safe)
 
+    def serverless_size_evidence(self, size, golden="serverless", **query):
+        payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        for ep in ev["epochs"]:
+            ep["config"]["warehouse_size"] = size
+            ep["config"]["warehouse_type"] = "SERVERLESS"
+        next(x for x in ev["epochs"] if x["is_current"])["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def test_serverless_5x_large_downsize_is_not_priced_from_a_nominal_ratio(self):
+        # 5X-Large has no published Serverless DBU/hour. Before: 5X->4X was priced at a guessed 0.5 ratio (~$9,450).
+        c = self.candidate_of(self.serverless_size_evidence("5X_LARGE"), "warehouse_size")
+        self.assertEqual(c.status, "TEST_REQUIRED")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "4X_LARGE"})
+        self.assertIsNone(c.estimated_cost_365)
+        self.assertIsNone(c.estimated_savings_365)
+        self.assertIsNone(c.total_365d_savings_estimate)
+        self.assertIsNone(c.dbu_365d_savings_range)
+        self.assertEqual(c.metadata["estimate_blocker"], "SERVERLESS_DBU_RATE_NOT_PUBLISHED")
+        self.assertNotIn("capacity_ratio_source", c.metadata)
+        self.assertEqual(c.metadata["bundle_effect"]["type"], "requires_canary")
+
+    def test_serverless_upsize_into_5x_large_is_not_priced_from_a_nominal_ratio(self):
+        ev = self.serverless_size_evidence(
+            "4X_LARGE", golden="spill-constrained",
+        )
+        c = self.candidate_of(ev, "warehouse_size")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "5X_LARGE"})
+        self.assertIsNone(c.estimated_savings_365)
+        self.assertEqual(c.metadata["estimate_blocker"], "SERVERLESS_DBU_RATE_NOT_PUBLISHED")
+
+    def test_serverless_sizes_with_published_rates_are_still_priced(self):
+        c = self.candidate_of(self.serverless_size_evidence("4X_LARGE"), "warehouse_size")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "3X_LARGE"})
+        self.assertGreater(c.estimated_savings_365, 0)
+        self.assertEqual(c.metadata["capacity_ratio_source"], "DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO")
+        self.assertNotIn("estimate_blocker", c.metadata)
+
+    def test_unpriceable_serverless_size_step_withholds_scenario_economics(self):
+        ev = self.serverless_size_evidence("5X_LARGE")
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        scenario = next(s for s in w.scenarios if any(st.knob == "warehouse_size" for st in s.steps))
+        self.assertEqual(scenario.portfolio_estimate.estimate_status, "REQUIRES_CANARY")
+        self.assertIsNone(scenario.portfolio_estimate.total_365d_savings_range)
+        self.assertIsNone(scenario.portfolio_estimate.dbu_365d_savings_range)
+        self.assertTrue(p.build_recommendation_packages(ev, self.t))
+
+    def test_withheld_serverless_size_candidate_is_published_as_unavailable(self):
+        pkg = p.build_recommendation_packages(self.serverless_size_evidence("5X_LARGE"), self.t)[0]
+        size = next(c for c in pkg.candidates if c.knob.value == "warehouse_size")
+        self.assertEqual(size.status.value, "TEST_REQUIRED")
+        self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
+        self.assertIsNone(size.independent_economics.savings_365d.total)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)

@@ -2106,9 +2106,17 @@ class Estimator:
             capacity=size_ratio(cur,target)
             if warehouse_type=="SERVERLESS":
                 cur_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(cur); target_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(target)
-                if cur_dbu and target_dbu:
-                    capacity=target_dbu/cur_dbu
-                    capacity_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO"
+                if not (cur_dbu and target_dbu):
+                    # No published Serverless DBU/hour for one side (5X-Large): a nominal ratio would be a guess, so the
+                    # candidate keeps its decision but is not priced, and any plan containing it needs a canary to price.
+                    unpriced=[x for x in (cur,target) if not SQL_DBU_PER_CLUSTER_HOUR.get(x)]
+                    return None,{
+                        "method":"estimate withheld: no published Serverless DBU/hour for "+"/".join(unpriced)+"; a nominal size ratio would be a guess",
+                        "estimate_blocker":"SERVERLESS_DBU_RATE_NOT_PUBLISHED","unpublished_sizes":unpriced,
+                        "bundle_effect":{"type":"requires_canary"},**meta,
+                    }
+                capacity=target_dbu/cur_dbu
+                capacity_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO"
             else:
                 empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
                 if isinstance(empirical,Mapping):
@@ -2920,10 +2928,11 @@ def _recommendation_status(value: str) -> rc.RecommendationStatus:
 
 
 def _estimation_status(c: CandidateRecommendation) -> rc.EstimationStatus:
-    if c.status in {"BLOCKED", "INSUFFICIENT_EVIDENCE"} and c.total_365d_estimated_cost_range is None:
-        return rc.EstimationStatus.UNAVAILABLE
     if c.status in {"NO_CHANGE", "NOT_APPLICABLE"}:
         return rc.EstimationStatus.NO_DELTA_MODELED
+    if c.total_365d_estimated_cost_range is None and c.dbu_365d_estimated_cost_range is None:
+        # Blocked, or a change whose estimate was withheld (e.g. no published Serverless DBU rate): nothing was priced.
+        return rc.EstimationStatus.UNAVAILABLE
     if c.knob == "warehouse_type" and c.status == "TEST_REQUIRED":
         return rc.EstimationStatus.PRE_CANARY_MODELED_RANGE
     if c.status == "TEST_REQUIRED":
