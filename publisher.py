@@ -794,7 +794,7 @@ WITH epochs AS (
    AND (p.price_end_time IS NULL OR u.usage_end_time<p.price_end_time)
   WHERE u.usage_metadata.warehouse_id IS NOT NULL
     AND u.billing_origin_product='SQL'
-    AND u.usage_date>=DATE_SUB(CURRENT_DATE(),365)
+    AND u.usage_date>=DATE_SUB(CURRENT_DATE(),365) AND u.usage_date<CURRENT_DATE()
 )
 SELECT c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code,
   SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.list_cost) AS list_cost
@@ -816,8 +816,18 @@ SELECT
   COLLECT_SET(sku_name) AS sku_names
 FROM system.billing.usage
 WHERE usage_metadata.warehouse_id IS NOT NULL AND billing_origin_product='SQL'
-  AND usage_date>=DATE_SUB(CURRENT_DATE(),365)
+  AND usage_date>=DATE_SUB(CURRENT_DATE(),365) AND usage_date<CURRENT_DATE()
 GROUP BY workspace_id, usage_metadata.warehouse_id
+"""
+
+# Billing ingestion watermark: the newest usage hour already present in system.billing.usage. Databricks documents
+# ORIGINAL records as "typically available within 12 hours" (longer for new workspaces) and gives no bound for
+# RETRACTION/RESTATEMENT corrections, so a calendar day is treated as covered only once the watermark has passed its
+# end. That is ingestion progress, not finality: corrections can still revise a covered day. Timestamps are UTC.
+BILLING_WATERMARK_SQL = r"""
+SELECT MAX(usage_end_time) AS billing_watermark
+FROM system.billing.usage
+WHERE usage_date>=DATE_SUB(CURRENT_DATE(),3)
 """
 
 EPOCH_BILLING_ATTRIBUTION_SQL = r"""
@@ -840,7 +850,7 @@ WITH epochs AS (
   WHERE usage_metadata.warehouse_id IS NOT NULL
     AND billing_origin_product='SQL'
     AND usage_unit='DBU'
-    AND usage_date>=DATE_SUB(CURRENT_DATE(),365)
+    AND usage_date>=DATE_SUB(CURRENT_DATE(),365) AND usage_date<CURRENT_DATE()
 )
 SELECT
   u.workspace_id,
@@ -1441,7 +1451,7 @@ class Modeler:
     def __init__(self, thresholds: Thresholds):
         self.t = thresholds
 
-    def forecast_from_daily_cost(self, rows: Sequence[Dict[str, Any]], current_epoch_start: str, analysis_time: str) -> Dict[str, Any]:
+    def forecast_from_daily_cost(self, rows: Sequence[Dict[str, Any]], current_epoch_start: str, analysis_time: str, billing_watermark: Optional[str] = None) -> Dict[str, Any]:
         analysis_dt = parse_datetime(analysis_time)
         current_start = parse_datetime(current_epoch_start)
         if not analysis_dt:
@@ -1466,10 +1476,27 @@ class Modeler:
             if d >= current_start.date():
                 current_by_date[d] = current_by_date.get(d, 0.0) + cost
 
-        actual = sum(by_date.values())
         analysis_date = analysis_dt.astimezone(dt.timezone.utc).date()
-        basis_start = max(current_start.astimezone(dt.timezone.utc).date(), analysis_date - dt.timedelta(days=365))
+        # Half-open window [analysis_date-365, last complete day]. Today is incomplete; yesterday is complete only once
+        # the billing watermark has passed its end (records are typically available within 12h, not guaranteed).
+        window_start = analysis_date - dt.timedelta(days=365)
         basis_end = analysis_date - dt.timedelta(days=1)
+        watermark_dt = parse_datetime(billing_watermark) if billing_watermark else None
+        if watermark_dt is not None:
+            complete_through = watermark_dt.astimezone(dt.timezone.utc).date() - dt.timedelta(days=1)
+            basis_end = min(basis_end, complete_through)
+            completeness = "COVERED_BY_WATERMARK"
+        else:
+            completeness = "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY"
+        excluded_incomplete_days = (analysis_date - dt.timedelta(days=1) - basis_end).days
+        actual = sum(v for d, v in by_date.items() if window_start <= d <= basis_end)
+        basis_start = max(current_start.astimezone(dt.timezone.utc).date(), window_start)
+        completeness_meta = {
+            "billing_watermark": watermark_dt.astimezone(dt.timezone.utc).isoformat() if watermark_dt else None,
+            "billing_completeness": completeness,
+            "billing_complete_through": basis_end.isoformat(),
+            "excluded_incomplete_days": excluded_incomplete_days,
+        }
 
         series: List[float] = []
         if basis_start <= basis_end:
@@ -1486,6 +1513,7 @@ class Modeler:
                 "cost_history_days": 0,
                 "active_cost_days": 0,
                 "cost_cv_84": None,
+                **completeness_meta,
                 "forecast_method": MODEL_VERSION,
                 "forecast_basis_start": None,
                 "forecast_basis_end": None,
@@ -1526,6 +1554,7 @@ class Modeler:
             "trend_adjustment_factor": round(trend_adjustment_factor, 6),
             "forecast_basis_start": basis_start.isoformat(),
             "forecast_basis_end": basis_end.isoformat(),
+            **completeness_meta,
             "zero_cost_days_in_basis": sum(1 for x in series if abs(x) <= 1e-12),
         }
 
@@ -1579,6 +1608,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
     cost_rows = client.query(EPOCH_DAILY_COST_SQL,label="billing_daily_cost")
+    watermark_rows = client.query(BILLING_WATERMARK_SQL,label="billing_watermark")
+    billing_watermark = iso(watermark_rows[0].get("billing_watermark")) if watermark_rows else None
     feature_rows = {_warehouse_key(r): r for r in client.query(BILLING_FEATURE_SQL,label="billing_features") if r.get("warehouse_id") is not None}
     attribution_idx = _index_epoch_rows(client.query(EPOCH_BILLING_ATTRIBUTION_SQL,label="billing_attribution_photon_owner"))
     sku_price_rows = client.query(SQL_SKU_PRICE_SQL,label="sql_sku_prices")
@@ -1658,7 +1689,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if len(currents) != 1:
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
-        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time)
+        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=billing_watermark)
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {})
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})

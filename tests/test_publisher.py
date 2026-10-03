@@ -495,6 +495,89 @@ class PublisherV27Tests(unittest.TestCase):
         size = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
         self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
 
+    # --- M7: billing window boundary and completeness watermark -------------------------------------------------
+    ANALYSIS = "2026-10-01T12:00:00+00:00"
+
+    def forecast(self, rows, watermark="UNSET", start="2026-09-01T00:00:00+00:00"):
+        kwargs = {} if watermark == "UNSET" else {"billing_watermark": watermark}
+        return p.Modeler(self.t).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
+
+    def test_billing_sql_uses_an_exact_half_open_window_that_excludes_today(self):
+        for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
+            sql = getattr(p, name)
+            self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),365)", sql, name)
+            self.assertIn("usage_date<CURRENT_DATE()", sql, name)
+
+    def test_billing_cost_sql_keeps_corrections_in_the_sum(self):
+        # RETRACTION (negative) and RESTATEMENT rows net out original usage; filtering to ORIGINAL would overstate cost.
+        for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
+            self.assertNotIn("record_type", getattr(p, name), name)
+
+    def test_billing_watermark_sql_is_read_only_and_bounded(self):
+        sql = p.BILLING_WATERMARK_SQL
+        self.assertIn("MAX(usage_end_time)", sql)
+        self.assertIn("system.billing.usage", sql)
+        self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE()", sql)
+        self.assertNotRegex(sql.upper(), r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b")
+
+    def test_day_not_yet_covered_by_the_watermark_is_excluded_from_the_basis(self):
+        rows = self._cost_rows(30, "2026-09-01")  # 09-01 .. 09-30, $100/day; 09-30 is only partly ingested
+        rows[-1]["list_cost"] = 20.0
+        out = self.forecast(rows, watermark="2026-09-30T20:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-29")
+        self.assertEqual(out["billing_completeness"], "COVERED_BY_WATERMARK")
+        self.assertEqual(out["excluded_incomplete_days"], 1)
+        self.assertEqual(out["cost_history_days"], 29)
+        self.assertAlmostEqual(out["forecast_cost_365"], 100 * 365, places=2)
+        self.assertAlmostEqual(out["current_cost_365"], 29 * 100, places=2)
+
+    def test_watermark_exactly_at_midnight_completes_the_previous_day(self):
+        rows = self._cost_rows(30, "2026-09-01")
+        self.assertEqual(self.forecast(rows, watermark="2026-10-01T00:00:00+00:00")["billing_complete_through"], "2026-09-30")
+        self.assertEqual(self.forecast(rows, watermark="2026-09-30T23:00:00+00:00")["billing_complete_through"], "2026-09-29")
+
+    def test_watermark_never_extends_the_basis_past_yesterday(self):
+        out = self.forecast(self._cost_rows(30, "2026-09-01"), watermark="2026-10-02T06:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-30")
+        self.assertEqual(out["excluded_incomplete_days"], 0)
+
+    def test_missing_watermark_is_labeled_unverified_not_silently_complete(self):
+        out = self.forecast(self._cost_rows(30, "2026-09-01"))
+        self.assertEqual(out["billing_completeness"], "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY")
+        self.assertIsNone(out["billing_watermark"])
+        self.assertEqual(out["billing_complete_through"], "2026-09-30")
+        also_none = self.forecast(self._cost_rows(30, "2026-09-01"), watermark=None)
+        self.assertEqual(also_none["billing_completeness"], "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY")
+
+    def test_actual_cost_uses_the_same_half_open_365_day_window(self):
+        rows = [
+            {"usage_date": "2025-09-30", "list_cost": 1000.0, "currency_code": "USD"},  # 366 days back: outside
+            {"usage_date": "2025-10-01", "list_cost": 10.0, "currency_code": "USD"},   # 365 days back: inside
+            {"usage_date": "2026-09-30", "list_cost": 10.0, "currency_code": "USD"},   # yesterday: inside
+            {"usage_date": "2026-10-01", "list_cost": 500.0, "currency_code": "USD"},  # today (incomplete): outside
+        ]
+        out = self.forecast(rows, start="2025-10-01T00:00:00+00:00")
+        self.assertEqual(out["current_cost_365"], 20.0)
+
+    def test_collector_passes_the_billing_watermark_to_the_forecast(self):
+        seen = {}
+        real = p.Modeler.forecast_from_daily_cost
+        def spy(model, rows, start, analysis_time, **kw):
+            seen.update(kw)
+            return real(model, rows, start, analysis_time, **kw)
+        class Client:
+            def query(self_inner, statement, *, label="collector_sql"):
+                if label == "billing_watermark":
+                    return [{"billing_watermark": "2026-09-30T20:00:00+00:00"}]
+                if label == "config_epochs":
+                    return [{"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                             "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                             "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}]
+                return []
+        with patch.object(p.Modeler, "forecast_from_daily_cost", spy):
+            p.extract_evidence(Client(), self.t, "us-east-1")
+        self.assertEqual(p.parse_datetime(seen["billing_watermark"]).isoformat(), "2026-09-30T20:00:00+00:00")
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
