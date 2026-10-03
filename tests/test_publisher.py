@@ -358,6 +358,41 @@ class PublisherV27Tests(unittest.TestCase):
         pkgs = p.build_recommendation_packages(self.evidence, self.t)
         self.assertTrue(pkgs)
 
+    def size_candidate_with_failure_rate(self, value, *, drop=False):
+        ev = copy.deepcopy(self.evidence)
+        q = ev[0].current_epoch.query
+        if drop:
+            q.pop("failure_cancel_pct_30", None)
+        else:
+            q["failure_cancel_pct_30"] = value
+        return self.candidate_of(ev, "warehouse_size")
+
+    def test_elevated_failure_cancel_rate_blocks_size_down(self):
+        # Demo warehouse downsizes LARGE->MEDIUM at 0.2% failures; at 8% the "no pressure" evidence is not trustworthy.
+        self.assertEqual(self.size_candidate_with_failure_rate(0.2).status, "TEST_REQUIRED")
+        c = self.size_candidate_with_failure_rate(8.0)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_failure_cancel_threshold_boundary_is_inclusive(self):
+        limit = self.t.failure_cancel_pct_downsize_safe
+        self.assertEqual(self.size_candidate_with_failure_rate(limit).status, "TEST_REQUIRED")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", self.size_candidate_with_failure_rate(limit + 0.01).blockers)
+
+    def test_missing_failure_cancel_evidence_fails_closed_for_size_down(self):
+        for c in (self.size_candidate_with_failure_rate(None, drop=True), self.size_candidate_with_failure_rate(None)):
+            self.assertEqual(c.status, "NO_CHANGE")
+            self.assertIn("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE", c.blockers)
+
+    def test_failure_cancel_rate_is_reported_as_a_size_finding(self):
+        ev = copy.deepcopy(self.evidence)
+        ev[0].current_epoch.query["failure_cancel_pct_30"] = 8.0
+        analysis = p.Analyzer(self.t).analyze(ev[0])["warehouse_size"]
+        finding = next(f for f in analysis.findings if f.metric == "failure_cancel_pct_30")
+        self.assertEqual(finding.value, 8.0)
+        self.assertEqual(finding.threshold, self.t.failure_cancel_pct_downsize_safe)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
