@@ -291,7 +291,7 @@ class WarehouseEvidence:
     baseline_forecast_cost_365: float
     currency: str
     cost_history_days: int
-    cost_cv_84: float
+    cost_cv_84: Optional[float]  # None = unknown (history too short or no cost basis); never 0.0
     forecast_metadata: Dict[str, Any] = field(default_factory=dict)
     daily_cost_365: List[Dict[str, Any]] = field(default_factory=list)
     billing_features: Dict[str, Any] = field(default_factory=dict)
@@ -870,6 +870,11 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         return default if value is None else float(value)
     except (TypeError, ValueError):
         return default
+
+
+def cost_stability(cv: Optional[float]) -> Optional[float]:
+    """Cost-stability confidence component in [0, 1]; None when the coefficient of variation is unknown."""
+    return None if cv is None else clamp(1.0 - safe_float(cv) / 2.0, 0.0, 1.0)
 
 
 def safe_int(value: Any, default: int = 0) -> int:
@@ -1469,7 +1474,7 @@ class Modeler:
                 "currency": currency,
                 "cost_history_days": 0,
                 "active_cost_days": 0,
-                "cost_cv_84": 0.0,
+                "cost_cv_84": None,
                 "forecast_method": MODEL_VERSION,
                 "forecast_basis_start": None,
                 "forecast_basis_end": None,
@@ -1495,14 +1500,14 @@ class Modeler:
         ratio = clamp(ratio, self.t.trend_ratio_floor, self.t.trend_ratio_ceiling)
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
-        cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else 0.0
+        cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
         return {
             "current_cost_365": round(actual, 2),
             "forecast_cost_365": round(max(0.0, daily * 365), 2),
             "currency": currency,
             "cost_history_days": len(series),
             "active_cost_days": sum(1 for x in series if abs(x) > 1e-12),
-            "cost_cv_84": round(cv, 4),
+            "cost_cv_84": None if cv is None else round(cv, 4),
             "forecast_method": MODEL_VERSION,
             "run_rate_28": round(mean28 * 365, 2),
             "run_rate_84": round(mean84 * 365, 2),
@@ -2005,17 +2010,17 @@ class Estimator:
 
     def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
         q=safe_float(a.facts.get("queries_30")); coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(q/self.t.strong_query_sample_size,0,1)
-        stability=clamp(1.0-e.cost_cv_84/2.0,0,1); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
+        stability=cost_stability(e.cost_cv_84); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
         score=clamp(
             self.t.confidence_base_weight
             + self.t.confidence_coverage_weight*coverage
             + self.t.confidence_sample_weight*sample
-            + self.t.confidence_stability_weight*stability
+            + self.t.confidence_stability_weight*(stability or 0.0)  # unknown stability earns no credit
             + self.t.confidence_epoch_weight*epoch
             + self.t.confidence_signal_weight*clamp(signal,0,1),
             0,cap)
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW",
-                "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
+                "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":None if stability is None else round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
 
     def _matched_epoch_factor(self,e:WarehouseEvidence,knob:str,target:Any)->Optional[Dict[str,Any]]:
         cur=e.current_epoch; cur_cfg=cur.config.as_dict(); cur_queries=max(1.0,safe_float(cur.query.get("epoch_queries")))
@@ -2749,8 +2754,8 @@ def _actual_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
 
 def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
     coverage = clamp(safe_float(e.cost_history_days) / max(1.0, float(t.forecast_long_days)), 0.0, 1.0)
-    stability = clamp(1.0 - safe_float(e.cost_cv_84) / 2.0, 0.0, 1.0)
-    score = round(0.65 * coverage + 0.35 * stability, 6)
+    stability = cost_stability(e.cost_cv_84)
+    score = round(0.65 * coverage + 0.35 * (stability or 0.0), 6)  # unknown stability earns no credit
     return _contract_confidence(
         {"score": score, "components": {"history_coverage": coverage, "cost_stability": stability}},
         method="current_epoch_runrate_evidence",
@@ -3992,7 +3997,7 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         baseline_forecast_cost_365=safe_float(x.get("baseline_forecast_cost_365")),
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
-        cost_cv_84=safe_float(x.get("cost_cv_84")),
+        cost_cv_84=None if x.get("cost_cv_84") is None else safe_float(x.get("cost_cv_84")),
         forecast_metadata=dict(x.get("forecast_metadata") or {}),
         daily_cost_365=list(x.get("daily_cost_365") or []),
         billing_features=dict(x.get("billing_features") or {}),
@@ -4039,7 +4044,7 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
             comparable = (
                 prior.analysis_time, prior.current_epoch_id, prior.currency,
                 round(prior.current_cost_365, 6), round(prior.baseline_forecast_cost_365, 6),
-                prior.cost_history_days, round(prior.cost_cv_84, 6), canonical_json(prior.forecast_metadata),
+                prior.cost_history_days, round_or_none(prior.cost_cv_84, 6), canonical_json(prior.forecast_metadata),
                 None if prior.aws_baseline_cost_365 is None else round(prior.aws_baseline_cost_365, 6),
                 canonical_json(prior.aws_cost_model), canonical_json(prior.sql_sku_prices),
                 canonical_json(prior.photon_observation), canonical_json(prior.attribution),
@@ -4047,7 +4052,7 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
             incoming = (
                 e.analysis_time, e.current_epoch_id, e.currency,
                 round(e.current_cost_365, 6), round(e.baseline_forecast_cost_365, 6),
-                e.cost_history_days, round(e.cost_cv_84, 6), canonical_json(e.forecast_metadata),
+                e.cost_history_days, round_or_none(e.cost_cv_84, 6), canonical_json(e.forecast_metadata),
                 None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365, 6),
                 canonical_json(e.aws_cost_model), canonical_json(e.sql_sku_prices),
                 canonical_json(e.photon_observation), canonical_json(e.attribution),

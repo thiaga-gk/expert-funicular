@@ -297,6 +297,67 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(out["zero_cost_days_in_basis"], 2)
         self.assertAlmostEqual(out["forecast_cost_365"], 50 * 365, places=2)
 
+    def _cost_rows(self, days, start="2026-09-01", cost=lambda i: 100.0):
+        import datetime as dt
+        d0 = dt.date.fromisoformat(start)
+        return [{"usage_date": (d0 + dt.timedelta(days=i)).isoformat(), "list_cost": cost(i), "currency_code": "USD"} for i in range(days)]
+
+    def test_cv_is_unknown_when_history_is_too_short(self):
+        # 4 days < forecast_cv_min_days (7): the old code published CV 0.0 = "perfectly stable".
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(4, "2026-09-26"), "2026-09-26T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_unknown_without_any_cost_basis(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost([], "2026-10-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_unknown_when_mean_cost_is_zero(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 0.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_computed_when_history_is_sufficient(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 50.0 if i % 2 else 150.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertAlmostEqual(out["cost_cv_84"], 0.5, places=3)
+
+    def test_unknown_cv_is_unknown_stability_not_perfect_stability(self):
+        known = copy.deepcopy(self.evidence)
+        unknown = copy.deepcopy(self.evidence)
+        known[0].cost_cv_84 = 0.0
+        unknown[0].cost_cv_84 = None
+        c_known = self.candidate_of(known, "warehouse_size")
+        c_unknown = self.candidate_of(unknown, "warehouse_size")
+        self.assertEqual(c_known.confidence["components"]["stability"], 1.0)
+        self.assertIsNone(c_unknown.confidence["components"]["stability"])
+        # Unknown stability earns no credit, so confidence can only go down (some candidates sit at a cap).
+        scores = [(self.candidate_of(known, k).confidence["score"], self.candidate_of(unknown, k).confidence["score"]) for k in p.ACTIVE_KNOBS]
+        self.assertTrue(all(u <= k for k, u in scores))
+        self.assertTrue(any(u < k for k, u in scores))
+        fc = p._forecast_confidence(unknown[0], self.t)
+        self.assertIsNone(fc.components["cost_stability"])
+        self.assertLess(fc.score, p._forecast_confidence(known[0], self.t).score)
+
+    def candidate_of(self, evidence, knob):
+        return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
+
+    def test_unknown_cv_survives_evidence_roundtrip_and_merge(self):
+        self.evidence[0].cost_cv_84 = None
+        with tempfile.TemporaryDirectory() as td:
+            a, b = Path(td) / "a.json", Path(td) / "b.json"
+            p.save_evidence(a, self.evidence)
+            p.save_evidence(b, self.evidence)
+            self.assertIsNone(p.load_evidence_files([str(a)])[0].cost_cv_84)
+            merged = p.load_evidence_files([str(a), str(b)])
+            self.assertIsNone(merged[0].cost_cv_84)
+
+    def test_unknown_cv_packages_validate(self):
+        self.evidence[0].cost_cv_84 = None
+        pkgs = p.build_recommendation_packages(self.evidence, self.t)
+        self.assertTrue(pkgs)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
