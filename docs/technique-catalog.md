@@ -1,4 +1,4 @@
-# Compute optimization technique catalog — v2.7.1
+# Compute optimization technique catalog — v2.8.0
 
 Stable `technique_id` values are catalog identities. They do not change across warehouses/runs; `candidate_id` identifies the warehouse/epoch-specific decision instance.
 

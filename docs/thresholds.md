@@ -1,4 +1,4 @@
-# Threshold posture — v2.7.1
+# Threshold posture — v2.8.0
 
 The defaults are **balanced-to-conservative overall**. They are policy defaults, not universal Databricks recommendations.
 
@@ -23,7 +23,7 @@ Spill, capacity-wait and compute-wait severity percentiles are computed **only o
 
 ## Cost-estimator guardrail
 
-Serverless size economics may use the published SQL Serverless DBU/hour schedule. Pro/Classic size economics must **not** reuse that schedule. v2.7.1 uses same-workspace observed Pro/Classic DBU-per-cluster-hour ratios when both sizes exist; otherwise it falls back to nominal size-capacity ratios and preserves the A/B canary requirement.
+Serverless size economics may use the published SQL Serverless DBU/hour schedule. Pro/Classic size economics must **not** reuse that schedule. v2.8.0 uses same-workspace observed Pro/Classic DBU-per-cluster-hour ratios when both sizes exist; otherwise it falls back to nominal size-capacity ratios and preserves the A/B canary requirement.
 
 ## Tuning recommendation
 

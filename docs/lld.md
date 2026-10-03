@@ -2,7 +2,7 @@
 
 **Document:** `docs/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.1  
+**Implementation baseline:** Publisher v2.8.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
@@ -17,7 +17,7 @@
 
 This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the approved PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
 
-The LLD describes the **actual v2.7.1 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
+The LLD describes the **actual v2.8.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
 
 The implementation has one central invariant:
 
@@ -35,11 +35,11 @@ The following contracts are independent of publisher implementation version and 
 |---|---:|---|
 | Reporter JSON Contract | 1.1.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.1.0.md` |
 | Workbook Contract | 1.2.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.2.0.md` |
-| Publisher implementation | 2.7.1 | `publisher.py` plus reporter/contract modules |
+| Publisher implementation | 2.8.0 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
 
-Publisher v2.7.1 implements the sealed design directly:
+Publisher v2.8.0 implements the sealed design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
@@ -114,19 +114,19 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-Publisher v2.7.1 declares independent version identifiers for deterministic replay:
+Publisher v2.8.0 declares independent version identifiers for deterministic replay:
 
 | Constant | Current value | Purpose |
 |---|---|---|
-| `PUBLISHER_VERSION` | `2.7.1` | implementation release |
-| `POLICY_VERSION` | `sql-warehouse-policy-v2.7.1` | threshold/policy semantics |
-| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.7.1` | analyzer semantics |
-| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.7.1` | decision semantics |
+| `PUBLISHER_VERSION` | `2.8.0` | implementation release |
+| `POLICY_VERSION` | `sql-warehouse-policy-v2.8.0` | threshold/policy semantics |
+| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.8.0` | analyzer semantics |
+| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.8.0` | decision semantics |
 | `MODEL_VERSION` | `epoch-runrate-v2.7` | forward forecast |
-| `ESTIMATOR_VERSION` | `counterfactual-v2.7.1` | candidate economics |
-| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.7.1` | scenario economics |
-| `REVIEWER_VERSION` | `recommendation-reviewer-v2.7.1` | invariant policy |
-| `DECISION_VERSION` | `warehouse-decision-graph-v2.7.1` | dependency/order semantics |
+| `ESTIMATOR_VERSION` | `counterfactual-v2.8.0` | candidate economics |
+| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.8.0` | scenario economics |
+| `REVIEWER_VERSION` | `recommendation-reviewer-v2.8.0` | invariant policy |
+| `DECISION_VERSION` | `warehouse-decision-graph-v2.8.0` | dependency/order semantics |
 | `TECHNIQUE_CATALOG_VERSION` | `technique-catalog-v1` | stable technique mapping |
 
 Changing a decision-affecting implementation without changing the corresponding version is prohibited.
@@ -458,7 +458,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+Publisher v2.8.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ---
 
@@ -1513,7 +1513,7 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.7.1 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
+Publisher v2.8.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
 
 ### 32.3 Golden scenarios
 
@@ -1616,4 +1616,4 @@ flowchart LR
     CODE --> TEST[tests + golden evidence]
 ```
 
-The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.7.1 produces and consumes those contracts.
+The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.8.0 produces and consumes those contracts.

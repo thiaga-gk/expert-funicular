@@ -1,4 +1,4 @@
-# Known Limitations — v2.7.1
+# Known Limitations — v2.8.0
 
 This file records limitations that remain true in the sealed testing baseline. Resolved implementation gaps are intentionally not retained here.
 

@@ -33,7 +33,7 @@
   "candidates": [
     {
       "blockers": [],
-      "candidate_id": "CAND-7228133F8C9DCD58D5450164",
+      "candidate_id": "CAND-2FF10B6D104A88133435FFC9",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -115,7 +115,7 @@
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-CDC9DD7E27E8CA6ED23E9CEB",
+      "candidate_id": "CAND-DAC9E910F2A94A05B67B302A",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -142,6 +142,7 @@
         "EVID-B2362D5F32380977A933F401",
         "EVID-FDBFFBC774D23EA471B31E96",
         "EVID-4D3C96F560A56E7EC4E79822",
+        "EVID-756332815C5D1223CA4A8740",
         "EVID-6EA74D3474DEBD48A2D18AA3",
         "EVID-A86EAA13EE5082AEC4DF0A44",
         "EVID-844D3CCD8E1426B8521EC841",
@@ -212,7 +213,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-4CD23256DB0CA20822638058",
+      "candidate_id": "CAND-567E1FFD79E2F9A61A59510F",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -271,7 +272,7 @@
             "low": 38725.1
           }
         },
-        "estimation_status": "MODELED_RANGE",
+        "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
         "savings_365d": {
           "aws": {
@@ -308,7 +309,7 @@
         "A_B_PERFORMANCE_VALIDATION_REQUIRED",
         "SPARE_FLOOR_CAPACITY_UNPROVEN"
       ],
-      "candidate_id": "CAND-F7CD1FD114943EA1AAB92DF2",
+      "candidate_id": "CAND-585D0C22F7A86D37CE5BCDE5",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -405,7 +406,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-1EB011ABA71F8CF380C298A8",
+      "candidate_id": "CAND-B72E480BD8ADA0BAAADDB594",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -500,7 +501,7 @@
       "blockers": [
         "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-78762B303EA11AF80300E2C3",
+      "candidate_id": "CAND-D7C2183B68BBD711C74005C7",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -926,6 +927,19 @@
       "threshold": 30,
       "unit": "minutes",
       "value": 120
+    },
+    "EVID-756332815C5D1223CA4A8740": {
+      "comparator": "<= downsize-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-756332815C5D1223CA4A8740",
+      "interpretation": "Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on.",
+      "metric": "failure_cancel_pct_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "execution_status",
+      "threshold": 5.0,
+      "unit": "%",
+      "value": 0.3
     },
     "EVID-758B77C00654A7C0ADB79FEF": {
       "comparator": ">= reduction signal",
@@ -1375,8 +1389,8 @@
     },
     "excluded_scenarios": [],
     "included_scenario_ids": [
-      "SCN-F6C96142718566E6610757F4",
-      "SCN-4CE208EB461A228615816740"
+      "SCN-E1D619112BE62AFA050EA71A",
+      "SCN-B49B73B0344B4AF52B454990"
     ],
     "scenario_envelope": {
       "maximum_savings": {
@@ -1391,7 +1405,7 @@
           "dbu": 13846.85,
           "total": 25571.95
         },
-        "scenario_id": "SCN-4CE208EB461A228615816740"
+        "scenario_id": "SCN-B49B73B0344B4AF52B454990"
       },
       "minimum_savings": {
         "bound": "LOW",
@@ -1405,7 +1419,7 @@
           "dbu": -6517.24,
           "total": -1827.2
         },
-        "scenario_id": "SCN-F6C96142718566E6610757F4"
+        "scenario_id": "SCN-E1D619112BE62AFA050EA71A"
       },
       "recommended_base": {
         "bound": "BASE",
@@ -1419,7 +1433,7 @@
           "dbu": 3537.93,
           "total": 10338.49
         },
-        "scenario_id": "SCN-F6C96142718566E6610757F4"
+        "scenario_id": "SCN-E1D619112BE62AFA050EA71A"
       }
     },
     "semantics": {
@@ -1429,18 +1443,18 @@
     }
   },
   "provenance": {
-    "analyzer_version": "sql-warehouse-analyzer-v2.7.1",
-    "bundle_estimator_version": "stateful-resource-bundle-v2.7.1",
+    "analyzer_version": "sql-warehouse-analyzer-v2.8.0",
+    "bundle_estimator_version": "stateful-resource-bundle-v2.8.0",
     "contract_version": "1.1.0",
-    "decision_graph_version": "warehouse-decision-graph-v2.7.1",
-    "estimator_version": "counterfactual-v2.7.1",
-    "evidence_fingerprint": "SHA256:1FD59EB99338E379EA50212878D57A0AA6B87CB0873DB7E2342A3098FF66A92A",
+    "decision_graph_version": "warehouse-decision-graph-v2.8.0",
+    "estimator_version": "counterfactual-v2.8.0",
+    "evidence_fingerprint": "SHA256:367CFCA3A5AB8ECB702123DF55E8D3CABD3FA1DE51AC4A6E1F4D90EBE06A010C",
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.7",
-    "optimizer_version": "sql-warehouse-optimizer-v2.7.1",
-    "package_hash_full_sha256": "CAA063CBB4924A9B7B8E45143C629598EB3936DC7B739AB7E5F509A31EEC07BB",
-    "policy_version": "sql-warehouse-policy-v2.7.1",
-    "reviewer_version": "recommendation-reviewer-v2.7.1",
+    "optimizer_version": "sql-warehouse-optimizer-v2.8.0",
+    "package_hash_full_sha256": "3BA4F39CA2D09D98401702A22388C8B03028A337216BCB409454352B0041CC67",
+    "policy_version": "sql-warehouse-policy-v2.8.0",
+    "reviewer_version": "recommendation-reviewer-v2.8.0",
     "source_regions": [
       "us-east-1"
     ],
@@ -1465,21 +1479,21 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-CAA063CBB4924A9B7B8E4514",
+  "recommendation_package_id": "PKG-3BA4F39CA2D09D98401702A2",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
     "next_action": "RUN_WAREHOUSE_SIZE_CANARY",
     "requires_hitl": true,
-    "scenario_id": "SCN-F6C96142718566E6610757F4",
+    "scenario_id": "SCN-E1D619112BE62AFA050EA71A",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-CDC9DD7E27E8CA6ED23E9CEB",
-        "CAND-4CD23256DB0CA20822638058",
-        "CAND-F7CD1FD114943EA1AAB92DF2",
-        "CAND-1EB011ABA71F8CF380C298A8"
+        "CAND-DAC9E910F2A94A05B67B302A",
+        "CAND-567E1FFD79E2F9A61A59510F",
+        "CAND-585D0C22F7A86D37CE5BCDE5",
+        "CAND-B72E480BD8ADA0BAAADDB594"
       ],
       "compatibility": {
         "checks": [],
@@ -1498,6 +1512,7 @@
         "EVID-B2362D5F32380977A933F401",
         "EVID-FDBFFBC774D23EA471B31E96",
         "EVID-4D3C96F560A56E7EC4E79822",
+        "EVID-756332815C5D1223CA4A8740",
         "EVID-6EA74D3474DEBD48A2D18AA3",
         "EVID-A86EAA13EE5082AEC4DF0A44",
         "EVID-844D3CCD8E1426B8521EC841",
@@ -1528,7 +1543,7 @@
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-CDC9DD7E27E8CA6ED23E9CEB",
+          "candidate_id": "CAND-DAC9E910F2A94A05B67B302A",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1596,7 +1611,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-4CD23256DB0CA20822638058",
+          "candidate_id": "CAND-567E1FFD79E2F9A61A59510F",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1662,7 +1677,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-F7CD1FD114943EA1AAB92DF2",
+          "candidate_id": "CAND-585D0C22F7A86D37CE5BCDE5",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1733,7 +1748,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-1EB011ABA71F8CF380C298A8",
+          "candidate_id": "CAND-B72E480BD8ADA0BAAADDB594",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1905,14 +1920,14 @@
           }
         }
       },
-      "scenario_id": "SCN-F6C96142718566E6610757F4",
+      "scenario_id": "SCN-E1D619112BE62AFA050EA71A",
       "scenario_name": "Plan A \u2014 Optimize current warehouse type",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
     },
     {
       "candidate_refs": [
-        "CAND-78762B303EA11AF80300E2C3"
+        "CAND-D7C2183B68BBD711C74005C7"
       ],
       "compatibility": {
         "checks": [
@@ -2034,7 +2049,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-78762B303EA11AF80300E2C3",
+          "candidate_id": "CAND-D7C2183B68BBD711C74005C7",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -2173,7 +2188,7 @@
           }
         }
       },
-      "scenario_id": "SCN-4CE208EB461A228615816740",
+      "scenario_id": "SCN-B49B73B0344B4AF52B454990",
       "scenario_name": "Plan B \u2014 Serverless migration experiment",
       "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
       "status": "ALTERNATIVE"

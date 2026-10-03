@@ -1,4 +1,4 @@
-# CLAUDE.md — v2.7.1 execution rules
+# CLAUDE.md — v2.8.0 execution rules
 
 ## Primary invariants
 - `RecommendationPackage` under Reporter JSON Contract v1.1.0 is the public machine source of truth.

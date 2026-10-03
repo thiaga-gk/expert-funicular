@@ -1,60 +1,60 @@
-2026-10-03T15:38:23Z INFO publisher.start version=2.7.1
-2026-10-03T15:38:23Z INFO policy.versions policy=sql-warehouse-policy-v2.7.1 analyzer=sql-warehouse-analyzer-v2.7.1 optimizer=sql-warehouse-optimizer-v2.7.1 estimator=counterfactual-v2.7.1 bundle=stateful-resource-bundle-v2.7.1
-2026-10-03T15:38:23Z INFO mode.demo synthetic_collector_warehouses=15
-2026-10-03T15:38:23Z INFO pipeline.start warehouses=15 batch_size=100
-2026-10-03T15:38:23Z INFO pipeline.batch.start batch_index=1 start=0 size=15
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-001 name=BI - Sales epoch_id=EPOCH-D648843D370D13A7
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-001 statuses={"ACTIONABLE":2,"NO_CHANGE":1,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-4E8252DF0D12B097
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-004 name=ETL Heavy epoch_id=EPOCH-0ADF347A6F590131
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-004 statuses={"ACTIONABLE":2,"NO_CHANGE":3,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-7ABABD1374F961E4
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-006 name=Executive Dashboards epoch_id=EPOCH-51A28BBC1C6532B8
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-006 statuses={"ACTIONABLE":2,"NO_CHANGE":1,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-53DCB09259DD1C92
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-005 name=Finance Concurrency epoch_id=EPOCH-B0918F2A2D1F1D8A
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-005 statuses={"ACTIONABLE":1,"NO_CHANGE":4,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-15899C1657659DBA
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-002 name=Finance Executive epoch_id=EPOCH-4BD73C84AE14292F
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-002 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-3E0C4AD813E45FBB
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-003 name=Marketing Ad Hoc epoch_id=EPOCH-B8601DFFB2BFF89C
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-003 statuses={"ACTIONABLE":2,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-1559C8BEB68339E8
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-007 name=New Product Launch epoch_id=EPOCH-F3B7555119256DC6
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-007 statuses={"BLOCKED":1,"NO_CHANGE":4,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-C1DA167454E5F1A5
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-008 name=Serverless Analytics epoch_id=EPOCH-D06081D2BA3FA8E2
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-008 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-96CDABCC3982190E
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-010 name=Cold Start BI epoch_id=EPOCH-6AE2DFC342627637
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-010 statuses={"ACTIONABLE":1,"BLOCKED":1,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-176E8A23297C38C2
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-013 name=Customer 360 epoch_id=EPOCH-00AB7D427CB33992
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-013 statuses={"ACTIONABLE":2,"NO_CHANGE":3,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-DCC3AF82547F3C29
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-015 name=HR Reporting epoch_id=EPOCH-5D5C63545F3BA75D
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-015 statuses={"ACTIONABLE":1,"NO_CHANGE":2,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-F2B99F87241BDC75
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-014 name=Ops Dashboards epoch_id=EPOCH-9FAC5AE5884B08D9
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-014 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-A2A43DD94B17DEB7
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-009 name=Photon Migration Lab epoch_id=EPOCH-2CAC266D2CC5E8B7
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-009 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-187238B83724438B
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-011 name=Sandbox Sparse epoch_id=EPOCH-2EE31D4FD038B6A0
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-011 statuses={"BLOCKED":1,"NO_CHANGE":4,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-0BCCBF4058E0D84A
-2026-10-03T15:38:23Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-012 name=Supply Chain BI epoch_id=EPOCH-EF642EA4D66F3E86
-2026-10-03T15:38:23Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-012 statuses={"ACTIONABLE":2,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-07908C1E64AABDF9
-2026-10-03T15:38:23Z INFO pipeline.batch.done batch_index=1 processed=15
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-001 package_id=PKG-CAA063CBB4924A9B7B8E4514 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-004 package_id=PKG-3542FB38D0CE64996A1D7C9D candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-006 package_id=PKG-C269EAEEE79C014B6AC9A50D candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-005 package_id=PKG-CC33BDB742BBCA3EB867C0A2 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-002 package_id=PKG-69BA220DC5EC020D84CA55CB candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-003 package_id=PKG-1B297C98438DC42F237017DA candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-007 package_id=PKG-174715E982DCBFB8A89E70C3 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-008 package_id=PKG-127DD763EAF773382520242A candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-010 package_id=PKG-B2D290A3E27C723FA701C058 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-013 package_id=PKG-07F463C0C249905A57984274 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-015 package_id=PKG-860F9BF3834486EBE41DF046 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-014 package_id=PKG-7BBB53D3EBA7FF15A78C71B4 candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-009 package_id=PKG-64D236F637ADCD1FA2350E7B candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-011 package_id=PKG-B1B32F263A12954F8161595B candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-012 package_id=PKG-8A3D702F2E106E66AE0DA92A candidates=6 scenarios=2
-2026-10-03T15:38:23Z INFO pipeline.done warehouses=15 packages=15 candidates=90 scenarios=30
-2026-10-03T15:38:23Z INFO contract.v1.package.start output_dir=examples/demo_output packages=15
-2026-10-03T15:38:23Z INFO workbook.v1.start packages=15
-2026-10-03T15:38:23Z INFO workbook.v1.done path=examples/demo_output/workbook.xlsx
-2026-10-03T15:38:23Z INFO contract.v1.package.done packages=15
-2026-10-03T15:38:23Z INFO publisher.done warehouses=15 packages=15 candidates=90 scenarios=30 log=examples/demo_output/publisher.log
+2026-10-03T19:46:50Z INFO publisher.start version=2.8.0
+2026-10-03T19:46:50Z INFO policy.versions policy=sql-warehouse-policy-v2.8.0 analyzer=sql-warehouse-analyzer-v2.8.0 optimizer=sql-warehouse-optimizer-v2.8.0 estimator=counterfactual-v2.8.0 bundle=stateful-resource-bundle-v2.8.0
+2026-10-03T19:46:50Z INFO mode.demo synthetic_collector_warehouses=15
+2026-10-03T19:46:50Z INFO pipeline.start warehouses=15 batch_size=100
+2026-10-03T19:46:50Z INFO pipeline.batch.start batch_index=1 start=0 size=15
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-001 name=BI - Sales epoch_id=EPOCH-D648843D370D13A7
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-001 statuses={"ACTIONABLE":2,"NO_CHANGE":1,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-F473305681EFDE06
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-004 name=ETL Heavy epoch_id=EPOCH-0ADF347A6F590131
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-004 statuses={"ACTIONABLE":2,"NO_CHANGE":3,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-B0CE24EEFBDBB066
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-006 name=Executive Dashboards epoch_id=EPOCH-51A28BBC1C6532B8
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-006 statuses={"ACTIONABLE":2,"NO_CHANGE":1,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-D9B8B13B2881B07A
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-005 name=Finance Concurrency epoch_id=EPOCH-B0918F2A2D1F1D8A
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-005 statuses={"ACTIONABLE":1,"NO_CHANGE":4,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-C94941CA30BC74E9
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-002 name=Finance Executive epoch_id=EPOCH-4BD73C84AE14292F
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-002 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-B59C0D595B1ABCDB
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-003 name=Marketing Ad Hoc epoch_id=EPOCH-B8601DFFB2BFF89C
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-003 statuses={"ACTIONABLE":2,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-8FDEF638BB19FF60
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-007 name=New Product Launch epoch_id=EPOCH-F3B7555119256DC6
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-007 statuses={"BLOCKED":1,"INSUFFICIENT_EVIDENCE":1,"NO_CHANGE":4} scenarios=2 recommended_scenario=SCN-2C897743E797FBBE
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-008 name=Serverless Analytics epoch_id=EPOCH-D06081D2BA3FA8E2
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-008 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-3BBD8BF12CC33939
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-010 name=Cold Start BI epoch_id=EPOCH-6AE2DFC342627637
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-010 statuses={"ACTIONABLE":1,"BLOCKED":1,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-3BA9EBD1C8BE47BF
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-013 name=Customer 360 epoch_id=EPOCH-00AB7D427CB33992
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-013 statuses={"ACTIONABLE":2,"NO_CHANGE":3,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-B0E1B2C93876474A
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-015 name=HR Reporting epoch_id=EPOCH-5D5C63545F3BA75D
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-015 statuses={"ACTIONABLE":1,"NO_CHANGE":2,"TEST_REQUIRED":3} scenarios=2 recommended_scenario=SCN-728170EA21206F67
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-014 name=Ops Dashboards epoch_id=EPOCH-9FAC5AE5884B08D9
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-014 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-C35B2BAB7325071E
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-009 name=Photon Migration Lab epoch_id=EPOCH-2CAC266D2CC5E8B7
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-009 statuses={"ACTIONABLE":1,"NO_CHANGE":3,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-40C2FE822F5696CC
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-011 name=Sandbox Sparse epoch_id=EPOCH-2EE31D4FD038B6A0
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-011 statuses={"BLOCKED":1,"NO_CHANGE":4,"TEST_REQUIRED":1} scenarios=2 recommended_scenario=SCN-45AFBA2D6F028B71
+2026-10-03T19:46:50Z INFO warehouse.start workspace_id=2234567890123456 warehouse_id=wh-synth-012 name=Supply Chain BI epoch_id=EPOCH-EF642EA4D66F3E86
+2026-10-03T19:46:50Z INFO warehouse.decisions workspace_id=2234567890123456 warehouse_id=wh-synth-012 statuses={"ACTIONABLE":2,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-FA17D3BD485B61FF
+2026-10-03T19:46:50Z INFO pipeline.batch.done batch_index=1 processed=15
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-001 package_id=PKG-3BA4F39CA2D09D98401702A2 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-004 package_id=PKG-94708DA4314591AE1A094826 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-006 package_id=PKG-A88C246FEB82985004538A4B candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-005 package_id=PKG-2F1E4946047B169734FD3E7C candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-002 package_id=PKG-1A36A56E13C0F1C844A9B720 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-003 package_id=PKG-2A3B6FE2F6DF3951AD5A991C candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-007 package_id=PKG-C2BA122DB9F5C7BA674FEB5A candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-008 package_id=PKG-0BF64043B3246E34077278A4 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-010 package_id=PKG-94221A88FCC26CDD4E97C3DB candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-013 package_id=PKG-BA66C219708DB217FA5D16CD candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-015 package_id=PKG-B359CEE309463C67727F4737 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-014 package_id=PKG-E9241458D19D86459E878919 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-009 package_id=PKG-B63013D458FDCDAA74198601 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-011 package_id=PKG-C8E9F9F3FE6FECF8B1F2C852 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO contract.v1.package.valid workspace_id=2234567890123456 warehouse_id=wh-synth-012 package_id=PKG-78B04335C6149C99A956F907 candidates=6 scenarios=2
+2026-10-03T19:46:51Z INFO pipeline.done warehouses=15 packages=15 candidates=90 scenarios=30
+2026-10-03T19:46:51Z INFO contract.v1.package.start output_dir=examples/demo_output packages=15
+2026-10-03T19:46:51Z INFO workbook.v1.start packages=15
+2026-10-03T19:46:51Z INFO workbook.v1.done path=examples/demo_output/workbook.xlsx
+2026-10-03T19:46:51Z INFO contract.v1.package.done packages=15
+2026-10-03T19:46:51Z INFO publisher.done warehouses=15 packages=15 candidates=90 scenarios=30 log=examples/demo_output/publisher.log
 Analyzed 15 warehouse(s); emitted 15 locked Reporter Contract v1.1.0 package(s), 90 candidates, and 30 scenarios.
 package:1234567890123456:wh-synth-001: examples/demo_output/packages/1234567890123456__wh-synth-001.json
 package:1234567890123456:wh-synth-004: examples/demo_output/packages/1234567890123456__wh-synth-004.json
