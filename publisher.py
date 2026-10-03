@@ -142,6 +142,11 @@ class Thresholds:
     time_at_min_pct_reduce: float = 25.0
     time_at_max_pct_block_min_reduce: float = 20.0
     time_at_max_pct_safe_reduce: float = 1.0
+    # Saturation = real time at the configured ceiling. A peak above max is not evidence (cluster recycling can briefly exceed it).
+    time_at_max_pct_saturated: float = 5.0
+    # A reduced ceiling must leave growth room above the observed peak: max(clusters, ceil(pct x peak)).
+    max_cluster_headroom_clusters: int = 1
+    max_cluster_headroom_pct: float = 25.0
     max_clusters_supported_limit: int = 40
     min_clusters_supported_limit: int = 30
 
@@ -1909,11 +1914,12 @@ class Optimizer:
 
         # Max clusters
         a=analyses["max_clusters"]; f=a.facts
-        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is None and f["max_observed"] >= cfg.max_clusters:
+        saturated = f["at_max_pct"] >= self.t.time_at_max_pct_saturated
+        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is None and saturated:
             out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
                 {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"],
                 ["warehouse_size"],[],[],"Queueing and saturation cross the increase thresholds, but capacity-wait severity was not reported (older collector evidence); no change is recommended."))
-        elif f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
+        elif f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and saturated:
             if cfg.max_clusters >= self.t.max_clusters_supported_limit:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
@@ -1927,14 +1933,17 @@ class Optimizer:
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
                     "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
         else:
+            peak = f["max_observed"]
+            headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * peak))
+            reduced_max = max(cfg.min_clusters, peak + headroom)
             reduce_ok = (
                 cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
                 and f["queries_30"] >= self.t.min_query_sample_size and f["queue_pct"] <= self.t.queue_query_pct_safe
-                and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and f["max_observed"] > 0
-                and f["max_observed"] < cfg.max_clusters
+                and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
+                and reduced_max < cfg.max_clusters
             )
             if reduce_ok:
-                target=max(cfg.min_clusters,min(cfg.max_clusters-1,f["max_observed"]+1))
+                target=reduced_max
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
                     "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))

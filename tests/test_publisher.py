@@ -790,6 +790,58 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status, "BLOCKED")
         self.assertIn("COLD_START_SENSITIVE", c.blockers)
 
+    def scaled(self, golden, *, max_clusters=None, **events):
+        """Severity-schema golden fixture with the current epoch's max_clusters / events overridden (audit M3)."""
+        import dataclasses
+        ev = self.severity_evidence(golden)
+        ep = ev[0].current_epoch
+        if max_clusters is not None:
+            ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
+        ep.events.update(events)
+        return ev
+
+    def queued(self, **overrides):
+        return self.scaled("concurrency-constrained", **overrides)
+
+    def increase_candidate(self, **events):
+        ev = self.queued(**events)
+        q = ev[0].current_epoch.query
+        q.update(queued_query_pct_30=5.0, queued_queries_30=600, p95_wait_capacity_ms_when_queued_30=45000)
+        return self.candidate(ev, "max_clusters")
+
+    def test_cluster_recycling_blip_above_max_is_not_saturation(self):
+        # Peak 3 > configured max 2 (recycle transient) but only 0.2% of running time actually at the ceiling.
+        c = self.increase_candidate(max_observed_clusters=3, time_at_max_pct=0.2, minutes_at_max=20)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_increase_needs_sustained_time_at_max_with_boundary(self):
+        limit = self.t.time_at_max_pct_saturated
+        self.assertEqual(limit, 5.0)
+        up = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit)
+        self.assertEqual(up.status, "ACTIONABLE")
+        self.assertEqual(up.recommended_config["max_clusters"], 3)
+        below = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit - 0.01)
+        self.assertEqual(below.status, "NO_CHANGE")
+
+    def reduction(self, max_clusters, peak):
+        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=peak, time_at_max_pct=0.0, minutes_at_max=0.0)
+        return self.candidate(ev, "max_clusters")
+
+    def test_max_reduction_keeps_headroom_above_observed_peak(self):
+        # Before: max 4, peak 3 -> target 3 (no growth room at all). Now one cluster of headroom is required.
+        self.assertEqual(self.reduction(4, 3).status, "NO_CHANGE")
+        self.assertEqual(self.reduction(4, 2).recommended_config["max_clusters"], 3)
+        # Headroom scales with the peak: max(1, ceil(25% x peak)). Peak 8 needs 2 -> 10, which is not below max 10.
+        self.assertEqual(self.reduction(10, 8).status, "NO_CHANGE")
+        self.assertEqual(self.reduction(10, 4).recommended_config["max_clusters"], 5)
+        self.assertEqual(self.reduction(10, 5).recommended_config["max_clusters"], 7)
+        self.assertEqual(self.reduction(10, 2).recommended_config["max_clusters"], 3)
+
+    def test_max_reduction_never_goes_below_min_clusters(self):
+        c = self.reduction(10, 1)  # idle-expensive min_clusters is 2
+        self.assertEqual(c.recommended_config["max_clusters"], 2)
+
     def test_few_long_capacity_waits_block_min_cluster_reduction(self):
         # Guard rules fire on any affected queries: 12 queued queries (0.1%) waiting 20s block a savings change.
         ev = self.severity_evidence("idle-expensive-warehouse", queued_query_pct_30=0.1, queued_queries_30=12,
