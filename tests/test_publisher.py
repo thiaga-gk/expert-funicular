@@ -81,6 +81,37 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertLessEqual(portfolio.high, self.w.total_365d_baseline_cost)
         self.assertIn("cluster-minutes", chosen.portfolio_estimate.method)
 
+    def test_min_cluster_reduction_is_a_canary_candidate_not_actionable(self):
+        # H4: time at the floor proves the autoscaler sat at min, not that a floor cluster was spare.
+        c = self.by_knob["min_clusters"]
+        self.assertEqual(c.status, "TEST_REQUIRED")
+        self.assertIn("SPARE_FLOOR_CAPACITY_UNPROVEN", c.blockers)
+        self.assertEqual(c.recommended_config, {"min_clusters": 1})
+        plan = next(s for s in self.w.scenarios if s.recommended)
+        step = next(x for x in plan.steps if x.knob == "min_clusters")
+        self.assertIn("CANARY", step.validation_gate)
+
+    def test_min_cluster_time_at_min_is_an_upper_bound_not_the_base(self):
+        c = self.by_knob["min_clusters"]
+        r = c.estimated_savings_range_365
+        # Low: the floor capacity may have been needed, so the change may save nothing.
+        self.assertAlmostEqual(r.low, 0.0, places=2)
+        # High is the old time-at-min figure, now labelled as an upper bound; base is the policy midpoint of it.
+        self.assertGreater(r.high, 0)
+        self.assertAlmostEqual(r.base, r.high * self.t.min_cluster_realization_base, places=2)
+        self.assertLess(r.base, 0.75 * r.high)  # the pre-fix base was 75% of this figure
+        self.assertTrue(c.metadata["savings_high_is_upper_bound"])
+        self.assertIn("upper bound", c.metadata["method"])
+
+    def test_bundle_prices_min_cluster_with_the_same_realization_as_the_candidate(self):
+        c = self.by_knob["min_clusters"]
+        step = p.PlanStep(1, c.recommendation_id, "min_clusters", c.current_config, c.recommended_config,
+                          c.status, "A_B_CANARY", 7, [], [])
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [step], {c.recommendation_id: c})
+        got, want = port.estimated_savings_range_365, c.estimated_savings_range_365
+        for g, w in ((got.low, want.low), (got.base, want.base), (got.high, want.high)):
+            self.assertAlmostEqual(g, w, delta=1.0)
+
     def test_scenario_contract_and_order(self):
         self.assertEqual([s.name for s in self.w.scenarios], [
             "Plan A — Optimize current warehouse type", "Plan B — Serverless migration experiment"
@@ -339,7 +370,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_idle_expensive(self):
         _,r=self.load("idle-expensive-warehouse"); w=self.warehouse(r,"wh-demo-001"); by={c.knob:c for c in w.candidates}
-        self.assertEqual(by["min_clusters"].status,"ACTIONABLE"); self.assertEqual(by["auto_stop_minutes"].status,"ACTIONABLE")
+        self.assertEqual(by["min_clusters"].status,"TEST_REQUIRED"); self.assertEqual(by["auto_stop_minutes"].status,"ACTIONABLE")
         self.assertGreater(w.aws_365d_baseline_cost,0)
 
     def test_spill_constrained(self):

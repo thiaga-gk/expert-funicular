@@ -1322,7 +1322,7 @@ The product may produce:
 Photon       ENABLED -> ENABLED     NO_CHANGE
 Size         LARGE -> MEDIUM        TEST_REQUIRED
 Max clusters 4 -> 3                 ACTIONABLE
-Min clusters 2 -> 1                 ACTIONABLE
+Min clusters 2 -> 1                 TEST_REQUIRED
 Auto-stop    120 -> 30              ACTIONABLE
 Type         PRO -> SERVERLESS      TEST_REQUIRED / alternative
 ```

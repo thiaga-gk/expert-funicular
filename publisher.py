@@ -168,6 +168,12 @@ class Thresholds:
     realization_base: float = 0.75
     realization_optimistic: float = 1.00
     min_cluster_savings_fraction_cap: float = 0.50
+    # Time at the min-cluster floor shows the autoscaler sat at the floor, not that a floor cluster was
+    # spare. The time-at-min figure is therefore an upper bound on removable capacity (optimistic = 100%),
+    # the floor capacity may have been needed (conservative = 0%), and base is the midpoint (audit H4).
+    min_cluster_realization_optimistic: float = 1.00
+    min_cluster_realization_base: float = 0.50
+    min_cluster_realization_conservative: float = 0.00
     max_cluster_uplift_fraction_cap: float = 0.50
     max_cluster_base_uplift_weight: float = 0.50
     downsize_runtime_multiplier_conservative: float = 1.55
@@ -1966,9 +1972,11 @@ class Optimizer:
             if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
             if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
             if not blockers:
-                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","ACTIONABLE",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},[],["warehouse_size","max_clusters"],
-                    ["auto_stop_minutes"],["auto_stop_minutes"],"Warehouse spends substantial time at minimum capacity without queue/scale pressure."))
+                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
+                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
+                    ["A_B_PERFORMANCE_VALIDATION_REQUIRED","SPARE_FLOOR_CAPACITY_UNPROVEN"],["warehouse_size","max_clusters"],
+                    ["auto_stop_minutes"],["auto_stop_minutes"],
+                    "Warehouse spends substantial time at minimum capacity without queue/scale pressure; time at the floor does not prove a floor cluster was spare, so the reduction is a canary candidate and its savings an upper-bound range."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},blockers,["warehouse_size","max_clusters"],[],[],
@@ -2098,11 +2106,14 @@ class Estimator:
             delta=max(0,current-target)
             theoretical_removed=minutes_at_min*delta
             raw=clamp(theoretical_removed/cluster,0,self.t.min_cluster_savings_fraction_cap) if cluster>0 else 0
-            factors=Range3(1-raw*self.t.realization_optimistic,1-raw*self.t.realization_base,1-raw*self.t.realization_conservative)
+            realization=[self.t.min_cluster_realization_optimistic,self.t.min_cluster_realization_base,self.t.min_cluster_realization_conservative]
+            factors=Range3(*(1-raw*r for r in realization))
             return factors,{
-                "method":"remove baseline cluster-minutes observed while current epoch sat at minimum",
+                "method":"cluster-minutes observed at the minimum are an upper bound on removable capacity (the floor may have been needed); high savings is that upper bound, low is no savings, base is the policy midpoint; canary required",
                 "raw_savings_fraction":round(raw,4),
-                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":theoretical_removed,"target_min_clusters":target},
+                "savings_high_is_upper_bound":True,
+                # The capped removable minutes (not the raw time-at-min) feed the stateful bundle so both models agree.
+                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":raw*cluster,"target_min_clusters":target,"realization":realization},
                 **meta,
             }
 
@@ -2492,7 +2503,8 @@ class StatefulBundleEstimator:
                 else:
                     theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*current_min
                     target_min=current_min
-                for i,realization in enumerate(realizations):
+                effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
+                for i,realization in enumerate(effect_realizations):
                     before=resource_tracks[i]
                     if before<=0: continue
                     removed=min(before,theoretical*realization)
@@ -2536,6 +2548,7 @@ class ScenarioPlanner:
         if c.knob=="warehouse_channel": return "HITL_CONFIRM_PREVIEW_DEPENDENCIES"
         if c.knob=="enable_photon" and c.status=="TEST_REQUIRED": return "A_B_CANARY_PHOTON_RUNTIME_DBU_COST"
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
+        if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
