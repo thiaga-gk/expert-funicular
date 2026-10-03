@@ -126,6 +126,9 @@ class Thresholds:
     # Size / spill / latency
     spill_query_pct_upsize: float = 2.0
     spill_p95_bytes_upsize: int = GIB
+    # Severity percentiles are taken among affected queries; rules that add capacity/cost need a p95
+    # backed by at least this many affected queries (below ~20 samples a p95 is just the maximum).
+    severity_min_affected_queries: int = 20
     spill_query_pct_downsize_safe: float = 0.1
     p95_execution_ms_downsize_safe: int = 5_000
     p99_execution_ms_downsize_safe: int = 30_000
@@ -598,8 +601,10 @@ SELECT
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS) AS queries_30,
   COUNT(DISTINCT CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN DATE(start_time) END) AS active_days_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN total_duration_ms END, 0.95) AS p95_total_ms_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN waiting_for_compute_duration_ms END, 0.95) AS p95_wait_compute_ms_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN waiting_at_capacity_duration_ms END, 0.95) AS p95_wait_capacity_ms_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_for_compute_duration_ms,0) > 0) AS compute_wait_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_for_compute_duration_ms > 0 THEN waiting_for_compute_duration_ms END, 0.95) AS p95_wait_compute_ms_when_waited_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_at_capacity_duration_ms,0) > 0) AS queued_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_at_capacity_duration_ms > 0 THEN waiting_at_capacity_duration_ms END, 0.95) AS p95_wait_capacity_ms_when_queued_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.95) AS p95_execution_ms_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.99) AS p99_execution_ms_30,
   MAX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END) AS max_execution_ms_30,
@@ -607,7 +612,8 @@ SELECT
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS queued_query_pct_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0)
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS spill_query_pct_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) END,0.95) AS p95_spill_bytes_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0) AS spill_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
   SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) ELSE 0 END)/POW(1024,3) AS total_spill_gib_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(read_bytes,0) END,0.95) AS p95_read_bytes_30,
   AVG(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN read_io_cache_percent END) AS avg_read_io_cache_percent_30,
@@ -863,6 +869,24 @@ def safe_int(value: Any, default: int = 0) -> int:
         return default if value is None else int(value)
     except (TypeError, ValueError):
         return default
+
+
+def conditional_severity(q: Dict[str, Any], count_key: str, p95_key: str) -> Tuple[Optional[float], int]:
+    """p95 severity among *affected* queries, plus how many queries were affected.
+
+    Returns (None, 0) when the collector did not report the affected-query count (older evidence): the
+    severity is unknown, never zero. A reported count of 0 means no query was affected: (0.0, 0).
+    """
+    if q.get(count_key) is None:
+        return None, 0
+    n = safe_int(q.get(count_key))
+    if n <= 0:
+        return 0.0, 0
+    return (None if q.get(p95_key) is None else safe_float(q.get(p95_key))), n
+
+
+def round_or_none(value: Optional[float], digits: int = 0) -> Optional[float]:
+    return None if value is None else (round(value) if digits == 0 else round(value, digits))
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
@@ -1721,29 +1745,31 @@ class Analyzer:
         out["enable_photon"] = AnalysisResult(e.warehouse_id,"enable_photon",ep.epoch_id,fs,{**common,"photon_status":photon.status,"photon_enabled_usage_pct":photon.enabled_usage_pct,"photon_feature_coverage_pct":photon.known_feature_coverage_pct,"photon_freshness_days":photon.freshness_days,"photon_confidence":photon.confidence})
 
         # Size
-        spill_pct = safe_float(q.get("spill_query_pct_30")); spill_p95 = safe_float(q.get("p95_spill_bytes_30"))
+        spill_pct = safe_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         queue_pct = safe_float(q.get("queued_query_pct_30")); p95 = safe_float(q.get("p95_execution_ms_30")); p99 = safe_float(q.get("p99_execution_ms_30"))
         fs = [
             self._f(e,"warehouse_size","warehouse_size",cfg.warehouse_size,table="system.compute.warehouses",field="warehouse_size",window="current epoch",interpretation="Current warehouse size."),
             self._f(e,"warehouse_size","spill_query_pct_30",round(spill_pct,4),unit="%",threshold=self.t.spill_query_pct_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Frequency of queries spilling to local storage."),
-            self._f(e,"warehouse_size","p95_spill_bytes_30",round(spill_p95),unit="bytes",threshold=self.t.spill_p95_bytes_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Severity of spill at p95."),
+            self._f(e,"warehouse_size","spill_queries_30",spill_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for upsize",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Queries that spilled; the spill severity percentile is computed over these queries only."),
+            self._f(e,"warehouse_size","p95_spill_bytes_when_spilled_30",round_or_none(spill_p95),unit="bytes",threshold=self.t.spill_p95_bytes_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Severity of spill at p95 among queries that spilled."),
             self._f(e,"warehouse_size","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_safe,comparator="<= downsize-safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Concurrency pressure during the decision window."),
             self._f(e,"warehouse_size","p95_execution_ms_30",round(p95),unit="ms",threshold=self.t.p95_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Tail execution latency guardrail."),
             self._f(e,"warehouse_size","p99_execution_ms_30",round(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
             self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
         ]
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"queue_pct":queue_pct,"p95_exec":p95,"p99_exec":p99})
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"p95_exec":p95,"p99_exec":p99})
 
         # Max clusters
-        wait = safe_float(q.get("p95_wait_capacity_ms_30")); max_obs = safe_int(ev.get("max_observed_clusters")); at_max = safe_float(ev.get("time_at_max_pct"))
+        wait, queue_n = conditional_severity(q, "queued_queries_30", "p95_wait_capacity_ms_when_queued_30"); max_obs = safe_int(ev.get("max_observed_clusters")); at_max = safe_float(ev.get("time_at_max_pct"))
         fs = [
             self._f(e,"max_clusters","max_clusters",cfg.max_clusters,table="system.compute.warehouses",field="max_clusters",window="current epoch",interpretation="Configured concurrency ceiling."),
             self._f(e,"max_clusters","max_observed_clusters",max_obs,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Highest observed scale level."),
             self._f(e,"max_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_safe_reduce,comparator="<= reduce-safe",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Fraction of running time at configured maximum."),
             self._f(e,"max_clusters","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Frequency of capacity queueing."),
-            self._f(e,"max_clusters","p95_wait_capacity_ms_30",round(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing."),
+            self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
+            self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"minutes_at_max":safe_float(ev.get("minutes_at_max")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"minutes_at_max":safe_float(ev.get("minutes_at_max")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
         # Min clusters
         at_min = safe_float(ev.get("time_at_min_pct"))
@@ -1751,7 +1777,7 @@ class Analyzer:
             self._f(e,"min_clusters","min_clusters",cfg.min_clusters,table="system.compute.warehouses",field="min_clusters",window="current epoch",interpretation="Configured minimum scale."),
             self._f(e,"min_clusters","time_at_min_pct",round(at_min,4),unit="%",threshold=self.t.time_at_min_pct_reduce,comparator=">= reduction signal",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="How often the warehouse sits at its minimum."),
             self._f(e,"min_clusters","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue guardrail before reducing baseline capacity."),
-            self._f(e,"min_clusters","p95_wait_capacity_ms_30",round(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail."),
+            self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
         out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
@@ -1763,18 +1789,19 @@ class Analyzer:
             else self.t.medium_activity_auto_stop_target_minutes if per_day < self.t.medium_activity_queries_per_day
             else self.t.high_activity_auto_stop_target_minutes
         )
-        saved_idle = safe_float(gaps.get(f"saved_idle_minutes_if_{target}")); uptime = safe_float(ev.get("uptime_minutes")); wait_compute=safe_float(q.get("p95_wait_compute_ms_30"))
+        saved_idle = safe_float(gaps.get(f"saved_idle_minutes_if_{target}")); uptime = safe_float(ev.get("uptime_minutes")); wait_compute, wait_compute_n = conditional_severity(q, "compute_wait_queries_30", "p95_wait_compute_ms_when_waited_30")
         gap_count=safe_int(gaps.get("gap_count")); cluster_minutes=safe_float(ev.get("cluster_minutes"))
         fs = [
             self._f(e,"auto_stop_minutes","auto_stop_minutes",cfg.auto_stop_minutes,unit="minutes",threshold=target,comparator="> target",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting versus deterministic policy target."),
             self._f(e,"auto_stop_minutes","queries_per_active_day_30",round(per_day,2),unit="queries/day",table="system.query.history",field="start_time",window="last 30 days within current epoch",interpretation="Activity density selects the auto-stop target."),
             self._f(e,"auto_stop_minutes","idle_gap_count",gap_count,unit="gaps",threshold=self.t.min_idle_gap_sample_size,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="current epoch",interpretation="Non-overlapping inter-query gap sample supporting the auto-stop counterfactual."),
             self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window="current epoch",interpretation="Observed resource-time basis used to convert idle time into cost effect."),
-            self._f(e,"auto_stop_minutes","p95_wait_compute_ms_30",round(wait_compute),unit="ms",threshold=self.t.cold_start_p95_ms_block,comparator=">= cold-start blocker",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Cold-start sensitivity guardrail."),
+            self._f(e,"auto_stop_minutes","compute_wait_queries_30",wait_compute_n,unit="queries",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Queries that waited for compute; the wait percentile is computed over these queries only."),
+            self._f(e,"auto_stop_minutes","p95_wait_compute_ms_when_waited_30",round_or_none(wait_compute),unit="ms",threshold=self.t.cold_start_p95_ms_block,comparator=">= cold-start blocker",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Cold-start sensitivity guardrail at p95 among queries that waited for compute."),
             self._f(e,"auto_stop_minutes","starts_per_active_day_30",round(starts_per_day,4),unit="starts/day",threshold=self.t.cold_starts_per_active_day_block,comparator=">= cold-start blocker",table="system.compute.warehouse_events",field="event_type=STARTING",window="last 30 days within current epoch",interpretation="Restart frequency guardrail."),
             self._f(e,"auto_stop_minutes","estimated_additional_off_minutes",round(saved_idle,2),unit="minutes",table="system.query.history",field="inter-query gap",window="current epoch",interpretation="Estimated additional off-time at the candidate target."),
         ]
-        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"target":target,"saved_idle":saved_idle,"gap_count":gap_count,"uptime":uptime,"cluster_minutes":cluster_minutes,"current_min_clusters":cfg.min_clusters,"wait_compute":wait_compute,"starts_per_day":starts_per_day})
+        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"target":target,"saved_idle":saved_idle,"gap_count":gap_count,"uptime":uptime,"cluster_minutes":cluster_minutes,"current_min_clusters":cfg.min_clusters,"wait_compute":wait_compute,"wait_compute_n":wait_compute_n,"starts_per_day":starts_per_day})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -1855,15 +1882,16 @@ class Optimizer:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
                 {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
                 ["warehouse_channel","enable_photon"],[],[],"Warehouse size is outside the known deterministic ordering."))
-        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
+        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is not None and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
+            if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
             if target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel","enable_photon"],[],[],
-                    "Spill crosses the upsize thresholds, but the query sample or config epoch is too small/new to act on; no resize is recommended."))
+                    "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
             elif target:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel","enable_photon"],
@@ -1894,11 +1922,15 @@ class Optimizer:
 
         # Max clusters
         a=analyses["max_clusters"]; f=a.facts
-        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
+        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
             if cfg.max_clusters >= self.t.max_clusters_supported_limit:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                     ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
+            elif f["queue_n"] < self.t.severity_min_affected_queries:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_AFFECTED_QUERY_SAMPLE"],
+                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but too few queries queued for the wait percentile to be reliable; no change is recommended."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
@@ -1929,7 +1961,8 @@ class Optimizer:
             blockers=[]
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
-            if f["queue_pct"] > self.t.queue_query_pct_safe or f["wait_capacity"] > self.t.queue_wait_p95_ms_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
+            if f["queue_pct"] > self.t.queue_query_pct_safe or (f["wait_capacity"] is not None and f["wait_capacity"] > self.t.queue_wait_p95_ms_safe): blockers.append("QUEUE_PRESSURE_PRESENT")
+            if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
             if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
             if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
             if not blockers:
@@ -1953,7 +1986,8 @@ class Optimizer:
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if safe_int(f.get("gap_count")) < self.t.min_idle_gap_sample_size: blockers.append("INSUFFICIENT_IDLE_GAP_SAMPLE")
             if safe_float(f.get("cluster_minutes")) < self.t.min_cluster_minutes_for_cost_model: blockers.append("INSUFFICIENT_EVENT_RESOURCE_EVIDENCE")
-            if f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
+            if f["wait_compute"] is None: blockers.append("COLD_START_EVIDENCE_UNAVAILABLE")
+            elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
             status="ACTIONABLE" if not blockers else "BLOCKED"
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
@@ -3721,9 +3755,10 @@ def demo_evidence() -> List[WarehouseEvidence]:
         query={
             "epoch_queries": 110000, "epoch_active_days": 250,
             "queries_30": 12000, "active_days_30": 30,
-            "p95_total_ms_30": 3200, "p95_wait_compute_ms_30": 4000, "p95_wait_capacity_ms_30": 0,
+            "p95_total_ms_30": 3200, "compute_wait_queries_30": 8, "p95_wait_compute_ms_when_waited_30": 4000,
+            "queued_queries_30": 0, "p95_wait_capacity_ms_when_queued_30": None,
             "p95_execution_ms_30": 2500, "p99_execution_ms_30": 10000, "max_execution_ms_30": 220000,
-            "queued_query_pct_30": 0.0, "spill_query_pct_30": 0.0, "p95_spill_bytes_30": 0,
+            "queued_query_pct_30": 0.0, "spill_query_pct_30": 0.0, "spill_queries_30": 0, "p95_spill_bytes_when_spilled_30": None,
             "total_spill_gib_30": 0.0, "p95_read_bytes_30": 20 * 1024**2,
             "avg_read_io_cache_percent_30": 42.0, "failure_cancel_pct_30": 0.2,
             "result_cache_pct_30": 14.0, "tagged_query_pct_30": 78.0,
@@ -3832,11 +3867,14 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         source_counts["sql_query_source_queries_30"]=source_counts["sql_query_source_queries_30"] or int(q30*0.08)
         if source=="DASHBOARD": source_counts["power_bi_queries_30"]=int(q30*0.25)
         wait_compute=85000 if name=="Cold Start BI" else 3500
+        queued_n=round(queue_pct/100.0*q30); spill_n=round(spill_pct/100.0*q30)
+        compute_wait_n=starts  # compute waits come from the first query after each warehouse (re)start
         q={
             "epoch_queries":epoch_queries,"epoch_active_days":min(age_days,250),"queries_30":q30,"active_days_30":active_days,
-            "p95_total_ms_30":p95+1000,"p95_wait_compute_ms_30":wait_compute,"p95_wait_capacity_ms_30":wait_ms,
+            "p95_total_ms_30":p95+1000,"compute_wait_queries_30":compute_wait_n,"p95_wait_compute_ms_when_waited_30":wait_compute if compute_wait_n else None,
+            "queued_queries_30":queued_n,"p95_wait_capacity_ms_when_queued_30":wait_ms if queued_n else None,
             "p95_execution_ms_30":p95,"p99_execution_ms_30":p99,"max_execution_ms_30":max(p99*2,120000),
-            "queued_query_pct_30":queue_pct,"queue_time_share_pct_30":min(queue_pct,25.0),"spill_query_pct_30":spill_pct,"p95_spill_bytes_30":spill_p95,
+            "queued_query_pct_30":queue_pct,"queue_time_share_pct_30":min(queue_pct,25.0),"spill_query_pct_30":spill_pct,"spill_queries_30":spill_n,"p95_spill_bytes_when_spilled_30":spill_p95 if spill_n else None,
             "total_spill_gib_30":round(spill_pct*2,2),"p95_read_bytes_30":20*1024**2,"avg_read_io_cache_percent_30":35.0,
             "failure_cancel_pct_30":0.3,"result_cache_pct_30":10.0,"tagged_query_pct_30":70.0,
             "statement_text_visible_pct_30":100.0,"hive_metastore_reference_queries_30":0,

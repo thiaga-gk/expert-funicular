@@ -401,6 +401,103 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
         self.assertEqual(size["recommended_value"], size["current_value"])
 
+    # --- audit H3: severity is measured among *affected* queries, not all queries -------------------------
+    NO_SEVERITY = {
+        "spill_queries_30": 0, "p95_spill_bytes_when_spilled_30": None,
+        "queued_queries_30": 0, "p95_wait_capacity_ms_when_queued_30": None,
+        "compute_wait_queries_30": 0, "p95_wait_compute_ms_when_waited_30": None,
+    }
+
+    def severity_evidence(self, golden, **query):
+        """Golden fixture re-expressed in the conditional-severity schema, with `query` overrides."""
+        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for legacy in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
+            epoch["query"].pop(legacy, None)
+        epoch["query"].update(self.NO_SEVERITY)
+        epoch["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def candidate(self, evidence, knob):
+        return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
+
+    GIB10 = 10 * 1024**3
+
+    def test_rare_but_severe_spill_triggers_upsize(self):
+        # 3% of 12,000 queries spill 10 GiB; the other 97% spill nothing. The old all-query p95 was 0.
+        ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
+                                    p95_spill_bytes_when_spilled_30=self.GIB10)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
+
+    def test_spill_severity_is_judged_among_spilled_queries(self):
+        ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
+                                    p95_spill_bytes_when_spilled_30=200 * 1024**2)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertNotEqual(c.status, "ACTIONABLE")
+        self.assertIn("SPILL_PRESENT", c.blockers)
+
+    def test_upsize_needs_minimum_affected_queries(self):
+        # 100 queries is enough sample (H2), but 5 spilling queries cannot support a p95 severity claim.
+        ev = self.severity_evidence("spill-constrained", queries_30=100, spill_query_pct_30=5.0, spill_queries_30=5,
+                                    p95_spill_bytes_when_spilled_30=self.GIB10)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_AFFECTED_QUERY_SAMPLE", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_queue_severity_among_queued_queries_at_incidence_boundary(self):
+        # Exactly 5.0% queued with a 45s tail among queued queries: increase signal.
+        ev = self.severity_evidence("concurrency-constrained", queued_query_pct_30=5.0, queued_queries_30=600,
+                                    p95_wait_capacity_ms_when_queued_30=45000)
+        c = self.candidate(ev, "max_clusters")
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["max_clusters"], 3)
+        short = self.severity_evidence("concurrency-constrained", queued_query_pct_30=5.0, queued_queries_30=600,
+                                       p95_wait_capacity_ms_when_queued_30=10000)
+        self.assertNotEqual(self.candidate(short, "max_clusters").status, "ACTIONABLE")
+
+    def test_max_clusters_increase_needs_minimum_affected_queries(self):
+        ev = self.severity_evidence("concurrency-constrained", queries_30=100, queued_query_pct_30=10.0, queued_queries_30=10,
+                                    p95_wait_capacity_ms_when_queued_30=45000)
+        c = self.candidate(ev, "max_clusters")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_AFFECTED_QUERY_SAMPLE", c.blockers)
+
+    def test_cold_start_waits_on_first_queries_block_auto_stop(self):
+        # 30 first-after-start queries wait 120s out of 12,000; the all-query p95 compute wait was 0.
+        ev = self.severity_evidence("cold-start-sensitive", compute_wait_queries_30=30,
+                                    p95_wait_compute_ms_when_waited_30=120000)
+        c = self.candidate(ev, "auto_stop_minutes")
+        self.assertEqual(c.status, "BLOCKED")
+        self.assertIn("COLD_START_SENSITIVE", c.blockers)
+
+    def test_few_long_capacity_waits_block_min_cluster_reduction(self):
+        # Guard rules fire on any affected queries: 12 queued queries (0.1%) waiting 20s block a savings change.
+        ev = self.severity_evidence("idle-expensive-warehouse", queued_query_pct_30=0.1, queued_queries_30=12,
+                                    p95_wait_capacity_ms_when_queued_30=20000)
+        c = self.candidate(ev, "min_clusters")
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("QUEUE_PRESSURE_PRESENT", c.blockers)
+
+    def test_missing_severity_evidence_fails_closed(self):
+        # Older evidence without the conditional-severity fields must not be read as 'no pressure' (zero).
+        payload = json.loads((self.golden / "idle-expensive-warehouse.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for key in list(epoch["query"]):
+            if key in self.NO_SEVERITY or key in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
+                del epoch["query"][key]
+        evidence = [p.evidence_from_dict(ev)]
+        minc = self.candidate(evidence, "min_clusters")
+        self.assertEqual(minc.status, "NO_CHANGE")
+        self.assertIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", minc.blockers)
+        auto = self.candidate(evidence, "auto_stop_minutes")
+        self.assertEqual(auto.status, "BLOCKED")
+        self.assertIn("COLD_START_EVIDENCE_UNAVAILABLE", auto.blockers)
+
     def test_concurrency_constrained(self):
         _,r=self.load("concurrency-constrained"); c=next(c for c in r[0].candidates if c.knob=="max_clusters")
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["max_clusters"],3)

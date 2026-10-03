@@ -6,12 +6,20 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 |---|---|---|---|
 | Photon observed state | >=90% non-null feature coverage, >=1 current-epoch DBU, <=14d freshness; >=95% true=ENABLED, <=5%=DISABLED, else MIXED | Conservative | Refuses to turn sparse/stale/mixed billing attribution into a config assertion. Disabled→enabled is canary-gated and no savings is fabricated before measurement. |
 | Size down | >=500 queries, <=0.1% spill, <=0.5% queued, p95<=5s, p99<=30s, epoch>=7d, one size only, canary required | Conservative | Multiple independent safety signals; never auto-applies. |
-| Size up | spill >=2% and p95 spill >=1 GiB, **and** >=100 queries and epoch >=7d; otherwise `INSUFFICIENT_EVIDENCE` with no resize recommended | Balanced/conservative | Dual frequency+severity signal avoids reacting to isolated spills; sample/maturity gate stops a single query or an immature config regime from driving a resize. |
-| Max clusters up | >=5% queued + p95 capacity wait >=30s + observed saturation | Conservative | Triple gate avoids over-scaling. |
+| Size up | spill >=2% of queries and p95 spill **among spilled queries** >=1 GiB, **and** >=20 spilled queries, >=100 queries and epoch >=7d; otherwise `INSUFFICIENT_EVIDENCE` with no resize recommended | Balanced/conservative | Dual frequency+severity signal avoids reacting to isolated spills; sample/maturity gate stops a single query or an immature config regime from driving a resize. |
+| Max clusters up | >=5% queued + p95 capacity wait **among queued queries** >=30s + >=20 queued queries + observed saturation; fewer than 20 queued → `INSUFFICIENT_EVIDENCE` | Conservative | Triple gate avoids over-scaling. |
 | Max clusters down | <=0.5% queue, <=1% time at max, observed max below config | Conservative | Guardrail only; no fake direct savings. |
-| Min clusters down | >=100 queries, >=25% time at min, <=0.5% queue, p95 capacity wait<=5s, <20% time at max | Balanced/conservative | Uses actual resource-state evidence and capacity-pressure guardrails. |
+| Min clusters down | >=100 queries, >=25% time at min, <=0.5% queue, p95 capacity wait among queued queries <=5s (unknown wait severity blocks), <20% time at max | Balanced/conservative | Uses actual resource-state evidence and capacity-pressure guardrails. |
 | Auto-stop | 15/30/45 min by activity; Serverless 10 min target; >=30 gaps; cold-start-sensitive workloads blocked | Balanced; most aggressive cost rule | Uses measured idle gaps, but guards against cold-start latency. |
 | Type migration | compatibility gate + pre-canary modeled range + canary | Conservative | IWM/runtime response is not assumed. |
+
+## Severity is measured among affected queries
+
+Spill, capacity-wait and compute-wait severity percentiles are computed **only over the queries that were affected** (`spilled_local_bytes > 0`, `waiting_at_capacity_duration_ms > 0`, `waiting_for_compute_duration_ms > 0`), and the affected-query counts (`spill_queries_30`, `queued_queries_30`, `compute_wait_queries_30`) are collected beside them. A percentile over all queries hides rare-but-severe events behind the unaffected majority.
+
+- Rules that add capacity/cost (size up, max clusters up) require `severity_min_affected_queries` (20) affected queries; below that a p95 is just the maximum observation.
+- Guard rules that block savings (min-cluster reduction queue guard, auto-stop cold-start guard) fire on any affected queries.
+- If the collector did not report the affected-query count (older evidence), severity is *unknown*, never zero: min-cluster reduction and auto-stop are blocked (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`, `COLD_START_EVIDENCE_UNAVAILABLE`).
 
 ## Cost-estimator guardrail
 

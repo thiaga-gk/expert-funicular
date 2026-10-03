@@ -593,9 +593,9 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 |---|---|
 | `warehouse_channel` | current channel |
 | `enable_photon` | observed Photon state, enabled %, feature coverage, freshness |
-| `warehouse_size` | size, spill %, p95 spill bytes, queue %, p95/p99 execution, IO cache |
-| `max_clusters` | max config, observed max clusters, queue %, p95 capacity wait, time at max |
-| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait |
+| `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache |
+| `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
+| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries |
 | `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, source/compatibility evidence |
 
@@ -727,7 +727,7 @@ epoch age < 7d
 queries_30 < 100
 idle-gap count < 30
 cluster_minutes < 1
-p95 compute wait >= 60s AND starts/active-day >= 0.5
+p95 compute wait among queries that waited >= 60s AND starts/active-day >= 0.5
 ```
 
 The final blocker is `COLD_START_SENSITIVE`.
