@@ -26,7 +26,7 @@ The workbook never recalculates recommendations, confidence, IDs, or scenario ec
 
 Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unknown warehouse type fails closed before optimization. Lakehouse Real-Time is not modeled by this release.
 
-Active candidate domains (one candidate per domain/warehouse): warehouse channel guardrail, Photon, warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
+Active candidate domains (one candidate per domain/warehouse): warehouse channel guardrail, warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Photon is observed from billing but left at its default (never recommended). Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
 ## Output directory
 

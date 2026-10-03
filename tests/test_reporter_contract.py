@@ -11,6 +11,7 @@ from contracts.reporter_contract import (
     CONTRACT_VERSION,
     BoundName,
     ComponentRanges,
+    EstimationStatus,
     ExecutionState,
     PricingBasis,
     StepProjection,
@@ -162,6 +163,25 @@ class ReporterContractTests(unittest.TestCase):
         econ = dataclasses.replace(plan.portfolio_economics, contingent_savings_365d=shifted)
         with self.assertRaisesRegex(ValueError, "last pending step"):
             self._with_scenario(package, dataclasses.replace(plan, portfolio_economics=econ)).validate()
+
+    def test_unavailable_candidate_economics_must_be_null_not_zero(self) -> None:
+        package = build_package()
+        candidate = next(c for c in package.candidates if c.independent_economics.savings_365d.total is not None)
+        econ = dataclasses.replace(candidate.independent_economics, estimation_status=EstimationStatus.UNAVAILABLE)
+        with self.assertRaisesRegex(ValueError, "UNAVAILABLE estimate must have null ranges"):
+            econ.validate()
+        null = ComponentRanges(None, None, None)
+        dataclasses.replace(econ, estimated_cost_365d=null, savings_365d=null).validate()  # null is fine
+
+    def test_unavailable_scenario_economics_must_be_null_not_zero(self) -> None:
+        plan = self._plan_a(build_package())
+        econ = dataclasses.replace(plan.portfolio_economics, estimation_status=EstimationStatus.UNAVAILABLE)
+        with self.assertRaisesRegex(ValueError, "UNAVAILABLE estimate must have null ranges"):
+            econ.validate()
+        null = ComponentRanges(None, None, None)
+        dataclasses.replace(
+            econ, estimated_cost_365d=null, savings_365d=null, contingent_estimated_cost_365d=None, contingent_savings_365d=None
+        ).validate()
 
     def test_range_order_is_enforced(self) -> None:
         with self.assertRaises(ValueError):

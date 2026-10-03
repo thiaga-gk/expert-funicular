@@ -592,7 +592,7 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | Candidate | Principal analyzer evidence |
 |---|---|
 | `warehouse_channel` | current channel |
-| `enable_photon` | observed Photon state, enabled %, feature coverage, freshness |
+| ~~`enable_photon`~~ | retired in v2.7.1; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
 | `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache |
 | `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
 | `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries |
@@ -611,17 +611,12 @@ Common facts include query count, active days, queries per active day, epoch age
 
 | Current state | Decision |
 |---|---|
-| `PREVIEW` | `REVIEW`: propose `CURRENT`, blocker `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN`; invalidate Photon/size/max/min/auto-stop |
+| `PREVIEW` | `REVIEW`: propose `CURRENT`, blocker `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN`; invalidate size/max/min/auto-stop |
 | otherwise | `NO_CHANGE` |
 
 ### 15.2 Photon
 
-| Condition | Decision |
-|---|---|
-| Serverless | `NO_CHANGE`, Photon treated enabled |
-| observed `ENABLED` | `NO_CHANGE` |
-| observed `DISABLED` | `TEST_REQUIRED`, false→true; A/B canary; invalidates size/max/min/auto-stop |
-| `MIXED` or `UNKNOWN` | `BLOCKED` |
+No Photon decision is made (v2.7.1). Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted. The observed state (`ENABLED`/`DISABLED`/`MIXED`/`UNKNOWN`) is reported in `current_config.photon` and never creates a candidate, plan step or invalidation.
 
 ### 15.3 Warehouse size
 
@@ -815,7 +810,6 @@ MEDIUM >= 0.60
 LOW    < 0.60
 ```
 
-Photon candidates additionally bottleneck the computed candidate confidence by Photon observation confidence.
 
 ---
 
@@ -831,7 +825,6 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 - `NO_CHANGE` / `BLOCKED` use factor `1.0` where an economics object is needed.
 - channel stability and max-cluster ceiling reduction receive **no direct savings**.
-- Photon enablement with `TEST_REQUIRED` withholds savings pending canary.
 
 ### 17.3 Auto-stop estimator
 
@@ -958,7 +951,6 @@ Plan A is the Phase-1 recommended scenario and processes candidates in this orde
 
 ```text
 warehouse_channel
-→ enable_photon
 → warehouse_size
 → max_clusters
 → min_clusters
@@ -986,7 +978,7 @@ evolving cost/resource state:
   economics and as per-step `projected_economics` with `pricing_basis = CONTINGENT_PENDING_REEVALUATION`, a big-picture
   upside that must be regenerated after the upstream step is applied and remeasured. It never feeds package economics.
 
-If a chain cannot be priced (for example a Photon canary with no deterministic counterfactual) its economics are null,
+If a chain cannot be priced (for example a migration with no target SQL price) its economics are null,
 never zero. A pending step that cannot be priced does not affect the authoritative chain. Phase 1 has no apply API:
 "re-validation on application" means the next publisher run after an upstream step is applied produces fresh
 authoritative economics for the next knob.
@@ -1181,7 +1173,6 @@ Internal `recommendation_id` is transitional. The public `candidate_id` is conte
 Current stable mappings include:
 
 ```text
-WH-PHOTON-ENABLE-001
 WH-SIZE-DOWNSIZE-001
 WH-SIZE-UPSIZE-001
 WH-SIZE-RIGHTSIZE-001

@@ -20,13 +20,12 @@ class PublisherV27Tests(unittest.TestCase):
         self.by_knob = {c.knob: c for c in self.w.candidates}
         self.packages = p.build_recommendation_packages(self.evidence, self.t)
 
-    def test_seven_deterministic_candidates(self):
+    def test_six_deterministic_candidates_and_no_photon_recommendation(self):
         self.assertEqual(set(self.by_knob), set(p.ACTIVE_KNOBS))
-        self.assertEqual(len(self.w.candidates), 7)
+        self.assertEqual(len(self.w.candidates), 6)
+        self.assertNotIn("enable_photon", self.by_knob)
 
     def test_expected_demo_decisions(self):
-        self.assertEqual(self.by_knob["enable_photon"].status, "NO_CHANGE")
-        self.assertEqual(self.by_knob["enable_photon"].current_config, {"enable_photon": True})
         self.assertEqual(self.by_knob["warehouse_size"].status, "TEST_REQUIRED")
         self.assertEqual(self.by_knob["warehouse_size"].recommended_config, {"warehouse_size": "MEDIUM"})
         self.assertEqual(self.by_knob["max_clusters"].recommended_config, {"max_clusters": 3})
@@ -170,13 +169,13 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_unpriceable_pending_step_does_not_poison_authoritative_economics(self):
         ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
-        # A pending step with no deterministic counterfactual (Photon) withholds only the contingent chain.
-        photon = p.PlanStep(2, "REC-PHOTON", "enable_photon", {"enable_photon": False}, {"enable_photon": True},
+        # A pending step whose effect only a canary can measure withholds only the contingent chain.
+        photon = p.PlanStep(2, "REC-UNMEASURABLE", "max_clusters", {"max_clusters": 4}, {"max_clusters": 3},
                             "TEST_REQUIRED", "GATE", 0, [], [], "PENDING_REEVALUATION")
-        photon_c = copy.deepcopy(self.by_knob["enable_photon"])
-        photon_c.recommendation_id = "REC-PHOTON"
+        photon_c = copy.deepcopy(self.by_knob["max_clusters"])
+        photon_c.recommendation_id = "REC-UNMEASURABLE"
         photon_c.metadata = {**photon_c.metadata, "bundle_effect": {"type": "requires_canary"}}
-        by_id = {rcand.recommendation_id: rcand, "REC-PHOTON": photon_c}
+        by_id = {rcand.recommendation_id: rcand, "REC-UNMEASURABLE": photon_c}
         port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready, photon], by_id)
         only_ready = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
         self.assertEqual(port.estimate_status, only_ready.estimate_status)
@@ -349,7 +348,7 @@ class PublisherV27Tests(unittest.TestCase):
         from contracts import workbook_contract as wc
         projection = wc.project_workbook(self.packages)
         row = projection.warehouse_portfolio[0]
-        self.assertIn("Photon", row["candidate_view"])
+        self.assertNotIn("Photon", row["candidate_view"])
         self.assertIn("Size", row["candidate_view"])
         self.assertIn("Type", row["candidate_view"])
         self.assertIn("warehouse_size", row["recommended_execution_plan"])
@@ -513,7 +512,7 @@ class GoldenScenarioTests(unittest.TestCase):
     def test_insufficient_evidence_upsize_has_no_savings_and_yields_valid_package(self):
         ev = self.spill_evidence(queries_30=1)
         _, c = self.size_candidate(ev)
-        self.assertIn(c.estimated_savings_365, (None, 0, 0.0))
+        self.assertIsNone(c.estimated_savings_365)
         packages = p.build_recommendation_packages(ev, self.t)  # runs semantic validation
         pkg = packages[0]
         pkg_dict = pkg if isinstance(pkg, dict) else json.loads(p.canonical_json(pkg))
@@ -619,6 +618,62 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(auto.status, "BLOCKED")
         self.assertIn("COLD_START_EVIDENCE_UNAVAILABLE", auto.blockers)
 
+    # --- H5: a withheld estimate is null, never zero --------------------------------------------------------
+    def golden_package(self, name):
+        payload = json.loads((self.golden / f"{name}.json").read_text())
+        evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
+        return p.build_recommendation_packages(evidence, self.t)[0].to_dict()
+
+    @staticmethod
+    def all_null(ranges):
+        return all(ranges[k] is None for k in ("dbu", "aws", "total"))
+
+    def test_blocked_candidate_economics_are_null_not_zero(self):
+        pkg = self.golden_package("cold-start-sensitive")
+        blocked = next(c for c in pkg["candidates"] if c["knob"] == "auto_stop_minutes")
+        self.assertEqual(blocked["status"], "BLOCKED")
+        econ = blocked["independent_economics"]
+        self.assertEqual(econ["estimation_status"], "UNAVAILABLE")
+        self.assertTrue(self.all_null(econ["savings_365d"]))
+        self.assertTrue(self.all_null(econ["estimated_cost_365d"]))
+
+    def test_insufficient_evidence_candidate_economics_are_null_not_zero(self):
+        pkg = p.build_recommendation_packages(self.spill_evidence(queries_30=1), self.t)[0].to_dict()
+        size = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_size")
+        self.assertEqual(size["status"], "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
+        self.assertTrue(self.all_null(size["independent_economics"]["savings_365d"]))
+
+    def test_no_change_candidate_keeps_a_known_zero(self):
+        pkg = self.golden_package("cold-start-sensitive")
+        channel = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_channel")
+        econ = channel["independent_economics"]
+        self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
+        self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
+
+    def test_halted_scenario_economics_are_null_and_excluded_from_the_package(self):
+        evidence = p.demo_evidence()
+        evidence[0].sql_sku_prices = {}  # no target SQL price: the migration has no deterministic DBU counterfactual
+        pkg = p.build_recommendation_packages(evidence, self.t)[0].to_dict()
+        plan_b = next(s for s in pkg["scenarios"] if s["scenario_name"].startswith("Plan B"))
+        econ = plan_b["portfolio_economics"]
+        self.assertEqual(econ["estimation_status"], "UNAVAILABLE")
+        for key in ("savings_365d", "estimated_cost_365d"):
+            self.assertTrue(self.all_null(econ[key]), key)
+        self.assertIsNone(econ["contingent_savings_365d"])
+        self.assertTrue(all(st["projected_economics"] is None for st in plan_b["execution_plan"]))
+        # Excluded from the envelope; the priced recommended plan still carries the package economics.
+        self.assertIn(plan_b["scenario_id"], [x["scenario_id"] for x in pkg["package_economics"]["excluded_scenarios"]])
+        self.assertIsNotNone(pkg["package_economics"]["estimated_savings_365d"])
+
+    def test_scenario_with_no_steps_is_a_known_zero_not_unavailable(self):
+        pkg = self.golden_package("newly-changed-config")
+        plan_a = next(s for s in pkg["scenarios"] if s["scenario_name"].startswith("Plan A"))
+        self.assertEqual([st for st in plan_a["execution_plan"] if st["step_type"] == "CANDIDATE"], [])
+        econ = plan_a["portfolio_economics"]
+        self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
+        self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
+
     def test_concurrency_constrained(self):
         _,r=self.load("concurrency-constrained"); c=next(c for c in r[0].candidates if c.knob=="max_clusters")
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["max_clusters"],3)
@@ -631,18 +686,22 @@ class GoldenScenarioTests(unittest.TestCase):
         for name,blocker in (("newly-changed-config","CURRENT_CONFIG_EPOCH_TOO_NEW"),("sparse-evidence","INSUFFICIENT_QUERY_SAMPLE")):
             _,r=self.load(name); self.assertTrue(any(blocker in c.blockers for c in r[0].candidates),name)
 
-    def test_photon_disabled_is_inferred_and_becomes_canary_candidate(self):
-        _,r=self.load("photon-disabled")
-        self.assertNotIn("enable_photon",{})
-        w=r[0]
-        c=next(c for c in w.candidates if c.knob=="enable_photon")
-        self.assertEqual(c.status,"TEST_REQUIRED")
-        self.assertEqual(c.current_config,{"enable_photon":False})
-        self.assertEqual(c.recommended_config,{"enable_photon":True})
-        self.assertIn("warehouse_size",c.invalidates)
-        plan=next(s for s in w.scenarios if s.recommended)
-        self.assertEqual(plan.steps[0].knob,"enable_photon")
-        self.assertEqual(plan.portfolio_estimate.estimate_status,"REQUIRES_CANARY")
+    def test_photon_is_observed_and_reported_but_never_recommended(self):
+        # Databricks publishes no on/off price for Photon on SQL warehouses, so the product leaves Photon at its
+        # default: the billing-derived observation stays in current_config, but no candidate or plan step exists.
+        for f in sorted(self.golden.glob("*.json")):
+            payload=json.loads(f.read_text()); ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            for w in p.evaluate_warehouses(ev,self.t):
+                self.assertNotIn("enable_photon",{c.knob for c in w.candidates},f.name)
+                for sc in w.scenarios:
+                    self.assertNotIn("enable_photon",[st.knob for st in sc.steps],f.name)
+        pkg=self.golden_package("photon-disabled")
+        self.assertEqual(pkg["current_config"]["photon"]["status"],"DISABLED")
+        self.assertNotIn("enable_photon",[c["knob"] for c in pkg["candidates"]])
+        self.assertEqual(len(pkg["candidates"]),6)
+        plan_a=next(x for x in pkg["scenarios"] if x["scenario_name"].startswith("Plan A"))
+        self.assertNotEqual(plan_a["portfolio_economics"]["estimation_status"],"UNAVAILABLE")  # no longer blocked by Photon
+        self.assertIsNotNone(plan_a["portfolio_economics"]["savings_365d"]["total"])
 
     def test_serverless_to_pro_costed_with_workspace_calibration(self):
         _,r=self.load("serverless-to-pro-costed"); w=self.warehouse(r,"wh-serverless-001")

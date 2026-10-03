@@ -20,88 +20,15 @@
     "summary": {
       "actionable_count": 3,
       "blocked_count": 0,
-      "candidate_count": 7,
+      "candidate_count": 6,
       "insufficient_evidence_count": 0,
-      "no_change_count": 2,
+      "no_change_count": 1,
       "not_applicable_count": 0,
       "review_count": 0,
       "test_required_count": 2
     }
   },
   "candidates": [
-    {
-      "blockers": [],
-      "candidate_id": "CAND-16DA8CB7735816C0E36F0370",
-      "confidence": {
-        "components": {
-          "coverage": 1.0,
-          "signal": 0.98
-        },
-        "level": "HIGH",
-        "method": "deterministic_weighted_evidence",
-        "score": 0.98
-      },
-      "current_value": true,
-      "dependencies": [],
-      "evidence_refs": [
-        "EVID-8A52F0818DD8865A5160F263"
-      ],
-      "independent_economics": {
-        "baseline_365d": {
-          "availability": "COMPLETE",
-          "aws_basis": "MODELED_AWS_LIST_PRICE",
-          "aws_cost": 8793.82,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 27000.0,
-          "total_cost": 35793.82
-        },
-        "estimated_cost_365d": {
-          "aws": {
-            "base": 8793.82,
-            "high": 8793.82,
-            "low": 8793.82
-          },
-          "dbu": {
-            "base": 27000.0,
-            "high": 27000.0,
-            "low": 27000.0
-          },
-          "total": {
-            "base": 35793.82,
-            "high": 35793.82,
-            "low": 35793.82
-          }
-        },
-        "estimation_status": "NO_DELTA_MODELED",
-        "is_additive": false,
-        "savings_365d": {
-          "aws": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          },
-          "dbu": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          },
-          "total": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          }
-        }
-      },
-      "invalidates": [],
-      "knob": "enable_photon",
-      "objectives": [
-        "PERFORMANCE"
-      ],
-      "rationale": "Current-epoch signed billing DBUs consistently show Photon enabled.",
-      "recommended_value": true,
-      "status": "NO_CHANGE",
-      "technique_id": "WH-PHOTON-ENABLE-001"
-    },
     {
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
@@ -823,7 +750,7 @@
     "generated_at": "2026-10-01T18:00:00Z",
     "modeler_version": "2.7.0",
     "optimizer_version": "2.7.0",
-    "package_hash_full_sha256": "E83FF0A739F4C8CEE0E52B2475FCC0CDC2D95B60FB6709BEF78267E6054598EE",
+    "package_hash_full_sha256": "9524385D18C573CC93753D1041F498E1088C9FAAE523092322282F7377082F2D",
     "policy_version": "policy-v2.7",
     "reviewer_version": "2.7.0",
     "source_regions": [
@@ -850,7 +777,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-E83FF0A739F4C8CEE0E52B24",
+  "recommendation_package_id": "PKG-9524385D18C573CC93753D10",
   "recommended_plan": {
     "decision_summary": "Validate one-size-down first; then remeasure and regenerate invalidated downstream recommendations.",
     "next_action": "RUN_SIZE_CANARY",

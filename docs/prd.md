@@ -171,7 +171,7 @@ Each supported warehouse must produce exactly one candidate decision for each ac
 | Candidate domain | Purpose | Product classification |
 |---|---|---|
 | `warehouse_channel` | identify Preview→Current stability review | governance/safety guardrail |
-| `enable_photon` | assess observed Photon state and canary enablement | cost/performance |
+| ~~`enable_photon`~~ | retired in v2.7.1: observed state is reported, but Photon is left at its default and never recommended | n/a |
 | `warehouse_size` | downsize/upsize/right-size | cost/performance |
 | `max_clusters` | reduce unused ceiling or increase constrained concurrency | performance/guardrail |
 | `min_clusters` | reduce unnecessary baseline capacity | cost |
@@ -359,7 +359,7 @@ Default inference requirements:
 - otherwise → `MIXED`,
 - insufficient/stale evidence → `UNKNOWN`.
 
-A reliably observed `DISABLED` state may produce a `TEST_REQUIRED` Photon enablement candidate. No pre-canary savings shall be fabricated for Photon enablement.
+As of v2.7.1 no Photon recommendation is produced for any observed state; the observation is reported only. Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted.
 
 ### FR-OPT-003 — Size down
 
@@ -462,7 +462,7 @@ For example, an `ACTIONABLE` candidate may be `PENDING_REEVALUATION` in a scenar
 
 Plan A ordering shall follow:
 
-`warehouse_channel → enable_photon → warehouse_size → max_clusters → min_clusters → auto_stop_minutes`.
+`warehouse_channel → warehouse_size → max_clusters → min_clusters → auto_stop_minutes`.
 
 ### FR-PLAN-002
 

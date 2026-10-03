@@ -24,7 +24,7 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(len(self.packages),15)
         self.assertEqual(len(self.projection.warehouse_portfolio),15)
         self.assertEqual(len(self.projection.scenario_plans),30)
-        self.assertEqual(len(self.projection.recommendation_registry),105)
+        self.assertEqual(len(self.projection.recommendation_registry),90)
 
     def test_scenario_plans_carry_contingent_upside_apart_from_authoritative_impact(self):
         """Contract 1.1.0 / workbook 1.2.0: contingent upside is separate, numeric, signed and tagged in the plan text."""
@@ -40,7 +40,7 @@ class WorkbookContractTests(unittest.TestCase):
                 for k in keys:
                     self.assertIsInstance(r[k], (int, float))
                     self.assertNotIsInstance(r[k], bool)
-            else:  # nothing pending, or pending but unpriceable (e.g. Photon canary): unavailable, never zero
+            else:  # nothing pending, or pending but unpriceable: unavailable, never zero
                 for k in keys:
                     self.assertEqual(r[k], wc.DISPLAY_UNAVAILABLE)
 
@@ -58,7 +58,7 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(set(row),{c.key for c in wc.PORTFOLIO_COLUMNS})
         for key in ("candidate_view","recommended_execution_plan","package_low_impact","package_base_impact","package_high_impact","package_cost_low_365d","package_cost_base_365d","package_cost_high_365d","active_days_30d","query_source_profile_json","scenario_ids_json","candidate_ids_json"):
             self.assertIn(key,row)
-        self.assertIn("Photon",row["candidate_view"])
+        self.assertNotIn("Photon",row["candidate_view"])
 
     def test_scenario_and_registry_match_exact_locked_columns(self):
         self.assertEqual(set(self.projection.scenario_plans[0]),{c.key for c in wc.SCENARIO_COLUMNS})

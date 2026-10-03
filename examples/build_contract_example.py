@@ -106,8 +106,6 @@ def build_package() -> RecommendationPackage:
 
     candidate_specs = [
         # technique, knob, status, current, recommended, objective, evidence, blockers, invalidates, confidence, economics
-        ("WH-PHOTON-ENABLE-001", TunableKnob.ENABLE_PHOTON, RecommendationStatus.NO_CHANGE, True, True, [Objective.PERFORMANCE], [by_metric["photon_enabled_usage_pct"]], [], [], 0.98,
-         ranges((0,0,0),(0,0,0),(0,0,0))),
         ("WH-SIZE-DOWNSIZE-001", TunableKnob.WAREHOUSE_SIZE, RecommendationStatus.TEST_REQUIRED, "LARGE", "MEDIUM", [Objective.COST], [by_metric["spill_query_pct_30d"],by_metric["p95_execution_ms_30d"],by_metric["p99_execution_ms_30d"],by_metric["queued_query_pct_30d"]], ["A_B_PERFORMANCE_VALIDATION_REQUIRED"], [TunableKnob.MAX_CLUSTERS,TunableKnob.MIN_CLUSTERS,TunableKnob.AUTO_STOP_MINUTES], 0.78,
          ranges((5300,7300,8900),(1800,2450,3100),(7100,9750,12000))),
         ("WH-MAX-CLUSTER-REDUCE-001", TunableKnob.MAX_CLUSTERS, RecommendationStatus.ACTIONABLE, 4, 3, [Objective.COST_GUARDRAIL], [by_metric["max_observed_clusters"],by_metric["queued_query_pct_30d"]], [], [], 0.92,
@@ -141,7 +139,6 @@ def build_package() -> RecommendationPackage:
             candidate_id=cid, technique_id=technique, knob=knob, status=status,
             current_value=cur, recommended_value=rec, objectives=objectives,
             rationale={
-                TunableKnob.ENABLE_PHOTON:"Current-epoch signed billing DBUs consistently show Photon enabled.",
                 TunableKnob.WAREHOUSE_SIZE:"Current epoch shows negligible spill/queue pressure and low execution latency, supporting a one-size-down canary.",
                 TunableKnob.MAX_CLUSTERS:"Observed scale never required the configured maximum; lower the unused guardrail.",
                 TunableKnob.MIN_CLUSTERS:"The warehouse spends most running time at minimum capacity without queue pressure.",
@@ -239,7 +236,7 @@ def build_package() -> RecommendationPackage:
 
     assessment = Assessment(
         AssessmentStatus.OPTIMIZATION_AVAILABLE,
-        AssessmentSummary(candidate_count=7,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=2,not_applicable_count=0,insufficient_evidence_count=0),
+        AssessmentSummary(candidate_count=6,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=1,not_applicable_count=0,insufficient_evidence_count=0),
         EvidenceQuality(EvidenceQualityStatus.SUFFICIENT,conf(0.94),True,True,True,100.0),
     )
 

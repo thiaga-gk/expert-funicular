@@ -76,15 +76,14 @@ An unsupported type must never be silently processed using Pro/Classic assumptio
 
 ### 3.3 Active candidate domains
 
-Each supported warehouse/current epoch is assessed across seven candidate domains:
+Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but not a candidate domain as of v2.7.1):
 
 1. `warehouse_channel`
-2. `enable_photon`
-3. `warehouse_size`
-4. `max_clusters`
-5. `min_clusters`
-6. `auto_stop_minutes`
-7. `warehouse_type`
+2. `warehouse_size`
+3. `max_clusters`
+4. `min_clusters`
+5. `auto_stop_minutes`
+6. `warehouse_type`
 
 `warehouse_channel` is a governance/stability guardrail. The remaining domains are cost, performance, compatibility, or mixed optimization techniques.
 
@@ -279,7 +278,7 @@ Key architecture rules:
 - candidate savings are non-additive,
 - unavailable evidence remains unavailable,
 - Pro/Classic and Serverless use type-appropriate cost models,
-- Photon savings are withheld until a canary because workload-specific benefit is not safely inferable from configuration alone,
+- Photon is left at its default (v2.7.1): no on/off price is published and the workload-specific benefit is not safely inferable,
 - migration economics are pre-canary modeled ranges.
 
 ### 6.7 Reviewer Gate 1 — candidate integrity
@@ -313,8 +312,7 @@ Plan A follows the deterministic order:
 
 ```mermaid
 flowchart TD
-    CH[warehouse_channel] --> PH[enable_photon]
-    PH --> SZ[warehouse_size]
+    CH[warehouse_channel] --> SZ[warehouse_size]
     SZ --> MX[max_clusters]
     MX --> MN[min_clusters]
     MN --> AS[auto_stop_minutes]

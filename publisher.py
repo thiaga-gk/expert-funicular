@@ -90,7 +90,6 @@ SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
 
 ACTIVE_KNOBS = (
     "warehouse_channel",
-    "enable_photon",
     "warehouse_size",
     "max_clusters",
     "min_clusters",
@@ -1737,22 +1736,6 @@ class Analyzer:
         fs = [self._f(e,"warehouse_channel","warehouse_channel",cfg.warehouse_channel,table="system.compute.warehouses",field="warehouse_channel",window="current epoch",interpretation="Current release channel from the current configuration epoch.")]
         out["warehouse_channel"] = AnalysisResult(e.warehouse_id,"warehouse_channel",ep.epoch_id,fs,{**common,"channel":cfg.warehouse_channel})
 
-        # Photon. Billing is the source of observed state for this knob. It is not
-        # a direct warehouse-config read, so MIXED/UNKNOWN evidence never becomes
-        # an asserted configuration value.
-        photon = e.photon_observation or PhotonObservation(
-            status="UNKNOWN", enabled_usage_pct=None, known_feature_coverage_pct=0.0,
-            true_dbu=0.0, false_dbu=0.0, null_dbu=0.0, latest_usage_time=None,
-            freshness_days=None, confidence={"score":0.0,"level":"LOW","components":{}},
-        )
-        fs = [
-            self._f(e,"enable_photon","photon_observed_status",photon.status,table="system.billing.usage",field="product_features.is_photon",window="signed DBU usage within current warehouse epoch",interpretation="Observed Photon workload state inferred from billing feature attribution."),
-            self._f(e,"enable_photon","photon_enabled_usage_pct",photon.enabled_usage_pct,unit="%",threshold=self.t.photon_enabled_usage_pct,comparator=">= enabled inference",table="system.billing.usage",field="product_features.is_photon + usage_quantity",window="signed DBU usage within current warehouse epoch",interpretation="Share of known Photon-attributed DBUs observed with Photon enabled."),
-            self._f(e,"enable_photon","photon_feature_coverage_pct",photon.known_feature_coverage_pct,unit="%",threshold=self.t.photon_min_feature_coverage_pct,comparator=">= inference coverage",table="system.billing.usage",field="product_features.is_photon",window="signed DBU usage within current warehouse epoch",interpretation="Coverage of non-null Photon feature attribution used to decide whether inference is reliable."),
-            self._f(e,"enable_photon","photon_freshness_days",photon.freshness_days,unit="days",threshold=self.t.photon_freshness_days,comparator="<= freshness guardrail",table="system.billing.usage",field="usage_end_time",window="current warehouse epoch",interpretation="Age of the most recent DBU billing evidence supporting Photon inference."),
-        ]
-        out["enable_photon"] = AnalysisResult(e.warehouse_id,"enable_photon",ep.epoch_id,fs,{**common,"photon_status":photon.status,"photon_enabled_usage_pct":photon.enabled_usage_pct,"photon_feature_coverage_pct":photon.known_feature_coverage_pct,"photon_freshness_days":photon.freshness_days,"photon_confidence":photon.confidence})
-
         # Size
         spill_pct = safe_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         queue_pct = safe_float(q.get("queued_query_pct_30")); p95 = safe_float(q.get("p95_execution_ms_30")); p99 = safe_float(q.get("p99_execution_ms_30"))
@@ -1852,37 +1835,13 @@ class Optimizer:
         if cfg.warehouse_channel == "PREVIEW":
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","REVIEW",
                 {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":"CURRENT"},
-                ["PREVIEW_FEATURE_DEPENDENCY_UNKNOWN"],[],["enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
+                ["PREVIEW_FEATURE_DEPENDENCY_UNKNOWN"],[],["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
+                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
                 "Move to CURRENT only after confirming no workload depends on Preview-only behavior."))
         else:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","NO_CHANGE",
                 {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":cfg.warehouse_channel},[],[],[],[],
                 "No channel change indicated."))
-
-        # Photon is inferred from current-epoch signed DBU billing feature evidence.
-        # ENABLED/DISABLED are observations with explicit coverage/freshness guards;
-        # MIXED/UNKNOWN never become asserted config values.
-        a = analyses["enable_photon"]; f = a.facts; photon_status = str(f.get("photon_status") or "UNKNOWN")
-        if cfg.warehouse_type == "SERVERLESS":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","NO_CHANGE",
-                {"enable_photon":True},{"enable_photon":True},[],["warehouse_channel"],[],[],
-                "Photon is enabled on Serverless SQL compute; billing evidence is retained as corroborating observation."))
-        elif photon_status == "ENABLED":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","NO_CHANGE",
-                {"enable_photon":True},{"enable_photon":True},[],["warehouse_channel"],[],[],
-                "Current-epoch billing evidence consistently shows Photon-enabled DBU usage."))
-        elif photon_status == "DISABLED":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","TEST_REQUIRED",
-                {"enable_photon":False},{"enable_photon":True},["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"],["warehouse_channel"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                "Current-epoch billing evidence consistently shows Photon-disabled DBU usage; enable Photon as a canary because runtime changes can invalidate downstream tuning."))
-        else:
-            blockers = ["PHOTON_STATE_MIXED_OR_INSUFFICIENT_BILLING_EVIDENCE"]
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","BLOCKED",
-                {"enable_photon":photon_status},{"enable_photon":True},blockers,["warehouse_channel"],[],[],
-                "Photon cannot be deterministically changed until current-epoch billing feature evidence is fresh, sufficiently covered, and non-mixed."))
 
         # Size
         a = analyses["warehouse_size"]; f=a.facts
@@ -1890,7 +1849,7 @@ class Optimizer:
         if cfg.warehouse_size not in SIZE_ORDER:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
                 {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
-                ["warehouse_channel","enable_photon"],[],[],"Warehouse size is outside the known deterministic ordering."))
+                ["warehouse_channel"],[],[],"Warehouse size is outside the known deterministic ordering."))
         elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is not None and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
@@ -1899,17 +1858,17 @@ class Optimizer:
             if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
             if target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel","enable_photon"],[],[],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
                     "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
             elif target:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel","enable_photon"],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
                     "Spill frequency and severity both cross the deterministic upsize thresholds."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
-                    ["warehouse_channel","enable_photon"],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
+                    ["warehouse_channel"],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
         else:
             target = previous_size(cfg.warehouse_size)
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
@@ -1921,12 +1880,12 @@ class Optimizer:
             if target and not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
-                    ["warehouse_channel","enable_photon"],["max_clusters","min_clusters","auto_stop_minutes"],
+                    ["warehouse_channel"],["max_clusters","min_clusters","auto_stop_minutes"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],
                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel","enable_photon"],[],[],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
                     "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
 
         # Max clusters
@@ -2078,12 +2037,13 @@ class Estimator:
     def _factors(self,e:WarehouseEvidence,d:OptimizationDecision,a:AnalysisResult)->Tuple[Optional[Range3],Dict[str,Any]]:
         knob=d.knob
         meta:Dict[str,Any]={"estimator_version":ESTIMATOR_VERSION}
-        if d.status in {"NO_CHANGE","BLOCKED","INSUFFICIENT_EVIDENCE"}:
+        if d.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"}:
+            # No counterfactual is attempted for a candidate the constraints reject: unknown cost is null, never zero.
+            return None,{"method":"estimate withheld: the candidate is blocked or lacks the evidence to be priced","bundle_effect":{"type":"no_cost_change"},**meta}
+        if d.status=="NO_CHANGE":
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
-        if knob=="enable_photon":
-            return None,{"method":"Photon enablement can change runtime and DBU consumption; savings are withheld until an A/B canary measures the workload-specific counterfactual.","bundle_effect":{"type":"requires_canary"},**meta}
         if knob=="warehouse_type":
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
@@ -2286,16 +2246,6 @@ class Estimator:
             signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
             cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
             confidence=self._confidence(e,a,signal=signal,cap=cap)
-            if d.knob=="enable_photon" and e.photon_observation and e.current_epoch.config.warehouse_type!="SERVERLESS":
-                observed=e.photon_observation.confidence
-                observed_score=safe_float(observed.get("score"),0.0)
-                combined=min(safe_float(confidence.get("score"),0.0), observed_score)
-                confidence={
-                    "score":round(combined,3),
-                    "level":"HIGH" if combined>=self.t.confidence_high_threshold else "MEDIUM" if combined>=self.t.confidence_medium_threshold else "LOW",
-                    "components":{**dict(confidence.get("components") or {}),"photon_observation":observed_score},
-                    "observation_confidence":observed,
-                }
             current=d.current_config; recommended=d.recommended_config
             rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
             out.append(CandidateRecommendation(
@@ -2499,6 +2449,13 @@ class StatefulBundleEstimator:
             total_365d_savings_range=total_save,
         )
 
+    def _withheld(self,e:WarehouseEvidence,status:str,method:str)->PortfolioEstimate:
+        """Estimate that cannot be priced (needs a canary or a cost model): every range is null, never a zero."""
+        return PortfolioEstimate(
+            status,e.total_365d_baseline_cost if e.total_365d_baseline_cost is not None else e.dbu_365d_baseline_cost,None,None,method,True,
+            dbu_365d_baseline_cost=e.dbu_365d_baseline_cost,aws_365d_baseline_cost=e.aws_baseline_cost_365,total_365d_baseline_cost=e.total_365d_baseline_cost,
+        )
+
     def _apply(self,st:"_ChainState",c:CandidateRecommendation,effect:Mapping[str,Any],original_resource:float,realizations:Sequence[float])->None:
         """Apply one candidate's bundle effect to a chain's evolving cost/resource state."""
         if st.halt is not None: return
@@ -2587,7 +2544,7 @@ class StatefulBundleEstimator:
         if has_pending:
             method+=" Steps invalidated by an upstream change (PENDING_REEVALUATION) are excluded from this authoritative estimate; regenerate after remeasurement."
         if auth.halt is not None:
-            result=self._portfolio(e,auth.halt[0],auth.dbu_tracks,auth.aws_tracks,auth.halt[1])
+            result=self._withheld(e,auth.halt[0],auth.halt[1])
         else:
             provisional=any(candidate_by_id[x.recommendation_id].status=="TEST_REQUIRED" for x in priced)
             status="PRE_CANARY_MODELED_RANGE" if has_migration(priced) else "PROVISIONAL_MODELED_RANGE" if provisional else "MODELED_RANGE"
@@ -2613,7 +2570,6 @@ class ScenarioPlanner:
 
     def _gate(self,c:CandidateRecommendation)->str:
         if c.knob=="warehouse_channel": return "HITL_CONFIRM_PREVIEW_DEPENDENCIES"
-        if c.knob=="enable_photon" and c.status=="TEST_REQUIRED": return "A_B_CANARY_PHOTON_RUNTIME_DBU_COST"
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
         if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
@@ -2654,7 +2610,7 @@ class ScenarioPlanner:
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
-        plan_order=["warehouse_channel","enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
+        plan_order=["warehouse_channel","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
         steps=[]; pending_invalidated=set()
         for knob in plan_order:
             c=by_knob[knob]
@@ -2888,8 +2844,6 @@ def _technique_id(c: CandidateRecommendation) -> str:
     knob = c.knob
     cur = _scalar_config(c.current_config)
     rec = _scalar_config(c.recommended_config)
-    if knob == "enable_photon":
-        return "WH-PHOTON-ENABLE-001"
     if knob == "warehouse_size":
         if cur in SIZE_ORDER and rec in SIZE_ORDER and cur != rec:
             return "WH-SIZE-DOWNSIZE-001" if SIZE_ORDER.index(rec) < SIZE_ORDER.index(cur) else "WH-SIZE-UPSIZE-001"
@@ -3213,6 +3167,8 @@ def _compatibility_contract(
 
 
 def _scenario_estimation_status(value: str) -> rc.EstimationStatus:
+    if value == "NO_CHANGE":  # a plan with no steps changes nothing: a known zero, not an unavailable estimate
+        return rc.EstimationStatus.NO_DELTA_MODELED
     try:
         return rc.EstimationStatus(value)
     except ValueError:

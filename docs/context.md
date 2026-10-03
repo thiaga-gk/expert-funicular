@@ -361,7 +361,7 @@ Allowed states:
 
 Sparse, stale, or low-coverage evidence yields `UNKNOWN` rather than a guessed state.
 
-A confidently observed `DISABLED` state may generate a Photon-enable candidate, but enablement remains **canary-gated** and no fabricated savings is asserted before validation.
+Since v2.7.1 an observed `DISABLED` state generates **no** candidate: Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted.
 
 ---
 
@@ -474,7 +474,7 @@ Every supported warehouse is evaluated across the same seven candidate domains. 
 | Domain | Domain intent | Typical nature |
 |---|---|---|
 | Warehouse channel | Stability/governance posture | Guardrail, not primarily savings |
-| Photon | Observe/enable Photon where safely supported | Performance/cost canary |
+| Photon | Observe only (v2.7.1): left at its default, never recommended | n/a |
 | Warehouse size | Right-size vertical capacity | Cost/performance |
 | Max clusters | Right-size concurrency ceiling | Performance/cost guardrail |
 | Min clusters | Remove unnecessary baseline capacity | Cost/performance |
@@ -790,7 +790,7 @@ A canary is mandatory where the recommendation can materially affect workload be
 Examples:
 
 - warehouse size down;
-- Photon enablement when inferred disabled;
+- ~~Photon enablement when inferred disabled~~ (removed in v2.7.1: no Photon recommendation);
 - warehouse-type migration.
 
 ### 24.3 Canary success measures
@@ -1319,7 +1319,6 @@ material avoidable idle gaps
 The product may produce:
 
 ```text
-Photon       ENABLED -> ENABLED     NO_CHANGE
 Size         LARGE -> MEDIUM        TEST_REQUIRED
 Max clusters 4 -> 3                 ACTIONABLE
 Min clusters 2 -> 1                 TEST_REQUIRED

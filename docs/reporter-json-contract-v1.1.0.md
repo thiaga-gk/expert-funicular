@@ -49,6 +49,8 @@ package economics
 = high = maximum HIGH total-savings bound across included scenarios
 ```
 
+**Unknown is null, never zero.** An estimate with `estimation_status = UNAVAILABLE` (candidate `independent_economics`, scenario `portfolio_economics`, including the `contingent_*` figures) must carry null ranges: a semantic validator rejects any number on an unavailable estimate. A candidate that is `BLOCKED` or `INSUFFICIENT_EVIDENCE` has no counterfactual attempted, so it is `UNAVAILABLE` with null ranges; a scenario whose chain needs a canary or a cost model that does not exist is `UNAVAILABLE` with null ranges and is excluded from package economics (`RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE`). A known zero is different and keeps its zero: a `NO_CHANGE` candidate, or a scenario with no steps, is `NO_DELTA_MODELED` with zero savings.
+
 `package_economics` is **not a probability/confidence interval**. Low/base/high may originate from different scenarios. Therefore DBU/AWS component values are attached to the source `scenario_envelope` point rather than represented as a misleading package-level component range.
 
 ---
@@ -224,6 +226,8 @@ canonical applied_config
 ### In-scope tunable knobs
 
 `warehouse_type | warehouse_size | min_clusters | max_clusters | auto_stop_minutes | warehouse_channel | enable_photon`
+
+`enable_photon` is **reserved**: it stays in the enum so 1.0.0 packages remain valid, but the publisher no longer emits a Photon candidate (v2.7.1). The billing-observed Photon state remains in `current_config.photon`.
 
 ### Confidence
 

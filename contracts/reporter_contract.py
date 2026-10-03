@@ -631,6 +631,16 @@ class ComponentRanges:
                 _require(abs(expected - actual) <= 0.03, f"{field_name}.{bound} total must equal DBU + AWS")
 
 
+def _require_unavailable_means_null(status: "EstimationStatus", *ranges: Optional["ComponentRanges"], field_name: str) -> None:
+    """Unknown cost is unavailable/null, never zero: an UNAVAILABLE estimate must not carry any number."""
+    if status == EstimationStatus.UNAVAILABLE:
+        for r in ranges:
+            _require(
+                r is None or (r.dbu is None and r.aws is None and r.total is None),
+                f"{field_name}: an UNAVAILABLE estimate must have null ranges, never zero",
+            )
+
+
 # ---------------------------------------------------------------------------
 # Warehouse identity and current state
 # ---------------------------------------------------------------------------
@@ -910,6 +920,7 @@ class IndependentEconomics:
         self.baseline_365d.validate()
         self.estimated_cost_365d.validate(nonnegative=True, field_name="estimated_cost_365d")
         self.savings_365d.validate(nonnegative=False, field_name="savings_365d")
+        _require_unavailable_means_null(self.estimation_status, self.estimated_cost_365d, self.savings_365d, field_name="independent economics")
 
 
 @dataclass(frozen=True)
@@ -1053,6 +1064,10 @@ class ScenarioEconomics:
         self.baseline_365d.validate()
         self.estimated_cost_365d.validate(nonnegative=True, field_name="scenario.estimated_cost_365d")
         self.savings_365d.validate(nonnegative=False, field_name="scenario.savings_365d")
+        _require_unavailable_means_null(
+            self.estimation_status, self.estimated_cost_365d, self.savings_365d,
+            self.contingent_estimated_cost_365d, self.contingent_savings_365d, field_name="scenario economics",
+        )
         _require(
             (self.contingent_estimated_cost_365d is None) == (self.contingent_savings_365d is None),
             "contingent cost and savings must be published together or both null",

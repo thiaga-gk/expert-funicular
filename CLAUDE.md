@@ -8,7 +8,7 @@
 ## Supported scope
 - Active types: `CLASSIC`, `PRO`, standard `SERVERLESS`.
 - `SUPPORTED_WAREHOUSE_TYPES` is fail-closed; never route unknown/future warehouse types into existing algorithms.
-- One candidate per active domain: channel guardrail, Photon, size, max clusters, min clusters, auto-stop, warehouse-type migration.
+- One candidate per active domain: channel guardrail, size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon is observation-only: it is left at its default and never recommended (no Databricks on/off price exists for SQL warehouses; savings would be guessed).
 - Query rewrite, storage, schedule, Spot policy and statement-timeout tuning are out of scope.
 
 ## Source authority
