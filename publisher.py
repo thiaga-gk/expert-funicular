@@ -3256,6 +3256,17 @@ def _compatibility_contract(
     return rc.Compatibility(status=status, mode=mode, checks=checks)
 
 
+# Planner step states -> locked contract states. READY_FOR_HITL (apply after human approval) is the planner's name for
+# the contract's READY; an unmapped state is a bug and must not silently degrade to READY.
+_CONTRACT_EXECUTION_STATE = {
+    "READY": rc.ExecutionState.READY,
+    "READY_FOR_HITL": rc.ExecutionState.READY,
+    "READY_FOR_CANARY": rc.ExecutionState.READY_FOR_CANARY,
+    "PENDING_REEVALUATION": rc.ExecutionState.PENDING_REEVALUATION,
+    "BLOCKED": rc.ExecutionState.BLOCKED,
+}
+
+
 def _scenario_estimation_status(value: str) -> rc.EstimationStatus:
     if value == "NO_CHANGE":  # a plan with no steps changes nothing: a known zero, not an unavailable estimate
         return rc.EstimationStatus.NO_DELTA_MODELED
@@ -3327,9 +3338,9 @@ def _scenario_contracts(
                 validation_type = rc.ValidationType.NONE
                 success_metrics = []
             try:
-                state = rc.ExecutionState(st.execution_state)
-            except ValueError:
-                state = rc.ExecutionState.READY
+                state = _CONTRACT_EXECUTION_STATE[st.execution_state]
+            except KeyError:
+                raise ValueError(f"Planner execution state {st.execution_state!r} has no locked-contract mapping") from None
             plan_steps.append(rc.PlanStep(
                 step=next_step,
                 step_type=rc.PlanStepType.CANDIDATE,

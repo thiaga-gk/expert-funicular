@@ -625,6 +625,29 @@ class PublisherV27Tests(unittest.TestCase):
         pkg = p.build_recommendation_packages([p.evidence_from_dict(payload["evidence"][0])], self.t)[0]
         return next(c for c in pkg.candidates if c.knob.value == "max_clusters")
 
+    def test_planner_ready_for_hitl_maps_explicitly_to_contract_ready(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        ev = [p.evidence_from_dict(payload["evidence"][0])]
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        internal = {st.knob: st.execution_state for s in w.scenarios for st in s.steps}
+        self.assertEqual(internal["max_clusters"], "READY_FOR_HITL")
+        pkg = p.build_recommendation_packages(ev, self.t)[0]
+        states = {st.knob.value: st.execution_state.value for sc in pkg.scenarios for st in sc.execution_plan if getattr(st, "knob", None)}
+        self.assertEqual(states["max_clusters"], "READY")
+
+    def test_unknown_planner_execution_state_fails_loudly_instead_of_becoming_ready(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        ev = [p.evidence_from_dict(payload["evidence"][0])]
+        real = p.ScenarioPlanner.scenarios
+        def corrupt(planner, e, candidates):
+            scenarios, recommended = real(planner, e, candidates)
+            scenarios[0].steps[0].execution_state = "NOT_A_STATE"
+            return scenarios, recommended
+        with patch.object(p.ScenarioPlanner, "scenarios", corrupt):
+            with self.assertRaises(ValueError) as ctx:
+                p.build_recommendation_packages(ev, self.t)
+        self.assertIn("NOT_A_STATE", str(ctx.exception))
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
