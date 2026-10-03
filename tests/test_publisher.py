@@ -604,6 +604,27 @@ class PublisherV27Tests(unittest.TestCase):
         capped, _ = self.auto_stop_only(2.0)
         self.assertEqual(capped.metadata["raw_savings_fraction"], self.t.auto_stop_savings_cap)
 
+    def test_guardrail_changes_with_no_direct_savings_are_labeled_no_delta_modeled(self):
+        # Demo max-cluster tightening (4 -> 3) is a guardrail: it carries no priced delta, so it is not a "modeled range".
+        pkg = self.packages[0]
+        mx = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertEqual(mx.status.value, "ACTIONABLE")
+        self.assertEqual(mx.independent_economics.estimation_status.value, "NO_DELTA_MODELED")
+        self.assertEqual(mx.independent_economics.savings_365d.total.base, 0)
+
+    def test_priced_changes_keep_their_modeled_label(self):
+        up = self.increase_candidate_package()
+        self.assertEqual(up.status.value, "ACTIONABLE")
+        self.assertEqual(up.independent_economics.estimation_status.value, "MODELED_RANGE")
+        for c in self.packages[0].candidates:
+            if c.knob.value in {"auto_stop_minutes", "min_clusters", "warehouse_size"} and c.status.value in {"ACTIONABLE", "TEST_REQUIRED"}:
+                self.assertNotEqual(c.independent_economics.estimation_status.value, "NO_DELTA_MODELED", c.knob.value)
+
+    def increase_candidate_package(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        pkg = p.build_recommendation_packages([p.evidence_from_dict(payload["evidence"][0])], self.t)[0]
+        return next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)

@@ -2992,6 +2992,9 @@ def _estimation_status(c: CandidateRecommendation) -> rc.EstimationStatus:
     if c.total_365d_estimated_cost_range is None and c.dbu_365d_estimated_cost_range is None:
         # Blocked, or a change whose estimate was withheld (e.g. no published Serverless DBU rate): nothing was priced.
         return rc.EstimationStatus.UNAVAILABLE
+    if (c.metadata.get("bundle_effect") or {}).get("type") == "no_cost_change":
+        # A guardrail/stability change (e.g. tightening max clusters) is deliberately given no priced delta.
+        return rc.EstimationStatus.NO_DELTA_MODELED
     if c.knob == "warehouse_type" and c.status == "TEST_REQUIRED":
         return rc.EstimationStatus.PRE_CANARY_MODELED_RANGE
     if c.status == "TEST_REQUIRED":
