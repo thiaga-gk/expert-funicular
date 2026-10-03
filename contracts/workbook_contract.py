@@ -1,6 +1,6 @@
 """Workbook Reporter Contract v1.1.0.
 
-A compact, human-facing projection of locked Reporter JSON Contract v1.0.0.
+A compact, human-facing projection of locked Reporter JSON Contract v1.1.0.
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from . import reporter_contract as rc
 
-WORKBOOK_CONTRACT_VERSION = "1.1.0"
+WORKBOOK_CONTRACT_VERSION = "1.2.0"
 SHEET_EXECUTIVE = "Executive Summary"
 SHEET_PORTFOLIO = "Warehouse Portfolio"
 SHEET_SCENARIOS = "Scenario Plans"
@@ -162,6 +162,9 @@ SCENARIO_COLUMNS = (
     ColumnSpec("estimated_total_cost_base", "Est. cost base", 14, MONEY_FORMAT),
     ColumnSpec("estimated_total_cost_high", "Est. cost high", 14, MONEY_FORMAT),
     ColumnSpec("estimation_status", "Estimation status", 19),
+    ColumnSpec("contingent_total_low_impact", "Contingent low impact", 17, MONEY_FORMAT),
+    ColumnSpec("contingent_total_base_impact", "Contingent base impact", 17, MONEY_FORMAT),
+    ColumnSpec("contingent_total_high_impact", "Contingent high impact", 17, MONEY_FORMAT),
     ColumnSpec("execution_plan", "Execution plan", 48),
     ColumnSpec("remeasure_required", "Remeasure?", 11),
     ColumnSpec("remeasure_days", "Remeasure days", 13, "#,##0"),
@@ -182,6 +185,7 @@ SCENARIO_GROUPS = (
     ColumnGroup("AWS impact", "aws_low_impact", "aws_high_impact"),
     ColumnGroup("Total impact", "total_low_impact", "total_high_impact"),
     ColumnGroup("Counterfactual cost", "estimated_total_cost_low", "estimation_status"),
+    ColumnGroup("Contingent upside (pending re-evaluation)", "contingent_total_low_impact", "contingent_total_high_impact"),
     ColumnGroup("Execution", "execution_plan", "remeasure_days"),
     ColumnGroup("Audit / traceability", "compatibility_checks_json", "invalidations_json"),
 )
@@ -392,6 +396,14 @@ def candidate_view_text(package: rc.RecommendationPackage) -> str:
     return " | ".join(parts) or DISPLAY_NA
 
 
+def _pricing_tag(step: rc.PlanStep) -> str:
+    """'; priced AUTHORITATIVE|CONTINGENT' for steps with projected economics, so plan text shows the pricing basis."""
+    if step.projected_economics is None:
+        return ""
+    contingent = step.projected_economics.pricing_basis == rc.PricingBasis.CONTINGENT_PENDING_REEVALUATION
+    return "; priced " + ("CONTINGENT" if contingent else "AUTHORITATIVE")
+
+
 def execution_plan_text(package: rc.RecommendationPackage) -> str:
     sid = package.recommended_plan.scenario_id
     scenario = next((s for s in package.scenarios if s.scenario_id == sid), None)
@@ -405,7 +417,7 @@ def execution_plan_text(package: rc.RecommendationPackage) -> str:
             action = f"{_enum(step.knob)} {cur}→{rec}"
         else:
             action = step.action or _enum(step.step_type)
-        text = f"{step.step}. {action} [{_enum(step.execution_state)}]"
+        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}"
         if step.validation.remeasure_days:
             text += f"; remeasure {step.validation.remeasure_days}d"
         parts.append(text)
@@ -421,7 +433,7 @@ def execution_plan_text_for_scenario(s: rc.Scenario) -> str:
             action = f"{_enum(step.knob)} {cur}→{rec}"
         else:
             action = step.action or _enum(step.step_type)
-        text = f"{step.step}. {action} [{_enum(step.execution_state)}]"
+        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}"
         if step.validation.remeasure_days:
             text += f"; remeasure {step.validation.remeasure_days}d"
         parts.append(text)
@@ -524,6 +536,7 @@ def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, 
 
 def project_scenario(package: rc.RecommendationPackage, s: rc.Scenario) -> Dict[str, Any]:
     e, steps = s.portfolio_economics, sorted(s.execution_plan, key=lambda x: x.step)
+    contingent_total = e.contingent_savings_365d.total if e.contingent_savings_365d is not None else None
     invalidations = sorted({_enum(k) for st in steps for k in st.invalidates})
     remeasure_days = max((st.validation.remeasure_days or 0 for st in steps), default=0)
     blockers = [rc.to_primitive(c) for c in s.compatibility.checks if _enum(c.status) != "PASS" or c.requires_hitl]
@@ -547,6 +560,9 @@ def project_scenario(package: rc.RecommendationPackage, s: rc.Scenario) -> Dict[
         "estimated_total_cost_low": _range_bound_or_unavailable(e.estimated_cost_365d.total, "low"),
         "estimated_total_cost_base": _range_bound_or_unavailable(e.estimated_cost_365d.total, "base"),
         "estimated_total_cost_high": _range_bound_or_unavailable(e.estimated_cost_365d.total, "high"), "estimation_status": _enum(e.estimation_status),
+        "contingent_total_low_impact": _signed_amount(_range_component(contingent_total, "low")),
+        "contingent_total_base_impact": _signed_amount(_range_component(contingent_total, "base")),
+        "contingent_total_high_impact": _signed_amount(_range_component(contingent_total, "high")),
         "execution_plan": execution_plan_text_for_scenario(s), "execution_plan_json": _json(steps), "candidate_ids_json": _compact_json_list(s.candidate_refs),
         "dependencies_json": _json([rc.to_primitive(d) for st in steps for d in st.dependencies]), "invalidations_json": _json(invalidations),
         "remeasure_required": bool(remeasure_days), "remeasure_days": remeasure_days if remeasure_days else DISPLAY_NA,
@@ -608,7 +624,7 @@ def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_ro
 
 
     metrics = [
-        {"section":"Coverage","metric":"Workbook contract","value":WORKBOOK_CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Compact projection of Reporter JSON Contract v1.0.0"},
+        {"section":"Coverage","metric":"Workbook contract","value":WORKBOOK_CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Compact projection of Reporter JSON Contract v1.1.0"},
         {"section":"Coverage","metric":"Reporter contract","value":rc.CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Locked JSON source of truth"},
         {"section":"Coverage","metric":"Warehouses assessed","value":len(packages),"currency":DISPLAY_NA,"notes":"One immutable package per warehouse/current epoch"},
         {"section":"Coverage","metric":"Workspaces","value":len({p.warehouse.workspace_id for p in packages}),"currency":DISPLAY_NA,"notes":DISPLAY_NA},

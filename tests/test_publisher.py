@@ -112,6 +112,96 @@ class PublisherV27Tests(unittest.TestCase):
         for g, w in ((got.low, want.low), (got.base, want.base), (got.high, want.high)):
             self.assertAlmostEqual(g, w, delta=1.0)
 
+    # --- audit H1: steps marked PENDING_REEVALUATION must not feed authoritative scenario economics ----------
+    def plan_a(self):
+        return next(s for s in self.w.scenarios if s.name.startswith("Plan A"))
+
+    def test_plan_a_authoritative_savings_stop_at_the_first_invalidating_step(self):
+        plan = self.plan_a()
+        states = {x.knob: x.execution_state for x in plan.steps}
+        self.assertEqual(states["warehouse_size"], "READY_FOR_CANARY")
+        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+            self.assertEqual(states[knob], "PENDING_REEVALUATION")
+        size = next(x for x in plan.steps if x.knob == "warehouse_size")
+        auth = plan.portfolio_estimate.estimated_savings_range_365
+        # The authoritative scenario figure is exactly the size step; pending steps add nothing to it.
+        self.assertAlmostEqual(auth.base, size.running_estimated_savings_range_365.base, places=2)
+        self.assertAlmostEqual(auth.high, size.running_estimated_savings_range_365.high, places=2)
+
+    def test_pending_steps_are_priced_as_a_labeled_contingent_upside(self):
+        plan = self.plan_a()
+        basis = {x.knob: x.pricing_basis for x in plan.steps}
+        self.assertEqual(basis["warehouse_size"], "AUTHORITATIVE")
+        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+            self.assertEqual(basis[knob], "CONTINGENT_PENDING_REEVALUATION")
+        contingent = plan.portfolio_estimate.contingent
+        self.assertIsNotNone(contingent)
+        last = plan.steps[-1]
+        self.assertAlmostEqual(contingent.estimated_savings_range_365.base, last.running_estimated_savings_range_365.base, places=2)
+        # The big-picture upside is larger than the authoritative base, and clearly separate from it.
+        self.assertGreater(contingent.estimated_savings_range_365.base, plan.portfolio_estimate.estimated_savings_range_365.base)
+        self.assertEqual(contingent.estimate_status, "PROVISIONAL_MODELED_RANGE")
+
+    def step_for(self, knob, state):
+        c = self.by_knob[knob]
+        return p.PlanStep(1, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status,
+                          "GATE", 0, c.invalidates, c.dependencies, state), c
+
+    def test_authoritative_chain_skips_pending_effects_even_when_a_later_step_is_ready(self):
+        pending, pc = self.step_for("min_clusters", "PENDING_REEVALUATION")
+        ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        by_id = {pc.recommendation_id: pc, rcand.recommendation_id: rcand}
+        est = p.StatefulBundleEstimator(self.t)
+        both = est.estimate(self.evidence[0], [pending, ready], by_id)
+        only_ready = est.estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
+        # Authoritative: auto-stop is priced on the *unchanged* floor because the min-cluster step is pending.
+        self.assertAlmostEqual(both.estimated_savings_range_365.base, only_ready.estimated_savings_range_365.base, places=2)
+        # Contingent: the full chain, where min-cluster consumed minutes first, so auto-stop has less left to remove.
+        self.assertIsNotNone(both.contingent)
+        self.assertNotAlmostEqual(both.contingent.estimated_savings_range_365.base, both.estimated_savings_range_365.base, places=2)
+
+    def test_no_contingent_economics_when_nothing_is_pending(self):
+        ready, c = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready], {c.recommendation_id: c})
+        self.assertIsNone(port.contingent)
+        self.assertEqual(ready.pricing_basis, "AUTHORITATIVE")
+        plan_b = next(s for s in self.w.scenarios if s.name.startswith("Plan B"))
+        self.assertIsNone(plan_b.portfolio_estimate.contingent)
+
+    def test_unpriceable_pending_step_does_not_poison_authoritative_economics(self):
+        ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        # A pending step with no deterministic counterfactual (Photon) withholds only the contingent chain.
+        photon = p.PlanStep(2, "REC-PHOTON", "enable_photon", {"enable_photon": False}, {"enable_photon": True},
+                            "TEST_REQUIRED", "GATE", 0, [], [], "PENDING_REEVALUATION")
+        photon_c = copy.deepcopy(self.by_knob["enable_photon"])
+        photon_c.recommendation_id = "REC-PHOTON"
+        photon_c.metadata = {**photon_c.metadata, "bundle_effect": {"type": "requires_canary"}}
+        by_id = {rcand.recommendation_id: rcand, "REC-PHOTON": photon_c}
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready, photon], by_id)
+        only_ready = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
+        self.assertEqual(port.estimate_status, only_ready.estimate_status)
+        self.assertAlmostEqual(port.estimated_savings_range_365.base, only_ready.estimated_savings_range_365.base, places=2)
+        self.assertIsNone(port.contingent)  # contingent cannot be priced, so it is withheld rather than guessed
+        self.assertIsNone(photon.running_estimated_savings_range_365)
+
+    def test_reviewer_gate_2_rejects_pending_steps_priced_as_authoritative(self):
+        w = copy.deepcopy(self.w)
+        plan = next(s for s in w.scenarios if s.recommended)
+        next(x for x in plan.steps if x.execution_state == "PENDING_REEVALUATION").pricing_basis = "AUTHORITATIVE"
+        with self.assertRaisesRegex(ValueError, "pricing basis"):
+            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+
+    def test_reviewer_gate_2_rejects_contingent_upside_leaking_into_authoritative_savings(self):
+        w = copy.deepcopy(self.w)
+        plan = next(s for s in w.scenarios if s.recommended)
+        plan.portfolio_estimate.estimated_savings_range_365 = plan.portfolio_estimate.contingent.estimated_savings_range_365
+        with self.assertRaisesRegex(ValueError, "Authoritative scenario savings"):
+            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+
+    def test_reviewer_gate_2_accepts_the_unmodified_plan(self):
+        plan = next(s for s in self.w.scenarios if s.recommended)
+        p.Reviewer(self.t).review_scenarios(self.evidence[0], self.w.candidates, self.w.scenarios, plan.scenario_id)
+
     def test_scenario_contract_and_order(self):
         self.assertEqual([s.name for s in self.w.scenarios], [
             "Plan A — Optimize current warehouse type", "Plan B — Serverless migration experiment"
@@ -303,8 +393,8 @@ class PublisherV27Tests(unittest.TestCase):
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
             self.assertEqual(manifest["publisher_version"], p.PUBLISHER_VERSION)
-            self.assertEqual(manifest["reporter_contract_version"], "1.0.0")
-            self.assertEqual(manifest["workbook_contract_version"], "1.1.0")
+            self.assertEqual(manifest["reporter_contract_version"], "1.1.0")
+            self.assertEqual(manifest["workbook_contract_version"], "1.2.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertEqual(manifest["package_count"], 1)
             self.assertEqual(manifest["workbook_file"], "workbook.xlsx")

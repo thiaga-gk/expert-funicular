@@ -1,7 +1,9 @@
-# Workbook Reporter Contract v1.1.0
+# Workbook Reporter Contract v1.2.0
+
+**Version history:** 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
 
 **Status:** Locked  
-**Source of truth:** validated Reporter JSON Contract v1.0.0 packages  
+**Source of truth:** validated Reporter JSON Contract v1.1.0 packages  
 **Implementation:** `contracts/workbook_contract.py` + `reporters/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.

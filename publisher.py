@@ -435,6 +435,7 @@ class PlanStep:
     running_dbu_savings_range_365: Optional[Range3] = None
     running_aws_savings_range_365: Optional[Range3] = None
     confidence: Dict[str, Any] = field(default_factory=dict)
+    pricing_basis: str = "AUTHORITATIVE"
 
 
 @dataclass
@@ -455,6 +456,8 @@ class PortfolioEstimate:
     dbu_365d_savings_range: Optional[Range3] = None
     aws_365d_savings_range: Optional[Range3] = None
     total_365d_savings_range: Optional[Range3] = None
+    # Stateful upside of steps marked PENDING_REEVALUATION; None when nothing is pending or it cannot be priced.
+    contingent: Optional["PortfolioEstimate"] = None
 
 
 @dataclass
@@ -2405,10 +2408,46 @@ class Reviewer:
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
                 if r is not None and not (r.low<=r.base<=r.high):
                     raise ValueError(f"Scenario range is not ordered: {sc.scenario_id}")
+            # Authoritative economics may not include steps whose evidence was invalidated upstream (audit H1).
+            for st in sc.steps:
+                pending=st.execution_state=="PENDING_REEVALUATION"
+                if pending != (st.pricing_basis==PRICING_CONTINGENT):
+                    raise ValueError(f"Plan-step pricing basis must match its execution state: {st.recommendation_id}")
+            authoritative=[st for st in sc.steps if st.pricing_basis==PRICING_AUTHORITATIVE]
+            contingent_steps=[st for st in sc.steps if st.pricing_basis==PRICING_CONTINGENT]
+            if pe.contingent is not None:
+                if not contingent_steps:
+                    raise ValueError(f"Contingent economics without a pending step: {sc.scenario_id}")
+                for r in (pe.contingent.estimated_cost_range_365, pe.contingent.estimated_savings_range_365):
+                    if r is not None and not (r.low<=r.base<=r.high):
+                        raise ValueError(f"Contingent range is not ordered: {sc.scenario_id}")
+                last=contingent_steps[-1].running_estimated_savings_range_365
+                got=pe.contingent.estimated_savings_range_365
+                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
+                    raise ValueError(f"Contingent savings must equal the last pending step's running savings: {sc.scenario_id}")
+            if authoritative and pe.estimate_status not in {"REQUIRES_CANARY","REQUIRES_COST_MODEL"}:
+                last=authoritative[-1].running_estimated_savings_range_365
+                got=pe.estimated_savings_range_365
+                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
+                    raise ValueError(f"Authoritative scenario savings must equal the last authoritative step's running savings: {sc.scenario_id}")
             if sc.name.startswith("Plan A") and any(st.knob=="warehouse_type" for st in sc.steps):
                 raise ValueError(f"Current-type Plan A cannot contain warehouse_type migration: {sc.scenario_id}")
             if sc.name.startswith("Plan B") and len(sc.steps)>1:
                 raise ValueError(f"Migration Plan B must remain a separate one-step branch: {sc.scenario_id}")
+
+
+PRICING_AUTHORITATIVE = "AUTHORITATIVE"
+PRICING_CONTINGENT = "CONTINGENT_PENDING_REEVALUATION"
+
+
+@dataclass
+class _ChainState:
+    """Evolving cost/resource state for one pricing chain; `halt` = (status, method) once it cannot be priced further."""
+    dbu_tracks: List[float]
+    aws_tracks: Optional[List[float]]
+    resource_tracks: List[float]
+    current_min: int
+    halt: Optional[Tuple[str, str]] = None
 
 
 class StatefulBundleEstimator:
@@ -2460,77 +2499,105 @@ class StatefulBundleEstimator:
             total_365d_savings_range=total_save,
         )
 
+    def _apply(self,st:"_ChainState",c:CandidateRecommendation,effect:Mapping[str,Any],original_resource:float,realizations:Sequence[float])->None:
+        """Apply one candidate's bundle effect to a chain's evolving cost/resource state."""
+        if st.halt is not None: return
+        typ=effect.get("type")
+        if typ=="migration_cost_override":
+            if c.dbu_365d_estimated_cost_range is None:
+                st.halt=("REQUIRES_COST_MODEL","Migration candidate lacks a deterministic DBU counterfactual; cost is withheld until required source pricing/resource evidence is available.")
+                return
+            st.dbu_tracks=[c.dbu_365d_estimated_cost_range.low,c.dbu_365d_estimated_cost_range.base,c.dbu_365d_estimated_cost_range.high]
+            if c.aws_365d_estimated_cost_range is not None:
+                st.aws_tracks=[c.aws_365d_estimated_cost_range.low,c.aws_365d_estimated_cost_range.base,c.aws_365d_estimated_cost_range.high]
+            elif c.aws_365d_baseline_cost is None:
+                st.aws_tracks=None
+        elif typ=="multiplicative_cost_factor":
+            df=self._factors_from_range(c.dbu_365d_baseline_cost,c.dbu_365d_estimated_cost_range)
+            af=self._factors_from_range(c.aws_365d_baseline_cost,c.aws_365d_estimated_cost_range)
+            if df:
+                for i in range(3): st.dbu_tracks[i]*=max(0.0,df[i])
+            if st.aws_tracks is not None and af:
+                for i in range(3): st.aws_tracks[i]*=max(0.0,af[i])
+            rr=effect.get("resource_runtime_factor_range")
+            if rr and original_resource>0:
+                rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
+                for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
+        elif typ in {"min_cluster_reduction","idle_cluster_minute_reduction"}:
+            if typ=="min_cluster_reduction":
+                theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
+                target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
+            else:
+                theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*st.current_min
+                target_min=st.current_min
+            effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
+            for i,realization in enumerate(effect_realizations):
+                before=st.resource_tracks[i]
+                if before<=0: continue
+                removed=min(before,theoretical*realization)
+                after=max(0.0,before-removed)
+                ratio=after/before
+                st.dbu_tracks[i]*=ratio
+                if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
+                st.resource_tracks[i]=after
+            st.current_min=target_min
+        elif typ=="requires_canary":
+            st.halt=("REQUIRES_CANARY","At least one step changes the execution regime without a deterministic counterfactual; portfolio cost is withheld until canary measurement.")
+        elif typ!="no_cost_change":
+            raise ValueError(f"Unknown bundle effect type: {typ}")
+
     def estimate(self,e:WarehouseEvidence,steps:List[PlanStep],candidate_by_id:Dict[str,CandidateRecommendation])->PortfolioEstimate:
+        """Price an ordered plan as two chains over the same evolving-state model.
+
+        The *authoritative* chain prices only steps that are not PENDING_REEVALUATION: their evidence has not been
+        invalidated by an upstream change. The *contingent* chain prices every step using pre-change evidence; it is
+        a big-picture upside that must be regenerated after upstream remeasurement and never feeds package economics.
+        """
         dbu_base=e.dbu_365d_baseline_cost
         aws_base=e.aws_baseline_cost_365
-        dbu_tracks=[dbu_base,dbu_base,dbu_base]
-        aws_tracks=[aws_base,aws_base,aws_base] if aws_base is not None else None
         if not steps:
-            return self._portfolio(e,"NO_CHANGE",dbu_tracks,aws_tracks,"No scenario steps.")
+            return self._portfolio(e,"NO_CHANGE",[dbu_base]*3,[aws_base]*3 if aws_base is not None else None,"No scenario steps.")
 
         original_resource=max(0.0,safe_float(e.current_epoch.events.get("cluster_minutes")))
-        resource_tracks=[original_resource,original_resource,original_resource]
-        current_min=max(1,e.current_epoch.config.min_clusters)
+        def fresh()->_ChainState:
+            return _ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+        auth,cont=fresh(),fresh()
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
 
         for step in steps:
             c=candidate_by_id[step.recommendation_id]
             effect=c.metadata.get("bundle_effect") or {"type":"no_cost_change"}
-            typ=effect.get("type")
-            if typ=="migration_cost_override":
-                if c.dbu_365d_estimated_cost_range is None:
-                    return self._portfolio(e,"REQUIRES_COST_MODEL",dbu_tracks,aws_tracks,"Migration candidate lacks a deterministic DBU counterfactual; cost is withheld until required source pricing/resource evidence is available.")
-                dbu_tracks=[c.dbu_365d_estimated_cost_range.low,c.dbu_365d_estimated_cost_range.base,c.dbu_365d_estimated_cost_range.high]
-                if c.aws_365d_estimated_cost_range is not None:
-                    aws_tracks=[c.aws_365d_estimated_cost_range.low,c.aws_365d_estimated_cost_range.base,c.aws_365d_estimated_cost_range.high]
-                elif c.aws_365d_baseline_cost is None:
-                    aws_tracks=None
-            elif typ=="multiplicative_cost_factor":
-                df=self._factors_from_range(c.dbu_365d_baseline_cost,c.dbu_365d_estimated_cost_range)
-                af=self._factors_from_range(c.aws_365d_baseline_cost,c.aws_365d_estimated_cost_range)
-                if df:
-                    for i in range(3): dbu_tracks[i]*=max(0.0,df[i])
-                if aws_tracks is not None and af:
-                    for i in range(3): aws_tracks[i]*=max(0.0,af[i])
-                rr=effect.get("resource_runtime_factor_range")
-                if rr and original_resource>0:
-                    rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
-                    for i in range(3): resource_tracks[i]*=max(0.0,rf[i])
-            elif typ in {"min_cluster_reduction","idle_cluster_minute_reduction"}:
-                if typ=="min_cluster_reduction":
-                    theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
-                    target_min=max(1,safe_int(effect.get("target_min_clusters"),current_min))
-                else:
-                    theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*current_min
-                    target_min=current_min
-                effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
-                for i,realization in enumerate(effect_realizations):
-                    before=resource_tracks[i]
-                    if before<=0: continue
-                    removed=min(before,theoretical*realization)
-                    after=max(0.0,before-removed)
-                    ratio=after/before
-                    dbu_tracks[i]*=ratio
-                    if aws_tracks is not None: aws_tracks[i]*=ratio
-                    resource_tracks[i]=after
-                current_min=target_min
-            elif typ=="requires_canary":
-                return self._portfolio(e,"REQUIRES_CANARY",dbu_tracks,aws_tracks,"At least one step changes the execution regime without a deterministic counterfactual; portfolio cost is withheld until canary measurement.")
-            elif typ!="no_cost_change":
-                raise ValueError(f"Unknown bundle effect type: {typ}")
+            pending=step.execution_state=="PENDING_REEVALUATION"
+            step.pricing_basis=PRICING_CONTINGENT if pending else PRICING_AUTHORITATIVE
+            if not pending: self._apply(auth,c,effect,original_resource,realizations)
+            self._apply(cont,c,effect,original_resource,realizations)
+            chain=cont if pending else auth
+            snap=self._portfolio(e,"RUNNING",chain.dbu_tracks,chain.aws_tracks,"Running stateful plan estimate.") if chain.halt is None else None
+            step.running_dbu_cost_range_365=snap.dbu_365d_estimated_cost_range if snap else None
+            step.running_aws_cost_range_365=snap.aws_365d_estimated_cost_range if snap else None
+            step.running_dbu_savings_range_365=snap.dbu_365d_savings_range if snap else None
+            step.running_aws_savings_range_365=snap.aws_365d_savings_range if snap else None
+            step.running_estimated_cost_range_365=(snap.total_365d_estimated_cost_range or snap.dbu_365d_estimated_cost_range) if snap else None
+            step.running_estimated_savings_range_365=(snap.total_365d_savings_range or snap.dbu_365d_savings_range) if snap else None
 
-            snap=self._portfolio(e,"RUNNING",dbu_tracks,aws_tracks,"Running stateful plan estimate.")
-            step.running_dbu_cost_range_365=snap.dbu_365d_estimated_cost_range
-            step.running_aws_cost_range_365=snap.aws_365d_estimated_cost_range
-            step.running_dbu_savings_range_365=snap.dbu_365d_savings_range
-            step.running_aws_savings_range_365=snap.aws_365d_savings_range
-            step.running_estimated_cost_range_365=snap.total_365d_estimated_cost_range or snap.dbu_365d_estimated_cost_range
-            step.running_estimated_savings_range_365=snap.total_365d_savings_range or snap.dbu_365d_savings_range
-
-        provisional=any(step.invalidates for step in steps[:-1]) or any(candidate_by_id[s.recommendation_id].knob=="warehouse_type" for s in steps)
-        status="PRE_CANARY_MODELED_RANGE" if any(candidate_by_id[s.recommendation_id].knob=="warehouse_type" for s in steps) else "PROVISIONAL_MODELED_RANGE" if provisional else "MODELED_RANGE"
-        method=("Stateful DBU+AWS bundle. Each step changes the evolving cost/resource state. Min-cluster and auto-stop remove remaining cluster-minutes rather than adding standalone savings; migration steps replace the state with a DBU+AWS pre-canary counterfactual. Downstream steps after invalidation must be regenerated after remeasurement.")
-        return self._portfolio(e,status,dbu_tracks,aws_tracks,method)
+        priced=[x for x in steps if x.pricing_basis==PRICING_AUTHORITATIVE]
+        has_pending=len(priced)<len(steps)
+        has_migration=lambda group: any(candidate_by_id[x.recommendation_id].knob=="warehouse_type" for x in group)
+        method=("Stateful DBU+AWS bundle. Each step changes the evolving cost/resource state. Min-cluster and auto-stop remove remaining cluster-minutes rather than adding standalone savings; migration steps replace the state with a DBU+AWS pre-canary counterfactual.")
+        if has_pending:
+            method+=" Steps invalidated by an upstream change (PENDING_REEVALUATION) are excluded from this authoritative estimate; regenerate after remeasurement."
+        if auth.halt is not None:
+            result=self._portfolio(e,auth.halt[0],auth.dbu_tracks,auth.aws_tracks,auth.halt[1])
+        else:
+            provisional=any(candidate_by_id[x.recommendation_id].status=="TEST_REQUIRED" for x in priced)
+            status="PRE_CANARY_MODELED_RANGE" if has_migration(priced) else "PROVISIONAL_MODELED_RANGE" if provisional else "MODELED_RANGE"
+            result=self._portfolio(e,status,auth.dbu_tracks,auth.aws_tracks,method)
+        if has_pending and cont.halt is None:
+            result.contingent=self._portfolio(
+                e,"PRE_CANARY_MODELED_RANGE" if has_migration(steps) else "PROVISIONAL_MODELED_RANGE",cont.dbu_tracks,cont.aws_tracks,
+                "Contingent upside: the same stateful chain priced through steps marked PENDING_REEVALUATION using pre-change evidence. "
+                "Not authoritative: it never feeds package economics and must be regenerated after upstream remeasurement.")
+        return result
 
 
 class ScenarioPlanner:
@@ -2614,7 +2681,7 @@ class ScenarioPlanner:
 
 
 # ---------------------------------------------------------------------------
-# Locked Reporter JSON Contract v1.0.0 adapter / canonical JSON packaging
+# Locked Reporter JSON Contract v1.1.0 adapter / canonical JSON packaging
 # ---------------------------------------------------------------------------
 
 
@@ -2660,6 +2727,19 @@ def _contract_component_ranges(
     dbu: Optional[Range3], aws: Optional[Range3], total: Optional[Range3]
 ) -> rc.ComponentRanges:
     return rc.ComponentRanges(_contract_range(dbu), _contract_range(aws), _contract_range(total))
+
+
+def _step_projection(step: PlanStep) -> Optional[rc.StepProjection]:
+    """Cumulative stateful savings after this step, or None when the chain could not price it."""
+    if step.running_dbu_savings_range_365 is None and step.running_aws_savings_range_365 is None:
+        return None
+    total = step.running_estimated_savings_range_365 if step.running_aws_savings_range_365 is not None else None
+    return rc.StepProjection(
+        pricing_basis=rc.PricingBasis(step.pricing_basis),
+        running_savings_365d=_contract_component_ranges(
+            step.running_dbu_savings_range_365, step.running_aws_savings_range_365, total
+        ),
+    )
 
 
 def _forward_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
@@ -3223,6 +3303,7 @@ def _scenario_contracts(
                 ),
                 dependencies=_dependency_refs(st.dependencies),
                 invalidates=_tunable_knobs(st.invalidates),
+                projected_economics=_step_projection(st),
             ))
             next_step += 1
 
@@ -3254,6 +3335,7 @@ def _scenario_contracts(
                     scenario_evidence_refs.append(ref)
 
         pe = s.portfolio_estimate
+        ct = pe.contingent
         economics = rc.ScenarioEconomics(
             estimation_status=_scenario_estimation_status(pe.estimate_status),
             baseline_365d=baseline,
@@ -3265,6 +3347,12 @@ def _scenario_contracts(
             ),
             method=pe.method,
             is_additive=False,
+            contingent_estimated_cost_365d=_contract_component_ranges(
+                ct.dbu_365d_estimated_cost_range, ct.aws_365d_estimated_cost_range, ct.total_365d_estimated_cost_range
+            ) if ct is not None else None,
+            contingent_savings_365d=_contract_component_ranges(
+                ct.dbu_365d_savings_range, ct.aws_365d_savings_range, ct.total_365d_savings_range
+            ) if ct is not None else None,
         )
         item = rc.Scenario(
             scenario_id=scenario_id,
@@ -3441,7 +3529,7 @@ def _build_locked_recommendation_package(
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
 ) -> rc.RecommendationPackage:
-    """Build one immutable Reporter JSON Contract v1.0.0 package from reviewed decisions."""
+    """Build one immutable Reporter JSON Contract v1.1.0 package from reviewed decisions."""
     ep = e.current_epoch
     start_time = _iso_z(ep.epoch_start)
     contract_epoch_id = rc.make_epoch_id(
@@ -3633,7 +3721,7 @@ def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
     try:
         import jsonschema  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.0.0 output") from exc
+        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.1.0 output") from exc
     schema = json.loads(_CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator(schema).validate(dict(payload))
 
@@ -3650,7 +3738,7 @@ def package_locked_contract(
     *,
     generate_workbook: bool = True,
 ) -> Dict[str, str]:
-    """Write locked JSON packages plus the Workbook Contract v1.1.0 projection.
+    """Write locked JSON packages plus the Workbook Contract v1.2.0 projection.
 
     Every packages/*.json file remains the source of truth. workbook.xlsx is a
     presentation-only projection and is never read back into the decision engine.
@@ -3698,7 +3786,7 @@ def package_locked_contract(
         "generated_at": max((p.provenance.generated_at for p in packages), default=dt.datetime.now(dt.timezone.utc).isoformat()),
         "package_count": len(packages),
         "packages": entries,
-        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.0.0 RecommendationPackage.",
+        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.1.0 RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
         "workbook_file": None if workbook_path is None else workbook_path.name,
@@ -4057,7 +4145,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.0 (Reporter Contract v1.0.0 + Workbook Contract v1.1.0)")
+    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.0 (Reporter Contract v1.1.0 + Workbook Contract v1.2.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])
@@ -4123,7 +4211,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.0.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
+        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.1.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0

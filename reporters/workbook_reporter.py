@@ -1,4 +1,4 @@
-"""Excel workbook reporter for Workbook Contract v1.1.0.
+"""Excel workbook reporter for Workbook Contract v1.2.0.
 
 The workbook is a presentation-only projection of locked Reporter JSON Contract
 v1.0.0.  Exact detailed-sheet columns and section groups are owned by
@@ -232,7 +232,7 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
     _sheet_title(
         sheet,
         "SQL Warehouse Optimization — Executive Summary",
-        "Decision-ready portfolio view from Reporter JSON Contract v1.0.0. Financial cells are numeric; impact direction is explicit and sortable.",
+        "Decision-ready portfolio view from Reporter JSON Contract v1.1.0. Financial cells are numeric; impact direction is explicit and sortable.",
         20,
     )
     # Section labels make the side-by-side layout obvious.

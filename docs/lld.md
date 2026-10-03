@@ -5,8 +5,8 @@
 **Implementation baseline:** Publisher v2.7.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **LLD version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01  
@@ -33,8 +33,8 @@ The following contracts are independent of publisher implementation version and 
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 1.0.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.0.0.md` |
-| Workbook Contract | 1.1.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.1.0.md` |
+| Reporter JSON Contract | 1.1.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.1.0.md` |
+| Workbook Contract | 1.2.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.2.0.md` |
 | Publisher implementation | 2.7.0 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
@@ -43,7 +43,7 @@ Publisher v2.7.0 implements the sealed design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
-3. Workbook Contract v1.1.0 is a numeric-first presentation projection of the public packages.
+3. Workbook Contract v1.2.0 is a numeric-first presentation projection of the public packages.
 
 Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
 
@@ -68,8 +68,8 @@ docs/
 ├── prd.md
 ├── hld.md
 ├── lld.md
-├── reporter-json-contract-v1.0.0.md
-├── workbook-contract-v1.1.0.md
+├── reporter-json-contract-v1.1.0.md
+├── workbook-contract-v1.2.0.md
 ├── thresholds.md
 ├── technique-catalog.md
 ├── source-mapping.md
@@ -98,7 +98,7 @@ tests/
 ```mermaid
 flowchart LR
     SRC[Databricks sources] --> PUB[publisher.py domain engine]
-    PUB --> RC[Reporter Contract v1.0.0]
+    PUB --> RC[Reporter Contract v1.1.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -976,6 +976,21 @@ execution_state = PENDING_REEVALUATION
 gate = RE_ANALYZE_AFTER_UPSTREAM_CANARY
 ```
 
+**Pricing of pending steps (Contract 1.1.0).** The stateful bundle estimator prices a plan as two chains over the same
+evolving cost/resource state:
+
+- the **authoritative** chain applies only steps that are not `PENDING_REEVALUATION`. Their evidence has not been
+  invalidated by an upstream change. A pending step's effect is *skipped*, so a later ready step is priced on the state
+  without it. This chain defines scenario `savings_365d`/`estimated_cost_365d`, the package economics and the envelope;
+- the **contingent** chain applies every step using pre-change evidence. It is published as `contingent_*` scenario
+  economics and as per-step `projected_economics` with `pricing_basis = CONTINGENT_PENDING_REEVALUATION`, a big-picture
+  upside that must be regenerated after the upstream step is applied and remeasured. It never feeds package economics.
+
+If a chain cannot be priced (for example a Photon canary with no deterministic counterfactual) its economics are null,
+never zero. A pending step that cannot be priced does not affect the authoritative chain. Phase 1 has no apply API:
+"re-validation on application" means the next publisher run after an upstream step is applied produces fresh
+authoritative economics for the next knob.
+
 ### 19.3 Step state machine
 
 ```mermaid
@@ -1075,6 +1090,8 @@ Min-cluster and auto-stop do not both claim the same original capacity minute.
 - step knob/current/recommended config exactly equal candidate contract,
 - step confidence exactly equals candidate confidence,
 - invalidated downstream steps are `PENDING_REEVALUATION`,
+- a step's pricing basis matches its execution state (`PENDING_REEVALUATION` ⇔ contingent),
+- authoritative scenario savings equal the last authoritative step's running savings, and contingent savings equal the last pending step's,
 - every scenario range is ordered,
 - Plan A contains no warehouse-type migration,
 - Plan B contains no more than one step.
@@ -1083,7 +1100,7 @@ Only after reviewer gate 2 may the public contract adapter run.
 
 ---
 
-## 22. Public Reporter JSON Contract v1.0.0
+## 22. Public Reporter JSON Contract v1.1.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1330,7 +1347,7 @@ Realization never changes the original `PKG-*` identity.
 
 ---
 
-## 27. Workbook Contract v1.1.0
+## 27. Workbook Contract v1.2.0
 
 The workbook is generated from already-validated `RecommendationPackage` objects.
 
@@ -1584,7 +1601,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A dependency/invalidation order is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.0.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.1.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.
@@ -1602,8 +1619,8 @@ flowchart LR
     CTX[context.md<br/>domain language + concepts] --> PRD[prd.md<br/>what/why]
     PRD --> HLD[hld.md<br/>architecture]
     HLD --> LLD[lld.md<br/>implementation design]
-    LLD --> RC[Reporter Contract v1.0.0]
-    LLD --> WC[Workbook Contract v1.1.0]
+    LLD --> RC[Reporter Contract v1.1.0]
+    LLD --> WC[Workbook Contract v1.2.0]
     LLD --> CODE[publisher.py + modules]
     CODE --> TEST[tests + golden evidence]
 ```

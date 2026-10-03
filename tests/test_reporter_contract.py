@@ -10,6 +10,10 @@ from jsonschema import Draft202012Validator, FormatChecker
 from contracts.reporter_contract import (
     CONTRACT_VERSION,
     BoundName,
+    ComponentRanges,
+    ExecutionState,
+    PricingBasis,
+    StepProjection,
     Confidence,
     ConfidenceLevel,
     Range3,
@@ -79,12 +83,12 @@ class ReporterContractTests(unittest.TestCase):
     def test_package_economics_is_total_envelope_not_component_range(self) -> None:
         package = build_package()
         rng = package.package_economics.estimated_savings_365d
-        self.assertEqual(12793.82, rng.low)
-        self.assertEqual(22014.23, rng.base)
-        self.assertEqual(30008.80, rng.high)
+        self.assertEqual(4000, rng.low)
+        self.assertEqual(6500, rng.base)
+        self.assertEqual(21793.82, rng.high)
         # Per-bound DBU/AWS attribution stays attached to the source scenario.
-        self.assertEqual(4000, package.package_economics.scenario_envelope.minimum_savings.savings_365d.dbu)
-        self.assertEqual(8793.82, package.package_economics.scenario_envelope.minimum_savings.savings_365d.aws)
+        self.assertEqual(3000, package.package_economics.scenario_envelope.minimum_savings.savings_365d.dbu)
+        self.assertEqual(1000, package.package_economics.scenario_envelope.minimum_savings.savings_365d.aws)
 
     def test_candidate_status_counts_match_assessment(self) -> None:
         package = build_package()
@@ -100,6 +104,64 @@ class ReporterContractTests(unittest.TestCase):
         package = build_package()
         self.assertEqual(RealizationStatus.NOT_APPLIED, package.realization.status)
         self.assertEqual([], package.realization.realization_records)
+
+    # --- contract 1.1.0: authoritative headline vs contingent per-step upside (audit H1) -------------------
+    @staticmethod
+    def _plan_a(package):
+        return next(s for s in package.scenarios if s.scenario_name.startswith("Plan A"))
+
+    @staticmethod
+    def _with_scenario(package, scenario):
+        return dataclasses.replace(package, scenarios=[scenario if s.scenario_id == scenario.scenario_id else s for s in package.scenarios])
+
+    def test_example_prices_pending_steps_contingent_and_headline_authoritative(self) -> None:
+        plan = self._plan_a(build_package())
+        steps = [x for x in plan.execution_plan if x.projected_economics is not None]
+        for step in steps:
+            pending = step.execution_state == ExecutionState.PENDING_REEVALUATION
+            self.assertEqual(pending, step.projected_economics.pricing_basis == PricingBasis.CONTINGENT_PENDING_REEVALUATION)
+        last_auth = [x for x in steps if x.projected_economics.pricing_basis == PricingBasis.AUTHORITATIVE][-1]
+        self.assertEqual(last_auth.projected_economics.running_savings_365d, plan.portfolio_economics.savings_365d)
+        self.assertGreater(plan.portfolio_economics.contingent_savings_365d.total.base, plan.portfolio_economics.savings_365d.total.base)
+
+    def test_pending_step_priced_authoritative_is_rejected(self) -> None:
+        package = build_package()
+        plan = self._plan_a(package)
+        pending = next(x for x in plan.execution_plan if x.execution_state == ExecutionState.PENDING_REEVALUATION)
+        bad = dataclasses.replace(pending, projected_economics=StepProjection(PricingBasis.AUTHORITATIVE, pending.projected_economics.running_savings_365d))
+        steps = [bad if x.step == pending.step else x for x in plan.execution_plan]
+        with self.assertRaisesRegex(ValueError, "PENDING_REEVALUATION step must be priced CONTINGENT"):
+            self._with_scenario(package, dataclasses.replace(plan, execution_plan=steps)).validate()
+
+    def test_scenario_headline_must_equal_last_authoritative_step(self) -> None:
+        package = build_package()
+        plan = self._plan_a(package)
+        leaked = dataclasses.replace(plan.portfolio_economics, savings_365d=plan.portfolio_economics.contingent_savings_365d)
+        with self.assertRaisesRegex(ValueError, "last authoritative step"):
+            self._with_scenario(package, dataclasses.replace(plan, portfolio_economics=leaked)).validate()
+
+    def test_contingent_economics_require_a_pending_step_and_both_fields(self) -> None:
+        package = build_package()
+        plan_b = next(s for s in package.scenarios if s.scenario_name.startswith("Plan B"))
+        plan_a = self._plan_a(package)
+        econ = dataclasses.replace(
+            plan_b.portfolio_economics,
+            contingent_estimated_cost_365d=plan_a.portfolio_economics.contingent_estimated_cost_365d,
+            contingent_savings_365d=plan_a.portfolio_economics.contingent_savings_365d,
+        )
+        with self.assertRaisesRegex(ValueError, "require at least one PENDING_REEVALUATION step"):
+            self._with_scenario(package, dataclasses.replace(plan_b, portfolio_economics=econ)).validate()
+        half = dataclasses.replace(plan_a.portfolio_economics, contingent_estimated_cost_365d=None)
+        with self.assertRaisesRegex(ValueError, "published together or both null"):
+            self._with_scenario(package, dataclasses.replace(plan_a, portfolio_economics=half)).validate()
+
+    def test_contingent_savings_must_match_last_pending_step(self) -> None:
+        package = build_package()
+        plan = self._plan_a(package)
+        shifted = ComponentRanges(None, None, Range3(1.0, 2.0, 3.0))
+        econ = dataclasses.replace(plan.portfolio_economics, contingent_savings_365d=shifted)
+        with self.assertRaisesRegex(ValueError, "last pending step"):
+            self._with_scenario(package, dataclasses.replace(plan, portfolio_economics=econ)).validate()
 
     def test_range_order_is_enforced(self) -> None:
         with self.assertRaises(ValueError):

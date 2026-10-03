@@ -1,4 +1,6 @@
-# Reporter JSON Contract v1.0.0 — Locked
+# Reporter JSON Contract v1.1.0 — Locked
+
+**Version history:** 1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
 
 **Status:** LOCKED for implementation  
 **Scope:** one immutable recommendation package per Databricks SQL warehouse / current configuration epoch  
@@ -529,7 +531,9 @@ Same DBU/AWS/total `ComponentRanges` structure as candidate economics, but produ
 
 - `is_additive` must be false.
 - `method` is required.
-- This is the authoritative total economic estimate for that scenario.
+- `estimated_cost_365d` / `savings_365d` are the **authoritative** economic estimate for that scenario: they price only steps whose evidence has not been invalidated upstream, i.e. every step whose `execution_state` is not `PENDING_REEVALUATION`. Package economics and the scenario envelope derive from these figures only.
+- `contingent_estimated_cost_365d` / `contingent_savings_365d` (1.1.0, `ComponentRanges`, nullable) are the stateful upside of the whole chain including `PENDING_REEVALUATION` steps, priced from pre-change evidence. They are **not authoritative**, never feed package economics, and must be regenerated after upstream remeasurement. They are published together or both null, and null when no step is pending or when the chain cannot be priced (unknown cost is null, never zero).
+- Savings are signed: positive = savings, negative = cost increase.
 
 ### Execution plan step
 
@@ -548,6 +552,17 @@ Same DBU/AWS/total `ComponentRanges` structure as candidate economics, but produ
 | `validation` | ValidationGate | Yes | No | Canary/HITL/remeasure requirements |
 | `dependencies` | DependencyRef[] | Yes | No | Explicit prerequisites |
 | `invalidates` | knob[] | Yes | No | Downstream knobs invalidated if step is applied |
+| `projected_economics` | StepProjection | Yes | Yes | 1.1.0. Cumulative stateful savings after this step and its pricing basis; null when the chain could not price the step |
+
+`StepProjection`: `pricing_basis` (`AUTHORITATIVE | CONTINGENT_PENDING_REEVALUATION`) and `running_savings_365d` (`ComponentRanges`, signed, cumulative: the savings of the plan up to and including this step). Cumulative ranges are published rather than per-step increments because the difference of low/base/high ranges is not itself a low/base/high range.
+
+Invariants (semantic validators):
+
+- A `PENDING_REEVALUATION` step is priced `CONTINGENT_PENDING_REEVALUATION`; every other priced step is `AUTHORITATIVE`.
+- Scenario `savings_365d` equals the `running_savings_365d` of the last `AUTHORITATIVE` step (within 0.03).
+- `contingent_savings_365d` is present only if at least one step is `PENDING_REEVALUATION`, and equals the `running_savings_365d` of the last contingent step.
+
+Re-validation on application: Phase 1 has no apply API. Contingent figures are a big-picture view only; after an upstream step is applied and remeasured, the next publisher run produces a new package whose authoritative economics include the next knob.
 
 Step type:
 
@@ -752,11 +767,11 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 
 # 20. Source-of-truth artifacts
 
-1. **Semantic contract:** `docs/reporter-json-contract-v1.0.0.md`
+1. **Semantic contract:** `docs/reporter-json-contract-v1.1.0.md`
 2. **Python executable contract:** `contracts/reporter_contract.py`
 3. **Schema builder:** `contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/contracts/test_reporter_contract.py`
 
-The workbook is intentionally not part of Reporter Contract v1.0.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.
+The workbook is intentionally not part of Reporter Contract v1.1.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.

@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v1.0.0.
+"""Build the locked Reporter Contract JSON Schema v1.1.0.
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.
@@ -28,6 +28,7 @@ from .reporter_contract import (
     Objective,
     PhotonStatus,
     PlanStepType,
+    PricingBasis,
     RealizationOutcomeStatus,
     RealizationStatus,
     RecommendationStatus,
@@ -283,6 +284,10 @@ def build_schema() -> Dict[str, Any]:
         "remeasure_days": nullable({"type": "integer", "minimum": 1, "maximum": 90}),
         "action_after": nullable({"type": "string", "minLength": 1}),
     })
+    defs["StepProjection"] = obj({
+        "pricing_basis": enum_schema(PricingBasis),
+        "running_savings_365d": ref("ComponentRanges"),
+    })
     defs["PlanStep"] = obj({
         "step": {"type": "integer", "minimum": 1},
         "step_type": enum_schema(PlanStepType),
@@ -297,6 +302,7 @@ def build_schema() -> Dict[str, Any]:
         "validation": ref("ValidationGate"),
         "dependencies": arr(ref("DependencyRef")),
         "invalidates": arr(enum_schema(TunableKnob), unique=True),
+        "projected_economics": nullable(ref("StepProjection")),
     })
 
     defs["ScenarioEconomics"] = obj({
@@ -306,6 +312,8 @@ def build_schema() -> Dict[str, Any]:
         "savings_365d": ref("ComponentRanges"),
         "method": {"type": "string", "minLength": 1},
         "is_additive": {"const": False},
+        "contingent_estimated_cost_365d": nullable(ref("ComponentRanges")),
+        "contingent_savings_365d": nullable(ref("ComponentRanges")),
     })
     defs["Scenario"] = obj({
         "scenario_id": id_schema("SCN"),
@@ -443,7 +451,7 @@ def build_schema() -> Dict[str, Any]:
 
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:1.0.0",
+        "$id": f"urn:databricks-sql-warehouse-optimizer:recommendation-package:{CONTRACT_VERSION}",
         "title": "Databricks SQL Warehouse Optimization Recommendation Package",
         "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
         "type": "object",

@@ -3,8 +3,8 @@
 **Document:** `docs/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Implementation baseline:** Publisher v2.7.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **PRD version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01
@@ -23,7 +23,7 @@ The product is designed to answer five questions for every in-scope SQL warehous
 4. **What are the candidate and scenario-level economic consequences, with confidence and guardrails?**
 5. **What should a human reviewer validate, canary, apply, remeasure, or reject?**
 
-The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v1.0.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.1.0 is a presentation-only projection of those locked packages.
+The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v1.1.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.2.0 is a presentation-only projection of those locked packages.
 
 The current implementation is **advisory only**. It does not mutate SQL warehouse configuration. Human-in-the-loop approval and canary validation are mandatory for changes that can materially alter workload behavior or runtime.
 
@@ -623,7 +623,7 @@ A validation failure shall stop publication of the affected package rather than 
 
 ## 17. Public Reporter JSON Contract requirements
 
-The only authoritative public recommendation serialization is **Reporter JSON Contract v1.0.0**.
+The only authoritative public recommendation serialization is **Reporter JSON Contract v1.1.0**.
 
 ### FR-JSON-001
 
@@ -679,7 +679,7 @@ Volatile presentation metadata such as generation timestamp, workbook layout, fi
 
 ## 18. Workbook Contract requirements
 
-The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.1.0.
+The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.2.0.
 
 ### 18.1 Executive Summary
 
@@ -953,8 +953,8 @@ The current product increment is accepted when all of the following remain true:
 5. Candidate economics remain non-additive.
 6. Scenario economics are stateful.
 7. Package economics are a scenario envelope.
-8. Reporter Contract v1.0.0 packages validate semantically and against JSON Schema.
-9. Workbook Contract v1.1.0 is a pure four-sheet projection of the packages.
+8. Reporter Contract v1.1.0 packages validate semantically and against JSON Schema.
+9. Workbook Contract v1.2.0 is a pure four-sheet projection of the packages.
 10. The 15-warehouse synthetic run produces 15 packages, 30 scenarios, 105 candidate rows, and one readable workbook.
 11. Workbook financial-impact fields are numeric, explicitly currency-scoped, and use signed values: positive = savings, negative = cost increase; unavailable remains unavailable rather than zero.
 12. The test suite passes in a clean checkout/extracted artifact.
@@ -1015,10 +1015,10 @@ Future ML or LLM components may assist explanation, anomaly diagnosis, or thresh
 
 ## 27. Locked contracts referenced by this PRD
 
-- `docs/reporter-json-contract-v1.0.0.md`
+- `docs/reporter-json-contract-v1.1.0.md`
 - `schema/recommendation-package.schema.json`
 - `contracts/reporter_contract.py`
-- `docs/workbook-contract-v1.1.0.md`
+- `docs/workbook-contract-v1.2.0.md`
 - `contracts/workbook_contract.py`
 - `docs/technique-catalog.md`
 - `docs/thresholds.md`
@@ -1050,8 +1050,8 @@ Current product support remains intentionally narrower than every newly availabl
 
 ### Recorded in this PRD
 
-1. Reporter JSON Contract v1.0.0 is authoritative.
-2. Workbook Contract v1.1.0 is presentation-only.
+1. Reporter JSON Contract v1.1.0 is authoritative.
+2. Workbook Contract v1.2.0 is presentation-only.
 3. Phase-1 optimization is infrastructure/configuration only.
 4. Candidate economics are never additive.
 5. Scenario economics are stateful and package economics are scenario-envelope based.

@@ -26,6 +26,24 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(len(self.projection.scenario_plans),30)
         self.assertEqual(len(self.projection.recommendation_registry),105)
 
+    def test_scenario_plans_carry_contingent_upside_apart_from_authoritative_impact(self):
+        """Contract 1.1.0 / workbook 1.2.0: contingent upside is separate, numeric, signed and tagged in the plan text."""
+        rows = self.projection.scenario_plans
+        keys = ("contingent_total_low_impact", "contingent_total_base_impact", "contingent_total_high_impact")
+        self.assertTrue(set(keys) <= {c.key for c in wc.SCENARIO_COLUMNS})
+        priced = [r for r in rows if isinstance(r["contingent_total_base_impact"], (int, float))]
+        self.assertTrue(priced)  # e.g. a size canary with min/max/auto-stop pending
+        for r in rows:
+            if r in priced:
+                self.assertIn("PENDING_REEVALUATION", r["execution_plan"])
+                self.assertIn("priced CONTINGENT", r["execution_plan"])
+                for k in keys:
+                    self.assertIsInstance(r[k], (int, float))
+                    self.assertNotIsInstance(r[k], bool)
+            else:  # nothing pending, or pending but unpriceable (e.g. Photon canary): unavailable, never zero
+                for k in keys:
+                    self.assertEqual(r[k], wc.DISPLAY_UNAVAILABLE)
+
     def test_workbook_rows_trace_back_to_locked_ids(self):
         self.assertEqual({x["recommendation_package_id"] for x in self.projection.warehouse_portfolio},{p.recommendation_package_id for p in self.packages})
         self.assertTrue(all(x["recommendation_package_id"] for x in self.projection.scenario_plans))
@@ -78,7 +96,7 @@ class WorkbookContractTests(unittest.TestCase):
                     self.assertEqual(spec.number_format,"@",spec.key)
 
     def test_workbook_contract_column_counts_and_long_identifier_rendering(self):
-        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(58,42,53))
+        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(58,45,53))
         self.assertEqual(wr._excel_text("1234567890123456"), "'1234567890123456")
         self.assertEqual(wr._excel_text("wh-synth-001"), "wh-synth-001")
 
@@ -88,7 +106,7 @@ class WorkbookContractTests(unittest.TestCase):
             self.assertEqual(Path(files["workbook"]).name,"workbook.xlsx")
             self.assertTrue(Path(files["workbook"]).exists())
             manifest=json.loads(Path(files["manifest"]).read_text())
-            self.assertEqual(manifest["workbook_contract_version"],"1.1.0")
+            self.assertEqual(manifest["workbook_contract_version"],"1.2.0")
             self.assertEqual(manifest["workbook_status"],"GENERATED")
 
 

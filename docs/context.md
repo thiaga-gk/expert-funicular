@@ -6,8 +6,8 @@
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Approved LLD:** `docs/lld.md` v1.0.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **Context version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01
@@ -43,8 +43,8 @@ flowchart TD
     H --> L[Approved LLD\nImplementation design]
     L --> C[Domain Context\nLanguage + semantics]
 
-    RC[Reporter JSON Contract v1.0.0\nPublic machine contract] --> L
-    WC[Workbook Contract v1.1.0\nHuman projection contract] --> L
+    RC[Reporter JSON Contract v1.1.0\nPublic machine contract] --> L
+    WC[Workbook Contract v1.2.0\nHuman projection contract] --> L
 
     CODE[publisher.py + contract modules] --> TESTS[Passing tests / golden scenarios]
     TESTS --> L

@@ -1,8 +1,8 @@
 # CLAUDE.md — v2.7.0 execution rules
 
 ## Primary invariants
-- `RecommendationPackage` under Reporter JSON Contract v1.0.0 is the public machine source of truth.
-- Workbook Contract v1.1.0 is projection-only; never put optimization, estimation, confidence, ID/hash, or selection logic in Excel.
+- `RecommendationPackage` under Reporter JSON Contract v1.1.0 is the public machine source of truth.
+- Workbook Contract v1.2.0 is projection-only; never put optimization, estimation, confidence, ID/hash, or selection logic in Excel.
 - Identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
 
 ## Supported scope
