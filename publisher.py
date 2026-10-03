@@ -3491,18 +3491,22 @@ def _package_economics(
     recommended_scenario_id: Optional[str],
 ) -> rc.PackageEconomics:
     baseline = _forward_cost_breakdown(e)
-    assessable = [
+    own_priced = [
         s for s in scenarios
         if s.status not in {rc.ScenarioStatus.BLOCKED, rc.ScenarioStatus.INSUFFICIENT_EVIDENCE}
         and s.portfolio_economics.savings_365d.total is not None
     ]
-    if recommended_scenario_id and not any(s.scenario_id == recommended_scenario_id for s in assessable):
-        assessable = []
+    # The envelope's base is the recommended scenario, so nothing is summarized unless that scenario is itself priced.
+    assessable = own_priced if recommended_scenario_id and any(s.scenario_id == recommended_scenario_id for s in own_priced) else []
     included = [s.scenario_id for s in assessable]
-    excluded = [
-        rc.ExcludedScenario(s.scenario_id, "RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE" if recommended_scenario_id else "SCENARIO_ECONOMICS_UNAVAILABLE")
-        for s in scenarios if s.scenario_id not in included
-    ]
+    own_priced_ids = {s.scenario_id for s in own_priced}
+
+    def exclusion_reason(s: rc.Scenario) -> str:
+        if s.scenario_id not in own_priced_ids:
+            return "SCENARIO_ECONOMICS_UNAVAILABLE"  # this scenario has no authoritative price
+        return "RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE" if recommended_scenario_id else "NO_RECOMMENDED_SCENARIO"
+
+    excluded = [rc.ExcludedScenario(s.scenario_id, exclusion_reason(s)) for s in scenarios if s.scenario_id not in included]
     if not assessable or recommended_scenario_id is None:
         return rc.PackageEconomics(
             currency=e.currency,

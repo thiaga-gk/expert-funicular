@@ -648,6 +648,41 @@ class PublisherV27Tests(unittest.TestCase):
                 p.build_recommendation_packages(ev, self.t)
         self.assertIn("NOT_A_STATE", str(ctx.exception))
 
+    def envelope_cases(self):
+        """Serverless golden: Plan A is priced, Plan B (Pro migration) is UNAVAILABLE."""
+        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())
+        e = p.evidence_from_dict(payload["evidence"][0])
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        priced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is not None)
+        unpriced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is None)
+        return e, pkg.scenarios, priced, unpriced
+
+    def reasons(self, e, scenarios, recommended):
+        econ = p._package_economics(e, scenarios, recommended.scenario_id if recommended else None)
+        return {x.scenario_id: x.reason_code for x in econ.excluded_scenarios}, econ
+
+    def test_unpriced_alternative_is_not_blamed_on_the_recommended_scenario(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, priced)
+        self.assertEqual(why, {unpriced.scenario_id: "SCENARIO_ECONOMICS_UNAVAILABLE"})
+        self.assertEqual(econ.included_scenario_ids, [priced.scenario_id])
+
+    def test_envelope_stays_empty_when_the_recommended_scenario_is_unpriced(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, unpriced)
+        self.assertEqual(why, {
+            unpriced.scenario_id: "SCENARIO_ECONOMICS_UNAVAILABLE",
+            priced.scenario_id: "RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE",
+        })
+        self.assertIsNone(econ.estimated_savings_365d)
+        self.assertEqual(econ.included_scenario_ids, [])
+
+    def test_priced_scenario_with_no_recommendation_gets_its_own_reason(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, None)
+        self.assertEqual(why[priced.scenario_id], "NO_RECOMMENDED_SCENARIO")
+        self.assertEqual(why[unpriced.scenario_id], "SCENARIO_ECONOMICS_UNAVAILABLE")
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
