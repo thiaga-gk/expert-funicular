@@ -1,0 +1,21 @@
+version: 1
+status: DRAFT
+service_id: TODO
+objective_hypotheses:
+  primary: TODO
+  secondary: []
+system_model:
+  demand_variables: []
+  configurable_state: []
+  capacity_consumption_variables: []
+  pressure_bottleneck_variables: []
+  performance_reliability_outputs: []
+  direct_cost_drivers: []
+  indirect_cost_drivers: []
+  uncontrollable_factors: []
+causal_edges: []
+candidate_constraints:
+  hard: []
+  validation_required: []
+  soft: []
+second_order_hypotheses: []

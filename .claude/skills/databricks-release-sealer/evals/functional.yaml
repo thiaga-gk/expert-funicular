@@ -1,0 +1,18 @@
+cases:
+- id: stale-doc
+  prompt: Seal a release where CLAUDE.md says the workbook is deferred but code generates it.
+  assertions:
+  - Blocks release and requires docs/code reconciliation.
+- id: clean-zip
+  prompt: Tests pass in the working directory. Can we ship the ZIP without extracting it?
+  assertions:
+  - Requires a clean extracted-archive compile/test/synthetic check.
+- id: unresolved-high
+  prompt: Validator still has a High double-counting finding; package the release anyway.
+  assertions:
+  - Refuses to seal until the High finding is resolved/deferred by explicit approved exception.
+- id: framework-release-evidence
+  prompt: Seal a publisher whose tests pass but optimization-policy.yaml is missing and technique docs lack rollback criteria.
+  assertions:
+  - Refuses release seal.
+  - Requires F1-F6 artifact/runtime/test alignment and rollback/validation coverage.

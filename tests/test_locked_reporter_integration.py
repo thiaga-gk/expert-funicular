@@ -1,0 +1,141 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from dataclasses import replace
+from pathlib import Path
+
+import publisher
+from contracts import reporter_contract as rc
+
+
+class LockedReporterIntegrationTests(unittest.TestCase):
+    def _packages(self):
+        evidence = publisher.demo_evidence()
+        thresholds = publisher.Thresholds()
+        packages = publisher.build_recommendation_packages(evidence, thresholds)
+        return evidence, thresholds, packages
+
+    def test_demo_emits_exact_locked_contract(self):
+        _, _, packages = self._packages()
+        self.assertEqual(len(packages), 1)
+        package = packages[0]
+        package.validate()
+        payload = package.to_dict()
+        publisher.validate_locked_package_schema(payload)
+        self.assertEqual(
+            set(payload),
+            {
+                "recommendation_package_id", "contract_version", "warehouse", "current_config",
+                "workload_profile", "cost_baseline", "assessment", "evidence", "candidates",
+                "scenarios", "recommended_plan", "package_economics", "realization", "provenance",
+            },
+        )
+        self.assertEqual(payload["contract_version"], "1.0.0")
+
+    def test_content_ids_and_full_hash_are_recomputable(self):
+        _, _, packages = self._packages()
+        package = packages[0]
+        self.assertEqual(package.recommendation_package_id, package.expected_package_id())
+        self.assertEqual(package.provenance.package_hash_full_sha256, package.full_package_hash())
+        self.assertTrue(package.recommendation_package_id.startswith("PKG-"))
+        self.assertTrue(all(c.candidate_id.startswith("CAND-") for c in package.candidates))
+        self.assertTrue(all(s.scenario_id.startswith("SCN-") for s in package.scenarios))
+        self.assertTrue(all(k.startswith("EVID-") for k in package.evidence))
+
+    def test_same_evidence_produces_identical_locked_package(self):
+        evidence = publisher.demo_evidence()
+        thresholds = publisher.Thresholds()
+        a = publisher.build_recommendation_packages(evidence, thresholds)[0]
+        b = publisher.build_recommendation_packages(evidence, thresholds)[0]
+        self.assertEqual(a.to_dict(), b.to_dict())
+        self.assertEqual(a.recommendation_package_id, b.recommendation_package_id)
+
+    def test_package_economics_is_scenario_envelope_not_candidate_sum(self):
+        _, _, packages = self._packages()
+        package = packages[0]
+        pe = package.package_economics
+        self.assertIsNotNone(pe.estimated_savings_365d)
+        assessable = [s for s in package.scenarios if s.scenario_id in pe.included_scenario_ids]
+        expected_low = min(s.portfolio_economics.savings_365d.total.low for s in assessable if s.portfolio_economics.savings_365d.total)
+        expected_high = max(s.portfolio_economics.savings_365d.total.high for s in assessable if s.portfolio_economics.savings_365d.total)
+        recommended = next(s for s in package.scenarios if s.scenario_id == package.recommended_plan.scenario_id)
+        expected_base = recommended.portfolio_economics.savings_365d.total.base
+        self.assertEqual(pe.estimated_savings_365d, rc.Range3(expected_low, expected_base, expected_high))
+        candidate_sum = sum(
+            c.independent_economics.savings_365d.total.base
+            for c in package.candidates
+            if c.independent_economics.savings_365d.total is not None
+        )
+        self.assertNotEqual(round(candidate_sum, 2), round(pe.estimated_savings_365d.base, 2))
+
+    def test_realization_is_present_and_not_applied(self):
+        _, _, packages = self._packages()
+        realization = packages[0].realization
+        self.assertEqual(realization.status, rc.RealizationStatus.NOT_APPLIED)
+        self.assertEqual(realization.realization_records, [])
+        self.assertEqual(realization.aggregate.measured_candidates, 0)
+
+    def test_canonical_packager_writes_locked_json_packages_plus_workbook_projection(self):
+        evidence, thresholds, packages = self._packages()
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            paths = publisher.package_locked_contract(out, packages, evidence)
+            package_files = sorted((out / "packages").glob("*.json"))
+            self.assertEqual(len(package_files), 1)
+            payload = json.loads(package_files[0].read_text())
+            publisher.validate_locked_package_schema(payload)
+            self.assertNotIn("report.json", {p.name for p in out.iterdir()})
+            self.assertIn("workbook.xlsx", {p.name for p in out.iterdir()})
+            manifest = json.loads((out / "manifest.json").read_text())
+            self.assertEqual(manifest["reporter_contract_version"], "1.0.0")
+            self.assertEqual(manifest["workbook_contract_version"], "1.1.0")
+            self.assertEqual(manifest["workbook_status"], "GENERATED")
+            self.assertIn("workbook", paths)
+            self.assertIn("manifest", paths)
+
+    def test_multiwarehouse_run_emits_one_contract_package_per_identity(self):
+        base = publisher.demo_evidence()[0]
+        second = replace(
+            base,
+            workspace_id="9999999999999999",
+            warehouse_id="wh-demo-002",
+            warehouse_name="BI - Marketing",
+            current_epoch_id=publisher.epoch_id("9999999999999999", "wh-demo-002", base.current_epoch.epoch_start),
+            epochs=[
+                replace(
+                    ep,
+                    workspace_id="9999999999999999",
+                    warehouse_id="wh-demo-002",
+                    warehouse_name="BI - Marketing",
+                    epoch_id=publisher.epoch_id("9999999999999999", "wh-demo-002", ep.epoch_start),
+                )
+                for ep in base.epochs
+            ],
+        )
+        evidence = [base, second]
+        thresholds = publisher.Thresholds()
+        packages = publisher.build_recommendation_packages(evidence, thresholds)
+        self.assertEqual(len(packages), 2)
+        self.assertEqual(len({p.recommendation_package_id for p in packages}), 2)
+        self.assertEqual({(p.warehouse.workspace_id, p.warehouse.warehouse_id) for p in packages}, {
+            (base.workspace_id, base.warehouse_id),
+            (second.workspace_id, second.warehouse_id),
+        })
+
+    def test_all_golden_scenarios_adapt_to_locked_contract(self):
+        golden = Path(__file__).resolve().parent / "golden"
+        for fixture in sorted(golden.glob("*.json")):
+            payload = json.loads(fixture.read_text())
+            evidence = [publisher.evidence_from_dict(x) for x in payload["evidence"]]
+            thresholds = publisher.Thresholds()
+            packages = publisher.build_recommendation_packages(evidence, thresholds)
+            self.assertGreaterEqual(len(packages), 1, fixture.name)
+            for package in packages:
+                package.validate()
+                publisher.validate_locked_package_schema(package.to_dict())
+
+
+if __name__ == "__main__":
+    unittest.main()

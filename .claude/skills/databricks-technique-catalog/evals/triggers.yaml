@@ -1,0 +1,22 @@
+positive:
+  - What optimizations should the job-cluster publisher implement?
+  - Build the technique catalog and dependency graph.
+  - Find missing cost-saving techniques for this Databricks service.
+  - Define blockers and canary rules per knob.
+  - Assign stable technique IDs.
+  - Separate standalone migration recommendations from bundled tuning.
+  - Design invalidation ordering between node type and worker count.
+  - Challenge whether these optimizer knobs are complete.
+  - Add a new Databricks optimization technique safely.
+  - Decide which techniques should be deferred due to missing evidence.
+negative:
+  - Which system table has this field?
+  - Write the JSON Schema.
+  - Implement publisher.py from approved specs.
+  - Run unit tests.
+  - Audit the final release ZIP.
+  - Format the workbook.
+  - Explain the product to executives.
+  - Calculate AWS prices from a registry.
+  - Set up OAuth.
+  - Summarize this PRD.

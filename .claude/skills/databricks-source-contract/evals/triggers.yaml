@@ -1,0 +1,22 @@
+positive:
+  - Map system tables for the new publisher.
+  - Which source is authoritative for this configuration field?
+  - Design collector SQL and source readiness checks.
+  - We need billing, event, query, and config provenance.
+  - Define current-epoch inputs for this Databricks resource.
+  - Can this API be used as compatibility evidence only?
+  - Build the source contract for job clusters.
+  - Identify regional versus global source tables.
+  - Validate retention and freshness for publisher inputs.
+  - Add a new system-table metric to the publisher source model.
+negative:
+  - Decide whether worker count should decrease.
+  - Rank optimization techniques by savings.
+  - Design the workbook layout.
+  - Write the final release notes.
+  - Implement the FastAPI backend.
+  - Review model confidence thresholds only.
+  - Package the ZIP.
+  - Draft the PRD without source details.
+  - Explain Databricks pricing generally.
+  - Create a marketing deck.

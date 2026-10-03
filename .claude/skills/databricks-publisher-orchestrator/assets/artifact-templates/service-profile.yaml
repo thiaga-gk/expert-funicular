@@ -1,0 +1,15 @@
+version: 1
+status: DRAFT
+service:
+  id: example-service
+  resource_noun: resource
+  display_name: Example Service
+resource_identity:
+  keys: [workspace_id, resource_id]
+supported_resource_types: []
+excluded_resource_types: []
+optimization_domains: []
+execution_policy:
+  advisory_only: true
+  hitl_required: true
+  deterministic: true

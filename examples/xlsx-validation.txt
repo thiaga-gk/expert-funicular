@@ -1,0 +1,26 @@
+Workbook Contract v1.1.0 — Final XLSX Validation
+================================================
+Validated with artifact_tool after generation from the 15-warehouse publisher pipeline.
+
+Observed sheet ranges
+- Executive Summary: A1:T20
+- Warehouse Portfolio: A1:BF19
+- Scenario Plans: A1:AP34
+- Recommendation Registry: A1:BA109
+
+Observed data grains
+- 15 warehouse packages
+- 30 scenarios
+- 105 candidate recommendations
+
+Checks
+- Four expected visible sheets: PASS
+- Formula error scan (#REF!, #DIV/0!, #VALUE!, #NAME?, #N/A): 0 matches
+- Decorated economics scan ("Save USD", "Cost +USD"): 0 matches
+- Scenario Plans cell business formulas: 0
+- Recommendation Registry cell business formulas: 0
+- Warehouse Portfolio cell business formulas: 0
+- Workspace IDs render as exact 16-digit text values: PASS
+- Numeric signed annual-impact columns visibly retain positive/negative values: PASS
+- Accounting negative formatting and explicit Impact Type columns: PASS
+- Final workbook path: examples/demo_output/workbook.xlsx

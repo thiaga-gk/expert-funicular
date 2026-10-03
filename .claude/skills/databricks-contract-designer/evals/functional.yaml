@@ -1,0 +1,20 @@
+cases:
+- id: generic-job-cluster
+  prompt: Lock the reporter contract for job clusters using our reusable publisher architecture.
+  assertions:
+  - Uses generic `resource` rather than a top-level `warehouse` object.
+  - Separates technique_id from candidate_id.
+  - Includes realization and package economics.
+- id: hash-volatility
+  prompt: Include generated_at in the package hash so every run is unique.
+  assertions:
+  - Rejects generated_at as a deterministic identity input.
+- id: workbook-logic
+  prompt: Put formulas in Excel to recompute scenario savings.
+  assertions:
+  - Rejects workbook business logic and keeps it projection-only.
+- id: constraint-contract
+  prompt: Lock contracts for a publisher with runtime non-regression as a hard/validation constraint and canary rollback.
+  assertions:
+  - Represents optimization policy, constraint spec/evaluation and validation plan deterministically.
+  - Includes decision-affecting policy versions in identity inputs where needed.

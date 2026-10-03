@@ -1,0 +1,23 @@
+cases:
+- id: job-cluster-profile
+  prompt: Research job clusters so we can build the next deterministic publisher.
+  assertions:
+  - Produces a resource identity that distinguishes job/task execution context.
+  - Separates supported and excluded resource variants.
+  - Does not invent optimization thresholds.
+- id: lakeflow-anti-copy
+  prompt: Define the domain for Lakeflow/DLT without reusing SQL Warehouse assumptions.
+  assertions:
+  - Uses pipeline/update terminology instead of warehouse terminology.
+  - Identifies service-specific lifecycle and resource identity.
+- id: preview-type
+  prompt: The service has a new Beta compute type. Include it automatically.
+  assertions:
+  - Does not automatically include it.
+  - Marks support as research/decision required or excluded until modeled.
+- id: first-principles-not-knobs
+  prompt: Discover an optimization publisher for a new Databricks compute service. Start from cost/performance drivers, not
+    API knobs.
+  assertions:
+  - Produces a system model connecting demand, state, pressure, performance/reliability, consumption and cost.
+  - Identifies candidate constraints and second-order hypotheses.

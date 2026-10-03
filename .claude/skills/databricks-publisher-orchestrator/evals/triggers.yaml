@@ -1,0 +1,22 @@
+positive:
+  - Build a publisher.py optimizer for Databricks job clusters.
+  - Standardize a cost optimizer for Lakeflow pipelines.
+  - Create the full deterministic recommendation pipeline for all-purpose clusters.
+  - Adapt our SQL Warehouse publisher pattern to another Databricks service.
+  - I need source contracts, golden tests, and release gates for a new Databricks optimizer.
+  - Orchestrate the Databricks optimization product lifecycle.
+  - Build a recommendation package + workbook pipeline for Databricks compute.
+  - Take this service from research to a sealed publisher release.
+  - Create reusable publisher architecture for Databricks resources.
+  - Resume the publisher at the contract gate.
+negative:
+  - Explain what a Databricks SQL warehouse is.
+  - Write one SQL query against system.query.history.
+  - Summarize this markdown file.
+  - Fix grammar in my README.
+  - Show me current Databricks pricing only.
+  - Create a chart from this CSV.
+  - Review a single Python function for style.
+  - Tell me how to log in with Databricks CLI.
+  - What is Photon?
+  - List system tables.

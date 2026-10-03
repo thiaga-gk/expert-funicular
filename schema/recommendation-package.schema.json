@@ -1,0 +1,2219 @@
+{
+  "$defs": {
+    "AppliedChange": {
+      "additionalProperties": false,
+      "properties": {
+        "applied_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "applied_by": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "applied_config": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "previous_config": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "applied_at",
+        "applied_by",
+        "previous_config",
+        "applied_config"
+      ],
+      "type": "object"
+    },
+    "Assessment": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_quality": {
+          "$ref": "#/$defs/EvidenceQuality"
+        },
+        "overall_status": {
+          "enum": [
+            "OPTIMIZATION_AVAILABLE",
+            "NO_CHANGE",
+            "REVIEW_REQUIRED",
+            "BLOCKED",
+            "INSUFFICIENT_EVIDENCE"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/$defs/AssessmentSummary"
+        }
+      },
+      "required": [
+        "overall_status",
+        "summary",
+        "evidence_quality"
+      ],
+      "type": "object"
+    },
+    "AssessmentSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "actionable_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "blocked_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "candidate_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "insufficient_evidence_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "no_change_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "not_applicable_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "review_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "test_required_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_count",
+        "actionable_count",
+        "test_required_count",
+        "review_count",
+        "blocked_count",
+        "no_change_count",
+        "not_applicable_count",
+        "insufficient_evidence_count"
+      ],
+      "type": "object"
+    },
+    "CandidateRecommendation": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "items": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "candidate_id": {
+          "pattern": "^CAND-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "current_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependencies": {
+          "items": {
+            "$ref": "#/$defs/DependencyRef"
+          },
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "pattern": "^EVID-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "independent_economics": {
+          "$ref": "#/$defs/IndependentEconomics"
+        },
+        "invalidates": {
+          "items": {
+            "enum": [
+              "warehouse_type",
+              "warehouse_size",
+              "min_clusters",
+              "max_clusters",
+              "auto_stop_minutes",
+              "warehouse_channel",
+              "enable_photon"
+            ],
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "knob": {
+          "enum": [
+            "warehouse_type",
+            "warehouse_size",
+            "min_clusters",
+            "max_clusters",
+            "auto_stop_minutes",
+            "warehouse_channel",
+            "enable_photon"
+          ],
+          "type": "string"
+        },
+        "objectives": {
+          "items": {
+            "enum": [
+              "COST",
+              "PERFORMANCE",
+              "COST_AND_PERFORMANCE",
+              "COST_GUARDRAIL",
+              "STABILITY",
+              "RELIABILITY",
+              "OPERATIONS",
+              "MIGRATION"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "rationale": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recommended_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "ACTIONABLE",
+            "TEST_REQUIRED",
+            "REVIEW",
+            "BLOCKED",
+            "NO_CHANGE",
+            "NOT_APPLICABLE",
+            "INSUFFICIENT_EVIDENCE"
+          ],
+          "type": "string"
+        },
+        "technique_id": {
+          "pattern": "^WH-[A-Z0-9-]+-[0-9]{3}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "technique_id",
+        "knob",
+        "status",
+        "current_value",
+        "recommended_value",
+        "objectives",
+        "rationale",
+        "evidence_refs",
+        "blockers",
+        "dependencies",
+        "invalidates",
+        "confidence",
+        "independent_economics"
+      ],
+      "type": "object"
+    },
+    "ClientApplicationStat": {
+      "additionalProperties": false,
+      "properties": {
+        "query_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query_count"
+      ],
+      "type": "object"
+    },
+    "Compatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/CompatibilityCheck"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "enum": [
+            "B_READ_ONLY_API",
+            "A_HITL_FALLBACK",
+            "B_READ_ONLY_API_WITH_A_FALLBACK",
+            "SYSTEM_TABLE_ONLY"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "COMPATIBLE",
+            "REQUIRES_VALIDATION",
+            "INCOMPATIBLE",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "mode",
+        "checks"
+      ],
+      "type": "object"
+    },
+    "CompatibilityCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "details": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_refs": {
+          "items": {
+            "pattern": "^EVID-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "requires_hitl": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "status",
+        "requires_hitl",
+        "evidence_refs",
+        "details"
+      ],
+      "type": "object"
+    },
+    "ComponentRanges": {
+      "additionalProperties": false,
+      "properties": {
+        "aws": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dbu": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "dbu",
+        "aws",
+        "total"
+      ],
+      "type": "object"
+    },
+    "Confidence": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "level": {
+          "enum": [
+            "HIGH",
+            "MEDIUM",
+            "LOW",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "score",
+        "level",
+        "components",
+        "method"
+      ],
+      "type": "object"
+    },
+    "CostBaseline": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_365d": {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "forecast": {
+          "$ref": "#/$defs/ForecastInfo"
+        },
+        "forward_365d": {
+          "$ref": "#/$defs/CostBreakdown"
+        }
+      },
+      "required": [
+        "currency",
+        "actual_365d",
+        "forward_365d",
+        "forecast"
+      ],
+      "type": "object"
+    },
+    "CostBreakdown": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "UNAVAILABLE"
+          ],
+          "type": "string"
+        },
+        "aws_basis": {
+          "enum": [
+            "OBSERVED_DATABRICKS_BILLING",
+            "OBSERVED_AWS_BILLING",
+            "MODELED_AWS_LIST_PRICE",
+            "MODELED_CURRENT_EPOCH",
+            "FORECAST",
+            "COUNTERFACTUAL",
+            "UNAVAILABLE"
+          ],
+          "type": "string"
+        },
+        "aws_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dbu_basis": {
+          "enum": [
+            "OBSERVED_DATABRICKS_BILLING",
+            "OBSERVED_AWS_BILLING",
+            "MODELED_AWS_LIST_PRICE",
+            "MODELED_CURRENT_EPOCH",
+            "FORECAST",
+            "COUNTERFACTUAL",
+            "UNAVAILABLE"
+          ],
+          "type": "string"
+        },
+        "dbu_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "dbu_cost",
+        "aws_cost",
+        "total_cost",
+        "availability",
+        "dbu_basis",
+        "aws_basis"
+      ],
+      "type": "object"
+    },
+    "CurrentConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_stop_minutes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_clusters": {
+          "maximum": 40,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_clusters": {
+          "maximum": 40,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "photon": {
+          "$ref": "#/$defs/PhotonConfigObservation"
+        },
+        "warehouse_channel": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_size": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_type": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "warehouse_type",
+        "warehouse_size",
+        "min_clusters",
+        "max_clusters",
+        "auto_stop_minutes",
+        "warehouse_channel",
+        "photon"
+      ],
+      "type": "object"
+    },
+    "CurrentEpoch": {
+      "additionalProperties": false,
+      "properties": {
+        "age_days": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "epoch_id": {
+          "pattern": "^EPOCH-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "is_current": {
+          "const": true
+        },
+        "start_time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "epoch_id",
+        "start_time",
+        "age_days",
+        "is_current"
+      ],
+      "type": "object"
+    },
+    "DependencyRef": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependency_type": {
+          "enum": [
+            "CANDIDATE",
+            "TECHNIQUE",
+            "KNOB",
+            "COMPATIBILITY_CHECK",
+            "EVIDENCE"
+          ],
+          "type": "string"
+        },
+        "ref_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "dependency_type",
+        "ref_id",
+        "condition"
+      ],
+      "type": "object"
+    },
+    "EconomicsPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "aws": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dbu": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "dbu",
+        "aws",
+        "total"
+      ],
+      "type": "object"
+    },
+    "EvidenceQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "cost_history_sufficient": {
+          "type": "boolean"
+        },
+        "epoch_mature": {
+          "type": "boolean"
+        },
+        "query_sample_sufficient": {
+          "type": "boolean"
+        },
+        "source_coverage_pct": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "SUFFICIENT",
+            "PARTIAL",
+            "INSUFFICIENT"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "confidence",
+        "query_sample_sufficient",
+        "cost_history_sufficient",
+        "epoch_mature",
+        "source_coverage_pct"
+      ],
+      "type": "object"
+    },
+    "EvidenceRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "comparator": {
+          "type": "string"
+        },
+        "epoch_scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_id": {
+          "pattern": "^EVID-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "interpretation": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "metric": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "observation_window": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_field": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "threshold": {},
+        "unit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {}
+      },
+      "required": [
+        "evidence_id",
+        "metric",
+        "value",
+        "unit",
+        "source",
+        "source_field",
+        "epoch_scope",
+        "observation_window",
+        "threshold",
+        "comparator",
+        "interpretation"
+      ],
+      "type": "object"
+    },
+    "ExcludedScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "reason_code": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^SCN-[A-F0-9]{24}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "reason_code"
+      ],
+      "type": "object"
+    },
+    "ForecastInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "confidence",
+        "assumptions"
+      ],
+      "type": "object"
+    },
+    "IndependentEconomics": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_365d": {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        "estimated_cost_365d": {
+          "$ref": "#/$defs/ComponentRanges"
+        },
+        "estimation_status": {
+          "enum": [
+            "MODELED_RANGE",
+            "PROVISIONAL_MODELED_RANGE",
+            "PRE_CANARY_MODELED_RANGE",
+            "MEASURED",
+            "NO_DELTA_MODELED",
+            "UNAVAILABLE"
+          ],
+          "type": "string"
+        },
+        "is_additive": {
+          "const": false
+        },
+        "savings_365d": {
+          "$ref": "#/$defs/ComponentRanges"
+        }
+      },
+      "required": [
+        "is_additive",
+        "estimation_status",
+        "baseline_365d",
+        "estimated_cost_365d",
+        "savings_365d"
+      ],
+      "type": "object"
+    },
+    "PackageEconomics": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_365d": {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "estimated_cost_365d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "estimated_savings_365d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excluded_scenarios": {
+          "items": {
+            "$ref": "#/$defs/ExcludedScenario"
+          },
+          "type": "array"
+        },
+        "included_scenario_ids": {
+          "items": {
+            "pattern": "^SCN-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "scenario_envelope": {
+          "$ref": "#/$defs/ScenarioEnvelope"
+        },
+        "semantics": {
+          "$ref": "#/$defs/PackageEconomicsSemantics"
+        }
+      },
+      "required": [
+        "currency",
+        "baseline_365d",
+        "estimated_savings_365d",
+        "estimated_cost_365d",
+        "scenario_envelope",
+        "included_scenario_ids",
+        "excluded_scenarios",
+        "semantics"
+      ],
+      "type": "object"
+    },
+    "PackageEconomicsSemantics": {
+      "additionalProperties": false,
+      "properties": {
+        "is_additive": {
+          "const": false
+        },
+        "is_probability_interval": {
+          "const": false
+        },
+        "method": {
+          "const": "SCENARIO_ENVELOPE"
+        }
+      },
+      "required": [
+        "method",
+        "is_additive",
+        "is_probability_interval"
+      ],
+      "type": "object"
+    },
+    "PhotonConfigObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "enabled_usage_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_source": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "freshness_days": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "known_feature_coverage_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "ENABLED",
+            "DISABLED",
+            "MIXED",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "evidence_source",
+        "confidence",
+        "enabled_usage_pct",
+        "known_feature_coverage_pct",
+        "freshness_days"
+      ],
+      "type": "object"
+    },
+    "PlanStep": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "pattern": "^CAND-[A-F0-9]{24}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "current_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependencies": {
+          "items": {
+            "$ref": "#/$defs/DependencyRef"
+          },
+          "type": "array"
+        },
+        "execution_state": {
+          "enum": [
+            "READY",
+            "READY_FOR_CANARY",
+            "PENDING_REEVALUATION",
+            "BLOCKED",
+            "REQUIRED",
+            "COMPLETED",
+            "INVALIDATED"
+          ],
+          "type": "string"
+        },
+        "invalidates": {
+          "items": {
+            "enum": [
+              "warehouse_type",
+              "warehouse_size",
+              "min_clusters",
+              "max_clusters",
+              "auto_stop_minutes",
+              "warehouse_channel",
+              "enable_photon"
+            ],
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "knob": {
+          "anyOf": [
+            {
+              "enum": [
+                "warehouse_type",
+                "warehouse_size",
+                "min_clusters",
+                "max_clusters",
+                "auto_stop_minutes",
+                "warehouse_channel",
+                "enable_photon"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recommended_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "step": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "step_type": {
+          "enum": [
+            "CANDIDATE",
+            "REMEASURE",
+            "COMPATIBILITY_VALIDATION",
+            "CANARY",
+            "COMPARE",
+            "ROLLBACK_GATE"
+          ],
+          "type": "string"
+        },
+        "technique_id": {
+          "anyOf": [
+            {
+              "pattern": "^WH-[A-Z0-9-]+-[0-9]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validation": {
+          "$ref": "#/$defs/ValidationGate"
+        }
+      },
+      "required": [
+        "step",
+        "step_type",
+        "candidate_id",
+        "technique_id",
+        "knob",
+        "action",
+        "current_value",
+        "recommended_value",
+        "execution_state",
+        "confidence",
+        "validation",
+        "dependencies",
+        "invalidates"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "analyzer_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "bundle_estimator_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "decision_graph_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "estimator_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_fingerprint": {
+          "pattern": "^SHA256:[A-F0-9]{64}$",
+          "type": "string"
+        },
+        "generated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "modeler_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "optimizer_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "package_hash_full_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[A-F0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "policy_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reviewer_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_regions": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "source_tables": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "technique_catalog_version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "policy_version",
+        "analyzer_version",
+        "optimizer_version",
+        "modeler_version",
+        "estimator_version",
+        "bundle_estimator_version",
+        "reviewer_version",
+        "decision_graph_version",
+        "technique_catalog_version",
+        "evidence_fingerprint",
+        "source_tables",
+        "source_regions",
+        "generated_at",
+        "package_hash_full_sha256"
+      ],
+      "type": "object"
+    },
+    "QuerySourceStat": {
+      "additionalProperties": false,
+      "properties": {
+        "query_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query_pct": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "query_count",
+        "query_pct"
+      ],
+      "type": "object"
+    },
+    "Range3": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "low",
+        "base",
+        "high"
+      ],
+      "type": "object"
+    },
+    "Realization": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregate": {
+          "$ref": "#/$defs/RealizationAggregate"
+        },
+        "realization_records": {
+          "items": {
+            "$ref": "#/$defs/RealizationRecord"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "NOT_APPLIED",
+            "PENDING",
+            "APPLIED",
+            "VALIDATING",
+            "REALIZED",
+            "FAILED_VALIDATION",
+            "ROLLED_BACK",
+            "SUPERSEDED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "realization_records",
+        "aggregate"
+      ],
+      "type": "object"
+    },
+    "RealizationAggregate": {
+      "additionalProperties": false,
+      "properties": {
+        "annualized_realized_savings": {
+          "type": "number"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "measured_candidates": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "realized_savings_to_date": {
+          "type": "number"
+        },
+        "rolled_back_candidates": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "successful_candidates": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "measured_candidates",
+        "successful_candidates",
+        "rolled_back_candidates",
+        "currency",
+        "realized_savings_to_date",
+        "annualized_realized_savings"
+      ],
+      "type": "object"
+    },
+    "RealizationObservedCost": {
+      "additionalProperties": false,
+      "properties": {
+        "aws_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "dbu_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_cost": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "currency",
+        "dbu_cost",
+        "aws_cost",
+        "total_cost"
+      ],
+      "type": "object"
+    },
+    "RealizationOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "learning_codes": {
+          "items": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "recommendation_accuracy": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rollback_required": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "SUCCESS",
+            "PARTIAL",
+            "FAILED",
+            "ROLLED_BACK",
+            "SUPERSEDED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "recommendation_accuracy",
+        "rollback_required",
+        "learning_codes"
+      ],
+      "type": "object"
+    },
+    "RealizationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "applied": {
+          "$ref": "#/$defs/AppliedChange"
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "pattern": "^CAND-[A-F0-9]{24}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_cost": {
+          "$ref": "#/$defs/RealizationObservedCost"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RealizationOutcome"
+        },
+        "realization_id": {
+          "pattern": "^REAL-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "realized_savings": {
+          "$ref": "#/$defs/RealizedSavings"
+        },
+        "recommendation_package_id": {
+          "pattern": "^PKG-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^SCN-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "technique_id": {
+          "anyOf": [
+            {
+              "pattern": "^WH-[A-Z0-9-]+-[0-9]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validation": {
+          "$ref": "#/$defs/RealizationValidation"
+        }
+      },
+      "required": [
+        "realization_id",
+        "recommendation_package_id",
+        "scenario_id",
+        "candidate_id",
+        "technique_id",
+        "applied",
+        "validation",
+        "observed_cost",
+        "realized_savings",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "RealizationValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_refs": {
+          "items": {
+            "pattern": "^EVID-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "performance_guardrails_passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validation_status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "PARTIAL",
+            "PENDING"
+          ],
+          "type": "string"
+        },
+        "validation_window_end": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "validation_window_start": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "validation_window_start",
+        "validation_window_end",
+        "validation_status",
+        "performance_guardrails_passed",
+        "finding_refs",
+        "notes"
+      ],
+      "type": "object"
+    },
+    "RealizedSavings": {
+      "additionalProperties": false,
+      "properties": {
+        "annualized_total_savings": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aws_savings": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "dbu_savings": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_savings": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "currency",
+        "dbu_savings",
+        "aws_savings",
+        "total_savings",
+        "annualized_total_savings"
+      ],
+      "type": "object"
+    },
+    "RecommendedPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_summary": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "next_action": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "requires_hitl": {
+          "type": "boolean"
+        },
+        "scenario_id": {
+          "anyOf": [
+            {
+              "pattern": "^SCN-[A-F0-9]{24}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_reason_code": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "selection_reason_code",
+        "next_action",
+        "requires_hitl",
+        "decision_summary"
+      ],
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_refs": {
+          "items": {
+            "pattern": "^CAND-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "compatibility": {
+          "$ref": "#/$defs/Compatibility"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence_refs": {
+          "items": {
+            "pattern": "^EVID-[A-F0-9]{24}$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "execution_plan": {
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          },
+          "type": "array"
+        },
+        "portfolio_economics": {
+          "$ref": "#/$defs/ScenarioEconomics"
+        },
+        "scenario_id": {
+          "pattern": "^SCN-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "scenario_name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scenario_type": {
+          "enum": [
+            "IN_PLACE_OPTIMIZATION",
+            "WAREHOUSE_TYPE_MIGRATION",
+            "NO_CHANGE_BASELINE"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "RECOMMENDED",
+            "ALTERNATIVE",
+            "BLOCKED",
+            "INSUFFICIENT_EVIDENCE"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "scenario_name",
+        "scenario_type",
+        "status",
+        "candidate_refs",
+        "evidence_refs",
+        "confidence",
+        "compatibility",
+        "portfolio_economics",
+        "execution_plan"
+      ],
+      "type": "object"
+    },
+    "ScenarioEconomics": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_365d": {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        "estimated_cost_365d": {
+          "$ref": "#/$defs/ComponentRanges"
+        },
+        "estimation_status": {
+          "enum": [
+            "MODELED_RANGE",
+            "PROVISIONAL_MODELED_RANGE",
+            "PRE_CANARY_MODELED_RANGE",
+            "MEASURED",
+            "NO_DELTA_MODELED",
+            "UNAVAILABLE"
+          ],
+          "type": "string"
+        },
+        "is_additive": {
+          "const": false
+        },
+        "method": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "savings_365d": {
+          "$ref": "#/$defs/ComponentRanges"
+        }
+      },
+      "required": [
+        "estimation_status",
+        "baseline_365d",
+        "estimated_cost_365d",
+        "savings_365d",
+        "method",
+        "is_additive"
+      ],
+      "type": "object"
+    },
+    "ScenarioEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_savings": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioEnvelopePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "minimum_savings": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioEnvelopePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recommended_base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioEnvelopePoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "minimum_savings",
+        "recommended_base",
+        "maximum_savings"
+      ],
+      "type": "object"
+    },
+    "ScenarioEnvelopePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "bound": {
+          "enum": [
+            "LOW",
+            "BASE",
+            "HIGH"
+          ],
+          "type": "string"
+        },
+        "estimated_cost_365d": {
+          "$ref": "#/$defs/EconomicsPoint"
+        },
+        "savings_365d": {
+          "$ref": "#/$defs/EconomicsPoint"
+        },
+        "scenario_id": {
+          "pattern": "^SCN-[A-F0-9]{24}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "bound",
+        "savings_365d",
+        "estimated_cost_365d"
+      ],
+      "type": "object"
+    },
+    "ValidationGate": {
+      "additionalProperties": false,
+      "properties": {
+        "action_after": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remeasure_days": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "success_metrics": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "validation_type": {
+          "enum": [
+            "NONE",
+            "A_B_CANARY",
+            "HITL",
+            "COMPATIBILITY",
+            "REMEASURE"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "validation_type",
+        "success_metrics",
+        "remeasure_days",
+        "action_after"
+      ],
+      "type": "object"
+    },
+    "WarehouseIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "current_epoch": {
+          "$ref": "#/$defs/CurrentEpoch"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "region": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "workspace_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "warehouse_id",
+        "warehouse_name",
+        "owner",
+        "region",
+        "current_epoch"
+      ],
+      "type": "object"
+    },
+    "WorkloadActivity": {
+      "additionalProperties": false,
+      "properties": {
+        "active_days_30d": {
+          "maximum": 30,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "queries_30d": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "queries_per_active_day": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "queries_30d",
+        "active_days_30d",
+        "queries_per_active_day"
+      ],
+      "type": "object"
+    },
+    "WorkloadCharacteristics": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_pattern": {
+          "enum": [
+            "CONTINUOUS",
+            "BUSINESS_HOURS",
+            "SCHEDULED",
+            "SPORADIC",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "concurrency_pattern": {
+          "enum": [
+            "STEADY",
+            "BURSTY",
+            "MIXED",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "latency_class": {
+          "enum": [
+            "INTERACTIVE",
+            "MIXED",
+            "BATCH",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "latency_class",
+        "concurrency_pattern",
+        "activity_pattern"
+      ],
+      "type": "object"
+    },
+    "WorkloadProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/WorkloadActivity"
+        },
+        "client_applications": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ClientApplicationStat"
+          },
+          "type": "object"
+        },
+        "multi_label": {
+          "const": true
+        },
+        "primary_query_source": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "query_sources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/QuerySourceStat"
+          },
+          "type": "object"
+        },
+        "workload_characteristics": {
+          "$ref": "#/$defs/WorkloadCharacteristics"
+        }
+      },
+      "required": [
+        "primary_query_source",
+        "query_sources",
+        "client_applications",
+        "activity",
+        "workload_characteristics",
+        "multi_label"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
+  "properties": {
+    "assessment": {
+      "$ref": "#/$defs/Assessment"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateRecommendation"
+      },
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "cost_baseline": {
+      "$ref": "#/$defs/CostBaseline"
+    },
+    "current_config": {
+      "$ref": "#/$defs/CurrentConfig"
+    },
+    "evidence": {
+      "additionalProperties": {
+        "$ref": "#/$defs/EvidenceRecord"
+      },
+      "propertyNames": {
+        "pattern": "^EVID-[A-F0-9]{24}$"
+      },
+      "type": "object"
+    },
+    "package_economics": {
+      "$ref": "#/$defs/PackageEconomics"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "realization": {
+      "$ref": "#/$defs/Realization"
+    },
+    "recommendation_package_id": {
+      "pattern": "^PKG-[A-F0-9]{24}$",
+      "type": "string"
+    },
+    "recommended_plan": {
+      "$ref": "#/$defs/RecommendedPlan"
+    },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/Scenario"
+      },
+      "type": "array"
+    },
+    "warehouse": {
+      "$ref": "#/$defs/WarehouseIdentity"
+    },
+    "workload_profile": {
+      "$ref": "#/$defs/WorkloadProfile"
+    }
+  },
+  "required": [
+    "recommendation_package_id",
+    "contract_version",
+    "warehouse",
+    "current_config",
+    "workload_profile",
+    "cost_baseline",
+    "assessment",
+    "evidence",
+    "candidates",
+    "scenarios",
+    "recommended_plan",
+    "package_economics",
+    "realization",
+    "provenance"
+  ],
+  "title": "Databricks SQL Warehouse Optimization Recommendation Package",
+  "type": "object"
+}

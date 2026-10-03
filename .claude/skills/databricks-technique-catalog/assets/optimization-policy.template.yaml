@@ -1,0 +1,26 @@
+version: 1
+status: DRAFT
+service_id: TODO
+objective:
+  mode: LEXICOGRAPHIC
+  primary: MINIMIZE_FORWARD_ANNUAL_TOTAL_COST
+  secondary: [MINIMIZE_OPERATIONAL_RISK]
+constraints:
+  hard:
+    - id: supported_resource_type
+      semantic: Recommended state must remain within an explicitly supported resource type.
+      unknown_disposition: BLOCKED
+  validation_required: []
+  soft: []
+  informational: []
+unknown_evidence_policy:
+  hard_constraint: INSUFFICIENT_EVIDENCE
+  safe_canary_available: TEST_REQUIRED
+scenario_selection:
+  policy: SERVICE_SPECIFIC
+  require_constraint_feasible: true
+rollback_policy:
+  required_for_test_required: true
+realization_policy:
+  measure_post_change: true
+  preserve_original_package_identity: true

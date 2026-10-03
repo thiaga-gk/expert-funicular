@@ -1,0 +1,190 @@
+version: 1
+status: DRAFT
+scenarios:
+  - id: underutilized
+    kind: underutilized
+    title: Underutilized / idle resource
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: resource-constrained
+    kind: resource_constrained
+    title: Resource constrained
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: concurrency-constrained
+    kind: concurrency_constrained
+    title: Concurrency constrained
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: new-config
+    kind: new_config
+    title: New configuration regime
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: sparse-evidence
+    kind: sparse_evidence
+    title: Sparse evidence
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: unsupported-type
+    kind: unsupported_type
+    title: Unsupported resource type
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: pricing-unavailable
+    kind: pricing_unavailable
+    title: Pricing unavailable
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: dependency-invalidation
+    kind: dependency_invalidation
+    title: Dependency invalidation
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: migration
+    kind: migration
+    title: Migration alternative
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: healthy-no-change
+    kind: healthy_no_change
+    title: Healthy / no change
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: hard-constraint-satisfied
+    kind: hard_constraint_satisfied
+    title: Hard constraint satisfied
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: hard-constraint-violated
+    kind: hard_constraint_violated
+    title: Hard constraint violated
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: hard-constraint-unknown
+    kind: hard_constraint_unknown
+    title: Hard constraint evidence unknown
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: safe-canary
+    kind: safe_canary
+    title: Safe canary converts uncertainty to TEST_REQUIRED
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: canary-failure-rollback
+    kind: canary_failure_rollback
+    title: Canary failure triggers rollback
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: causal-falsifier
+    kind: causal_falsifier
+    title: Causal falsifier blocks technique
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}
+  - id: new-bottleneck-reanalysis
+    kind: new_bottleneck_reanalysis
+    title: Second-order new bottleneck requires re-analysis
+    resource_type: TODO
+    input_fixture: TODO
+    expected:
+      framework_axes: []
+      candidate_status: TODO
+      constraint_states: {}
+      second_order: {}
+      validation: {}

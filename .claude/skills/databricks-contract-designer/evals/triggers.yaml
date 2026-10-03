@@ -1,0 +1,22 @@
+positive:
+  - Lock the JSON contract before we implement the job-cluster publisher.
+  - Define candidate_id, technique_id, scenario_id, and package hashes.
+  - Build dataclasses and JSON Schema for the publisher.
+  - Standardize nullability and enum values field by field.
+  - Design the realization contract.
+  - Create a generic resource-oriented reporter package.
+  - Lock workbook row grains and exact projection semantics.
+  - Define cross-field semantic validators.
+  - Version the public publisher contract.
+  - Change the package schema safely.
+negative:
+  - Research which system table exposes worker count.
+  - Decide which job-cluster techniques exist.
+  - Implement the optimizer algorithms.
+  - Run a clean-room release audit.
+  - Calculate current AWS EC2 pricing.
+  - Review the service scope.
+  - Create a marketing slide.
+  - Set up Databricks OAuth.
+  - Fix grammar in the PRD.
+  - Find a restaurant.

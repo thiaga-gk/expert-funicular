@@ -1,0 +1,44 @@
+technique_id: JC-WORKER-DOWNSIZE-001
+title: Downsize worker count
+domain: compute
+knob: worker_count
+direction: DOWN
+applicable_resource_types: [JOB_CLUSTER]
+required_evidence: [runs, cpu_p95, memory_p95, spill, runtime]
+first_principles:
+  problem: Excess configured worker capacity can create avoidable DBU/cloud spend.
+  driver_changed: worker_compute_capacity
+  objective: MINIMIZE_FORWARD_ANNUAL_TOTAL_COST
+causal_mechanism:
+  observation: Sustained low resource pressure across representative runs.
+  hypothesis: Current worker capacity materially exceeds demand.
+  intervention: Reduce worker count by one approved step.
+  expected_direct_effect: Reduce compute consumption while preserving required runtime/reliability constraints.
+  falsifiers: [runtime_regression, spill_regression, failure_rate_regression]
+constraints:
+  hard: [runtime_non_regression, reliability_non_regression, supported_node_policy]
+  validation_required: [post_change_runtime]
+  soft: []
+counterfactual:
+  model_ref: worker-downsize-counterfactual-v1
+  changed_state: [worker_count, cluster_runtime, dbu_consumption, cloud_compute_cost]
+  uncertainty: LOW_BASE_HIGH
+second_order_effects:
+  dependencies: []
+  invalidates: [instance_type, autoscaling_bounds]
+  may_increase: [runtime, spill]
+  remeasure_required: true
+validation_learning:
+  requires_canary: true
+  success_metrics: [runtime, failure_rate, spill, dbu_cost, cloud_cost]
+  rollback_triggers: [runtime_constraint_violation, reliability_constraint_violation]
+  realization_metrics: [annualized_total_savings]
+decision_rule:
+  formula_ref: worker-downsize-v1
+  thresholds: {}
+risk: MEDIUM
+effort: LOW
+requires_canary: true
+economics_mechanism: DIRECT_COST
+dependencies: []
+invalidates: [instance_type, autoscaling_bounds]

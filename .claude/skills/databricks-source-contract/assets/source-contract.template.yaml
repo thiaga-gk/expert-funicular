@@ -1,0 +1,37 @@
+version: 1
+status: DRAFT
+resource_identity: [workspace_id, resource_id]
+sources: []
+fields:
+  - field: current_config.example
+    semantic: TODO
+    source: TODO
+    source_field: TODO
+    classification: AUTHORITATIVE
+    grain: resource_snapshot
+    required: true
+    nullable: false
+    scope: regional
+    freshness: TODO
+    retention: TODO
+    epoch_role: DEFINES_REGIME
+    correction_semantics: NONE
+    fallback: null
+    consumers: [normalizer]
+    framework_roles: [REGIME]
+  - field: constraints.example_metric
+    semantic: Evidence required to evaluate an approved hard/validation constraint.
+    source: TODO
+    source_field: TODO
+    classification: OBSERVED
+    grain: resource_window
+    required: true
+    nullable: true
+    scope: regional
+    freshness: TODO
+    retention: TODO
+    epoch_role: CURRENT_REGIME_ONLY
+    correction_semantics: NONE
+    fallback: null
+    consumers: [constraint_evaluator, validator]
+    framework_roles: [CAUSAL_SIGNAL, CONSTRAINT, VALIDATION]

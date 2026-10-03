@@ -1,0 +1,31 @@
+version: 1
+status: DRAFT
+top_level:
+  - recommendation_package_id
+  - contract_version
+  - resource
+  - current_config
+  - workload_profile
+  - cost_baseline
+  - assessment
+  - evidence
+  - candidates
+  - scenarios
+  - recommended_plan
+  - package_economics
+  - realization
+  - provenance
+identity_prefixes:
+  regime: REGIME-
+  evidence: EVID-
+  candidate: CAND-
+  scenario: SCN-
+  realization: REAL-
+  package: PKG-
+internal_required_concepts:
+  - optimization_policy
+  - constraint_spec
+  - constraint_evaluation
+  - causal_trace
+  - validation_plan
+  - second_order_dependencies

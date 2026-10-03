@@ -1,0 +1,22 @@
+positive:
+  - Research the Databricks job cluster domain before we build its publisher.
+  - What exact resource types should our Lakeflow optimizer support?
+  - Define the identity and scope for an all-purpose cluster publisher.
+  - Inventory tunable configuration dimensions for this Databricks service.
+  - Which service variants are GA versus preview and should fail closed?
+  - Create the service profile for a new Databricks optimizer.
+  - We need to decide what's in scope before building the publisher.
+  - Identify resource lifecycle changes that invalidate recommendations.
+  - Map personas and domain terminology for this Databricks service.
+  - Adapt the publisher architecture to a new Databricks resource.
+negative:
+  - Implement the optimizer now from the approved contracts.
+  - Write a JSON Schema for this package.
+  - Calculate annual savings for this candidate.
+  - Run the release stale-code audit.
+  - Validate the golden scenarios.
+  - Format the workbook.
+  - Fix this unit test.
+  - Generate the source SQL from an already approved mapping.
+  - Review candidate confidence math only.
+  - Package the final ZIP.

@@ -1,0 +1,58 @@
+version: 1.1.0
+name: databricks-publisher-skill-suite
+reference_exemplar:
+  product: databricks-sql-warehouse-optimizer
+  publisher_version: 2.7.0
+entrypoint: databricks-publisher-orchestrator
+optimization_framework:
+  version: 1.0
+  axes:
+    - F1_FIRST_PRINCIPLES
+    - F2_CAUSAL_MECHANISM
+    - F3_CONSTRAINTS_FIRST
+    - F4_COUNTERFACTUAL
+    - F5_SECOND_ORDER_EFFECTS
+    - F6_VALIDATION_LEARNING
+skills:
+  - name: databricks-publisher-orchestrator
+    role: ORCHESTRATOR
+    depends_on: []
+  - name: databricks-service-discovery
+    role: ADVISOR
+    depends_on: []
+  - name: databricks-source-contract
+    role: ADVISOR_BUILDER
+    depends_on: [databricks-service-discovery]
+  - name: databricks-technique-catalog
+    role: CHALLENGER_ADVISOR
+    depends_on: [databricks-service-discovery, databricks-source-contract]
+  - name: databricks-economics-model
+    role: ECONOMICS_ADVISOR
+    depends_on: [databricks-service-discovery, databricks-source-contract, databricks-technique-catalog]
+  - name: databricks-contract-designer
+    role: CONTRACT_ARCHITECT
+    depends_on: [databricks-source-contract, databricks-technique-catalog, databricks-economics-model]
+  - name: databricks-publisher-builder
+    role: BUILDER
+    depends_on: [databricks-contract-designer]
+  - name: databricks-publisher-validator
+    role: INDEPENDENT_VERIFIER
+    depends_on: [databricks-publisher-builder]
+  - name: databricks-release-sealer
+    role: RELEASE_GATE
+    depends_on: [databricks-publisher-validator]
+principles:
+  - artifacts_are_cross_skill_api
+  - first_principles_before_knobs
+  - causal_mechanism_required
+  - constraints_evaluated_before_value
+  - counterfactual_matches_intervention
+  - second_order_effects_explicit
+  - validation_and_rollback_required
+  - deterministic_runtime_authoritative
+  - advisors_do_not_edit_runtime_code
+  - verifier_independent_when_possible
+  - fail_closed_on_unknown_resource_types
+  - no_candidate_savings_summation
+  - workbook_projection_only
+  - no_auto_advance_to_next_service

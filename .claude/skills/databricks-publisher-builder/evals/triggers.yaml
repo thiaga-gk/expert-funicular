@@ -1,0 +1,22 @@
+positive:
+  - Implement publisher.py from the approved contracts.
+  - Build the job-cluster analyzer, optimizer, and estimator.
+  - Add live/replay/synthetic modes to this Databricks publisher.
+  - Implement reviewer gates and scenario planning.
+  - Wire RecommendationPackage validation before writing JSON.
+  - Add the supported-type fail-closed gate.
+  - Implement the workbook projection from locked packages.
+  - Fix this publisher story using TDD.
+  - Add deterministic IDs and package hashing.
+  - Build the next approved release in its worktree.
+negative:
+  - Research whether Lakeflow is in scope.
+  - Decide the technique catalog from scratch.
+  - Define AWS cost semantics.
+  - Lock the public JSON contract.
+  - Perform the final release stale-code audit.
+  - Explain what a job cluster is.
+  - Find the authoritative source table.
+  - Draft a product strategy.
+  - Create a slide deck.
+  - Search for jobs.

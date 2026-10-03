@@ -1,0 +1,22 @@
+positive:
+  - Design the cost model for the job-cluster publisher.
+  - How should actual, baseline, and counterfactual cost differ?
+  - Build low/base/high scenario economics.
+  - Prevent double counting across optimizer candidates.
+  - Separate DBU and AWS cost for this service.
+  - Define realized savings measurement.
+  - Build the package opportunity envelope.
+  - Model a migration scenario that can cost more.
+  - Add negotiated pricing later without breaking contracts.
+  - Validate null versus zero cost semantics.
+negative:
+  - Which job-cluster knobs should we optimize?
+  - Find the system table for CPU metrics.
+  - Write publisher.py.
+  - Design the JSON ID hashes.
+  - Validate golden tests.
+  - Clean stale repo files.
+  - Format Excel cells.
+  - Explain Lakeflow resource identity.
+  - Create an OAuth profile.
+  - Summarize release notes.

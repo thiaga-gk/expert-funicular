@@ -1,0 +1,20 @@
+cases:
+- id: build-from-approved
+  prompt: All artifacts for job clusters are approved. Implement the first publisher release.
+  assertions:
+  - Uses deterministic layered pipeline and supported-type gate.
+  - Implements tests before/with code and does not re-research settled semantics.
+- id: missing-semantic
+  prompt: Implement node-type optimizer, but the technique artifact has no thresholds or decision rule.
+  assertions:
+  - Stops and returns the missing semantic decision instead of inventing thresholds.
+- id: workbook-separation
+  prompt: Make Excel calculate the recommended scenario because it's easier.
+  assertions:
+  - Keeps recommendation logic in publisher/runtime and workbook projection-only.
+- id: explicit-constraint-runtime
+  prompt: Implement a downsizing candidate that requires runtime non-regression but cannot be proven pre-change.
+  assertions:
+  - Uses deterministic constraint evaluation.
+  - Emits TEST_REQUIRED rather than ACTIONABLE when safe canary is the approved proof path.
+  - Includes success criteria and rollback behavior.

@@ -1,0 +1,35 @@
+cases:
+- id: challenge-double-count
+  prompt: Validate a publisher where package savings equal the sum of all candidates.
+  assertions:
+  - Raises a High finding for candidate double counting.
+- id: unsupported-type
+  prompt: A new preview resource type is routed through the standard optimizer.
+  assertions:
+  - Raises a High finding for fail-open behavior.
+- id: deterministic-rerun
+  prompt: Two reruns with identical evidence have different package IDs because generated_at
+    changed.
+  assertions:
+  - Raises a High determinism finding and identifies volatile hash input.
+- id: framework-adversarial
+  prompt: Validate a publisher where a candidate saves money, required runtime evidence
+    is unknown, and the code marks it ACTIONABLE.
+  assertions:
+  - Raises a High finding for hard/required constraint bypass.
+  - Maps the finding to F3 Constraints First.
+  - Provides a reproducible test expecting TEST_REQUIRED/INSUFFICIENT_EVIDENCE/BLOCKED
+    according to policy.
+- id: second-order-new-bottleneck
+  prompt: Validate a capacity-down recommendation whose new state may cause spill
+    and invalidate autoscaling recommendations.
+  assertions:
+  - Tests second-order invalidation and remeasurement.
+  - Rejects simple candidate savings summation.
+- id: scenario-constraint-composition
+  prompt: Validate a scenario where each candidate is individually feasible but their
+    composed proposed state violates a hard runtime or reliability constraint.
+  assertions:
+  - Runs scenario-level constraint evaluation after stateful composition.
+  - Blocks/rejects the scenario despite attractive economics.
+  - Maps the finding to F3 Constraints First and F5 Second-Order Effects.

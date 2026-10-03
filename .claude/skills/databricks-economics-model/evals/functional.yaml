@@ -1,0 +1,19 @@
+cases:
+- id: avoid-double-count
+  prompt: Size and worker-count candidates each save money. Sum them for the package.
+  assertions:
+  - Refuses candidate summation.
+  - Requires stateful scenario estimation.
+- id: missing-aws
+  prompt: We know DBU cost but do not have authoritative AWS cost.
+  assertions:
+  - Keeps AWS/total unavailable where required instead of zero.
+- id: performance-investment
+  prompt: A scenario costs $10K more but improves SLA.
+  assertions:
+  - Represents negative signed impact / cost increase rather than negative savings prose.
+- id: constraint-does-not-lose-to-savings
+  prompt: Scenario B saves more than Scenario A but violates a hard reliability constraint.
+  assertions:
+  - Quantifies Scenario B if useful but does not make economics override infeasibility.
+  - Requires scenario selection to consider constraint feasibility before savings.

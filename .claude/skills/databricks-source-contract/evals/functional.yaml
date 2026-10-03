@@ -1,0 +1,21 @@
+cases:
+- id: observed-vs-config
+  prompt: Billing exposes a feature flag but the config table does not. Can we treat it as config?
+  assertions:
+  - Classifies billing as OBSERVED rather than AUTHORITATIVE config.
+  - Allows deterministic inference only with explicit confidence/coverage semantics.
+- id: missing-source
+  prompt: A proposed technique requires a timeout setting that no authoritative source exposes.
+  assertions:
+  - Marks the field UNAVAILABLE or technique blocked/out-of-scope.
+  - Does not use an undocumented write/config API as authority.
+- id: regional
+  prompt: Query/event sources are regional but billing is global.
+  assertions:
+  - Defines regional collection and deterministic merge by resource identity.
+- id: constraint-source-gap
+  prompt: A downsizing technique needs runtime non-regression evidence, but no source currently captures comparable runtime.
+  assertions:
+  - Marks the constraint evidence unavailable or unresolved.
+  - Does not treat the hard constraint as satisfied.
+  - Requires a safe canary path or blocks/defer the technique.

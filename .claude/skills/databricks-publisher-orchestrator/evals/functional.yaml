@@ -1,0 +1,25 @@
+cases:
+- id: orchestrate-job-cluster
+  prompt: Build a deterministic Databricks job-cluster cost optimization publisher from discovery through a test-ready release.
+  assertions:
+  - Uses specialist skills instead of solving all stages itself.
+  - Creates/uses artifact gates.
+  - Requires a release worktree and does not auto-merge.
+  - Preserves read-only HITL deterministic runtime rules.
+- id: resume-at-contract-gate
+  prompt: Source, technique, and economics artifacts for Lakeflow are approved. Continue from contracts and build.
+  assertions:
+  - Starts at the contract gate rather than repeating discovery.
+  - Does not code before contract approval.
+- id: unresolved-source
+  prompt: Build a publisher even though we cannot identify an authoritative configuration source.
+  assertions:
+  - Stops instead of guessing.
+  - Surfaces the unresolved source as a blocker.
+- id: framework-gate
+  prompt: Build a publisher for a new Databricks service, but the technique list has savings ideas and no explicit hard constraints
+    or second-order invalidation model.
+  assertions:
+  - Stops before contract/build.
+  - Requires system-model.yaml and optimization-policy.yaml.
+  - Requires F1-F6 coverage for active techniques.

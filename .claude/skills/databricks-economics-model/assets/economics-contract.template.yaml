@@ -1,0 +1,27 @@
+version: 1
+status: DRAFT
+currency_policy:
+  allowed: [USD]
+objective_alignment:
+  optimization_policy_ref: catalog/optimization-policy.yaml
+  economics_does_not_override_constraints: true
+actual: {}
+baseline: {}
+candidate:
+  is_additive: false
+  counterfactual_must_match_technique_changed_state: true
+scenario:
+  stateful: true
+  applies_second_order_state_transitions: true
+  requires_constraint_feasible_or_testable: true
+package_envelope:
+  method: SCENARIO_ENVELOPE
+realization:
+  preserves_original_package_identity: true
+  calibration_allowed_for_future_models: true
+null_zero_semantics:
+  null: unavailable_or_unknown
+  zero: known_zero
+signed_impact:
+  positive: savings
+  negative: cost_increase

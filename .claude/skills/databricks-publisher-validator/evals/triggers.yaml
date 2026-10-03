@@ -1,0 +1,22 @@
+positive:
+  - Validate the publisher before we call this release done.
+  - Build golden scenarios for the job-cluster optimizer.
+  - Challenge the bundle estimator for double counting.
+  - Verify deterministic IDs across reruns.
+  - Test unsupported resource types fail closed.
+  - Audit workbook projection against JSON packages.
+  - Run a 15-resource synthetic fleet through the real pipeline.
+  - Review candidate blockers and confidence edges.
+  - Verify live-source E2E evidence.
+  - Independently challenge the builder's implementation.
+negative:
+  - Research service scope from official docs.
+  - Decide the source contract.
+  - Define the technique catalog.
+  - Implement the optimizer from scratch.
+  - Design the JSON contract.
+  - Write the PRD.
+  - Format a presentation.
+  - Create a new Git branch only.
+  - Calculate list prices manually.
+  - Explain what Photon is.

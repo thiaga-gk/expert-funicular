@@ -1,0 +1,148 @@
+{
+  "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.0.0 RecommendationPackage.",
+  "evidence_file": "evidence.json",
+  "generated_at": "2026-10-01T12:00:00Z",
+  "package_count": 15,
+  "packages": [
+    {
+      "epoch_id": "EPOCH-90F9FB8E6BAEFDC508183AC2",
+      "package_hash_full_sha256": "15DA49F91326A154AA7385BBAE25999B66AC9CA1D7BF950C77784E2AB720CEDF",
+      "path": "packages/1234567890123456__wh-synth-001.json",
+      "recommendation_package_id": "PKG-15DA49F91326A154AA7385BB",
+      "warehouse_id": "wh-synth-001",
+      "warehouse_name": "BI - Sales",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-72DBAA417ABE954FA2656D9C",
+      "package_hash_full_sha256": "A274E2F3A78BFCB030EAD393162CBCAF943F42B5E01ABDF8928028EADAFAB272",
+      "path": "packages/1234567890123456__wh-synth-004.json",
+      "recommendation_package_id": "PKG-A274E2F3A78BFCB030EAD393",
+      "warehouse_id": "wh-synth-004",
+      "warehouse_name": "ETL Heavy",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-A16532DC1139E2BC084D402A",
+      "package_hash_full_sha256": "06023C4D3F629B79C64E2B44D7089D081B9A728A840B82CA3F728408E90D82D4",
+      "path": "packages/1234567890123456__wh-synth-006.json",
+      "recommendation_package_id": "PKG-06023C4D3F629B79C64E2B44",
+      "warehouse_id": "wh-synth-006",
+      "warehouse_name": "Executive Dashboards",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-614244C19B0493E10ED11916",
+      "package_hash_full_sha256": "F82901313F6BC6C09050009395600D4AE11114D92712A0D4F2D0DAADC2DF58D4",
+      "path": "packages/1234567890123456__wh-synth-005.json",
+      "recommendation_package_id": "PKG-F82901313F6BC6C090500093",
+      "warehouse_id": "wh-synth-005",
+      "warehouse_name": "Finance Concurrency",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-CC2F0CDB591C885D4386C1E9",
+      "package_hash_full_sha256": "380CAB07F6A11E88AA95BC8D8EDF720CB892EA26B96E4222845750F9BE281AB4",
+      "path": "packages/1234567890123456__wh-synth-002.json",
+      "recommendation_package_id": "PKG-380CAB07F6A11E88AA95BC8D",
+      "warehouse_id": "wh-synth-002",
+      "warehouse_name": "Finance Executive",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-06C5FF89D953EAD720A4CAA9",
+      "package_hash_full_sha256": "E9AE08E0F4AC7B9E2454D329455FDA0CBADFCDC6511FF1EBC232DB53A283A121",
+      "path": "packages/1234567890123456__wh-synth-003.json",
+      "recommendation_package_id": "PKG-E9AE08E0F4AC7B9E2454D329",
+      "warehouse_id": "wh-synth-003",
+      "warehouse_name": "Marketing Ad Hoc",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-D170216D2595325D05442EDC",
+      "package_hash_full_sha256": "9D67225187732E10EF93433B4FDC4EE6DADA37EB4263BC5D715CE01A1CD1DC4A",
+      "path": "packages/1234567890123456__wh-synth-007.json",
+      "recommendation_package_id": "PKG-9D67225187732E10EF93433B",
+      "warehouse_id": "wh-synth-007",
+      "warehouse_name": "New Product Launch",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-0794CFBEEDE423AEAC28679D",
+      "package_hash_full_sha256": "B63158A213192FFA45D4DDBE98DE8D46C9745FD91AECB67C2CBC3646B2A10C7B",
+      "path": "packages/1234567890123456__wh-synth-008.json",
+      "recommendation_package_id": "PKG-B63158A213192FFA45D4DDBE",
+      "warehouse_id": "wh-synth-008",
+      "warehouse_name": "Serverless Analytics",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-1AC0ACF75932C15B74373C3C",
+      "package_hash_full_sha256": "C2C305A4B19CE9485CEEF7197D6C57D7B58A456A4FDB9DF76039D021EDB7DE66",
+      "path": "packages/2234567890123456__wh-synth-010.json",
+      "recommendation_package_id": "PKG-C2C305A4B19CE9485CEEF719",
+      "warehouse_id": "wh-synth-010",
+      "warehouse_name": "Cold Start BI",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-5520F552221BE44E2309AB8F",
+      "package_hash_full_sha256": "85700E54D6400D4C67ADC4A71B2E3DB6298BB2675B33494CB50FBDDCF822BB9F",
+      "path": "packages/2234567890123456__wh-synth-013.json",
+      "recommendation_package_id": "PKG-85700E54D6400D4C67ADC4A7",
+      "warehouse_id": "wh-synth-013",
+      "warehouse_name": "Customer 360",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-CAE64BE8247121DE399F13F0",
+      "package_hash_full_sha256": "C3CC7EDBE6D998AE01117C3A38061793DC1DEB4F18AC92DD05B662F200CA041C",
+      "path": "packages/2234567890123456__wh-synth-015.json",
+      "recommendation_package_id": "PKG-C3CC7EDBE6D998AE01117C3A",
+      "warehouse_id": "wh-synth-015",
+      "warehouse_name": "HR Reporting",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-AFA362E148C98C1F4278AC74",
+      "package_hash_full_sha256": "584A3DCC84FCE924876BB12ABCB5141540D52D28EB2420D0A49E2CAC77208B51",
+      "path": "packages/2234567890123456__wh-synth-014.json",
+      "recommendation_package_id": "PKG-584A3DCC84FCE924876BB12A",
+      "warehouse_id": "wh-synth-014",
+      "warehouse_name": "Ops Dashboards",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-D28C35BD2F5DCC70C6B69434",
+      "package_hash_full_sha256": "5345A8C94D0AAEE3BCC15DE16CD049992AC3FF59D8F34349F65A4A6FF08597AD",
+      "path": "packages/2234567890123456__wh-synth-009.json",
+      "recommendation_package_id": "PKG-5345A8C94D0AAEE3BCC15DE1",
+      "warehouse_id": "wh-synth-009",
+      "warehouse_name": "Photon Migration Lab",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-DA1F64FE4DA04096EFBB42D6",
+      "package_hash_full_sha256": "2356BB3763738CB0F5187C60084104C716AD533DE7F530A60B6B3402A2AE0E18",
+      "path": "packages/2234567890123456__wh-synth-011.json",
+      "recommendation_package_id": "PKG-2356BB3763738CB0F5187C60",
+      "warehouse_id": "wh-synth-011",
+      "warehouse_name": "Sandbox Sparse",
+      "workspace_id": "2234567890123456"
+    },
+    {
+      "epoch_id": "EPOCH-D1A8F8CB28750318B7B0B3AD",
+      "package_hash_full_sha256": "3B412A7F0A980924C978D72456B0628A3E1663252784851FBB405DF7FD896A34",
+      "path": "packages/2234567890123456__wh-synth-012.json",
+      "recommendation_package_id": "PKG-3B412A7F0A980924C978D724",
+      "warehouse_id": "wh-synth-012",
+      "warehouse_name": "Supply Chain BI",
+      "workspace_id": "2234567890123456"
+    }
+  ],
+  "publisher_version": "2.7.0",
+  "reporter_contract_version": "1.0.0",
+  "workbook_contract_version": "1.1.0",
+  "workbook_file": "workbook.xlsx",
+  "workbook_status": "GENERATED"
+}

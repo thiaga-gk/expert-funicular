@@ -1,0 +1,23 @@
+Databricks Publisher Skill Suite v1.1.0 validation
+
+skill suite: OK | version=1.1.0 skills=9 trigger_cases=180 functional_cases=39 cross_service_cases=3 framework_axes=6
+
+Framework artifact smoke (Job Cluster):
+source contract: OK
+optimization policy: OK
+technique catalog: OK
+economics contract: OK
+contract bundle: OK
+golden manifest: OK | scenarios=17 framework_cases=17
+
+Reference SQL Warehouse publisher regression:
+Ran 71 tests
+OK
+
+release audit: OK
+
+Notes:
+- Six-axis framework is statically enforced across all nine skills.
+- 180 trigger/non-trigger eval prompts and 39 functional eval cases are packaged.
+- Model-based with-skill vs baseline evaluation is not claimed as executed by this static validator.
+- SQL Warehouse v2.7.0 runtime semantics and locked Reporter JSON Contract v1.0.0 are unchanged.

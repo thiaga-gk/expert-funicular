@@ -1,0 +1,32 @@
+cases:
+  - id: sql-warehouse-control
+    service: SQL Warehouse
+    prompt: Rebuild the SQL Warehouse publisher from approved service/source/technique/economics artifacts without reading the existing publisher implementation until contract design is complete.
+    assertions:
+      - Discovers CLASSIC, PRO, standard SERVERLESS support and fails closed on unmodeled types.
+      - Builds a first-principles model from query demand through capacity/pressure/runtime to DBU/AWS cost.
+      - Separates system-table configuration, observed Photon/owner/query source, DBU and AWS economics.
+      - Produces seven decision domains including a non-savings governance/channel guardrail.
+      - Makes performance/reliability constraints explicit before cost-down recommendations.
+      - Uses candidate non-additivity, stateful scenarios, second-order invalidation, package envelope, realization, and four-sheet workbook projection.
+      - Does not require SQL-Warehouse-specific names in the generic base contract.
+  - id: job-cluster-adaptation
+    service: Job Cluster
+    prompt: Build a deterministic cost-optimization publisher for Databricks job clusters using the publisher skill suite.
+    assertions:
+      - Defines job/task/cluster execution identity rather than warehouse identity.
+      - Builds a first-principles job-run system model before choosing worker/node/autoscaling techniques.
+      - Researches node type, worker/autoscaling, runtime/Photon/serverless migration semantics instead of copying warehouse size/min/max clusters.
+      - Defines runtime/reliability constraints and post-change canary/rollback semantics before claiming savings.
+      - Builds service-specific DBU plus cloud-infrastructure counterfactual economics.
+      - Preserves generic package/scenario/reviewer/reporting architecture and second-order invalidation.
+  - id: lakeflow-anti-copy
+    service: Lakeflow/DLT
+    prompt: Build a deterministic optimization publisher for Lakeflow pipelines.
+    assertions:
+      - Uses pipeline/update/service-specific lifecycle and identity.
+      - Builds a pipeline-specific causal system model and constraints rather than importing compute-only assumptions.
+      - Does not invent warehouse size or warehouse min/max cluster fields.
+      - Separates classic/serverless/pipeline-specific billing and compatibility semantics based on research.
+      - Requires counterfactual and validation semantics for every active technique.
+      - Reuses the generic resource package architecture only where semantically valid.

@@ -1,0 +1,47 @@
+Workbook Contract v1.1.0 — Contract Audit
+=========================================
+Publisher: 2.7.0
+Reporter JSON Contract: 1.0.0
+Workbook Contract: 1.1.0
+
+Locked visible sheets
+- Executive Summary
+- Warehouse Portfolio
+- Scenario Plans
+- Recommendation Registry
+
+Locked grains from the 15-warehouse synthetic run
+- Warehouse Portfolio: 15 package rows
+- Scenario Plans: 30 scenario rows
+- Recommendation Registry: 105 candidate rows
+
+Exact detailed-sheet column contracts
+- Warehouse Portfolio: 58 columns (PORTFOLIO_COLUMNS)
+- Scenario Plans: 42 columns (SCENARIO_COLUMNS)
+- Recommendation Registry: 53 columns (REGISTRY_COLUMNS)
+
+Professional numeric economics
+- Economic impact cells are numeric where available.
+- Positive signed impact = savings.
+- Negative signed impact = cost increase.
+- Zero = known no change.
+- UNAVAILABLE is never coerced to zero.
+- Currency is explicit on each detailed economic grain.
+- Impact type is explicit (SAVINGS / COST_INCREASE / MIXED / NO_CHANGE / UNAVAILABLE).
+- No decorated strings such as "Save USD ..." or "Cost +USD ..." are used in economic numeric cells.
+- Negative values use accounting-style parentheses/red number formatting.
+
+Excel safety/readability
+- Long numeric identifiers are rendered as exact Excel text, preventing scientific notation/precision loss.
+- Rows 1-2: title/context.
+- Row 3: section bands.
+- Row 4: filterable headers.
+- Identity columns and headers are frozen.
+- Detailed sheets are Excel tables.
+- Verbose audit JSON is placed at the far right and remains compact.
+- No business formulas, hidden sheets, or macros.
+
+Validation
+- Exact ordered row keys are regression-tested against the contract-owned column declarations.
+- Workbook projection contains no blank semantic values.
+- Reporter JSON remains the authoritative source of truth.

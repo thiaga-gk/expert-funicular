@@ -1,0 +1,25 @@
+cases:
+- id: job-cluster-techniques
+  prompt: Build the complete job-cluster compute optimization technique catalog.
+  assertions:
+  - Separates worker count, node type, autoscaling, runtime/Photon/serverless where applicable.
+  - Defines dependencies/invalidation instead of treating candidates as additive.
+- id: missing-source-technique
+  prompt: Add Spot tuning even though source contract cannot observe effective Spot policy.
+  assertions:
+  - Does not activate the technique without source readiness.
+- id: guardrail
+  prompt: A runtime channel recommendation improves stability but has no direct savings.
+  assertions:
+  - Classifies it as a guardrail and does not fabricate savings.
+- id: constraints-first-technique
+  prompt: Design a worker-downsize technique that appears to save 30% but could increase runtime.
+  assertions:
+  - Defines first-principles driver and causal mechanism.
+  - Treats runtime as a constraint before savings.
+  - Defines counterfactual, second-order invalidations, canary success criteria and rollback.
+- id: second-order-branch
+  prompt: Design a migration technique where changing compute type invalidates worker/node/autoscaling recommendations.
+  assertions:
+  - Models migration as a mutually exclusive branch.
+  - Marks dependent recommendations invalidated and requires remeasurement/re-analysis.

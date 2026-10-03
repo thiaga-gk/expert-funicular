@@ -1,0 +1,21 @@
+version: 1
+status: DRAFT
+release: TODO
+worktree: TODO
+checks:
+  compile: PENDING
+  tests: PENDING
+  golden: PENDING
+  deterministic_rerun: PENDING
+  contract_validation: PENDING
+  synthetic_e2e: PENDING
+  workbook_qa: PENDING
+  security_audit: PENDING
+  clean_zip: PENDING
+  live_source_e2e: NOT_EXECUTED
+findings: []
+known_limitations: []
+archive:
+  path: null
+  sha256: null
+merge_recommendation: HOLD

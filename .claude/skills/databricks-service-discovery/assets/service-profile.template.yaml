@@ -1,0 +1,24 @@
+version: 1
+status: DRAFT
+service:
+  id: job-cluster
+  resource_noun: job_cluster
+  display_name: Databricks Job Cluster
+resource_identity:
+  keys: [workspace_id, job_id, task_key]
+parent_scopes: [workspace, job]
+supported_resource_types: []
+excluded_resource_types: []
+resource_lifecycle: {}
+configuration_dimensions: []
+optimization_domains: []
+neighboring_services_out_of_scope: []
+personas: []
+execution_policy:
+  advisory_only: true
+  hitl_required: true
+  deterministic: true
+objective_hypotheses:
+  primary: MINIMIZE_FORWARD_ANNUAL_TOTAL_COST
+  constraints_first: true
+open_decisions: []
