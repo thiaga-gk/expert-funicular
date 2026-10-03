@@ -346,6 +346,61 @@ class GoldenScenarioTests(unittest.TestCase):
         _,r=self.load("spill-constrained"); c=next(c for c in r[0].candidates if c.knob=="warehouse_size")
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
 
+    def spill_evidence(self, *, queries_30=12000, epoch_start=None):
+        """Spill-constrained golden fixture with the sample size / epoch age overridden (audit H2)."""
+        payload = json.loads((self.golden / "spill-constrained.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        epoch["query"]["queries_30"] = queries_30
+        if epoch_start is not None:
+            epoch["epoch_start"] = epoch_start
+        return [p.evidence_from_dict(ev)]
+
+    def size_candidate(self, evidence):
+        w = p.evaluate_warehouses(evidence, self.t)[0]
+        return w, next(c for c in w.candidates if c.knob == "warehouse_size")
+
+    def test_upsize_requires_minimum_query_sample(self):
+        # H2: 1 query that spills must not resize a warehouse.
+        w, c = self.size_candidate(self.spill_evidence(queries_30=1))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_QUERY_SAMPLE", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+        plan = next(s for s in w.scenarios if s.recommended)
+        self.assertNotIn("warehouse_size", [s.knob for s in plan.steps])
+
+    def test_upsize_requires_mature_config_epoch(self):
+        # Analysis time is 2026-10-01T12:00Z, so this epoch is 2 days old (< 7).
+        _, c = self.size_candidate(self.spill_evidence(epoch_start="2026-09-29T12:00:00+00:00"))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_upsize_reports_every_missing_evidence_requirement(self):
+        _, c = self.size_candidate(self.spill_evidence(queries_30=1, epoch_start="2026-09-29T12:00:00+00:00"))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(set(c.blockers), {"INSUFFICIENT_QUERY_SAMPLE", "CURRENT_CONFIG_EPOCH_TOO_NEW"})
+
+    def test_upsize_actionable_exactly_at_evidence_boundaries(self):
+        # 100 queries and exactly 7 days of epoch age are sufficient.
+        _, c = self.size_candidate(self.spill_evidence(queries_30=100, epoch_start="2026-09-24T12:00:00+00:00"))
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
+        _, below = self.size_candidate(self.spill_evidence(queries_30=99))
+        self.assertEqual(below.status, "INSUFFICIENT_EVIDENCE")
+
+    def test_insufficient_evidence_upsize_has_no_savings_and_yields_valid_package(self):
+        ev = self.spill_evidence(queries_30=1)
+        _, c = self.size_candidate(ev)
+        self.assertIn(c.estimated_savings_365, (None, 0, 0.0))
+        packages = p.build_recommendation_packages(ev, self.t)  # runs semantic validation
+        pkg = packages[0]
+        pkg_dict = pkg if isinstance(pkg, dict) else json.loads(p.canonical_json(pkg))
+        size = next(x for x in pkg_dict["candidates"] if x["knob"] == "warehouse_size")
+        self.assertEqual(size["status"], "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
+        self.assertEqual(size["recommended_value"], size["current_value"])
+
     def test_concurrency_constrained(self):
         _,r=self.load("concurrency-constrained"); c=next(c for c in r[0].candidates if c.knob=="max_clusters")
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["max_clusters"],3)

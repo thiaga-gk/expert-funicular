@@ -1857,7 +1857,14 @@ class Optimizer:
                 ["warehouse_channel","enable_photon"],[],[],"Warehouse size is outside the known deterministic ordering."))
         elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
-            if target:
+            # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
+            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+            if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
+            if target and blockers:
+                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel","enable_photon"],[],[],
+                    "Spill crosses the upsize thresholds, but the query sample or config epoch is too small/new to act on; no resize is recommended."))
+            elif target:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel","enable_photon"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
@@ -2026,7 +2033,7 @@ class Estimator:
     def _factors(self,e:WarehouseEvidence,d:OptimizationDecision,a:AnalysisResult)->Tuple[Optional[Range3],Dict[str,Any]]:
         knob=d.knob
         meta:Dict[str,Any]={"estimator_version":ESTIMATOR_VERSION}
-        if d.status in {"NO_CHANGE","BLOCKED"}:
+        if d.status in {"NO_CHANGE","BLOCKED","INSUFFICIENT_EVIDENCE"}:
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
@@ -2285,7 +2292,8 @@ class Reviewer:
             if not 0<=score<=1: raise ValueError(f"Confidence out of range: {c.recommendation_id}")
             if c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and c.current_config==c.recommended_config:
                 raise ValueError(f"Change status without config change: {c.recommendation_id}")
-            if c.status=="BLOCKED" and not c.blockers: raise ValueError(f"Blocked without blockers: {c.recommendation_id}")
+            if c.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"} and not c.blockers: raise ValueError(f"{c.status} without blockers: {c.recommendation_id}")
+            if c.status=="INSUFFICIENT_EVIDENCE" and c.current_config!=c.recommended_config: raise ValueError(f"INSUFFICIENT_EVIDENCE with config change: {c.recommendation_id}")
             if c.status=="NO_CHANGE" and c.estimated_savings_365 not in (None,0,0.0): raise ValueError(f"NO_CHANGE with savings: {c.recommendation_id}")
             if c.estimated_cost_range_365:
                 r=c.estimated_cost_range_365

@@ -6,7 +6,7 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 |---|---|---|---|
 | Photon observed state | >=90% non-null feature coverage, >=1 current-epoch DBU, <=14d freshness; >=95% true=ENABLED, <=5%=DISABLED, else MIXED | Conservative | Refuses to turn sparse/stale/mixed billing attribution into a config assertion. Disabled→enabled is canary-gated and no savings is fabricated before measurement. |
 | Size down | >=500 queries, <=0.1% spill, <=0.5% queued, p95<=5s, p99<=30s, epoch>=7d, one size only, canary required | Conservative | Multiple independent safety signals; never auto-applies. |
-| Size up | spill >=2% and p95 spill >=1 GiB | Balanced/conservative | Dual frequency+severity signal avoids reacting to isolated spills. |
+| Size up | spill >=2% and p95 spill >=1 GiB, **and** >=100 queries and epoch >=7d; otherwise `INSUFFICIENT_EVIDENCE` with no resize recommended | Balanced/conservative | Dual frequency+severity signal avoids reacting to isolated spills; sample/maturity gate stops a single query or an immature config regime from driving a resize. |
 | Max clusters up | >=5% queued + p95 capacity wait >=30s + observed saturation | Conservative | Triple gate avoids over-scaling. |
 | Max clusters down | <=0.5% queue, <=1% time at max, observed max below config | Conservative | Guardrail only; no fake direct savings. |
 | Min clusters down | >=100 queries, >=25% time at min, <=0.5% queue, p95 capacity wait<=5s, <20% time at max | Balanced/conservative | Uses actual resource-state evidence and capacity-pressure guardrails. |

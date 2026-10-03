@@ -13,3 +13,4 @@ This file records limitations that remain true in the sealed testing baseline. R
 9. **Query-source attribution:** query source is multi-label where applicable; category percentages are not assumed to form a mutually exclusive distribution.
 10. **Out-of-scope knobs:** query rewrite, storage optimization, scheduling optimization, Spot policy tuning, and statement-timeout tuning are outside the current active technique set.
 11. **Workbook:** `workbook.xlsx` is a presentation projection only. Numeric annual-impact columns preserve signed economics; positive values are savings, negative values are cost increases, and unavailable values are not coerced to zero.
+12. **Shared-warehouse segmentation:** size decisions are made per warehouse. One pathological query class (for example a single source or client application) can still dominate spill evidence on a shared warehouse once the sample and epoch-maturity gates pass; per-source segmentation is not implemented.
