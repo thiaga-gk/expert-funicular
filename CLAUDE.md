@@ -1,4 +1,4 @@
-# CLAUDE.md — v2.7.0 execution rules
+# CLAUDE.md — v2.7.1 execution rules
 
 ## Primary invariants
 - `RecommendationPackage` under Reporter JSON Contract v1.1.0 is the public machine source of truth.
@@ -62,7 +62,7 @@ Before writing each package:
 3. `python -m unittest discover -s tests -v`
 4. regenerate the 15-warehouse demo;
 5. validate every package against semantic + JSON Schema rules;
-6. validate `workbook.xlsx` against exact sheet/column/grain rules and numeric economic semantics;
+6. validate `workbook.xlsx` against exact sheet/column/grain rules and numeric economic semantics (`python tools/validate_workbook.py <output_dir>`);
 7. scan the repo for stale version/legacy/deferred references before release packaging.
 
 ## Reusable publisher skills

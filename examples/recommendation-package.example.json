@@ -33,7 +33,7 @@
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-4FBB02FA984F3A30DD46071F",
+      "candidate_id": "CAND-9E0594CC08E71C9965970960",
       "confidence": {
         "components": {
           "coverage": 0.8300000000000001,
@@ -113,7 +113,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-D214305944A4EC7D64E06BC9",
+      "candidate_id": "CAND-45EC9B10A5B41D9E978248F0",
       "confidence": {
         "components": {
           "coverage": 0.9700000000000001,
@@ -187,7 +187,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-4016D289A662CF29C1994BB6",
+      "candidate_id": "CAND-FBDD98532451FF9857702808",
       "confidence": {
         "components": {
           "coverage": 0.9500000000000001,
@@ -261,7 +261,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-596FFA9C63D2F165E5EC867A",
+      "candidate_id": "CAND-CE21B37470A9E2E133A1A4B1",
       "confidence": {
         "components": {
           "coverage": 0.9800000000000001,
@@ -337,7 +337,7 @@
         "SERVERLESS_COMPATIBILITY_VALIDATION_REQUIRED",
         "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-89372B9BD69B70E56055CA06",
+      "candidate_id": "CAND-C9D21C86EE19E4DB95386EDD",
       "confidence": {
         "components": {
           "coverage": 0.66,
@@ -416,7 +416,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-C0DADB36DA93B5DA4BB32EBD",
+      "candidate_id": "CAND-9539287452F64E0B8D7F52AC",
       "confidence": {
         "components": {
           "coverage": 0.99,
@@ -687,8 +687,8 @@
     },
     "excluded_scenarios": [],
     "included_scenario_ids": [
-      "SCN-6036BA7BB780D8DD2E06D602",
-      "SCN-85F668B712B4E343FA41D783"
+      "SCN-8D7F82862CCC2A6243A1F1A1",
+      "SCN-0A8B4729A65D20ED38FB2DFD"
     ],
     "scenario_envelope": {
       "maximum_savings": {
@@ -703,7 +703,7 @@
           "dbu": 13000,
           "total": 21793.82
         },
-        "scenario_id": "SCN-85F668B712B4E343FA41D783"
+        "scenario_id": "SCN-0A8B4729A65D20ED38FB2DFD"
       },
       "minimum_savings": {
         "bound": "LOW",
@@ -717,7 +717,7 @@
           "dbu": 3000,
           "total": 4000
         },
-        "scenario_id": "SCN-6036BA7BB780D8DD2E06D602"
+        "scenario_id": "SCN-8D7F82862CCC2A6243A1F1A1"
       },
       "recommended_base": {
         "bound": "BASE",
@@ -731,7 +731,7 @@
           "dbu": 4800,
           "total": 6500
         },
-        "scenario_id": "SCN-6036BA7BB780D8DD2E06D602"
+        "scenario_id": "SCN-8D7F82862CCC2A6243A1F1A1"
       }
     },
     "semantics": {
@@ -741,18 +741,18 @@
     }
   },
   "provenance": {
-    "analyzer_version": "2.7.0",
-    "bundle_estimator_version": "2.7.0",
+    "analyzer_version": "2.7.1",
+    "bundle_estimator_version": "2.7.1",
     "contract_version": "1.1.0",
-    "decision_graph_version": "decision-graph-v2.7",
-    "estimator_version": "2.7.0",
+    "decision_graph_version": "decision-graph-v2.7.1",
+    "estimator_version": "2.7.1",
     "evidence_fingerprint": "SHA256:459DAB13CD6C1F5777EEF7890119DD04910DA66AD476CCCDC3197B48EAA5A90B",
     "generated_at": "2026-10-01T18:00:00Z",
-    "modeler_version": "2.7.0",
-    "optimizer_version": "2.7.0",
-    "package_hash_full_sha256": "9524385D18C573CC93753D1041F498E1088C9FAAE523092322282F7377082F2D",
-    "policy_version": "policy-v2.7",
-    "reviewer_version": "2.7.0",
+    "modeler_version": "2.7.1",
+    "optimizer_version": "2.7.1",
+    "package_hash_full_sha256": "CBB9867B6E2FD4335CD3255E5EF82451A30E2357650814572D1E49E535215B9F",
+    "policy_version": "policy-v2.7.1",
+    "reviewer_version": "2.7.1",
     "source_regions": [
       "us-east-1"
     ],
@@ -777,21 +777,21 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-9524385D18C573CC93753D10",
+  "recommendation_package_id": "PKG-CBB9867B6E2FD4335CD3255E",
   "recommended_plan": {
     "decision_summary": "Validate one-size-down first; then remeasure and regenerate invalidated downstream recommendations.",
     "next_action": "RUN_SIZE_CANARY",
     "requires_hitl": true,
-    "scenario_id": "SCN-6036BA7BB780D8DD2E06D602",
+    "scenario_id": "SCN-8D7F82862CCC2A6243A1F1A1",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-4FBB02FA984F3A30DD46071F",
-        "CAND-D214305944A4EC7D64E06BC9",
-        "CAND-4016D289A662CF29C1994BB6",
-        "CAND-596FFA9C63D2F165E5EC867A"
+        "CAND-9E0594CC08E71C9965970960",
+        "CAND-45EC9B10A5B41D9E978248F0",
+        "CAND-FBDD98532451FF9857702808",
+        "CAND-CE21B37470A9E2E133A1A4B1"
       ],
       "compatibility": {
         "checks": [],
@@ -816,7 +816,7 @@
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-4FBB02FA984F3A30DD46071F",
+          "candidate_id": "CAND-9E0594CC08E71C9965970960",
           "confidence": {
             "components": {
               "coverage": 0.8300000000000001,
@@ -875,7 +875,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-D214305944A4EC7D64E06BC9",
+          "candidate_id": "CAND-45EC9B10A5B41D9E978248F0",
           "confidence": {
             "components": {
               "coverage": 0.9700000000000001,
@@ -923,7 +923,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-4016D289A662CF29C1994BB6",
+          "candidate_id": "CAND-FBDD98532451FF9857702808",
           "confidence": {
             "components": {
               "coverage": 0.9500000000000001,
@@ -971,7 +971,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-596FFA9C63D2F165E5EC867A",
+          "candidate_id": "CAND-CE21B37470A9E2E133A1A4B1",
           "confidence": {
             "components": {
               "coverage": 0.9800000000000001,
@@ -1128,14 +1128,14 @@
           }
         }
       },
-      "scenario_id": "SCN-6036BA7BB780D8DD2E06D602",
+      "scenario_id": "SCN-8D7F82862CCC2A6243A1F1A1",
       "scenario_name": "Plan A \u2014 Optimize current PRO warehouse",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
     },
     {
       "candidate_refs": [
-        "CAND-89372B9BD69B70E56055CA06"
+        "CAND-C9D21C86EE19E4DB95386EDD"
       ],
       "compatibility": {
         "checks": [
@@ -1210,7 +1210,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-89372B9BD69B70E56055CA06",
+          "candidate_id": "CAND-C9D21C86EE19E4DB95386EDD",
           "confidence": {
             "components": {
               "coverage": 0.66,
@@ -1299,7 +1299,7 @@
           }
         }
       },
-      "scenario_id": "SCN-85F668B712B4E343FA41D783",
+      "scenario_id": "SCN-0A8B4729A65D20ED38FB2DFD",
       "scenario_name": "Plan B \u2014 Migrate to Serverless",
       "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
       "status": "ALTERNATIVE"

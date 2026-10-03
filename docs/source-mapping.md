@@ -1,4 +1,4 @@
-# Source mapping — v2.7.0
+# Source mapping — v2.7.1
 
 | Need | Source | Notes |
 |---|---|---|
@@ -16,7 +16,7 @@
 
 ## Photon semantics
 
-`product_features.is_photon` is workload/billing attribution, not a direct config read. v2.7.0 therefore calls the result **observed Photon state**. If enough current-epoch signed DBU is recent and >=95% of known Photon-attributed DBU is true, state is `ENABLED`; <=5% is `DISABLED`; otherwise `MIXED`. Low feature coverage, stale billing, or insufficient DBU yields `UNKNOWN`.
+`product_features.is_photon` is workload/billing attribution, not a direct config read. v2.7.1 therefore calls the result **observed Photon state**. If enough current-epoch signed DBU is recent and >=95% of known Photon-attributed DBU is true, state is `ENABLED`; <=5% is `DISABLED`; otherwise `MIXED`. Low feature coverage, stale billing, or insufficient DBU yields `UNKNOWN`.
 
 This gives a system-table-only deterministic Photon *observation* (reported in `current_config.photon`) while refusing to overstate ambiguous evidence. v2.7.1 makes no Photon recommendation: Databricks publishes no Photon on/off price for SQL warehouses.
 

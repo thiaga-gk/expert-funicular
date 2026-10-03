@@ -2,7 +2,7 @@
 
 **Document:** `docs/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
 **Workbook Contract:** v1.2.0 (locked)  
@@ -72,7 +72,7 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.7.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+**Implementation conformance:** Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ### 3.3 Active candidate domains
 
@@ -522,11 +522,11 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The sealed v2.7.0 fixture exercises 15 representative warehouses and produces:
+The sealed v2.7.1 fixture exercises 15 representative warehouses and produces:
 
 - 15 recommendation packages,
 - 30 scenarios,
-- 105 candidate rows,
+- 90 candidate rows,
 - one four-sheet workbook.
 
 Synthetic mode is a test/illustration facility, not an alternate recommendation engine.
@@ -921,7 +921,7 @@ A future policy can promote a migration scenario only through a versioned change
 | Source compute | Databricks SQL/system tables | push high-volume aggregation to the platform |
 | Auth | Databricks CLI OAuth profile | short-lived user-authorized credentials; no token logging |
 | Public contract | typed dataclasses + JSON Schema | stable machine-readable boundary + semantic validation |
-| Workbook | `artifact_tool` projection | presentation-only, no decision formulas |
+| Workbook | `openpyxl` projection | presentation-only, no decision formulas |
 | Local data processing | Python objects/dataclasses | bounded per-warehouse evidence; avoids pandas dependency in core |
 | AWS forward price source | versioned JSON registry | explicit, reproducible, region-specific reference pricing |
 | Logging | Python structured lifecycle logging | simple local observability without external dependency |
@@ -942,7 +942,7 @@ flowchart TD
 ```
 
 
-The sealed v2.7.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
+The sealed v2.7.1 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
 
@@ -998,7 +998,7 @@ The architecture expects tests to prove both positive behavior and fail-closed b
 
 ## 22. Implementation conformance
 
-Publisher v2.7.0 closes the architecture-alignment items identified during document review:
+Publisher v2.7.1 closes the architecture-alignment items identified during document review:
 
 - the supported-type gate is explicitly enforced before active optimization;
 - only `CLASSIC`, `PRO`, and standard `SERVERLESS` enter optimization logic;

@@ -1,15 +1,22 @@
 """Excel workbook reporter for Workbook Contract v1.2.0.
 
 The workbook is a presentation-only projection of locked Reporter JSON Contract
-v1.0.0.  Exact detailed-sheet columns and section groups are owned by
+v1.1.0.  Exact detailed-sheet columns and section groups are owned by
 ``contracts.workbook_contract``; this renderer cannot silently drop fields.
+
+Rendered with ``openpyxl`` (pip-installable); no proprietary runtime is required.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Optional, Sequence
 
-from artifact_tool import SpreadsheetFile, Workbook
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, Reference
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from contracts import reporter_contract as rc
 from contracts import workbook_contract as wc
@@ -32,13 +39,61 @@ PCT_FMT = wc.PERCENT_FORMAT
 INT_FMT = '#,##0'
 DECIMAL_FMT = '0.00'
 
+# Excel rejects cells longer than this; verbose audit-JSON cells are cut with a visible marker rather than
+# producing a file Excel reports as corrupt. The full content always remains in the package JSON.
+EXCEL_MAX_CELL_CHARS = 32767
+TRUNCATION_MARKER = " …[truncated; full content in the package JSON]"
+
 
 def _col_letter(n: int) -> str:
-    out = ""
-    while n:
-        n, rem = divmod(n - 1, 26)
-        out = chr(65 + rem) + out
-    return out
+    return get_column_letter(n)
+
+
+def _rgb(color: str) -> str:
+    return color.lstrip("#")
+
+
+def _fill(color: str) -> PatternFill:
+    return PatternFill(fill_type="solid", start_color=_rgb(color), end_color=_rgb(color))
+
+
+def _font(color: str = TEXT, size: int = 9, bold: bool = False, italic: bool = False) -> Font:
+    return Font(color=_rgb(color), size=size, bold=bold, italic=italic)
+
+
+def _cells(sheet: Any, ref: str) -> Iterator[Any]:
+    block = sheet[ref]
+    if not isinstance(block, tuple):
+        yield block
+        return
+    for row in block:
+        if isinstance(row, tuple):
+            yield from row
+        else:
+            yield row
+
+
+def _style(
+    sheet: Any, ref: str, *, fill: Optional[str] = None, font: Optional[Font] = None, number_format: Optional[str] = None,
+    horizontal: Optional[str] = None, vertical: Optional[str] = None, wrap: Optional[bool] = None,
+) -> None:
+    for cell in _cells(sheet, ref):
+        if fill:
+            cell.fill = _fill(fill)
+        if font:
+            cell.font = font
+        if number_format:
+            cell.number_format = number_format
+        if horizontal or vertical or wrap is not None:
+            cell.alignment = Alignment(
+                horizontal=horizontal or cell.alignment.horizontal, vertical=vertical or cell.alignment.vertical,
+                wrap_text=cell.alignment.wrap_text if wrap is None else wrap,
+            )
+
+
+def _row_height(sheet: Any, first_row: int, last_row: int, height: float) -> None:
+    for r in range(first_row, last_row + 1):
+        sheet.row_dimensions[r].height = height
 
 
 def _normalize(v: Any) -> Any:
@@ -50,60 +105,56 @@ def _normalize(v: Any) -> Any:
 
 
 def _excel_text(v: Any) -> Any:
-    """Preserve long digit-only identifiers as exact visible Excel text.
+    """Return the exact visible value for a contract text cell.
 
-    artifact_tool/Excel can coerce a digit-only string to a numeric cell even
-    when the column uses the Text number format. A leading apostrophe is the
-    standard Excel text-entry marker and is not displayed to the user. This is
-    a renderer-only representation; contract/projection values remain unchanged.
+    Long digit-only identifiers (workspace IDs) stay text because the cell is written as an explicit string with
+    the Text number format; no apostrophe workaround is needed or wanted with this renderer.
     """
-    value = _normalize(v)
-    if isinstance(value, str) and value.isdigit() and len(value) >= 12:
-        return "'" + value
-    return value
+    return _normalize(v)
+
+
+def _put(sheet: Any, row: int, col: int, value: Any) -> Any:
+    """Write one cell, guaranteeing that text is never interpreted as a formula."""
+    value = _normalize(value)
+    if isinstance(value, str) and len(value) > EXCEL_MAX_CELL_CHARS:
+        value = value[: EXCEL_MAX_CELL_CHARS - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
+    cell = sheet.cell(row=row, column=col, value=value)
+    if isinstance(value, str) and value.startswith("="):
+        cell.data_type = "s"  # presentation-only: workbook cells never carry formulas
+    return cell
+
+
+def _add_table(sheet: Any, ref: str, name: str, style: str) -> None:
+    table = Table(displayName=name, ref=ref)
+    table.tableStyleInfo = TableStyleInfo(name=style, showRowStripes=True, showColumnStripes=False)
+    sheet.add_table(table)
 
 
 def _sheet_title(sheet: Any, title: str, subtitle: str, end_col: int) -> None:
     end = _col_letter(max(end_col, 8))
     sheet.merge_cells(f"A1:{end}1")
-    sheet.get_range("A1").values = [[title]]
-    sheet.get_range(f"A1:{end}1").format = {
-        "fill": ESPRESSO,
-        "font": {"bold": True, "color": WHITE, "size": 16},
-        "vertical_alignment": "center",
-    }
-    sheet.get_range(f"A1:{end}1").format.row_height = 28
+    sheet["A1"] = title
+    _style(sheet, "A1", fill=ESPRESSO, font=_font(WHITE, 16, bold=True), vertical="center")
+    sheet.row_dimensions[1].height = 28
     sheet.merge_cells(f"A2:{end}2")
-    sheet.get_range("A2").values = [[subtitle]]
-    sheet.get_range(f"A2:{end}2").format = {
-        "fill": CREAM,
-        "font": {"color": ESPRESSO_2, "italic": True, "size": 9},
-        "wrap_text": True,
-        "vertical_alignment": "center",
-    }
-    sheet.get_range(f"A2:{end}2").format.row_height = 24
+    sheet["A2"] = subtitle
+    _style(sheet, "A2", fill=CREAM, font=_font(ESPRESSO_2, 9, italic=True), vertical="center", wrap=True)
+    sheet.row_dimensions[2].height = 24
 
 
 def _write_group_row(sheet: Any, columns: Sequence[wc.ColumnSpec], groups: Sequence[wc.ColumnGroup], row: int = 3) -> None:
     by_key = {c.key: idx + 1 for idx, c in enumerate(columns)}
     for i, group in enumerate(groups):
-        start = by_key[group.start_key]
-        end = by_key[group.end_key]
+        start, end = by_key[group.start_key], by_key[group.end_key]
         start_letter, end_letter = _col_letter(start), _col_letter(end)
+        sheet[f"{start_letter}{row}"] = group.title
+        _style(
+            sheet, f"{start_letter}{row}", fill=GOLD if i % 2 == 0 else ESPRESSO_2, font=_font(WHITE, 9, bold=True),
+            horizontal="center", vertical="center",
+        )
         if start != end:
             sheet.merge_cells(f"{start_letter}{row}:{end_letter}{row}")
-        cell = sheet.get_range(f"{start_letter}{row}:{end_letter}{row}")
-        cell.values = [[group.title]] if start == end else None
-        if start != end:
-            sheet.get_range(f"{start_letter}{row}").values = [[group.title]]
-        cell.format = {
-            "fill": GOLD if i % 2 == 0 else ESPRESSO_2,
-            "font": {"bold": True, "color": WHITE, "size": 9},
-            "horizontal_alignment": "center",
-            "vertical_alignment": "center",
-        }
-    end_letter = _col_letter(len(columns))
-    sheet.get_range(f"A{row}:{end_letter}{row}").format.row_height = 20
+    sheet.row_dimensions[row].height = 20
 
 
 def _write_contract_table(
@@ -119,39 +170,24 @@ def _write_contract_table(
     row_height: float = 24,
 ) -> None:
     _write_group_row(sheet, columns, groups, 3)
-    headers = [c.header for c in columns]
-    matrix = [headers] + [
-        [(_excel_text(row[c.key]) if c.number_format == "@" else _normalize(row[c.key])) for c in columns]
-        for row in rows
-    ]
     end_row = 4 + len(rows)
     end_col = len(columns)
     end_letter = _col_letter(end_col)
 
-    # Excel can coerce long digit-only identifiers (for example workspace IDs)
-    # to numbers/scientific notation if the text format is applied only after
-    # assigning values. Pre-format contract text columns before writing.
     for idx, spec in enumerate(columns, start=1):
-        if spec.number_format == "@":
-            letter = _col_letter(idx)
-            sheet.get_range(f"{letter}4:{letter}{end_row}").format.number_format = "@"
+        _put(sheet, 4, idx, spec.header)
+    for r, row in enumerate(rows, start=5):
+        for idx, spec in enumerate(columns, start=1):
+            value = _excel_text(row[spec.key]) if spec.number_format == "@" else _normalize(row[spec.key])
+            _put(sheet, r, idx, value)
 
-    sheet.get_range(f"A4:{end_letter}{end_row}").values = matrix
-    header = sheet.get_range(f"A4:{end_letter}4")
-    header.format = {
-        "fill": ESPRESSO,
-        "font": {"bold": True, "color": WHITE, "size": 9},
-        "horizontal_alignment": "center",
-        "vertical_alignment": "center",
-        "wrap_text": True,
-    }
-    header.format.row_height = 34
-
+    _style(
+        sheet, f"A4:{end_letter}4", fill=ESPRESSO, font=_font(WHITE, 9, bold=True), horizontal="center", vertical="center", wrap=True,
+    )
+    sheet.row_dimensions[4].height = 34
     if rows:
-        data = sheet.get_range(f"A5:{end_letter}{end_row}")
-        data.format.font = {"color": TEXT, "size": 9}
-        data.format.vertical_alignment = "center"
-        data.format.row_height = row_height
+        _style(sheet, f"A5:{end_letter}{end_row}", font=_font(TEXT, 9), vertical="center")
+        _row_height(sheet, 5, end_row, row_height)
 
     wrap = set(wrap_keys)
     jsons = set(json_keys)
@@ -165,34 +201,32 @@ def _write_contract_table(
 
     for idx, spec in enumerate(columns, start=1):
         letter = _col_letter(idx)
-        col = sheet.get_range(f"{letter}4:{letter}{end_row}")
-        col.format.column_width = spec.width
+        sheet.column_dimensions[letter].width = spec.width
+        data_ref = f"{letter}5:{letter}{end_row}"
+        if not rows:
+            continue
         if spec.number_format:
-            col.format.number_format = spec.number_format
+            _style(sheet, data_ref, number_format=spec.number_format)
         elif spec.key.endswith("_json") or spec.key == "package_file":
-            col.format.number_format = "@"
+            _style(sheet, data_ref, number_format="@")
         if spec.key in wrap:
-            col.format.wrap_text = True
-            col.format.vertical_alignment = "top"
+            _style(sheet, data_ref, wrap=True, vertical="top")
         if spec.key in center_keys:
-            col.format.horizontal_alignment = "center"
+            _style(sheet, data_ref, horizontal="center")
         if spec.key in jsons:
-            col.format.font = {"color": MUTED, "size": 8}
-            col.format.wrap_text = False
+            _style(sheet, data_ref, font=_font(MUTED, 8), wrap=False)
         if spec.number_format:
-            col.format.horizontal_alignment = "right"
+            _style(sheet, data_ref, horizontal="right")
 
     if rows:
-        table = sheet.tables.add(f"A4:{end_letter}{end_row}", True, table_name)
-        try:
-            table.style = "TableStyleMedium2"
-        except Exception:
-            pass
+        _add_table(sheet, f"A4:{end_letter}{end_row}", table_name, "TableStyleMedium2")
 
-    sheet.freeze_panes.freeze_rows(4)
-    sheet.freeze_panes.freeze_columns(freeze_columns)
-    sheet.get_range(f"A1:{end_letter}{end_row}").format.vertical_alignment = "center"
+    sheet.freeze_panes = f"{_col_letter(freeze_columns + 1)}5"
     _apply_status_formatting(sheet, {c.key: i + 1 for i, c in enumerate(columns)}, 5, end_row)
+
+
+def _add_fill_rule(sheet: Any, ref: str, formula: str, color: str) -> None:
+    sheet.conditional_formatting.add(ref, FormulaRule(formula=[formula], fill=_fill(color)))
 
 
 def _apply_status_formatting(sheet: Any, key_to_col: Mapping[str, int], start_row: int, end_row: int) -> None:
@@ -207,7 +241,7 @@ def _apply_status_formatting(sheet: Any, key_to_col: Mapping[str, int], start_ro
         if not col:
             continue
         letter = _col_letter(col)
-        rng = sheet.get_range(f"{letter}{start_row}:{letter}{end_row}")
+        ref = f"{letter}{start_row}:{letter}{end_row}"
         for word, fill in [
             ("ACTIONABLE", GREEN), ("RECOMMENDED", GREEN), ("HIGH", GREEN), ("SUFFICIENT", GREEN), ("PASS", GREEN), ("REALIZED", GREEN),
             ("TEST_REQUIRED", AMBER), ("REVIEW", AMBER), ("MEDIUM", AMBER), ("PARTIAL", AMBER), ("REQUIRES_VALIDATION", AMBER), ("VALIDATING", AMBER),
@@ -215,20 +249,18 @@ def _apply_status_formatting(sheet: Any, key_to_col: Mapping[str, int], start_ro
             ("SAVINGS", GREEN), ("COST_INCREASE", RED), ("MIXED", AMBER),
             ("NO_CHANGE", GRAY), ("NOT_APPLICABLE", GRAY), ("ALTERNATIVE", BLUE), ("UNAVAILABLE", GRAY), ("NOT_APPLIED", GRAY), ("UNKNOWN", GRAY),
         ]:
-            rng.conditional_formats.add_custom(f'={letter}{start_row}="{word}"', {"fill": fill})
+            _add_fill_rule(sheet, ref, f'{letter}{start_row}="{word}"', fill)
 
     # Boolean flags that matter operationally.
     for key, fill_true in (("requires_hitl", AMBER), ("recommended_flag", GREEN), ("remeasure_required", AMBER), ("rollback_required", RED)):
         col = key_to_col.get(key)
         if col:
             letter = _col_letter(col)
-            sheet.get_range(f"{letter}{start_row}:{letter}{end_row}").conditional_formats.add_custom(
-                f"={letter}{start_row}=TRUE", {"fill": fill_true}
-            )
+            _add_fill_rule(sheet, f"{letter}{start_row}:{letter}{end_row}", f"{letter}{start_row}=TRUE", fill_true)
 
 
 def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
-    sheet = wb.worksheets.add(wc.SHEET_EXECUTIVE)
+    sheet = wb.create_sheet(wc.SHEET_EXECUTIVE)
     _sheet_title(
         sheet,
         "SQL Warehouse Optimization — Executive Summary",
@@ -237,35 +269,36 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
     )
     # Section labels make the side-by-side layout obvious.
     sheet.merge_cells("A3:E3")
-    sheet.get_range("A3").values = [["Portfolio metrics"]]
-    sheet.get_range("A3:E3").format = {"fill": GOLD, "font": {"bold": True, "color": WHITE, "size": 9}, "horizontal_alignment": "center"}
+    sheet["A3"] = "Portfolio metrics"
+    _style(sheet, "A3", fill=GOLD, font=_font(WHITE, 9, bold=True), horizontal="center")
     sheet.merge_cells("G3:T3")
-    sheet.get_range("G3").values = [["Top warehouse impacts (up to 15)"]]
-    sheet.get_range("G3:T3").format = {"fill": ESPRESSO_2, "font": {"bold": True, "color": WHITE, "size": 9}, "horizontal_alignment": "center"}
-    sheet.get_range("A3:T3").format.row_height = 20
+    sheet["G3"] = "Top warehouse impacts (up to 15)"
+    _style(sheet, "G3", fill=ESPRESSO_2, font=_font(WHITE, 9, bold=True), horizontal="center")
+    sheet.row_dimensions[3].height = 20
 
     metrics = projection.executive_metrics
     metric_cols = [("section", "Section"), ("metric", "Metric"), ("value", "Value"), ("currency", "Currency"), ("notes", "Notes")]
-    matrix = [[h for _, h in metric_cols]] + [[_normalize(r[k]) for k, _ in metric_cols] for r in metrics]
     metric_end = 4 + len(metrics)
-    sheet.get_range(f"A4:E{metric_end}").values = matrix
-    sheet.get_range("A4:E4").format = {"fill": ESPRESSO, "font": {"bold": True, "color": WHITE, "size": 9}, "wrap_text": True}
-    sheet.get_range("A4:E4").format.row_height = 30
-    widths = [16, 30, 34, 10, 45]
-    for i, w in enumerate(widths, 1):
-        sheet.get_range(f"{_col_letter(i)}4:{_col_letter(i)}{metric_end}").format.column_width = w
-    sheet.get_range(f"E5:E{metric_end}").format.wrap_text = True
-    sheet.get_range(f"A5:E{metric_end}").format.row_height = 23
+    for j, (_, header) in enumerate(metric_cols, start=1):
+        _put(sheet, 4, j, header)
+    for r, row in enumerate(metrics, start=5):
+        for j, (key, _) in enumerate(metric_cols, start=1):
+            _put(sheet, r, j, row[key])
+    _style(sheet, "A4:E4", fill=ESPRESSO, font=_font(WHITE, 9, bold=True), wrap=True)
+    sheet.row_dimensions[4].height = 30
+    for i, w in enumerate([16, 30, 34, 10, 45], 1):
+        sheet.column_dimensions[_col_letter(i)].width = w
+    if metrics:
+        _style(sheet, f"E5:E{metric_end}", wrap=True)
+        _row_height(sheet, 5, metric_end, 23)
     for i, row in enumerate(metrics, start=5):
         value = row.get("value")
-        if row.get("currency") not in (wc.DISPLAY_NA, "MIXED") and isinstance(value, (int, float)):
-            sheet.get_range(f"C{i}").format.number_format = MONEY_FMT
-        elif isinstance(value, int):
-            sheet.get_range(f"C{i}").format.number_format = INT_FMT
+        if row.get("currency") not in (wc.DISPLAY_NA, "MIXED") and isinstance(value, (int, float)) and not isinstance(value, bool):
+            sheet[f"C{i}"].number_format = MONEY_FMT
+        elif isinstance(value, int) and not isinstance(value, bool):
+            sheet[f"C{i}"].number_format = INT_FMT
     if metrics:
-        table = sheet.tables.add(f"A4:E{metric_end}", True, "ExecutiveMetrics")
-        try: table.style = "TableStyleMedium2"
-        except Exception: pass
+        _add_table(sheet, f"A4:E{metric_end}", "ExecutiveMetrics", "TableStyleMedium2")
 
     opp_cols = [
         ("warehouse_name", "Warehouse"), ("owner", "Owner"), ("currency", "Currency"),
@@ -277,34 +310,40 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
     ]
     opp_rows = projection.executive_opportunities
     opp_end = 4 + len(opp_rows)
-    sheet.get_range(f"G4:T{opp_end}").values = [[h for _, h in opp_cols]] + [[_normalize(r[k]) for k, _ in opp_cols] for r in opp_rows]
-    sheet.get_range("G4:T4").format = {"fill": ESPRESSO, "font": {"bold": True, "color": WHITE, "size": 9}, "wrap_text": True}
-    sheet.get_range("G4:T4").format.row_height = 30
-    widths = [22, 32, 9, 16, 15, 18, 15, 15, 11, 34, 12, 30, 14, 14]
-    for j, width in enumerate(widths, start=7):
-        sheet.get_range(f"{_col_letter(j)}4:{_col_letter(j)}{opp_end}").format.column_width = width
-    for c in ("J", "L", "M", "N", "S", "T"):
-        sheet.get_range(f"{c}5:{c}{opp_end}").format.number_format = MONEY_FMT
-    sheet.get_range(f"O5:O{opp_end}").format.number_format = PCT_FMT
-    sheet.get_range(f"G5:T{opp_end}").format.row_height = 30
-    for c in ("G", "P", "R"):
-        sheet.get_range(f"{c}5:{c}{opp_end}").format.wrap_text = True
-    sheet.get_range(f"H5:H{opp_end}").format.wrap_text = False
+    for j, (_, header) in enumerate(opp_cols, start=7):
+        _put(sheet, 4, j, header)
+    for r, row in enumerate(opp_rows, start=5):
+        for j, (key, _) in enumerate(opp_cols, start=7):
+            _put(sheet, r, j, row[key])
+    _style(sheet, "G4:T4", fill=ESPRESSO, font=_font(WHITE, 9, bold=True), wrap=True)
+    sheet.row_dimensions[4].height = 30
+    for j, width in enumerate([22, 32, 9, 16, 15, 18, 15, 15, 11, 34, 12, 30, 14, 14], start=7):
+        sheet.column_dimensions[_col_letter(j)].width = width
     if opp_rows:
-        table = sheet.tables.add(f"G4:T{opp_end}", True, "MaterialImpacts")
-        try: table.style = "TableStyleMedium4"
-        except Exception: pass
+        for c in ("J", "L", "M", "N", "S", "T"):
+            _style(sheet, f"{c}5:{c}{opp_end}", number_format=MONEY_FMT)
+        _style(sheet, f"O5:O{opp_end}", number_format=PCT_FMT)
+        _row_height(sheet, 5, opp_end, 30)
+        for c in ("G", "P", "R"):
+            _style(sheet, f"{c}5:{c}{opp_end}", wrap=True)
+        _style(sheet, f"H5:H{opp_end}", wrap=False)
+        _add_table(sheet, f"G4:T{opp_end}", "MaterialImpacts", "TableStyleMedium4")
         for col, word, fill in (("K", "SAVINGS", GREEN), ("K", "COST_INCREASE", RED), ("K", "NO_CHANGE", GRAY), ("Q", "HIGH", GREEN), ("Q", "MEDIUM", AMBER), ("Q", "LOW", RED)):
-            sheet.get_range(f"{col}5:{col}{opp_end}").conditional_formats.add_custom(f'={col}5="{word}"', {"fill": fill})
-        chart = sheet.charts.add("bar", {"title": "Recommended annual economic impact", "has_legend": True})
-        s1 = chart.series.add("Savings"); s1.category_formula = f"'{wc.SHEET_EXECUTIVE}'!$G$5:$G${opp_end}"; s1.formula = f"'{wc.SHEET_EXECUTIVE}'!$S$5:$S${opp_end}"; s1.values_format_code = "#,##0"
-        s2 = chart.series.add("Cost increase"); s2.category_formula = f"'{wc.SHEET_EXECUTIVE}'!$G$5:$G${opp_end}"; s2.formula = f"'{wc.SHEET_EXECUTIVE}'!$T$5:$T${opp_end}"; s2.values_format_code = "#,##0"
-        chart.set_position("G22", "T40")
-    sheet.freeze_panes.freeze_rows(4)
+            _add_fill_rule(sheet, f"{col}5:{col}{opp_end}", f'{col}5="{word}"', fill)
+        chart = BarChart()
+        chart.type = "col"
+        chart.title = "Recommended annual economic impact"
+        chart.add_data(Reference(sheet, min_col=19, max_col=20, min_row=4, max_row=opp_end), titles_from_data=True)  # S:T
+        chart.set_categories(Reference(sheet, min_col=7, min_row=5, max_row=opp_end))  # G
+        chart.y_axis.number_format = "#,##0"
+        chart.legend.position = "r"
+        chart.width, chart.height = 32, 9.5
+        sheet.add_chart(chart, "G22")
+    sheet.freeze_panes = "A5"
 
 
 def _build_portfolio(wb: Any, projection: wc.WorkbookProjection) -> None:
-    sheet = wb.worksheets.add(wc.SHEET_PORTFOLIO)
+    sheet = wb.create_sheet(wc.SHEET_PORTFOLIO)
     _sheet_title(sheet, "Warehouse Portfolio", "One row per recommendation package. All agreed contract columns are retained; verbose audit fields are placed at the far right.", len(wc.PORTFOLIO_COLUMNS))
     _write_contract_table(
         sheet, columns=wc.PORTFOLIO_COLUMNS, groups=wc.PORTFOLIO_GROUPS, rows=projection.warehouse_portfolio,
@@ -315,7 +354,7 @@ def _build_portfolio(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def _build_scenarios(wb: Any, projection: wc.WorkbookProjection) -> None:
-    sheet = wb.worksheets.add(wc.SHEET_SCENARIOS)
+    sheet = wb.create_sheet(wc.SHEET_SCENARIOS)
     _sheet_title(sheet, "Scenario Plans", "One row per scenario. Economics are numeric and sortable; signed annual impact is positive for savings and negative for cost increase.", len(wc.SCENARIO_COLUMNS))
     _write_contract_table(
         sheet, columns=wc.SCENARIO_COLUMNS, groups=wc.SCENARIO_GROUPS, rows=projection.scenario_plans,
@@ -326,8 +365,8 @@ def _build_scenarios(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
-    sheet = wb.worksheets.add(wc.SHEET_REGISTRY)
-    _sheet_title(sheet, "Recommendation Registry", "One row per candidate. Decision, economics, realization and audit evidence align to Workbook Contract v1.1.0.", len(wc.REGISTRY_COLUMNS))
+    sheet = wb.create_sheet(wc.SHEET_REGISTRY)
+    _sheet_title(sheet, "Recommendation Registry", "One row per candidate. Decision, economics, realization and audit evidence align to Workbook Contract v1.2.0.", len(wc.REGISTRY_COLUMNS))
     _write_contract_table(
         sheet, columns=wc.REGISTRY_COLUMNS, groups=wc.REGISTRY_GROUPS, rows=projection.recommendation_registry,
         table_name="RecommendationRegistry", freeze_columns=6, row_height=32,
@@ -341,12 +380,13 @@ def write_workbook(path: str | Path, packages: Sequence[rc.RecommendationPackage
     for package in packages:
         package.validate()
     projection = wc.project_workbook(packages)
-    wb = Workbook.create()
+    wb = Workbook()
+    wb.remove(wb.active)  # drop the default empty sheet: the contract has exactly four visible sheets
     _build_executive(wb, projection)
     _build_portfolio(wb, projection)
     _build_scenarios(wb, projection)
     _build_registry(wb, projection)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    SpreadsheetFile.export_xlsx(wb).save(str(target))
+    wb.save(str(target))
     return target

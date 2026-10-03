@@ -42,16 +42,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from contracts import reporter_contract as rc
 
-PUBLISHER_VERSION = "2.7.0"
+PUBLISHER_VERSION = "2.7.1"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.7"
-ANALYZER_VERSION = "sql-warehouse-analyzer-v2.7"
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.7"
+POLICY_VERSION = "sql-warehouse-policy-v2.7.1"
+ANALYZER_VERSION = "sql-warehouse-analyzer-v2.7.1"
+OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.7.1"
 MODEL_VERSION = "epoch-runrate-v2.7"
-ESTIMATOR_VERSION = "counterfactual-v2.7"
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.7"
-REVIEWER_VERSION = "recommendation-reviewer-v2.7"
-DECISION_VERSION = "warehouse-decision-graph-v2.7"
+ESTIMATOR_VERSION = "counterfactual-v2.7.1"
+BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.7.1"
+REVIEWER_VERSION = "recommendation-reviewer-v2.7.1"
+DECISION_VERSION = "warehouse-decision-graph-v2.7.1"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
@@ -3731,7 +3731,7 @@ def package_locked_contract(
         try:
             from reporters.workbook_reporter import write_workbook
         except ImportError as exc:
-            raise RuntimeError("Workbook generation requires the artifact_tool runtime. Use --no-workbook only when producing JSON packages in a runtime without artifact_tool.") from exc
+            raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
         workbook_path = write_workbook(output_dir / "workbook.xlsx", packages)
         result["workbook"] = str(workbook_path)
         LOGGER.info("workbook.v1.done path=%s", workbook_path)
@@ -4101,7 +4101,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.0 (Reporter Contract v1.1.0 + Workbook Contract v1.2.0)")
+    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.1 (Reporter Contract v1.1.0 + Workbook Contract v1.2.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])

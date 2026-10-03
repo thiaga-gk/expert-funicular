@@ -1,8 +1,8 @@
-Workbook Contract v1.1.0 — Contract Audit
+Workbook Contract v1.2.0 — Contract Audit
 =========================================
-Publisher: 2.7.0
-Reporter JSON Contract: 1.0.0
-Workbook Contract: 1.1.0
+Publisher: 2.7.1
+Reporter JSON Contract: 1.1.0
+Workbook Contract: 1.2.0
 
 Locked visible sheets
 - Executive Summary
@@ -13,11 +13,11 @@ Locked visible sheets
 Locked grains from the 15-warehouse synthetic run
 - Warehouse Portfolio: 15 package rows
 - Scenario Plans: 30 scenario rows
-- Recommendation Registry: 105 candidate rows
+- Recommendation Registry: 90 candidate rows
 
 Exact detailed-sheet column contracts
 - Warehouse Portfolio: 58 columns (PORTFOLIO_COLUMNS)
-- Scenario Plans: 42 columns (SCENARIO_COLUMNS)
+- Scenario Plans: 45 columns (SCENARIO_COLUMNS; includes the 3 contingent-upside columns added in 1.2.0)
 - Recommendation Registry: 53 columns (REGISTRY_COLUMNS)
 
 Professional numeric economics
@@ -32,7 +32,7 @@ Professional numeric economics
 - Negative values use accounting-style parentheses/red number formatting.
 
 Excel safety/readability
-- Long numeric identifiers are rendered as exact Excel text, preventing scientific notation/precision loss.
+- Long numeric identifiers are written as explicit text cells with the Text number format, preventing scientific notation/precision loss (no apostrophe workaround).
 - Rows 1-2: title/context.
 - Row 3: section bands.
 - Row 4: filterable headers.
@@ -40,6 +40,10 @@ Excel safety/readability
 - Detailed sheets are Excel tables.
 - Verbose audit JSON is placed at the far right and remains compact.
 - No business formulas, hidden sheets, or macros.
+
+Rendering
+- Rendered with openpyxl (pip-installable); validated by tools/validate_workbook.py and tests/test_workbook_contract.py.
+- Text that begins with '=' is forced to a text cell, so no cell can become a formula; audit cells over Excel's 32,767-character limit are truncated with a visible marker (none in the demo run).
 
 Validation
 - Exact ordered row keys are regression-tested against the contract-owned column declarations.

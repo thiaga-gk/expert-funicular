@@ -1,4 +1,4 @@
-# Databricks SQL Warehouse Optimizer — v2.7.0
+# Databricks SQL Warehouse Optimizer — v2.7.1
 
 Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.1.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
 
@@ -61,7 +61,7 @@ See [`docs/workbook-contract-v1.2.0.md`](docs/workbook-contract-v1.2.0.md).
 python publisher.py --demo --demo-count 15 --output-dir ./demo_out
 ```
 
-Expected output: 15 immutable packages, 30 scenarios, 105 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The committed example is under `examples/demo_output/`.
+Expected output: 15 immutable packages, 30 scenarios, 90 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The committed example is under `examples/demo_output/`.
 
 ## Live collector execution
 

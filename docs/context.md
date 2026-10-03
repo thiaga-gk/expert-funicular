@@ -2,7 +2,7 @@
 
 **Document:** `docs/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Approved LLD:** `docs/lld.md` v1.0.0  
@@ -148,7 +148,7 @@ flowchart TD
 
 ### 5.1 Current implementation alignment
 
-Publisher v2.7.0 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
+Publisher v2.7.1 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
 
 ---
 
@@ -469,7 +469,7 @@ flowchart LR
 
 ## 14. Candidate domains
 
-Every supported warehouse is evaluated across the same seven candidate domains. The result may be a change, no-change, review, blocker, not-applicable, or insufficient-evidence decision.
+Every supported warehouse is evaluated across the same six candidate domains. The result may be a change, no-change, review, blocker, not-applicable, or insufficient-evidence decision.
 
 | Domain | Domain intent | Typical nature |
 |---|---|---|
@@ -1358,7 +1358,7 @@ The existing max/min/auto-stop candidates are explainable opportunities, but the
 
 ### 40.1 Supported-type gate
 
-Publisher v2.7.0 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
+Publisher v2.7.1 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
 
 ### 40.2 Internal orchestration
 

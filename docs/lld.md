@@ -2,7 +2,7 @@
 
 **Document:** `docs/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
@@ -17,7 +17,7 @@
 
 This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the approved PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
 
-The LLD describes the **actual v2.7.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
+The LLD describes the **actual v2.7.1 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
 
 The implementation has one central invariant:
 
@@ -35,11 +35,11 @@ The following contracts are independent of publisher implementation version and 
 |---|---:|---|
 | Reporter JSON Contract | 1.1.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.1.0.md` |
 | Workbook Contract | 1.2.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.2.0.md` |
-| Publisher implementation | 2.7.0 | `publisher.py` plus reporter/contract modules |
+| Publisher implementation | 2.7.1 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
 
-Publisher v2.7.0 implements the sealed design directly:
+Publisher v2.7.1 implements the sealed design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
@@ -114,19 +114,19 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-Publisher v2.7.0 declares independent version identifiers for deterministic replay:
+Publisher v2.7.1 declares independent version identifiers for deterministic replay:
 
 | Constant | Current value | Purpose |
 |---|---|---|
-| `PUBLISHER_VERSION` | `2.7.0` | implementation release |
-| `POLICY_VERSION` | `sql-warehouse-policy-v2.7` | threshold/policy semantics |
-| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.7` | analyzer semantics |
-| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.7` | decision semantics |
+| `PUBLISHER_VERSION` | `2.7.1` | implementation release |
+| `POLICY_VERSION` | `sql-warehouse-policy-v2.7.1` | threshold/policy semantics |
+| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.7.1` | analyzer semantics |
+| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.7.1` | decision semantics |
 | `MODEL_VERSION` | `epoch-runrate-v2.7` | forward forecast |
-| `ESTIMATOR_VERSION` | `counterfactual-v2.7` | candidate economics |
-| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.7` | scenario economics |
-| `REVIEWER_VERSION` | `recommendation-reviewer-v2.7` | invariant policy |
-| `DECISION_VERSION` | `warehouse-decision-graph-v2.7` | dependency/order semantics |
+| `ESTIMATOR_VERSION` | `counterfactual-v2.7.1` | candidate economics |
+| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.7.1` | scenario economics |
+| `REVIEWER_VERSION` | `recommendation-reviewer-v2.7.1` | invariant policy |
+| `DECISION_VERSION` | `warehouse-decision-graph-v2.7.1` | dependency/order semantics |
 | `TECHNIQUE_CATALOG_VERSION` | `technique-catalog-v1` | stable technique mapping |
 
 Changing a decision-affecting implementation without changing the corresponding version is prohibited.
@@ -458,7 +458,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.7.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ---
 
@@ -918,7 +918,7 @@ Missing resource bounds, target DBU rate, list price, or AWS registry evidence m
 
 It validates:
 
-- exactly one candidate for each of seven active knobs,
+- exactly one candidate for each of six active knobs,
 - candidate workspace/warehouse identity,
 - unique internal recommendation IDs,
 - nonnegative actual/forward baseline cost,
@@ -936,7 +936,7 @@ It validates:
 
 ```mermaid
 flowchart LR
-    C[7 candidates] --> R{Reviewer Gate 1}
+    C[6 candidates] --> R{Reviewer Gate 1}
     R -->|all invariants pass| S[Scenario Planner]
     R -->|any invariant fails| F[Fail closed<br/>No public package]
 ```
@@ -1349,7 +1349,7 @@ The workbook is generated from already-validated `RecommendationPackage` objects
 | Executive Summary | portfolio aggregation | 1 summary surface |
 | Warehouse Portfolio | one `recommendation_package_id` | 15 rows |
 | Scenario Plans | one `scenario_id` | 30 rows |
-| Recommendation Registry | one `candidate_id` | 105 rows |
+| Recommendation Registry | one `candidate_id` | 90 rows |
 
 ### 27.2 Projection architecture
 
@@ -1513,7 +1513,7 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.7.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
+Publisher v2.7.1 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
 
 ### 32.3 Golden scenarios
 
@@ -1585,7 +1585,7 @@ Current thresholds are conservative policy defaults. Live testing should calibra
 The LLD is satisfied by an implementation when all of the following hold:
 
 1. Only supported warehouse types can enter active optimization logic.
-2. Exactly seven candidate decisions are produced for every supported warehouse package.
+2. Exactly six candidate decisions are produced for every supported warehouse package.
 3. All active recommendation evidence is current-epoch scoped.
 4. Analyzer, optimizer, candidate estimator, bundle estimator, and reviewer responsibilities remain separated.
 5. Candidate savings cannot be added to form scenario or package savings.
@@ -1616,4 +1616,4 @@ flowchart LR
     CODE --> TEST[tests + golden evidence]
 ```
 
-The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.7.0 produces and consumes those contracts.
+The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.7.1 produces and consumes those contracts.

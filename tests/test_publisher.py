@@ -222,19 +222,17 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertTrue(all(s.running_estimated_savings_range_365 is not None for s in plan.steps))
 
     def test_reporter_json_workbook_and_hitl_findings(self):
-        from artifact_tool import Blob, SpreadsheetFile
+        from openpyxl import load_workbook
         with tempfile.TemporaryDirectory() as td:
             packages = self.packages
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             payload = json.loads(Path(files[f"package:{self.evidence[0].workspace_id}:{self.evidence[0].warehouse_id}"]).read_text())
             for field in ("candidates", "scenarios", "recommended_plan", "package_economics", "evidence", "workload_profile", "realization"):
                 self.assertIn(field, payload)
-            self.assertEqual(len(payload["candidates"]), 7)
+            self.assertEqual(len(payload["candidates"]), 6)
             self.assertGreater(len(payload["evidence"]), 0)
-            wb = SpreadsheetFile.import_xlsx(Blob.load(files["workbook"]))
-            sheets = wb.inspect({"kind":"sheet","include":"id,name"}).ndjson
-            for name in ("Executive Summary","Warehouse Portfolio","Scenario Plans","Recommendation Registry"):
-                self.assertIn(name, sheets)
+            wb = load_workbook(files["workbook"])
+            self.assertEqual(wb.sheetnames, ["Executive Summary", "Warehouse Portfolio", "Scenario Plans", "Recommendation Registry"])
     def test_read_only_api_scope_and_supported_type_gate_are_explicit(self):
         self.assertEqual(p.SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
         source = Path(p.__file__).read_text()
