@@ -104,6 +104,10 @@ class Thresholds:
     min_query_sample_size: int = 100
     strong_query_sample_size: int = 500
     min_cost_history_days: int = 14
+    # Hard floor: below this many current-epoch billing days no forecast-dependent estimate is published and a
+    # cost-judged migration is INSUFFICIENT_EVIDENCE. Equals the config-epoch maturity gate, so it adds no wait between
+    # plan steps (cost history restarts with each applied change and can never lag epoch age).
+    min_economics_cost_history_days: int = 7
     strong_cost_history_days: int = 60
     min_epoch_calibration_days: int = 14
     min_epoch_calibration_queries: int = 100
@@ -1986,7 +1990,11 @@ class Optimizer:
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
         blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
-        if cfg.warehouse_type == "SERVERLESS":
+        if e.cost_history_days < self.t.min_economics_cost_history_days:
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["COST_HISTORY_INSUFFICIENT"],[],[],[],
+                f"Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than {self.t.min_economics_cost_history_days} days of billing history to price it."))
+        elif cfg.warehouse_type == "SERVERLESS":
             if not f.get("pro_classic_observed"):
                 blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","TEST_REQUIRED",
@@ -2063,6 +2071,12 @@ class Estimator:
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
+        if e.cost_history_days < self.t.min_economics_cost_history_days:
+            # Every estimate below scales the forward cost forecast, which is not trustworthy on a very young epoch.
+            return None,{
+                "method":f"estimate withheld: fewer than {self.t.min_economics_cost_history_days} days of current-epoch cost history",
+                "estimate_blocker":"COST_HISTORY_INSUFFICIENT",
+                "bundle_effect":{"type":"estimate_withheld","status":"REQUIRES_COST_HISTORY","reason":"At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues."},**meta}
         if knob=="warehouse_type":
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
@@ -2525,6 +2539,8 @@ class StatefulBundleEstimator:
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=after
             st.current_min=target_min
+        elif typ=="estimate_withheld":
+            st.halt=(str(effect.get("status") or "UNAVAILABLE"),str(effect.get("reason") or "Estimate withheld."))
         elif typ=="requires_canary":
             st.halt=("REQUIRES_CANARY","At least one step changes the execution regime without a deterministic counterfactual; portfolio cost is withheld until canary measurement.")
         elif typ!="no_cost_change":

@@ -447,6 +447,54 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
         self.assertIsNone(size.independent_economics.savings_365d.total)
 
+    def with_cost_history(self, days, golden=None):
+        if golden:
+            payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+            ev = [p.evidence_from_dict(payload["evidence"][0])]
+        else:
+            ev = copy.deepcopy(self.evidence)
+        ev[0].cost_history_days = days
+        return ev
+
+    def test_migration_needs_the_cost_history_floor(self):
+        floor = self.t.min_economics_cost_history_days
+        self.assertEqual(floor, 7)
+        short = self.candidate_of(self.with_cost_history(floor - 1), "warehouse_type")
+        self.assertEqual(short.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(short.blockers, ["COST_HISTORY_INSUFFICIENT"])
+        self.assertEqual(short.recommended_config, short.current_config)
+        self.assertIsNone(short.estimated_savings_365)
+        ok = self.candidate_of(self.with_cost_history(floor), "warehouse_type")
+        self.assertEqual(ok.status, "TEST_REQUIRED")
+        self.assertIsNotNone(ok.estimated_savings_365)
+
+    def test_short_cost_history_keeps_the_decision_but_withholds_economics(self):
+        # Queue pressure on a 6-day-old epoch: the performance decision stands (it does not rest on cost), the number does not.
+        short = self.candidate_of(self.with_cost_history(6, "concurrency-constrained"), "max_clusters")
+        full = self.candidate_of(self.with_cost_history(7, "concurrency-constrained"), "max_clusters")
+        self.assertEqual(short.status, full.status)
+        self.assertEqual(short.recommended_config, full.recommended_config)
+        self.assertIsNone(short.estimated_savings_365)
+        self.assertIsNone(short.estimated_cost_range_365)
+        self.assertEqual(short.metadata["estimate_blocker"], "COST_HISTORY_INSUFFICIENT")
+        self.assertEqual(short.metadata["bundle_effect"]["type"], "estimate_withheld")
+        self.assertNotIn("estimate_blocker", full.metadata)
+
+    def test_short_cost_history_does_not_touch_no_change_candidates(self):
+        for c in p.evaluate_warehouses(self.with_cost_history(3, "newly-changed-config"), self.t)[0].candidates:
+            if c.status == "NO_CHANGE":
+                self.assertNotIn("estimate_blocker", c.metadata)
+
+    def test_short_cost_history_withholds_scenario_economics_and_packages_validate(self):
+        ev = self.with_cost_history(6, "concurrency-constrained")
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        plan_a = next(s for s in w.scenarios if s.steps and any(st.knob == "max_clusters" for st in s.steps))
+        self.assertEqual(plan_a.portfolio_estimate.estimate_status, "REQUIRES_COST_HISTORY")
+        self.assertIsNone(plan_a.portfolio_estimate.total_365d_savings_range)
+        pkg = p.build_recommendation_packages(ev, self.t)[0]
+        size = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
