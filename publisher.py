@@ -1850,7 +1850,11 @@ class Optimizer:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
                 {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
                 ["warehouse_channel"],[],[],"Warehouse size is outside the known deterministic ordering."))
-        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is not None and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
+        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is None:
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"],["warehouse_channel"],[],[],
+                "Spill frequency crosses the upsize threshold, but spill severity was not reported (older collector evidence); no resize is recommended."))
+        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
@@ -1890,7 +1894,11 @@ class Optimizer:
 
         # Max clusters
         a=analyses["max_clusters"]; f=a.facts
-        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
+        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is None and f["max_observed"] >= cfg.max_clusters:
+            out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"],
+                ["warehouse_size"],[],[],"Queueing and saturation cross the increase thresholds, but capacity-wait severity was not reported (older collector evidence); no change is recommended."))
+        elif f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
             if cfg.max_clusters >= self.t.max_clusters_supported_limit:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],

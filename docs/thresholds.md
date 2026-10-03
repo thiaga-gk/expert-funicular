@@ -19,7 +19,7 @@ Spill, capacity-wait and compute-wait severity percentiles are computed **only o
 
 - Rules that add capacity/cost (size up, max clusters up) require `severity_min_affected_queries` (20) affected queries; below that a p95 is just the maximum observation.
 - Guard rules that block savings (min-cluster reduction queue guard, auto-stop cold-start guard) fire on any affected queries.
-- If the collector did not report the affected-query count (older evidence), severity is *unknown*, never zero: min-cluster reduction and auto-stop are blocked (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`, `COLD_START_EVIDENCE_UNAVAILABLE`).
+- If the collector did not report the affected-query count (older evidence), severity is *unknown*, never zero: min-cluster reduction and auto-stop are blocked (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`, `COLD_START_EVIDENCE_UNAVAILABLE`). Size-up and max-cluster increase report `INSUFFICIENT_EVIDENCE` (`SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`) when their frequency threshold is crossed but severity is unknown, instead of a silent no-change.
 
 ## Cost-estimator guardrail
 

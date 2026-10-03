@@ -600,6 +600,33 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status, "NO_CHANGE")
         self.assertIn("QUEUE_PRESSURE_PRESENT", c.blockers)
 
+    def without_severity(self, golden, **query):
+        """Golden fixture whose conditional-severity fields are absent (older collector), with `query` overrides."""
+        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for key in list(self.NO_SEVERITY) + ["p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"]:
+            epoch["query"].pop(key, None)
+        epoch["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def test_upsize_with_unknown_spill_severity_is_insufficient_evidence_not_a_silent_no_change(self):
+        # Review finding: spill frequency crosses the threshold but severity is unknown. The decision must say so.
+        for ev in (
+            self.without_severity("spill-constrained"),  # count and p95 absent
+            self.without_severity("spill-constrained", spill_queries_30=360, p95_spill_bytes_when_spilled_30=None),  # p95 null
+        ):
+            c = self.candidate(ev, "warehouse_size")
+            self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+            self.assertEqual(c.blockers, ["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"])
+            self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_max_clusters_increase_with_unknown_wait_severity_is_insufficient_evidence(self):
+        c = self.candidate(self.without_severity("concurrency-constrained"), "max_clusters")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(c.blockers, ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"])
+        self.assertEqual(c.recommended_config, c.current_config)
+
     def test_missing_severity_evidence_fails_closed(self):
         # Older evidence without the conditional-severity fields must not be read as 'no pressure' (zero).
         payload = json.loads((self.golden / "idle-expensive-warehouse.json").read_text())
