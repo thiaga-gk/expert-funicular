@@ -578,6 +578,32 @@ class PublisherV27Tests(unittest.TestCase):
             p.extract_evidence(Client(), self.t, "us-east-1")
         self.assertEqual(p.parse_datetime(seen["billing_watermark"]).isoformat(), "2026-09-30T20:00:00+00:00")
 
+    def auto_stop_only(self, idle_multiple):
+        """Idle-expensive fixture where auto-stop is the only plan step (no size/min/max change)."""
+        import dataclasses
+        payload = json.loads((ROOT / "tests" / "golden" / "idle-expensive-warehouse.json").read_text())
+        ev = p.evidence_from_dict(payload["evidence"][0])
+        ep = ev.current_epoch
+        ep.config = dataclasses.replace(ep.config, min_clusters=1)
+        ep.query.update(queued_query_pct_30=0.6, queued_queries_30=72, p95_wait_capacity_ms_when_queued_30=1000)
+        for k in list(ep.gaps):
+            if k.startswith("saved_idle_minutes_if_"):
+                ep.gaps[k] = ep.events["cluster_minutes"] * idle_multiple
+        w = p.evaluate_warehouses([ev], self.t)[0]
+        cand = next(c for c in w.candidates if c.knob == "auto_stop_minutes")
+        plan = next(s for s in w.scenarios if [st.knob for st in s.steps] == ["auto_stop_minutes"])
+        return cand, plan
+
+    def test_single_step_auto_stop_scenario_matches_the_capped_candidate(self):
+        # Idle gaps worth 90% of all cluster-minutes: the candidate caps removable time at auto_stop_savings_cap (60%).
+        # Before: the stateful bundle used the uncapped idle minutes, so the one-step plan claimed more than its own step.
+        for multiple in (0.2, 0.9, 2.0):
+            cand, plan = self.auto_stop_only(multiple)
+            self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)
+            self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.high, cand.dbu_365d_savings_range.high, places=2, msg=multiple)
+        capped, _ = self.auto_stop_only(2.0)
+        self.assertEqual(capped.metadata["raw_savings_fraction"], self.t.auto_stop_savings_cap)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)

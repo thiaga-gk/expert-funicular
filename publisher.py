@@ -2130,7 +2130,8 @@ class Estimator:
             return factors,{
                 "method":"current-epoch inter-query idle-gap converted to removable cluster-minutes",
                 "raw_savings_fraction":round(raw,4),
-                "bundle_effect":{"type":"idle_cluster_minute_reduction","idle_minutes":saved_idle},
+                # The same cap the candidate applies, as a ceiling on removable cluster-minutes, so both models agree.
+                "bundle_effect":{"type":"idle_cluster_minute_reduction","idle_minutes":saved_idle,"max_removable_cluster_minutes":self.t.auto_stop_savings_cap*cluster},
                 **meta,
             }
 
@@ -2567,6 +2568,8 @@ class StatefulBundleEstimator:
                 target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
             else:
                 theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*st.current_min
+                if effect.get("max_removable_cluster_minutes") is not None:
+                    theoretical=min(theoretical,max(0.0,safe_float(effect.get("max_removable_cluster_minutes"))))
                 target_min=st.current_min
             effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
             for i,realization in enumerate(effect_realizations):
