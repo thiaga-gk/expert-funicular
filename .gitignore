@@ -4,3 +4,9 @@ __pycache__/
 .env
 warehouse_optimizer_out/
 .DS_Store
+.worktrees/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.idea/
+.vscode/
