@@ -2,11 +2,11 @@
 
 **Document:** `docs/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **LLD version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01  
@@ -17,7 +17,7 @@
 
 This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the approved PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
 
-The LLD describes the **actual v2.7.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
+The LLD describes the **actual v2.7.1 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
 
 The implementation has one central invariant:
 
@@ -33,17 +33,17 @@ The following contracts are independent of publisher implementation version and 
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 1.0.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.0.0.md` |
-| Workbook Contract | 1.1.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.1.0.md` |
-| Publisher implementation | 2.7.0 | `publisher.py` plus reporter/contract modules |
+| Reporter JSON Contract | 1.1.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.1.0.md` |
+| Workbook Contract | 1.2.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.2.0.md` |
+| Publisher implementation | 2.7.1 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
 
-Publisher v2.7.0 implements the sealed design directly:
+Publisher v2.7.1 implements the sealed design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
-3. Workbook Contract v1.1.0 is a numeric-first presentation projection of the public packages.
+3. Workbook Contract v1.2.0 is a numeric-first presentation projection of the public packages.
 
 Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
 
@@ -68,8 +68,8 @@ docs/
 ├── prd.md
 ├── hld.md
 ├── lld.md
-├── reporter-json-contract-v1.0.0.md
-├── workbook-contract-v1.1.0.md
+├── reporter-json-contract-v1.1.0.md
+├── workbook-contract-v1.2.0.md
 ├── thresholds.md
 ├── technique-catalog.md
 ├── source-mapping.md
@@ -98,7 +98,7 @@ tests/
 ```mermaid
 flowchart LR
     SRC[Databricks sources] --> PUB[publisher.py domain engine]
-    PUB --> RC[Reporter Contract v1.0.0]
+    PUB --> RC[Reporter Contract v1.1.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -114,19 +114,19 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-Publisher v2.7.0 declares independent version identifiers for deterministic replay:
+Publisher v2.7.1 declares independent version identifiers for deterministic replay:
 
 | Constant | Current value | Purpose |
 |---|---|---|
-| `PUBLISHER_VERSION` | `2.7.0` | implementation release |
-| `POLICY_VERSION` | `sql-warehouse-policy-v2.7` | threshold/policy semantics |
-| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.7` | analyzer semantics |
-| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.7` | decision semantics |
+| `PUBLISHER_VERSION` | `2.7.1` | implementation release |
+| `POLICY_VERSION` | `sql-warehouse-policy-v2.7.1` | threshold/policy semantics |
+| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.7.1` | analyzer semantics |
+| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.7.1` | decision semantics |
 | `MODEL_VERSION` | `epoch-runrate-v2.7` | forward forecast |
-| `ESTIMATOR_VERSION` | `counterfactual-v2.7` | candidate economics |
-| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.7` | scenario economics |
-| `REVIEWER_VERSION` | `recommendation-reviewer-v2.7` | invariant policy |
-| `DECISION_VERSION` | `warehouse-decision-graph-v2.7` | dependency/order semantics |
+| `ESTIMATOR_VERSION` | `counterfactual-v2.7.1` | candidate economics |
+| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.7.1` | scenario economics |
+| `REVIEWER_VERSION` | `recommendation-reviewer-v2.7.1` | invariant policy |
+| `DECISION_VERSION` | `warehouse-decision-graph-v2.7.1` | dependency/order semantics |
 | `TECHNIQUE_CATALOG_VERSION` | `technique-catalog-v1` | stable technique mapping |
 
 Changing a decision-affecting implementation without changing the corresponding version is prohibited.
@@ -458,7 +458,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.7.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ---
 
@@ -592,10 +592,10 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | Candidate | Principal analyzer evidence |
 |---|---|
 | `warehouse_channel` | current channel |
-| `enable_photon` | observed Photon state, enabled %, feature coverage, freshness |
-| `warehouse_size` | size, spill %, p95 spill bytes, queue %, p95/p99 execution, IO cache |
-| `max_clusters` | max config, observed max clusters, queue %, p95 capacity wait, time at max |
-| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait |
+| ~~`enable_photon`~~ | retired in v2.7.1; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
+| `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache |
+| `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
+| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries |
 | `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, source/compatibility evidence |
 
@@ -611,17 +611,12 @@ Common facts include query count, active days, queries per active day, epoch age
 
 | Current state | Decision |
 |---|---|
-| `PREVIEW` | `REVIEW`: propose `CURRENT`, blocker `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN`; invalidate Photon/size/max/min/auto-stop |
+| `PREVIEW` | `REVIEW`: propose `CURRENT`, blocker `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN`; invalidate size/max/min/auto-stop |
 | otherwise | `NO_CHANGE` |
 
 ### 15.2 Photon
 
-| Condition | Decision |
-|---|---|
-| Serverless | `NO_CHANGE`, Photon treated enabled |
-| observed `ENABLED` | `NO_CHANGE` |
-| observed `DISABLED` | `TEST_REQUIRED`, false→true; A/B canary; invalidates size/max/min/auto-stop |
-| `MIXED` or `UNKNOWN` | `BLOCKED` |
+No Photon decision is made (v2.7.1). Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted. The observed state (`ENABLED`/`DISABLED`/`MIXED`/`UNKNOWN`) is reported in `current_config.photon` and never creates a candidate, plan step or invalidation.
 
 ### 15.3 Warehouse size
 
@@ -727,7 +722,7 @@ epoch age < 7d
 queries_30 < 100
 idle-gap count < 30
 cluster_minutes < 1
-p95 compute wait >= 60s AND starts/active-day >= 0.5
+p95 compute wait among queries that waited >= 60s AND starts/active-day >= 0.5
 ```
 
 The final blocker is `COLD_START_SENSITIVE`.
@@ -815,7 +810,6 @@ MEDIUM >= 0.60
 LOW    < 0.60
 ```
 
-Photon candidates additionally bottleneck the computed candidate confidence by Photon observation confidence.
 
 ---
 
@@ -831,7 +825,6 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 - `NO_CHANGE` / `BLOCKED` use factor `1.0` where an economics object is needed.
 - channel stability and max-cluster ceiling reduction receive **no direct savings**.
-- Photon enablement with `TEST_REQUIRED` withholds savings pending canary.
 
 ### 17.3 Auto-stop estimator
 
@@ -925,7 +918,7 @@ Missing resource bounds, target DBU rate, list price, or AWS registry evidence m
 
 It validates:
 
-- exactly one candidate for each of seven active knobs,
+- exactly one candidate for each of six active knobs,
 - candidate workspace/warehouse identity,
 - unique internal recommendation IDs,
 - nonnegative actual/forward baseline cost,
@@ -943,7 +936,7 @@ It validates:
 
 ```mermaid
 flowchart LR
-    C[7 candidates] --> R{Reviewer Gate 1}
+    C[6 candidates] --> R{Reviewer Gate 1}
     R -->|all invariants pass| S[Scenario Planner]
     R -->|any invariant fails| F[Fail closed<br/>No public package]
 ```
@@ -958,7 +951,6 @@ Plan A is the Phase-1 recommended scenario and processes candidates in this orde
 
 ```text
 warehouse_channel
-→ enable_photon
 → warehouse_size
 → max_clusters
 → min_clusters
@@ -975,6 +967,21 @@ If an upstream step invalidates a downstream knob, the downstream step remains v
 execution_state = PENDING_REEVALUATION
 gate = RE_ANALYZE_AFTER_UPSTREAM_CANARY
 ```
+
+**Pricing of pending steps (Contract 1.1.0).** The stateful bundle estimator prices a plan as two chains over the same
+evolving cost/resource state:
+
+- the **authoritative** chain applies only steps that are not `PENDING_REEVALUATION`. Their evidence has not been
+  invalidated by an upstream change. A pending step's effect is *skipped*, so a later ready step is priced on the state
+  without it. This chain defines scenario `savings_365d`/`estimated_cost_365d`, the package economics and the envelope;
+- the **contingent** chain applies every step using pre-change evidence. It is published as `contingent_*` scenario
+  economics and as per-step `projected_economics` with `pricing_basis = CONTINGENT_PENDING_REEVALUATION`, a big-picture
+  upside that must be regenerated after the upstream step is applied and remeasured. It never feeds package economics.
+
+If a chain cannot be priced (for example a migration with no target SQL price) its economics are null,
+never zero. A pending step that cannot be priced does not affect the authoritative chain. Phase 1 has no apply API:
+"re-validation on application" means the next publisher run after an upstream step is applied produces fresh
+authoritative economics for the next knob.
 
 ### 19.3 Step state machine
 
@@ -1075,6 +1082,8 @@ Min-cluster and auto-stop do not both claim the same original capacity minute.
 - step knob/current/recommended config exactly equal candidate contract,
 - step confidence exactly equals candidate confidence,
 - invalidated downstream steps are `PENDING_REEVALUATION`,
+- a step's pricing basis matches its execution state (`PENDING_REEVALUATION` ⇔ contingent),
+- authoritative scenario savings equal the last authoritative step's running savings, and contingent savings equal the last pending step's,
 - every scenario range is ordered,
 - Plan A contains no warehouse-type migration,
 - Plan B contains no more than one step.
@@ -1083,7 +1092,7 @@ Only after reviewer gate 2 may the public contract adapter run.
 
 ---
 
-## 22. Public Reporter JSON Contract v1.0.0
+## 22. Public Reporter JSON Contract v1.1.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1164,7 +1173,6 @@ Internal `recommendation_id` is transitional. The public `candidate_id` is conte
 Current stable mappings include:
 
 ```text
-WH-PHOTON-ENABLE-001
 WH-SIZE-DOWNSIZE-001
 WH-SIZE-UPSIZE-001
 WH-SIZE-RIGHTSIZE-001
@@ -1330,7 +1338,7 @@ Realization never changes the original `PKG-*` identity.
 
 ---
 
-## 27. Workbook Contract v1.1.0
+## 27. Workbook Contract v1.2.0
 
 The workbook is generated from already-validated `RecommendationPackage` objects.
 
@@ -1341,7 +1349,7 @@ The workbook is generated from already-validated `RecommendationPackage` objects
 | Executive Summary | portfolio aggregation | 1 summary surface |
 | Warehouse Portfolio | one `recommendation_package_id` | 15 rows |
 | Scenario Plans | one `scenario_id` | 30 rows |
-| Recommendation Registry | one `candidate_id` | 105 rows |
+| Recommendation Registry | one `candidate_id` | 90 rows |
 
 ### 27.2 Projection architecture
 
@@ -1505,7 +1513,7 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.7.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
+Publisher v2.7.1 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
 
 ### 32.3 Golden scenarios
 
@@ -1577,14 +1585,14 @@ Current thresholds are conservative policy defaults. Live testing should calibra
 The LLD is satisfied by an implementation when all of the following hold:
 
 1. Only supported warehouse types can enter active optimization logic.
-2. Exactly seven candidate decisions are produced for every supported warehouse package.
+2. Exactly six candidate decisions are produced for every supported warehouse package.
 3. All active recommendation evidence is current-epoch scoped.
 4. Analyzer, optimizer, candidate estimator, bundle estimator, and reviewer responsibilities remain separated.
 5. Candidate savings cannot be added to form scenario or package savings.
 6. Plan A dependency/invalidation order is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.0.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.1.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.
@@ -1602,10 +1610,10 @@ flowchart LR
     CTX[context.md<br/>domain language + concepts] --> PRD[prd.md<br/>what/why]
     PRD --> HLD[hld.md<br/>architecture]
     HLD --> LLD[lld.md<br/>implementation design]
-    LLD --> RC[Reporter Contract v1.0.0]
-    LLD --> WC[Workbook Contract v1.1.0]
+    LLD --> RC[Reporter Contract v1.1.0]
+    LLD --> WC[Workbook Contract v1.2.0]
     LLD --> CODE[publisher.py + modules]
     CODE --> TEST[tests + golden evidence]
 ```
 
-The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.7.0 produces and consumes those contracts.
+The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.7.1 produces and consumes those contracts.

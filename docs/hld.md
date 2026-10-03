@@ -2,10 +2,10 @@
 
 **Document:** `docs/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **HLD version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01
@@ -72,19 +72,18 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.7.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+**Implementation conformance:** Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ### 3.3 Active candidate domains
 
-Each supported warehouse/current epoch is assessed across seven candidate domains:
+Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but not a candidate domain as of v2.7.1):
 
 1. `warehouse_channel`
-2. `enable_photon`
-3. `warehouse_size`
-4. `max_clusters`
-5. `min_clusters`
-6. `auto_stop_minutes`
-7. `warehouse_type`
+2. `warehouse_size`
+3. `max_clusters`
+4. `min_clusters`
+5. `auto_stop_minutes`
+6. `warehouse_type`
 
 `warehouse_channel` is a governance/stability guardrail. The remaining domains are cost, performance, compatibility, or mixed optimization techniques.
 
@@ -279,7 +278,7 @@ Key architecture rules:
 - candidate savings are non-additive,
 - unavailable evidence remains unavailable,
 - Pro/Classic and Serverless use type-appropriate cost models,
-- Photon savings are withheld until a canary because workload-specific benefit is not safely inferable from configuration alone,
+- Photon is left at its default (v2.7.1): no on/off price is published and the workload-specific benefit is not safely inferable,
 - migration economics are pre-canary modeled ranges.
 
 ### 6.7 Reviewer Gate 1 — candidate integrity
@@ -313,8 +312,7 @@ Plan A follows the deterministic order:
 
 ```mermaid
 flowchart TD
-    CH[warehouse_channel] --> PH[enable_photon]
-    PH --> SZ[warehouse_size]
+    CH[warehouse_channel] --> SZ[warehouse_size]
     SZ --> MX[max_clusters]
     MX --> MN[min_clusters]
     MN --> AS[auto_stop_minutes]
@@ -367,7 +365,7 @@ It verifies, at minimum:
 
 ### 6.11 Public contract adapter
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.0.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.1.0.
 
 The public hierarchy is:
 
@@ -407,7 +405,7 @@ Any failure prevents package publication.
 
 **Responsibility:** Render human decision views from valid public packages only.
 
-Workbook Contract v1.1.0 contains exactly four views:
+Workbook Contract v1.2.0 contains exactly four views:
 
 1. Executive Summary
 2. Warehouse Portfolio
@@ -524,11 +522,11 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The sealed v2.7.0 fixture exercises 15 representative warehouses and produces:
+The sealed v2.7.1 fixture exercises 15 representative warehouses and produces:
 
 - 15 recommendation packages,
 - 30 scenarios,
-- 105 candidate rows,
+- 90 candidate rows,
 - one four-sheet workbook.
 
 Synthetic mode is a test/illustration facility, not an alternate recommendation engine.
@@ -677,19 +675,19 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v1.0.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v1.1.0:
 
 - Python dataclasses: `contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
-- semantic specification: `docs/reporter-json-contract-v1.0.0.md`
+- semantic specification: `docs/reporter-json-contract-v1.1.0.md`
 
 ### 12.2 Workbook contract
 
-Workbook Contract v1.1.0 is an independently versioned presentation contract:
+Workbook Contract v1.2.0 is an independently versioned presentation contract:
 
 - projection: `contracts/workbook_contract.py`
 - renderer: `reporters/workbook_reporter.py`
-- specification: `docs/workbook-contract-v1.1.0.md`
+- specification: `docs/workbook-contract-v1.2.0.md`
 
 The exact ordered workbook columns and column groups are defined in the workbook contract module and consumed by the renderer. This prevents renderer-only formatting changes from silently dropping agreed fields.
 
@@ -710,7 +708,7 @@ flowchart LR
 
 `publisher.py` keeps typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result. After reviewer gate 2, the publisher assembles the locked public `RecommendationPackage` directly; there is no separate internal report serialization model.
 
-These internal objects are **not public APIs**. The public JSON contract remains `RecommendationPackage` v1.0.0.
+These internal objects are **not public APIs**. The public JSON contract remains `RecommendationPackage` v1.1.0.
 
 ---
 
@@ -923,7 +921,7 @@ A future policy can promote a migration scenario only through a versioned change
 | Source compute | Databricks SQL/system tables | push high-volume aggregation to the platform |
 | Auth | Databricks CLI OAuth profile | short-lived user-authorized credentials; no token logging |
 | Public contract | typed dataclasses + JSON Schema | stable machine-readable boundary + semantic validation |
-| Workbook | `artifact_tool` projection | presentation-only, no decision formulas |
+| Workbook | `openpyxl` projection | presentation-only, no decision formulas |
 | Local data processing | Python objects/dataclasses | bounded per-warehouse evidence; avoids pandas dependency in core |
 | AWS forward price source | versioned JSON registry | explicit, reproducible, region-specific reference pricing |
 | Logging | Python structured lifecycle logging | simple local observability without external dependency |
@@ -944,7 +942,7 @@ flowchart TD
 ```
 
 
-The sealed v2.7.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
+The sealed v2.7.1 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
 
@@ -1000,12 +998,12 @@ The architecture expects tests to prove both positive behavior and fail-closed b
 
 ## 22. Implementation conformance
 
-Publisher v2.7.0 closes the architecture-alignment items identified during document review:
+Publisher v2.7.1 closes the architecture-alignment items identified during document review:
 
 - the supported-type gate is explicitly enforced before active optimization;
 - only `CLASSIC`, `PRO`, and standard `SERVERLESS` enter optimization logic;
 - reviewed candidate/scenario state is adapted directly into the locked public package without a transitional run-report serialization layer;
-- Workbook Contract v1.1.0 is numeric-first, currency-explicit, and projection-only;
+- Workbook Contract v1.2.0 is numeric-first, currency-explicit, and projection-only;
 - repository documentation has one canonical approved PRD/HLD/LLD/context set plus supporting contract/source references.
 
 Realization ingestion remains intentionally future scope: the contract is present, while Phase 1 initializes packages at `NOT_APPLIED`.
@@ -1042,8 +1040,8 @@ This HLD is accepted when the product owner agrees that:
 4. current-epoch evidence is the only active decision authority;
 5. candidate, scenario, and package economics have distinct responsibilities;
 6. two reviewer gates protect publication;
-7. Reporter JSON Contract v1.0.0 is the public source of truth;
-8. Workbook Contract v1.1.0 is projection-only;
+7. Reporter JSON Contract v1.1.0 is the public source of truth;
+8. Workbook Contract v1.2.0 is projection-only;
 9. live, replay, synthetic, and multi-region execution paths are correctly represented;
 10. read-only/HITL/security behavior is explicit;
 11. the listed implementation-alignment items are acknowledged rather than hidden.
@@ -1065,8 +1063,8 @@ Current platform facts used by this HLD were revalidated against Databricks docu
 Repository source-of-truth references:
 
 - `docs/prd.md`
-- `docs/reporter-json-contract-v1.0.0.md`
-- `docs/workbook-contract-v1.1.0.md`
+- `docs/reporter-json-contract-v1.1.0.md`
+- `docs/workbook-contract-v1.2.0.md`
 - `contracts/reporter_contract.py`
 - `contracts/workbook_contract.py`
 - `publisher.py`

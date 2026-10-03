@@ -20,13 +20,12 @@ class PublisherV27Tests(unittest.TestCase):
         self.by_knob = {c.knob: c for c in self.w.candidates}
         self.packages = p.build_recommendation_packages(self.evidence, self.t)
 
-    def test_seven_deterministic_candidates(self):
+    def test_six_deterministic_candidates_and_no_photon_recommendation(self):
         self.assertEqual(set(self.by_knob), set(p.ACTIVE_KNOBS))
-        self.assertEqual(len(self.w.candidates), 7)
+        self.assertEqual(len(self.w.candidates), 6)
+        self.assertNotIn("enable_photon", self.by_knob)
 
     def test_expected_demo_decisions(self):
-        self.assertEqual(self.by_knob["enable_photon"].status, "NO_CHANGE")
-        self.assertEqual(self.by_knob["enable_photon"].current_config, {"enable_photon": True})
         self.assertEqual(self.by_knob["warehouse_size"].status, "TEST_REQUIRED")
         self.assertEqual(self.by_knob["warehouse_size"].recommended_config, {"warehouse_size": "MEDIUM"})
         self.assertEqual(self.by_knob["max_clusters"].recommended_config, {"max_clusters": 3})
@@ -81,6 +80,127 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertLessEqual(portfolio.high, self.w.total_365d_baseline_cost)
         self.assertIn("cluster-minutes", chosen.portfolio_estimate.method)
 
+    def test_min_cluster_reduction_is_a_canary_candidate_not_actionable(self):
+        # H4: time at the floor proves the autoscaler sat at min, not that a floor cluster was spare.
+        c = self.by_knob["min_clusters"]
+        self.assertEqual(c.status, "TEST_REQUIRED")
+        self.assertIn("SPARE_FLOOR_CAPACITY_UNPROVEN", c.blockers)
+        self.assertEqual(c.recommended_config, {"min_clusters": 1})
+        plan = next(s for s in self.w.scenarios if s.recommended)
+        step = next(x for x in plan.steps if x.knob == "min_clusters")
+        self.assertIn("CANARY", step.validation_gate)
+
+    def test_min_cluster_time_at_min_is_an_upper_bound_not_the_base(self):
+        c = self.by_knob["min_clusters"]
+        r = c.estimated_savings_range_365
+        # Low: the floor capacity may have been needed, so the change may save nothing.
+        self.assertAlmostEqual(r.low, 0.0, places=2)
+        # High is the old time-at-min figure, now labelled as an upper bound; base is the policy midpoint of it.
+        self.assertGreater(r.high, 0)
+        self.assertAlmostEqual(r.base, r.high * self.t.min_cluster_realization_base, places=2)
+        self.assertLess(r.base, 0.75 * r.high)  # the pre-fix base was 75% of this figure
+        self.assertTrue(c.metadata["savings_high_is_upper_bound"])
+        self.assertIn("upper bound", c.metadata["method"])
+
+    def test_bundle_prices_min_cluster_with_the_same_realization_as_the_candidate(self):
+        c = self.by_knob["min_clusters"]
+        step = p.PlanStep(1, c.recommendation_id, "min_clusters", c.current_config, c.recommended_config,
+                          c.status, "A_B_CANARY", 7, [], [])
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [step], {c.recommendation_id: c})
+        got, want = port.estimated_savings_range_365, c.estimated_savings_range_365
+        for g, w in ((got.low, want.low), (got.base, want.base), (got.high, want.high)):
+            self.assertAlmostEqual(g, w, delta=1.0)
+
+    # --- audit H1: steps marked PENDING_REEVALUATION must not feed authoritative scenario economics ----------
+    def plan_a(self):
+        return next(s for s in self.w.scenarios if s.name.startswith("Plan A"))
+
+    def test_plan_a_authoritative_savings_stop_at_the_first_invalidating_step(self):
+        plan = self.plan_a()
+        states = {x.knob: x.execution_state for x in plan.steps}
+        self.assertEqual(states["warehouse_size"], "READY_FOR_CANARY")
+        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+            self.assertEqual(states[knob], "PENDING_REEVALUATION")
+        size = next(x for x in plan.steps if x.knob == "warehouse_size")
+        auth = plan.portfolio_estimate.estimated_savings_range_365
+        # The authoritative scenario figure is exactly the size step; pending steps add nothing to it.
+        self.assertAlmostEqual(auth.base, size.running_estimated_savings_range_365.base, places=2)
+        self.assertAlmostEqual(auth.high, size.running_estimated_savings_range_365.high, places=2)
+
+    def test_pending_steps_are_priced_as_a_labeled_contingent_upside(self):
+        plan = self.plan_a()
+        basis = {x.knob: x.pricing_basis for x in plan.steps}
+        self.assertEqual(basis["warehouse_size"], "AUTHORITATIVE")
+        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+            self.assertEqual(basis[knob], "CONTINGENT_PENDING_REEVALUATION")
+        contingent = plan.portfolio_estimate.contingent
+        self.assertIsNotNone(contingent)
+        last = plan.steps[-1]
+        self.assertAlmostEqual(contingent.estimated_savings_range_365.base, last.running_estimated_savings_range_365.base, places=2)
+        # The big-picture upside is larger than the authoritative base, and clearly separate from it.
+        self.assertGreater(contingent.estimated_savings_range_365.base, plan.portfolio_estimate.estimated_savings_range_365.base)
+        self.assertEqual(contingent.estimate_status, "PROVISIONAL_MODELED_RANGE")
+
+    def step_for(self, knob, state):
+        c = self.by_knob[knob]
+        return p.PlanStep(1, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status,
+                          "GATE", 0, c.invalidates, c.dependencies, state), c
+
+    def test_authoritative_chain_skips_pending_effects_even_when_a_later_step_is_ready(self):
+        pending, pc = self.step_for("min_clusters", "PENDING_REEVALUATION")
+        ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        by_id = {pc.recommendation_id: pc, rcand.recommendation_id: rcand}
+        est = p.StatefulBundleEstimator(self.t)
+        both = est.estimate(self.evidence[0], [pending, ready], by_id)
+        only_ready = est.estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
+        # Authoritative: auto-stop is priced on the *unchanged* floor because the min-cluster step is pending.
+        self.assertAlmostEqual(both.estimated_savings_range_365.base, only_ready.estimated_savings_range_365.base, places=2)
+        # Contingent: the full chain, where min-cluster consumed minutes first, so auto-stop has less left to remove.
+        self.assertIsNotNone(both.contingent)
+        self.assertNotAlmostEqual(both.contingent.estimated_savings_range_365.base, both.estimated_savings_range_365.base, places=2)
+
+    def test_no_contingent_economics_when_nothing_is_pending(self):
+        ready, c = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready], {c.recommendation_id: c})
+        self.assertIsNone(port.contingent)
+        self.assertEqual(ready.pricing_basis, "AUTHORITATIVE")
+        plan_b = next(s for s in self.w.scenarios if s.name.startswith("Plan B"))
+        self.assertIsNone(plan_b.portfolio_estimate.contingent)
+
+    def test_unpriceable_pending_step_does_not_poison_authoritative_economics(self):
+        ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
+        # A pending step whose effect only a canary can measure withholds only the contingent chain.
+        photon = p.PlanStep(2, "REC-UNMEASURABLE", "max_clusters", {"max_clusters": 4}, {"max_clusters": 3},
+                            "TEST_REQUIRED", "GATE", 0, [], [], "PENDING_REEVALUATION")
+        photon_c = copy.deepcopy(self.by_knob["max_clusters"])
+        photon_c.recommendation_id = "REC-UNMEASURABLE"
+        photon_c.metadata = {**photon_c.metadata, "bundle_effect": {"type": "requires_canary"}}
+        by_id = {rcand.recommendation_id: rcand, "REC-UNMEASURABLE": photon_c}
+        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready, photon], by_id)
+        only_ready = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
+        self.assertEqual(port.estimate_status, only_ready.estimate_status)
+        self.assertAlmostEqual(port.estimated_savings_range_365.base, only_ready.estimated_savings_range_365.base, places=2)
+        self.assertIsNone(port.contingent)  # contingent cannot be priced, so it is withheld rather than guessed
+        self.assertIsNone(photon.running_estimated_savings_range_365)
+
+    def test_reviewer_gate_2_rejects_pending_steps_priced_as_authoritative(self):
+        w = copy.deepcopy(self.w)
+        plan = next(s for s in w.scenarios if s.recommended)
+        next(x for x in plan.steps if x.execution_state == "PENDING_REEVALUATION").pricing_basis = "AUTHORITATIVE"
+        with self.assertRaisesRegex(ValueError, "pricing basis"):
+            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+
+    def test_reviewer_gate_2_rejects_contingent_upside_leaking_into_authoritative_savings(self):
+        w = copy.deepcopy(self.w)
+        plan = next(s for s in w.scenarios if s.recommended)
+        plan.portfolio_estimate.estimated_savings_range_365 = plan.portfolio_estimate.contingent.estimated_savings_range_365
+        with self.assertRaisesRegex(ValueError, "Authoritative scenario savings"):
+            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+
+    def test_reviewer_gate_2_accepts_the_unmodified_plan(self):
+        plan = next(s for s in self.w.scenarios if s.recommended)
+        p.Reviewer(self.t).review_scenarios(self.evidence[0], self.w.candidates, self.w.scenarios, plan.scenario_id)
+
     def test_scenario_contract_and_order(self):
         self.assertEqual([s.name for s in self.w.scenarios], [
             "Plan A — Optimize current warehouse type", "Plan B — Serverless migration experiment"
@@ -102,19 +222,17 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertTrue(all(s.running_estimated_savings_range_365 is not None for s in plan.steps))
 
     def test_reporter_json_workbook_and_hitl_findings(self):
-        from artifact_tool import Blob, SpreadsheetFile
+        from openpyxl import load_workbook
         with tempfile.TemporaryDirectory() as td:
             packages = self.packages
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             payload = json.loads(Path(files[f"package:{self.evidence[0].workspace_id}:{self.evidence[0].warehouse_id}"]).read_text())
             for field in ("candidates", "scenarios", "recommended_plan", "package_economics", "evidence", "workload_profile", "realization"):
                 self.assertIn(field, payload)
-            self.assertEqual(len(payload["candidates"]), 7)
+            self.assertEqual(len(payload["candidates"]), 6)
             self.assertGreater(len(payload["evidence"]), 0)
-            wb = SpreadsheetFile.import_xlsx(Blob.load(files["workbook"]))
-            sheets = wb.inspect({"kind":"sheet","include":"id,name"}).ndjson
-            for name in ("Executive Summary","Warehouse Portfolio","Scenario Plans","Recommendation Registry"):
-                self.assertIn(name, sheets)
+            wb = load_workbook(files["workbook"])
+            self.assertEqual(wb.sheetnames, ["Executive Summary", "Warehouse Portfolio", "Scenario Plans", "Recommendation Registry"])
     def test_read_only_api_scope_and_supported_type_gate_are_explicit(self):
         self.assertEqual(p.SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
         source = Path(p.__file__).read_text()
@@ -228,7 +346,7 @@ class PublisherV27Tests(unittest.TestCase):
         from contracts import workbook_contract as wc
         projection = wc.project_workbook(self.packages)
         row = projection.warehouse_portfolio[0]
-        self.assertIn("Photon", row["candidate_view"])
+        self.assertNotIn("Photon", row["candidate_view"])
         self.assertIn("Size", row["candidate_view"])
         self.assertIn("Type", row["candidate_view"])
         self.assertIn("warehouse_size", row["recommended_execution_plan"])
@@ -272,8 +390,8 @@ class PublisherV27Tests(unittest.TestCase):
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
             self.assertEqual(manifest["publisher_version"], p.PUBLISHER_VERSION)
-            self.assertEqual(manifest["reporter_contract_version"], "1.0.0")
-            self.assertEqual(manifest["workbook_contract_version"], "1.1.0")
+            self.assertEqual(manifest["reporter_contract_version"], "1.1.0")
+            self.assertEqual(manifest["workbook_contract_version"], "1.2.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertEqual(manifest["package_count"], 1)
             self.assertEqual(manifest["workbook_file"], "workbook.xlsx")
@@ -339,12 +457,247 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_idle_expensive(self):
         _,r=self.load("idle-expensive-warehouse"); w=self.warehouse(r,"wh-demo-001"); by={c.knob:c for c in w.candidates}
-        self.assertEqual(by["min_clusters"].status,"ACTIONABLE"); self.assertEqual(by["auto_stop_minutes"].status,"ACTIONABLE")
+        self.assertEqual(by["min_clusters"].status,"TEST_REQUIRED"); self.assertEqual(by["auto_stop_minutes"].status,"ACTIONABLE")
         self.assertGreater(w.aws_365d_baseline_cost,0)
 
     def test_spill_constrained(self):
         _,r=self.load("spill-constrained"); c=next(c for c in r[0].candidates if c.knob=="warehouse_size")
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
+
+    def spill_evidence(self, *, queries_30=12000, epoch_start=None):
+        """Spill-constrained golden fixture with the sample size / epoch age overridden (audit H2)."""
+        payload = json.loads((self.golden / "spill-constrained.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        epoch["query"]["queries_30"] = queries_30
+        if epoch_start is not None:
+            epoch["epoch_start"] = epoch_start
+        return [p.evidence_from_dict(ev)]
+
+    def size_candidate(self, evidence):
+        w = p.evaluate_warehouses(evidence, self.t)[0]
+        return w, next(c for c in w.candidates if c.knob == "warehouse_size")
+
+    def test_upsize_requires_minimum_query_sample(self):
+        # H2: 1 query that spills must not resize a warehouse.
+        w, c = self.size_candidate(self.spill_evidence(queries_30=1))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_QUERY_SAMPLE", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+        plan = next(s for s in w.scenarios if s.recommended)
+        self.assertNotIn("warehouse_size", [s.knob for s in plan.steps])
+
+    def test_upsize_requires_mature_config_epoch(self):
+        # Analysis time is 2026-10-01T12:00Z, so this epoch is 2 days old (< 7).
+        _, c = self.size_candidate(self.spill_evidence(epoch_start="2026-09-29T12:00:00+00:00"))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_upsize_reports_every_missing_evidence_requirement(self):
+        _, c = self.size_candidate(self.spill_evidence(queries_30=1, epoch_start="2026-09-29T12:00:00+00:00"))
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(set(c.blockers), {"INSUFFICIENT_QUERY_SAMPLE", "CURRENT_CONFIG_EPOCH_TOO_NEW"})
+
+    def test_upsize_actionable_exactly_at_evidence_boundaries(self):
+        # 100 queries and exactly 7 days of epoch age are sufficient.
+        _, c = self.size_candidate(self.spill_evidence(queries_30=100, epoch_start="2026-09-24T12:00:00+00:00"))
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
+        _, below = self.size_candidate(self.spill_evidence(queries_30=99))
+        self.assertEqual(below.status, "INSUFFICIENT_EVIDENCE")
+
+    def test_insufficient_evidence_upsize_has_no_savings_and_yields_valid_package(self):
+        ev = self.spill_evidence(queries_30=1)
+        _, c = self.size_candidate(ev)
+        self.assertIsNone(c.estimated_savings_365)
+        packages = p.build_recommendation_packages(ev, self.t)  # runs semantic validation
+        pkg = packages[0]
+        pkg_dict = pkg if isinstance(pkg, dict) else json.loads(p.canonical_json(pkg))
+        size = next(x for x in pkg_dict["candidates"] if x["knob"] == "warehouse_size")
+        self.assertEqual(size["status"], "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
+        self.assertEqual(size["recommended_value"], size["current_value"])
+
+    # --- audit H3: severity is measured among *affected* queries, not all queries -------------------------
+    NO_SEVERITY = {
+        "spill_queries_30": 0, "p95_spill_bytes_when_spilled_30": None,
+        "queued_queries_30": 0, "p95_wait_capacity_ms_when_queued_30": None,
+        "compute_wait_queries_30": 0, "p95_wait_compute_ms_when_waited_30": None,
+    }
+
+    def severity_evidence(self, golden, **query):
+        """Golden fixture re-expressed in the conditional-severity schema, with `query` overrides."""
+        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for legacy in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
+            epoch["query"].pop(legacy, None)
+        epoch["query"].update(self.NO_SEVERITY)
+        epoch["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def candidate(self, evidence, knob):
+        return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
+
+    GIB10 = 10 * 1024**3
+
+    def test_rare_but_severe_spill_triggers_upsize(self):
+        # 3% of 12,000 queries spill 10 GiB; the other 97% spill nothing. The old all-query p95 was 0.
+        ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
+                                    p95_spill_bytes_when_spilled_30=self.GIB10)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
+
+    def test_spill_severity_is_judged_among_spilled_queries(self):
+        ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
+                                    p95_spill_bytes_when_spilled_30=200 * 1024**2)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertNotEqual(c.status, "ACTIONABLE")
+        self.assertIn("SPILL_PRESENT", c.blockers)
+
+    def test_upsize_needs_minimum_affected_queries(self):
+        # 100 queries is enough sample (H2), but 5 spilling queries cannot support a p95 severity claim.
+        ev = self.severity_evidence("spill-constrained", queries_30=100, spill_query_pct_30=5.0, spill_queries_30=5,
+                                    p95_spill_bytes_when_spilled_30=self.GIB10)
+        c = self.candidate(ev, "warehouse_size")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_AFFECTED_QUERY_SAMPLE", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_queue_severity_among_queued_queries_at_incidence_boundary(self):
+        # Exactly 5.0% queued with a 45s tail among queued queries: increase signal.
+        ev = self.severity_evidence("concurrency-constrained", queued_query_pct_30=5.0, queued_queries_30=600,
+                                    p95_wait_capacity_ms_when_queued_30=45000)
+        c = self.candidate(ev, "max_clusters")
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["max_clusters"], 3)
+        short = self.severity_evidence("concurrency-constrained", queued_query_pct_30=5.0, queued_queries_30=600,
+                                       p95_wait_capacity_ms_when_queued_30=10000)
+        self.assertNotEqual(self.candidate(short, "max_clusters").status, "ACTIONABLE")
+
+    def test_max_clusters_increase_needs_minimum_affected_queries(self):
+        ev = self.severity_evidence("concurrency-constrained", queries_30=100, queued_query_pct_30=10.0, queued_queries_30=10,
+                                    p95_wait_capacity_ms_when_queued_30=45000)
+        c = self.candidate(ev, "max_clusters")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("INSUFFICIENT_AFFECTED_QUERY_SAMPLE", c.blockers)
+
+    def test_cold_start_waits_on_first_queries_block_auto_stop(self):
+        # 30 first-after-start queries wait 120s out of 12,000; the all-query p95 compute wait was 0.
+        ev = self.severity_evidence("cold-start-sensitive", compute_wait_queries_30=30,
+                                    p95_wait_compute_ms_when_waited_30=120000)
+        c = self.candidate(ev, "auto_stop_minutes")
+        self.assertEqual(c.status, "BLOCKED")
+        self.assertIn("COLD_START_SENSITIVE", c.blockers)
+
+    def test_few_long_capacity_waits_block_min_cluster_reduction(self):
+        # Guard rules fire on any affected queries: 12 queued queries (0.1%) waiting 20s block a savings change.
+        ev = self.severity_evidence("idle-expensive-warehouse", queued_query_pct_30=0.1, queued_queries_30=12,
+                                    p95_wait_capacity_ms_when_queued_30=20000)
+        c = self.candidate(ev, "min_clusters")
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("QUEUE_PRESSURE_PRESENT", c.blockers)
+
+    def without_severity(self, golden, **query):
+        """Golden fixture whose conditional-severity fields are absent (older collector), with `query` overrides."""
+        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for key in list(self.NO_SEVERITY) + ["p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"]:
+            epoch["query"].pop(key, None)
+        epoch["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def test_upsize_with_unknown_spill_severity_is_insufficient_evidence_not_a_silent_no_change(self):
+        # Review finding: spill frequency crosses the threshold but severity is unknown. The decision must say so.
+        for ev in (
+            self.without_severity("spill-constrained"),  # count and p95 absent
+            self.without_severity("spill-constrained", spill_queries_30=360, p95_spill_bytes_when_spilled_30=None),  # p95 null
+        ):
+            c = self.candidate(ev, "warehouse_size")
+            self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+            self.assertEqual(c.blockers, ["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"])
+            self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_max_clusters_increase_with_unknown_wait_severity_is_insufficient_evidence(self):
+        c = self.candidate(self.without_severity("concurrency-constrained"), "max_clusters")
+        self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(c.blockers, ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"])
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_missing_severity_evidence_fails_closed(self):
+        # Older evidence without the conditional-severity fields must not be read as 'no pressure' (zero).
+        payload = json.loads((self.golden / "idle-expensive-warehouse.json").read_text())
+        ev = payload["evidence"][0]
+        epoch = next(x for x in ev["epochs"] if x["is_current"])
+        for key in list(epoch["query"]):
+            if key in self.NO_SEVERITY or key in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
+                del epoch["query"][key]
+        evidence = [p.evidence_from_dict(ev)]
+        minc = self.candidate(evidence, "min_clusters")
+        self.assertEqual(minc.status, "NO_CHANGE")
+        self.assertIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", minc.blockers)
+        auto = self.candidate(evidence, "auto_stop_minutes")
+        self.assertEqual(auto.status, "BLOCKED")
+        self.assertIn("COLD_START_EVIDENCE_UNAVAILABLE", auto.blockers)
+
+    # --- H5: a withheld estimate is null, never zero --------------------------------------------------------
+    def golden_package(self, name):
+        payload = json.loads((self.golden / f"{name}.json").read_text())
+        evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
+        return p.build_recommendation_packages(evidence, self.t)[0].to_dict()
+
+    @staticmethod
+    def all_null(ranges):
+        return all(ranges[k] is None for k in ("dbu", "aws", "total"))
+
+    def test_blocked_candidate_economics_are_null_not_zero(self):
+        pkg = self.golden_package("cold-start-sensitive")
+        blocked = next(c for c in pkg["candidates"] if c["knob"] == "auto_stop_minutes")
+        self.assertEqual(blocked["status"], "BLOCKED")
+        econ = blocked["independent_economics"]
+        self.assertEqual(econ["estimation_status"], "UNAVAILABLE")
+        self.assertTrue(self.all_null(econ["savings_365d"]))
+        self.assertTrue(self.all_null(econ["estimated_cost_365d"]))
+
+    def test_insufficient_evidence_candidate_economics_are_null_not_zero(self):
+        pkg = p.build_recommendation_packages(self.spill_evidence(queries_30=1), self.t)[0].to_dict()
+        size = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_size")
+        self.assertEqual(size["status"], "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
+        self.assertTrue(self.all_null(size["independent_economics"]["savings_365d"]))
+
+    def test_no_change_candidate_keeps_a_known_zero(self):
+        pkg = self.golden_package("cold-start-sensitive")
+        channel = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_channel")
+        econ = channel["independent_economics"]
+        self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
+        self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
+
+    def test_halted_scenario_economics_are_null_and_excluded_from_the_package(self):
+        evidence = p.demo_evidence()
+        evidence[0].sql_sku_prices = {}  # no target SQL price: the migration has no deterministic DBU counterfactual
+        pkg = p.build_recommendation_packages(evidence, self.t)[0].to_dict()
+        plan_b = next(s for s in pkg["scenarios"] if s["scenario_name"].startswith("Plan B"))
+        econ = plan_b["portfolio_economics"]
+        self.assertEqual(econ["estimation_status"], "UNAVAILABLE")
+        for key in ("savings_365d", "estimated_cost_365d"):
+            self.assertTrue(self.all_null(econ[key]), key)
+        self.assertIsNone(econ["contingent_savings_365d"])
+        self.assertTrue(all(st["projected_economics"] is None for st in plan_b["execution_plan"]))
+        # Excluded from the envelope; the priced recommended plan still carries the package economics.
+        self.assertIn(plan_b["scenario_id"], [x["scenario_id"] for x in pkg["package_economics"]["excluded_scenarios"]])
+        self.assertIsNotNone(pkg["package_economics"]["estimated_savings_365d"])
+
+    def test_scenario_with_no_steps_is_a_known_zero_not_unavailable(self):
+        pkg = self.golden_package("newly-changed-config")
+        plan_a = next(s for s in pkg["scenarios"] if s["scenario_name"].startswith("Plan A"))
+        self.assertEqual([st for st in plan_a["execution_plan"] if st["step_type"] == "CANDIDATE"], [])
+        econ = plan_a["portfolio_economics"]
+        self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
+        self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
 
     def test_concurrency_constrained(self):
         _,r=self.load("concurrency-constrained"); c=next(c for c in r[0].candidates if c.knob=="max_clusters")
@@ -358,18 +711,22 @@ class GoldenScenarioTests(unittest.TestCase):
         for name,blocker in (("newly-changed-config","CURRENT_CONFIG_EPOCH_TOO_NEW"),("sparse-evidence","INSUFFICIENT_QUERY_SAMPLE")):
             _,r=self.load(name); self.assertTrue(any(blocker in c.blockers for c in r[0].candidates),name)
 
-    def test_photon_disabled_is_inferred_and_becomes_canary_candidate(self):
-        _,r=self.load("photon-disabled")
-        self.assertNotIn("enable_photon",{})
-        w=r[0]
-        c=next(c for c in w.candidates if c.knob=="enable_photon")
-        self.assertEqual(c.status,"TEST_REQUIRED")
-        self.assertEqual(c.current_config,{"enable_photon":False})
-        self.assertEqual(c.recommended_config,{"enable_photon":True})
-        self.assertIn("warehouse_size",c.invalidates)
-        plan=next(s for s in w.scenarios if s.recommended)
-        self.assertEqual(plan.steps[0].knob,"enable_photon")
-        self.assertEqual(plan.portfolio_estimate.estimate_status,"REQUIRES_CANARY")
+    def test_photon_is_observed_and_reported_but_never_recommended(self):
+        # Databricks publishes no on/off price for Photon on SQL warehouses, so the product leaves Photon at its
+        # default: the billing-derived observation stays in current_config, but no candidate or plan step exists.
+        for f in sorted(self.golden.glob("*.json")):
+            payload=json.loads(f.read_text()); ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            for w in p.evaluate_warehouses(ev,self.t):
+                self.assertNotIn("enable_photon",{c.knob for c in w.candidates},f.name)
+                for sc in w.scenarios:
+                    self.assertNotIn("enable_photon",[st.knob for st in sc.steps],f.name)
+        pkg=self.golden_package("photon-disabled")
+        self.assertEqual(pkg["current_config"]["photon"]["status"],"DISABLED")
+        self.assertNotIn("enable_photon",[c["knob"] for c in pkg["candidates"]])
+        self.assertEqual(len(pkg["candidates"]),6)
+        plan_a=next(x for x in pkg["scenarios"] if x["scenario_name"].startswith("Plan A"))
+        self.assertNotEqual(plan_a["portfolio_economics"]["estimation_status"],"UNAVAILABLE")  # no longer blocked by Photon
+        self.assertIsNotNone(plan_a["portfolio_economics"]["savings_365d"]["total"])
 
     def test_serverless_to_pro_costed_with_workspace_calibration(self):
         _,r=self.load("serverless-to-pro-costed"); w=self.warehouse(r,"wh-serverless-001")

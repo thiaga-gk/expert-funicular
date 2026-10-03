@@ -1,6 +1,6 @@
-# Databricks SQL Warehouse Optimizer — v2.7.0
+# Databricks SQL Warehouse Optimizer — v2.7.1
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.0.0** as the machine source of truth and **Workbook Reporter Contract v1.1.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.1.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
 
 ## Canonical flow
 
@@ -14,9 +14,9 @@ flowchart LR
     A --> R1[Reviewer gate 1]
     R1 --> S[Scenario planner + stateful bundle estimator]
     S --> R2[Reviewer gate 2]
-    R2 --> P[RecommendationPackage v1.0.0]
+    R2 --> P[RecommendationPackage v1.1.0]
     P --> J[packages/*.json]
-    P --> W[Workbook Contract v1.1.0]
+    P --> W[Workbook Contract v1.2.0]
     W --> X1[workbook.xlsx]
 ```
 
@@ -26,7 +26,7 @@ The workbook never recalculates recommendations, confidence, IDs, or scenario ec
 
 Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unknown warehouse type fails closed before optimization. Lakehouse Real-Time is not modeled by this release.
 
-Active candidate domains (one candidate per domain/warehouse): warehouse channel guardrail, Photon, warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
+Active candidate domains (one candidate per domain/warehouse): warehouse channel guardrail, warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Photon is observed from billing but left at its default (never recommended). Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
 ## Output directory
 
@@ -53,7 +53,7 @@ The workbook contains exactly four sheets:
 
 Economic cells are numeric whenever available. Positive annual impact means savings; negative annual impact means cost increase and uses accounting-style parentheses/red formatting. Separate `Currency` and `Impact Type` columns make the meaning explicit. Unavailable economics are never coerced to zero.
 
-See [`docs/workbook-contract-v1.1.0.md`](docs/workbook-contract-v1.1.0.md).
+See [`docs/workbook-contract-v1.2.0.md`](docs/workbook-contract-v1.2.0.md).
 
 ## Synthetic 15-warehouse end-to-end test
 
@@ -61,7 +61,7 @@ See [`docs/workbook-contract-v1.1.0.md`](docs/workbook-contract-v1.1.0.md).
 python publisher.py --demo --demo-count 15 --output-dir ./demo_out
 ```
 
-Expected output: 15 immutable packages, 30 scenarios, 105 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The committed example is under `examples/demo_output/`.
+Expected output: 15 immutable packages, 30 scenarios, 90 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The committed example is under `examples/demo_output/`.
 
 ## Live collector execution
 
@@ -97,8 +97,8 @@ Canonical approved documents:
 - [`docs/hld.md`](docs/hld.md) — high-level architecture.
 - [`docs/lld.md`](docs/lld.md) — implementation/contract design.
 - [`docs/context.md`](docs/context.md) — domain language and invariants.
-- [`docs/reporter-json-contract-v1.0.0.md`](docs/reporter-json-contract-v1.0.0.md) — machine contract.
-- [`docs/workbook-contract-v1.1.0.md`](docs/workbook-contract-v1.1.0.md) — workbook contract.
+- [`docs/reporter-json-contract-v1.1.0.md`](docs/reporter-json-contract-v1.1.0.md) — machine contract.
+- [`docs/workbook-contract-v1.2.0.md`](docs/workbook-contract-v1.2.0.md) — workbook contract.
 
 Supporting current references: `source-mapping.md`, `technique-catalog.md`, `thresholds.md`, `aws-cost-model.md`, `known-limitations.md`.
 

@@ -42,16 +42,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from contracts import reporter_contract as rc
 
-PUBLISHER_VERSION = "2.7.0"
+PUBLISHER_VERSION = "2.7.1"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.7"
-ANALYZER_VERSION = "sql-warehouse-analyzer-v2.7"
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.7"
+POLICY_VERSION = "sql-warehouse-policy-v2.7.1"
+ANALYZER_VERSION = "sql-warehouse-analyzer-v2.7.1"
+OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.7.1"
 MODEL_VERSION = "epoch-runrate-v2.7"
-ESTIMATOR_VERSION = "counterfactual-v2.7"
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.7"
-REVIEWER_VERSION = "recommendation-reviewer-v2.7"
-DECISION_VERSION = "warehouse-decision-graph-v2.7"
+ESTIMATOR_VERSION = "counterfactual-v2.7.1"
+BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.7.1"
+REVIEWER_VERSION = "recommendation-reviewer-v2.7.1"
+DECISION_VERSION = "warehouse-decision-graph-v2.7.1"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
@@ -90,7 +90,6 @@ SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
 
 ACTIVE_KNOBS = (
     "warehouse_channel",
-    "enable_photon",
     "warehouse_size",
     "max_clusters",
     "min_clusters",
@@ -126,6 +125,9 @@ class Thresholds:
     # Size / spill / latency
     spill_query_pct_upsize: float = 2.0
     spill_p95_bytes_upsize: int = GIB
+    # Severity percentiles are taken among affected queries; rules that add capacity/cost need a p95
+    # backed by at least this many affected queries (below ~20 samples a p95 is just the maximum).
+    severity_min_affected_queries: int = 20
     spill_query_pct_downsize_safe: float = 0.1
     p95_execution_ms_downsize_safe: int = 5_000
     p99_execution_ms_downsize_safe: int = 30_000
@@ -165,6 +167,12 @@ class Thresholds:
     realization_base: float = 0.75
     realization_optimistic: float = 1.00
     min_cluster_savings_fraction_cap: float = 0.50
+    # Time at the min-cluster floor shows the autoscaler sat at the floor, not that a floor cluster was
+    # spare. The time-at-min figure is therefore an upper bound on removable capacity (optimistic = 100%),
+    # the floor capacity may have been needed (conservative = 0%), and base is the midpoint (audit H4).
+    min_cluster_realization_optimistic: float = 1.00
+    min_cluster_realization_base: float = 0.50
+    min_cluster_realization_conservative: float = 0.00
     max_cluster_uplift_fraction_cap: float = 0.50
     max_cluster_base_uplift_weight: float = 0.50
     downsize_runtime_multiplier_conservative: float = 1.55
@@ -426,6 +434,7 @@ class PlanStep:
     running_dbu_savings_range_365: Optional[Range3] = None
     running_aws_savings_range_365: Optional[Range3] = None
     confidence: Dict[str, Any] = field(default_factory=dict)
+    pricing_basis: str = "AUTHORITATIVE"
 
 
 @dataclass
@@ -446,6 +455,8 @@ class PortfolioEstimate:
     dbu_365d_savings_range: Optional[Range3] = None
     aws_365d_savings_range: Optional[Range3] = None
     total_365d_savings_range: Optional[Range3] = None
+    # Stateful upside of steps marked PENDING_REEVALUATION; None when nothing is pending or it cannot be priced.
+    contingent: Optional["PortfolioEstimate"] = None
 
 
 @dataclass
@@ -598,8 +609,10 @@ SELECT
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS) AS queries_30,
   COUNT(DISTINCT CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN DATE(start_time) END) AS active_days_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN total_duration_ms END, 0.95) AS p95_total_ms_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN waiting_for_compute_duration_ms END, 0.95) AS p95_wait_compute_ms_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN waiting_at_capacity_duration_ms END, 0.95) AS p95_wait_capacity_ms_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_for_compute_duration_ms,0) > 0) AS compute_wait_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_for_compute_duration_ms > 0 THEN waiting_for_compute_duration_ms END, 0.95) AS p95_wait_compute_ms_when_waited_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_at_capacity_duration_ms,0) > 0) AS queued_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_at_capacity_duration_ms > 0 THEN waiting_at_capacity_duration_ms END, 0.95) AS p95_wait_capacity_ms_when_queued_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.95) AS p95_execution_ms_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.99) AS p99_execution_ms_30,
   MAX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END) AS max_execution_ms_30,
@@ -607,7 +620,8 @@ SELECT
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS queued_query_pct_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0)
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS spill_query_pct_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) END,0.95) AS p95_spill_bytes_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0) AS spill_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
   SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) ELSE 0 END)/POW(1024,3) AS total_spill_gib_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(read_bytes,0) END,0.95) AS p95_read_bytes_30,
   AVG(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN read_io_cache_percent END) AS avg_read_io_cache_percent_30,
@@ -863,6 +877,24 @@ def safe_int(value: Any, default: int = 0) -> int:
         return default if value is None else int(value)
     except (TypeError, ValueError):
         return default
+
+
+def conditional_severity(q: Dict[str, Any], count_key: str, p95_key: str) -> Tuple[Optional[float], int]:
+    """p95 severity among *affected* queries, plus how many queries were affected.
+
+    Returns (None, 0) when the collector did not report the affected-query count (older evidence): the
+    severity is unknown, never zero. A reported count of 0 means no query was affected: (0.0, 0).
+    """
+    if q.get(count_key) is None:
+        return None, 0
+    n = safe_int(q.get(count_key))
+    if n <= 0:
+        return 0.0, 0
+    return (None if q.get(p95_key) is None else safe_float(q.get(p95_key))), n
+
+
+def round_or_none(value: Optional[float], digits: int = 0) -> Optional[float]:
+    return None if value is None else (round(value) if digits == 0 else round(value, digits))
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
@@ -1704,46 +1736,32 @@ class Analyzer:
         fs = [self._f(e,"warehouse_channel","warehouse_channel",cfg.warehouse_channel,table="system.compute.warehouses",field="warehouse_channel",window="current epoch",interpretation="Current release channel from the current configuration epoch.")]
         out["warehouse_channel"] = AnalysisResult(e.warehouse_id,"warehouse_channel",ep.epoch_id,fs,{**common,"channel":cfg.warehouse_channel})
 
-        # Photon. Billing is the source of observed state for this knob. It is not
-        # a direct warehouse-config read, so MIXED/UNKNOWN evidence never becomes
-        # an asserted configuration value.
-        photon = e.photon_observation or PhotonObservation(
-            status="UNKNOWN", enabled_usage_pct=None, known_feature_coverage_pct=0.0,
-            true_dbu=0.0, false_dbu=0.0, null_dbu=0.0, latest_usage_time=None,
-            freshness_days=None, confidence={"score":0.0,"level":"LOW","components":{}},
-        )
-        fs = [
-            self._f(e,"enable_photon","photon_observed_status",photon.status,table="system.billing.usage",field="product_features.is_photon",window="signed DBU usage within current warehouse epoch",interpretation="Observed Photon workload state inferred from billing feature attribution."),
-            self._f(e,"enable_photon","photon_enabled_usage_pct",photon.enabled_usage_pct,unit="%",threshold=self.t.photon_enabled_usage_pct,comparator=">= enabled inference",table="system.billing.usage",field="product_features.is_photon + usage_quantity",window="signed DBU usage within current warehouse epoch",interpretation="Share of known Photon-attributed DBUs observed with Photon enabled."),
-            self._f(e,"enable_photon","photon_feature_coverage_pct",photon.known_feature_coverage_pct,unit="%",threshold=self.t.photon_min_feature_coverage_pct,comparator=">= inference coverage",table="system.billing.usage",field="product_features.is_photon",window="signed DBU usage within current warehouse epoch",interpretation="Coverage of non-null Photon feature attribution used to decide whether inference is reliable."),
-            self._f(e,"enable_photon","photon_freshness_days",photon.freshness_days,unit="days",threshold=self.t.photon_freshness_days,comparator="<= freshness guardrail",table="system.billing.usage",field="usage_end_time",window="current warehouse epoch",interpretation="Age of the most recent DBU billing evidence supporting Photon inference."),
-        ]
-        out["enable_photon"] = AnalysisResult(e.warehouse_id,"enable_photon",ep.epoch_id,fs,{**common,"photon_status":photon.status,"photon_enabled_usage_pct":photon.enabled_usage_pct,"photon_feature_coverage_pct":photon.known_feature_coverage_pct,"photon_freshness_days":photon.freshness_days,"photon_confidence":photon.confidence})
-
         # Size
-        spill_pct = safe_float(q.get("spill_query_pct_30")); spill_p95 = safe_float(q.get("p95_spill_bytes_30"))
+        spill_pct = safe_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         queue_pct = safe_float(q.get("queued_query_pct_30")); p95 = safe_float(q.get("p95_execution_ms_30")); p99 = safe_float(q.get("p99_execution_ms_30"))
         fs = [
             self._f(e,"warehouse_size","warehouse_size",cfg.warehouse_size,table="system.compute.warehouses",field="warehouse_size",window="current epoch",interpretation="Current warehouse size."),
             self._f(e,"warehouse_size","spill_query_pct_30",round(spill_pct,4),unit="%",threshold=self.t.spill_query_pct_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Frequency of queries spilling to local storage."),
-            self._f(e,"warehouse_size","p95_spill_bytes_30",round(spill_p95),unit="bytes",threshold=self.t.spill_p95_bytes_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Severity of spill at p95."),
+            self._f(e,"warehouse_size","spill_queries_30",spill_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for upsize",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Queries that spilled; the spill severity percentile is computed over these queries only."),
+            self._f(e,"warehouse_size","p95_spill_bytes_when_spilled_30",round_or_none(spill_p95),unit="bytes",threshold=self.t.spill_p95_bytes_upsize,comparator=">= upsize signal",table="system.query.history",field="spilled_local_bytes",window="last 30 days within current epoch",interpretation="Severity of spill at p95 among queries that spilled."),
             self._f(e,"warehouse_size","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_safe,comparator="<= downsize-safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Concurrency pressure during the decision window."),
             self._f(e,"warehouse_size","p95_execution_ms_30",round(p95),unit="ms",threshold=self.t.p95_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Tail execution latency guardrail."),
             self._f(e,"warehouse_size","p99_execution_ms_30",round(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
             self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
         ]
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"queue_pct":queue_pct,"p95_exec":p95,"p99_exec":p99})
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"p95_exec":p95,"p99_exec":p99})
 
         # Max clusters
-        wait = safe_float(q.get("p95_wait_capacity_ms_30")); max_obs = safe_int(ev.get("max_observed_clusters")); at_max = safe_float(ev.get("time_at_max_pct"))
+        wait, queue_n = conditional_severity(q, "queued_queries_30", "p95_wait_capacity_ms_when_queued_30"); max_obs = safe_int(ev.get("max_observed_clusters")); at_max = safe_float(ev.get("time_at_max_pct"))
         fs = [
             self._f(e,"max_clusters","max_clusters",cfg.max_clusters,table="system.compute.warehouses",field="max_clusters",window="current epoch",interpretation="Configured concurrency ceiling."),
             self._f(e,"max_clusters","max_observed_clusters",max_obs,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Highest observed scale level."),
             self._f(e,"max_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_safe_reduce,comparator="<= reduce-safe",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Fraction of running time at configured maximum."),
             self._f(e,"max_clusters","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Frequency of capacity queueing."),
-            self._f(e,"max_clusters","p95_wait_capacity_ms_30",round(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing."),
+            self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
+            self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"minutes_at_max":safe_float(ev.get("minutes_at_max")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"minutes_at_max":safe_float(ev.get("minutes_at_max")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
         # Min clusters
         at_min = safe_float(ev.get("time_at_min_pct"))
@@ -1751,7 +1769,7 @@ class Analyzer:
             self._f(e,"min_clusters","min_clusters",cfg.min_clusters,table="system.compute.warehouses",field="min_clusters",window="current epoch",interpretation="Configured minimum scale."),
             self._f(e,"min_clusters","time_at_min_pct",round(at_min,4),unit="%",threshold=self.t.time_at_min_pct_reduce,comparator=">= reduction signal",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="How often the warehouse sits at its minimum."),
             self._f(e,"min_clusters","queued_query_pct_30",round(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue guardrail before reducing baseline capacity."),
-            self._f(e,"min_clusters","p95_wait_capacity_ms_30",round(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail."),
+            self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
         out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
@@ -1763,18 +1781,19 @@ class Analyzer:
             else self.t.medium_activity_auto_stop_target_minutes if per_day < self.t.medium_activity_queries_per_day
             else self.t.high_activity_auto_stop_target_minutes
         )
-        saved_idle = safe_float(gaps.get(f"saved_idle_minutes_if_{target}")); uptime = safe_float(ev.get("uptime_minutes")); wait_compute=safe_float(q.get("p95_wait_compute_ms_30"))
+        saved_idle = safe_float(gaps.get(f"saved_idle_minutes_if_{target}")); uptime = safe_float(ev.get("uptime_minutes")); wait_compute, wait_compute_n = conditional_severity(q, "compute_wait_queries_30", "p95_wait_compute_ms_when_waited_30")
         gap_count=safe_int(gaps.get("gap_count")); cluster_minutes=safe_float(ev.get("cluster_minutes"))
         fs = [
             self._f(e,"auto_stop_minutes","auto_stop_minutes",cfg.auto_stop_minutes,unit="minutes",threshold=target,comparator="> target",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting versus deterministic policy target."),
             self._f(e,"auto_stop_minutes","queries_per_active_day_30",round(per_day,2),unit="queries/day",table="system.query.history",field="start_time",window="last 30 days within current epoch",interpretation="Activity density selects the auto-stop target."),
             self._f(e,"auto_stop_minutes","idle_gap_count",gap_count,unit="gaps",threshold=self.t.min_idle_gap_sample_size,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="current epoch",interpretation="Non-overlapping inter-query gap sample supporting the auto-stop counterfactual."),
             self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window="current epoch",interpretation="Observed resource-time basis used to convert idle time into cost effect."),
-            self._f(e,"auto_stop_minutes","p95_wait_compute_ms_30",round(wait_compute),unit="ms",threshold=self.t.cold_start_p95_ms_block,comparator=">= cold-start blocker",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Cold-start sensitivity guardrail."),
+            self._f(e,"auto_stop_minutes","compute_wait_queries_30",wait_compute_n,unit="queries",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Queries that waited for compute; the wait percentile is computed over these queries only."),
+            self._f(e,"auto_stop_minutes","p95_wait_compute_ms_when_waited_30",round_or_none(wait_compute),unit="ms",threshold=self.t.cold_start_p95_ms_block,comparator=">= cold-start blocker",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Cold-start sensitivity guardrail at p95 among queries that waited for compute."),
             self._f(e,"auto_stop_minutes","starts_per_active_day_30",round(starts_per_day,4),unit="starts/day",threshold=self.t.cold_starts_per_active_day_block,comparator=">= cold-start blocker",table="system.compute.warehouse_events",field="event_type=STARTING",window="last 30 days within current epoch",interpretation="Restart frequency guardrail."),
             self._f(e,"auto_stop_minutes","estimated_additional_off_minutes",round(saved_idle,2),unit="minutes",table="system.query.history",field="inter-query gap",window="current epoch",interpretation="Estimated additional off-time at the candidate target."),
         ]
-        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"target":target,"saved_idle":saved_idle,"gap_count":gap_count,"uptime":uptime,"cluster_minutes":cluster_minutes,"current_min_clusters":cfg.min_clusters,"wait_compute":wait_compute,"starts_per_day":starts_per_day})
+        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"target":target,"saved_idle":saved_idle,"gap_count":gap_count,"uptime":uptime,"cluster_minutes":cluster_minutes,"current_min_clusters":cfg.min_clusters,"wait_compute":wait_compute,"wait_compute_n":wait_compute_n,"starts_per_day":starts_per_day})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -1816,37 +1835,13 @@ class Optimizer:
         if cfg.warehouse_channel == "PREVIEW":
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","REVIEW",
                 {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":"CURRENT"},
-                ["PREVIEW_FEATURE_DEPENDENCY_UNKNOWN"],[],["enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
+                ["PREVIEW_FEATURE_DEPENDENCY_UNKNOWN"],[],["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
+                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
                 "Move to CURRENT only after confirming no workload depends on Preview-only behavior."))
         else:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","NO_CHANGE",
                 {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":cfg.warehouse_channel},[],[],[],[],
                 "No channel change indicated."))
-
-        # Photon is inferred from current-epoch signed DBU billing feature evidence.
-        # ENABLED/DISABLED are observations with explicit coverage/freshness guards;
-        # MIXED/UNKNOWN never become asserted config values.
-        a = analyses["enable_photon"]; f = a.facts; photon_status = str(f.get("photon_status") or "UNKNOWN")
-        if cfg.warehouse_type == "SERVERLESS":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","NO_CHANGE",
-                {"enable_photon":True},{"enable_photon":True},[],["warehouse_channel"],[],[],
-                "Photon is enabled on Serverless SQL compute; billing evidence is retained as corroborating observation."))
-        elif photon_status == "ENABLED":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","NO_CHANGE",
-                {"enable_photon":True},{"enable_photon":True},[],["warehouse_channel"],[],[],
-                "Current-epoch billing evidence consistently shows Photon-enabled DBU usage."))
-        elif photon_status == "DISABLED":
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","TEST_REQUIRED",
-                {"enable_photon":False},{"enable_photon":True},["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"],["warehouse_channel"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                "Current-epoch billing evidence consistently shows Photon-disabled DBU usage; enable Photon as a canary because runtime changes can invalidate downstream tuning."))
-        else:
-            blockers = ["PHOTON_STATE_MIXED_OR_INSUFFICIENT_BILLING_EVIDENCE"]
-            out.append(OptimizationDecision(e.warehouse_id,"enable_photon","PERFORMANCE_AND_COST","BLOCKED",
-                {"enable_photon":photon_status},{"enable_photon":True},blockers,["warehouse_channel"],[],[],
-                "Photon cannot be deterministically changed until current-epoch billing feature evidence is fresh, sufficiently covered, and non-mixed."))
 
         # Size
         a = analyses["warehouse_size"]; f=a.facts
@@ -1854,18 +1849,30 @@ class Optimizer:
         if cfg.warehouse_size not in SIZE_ORDER:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
                 {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
-                ["warehouse_channel","enable_photon"],[],[],"Warehouse size is outside the known deterministic ordering."))
+                ["warehouse_channel"],[],[],"Warehouse size is outside the known deterministic ordering."))
+        elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is None:
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"],["warehouse_channel"],[],[],
+                "Spill frequency crosses the upsize threshold, but spill severity was not reported (older collector evidence); no resize is recommended."))
         elif f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
-            if target:
+            # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
+            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+            if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
+            if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
+            if target and blockers:
+                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
+                    "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
+            elif target:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel","enable_photon"],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
                     "Spill frequency and severity both cross the deterministic upsize thresholds."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
-                    ["warehouse_channel","enable_photon"],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
+                    ["warehouse_channel"],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
         else:
             target = previous_size(cfg.warehouse_size)
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
@@ -1877,21 +1884,29 @@ class Optimizer:
             if target and not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
-                    ["warehouse_channel","enable_photon"],["max_clusters","min_clusters","auto_stop_minutes"],
+                    ["warehouse_channel"],["max_clusters","min_clusters","auto_stop_minutes"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],
                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel","enable_photon"],[],[],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
                     "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
 
         # Max clusters
         a=analyses["max_clusters"]; f=a.facts
-        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
+        if f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is None and f["max_observed"] >= cfg.max_clusters:
+            out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"],
+                ["warehouse_size"],[],[],"Queueing and saturation cross the increase thresholds, but capacity-wait severity was not reported (older collector evidence); no change is recommended."))
+        elif f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and f["max_observed"] >= cfg.max_clusters:
             if cfg.max_clusters >= self.t.max_clusters_supported_limit:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                     ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
+            elif f["queue_n"] < self.t.severity_min_affected_queries:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_AFFECTED_QUERY_SAMPLE"],
+                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but too few queries queued for the wait percentile to be reliable; no change is recommended."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
@@ -1922,13 +1937,16 @@ class Optimizer:
             blockers=[]
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
-            if f["queue_pct"] > self.t.queue_query_pct_safe or f["wait_capacity"] > self.t.queue_wait_p95_ms_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
+            if f["queue_pct"] > self.t.queue_query_pct_safe or (f["wait_capacity"] is not None and f["wait_capacity"] > self.t.queue_wait_p95_ms_safe): blockers.append("QUEUE_PRESSURE_PRESENT")
+            if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
             if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
             if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
             if not blockers:
-                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","ACTIONABLE",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},[],["warehouse_size","max_clusters"],
-                    ["auto_stop_minutes"],["auto_stop_minutes"],"Warehouse spends substantial time at minimum capacity without queue/scale pressure."))
+                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
+                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
+                    ["A_B_PERFORMANCE_VALIDATION_REQUIRED","SPARE_FLOOR_CAPACITY_UNPROVEN"],["warehouse_size","max_clusters"],
+                    ["auto_stop_minutes"],["auto_stop_minutes"],
+                    "Warehouse spends substantial time at minimum capacity without queue/scale pressure; time at the floor does not prove a floor cluster was spare, so the reduction is a canary candidate and its savings an upper-bound range."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},blockers,["warehouse_size","max_clusters"],[],[],
@@ -1946,7 +1964,8 @@ class Optimizer:
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if safe_int(f.get("gap_count")) < self.t.min_idle_gap_sample_size: blockers.append("INSUFFICIENT_IDLE_GAP_SAMPLE")
             if safe_float(f.get("cluster_minutes")) < self.t.min_cluster_minutes_for_cost_model: blockers.append("INSUFFICIENT_EVENT_RESOURCE_EVIDENCE")
-            if f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
+            if f["wait_compute"] is None: blockers.append("COLD_START_EVIDENCE_UNAVAILABLE")
+            elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
             status="ACTIONABLE" if not blockers else "BLOCKED"
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
@@ -2026,12 +2045,13 @@ class Estimator:
     def _factors(self,e:WarehouseEvidence,d:OptimizationDecision,a:AnalysisResult)->Tuple[Optional[Range3],Dict[str,Any]]:
         knob=d.knob
         meta:Dict[str,Any]={"estimator_version":ESTIMATOR_VERSION}
-        if d.status in {"NO_CHANGE","BLOCKED"}:
+        if d.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"}:
+            # No counterfactual is attempted for a candidate the constraints reject: unknown cost is null, never zero.
+            return None,{"method":"estimate withheld: the candidate is blocked or lacks the evidence to be priced","bundle_effect":{"type":"no_cost_change"},**meta}
+        if d.status=="NO_CHANGE":
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
-        if knob=="enable_photon":
-            return None,{"method":"Photon enablement can change runtime and DBU consumption; savings are withheld until an A/B canary measures the workload-specific counterfactual.","bundle_effect":{"type":"requires_canary"},**meta}
         if knob=="warehouse_type":
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
@@ -2057,11 +2077,14 @@ class Estimator:
             delta=max(0,current-target)
             theoretical_removed=minutes_at_min*delta
             raw=clamp(theoretical_removed/cluster,0,self.t.min_cluster_savings_fraction_cap) if cluster>0 else 0
-            factors=Range3(1-raw*self.t.realization_optimistic,1-raw*self.t.realization_base,1-raw*self.t.realization_conservative)
+            realization=[self.t.min_cluster_realization_optimistic,self.t.min_cluster_realization_base,self.t.min_cluster_realization_conservative]
+            factors=Range3(*(1-raw*r for r in realization))
             return factors,{
-                "method":"remove baseline cluster-minutes observed while current epoch sat at minimum",
+                "method":"cluster-minutes observed at the minimum are an upper bound on removable capacity (the floor may have been needed); high savings is that upper bound, low is no savings, base is the policy midpoint; canary required",
                 "raw_savings_fraction":round(raw,4),
-                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":theoretical_removed,"target_min_clusters":target},
+                "savings_high_is_upper_bound":True,
+                # The capped removable minutes (not the raw time-at-min) feed the stateful bundle so both models agree.
+                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":raw*cluster,"target_min_clusters":target,"realization":realization},
                 **meta,
             }
 
@@ -2231,16 +2254,6 @@ class Estimator:
             signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
             cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
             confidence=self._confidence(e,a,signal=signal,cap=cap)
-            if d.knob=="enable_photon" and e.photon_observation and e.current_epoch.config.warehouse_type!="SERVERLESS":
-                observed=e.photon_observation.confidence
-                observed_score=safe_float(observed.get("score"),0.0)
-                combined=min(safe_float(confidence.get("score"),0.0), observed_score)
-                confidence={
-                    "score":round(combined,3),
-                    "level":"HIGH" if combined>=self.t.confidence_high_threshold else "MEDIUM" if combined>=self.t.confidence_medium_threshold else "LOW",
-                    "components":{**dict(confidence.get("components") or {}),"photon_observation":observed_score},
-                    "observation_confidence":observed,
-                }
             current=d.current_config; recommended=d.recommended_config
             rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
             out.append(CandidateRecommendation(
@@ -2285,7 +2298,8 @@ class Reviewer:
             if not 0<=score<=1: raise ValueError(f"Confidence out of range: {c.recommendation_id}")
             if c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and c.current_config==c.recommended_config:
                 raise ValueError(f"Change status without config change: {c.recommendation_id}")
-            if c.status=="BLOCKED" and not c.blockers: raise ValueError(f"Blocked without blockers: {c.recommendation_id}")
+            if c.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"} and not c.blockers: raise ValueError(f"{c.status} without blockers: {c.recommendation_id}")
+            if c.status=="INSUFFICIENT_EVIDENCE" and c.current_config!=c.recommended_config: raise ValueError(f"INSUFFICIENT_EVIDENCE with config change: {c.recommendation_id}")
             if c.status=="NO_CHANGE" and c.estimated_savings_365 not in (None,0,0.0): raise ValueError(f"NO_CHANGE with savings: {c.recommendation_id}")
             if c.estimated_cost_range_365:
                 r=c.estimated_cost_range_365
@@ -2352,10 +2366,46 @@ class Reviewer:
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
                 if r is not None and not (r.low<=r.base<=r.high):
                     raise ValueError(f"Scenario range is not ordered: {sc.scenario_id}")
+            # Authoritative economics may not include steps whose evidence was invalidated upstream (audit H1).
+            for st in sc.steps:
+                pending=st.execution_state=="PENDING_REEVALUATION"
+                if pending != (st.pricing_basis==PRICING_CONTINGENT):
+                    raise ValueError(f"Plan-step pricing basis must match its execution state: {st.recommendation_id}")
+            authoritative=[st for st in sc.steps if st.pricing_basis==PRICING_AUTHORITATIVE]
+            contingent_steps=[st for st in sc.steps if st.pricing_basis==PRICING_CONTINGENT]
+            if pe.contingent is not None:
+                if not contingent_steps:
+                    raise ValueError(f"Contingent economics without a pending step: {sc.scenario_id}")
+                for r in (pe.contingent.estimated_cost_range_365, pe.contingent.estimated_savings_range_365):
+                    if r is not None and not (r.low<=r.base<=r.high):
+                        raise ValueError(f"Contingent range is not ordered: {sc.scenario_id}")
+                last=contingent_steps[-1].running_estimated_savings_range_365
+                got=pe.contingent.estimated_savings_range_365
+                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
+                    raise ValueError(f"Contingent savings must equal the last pending step's running savings: {sc.scenario_id}")
+            if authoritative and pe.estimate_status not in {"REQUIRES_CANARY","REQUIRES_COST_MODEL"}:
+                last=authoritative[-1].running_estimated_savings_range_365
+                got=pe.estimated_savings_range_365
+                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
+                    raise ValueError(f"Authoritative scenario savings must equal the last authoritative step's running savings: {sc.scenario_id}")
             if sc.name.startswith("Plan A") and any(st.knob=="warehouse_type" for st in sc.steps):
                 raise ValueError(f"Current-type Plan A cannot contain warehouse_type migration: {sc.scenario_id}")
             if sc.name.startswith("Plan B") and len(sc.steps)>1:
                 raise ValueError(f"Migration Plan B must remain a separate one-step branch: {sc.scenario_id}")
+
+
+PRICING_AUTHORITATIVE = "AUTHORITATIVE"
+PRICING_CONTINGENT = "CONTINGENT_PENDING_REEVALUATION"
+
+
+@dataclass
+class _ChainState:
+    """Evolving cost/resource state for one pricing chain; `halt` = (status, method) once it cannot be priced further."""
+    dbu_tracks: List[float]
+    aws_tracks: Optional[List[float]]
+    resource_tracks: List[float]
+    current_min: int
+    halt: Optional[Tuple[str, str]] = None
 
 
 class StatefulBundleEstimator:
@@ -2407,76 +2457,112 @@ class StatefulBundleEstimator:
             total_365d_savings_range=total_save,
         )
 
+    def _withheld(self,e:WarehouseEvidence,status:str,method:str)->PortfolioEstimate:
+        """Estimate that cannot be priced (needs a canary or a cost model): every range is null, never a zero."""
+        return PortfolioEstimate(
+            status,e.total_365d_baseline_cost if e.total_365d_baseline_cost is not None else e.dbu_365d_baseline_cost,None,None,method,True,
+            dbu_365d_baseline_cost=e.dbu_365d_baseline_cost,aws_365d_baseline_cost=e.aws_baseline_cost_365,total_365d_baseline_cost=e.total_365d_baseline_cost,
+        )
+
+    def _apply(self,st:"_ChainState",c:CandidateRecommendation,effect:Mapping[str,Any],original_resource:float,realizations:Sequence[float])->None:
+        """Apply one candidate's bundle effect to a chain's evolving cost/resource state."""
+        if st.halt is not None: return
+        typ=effect.get("type")
+        if typ=="migration_cost_override":
+            if c.dbu_365d_estimated_cost_range is None:
+                st.halt=("REQUIRES_COST_MODEL","Migration candidate lacks a deterministic DBU counterfactual; cost is withheld until required source pricing/resource evidence is available.")
+                return
+            st.dbu_tracks=[c.dbu_365d_estimated_cost_range.low,c.dbu_365d_estimated_cost_range.base,c.dbu_365d_estimated_cost_range.high]
+            if c.aws_365d_estimated_cost_range is not None:
+                st.aws_tracks=[c.aws_365d_estimated_cost_range.low,c.aws_365d_estimated_cost_range.base,c.aws_365d_estimated_cost_range.high]
+            elif c.aws_365d_baseline_cost is None:
+                st.aws_tracks=None
+        elif typ=="multiplicative_cost_factor":
+            df=self._factors_from_range(c.dbu_365d_baseline_cost,c.dbu_365d_estimated_cost_range)
+            af=self._factors_from_range(c.aws_365d_baseline_cost,c.aws_365d_estimated_cost_range)
+            if df:
+                for i in range(3): st.dbu_tracks[i]*=max(0.0,df[i])
+            if st.aws_tracks is not None and af:
+                for i in range(3): st.aws_tracks[i]*=max(0.0,af[i])
+            rr=effect.get("resource_runtime_factor_range")
+            if rr and original_resource>0:
+                rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
+                for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
+        elif typ in {"min_cluster_reduction","idle_cluster_minute_reduction"}:
+            if typ=="min_cluster_reduction":
+                theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
+                target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
+            else:
+                theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*st.current_min
+                target_min=st.current_min
+            effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
+            for i,realization in enumerate(effect_realizations):
+                before=st.resource_tracks[i]
+                if before<=0: continue
+                removed=min(before,theoretical*realization)
+                after=max(0.0,before-removed)
+                ratio=after/before
+                st.dbu_tracks[i]*=ratio
+                if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
+                st.resource_tracks[i]=after
+            st.current_min=target_min
+        elif typ=="requires_canary":
+            st.halt=("REQUIRES_CANARY","At least one step changes the execution regime without a deterministic counterfactual; portfolio cost is withheld until canary measurement.")
+        elif typ!="no_cost_change":
+            raise ValueError(f"Unknown bundle effect type: {typ}")
+
     def estimate(self,e:WarehouseEvidence,steps:List[PlanStep],candidate_by_id:Dict[str,CandidateRecommendation])->PortfolioEstimate:
+        """Price an ordered plan as two chains over the same evolving-state model.
+
+        The *authoritative* chain prices only steps that are not PENDING_REEVALUATION: their evidence has not been
+        invalidated by an upstream change. The *contingent* chain prices every step using pre-change evidence; it is
+        a big-picture upside that must be regenerated after upstream remeasurement and never feeds package economics.
+        """
         dbu_base=e.dbu_365d_baseline_cost
         aws_base=e.aws_baseline_cost_365
-        dbu_tracks=[dbu_base,dbu_base,dbu_base]
-        aws_tracks=[aws_base,aws_base,aws_base] if aws_base is not None else None
         if not steps:
-            return self._portfolio(e,"NO_CHANGE",dbu_tracks,aws_tracks,"No scenario steps.")
+            return self._portfolio(e,"NO_CHANGE",[dbu_base]*3,[aws_base]*3 if aws_base is not None else None,"No scenario steps.")
 
         original_resource=max(0.0,safe_float(e.current_epoch.events.get("cluster_minutes")))
-        resource_tracks=[original_resource,original_resource,original_resource]
-        current_min=max(1,e.current_epoch.config.min_clusters)
+        def fresh()->_ChainState:
+            return _ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+        auth,cont=fresh(),fresh()
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
 
         for step in steps:
             c=candidate_by_id[step.recommendation_id]
             effect=c.metadata.get("bundle_effect") or {"type":"no_cost_change"}
-            typ=effect.get("type")
-            if typ=="migration_cost_override":
-                if c.dbu_365d_estimated_cost_range is None:
-                    return self._portfolio(e,"REQUIRES_COST_MODEL",dbu_tracks,aws_tracks,"Migration candidate lacks a deterministic DBU counterfactual; cost is withheld until required source pricing/resource evidence is available.")
-                dbu_tracks=[c.dbu_365d_estimated_cost_range.low,c.dbu_365d_estimated_cost_range.base,c.dbu_365d_estimated_cost_range.high]
-                if c.aws_365d_estimated_cost_range is not None:
-                    aws_tracks=[c.aws_365d_estimated_cost_range.low,c.aws_365d_estimated_cost_range.base,c.aws_365d_estimated_cost_range.high]
-                elif c.aws_365d_baseline_cost is None:
-                    aws_tracks=None
-            elif typ=="multiplicative_cost_factor":
-                df=self._factors_from_range(c.dbu_365d_baseline_cost,c.dbu_365d_estimated_cost_range)
-                af=self._factors_from_range(c.aws_365d_baseline_cost,c.aws_365d_estimated_cost_range)
-                if df:
-                    for i in range(3): dbu_tracks[i]*=max(0.0,df[i])
-                if aws_tracks is not None and af:
-                    for i in range(3): aws_tracks[i]*=max(0.0,af[i])
-                rr=effect.get("resource_runtime_factor_range")
-                if rr and original_resource>0:
-                    rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
-                    for i in range(3): resource_tracks[i]*=max(0.0,rf[i])
-            elif typ in {"min_cluster_reduction","idle_cluster_minute_reduction"}:
-                if typ=="min_cluster_reduction":
-                    theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
-                    target_min=max(1,safe_int(effect.get("target_min_clusters"),current_min))
-                else:
-                    theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*current_min
-                    target_min=current_min
-                for i,realization in enumerate(realizations):
-                    before=resource_tracks[i]
-                    if before<=0: continue
-                    removed=min(before,theoretical*realization)
-                    after=max(0.0,before-removed)
-                    ratio=after/before
-                    dbu_tracks[i]*=ratio
-                    if aws_tracks is not None: aws_tracks[i]*=ratio
-                    resource_tracks[i]=after
-                current_min=target_min
-            elif typ=="requires_canary":
-                return self._portfolio(e,"REQUIRES_CANARY",dbu_tracks,aws_tracks,"At least one step changes the execution regime without a deterministic counterfactual; portfolio cost is withheld until canary measurement.")
-            elif typ!="no_cost_change":
-                raise ValueError(f"Unknown bundle effect type: {typ}")
+            pending=step.execution_state=="PENDING_REEVALUATION"
+            step.pricing_basis=PRICING_CONTINGENT if pending else PRICING_AUTHORITATIVE
+            if not pending: self._apply(auth,c,effect,original_resource,realizations)
+            self._apply(cont,c,effect,original_resource,realizations)
+            chain=cont if pending else auth
+            snap=self._portfolio(e,"RUNNING",chain.dbu_tracks,chain.aws_tracks,"Running stateful plan estimate.") if chain.halt is None else None
+            step.running_dbu_cost_range_365=snap.dbu_365d_estimated_cost_range if snap else None
+            step.running_aws_cost_range_365=snap.aws_365d_estimated_cost_range if snap else None
+            step.running_dbu_savings_range_365=snap.dbu_365d_savings_range if snap else None
+            step.running_aws_savings_range_365=snap.aws_365d_savings_range if snap else None
+            step.running_estimated_cost_range_365=(snap.total_365d_estimated_cost_range or snap.dbu_365d_estimated_cost_range) if snap else None
+            step.running_estimated_savings_range_365=(snap.total_365d_savings_range or snap.dbu_365d_savings_range) if snap else None
 
-            snap=self._portfolio(e,"RUNNING",dbu_tracks,aws_tracks,"Running stateful plan estimate.")
-            step.running_dbu_cost_range_365=snap.dbu_365d_estimated_cost_range
-            step.running_aws_cost_range_365=snap.aws_365d_estimated_cost_range
-            step.running_dbu_savings_range_365=snap.dbu_365d_savings_range
-            step.running_aws_savings_range_365=snap.aws_365d_savings_range
-            step.running_estimated_cost_range_365=snap.total_365d_estimated_cost_range or snap.dbu_365d_estimated_cost_range
-            step.running_estimated_savings_range_365=snap.total_365d_savings_range or snap.dbu_365d_savings_range
-
-        provisional=any(step.invalidates for step in steps[:-1]) or any(candidate_by_id[s.recommendation_id].knob=="warehouse_type" for s in steps)
-        status="PRE_CANARY_MODELED_RANGE" if any(candidate_by_id[s.recommendation_id].knob=="warehouse_type" for s in steps) else "PROVISIONAL_MODELED_RANGE" if provisional else "MODELED_RANGE"
-        method=("Stateful DBU+AWS bundle. Each step changes the evolving cost/resource state. Min-cluster and auto-stop remove remaining cluster-minutes rather than adding standalone savings; migration steps replace the state with a DBU+AWS pre-canary counterfactual. Downstream steps after invalidation must be regenerated after remeasurement.")
-        return self._portfolio(e,status,dbu_tracks,aws_tracks,method)
+        priced=[x for x in steps if x.pricing_basis==PRICING_AUTHORITATIVE]
+        has_pending=len(priced)<len(steps)
+        has_migration=lambda group: any(candidate_by_id[x.recommendation_id].knob=="warehouse_type" for x in group)
+        method=("Stateful DBU+AWS bundle. Each step changes the evolving cost/resource state. Min-cluster and auto-stop remove remaining cluster-minutes rather than adding standalone savings; migration steps replace the state with a DBU+AWS pre-canary counterfactual.")
+        if has_pending:
+            method+=" Steps invalidated by an upstream change (PENDING_REEVALUATION) are excluded from this authoritative estimate; regenerate after remeasurement."
+        if auth.halt is not None:
+            result=self._withheld(e,auth.halt[0],auth.halt[1])
+        else:
+            provisional=any(candidate_by_id[x.recommendation_id].status=="TEST_REQUIRED" for x in priced)
+            status="PRE_CANARY_MODELED_RANGE" if has_migration(priced) else "PROVISIONAL_MODELED_RANGE" if provisional else "MODELED_RANGE"
+            result=self._portfolio(e,status,auth.dbu_tracks,auth.aws_tracks,method)
+        if has_pending and cont.halt is None:
+            result.contingent=self._portfolio(
+                e,"PRE_CANARY_MODELED_RANGE" if has_migration(steps) else "PROVISIONAL_MODELED_RANGE",cont.dbu_tracks,cont.aws_tracks,
+                "Contingent upside: the same stateful chain priced through steps marked PENDING_REEVALUATION using pre-change evidence. "
+                "Not authoritative: it never feeds package economics and must be regenerated after upstream remeasurement.")
+        return result
 
 
 class ScenarioPlanner:
@@ -2492,8 +2578,8 @@ class ScenarioPlanner:
 
     def _gate(self,c:CandidateRecommendation)->str:
         if c.knob=="warehouse_channel": return "HITL_CONFIRM_PREVIEW_DEPENDENCIES"
-        if c.knob=="enable_photon" and c.status=="TEST_REQUIRED": return "A_B_CANARY_PHOTON_RUNTIME_DBU_COST"
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
+        if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
@@ -2532,7 +2618,7 @@ class ScenarioPlanner:
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
-        plan_order=["warehouse_channel","enable_photon","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
+        plan_order=["warehouse_channel","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
         steps=[]; pending_invalidated=set()
         for knob in plan_order:
             c=by_knob[knob]
@@ -2559,7 +2645,7 @@ class ScenarioPlanner:
 
 
 # ---------------------------------------------------------------------------
-# Locked Reporter JSON Contract v1.0.0 adapter / canonical JSON packaging
+# Locked Reporter JSON Contract v1.1.0 adapter / canonical JSON packaging
 # ---------------------------------------------------------------------------
 
 
@@ -2605,6 +2691,19 @@ def _contract_component_ranges(
     dbu: Optional[Range3], aws: Optional[Range3], total: Optional[Range3]
 ) -> rc.ComponentRanges:
     return rc.ComponentRanges(_contract_range(dbu), _contract_range(aws), _contract_range(total))
+
+
+def _step_projection(step: PlanStep) -> Optional[rc.StepProjection]:
+    """Cumulative stateful savings after this step, or None when the chain could not price it."""
+    if step.running_dbu_savings_range_365 is None and step.running_aws_savings_range_365 is None:
+        return None
+    total = step.running_estimated_savings_range_365 if step.running_aws_savings_range_365 is not None else None
+    return rc.StepProjection(
+        pricing_basis=rc.PricingBasis(step.pricing_basis),
+        running_savings_365d=_contract_component_ranges(
+            step.running_dbu_savings_range_365, step.running_aws_savings_range_365, total
+        ),
+    )
 
 
 def _forward_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
@@ -2753,8 +2852,6 @@ def _technique_id(c: CandidateRecommendation) -> str:
     knob = c.knob
     cur = _scalar_config(c.current_config)
     rec = _scalar_config(c.recommended_config)
-    if knob == "enable_photon":
-        return "WH-PHOTON-ENABLE-001"
     if knob == "warehouse_size":
         if cur in SIZE_ORDER and rec in SIZE_ORDER and cur != rec:
             return "WH-SIZE-DOWNSIZE-001" if SIZE_ORDER.index(rec) < SIZE_ORDER.index(cur) else "WH-SIZE-UPSIZE-001"
@@ -3078,6 +3175,8 @@ def _compatibility_contract(
 
 
 def _scenario_estimation_status(value: str) -> rc.EstimationStatus:
+    if value == "NO_CHANGE":  # a plan with no steps changes nothing: a known zero, not an unavailable estimate
+        return rc.EstimationStatus.NO_DELTA_MODELED
     try:
         return rc.EstimationStatus(value)
     except ValueError:
@@ -3168,6 +3267,7 @@ def _scenario_contracts(
                 ),
                 dependencies=_dependency_refs(st.dependencies),
                 invalidates=_tunable_knobs(st.invalidates),
+                projected_economics=_step_projection(st),
             ))
             next_step += 1
 
@@ -3199,6 +3299,7 @@ def _scenario_contracts(
                     scenario_evidence_refs.append(ref)
 
         pe = s.portfolio_estimate
+        ct = pe.contingent
         economics = rc.ScenarioEconomics(
             estimation_status=_scenario_estimation_status(pe.estimate_status),
             baseline_365d=baseline,
@@ -3210,6 +3311,12 @@ def _scenario_contracts(
             ),
             method=pe.method,
             is_additive=False,
+            contingent_estimated_cost_365d=_contract_component_ranges(
+                ct.dbu_365d_estimated_cost_range, ct.aws_365d_estimated_cost_range, ct.total_365d_estimated_cost_range
+            ) if ct is not None else None,
+            contingent_savings_365d=_contract_component_ranges(
+                ct.dbu_365d_savings_range, ct.aws_365d_savings_range, ct.total_365d_savings_range
+            ) if ct is not None else None,
         )
         item = rc.Scenario(
             scenario_id=scenario_id,
@@ -3386,7 +3493,7 @@ def _build_locked_recommendation_package(
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
 ) -> rc.RecommendationPackage:
-    """Build one immutable Reporter JSON Contract v1.0.0 package from reviewed decisions."""
+    """Build one immutable Reporter JSON Contract v1.1.0 package from reviewed decisions."""
     ep = e.current_epoch
     start_time = _iso_z(ep.epoch_start)
     contract_epoch_id = rc.make_epoch_id(
@@ -3578,7 +3685,7 @@ def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
     try:
         import jsonschema  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.0.0 output") from exc
+        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.1.0 output") from exc
     schema = json.loads(_CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator(schema).validate(dict(payload))
 
@@ -3595,7 +3702,7 @@ def package_locked_contract(
     *,
     generate_workbook: bool = True,
 ) -> Dict[str, str]:
-    """Write locked JSON packages plus the Workbook Contract v1.1.0 projection.
+    """Write locked JSON packages plus the Workbook Contract v1.2.0 projection.
 
     Every packages/*.json file remains the source of truth. workbook.xlsx is a
     presentation-only projection and is never read back into the decision engine.
@@ -3632,7 +3739,7 @@ def package_locked_contract(
         try:
             from reporters.workbook_reporter import write_workbook
         except ImportError as exc:
-            raise RuntimeError("Workbook generation requires the artifact_tool runtime. Use --no-workbook only when producing JSON packages in a runtime without artifact_tool.") from exc
+            raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
         workbook_path = write_workbook(output_dir / "workbook.xlsx", packages)
         result["workbook"] = str(workbook_path)
         LOGGER.info("workbook.v1.done path=%s", workbook_path)
@@ -3643,7 +3750,7 @@ def package_locked_contract(
         "generated_at": max((p.provenance.generated_at for p in packages), default=dt.datetime.now(dt.timezone.utc).isoformat()),
         "package_count": len(packages),
         "packages": entries,
-        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.0.0 RecommendationPackage.",
+        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.1.0 RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
         "workbook_file": None if workbook_path is None else workbook_path.name,
@@ -3713,9 +3820,10 @@ def demo_evidence() -> List[WarehouseEvidence]:
         query={
             "epoch_queries": 110000, "epoch_active_days": 250,
             "queries_30": 12000, "active_days_30": 30,
-            "p95_total_ms_30": 3200, "p95_wait_compute_ms_30": 4000, "p95_wait_capacity_ms_30": 0,
+            "p95_total_ms_30": 3200, "compute_wait_queries_30": 8, "p95_wait_compute_ms_when_waited_30": 4000,
+            "queued_queries_30": 0, "p95_wait_capacity_ms_when_queued_30": None,
             "p95_execution_ms_30": 2500, "p99_execution_ms_30": 10000, "max_execution_ms_30": 220000,
-            "queued_query_pct_30": 0.0, "spill_query_pct_30": 0.0, "p95_spill_bytes_30": 0,
+            "queued_query_pct_30": 0.0, "spill_query_pct_30": 0.0, "spill_queries_30": 0, "p95_spill_bytes_when_spilled_30": None,
             "total_spill_gib_30": 0.0, "p95_read_bytes_30": 20 * 1024**2,
             "avg_read_io_cache_percent_30": 42.0, "failure_cancel_pct_30": 0.2,
             "result_cache_pct_30": 14.0, "tagged_query_pct_30": 78.0,
@@ -3824,11 +3932,14 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         source_counts["sql_query_source_queries_30"]=source_counts["sql_query_source_queries_30"] or int(q30*0.08)
         if source=="DASHBOARD": source_counts["power_bi_queries_30"]=int(q30*0.25)
         wait_compute=85000 if name=="Cold Start BI" else 3500
+        queued_n=round(queue_pct/100.0*q30); spill_n=round(spill_pct/100.0*q30)
+        compute_wait_n=starts  # compute waits come from the first query after each warehouse (re)start
         q={
             "epoch_queries":epoch_queries,"epoch_active_days":min(age_days,250),"queries_30":q30,"active_days_30":active_days,
-            "p95_total_ms_30":p95+1000,"p95_wait_compute_ms_30":wait_compute,"p95_wait_capacity_ms_30":wait_ms,
+            "p95_total_ms_30":p95+1000,"compute_wait_queries_30":compute_wait_n,"p95_wait_compute_ms_when_waited_30":wait_compute if compute_wait_n else None,
+            "queued_queries_30":queued_n,"p95_wait_capacity_ms_when_queued_30":wait_ms if queued_n else None,
             "p95_execution_ms_30":p95,"p99_execution_ms_30":p99,"max_execution_ms_30":max(p99*2,120000),
-            "queued_query_pct_30":queue_pct,"queue_time_share_pct_30":min(queue_pct,25.0),"spill_query_pct_30":spill_pct,"p95_spill_bytes_30":spill_p95,
+            "queued_query_pct_30":queue_pct,"queue_time_share_pct_30":min(queue_pct,25.0),"spill_query_pct_30":spill_pct,"spill_queries_30":spill_n,"p95_spill_bytes_when_spilled_30":spill_p95 if spill_n else None,
             "total_spill_gib_30":round(spill_pct*2,2),"p95_read_bytes_30":20*1024**2,"avg_read_io_cache_percent_30":35.0,
             "failure_cancel_pct_30":0.3,"result_cache_pct_30":10.0,"tagged_query_pct_30":70.0,
             "statement_text_visible_pct_30":100.0,"hive_metastore_reference_queries_30":0,
@@ -3998,7 +4109,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.0 (Reporter Contract v1.0.0 + Workbook Contract v1.1.0)")
+    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.7.1 (Reporter Contract v1.1.0 + Workbook Contract v1.2.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])
@@ -4064,7 +4175,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.0.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
+        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.1.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0

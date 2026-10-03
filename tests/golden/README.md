@@ -8,7 +8,7 @@ Core fixtures retained from the design discussion:
 - concurrency-constrained
 - cold-start-sensitive
 - serverless
-- photon-disabled
+- photon-disabled (Photon observed DISABLED: reported in `current_config.photon`, never recommended)
 - newly-changed-config
 - sparse-evidence
 

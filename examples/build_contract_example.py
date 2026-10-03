@@ -16,14 +16,14 @@ WAREHOUSE = "wh-demo-001"
 REGION = "us-east-1"
 CURRENCY = "USD"
 
-POLICY_VERSION = "policy-v2.7"
-ANALYZER_VERSION = "2.7.0"
-OPTIMIZER_VERSION = "2.7.0"
-MODELER_VERSION = "2.7.0"
-ESTIMATOR_VERSION = "2.7.0"
-BUNDLE_VERSION = "2.7.0"
-REVIEWER_VERSION = "2.7.0"
-DECISION_VERSION = "decision-graph-v2.7"
+POLICY_VERSION = "policy-v2.7.1"
+ANALYZER_VERSION = "2.7.1"
+OPTIMIZER_VERSION = "2.7.1"
+MODELER_VERSION = "2.7.1"
+ESTIMATOR_VERSION = "2.7.1"
+BUNDLE_VERSION = "2.7.1"
+REVIEWER_VERSION = "2.7.1"
+DECISION_VERSION = "decision-graph-v2.7.1"
 CATALOG_VERSION = "technique-catalog-v1"
 
 
@@ -106,8 +106,6 @@ def build_package() -> RecommendationPackage:
 
     candidate_specs = [
         # technique, knob, status, current, recommended, objective, evidence, blockers, invalidates, confidence, economics
-        ("WH-PHOTON-ENABLE-001", TunableKnob.ENABLE_PHOTON, RecommendationStatus.NO_CHANGE, True, True, [Objective.PERFORMANCE], [by_metric["photon_enabled_usage_pct"]], [], [], 0.98,
-         ranges((0,0,0),(0,0,0),(0,0,0))),
         ("WH-SIZE-DOWNSIZE-001", TunableKnob.WAREHOUSE_SIZE, RecommendationStatus.TEST_REQUIRED, "LARGE", "MEDIUM", [Objective.COST], [by_metric["spill_query_pct_30d"],by_metric["p95_execution_ms_30d"],by_metric["p99_execution_ms_30d"],by_metric["queued_query_pct_30d"]], ["A_B_PERFORMANCE_VALIDATION_REQUIRED"], [TunableKnob.MAX_CLUSTERS,TunableKnob.MIN_CLUSTERS,TunableKnob.AUTO_STOP_MINUTES], 0.78,
          ranges((5300,7300,8900),(1800,2450,3100),(7100,9750,12000))),
         ("WH-MAX-CLUSTER-REDUCE-001", TunableKnob.MAX_CLUSTERS, RecommendationStatus.ACTIONABLE, 4, 3, [Objective.COST_GUARDRAIL], [by_metric["max_observed_clusters"],by_metric["queued_query_pct_30d"]], [], [], 0.92,
@@ -141,7 +139,6 @@ def build_package() -> RecommendationPackage:
             candidate_id=cid, technique_id=technique, knob=knob, status=status,
             current_value=cur, recommended_value=rec, objectives=objectives,
             rationale={
-                TunableKnob.ENABLE_PHOTON:"Current-epoch signed billing DBUs consistently show Photon enabled.",
                 TunableKnob.WAREHOUSE_SIZE:"Current epoch shows negligible spill/queue pressure and low execution latency, supporting a one-size-down canary.",
                 TunableKnob.MAX_CLUSTERS:"Observed scale never required the configured maximum; lower the unused guardrail.",
                 TunableKnob.MIN_CLUSTERS:"The warehouse spends most running time at minimum capacity without queue pressure.",
@@ -177,24 +174,34 @@ def build_package() -> RecommendationPackage:
         policy_version=POLICY_VERSION,bundle_estimator_version=BUNDLE_VERSION,decision_graph_version=DECISION_VERSION,
     )
 
-    plan_a_savings = ranges((11130.20,16781.91,22621.99),(2814.02,5232.32,7386.81),(13944.22,22014.23,30008.80))
-    plan_a_cost = ranges((4378.01,10218.09,15869.80),(1407.01,3561.50,5979.80),(5785.02,13779.59,21849.60))
+    # Plan A headline economics are AUTHORITATIVE: only the size step is priced; the max/min/auto-stop steps
+    # are PENDING_REEVALUATION after the size canary. Their stateful upside is published separately as contingent.
+    plan_a_savings = ranges((3000,4800,6600),(1000,1700,2400),(4000,6500,9000))
+    plan_a_cost = ranges((20400,22200,24000),(6393.82,7093.82,7793.82),(26793.82,29293.82,31793.82))
+    plan_a_contingent_savings = ranges((11130.20,16781.91,22621.99),(2814.02,5232.32,7386.81),(13944.22,22014.23,30008.80))
+    plan_a_contingent_cost = ranges((4378.01,10218.09,15869.80),(1407.01,3561.50,5979.80),(5785.02,13779.59,21849.60))
+    step_running = {
+        1: (StepProjection(PricingBasis.AUTHORITATIVE, plan_a_savings)),
+        2: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_savings)),
+        3: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, ranges((7000,11000,15500),(1800,3300,4800),(8800,14300,20300)))),
+        4: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_contingent_savings)),
+    }
     plan_b_savings = ranges((4000,9000,13000),(8793.82,8793.82,8793.82),(12793.82,17793.82,21793.82))
     plan_b_cost = ranges((14000,18000,23000),(0,0,0),(14000,18000,23000))
 
-    def step(n:int, c:CandidateRecommendation, state:ExecutionState, validation:ValidationType, invalidates=None) -> PlanStep:
+    def step(n:int, c:CandidateRecommendation, state:ExecutionState, validation:ValidationType, invalidates=None, projection=None) -> PlanStep:
         return PlanStep(
             step=n, step_type=PlanStepType.CANDIDATE, candidate_id=c.candidate_id, technique_id=c.technique_id, knob=c.knob,
             action=None,current_value=c.current_value,recommended_value=c.recommended_value,execution_state=state,confidence=c.confidence,
             validation=ValidationGate(validation_type=validation,success_metrics=["p95_execution_ms","p99_execution_ms","failure_rate","queue_wait","dbu_cost","aws_cost"] if validation==ValidationType.A_B_CANARY else [],remeasure_days=7 if validation==ValidationType.REMEASURE else None,action_after="REGENERATE_RECOMMENDATIONS" if validation==ValidationType.REMEASURE else None),
-            dependencies=[],invalidates=invalidates or [],
+            dependencies=[],invalidates=invalidates or [],projected_economics=projection,
         )
 
     plan_a_steps = [
-        step(1,cand[TunableKnob.WAREHOUSE_SIZE],ExecutionState.READY_FOR_CANARY,ValidationType.A_B_CANARY,[TunableKnob.MAX_CLUSTERS,TunableKnob.MIN_CLUSTERS,TunableKnob.AUTO_STOP_MINUTES]),
-        step(2,cand[TunableKnob.MAX_CLUSTERS],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL),
-        step(3,cand[TunableKnob.MIN_CLUSTERS],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL),
-        step(4,cand[TunableKnob.AUTO_STOP_MINUTES],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL),
+        step(1,cand[TunableKnob.WAREHOUSE_SIZE],ExecutionState.READY_FOR_CANARY,ValidationType.A_B_CANARY,[TunableKnob.MAX_CLUSTERS,TunableKnob.MIN_CLUSTERS,TunableKnob.AUTO_STOP_MINUTES],projection=step_running[1]),
+        step(2,cand[TunableKnob.MAX_CLUSTERS],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL,projection=step_running[2]),
+        step(3,cand[TunableKnob.MIN_CLUSTERS],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL,projection=step_running[3]),
+        step(4,cand[TunableKnob.AUTO_STOP_MINUTES],ExecutionState.PENDING_REEVALUATION,ValidationType.HITL,projection=step_running[4]),
         PlanStep(step=5,step_type=PlanStepType.REMEASURE,candidate_id=None,technique_id=None,knob=None,action="REMEASURE_AND_REGENERATE",current_value=None,recommended_value=None,execution_state=ExecutionState.REQUIRED,confidence=conf(1.0,"policy_gate"),validation=ValidationGate(ValidationType.REMEASURE,[],7,"REGENERATE_RECOMMENDATIONS"),dependencies=[],invalidates=[]),
     ]
     plan_b_steps = [
@@ -209,7 +216,8 @@ def build_package() -> RecommendationPackage:
             evidence_refs=[by_metric["queued_query_pct_30d"],by_metric["spill_query_pct_30d"],by_metric["time_at_min_clusters_pct"],by_metric["estimated_avoidable_idle_minutes"]],
             confidence=conf(0.78,"minimum_step_confidence"),
             compatibility=Compatibility(CompatibilityStatus.COMPATIBLE,CompatibilityMode.SYSTEM_TABLE_ONLY,[]),
-            portfolio_economics=ScenarioEconomics(EstimationStatus.PROVISIONAL_MODELED_RANGE,forward,plan_a_cost,plan_a_savings,"stateful_bundle_estimator",False),
+            portfolio_economics=ScenarioEconomics(EstimationStatus.PROVISIONAL_MODELED_RANGE,forward,plan_a_cost,plan_a_savings,"stateful_bundle_estimator_authoritative_prefix",False,
+                                                  contingent_estimated_cost_365d=plan_a_contingent_cost,contingent_savings_365d=plan_a_contingent_savings),
             execution_plan=plan_a_steps,
         ),
         Scenario(
@@ -228,7 +236,7 @@ def build_package() -> RecommendationPackage:
 
     assessment = Assessment(
         AssessmentStatus.OPTIMIZATION_AVAILABLE,
-        AssessmentSummary(candidate_count=7,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=2,not_applicable_count=0,insufficient_evidence_count=0),
+        AssessmentSummary(candidate_count=6,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=1,not_applicable_count=0,insufficient_evidence_count=0),
         EvidenceQuality(EvidenceQualityStatus.SUFFICIENT,conf(0.94),True,True,True,100.0),
     )
 
@@ -250,25 +258,25 @@ def build_package() -> RecommendationPackage:
     # base = BASE from recommended scenario; high = maximum HIGH across scenarios.
     envelope = ScenarioEnvelope(
         minimum_savings=ScenarioEnvelopePoint(
-            scenario_id=plan_b_id,bound=BoundName.LOW,
-            savings_365d=EconomicsPoint(4000,8793.82,12793.82),
-            estimated_cost_365d=EconomicsPoint(23000,0,23000),
+            scenario_id=plan_a_id,bound=BoundName.LOW,
+            savings_365d=EconomicsPoint(3000,1000,4000),
+            estimated_cost_365d=EconomicsPoint(24000,7793.82,31793.82),
         ),
         recommended_base=ScenarioEnvelopePoint(
             scenario_id=plan_a_id,bound=BoundName.BASE,
-            savings_365d=EconomicsPoint(16781.91,5232.32,22014.23),
-            estimated_cost_365d=EconomicsPoint(10218.09,3561.50,13779.59),
+            savings_365d=EconomicsPoint(4800,1700,6500),
+            estimated_cost_365d=EconomicsPoint(22200,7093.82,29293.82),
         ),
         maximum_savings=ScenarioEnvelopePoint(
-            scenario_id=plan_a_id,bound=BoundName.HIGH,
-            savings_365d=EconomicsPoint(22621.99,7386.81,30008.80),
-            estimated_cost_365d=EconomicsPoint(4378.01,1407.01,5785.02),
+            scenario_id=plan_b_id,bound=BoundName.HIGH,
+            savings_365d=EconomicsPoint(13000,8793.82,21793.82),
+            estimated_cost_365d=EconomicsPoint(14000,0,14000),
         ),
     )
     package_economics = PackageEconomics(
         currency=CURRENCY,baseline_365d=forward,
-        estimated_savings_365d=Range3(12793.82,22014.23,30008.80),
-        estimated_cost_365d=Range3(5785.02,13779.59,23000.0),
+        estimated_savings_365d=Range3(4000,6500,21793.82),
+        estimated_cost_365d=Range3(14000,29293.82,31793.82),
         scenario_envelope=envelope,included_scenario_ids=[plan_a_id,plan_b_id],excluded_scenarios=[],
         semantics=PackageEconomicsSemantics("SCENARIO_ENVELOPE",False,False),
     )

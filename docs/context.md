@@ -2,12 +2,12 @@
 
 **Document:** `docs/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.0  
+**Implementation baseline:** Publisher v2.7.1  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Approved LLD:** `docs/lld.md` v1.0.0  
-**Reporter JSON Contract:** v1.0.0 (locked)  
-**Workbook Contract:** v1.1.0 (locked)  
+**Reporter JSON Contract:** v1.1.0 (locked)  
+**Workbook Contract:** v1.2.0 (locked)  
 **Context version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01
@@ -43,8 +43,8 @@ flowchart TD
     H --> L[Approved LLD\nImplementation design]
     L --> C[Domain Context\nLanguage + semantics]
 
-    RC[Reporter JSON Contract v1.0.0\nPublic machine contract] --> L
-    WC[Workbook Contract v1.1.0\nHuman projection contract] --> L
+    RC[Reporter JSON Contract v1.1.0\nPublic machine contract] --> L
+    WC[Workbook Contract v1.2.0\nHuman projection contract] --> L
 
     CODE[publisher.py + contract modules] --> TESTS[Passing tests / golden scenarios]
     TESTS --> L
@@ -148,7 +148,7 @@ flowchart TD
 
 ### 5.1 Current implementation alignment
 
-Publisher v2.7.0 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
+Publisher v2.7.1 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
 
 ---
 
@@ -361,7 +361,7 @@ Allowed states:
 
 Sparse, stale, or low-coverage evidence yields `UNKNOWN` rather than a guessed state.
 
-A confidently observed `DISABLED` state may generate a Photon-enable candidate, but enablement remains **canary-gated** and no fabricated savings is asserted before validation.
+Since v2.7.1 an observed `DISABLED` state generates **no** candidate: Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted.
 
 ---
 
@@ -469,12 +469,12 @@ flowchart LR
 
 ## 14. Candidate domains
 
-Every supported warehouse is evaluated across the same seven candidate domains. The result may be a change, no-change, review, blocker, not-applicable, or insufficient-evidence decision.
+Every supported warehouse is evaluated across the same six candidate domains. The result may be a change, no-change, review, blocker, not-applicable, or insufficient-evidence decision.
 
 | Domain | Domain intent | Typical nature |
 |---|---|---|
 | Warehouse channel | Stability/governance posture | Guardrail, not primarily savings |
-| Photon | Observe/enable Photon where safely supported | Performance/cost canary |
+| Photon | Observe only (v2.7.1): left at its default, never recommended | n/a |
 | Warehouse size | Right-size vertical capacity | Cost/performance |
 | Max clusters | Right-size concurrency ceiling | Performance/cost guardrail |
 | Min clusters | Remove unnecessary baseline capacity | Cost/performance |
@@ -790,7 +790,7 @@ A canary is mandatory where the recommendation can materially affect workload be
 Examples:
 
 - warehouse size down;
-- Photon enablement when inferred disabled;
+- ~~Photon enablement when inferred disabled~~ (removed in v2.7.1: no Photon recommendation);
 - warehouse-type migration.
 
 ### 24.3 Canary success measures
@@ -1319,10 +1319,9 @@ material avoidable idle gaps
 The product may produce:
 
 ```text
-Photon       ENABLED -> ENABLED     NO_CHANGE
 Size         LARGE -> MEDIUM        TEST_REQUIRED
 Max clusters 4 -> 3                 ACTIONABLE
-Min clusters 2 -> 1                 ACTIONABLE
+Min clusters 2 -> 1                 TEST_REQUIRED
 Auto-stop    120 -> 30              ACTIONABLE
 Type         PRO -> SERVERLESS      TEST_REQUIRED / alternative
 ```
@@ -1359,7 +1358,7 @@ The existing max/min/auto-stop candidates are explainable opportunities, but the
 
 ### 40.1 Supported-type gate
 
-Publisher v2.7.0 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
+Publisher v2.7.1 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
 
 ### 40.2 Internal orchestration
 

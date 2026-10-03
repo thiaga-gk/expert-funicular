@@ -1,14 +1,14 @@
-# CLAUDE.md — v2.7.0 execution rules
+# CLAUDE.md — v2.7.1 execution rules
 
 ## Primary invariants
-- `RecommendationPackage` under Reporter JSON Contract v1.0.0 is the public machine source of truth.
-- Workbook Contract v1.1.0 is projection-only; never put optimization, estimation, confidence, ID/hash, or selection logic in Excel.
+- `RecommendationPackage` under Reporter JSON Contract v1.1.0 is the public machine source of truth.
+- Workbook Contract v1.2.0 is projection-only; never put optimization, estimation, confidence, ID/hash, or selection logic in Excel.
 - Identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
 
 ## Supported scope
 - Active types: `CLASSIC`, `PRO`, standard `SERVERLESS`.
 - `SUPPORTED_WAREHOUSE_TYPES` is fail-closed; never route unknown/future warehouse types into existing algorithms.
-- One candidate per active domain: channel guardrail, Photon, size, max clusters, min clusters, auto-stop, warehouse-type migration.
+- One candidate per active domain: channel guardrail, size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon is observation-only: it is left at its default and never recommended (no Databricks on/off price exists for SQL warehouses; savings would be guessed).
 - Query rewrite, storage, schedule, Spot policy and statement-timeout tuning are out of scope.
 
 ## Source authority
@@ -62,7 +62,7 @@ Before writing each package:
 3. `python -m unittest discover -s tests -v`
 4. regenerate the 15-warehouse demo;
 5. validate every package against semantic + JSON Schema rules;
-6. validate `workbook.xlsx` against exact sheet/column/grain rules and numeric economic semantics;
+6. validate `workbook.xlsx` against exact sheet/column/grain rules and numeric economic semantics (`python tools/validate_workbook.py <output_dir>`);
 7. scan the repo for stale version/legacy/deferred references before release packaging.
 
 ## Reusable publisher skills

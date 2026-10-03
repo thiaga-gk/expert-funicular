@@ -24,7 +24,25 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(len(self.packages),15)
         self.assertEqual(len(self.projection.warehouse_portfolio),15)
         self.assertEqual(len(self.projection.scenario_plans),30)
-        self.assertEqual(len(self.projection.recommendation_registry),105)
+        self.assertEqual(len(self.projection.recommendation_registry),90)
+
+    def test_scenario_plans_carry_contingent_upside_apart_from_authoritative_impact(self):
+        """Contract 1.1.0 / workbook 1.2.0: contingent upside is separate, numeric, signed and tagged in the plan text."""
+        rows = self.projection.scenario_plans
+        keys = ("contingent_total_low_impact", "contingent_total_base_impact", "contingent_total_high_impact")
+        self.assertTrue(set(keys) <= {c.key for c in wc.SCENARIO_COLUMNS})
+        priced = [r for r in rows if isinstance(r["contingent_total_base_impact"], (int, float))]
+        self.assertTrue(priced)  # e.g. a size canary with min/max/auto-stop pending
+        for r in rows:
+            if r in priced:
+                self.assertIn("PENDING_REEVALUATION", r["execution_plan"])
+                self.assertIn("priced CONTINGENT", r["execution_plan"])
+                for k in keys:
+                    self.assertIsInstance(r[k], (int, float))
+                    self.assertNotIsInstance(r[k], bool)
+            else:  # nothing pending, or pending but unpriceable: unavailable, never zero
+                for k in keys:
+                    self.assertEqual(r[k], wc.DISPLAY_UNAVAILABLE)
 
     def test_workbook_rows_trace_back_to_locked_ids(self):
         self.assertEqual({x["recommendation_package_id"] for x in self.projection.warehouse_portfolio},{p.recommendation_package_id for p in self.packages})
@@ -40,7 +58,7 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(set(row),{c.key for c in wc.PORTFOLIO_COLUMNS})
         for key in ("candidate_view","recommended_execution_plan","package_low_impact","package_base_impact","package_high_impact","package_cost_low_365d","package_cost_base_365d","package_cost_high_365d","active_days_30d","query_source_profile_json","scenario_ids_json","candidate_ids_json"):
             self.assertIn(key,row)
-        self.assertIn("Photon",row["candidate_view"])
+        self.assertNotIn("Photon",row["candidate_view"])
 
     def test_scenario_and_registry_match_exact_locked_columns(self):
         self.assertEqual(set(self.projection.scenario_plans[0]),{c.key for c in wc.SCENARIO_COLUMNS})
@@ -78,9 +96,62 @@ class WorkbookContractTests(unittest.TestCase):
                     self.assertEqual(spec.number_format,"@",spec.key)
 
     def test_workbook_contract_column_counts_and_long_identifier_rendering(self):
-        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(58,42,53))
-        self.assertEqual(wr._excel_text("1234567890123456"), "'1234567890123456")
+        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(58,45,53))
+        # Long digit-only identifiers are written as explicit text cells, so no apostrophe workaround is needed.
+        self.assertEqual(wr._excel_text("1234567890123456"), "1234567890123456")
         self.assertEqual(wr._excel_text("wh-synth-001"), "wh-synth-001")
+
+    def test_rendered_workbook_satisfies_the_contract(self):
+        """Render the real .xlsx and validate sheets, columns, grains, text IDs, numeric economics, no formulas."""
+        from openpyxl import load_workbook
+        from tools.validate_workbook import validate_workbook
+        with tempfile.TemporaryDirectory() as td:
+            path = wr.write_workbook(Path(td) / "workbook.xlsx", self.packages)
+            packages = [json.loads(json.dumps(pkg.to_dict())) for pkg in self.packages]
+            self.assertEqual(validate_workbook(path, packages), [])
+            wb = load_workbook(path)
+            portfolio = wb[wc.SHEET_PORTFOLIO]
+            headers = [c.value for c in portfolio[4]]
+            ws_col = headers.index("Workspace ID") + 1
+            cell = portfolio.cell(row=5, column=ws_col)
+            self.assertEqual(cell.data_type, "s")          # a long digit-only id stays exact text
+            self.assertEqual(cell.value, self.packages[0].warehouse.workspace_id)
+            scenarios = wb[wc.SHEET_SCENARIOS]
+            sh = [c.value for c in scenarios[4]]
+            base = sh.index("Total base impact") + 1
+            self.assertTrue(any(isinstance(scenarios.cell(r, base).value, float) for r in range(5, scenarios.max_row + 1)))
+
+    def test_workbook_validator_rejects_formulas_string_money_and_wrong_columns(self):
+        from openpyxl import load_workbook
+        from tools.validate_workbook import validate_workbook
+        with tempfile.TemporaryDirectory() as td:
+            path = wr.write_workbook(Path(td) / "workbook.xlsx", self.packages[:2])
+            self.assertEqual(validate_workbook(path), [])
+            wb = load_workbook(path)
+            scenarios = wb[wc.SHEET_SCENARIOS]
+            base = [c.value for c in scenarios[4]].index("Total base impact") + 1
+            scenarios.cell(row=5, column=base).value = "Save USD 1,000"          # string money
+            wb[wc.SHEET_PORTFOLIO]["A5"].value = "=SUM(1,2)"                      # business formula
+            wb[wc.SHEET_REGISTRY]["B4"].value = "Renamed column"                   # contract column drift
+            wb[wc.SHEET_EXECUTIVE].sheet_state = "hidden"                          # hidden sheet
+            tampered = Path(td) / "tampered.xlsx"
+            wb.save(tampered)
+            joined = "\n".join(validate_workbook(tampered))
+            for expected in ("must be numeric", "formulas are not allowed", "header row differs", "must be visible"):
+                self.assertIn(expected, joined)
+
+    def test_text_that_looks_like_a_formula_is_written_as_text(self):
+        from openpyxl import Workbook
+        sheet = Workbook().active
+        cell = wr._put(sheet, 1, 1, "=1+1")
+        self.assertEqual(cell.data_type, "s")
+
+    def test_oversized_audit_cells_are_truncated_with_a_visible_marker(self):
+        from openpyxl import Workbook
+        sheet = Workbook().active
+        cell = wr._put(sheet, 1, 1, "x" * 40000)
+        self.assertLessEqual(len(cell.value), wr.EXCEL_MAX_CELL_CHARS)
+        self.assertTrue(cell.value.endswith(wr.TRUNCATION_MARKER))
 
     def test_package_writer_places_workbook_in_output_dir(self):
         with tempfile.TemporaryDirectory() as td:
@@ -88,7 +159,7 @@ class WorkbookContractTests(unittest.TestCase):
             self.assertEqual(Path(files["workbook"]).name,"workbook.xlsx")
             self.assertTrue(Path(files["workbook"]).exists())
             manifest=json.loads(Path(files["manifest"]).read_text())
-            self.assertEqual(manifest["workbook_contract_version"],"1.1.0")
+            self.assertEqual(manifest["workbook_contract_version"],"1.2.0")
             self.assertEqual(manifest["workbook_status"],"GENERATED")
 
 

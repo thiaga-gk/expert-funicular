@@ -1,4 +1,4 @@
-"""Reporter contract v1.0.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v1.1.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from publisher.py.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 HASH_HEX_LENGTH = 24  # 96-bit display identifier; full SHA-256 remains available in provenance.
 
 
@@ -85,6 +85,12 @@ class ExecutionState(str, Enum):
     REQUIRED = "REQUIRED"
     COMPLETED = "COMPLETED"
     INVALIDATED = "INVALIDATED"
+
+
+class PricingBasis(str, Enum):
+    """Whether a plan step's projected economics may feed scenario/package economics (contract 1.1.0)."""
+    AUTHORITATIVE = "AUTHORITATIVE"
+    CONTINGENT_PENDING_REEVALUATION = "CONTINGENT_PENDING_REEVALUATION"
 
 
 class ScenarioStatus(str, Enum):
@@ -625,6 +631,16 @@ class ComponentRanges:
                 _require(abs(expected - actual) <= 0.03, f"{field_name}.{bound} total must equal DBU + AWS")
 
 
+def _require_unavailable_means_null(status: "EstimationStatus", *ranges: Optional["ComponentRanges"], field_name: str) -> None:
+    """Unknown cost is unavailable/null, never zero: an UNAVAILABLE estimate must not carry any number."""
+    if status == EstimationStatus.UNAVAILABLE:
+        for r in ranges:
+            _require(
+                r is None or (r.dbu is None and r.aws is None and r.total is None),
+                f"{field_name}: an UNAVAILABLE estimate must have null ranges, never zero",
+            )
+
+
 # ---------------------------------------------------------------------------
 # Warehouse identity and current state
 # ---------------------------------------------------------------------------
@@ -904,6 +920,7 @@ class IndependentEconomics:
         self.baseline_365d.validate()
         self.estimated_cost_365d.validate(nonnegative=True, field_name="estimated_cost_365d")
         self.savings_365d.validate(nonnegative=False, field_name="savings_365d")
+        _require_unavailable_means_null(self.estimation_status, self.estimated_cost_365d, self.savings_365d, field_name="independent economics")
 
 
 @dataclass(frozen=True)
@@ -979,6 +996,16 @@ class ValidationGate:
 
 
 @dataclass(frozen=True)
+class StepProjection:
+    """Cumulative stateful savings after this step, signed (positive = savings), with its pricing basis."""
+    pricing_basis: PricingBasis
+    running_savings_365d: ComponentRanges
+
+    def validate(self) -> None:
+        self.running_savings_365d.validate(nonnegative=False, field_name="plan_step.projected_economics.running_savings_365d")
+
+
+@dataclass(frozen=True)
 class PlanStep:
     step: int
     step_type: PlanStepType
@@ -993,11 +1020,19 @@ class PlanStep:
     validation: ValidationGate
     dependencies: List[DependencyRef]
     invalidates: List[TunableKnob]
+    projected_economics: Optional[StepProjection] = None
 
     def validate(self, *, candidate_ids: Iterable[str]) -> None:
         _require(self.step >= 1, "plan step must be >= 1")
         self.confidence.validate()
         self.validation.validate()
+        if self.projected_economics is not None:
+            self.projected_economics.validate()
+            pending = self.execution_state == ExecutionState.PENDING_REEVALUATION
+            _require(
+                pending == (self.projected_economics.pricing_basis == PricingBasis.CONTINGENT_PENDING_REEVALUATION),
+                "a PENDING_REEVALUATION step must be priced CONTINGENT and every other priced step AUTHORITATIVE",
+            )
         for dependency in self.dependencies:
             dependency.validate()
         if self.step_type == PlanStepType.CANDIDATE:
@@ -1018,6 +1053,10 @@ class ScenarioEconomics:
     savings_365d: ComponentRanges
     method: str
     is_additive: bool = False
+    # Contingent upside of steps awaiting re-evaluation; never feeds package economics. Null when no step is
+    # pending or when it cannot be priced (unknown cost is null, never zero).
+    contingent_estimated_cost_365d: Optional[ComponentRanges] = None
+    contingent_savings_365d: Optional[ComponentRanges] = None
 
     def validate(self) -> None:
         _require(self.is_additive is False, "scenario economics are stateful and non-additive")
@@ -1025,6 +1064,17 @@ class ScenarioEconomics:
         self.baseline_365d.validate()
         self.estimated_cost_365d.validate(nonnegative=True, field_name="scenario.estimated_cost_365d")
         self.savings_365d.validate(nonnegative=False, field_name="scenario.savings_365d")
+        _require_unavailable_means_null(
+            self.estimation_status, self.estimated_cost_365d, self.savings_365d,
+            self.contingent_estimated_cost_365d, self.contingent_savings_365d, field_name="scenario economics",
+        )
+        _require(
+            (self.contingent_estimated_cost_365d is None) == (self.contingent_savings_365d is None),
+            "contingent cost and savings must be published together or both null",
+        )
+        if self.contingent_savings_365d is not None:
+            self.contingent_estimated_cost_365d.validate(nonnegative=True, field_name="scenario.contingent_estimated_cost_365d")
+            self.contingent_savings_365d.validate(nonnegative=False, field_name="scenario.contingent_savings_365d")
 
 
 @dataclass(frozen=True)
@@ -1054,6 +1104,37 @@ class Scenario:
         _require([x.step for x in ordered_steps] == list(range(1, len(ordered_steps) + 1)), "scenario steps must be contiguous starting at 1")
         for step in ordered_steps:
             step.validate(candidate_ids=candidate_set)
+        self._validate_projection_consistency(ordered_steps)
+
+    def _validate_projection_consistency(self, ordered_steps: List["PlanStep"]) -> None:
+        """Scenario headline economics are authoritative-only; contingent upside is separate (contract 1.1.0)."""
+        econ = self.portfolio_economics
+
+        def last_projection(basis: PricingBasis) -> Optional[ComponentRanges]:
+            matching = [x.projected_economics for x in ordered_steps
+                        if x.projected_economics is not None and x.projected_economics.pricing_basis == basis]
+            return matching[-1].running_savings_365d if matching else None
+
+        def same(a: ComponentRanges, b: ComponentRanges, name: str) -> None:
+            for component in ("dbu", "aws", "total"):
+                ra, rb = getattr(a, component), getattr(b, component)
+                if ra is None or rb is None:
+                    continue
+                for bound in ("low", "base", "high"):
+                    _require(abs(getattr(ra, bound) - getattr(rb, bound)) <= 0.03, f"{name}: {component}.{bound} mismatch")
+
+        if econ.contingent_savings_365d is not None:
+            _require(
+                any(x.execution_state == ExecutionState.PENDING_REEVALUATION for x in ordered_steps),
+                "contingent economics require at least one PENDING_REEVALUATION step",
+            )
+            last_contingent = last_projection(PricingBasis.CONTINGENT_PENDING_REEVALUATION)
+            if last_contingent is not None:
+                same(econ.contingent_savings_365d, last_contingent, "contingent savings must equal the last pending step's running savings")
+        if econ.estimation_status != EstimationStatus.UNAVAILABLE:
+            last_authoritative = last_projection(PricingBasis.AUTHORITATIVE)
+            if last_authoritative is not None:
+                same(econ.savings_365d, last_authoritative, "scenario savings must equal the last authoritative step's running savings")
 
 
 @dataclass(frozen=True)

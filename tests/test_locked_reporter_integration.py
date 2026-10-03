@@ -32,7 +32,35 @@ class LockedReporterIntegrationTests(unittest.TestCase):
                 "scenarios", "recommended_plan", "package_economics", "realization", "provenance",
             },
         )
-        self.assertEqual(payload["contract_version"], "1.0.0")
+        self.assertEqual(payload["contract_version"], "1.1.0")
+
+    def test_package_base_is_authoritative_and_contingent_upside_is_separate(self):
+        """Audit H1: steps awaiting re-evaluation never feed the package base; their upside is published apart."""
+        _, _, packages = self._packages()
+        package = packages[0]
+        plan = next(s for s in package.scenarios if s.scenario_id == package.recommended_plan.scenario_id)
+        econ = plan.portfolio_economics
+        pending = [x for x in plan.execution_plan if x.execution_state == rc.ExecutionState.PENDING_REEVALUATION]
+        self.assertTrue(pending)
+        for step in plan.execution_plan:
+            if step.projected_economics is not None:
+                self.assertEqual(
+                    step.projected_economics.pricing_basis == rc.PricingBasis.CONTINGENT_PENDING_REEVALUATION,
+                    step in pending,
+                )
+        # The package base is exactly the authoritative scenario base, with no pending-step savings in it.
+        self.assertEqual(package.package_economics.estimated_savings_365d.base, econ.savings_365d.total.base)
+        self.assertEqual(package.package_economics.scenario_envelope.recommended_base.savings_365d.total, econ.savings_365d.total.base)
+        self.assertGreater(econ.contingent_savings_365d.total.base, econ.savings_365d.total.base)
+        # Round-trips through JSON and the committed Draft 2020-12 schema.
+        payload = package.to_dict()
+        publisher.validate_locked_package_schema(payload)
+        plan_json = next(x for x in payload["scenarios"] if x["scenario_id"] == plan.scenario_id)
+        self.assertIsNotNone(plan_json["portfolio_economics"]["contingent_savings_365d"])
+        self.assertTrue(any(
+            (st["projected_economics"] or {}).get("pricing_basis") == "CONTINGENT_PENDING_REEVALUATION"
+            for st in plan_json["execution_plan"]
+        ))
 
     def test_content_ids_and_full_hash_are_recomputable(self):
         _, _, packages = self._packages()
@@ -89,8 +117,8 @@ class LockedReporterIntegrationTests(unittest.TestCase):
             self.assertNotIn("report.json", {p.name for p in out.iterdir()})
             self.assertIn("workbook.xlsx", {p.name for p in out.iterdir()})
             manifest = json.loads((out / "manifest.json").read_text())
-            self.assertEqual(manifest["reporter_contract_version"], "1.0.0")
-            self.assertEqual(manifest["workbook_contract_version"], "1.1.0")
+            self.assertEqual(manifest["reporter_contract_version"], "1.1.0")
+            self.assertEqual(manifest["workbook_contract_version"], "1.2.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertIn("workbook", paths)
             self.assertIn("manifest", paths)
