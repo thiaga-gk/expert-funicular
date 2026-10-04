@@ -2715,6 +2715,33 @@ class Analyzer:
             interpretation=interpretation,
         )
 
+    @staticmethod
+    def _auto_stop_options(gaps: Mapping[str, Any], current_auto: int, values: Sequence[int], restart_cost: float, floor_clusters: int,
+                           budget: Optional[float]) -> List[Dict[str, Any]]:
+        """Score auto-stop values on running-idle evidence (lowering: idle removed minus restarts added; raising:
+        restarts saved minus idle added), with each value's added cold-start share against the budget (None: no budget)."""
+        by_target = gaps.get("running_idle_by_target") or {}
+        queries = optional_float(gaps.get("running_idle_queries"))
+        options: List[Dict[str, Any]] = []
+        for x in values:
+            if x == current_auto:
+                continue
+            row = by_target.get(str(x)) or {}  # collected, no row: nothing removed, added or avoided at this value
+            lower = current_auto == 0 or x < current_auto
+            if lower:
+                gain = safe_float(row.get("removable_running_cluster_minutes")); starts = safe_int(row.get("additional_starts"))
+                loss = starts * restart_cost
+            else:
+                starts = -safe_int(row.get("avoided_starts"))
+                gain = -starts * restart_cost; loss = safe_float(row.get("added_idle_wall_minutes")) * floor_clusters
+            share = None if not queries else round(100.0 * starts / queries, 4)
+            options.append({"target": x, "direction": "LOWER" if lower else "RAISE", "gain_cluster_minutes": round(gain, 3),
+                            "loss_cluster_minutes": round(loss, 3), "net_cluster_minutes": round(gain - loss, 3), "added_starts": starts,
+                            "removable_wall_minutes": safe_float(row.get("removable_running_wall_minutes")) if lower else 0.0,
+                            "added_cold_start_share_pct": share,
+                            "within_cold_start_budget": budget is None or starts <= 0 or (share is not None and share <= budget)})
+        return options
+
     def analyze(self, e: WarehouseEvidence) -> Dict[str, AnalysisResult]:
         ep = e.current_epoch
         q, ev, gaps, cfg = ep.query, ep.events, ep.gaps, ep.config
@@ -2881,25 +2908,7 @@ class Analyzer:
         by_target = gaps.get("running_idle_by_target")
         running_available = isinstance(by_target, Mapping) and all(gaps.get(k) is not None for k in
                                                                    ("running_idle_queries", "observed_running_cluster_minutes", "kept_alive_wall_minutes"))
-        options: List[Dict[str, Any]] = []
-        if running_available:
-            for x in grid:
-                if x == current_auto:
-                    continue
-                row = by_target.get(str(x)) or {}  # collected, no row: nothing removed, added or avoided at this value
-                lower = current_auto == 0 or x < current_auto
-                if lower:
-                    gain = safe_float(row.get("removable_running_cluster_minutes")); starts = safe_int(row.get("additional_starts"))
-                    loss = starts * restart_cost
-                else:
-                    starts = -safe_int(row.get("avoided_starts"))
-                    gain = -starts * restart_cost; loss = safe_float(row.get("added_idle_wall_minutes")) * floor_clusters
-                share = None if not ri_queries else round(100.0 * starts / ri_queries, 4)
-                options.append({"target": x, "direction": "LOWER" if lower else "RAISE", "gain_cluster_minutes": round(gain, 3),
-                                "loss_cluster_minutes": round(loss, 3), "net_cluster_minutes": round(gain - loss, 3), "added_starts": starts,
-                                "removable_wall_minutes": safe_float(row.get("removable_running_wall_minutes")) if lower else 0.0,
-                                "added_cold_start_share_pct": share,
-                                "within_cold_start_budget": budget is None or starts <= 0 or (share is not None and share <= budget)})
+        options = self._auto_stop_options(gaps, current_auto, grid, restart_cost, floor_clusters, budget) if running_available else []
         kept_alive = optional_float(gaps.get("kept_alive_wall_minutes"))
         window = "current epoch since the first retained warehouse event"
         positive = [o for o in options if o["net_cluster_minutes"] > 0]
@@ -2940,7 +2949,32 @@ class Analyzer:
             self._f(e,"warehouse_type","statement_text_visible_pct_30",round(safe_float(q.get("statement_text_visible_pct_30")),4),unit="%",table="system.query.history",field="statement_text",window="last 30 days within current epoch",interpretation="Coverage available for deterministic pattern checks. Raw SQL text is not exported."),
             self._f(e,"warehouse_type","hive_metastore_reference_queries_30",safe_int(q.get("hive_metastore_reference_queries_30")),unit="queries",table="system.query.history",field="statement_text (aggregated pattern only)",window="last 30 days within current epoch",interpretation="Potential migration-review signal only; this does not prove an external legacy Hive metastore is configured."),
         ]
-        out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":safe_int(q.get("hive_metastore_reference_queries_30"))})
+        # The migration target runs at its own best auto-stop (Serverless: 5-minute floor, starts in seconds, no
+        # cold-start budget; Pro: 10-minute floor, 4-minute starts, the cold-start budget), measured on the same
+        # running-idle evidence; the target's running cluster-minutes are today's minus that value's net saving.
+        target_type = "PRO" if serverless else "SERVERLESS"
+        target_values = auto_stop_candidates(self.t, target_type)
+        target_restart = (self.t.restart_cost_cluster_minutes_serverless if target_type == "SERVERLESS" else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
+        target_budget = None if target_type == "SERVERLESS" else (self.t.cold_start_added_share_max_pct_nonprod if nonprod else self.t.cold_start_added_share_max_pct)
+        target_option: Optional[Dict[str, Any]] = None
+        if running_available:
+            target_options = self._auto_stop_options(gaps, current_auto, target_values, target_restart, floor_clusters, target_budget)
+            current_valid = current_auto == 0 or current_auto >= target_values[0]
+            within = [o for o in target_options if o["within_cold_start_budget"]] or target_options
+            best = max(within, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
+            if best is not None and (best["net_cluster_minutes"] > 0 or not current_valid):
+                target_option = best
+            elif current_valid:
+                target_option = {"target": current_auto, "direction": "KEEP", "net_cluster_minutes": 0.0, "gain_cluster_minutes": 0.0, "loss_cluster_minutes": 0.0, "added_starts": 0}
+        observed_running = optional_float(gaps.get("observed_running_cluster_minutes"))
+        running_fraction = (None if target_option is None or not observed_running
+                            else round(clamp(1.0 - target_option["net_cluster_minutes"] / observed_running, 0.0, self.t.cost_factor_ceiling), 6))
+        fs.append(self._f(e,"warehouse_type","migration_target_auto_stop",None if target_option is None else target_option["target"],unit="minutes",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,
+            interpretation=f"Auto-stop the {target_type.title()} alternative is priced at: its own cost-minimizing value on the measured idle gaps."))
+        fs.append(self._f(e,"warehouse_type","migration_target_running_fraction",running_fraction,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,
+            interpretation="The alternative's running cluster-minutes as a share of today's (its own auto-stop removes idle time or adds restarts)."))
+        out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,
+            "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":safe_int(q.get("hive_metastore_reference_queries_30"))})
         return out
 
 # ---------------------------------------------------------------------------
@@ -3495,12 +3529,25 @@ class Estimator:
             out["blocker"]="MIGRATION_MODEL_NOT_RECONCILED"
         return out
 
-    def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision)->Dict[str,Any]:
+    def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision,facts:Optional[Mapping[str,Any]]=None)->Dict[str,Any]:
         target=str(d.recommended_config.get("warehouse_type") or "").upper()
         size=e.current_epoch.config.warehouse_size
-        resources,resource_meta=self._annualized_resource_bounds(e)
-        if resources is None:
+        current_resources,resource_meta=self._annualized_resource_bounds(e)
+        if current_resources is None:
             return {"available":False,"blocker":resource_meta.get("blocker"),"resource_model":resource_meta}
+        fraction=(facts or {}).get("migration_running_fraction")
+        if fraction is None:
+            return {"available":False,"blocker":"RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE","resource_model":resource_meta}
+        # The target runs at its own best auto-stop: base = today's annualized cluster-minutes x its running fraction;
+        # optimistic = busy cluster-time only (it never runs idle); conservative = today's structural upper bound
+        # (every running minute at the peak cluster count), never below the base.
+        busy_share=(facts or {}).get("busy_share")
+        base_t=current_resources.base*fraction
+        low_t=min(base_t,current_resources.base*float(busy_share)) if busy_share is not None else base_t
+        resources=Range3(round(low_t,3),round(base_t,3),round(max(base_t,current_resources.high),3))
+        resource_meta={**resource_meta,"target_running_fraction":fraction,"target_auto_stop_option":as_serializable((facts or {}).get("migration_target_option")),
+                       "busy_share":busy_share,"target_annualized_cluster_minutes_range":as_serializable(resources),
+                       "target_method":"target at its own cost-minimizing auto-stop (base), busy cluster-time only (optimistic), today's running time at the peak cluster count (conservative)"}
         if target=="SERVERLESS":
             dbu_per_hour=SQL_DBU_PER_CLUSTER_HOUR.get(size)
             rate_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR"
@@ -3516,7 +3563,7 @@ class Estimator:
             return {"available":False,"blocker":price_meta.get("blocker"),"sku_price_model":price_meta,"resource_model":resource_meta}
         # Reconcile: the same formula on the current warehouse must reproduce its billed DBU forecast; the target is then
         # priced relative to billing (scaled by billed / modeled), so systematic model error cancels out.
-        reconciliation=self._current_model_reconciliation(e,resources)
+        reconciliation=self._current_model_reconciliation(e,current_resources)
         if reconciliation.get("blocker"):
             return {"available":False,"blocker":reconciliation["blocker"],"reconciliation_ratio":reconciliation.get("ratio"),"reconciliation":reconciliation,"resource_model":resource_meta,"sku_price_model":price_meta}
         scale=1.0/reconciliation["ratio"]
@@ -3552,6 +3599,15 @@ class Estimator:
         return out
 
     def _value_gate(self,d:OptimizationDecision,c:"CandidateRecommendation")->Optional[Dict[str,Any]]:
+        if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED"} and d.current_config!=d.recommended_config:
+            # A migration whose best case still costs more is not worth a canary (it may still be wanted for other
+            # reasons, which is a human decision outside this cost model).
+            r=c.total_365d_savings_range or c.dbu_365d_savings_range
+            if r is None or r.high>0:
+                return None
+            return {"reason_code":"MIGRATION_NOT_COST_EFFECTIVE","modeled_savings_365":c.estimated_savings_365,"modeled_savings_range_365":as_serializable(r),
+                    "floor_365":0.0,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
+                    "rationale":f"Held: even the best case of the {d.recommended_config.get('warehouse_type')} migration costs more than today."}
         if d.objective!="COST" or d.status not in {"ACTIONABLE","TEST_REQUIRED"} or d.current_config==d.recommended_config:
             return None
         save=c.estimated_savings_365
@@ -3573,7 +3629,7 @@ class Estimator:
         dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
         est=save=None
         if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
-            migration=self._migration_costs(e,d); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
+            migration=self._migration_costs(e,d,a.facts); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
             if migration.get("available"):
                 dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
                 dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
