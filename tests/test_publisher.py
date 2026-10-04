@@ -717,6 +717,9 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertNotIn("record_type", rest.lower())
         self.assertIn("CAST(u.usage_quantity AS DOUBLE) AS dbu_quantity,", sql)
         self.assertIn("SUM(c.dbu_quantity) AS dbu_quantity", sql)
+        # Nor may rows be dropped by their quantity (negative retractions) or by the correction columns.
+        self.assertNotRegex(sql, r"usage_quantity\s*(<|>|=|!=|<>)")
+        self.assertNotRegex(sql.lower(), r"(where|having|and|or)\s+\(?\s*c\.(retracted|restated)_dbu_quantity")
 
     # --- Billing corrections: share of originally billed DBU later retracted (evidence only) -------------------
     def correction_rows(self, days=30, first="2026-09-01", retracted=None, restated=None):
