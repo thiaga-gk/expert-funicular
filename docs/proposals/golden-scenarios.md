@@ -40,7 +40,7 @@ Status: **PLAN ONLY.** Evaluated against publisher 2.9.0 on 2026-10-04. Finding 
 | C29 | Deleted / recreated warehouse | `delete_time` set; new id | Identities kept separate. | yes | covered | pass | — |
 | C30 | Billing corrections | `record_type` RETRACTION / RESTATEMENT | Signed sums; only settled days used; replay pinned to an ingestion cut-off; correction share reported. | yes | covered | fail | G21, S2, S7a |
 | C31 | Multi-region account | Workspaces in several regions | Per-region collection merged by id; billing completeness judged per workspace. | yes | covered | fail | G21 |
-| C32 | Unpriced / promotional SKU | `sku_name` with no `list_prices` row | Cost unavailable (null), never silently dropped. | yes | covered | fail | G2 |
+| C32 | Unpriced / promotional SKU | `sku_name` with no `list_prices` row | Cost unavailable (null), never silently dropped. | yes | covered | pass | G2 |
 | C33 | Photon | `product_features.is_photon` | Observe only. | no | covered | pass | — |
 | C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | fail | G28, G24 |
 | C35 | Spot policy | REST `spot_instance_policy` | Not modeled; AWS cost labeled as an on-demand upper bound. | no | covered | pass | S6 |
