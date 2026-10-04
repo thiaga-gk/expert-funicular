@@ -198,6 +198,10 @@ class Thresholds:
     # A change made to save money ships only when its own base modeled savings are positive and at least this much a
     # year (warehouse currency).
     cost_change_min_annual_savings: float = 500.0
+    # Migration is priced relative to billing: the same cost model applied to the current warehouse must land within
+    # this band of its billed DBU forecast, or the migration estimate is withheld.
+    migration_reconciliation_min: float = 0.70
+    migration_reconciliation_max: float = 1.30
     cost_factor_floor: float = 0.05
     cost_factor_ceiling: float = 3.00
     confidence_coverage_days: float = 90.0
@@ -2745,6 +2749,26 @@ class Estimator:
         vals=sorted([low,base,high])
         return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and blend, annualized forward","resource_window_start":window["start"],"resource_window_end":window["end"],"resource_window_days":window["days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
 
+    def _current_model_reconciliation(self,e:WarehouseEvidence,resources:Range3)->Dict[str,Any]:
+        """Modeled current DBU cost (running cluster-hours x current DBU/hour x current price) over the billed forecast."""
+        cfg=e.current_epoch.config
+        if cfg.warehouse_type=="SERVERLESS":
+            rate=SQL_DBU_PER_CLUSTER_HOUR.get(cfg.warehouse_size)
+        else:
+            empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
+            rate=(safe_float(empirical.get(cfg.warehouse_size),0.0) if isinstance(empirical,Mapping) else 0.0) or None
+        price,_=resolve_target_sku_price(e.sql_sku_prices,cfg.warehouse_type)
+        billed=e.baseline_forecast_cost_365
+        if not rate or price is None or not billed:
+            return {"blocker":"MIGRATION_MODEL_NOT_RECONCILED","reason":"CURRENT_RATE_OR_PRICE_UNAVAILABLE","ratio":None}
+        modeled=resources.base/60.0*rate*price
+        ratio=round(modeled/billed,6)
+        out={"ratio":ratio,"modeled_current_dbu_cost_365":round(modeled,2),"billed_dbu_forecast_365":round(billed,2),"current_dbu_per_cluster_hour":rate,"current_unit_price":price,
+             "band":[self.t.migration_reconciliation_min,self.t.migration_reconciliation_max]}
+        if not self.t.migration_reconciliation_min<=ratio<=self.t.migration_reconciliation_max:
+            out["blocker"]="MIGRATION_MODEL_NOT_RECONCILED"
+        return out
+
     def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision)->Dict[str,Any]:
         target=str(d.recommended_config.get("warehouse_type") or "").upper()
         size=e.current_epoch.config.warehouse_size
@@ -2764,7 +2788,13 @@ class Estimator:
         unit_price,price_meta=resolve_target_sku_price(e.sql_sku_prices,target)
         if unit_price is None:
             return {"available":False,"blocker":price_meta.get("blocker"),"sku_price_model":price_meta,"resource_model":resource_meta}
-        dbu_cost=Range3(*(round(x/60.0*dbu_per_hour*unit_price,2) for x in (resources.low,resources.base,resources.high)))
+        # Reconcile: the same formula on the current warehouse must reproduce its billed DBU forecast; the target is then
+        # priced relative to billing (scaled by billed / modeled), so systematic model error cancels out.
+        reconciliation=self._current_model_reconciliation(e,resources)
+        if reconciliation.get("blocker"):
+            return {"available":False,"blocker":reconciliation["blocker"],"reconciliation_ratio":reconciliation.get("ratio"),"reconciliation":reconciliation,"resource_model":resource_meta,"sku_price_model":price_meta}
+        scale=1.0/reconciliation["ratio"]
+        dbu_cost=Range3(*(round(x/60.0*dbu_per_hour*unit_price*scale,2) for x in (resources.low,resources.base,resources.high)))
         if target=="SERVERLESS":
             aws_cost=Range3(0.0,0.0,0.0)
             aws_meta={"status":"NOT_CUSTOMER_BILLED","reason":"Serverless SQL infrastructure is Databricks-managed; no separate customer EC2 line is modeled."}
@@ -2776,7 +2806,7 @@ class Estimator:
         else:
             return {"available":False,"blocker":"UNSUPPORTED_TARGET_WAREHOUSE_TYPE","target_type":target}
         total_cost=Range3(round(dbu_cost.low+aws_cost.low,2),round(dbu_cost.base+aws_cost.base,2),round(dbu_cost.high+aws_cost.high,2))
-        return {"available":True,"target_type":target,"warehouse_size":size,"dbu_cost_range":dbu_cost,"aws_cost_range":aws_cost,"total_cost_range":total_cost,"dbu_per_cluster_hour":dbu_per_hour,"dbu_rate_source":rate_source,"unit_price_per_dbu":unit_price,"resource_model":resource_meta,"sku_price_model":price_meta,"aws_model":aws_meta,"estimate_status":"PRE_CANARY_MODELED_RANGE"}
+        return {"available":True,"target_type":target,"warehouse_size":size,"reconciliation_ratio":reconciliation["ratio"],"reconciliation":reconciliation,"dbu_cost_range":dbu_cost,"aws_cost_range":aws_cost,"total_cost_range":total_cost,"dbu_per_cluster_hour":dbu_per_hour,"dbu_rate_source":rate_source,"unit_price_per_dbu":unit_price,"resource_model":resource_meta,"sku_price_model":price_meta,"aws_model":aws_meta,"estimate_status":"PRE_CANARY_MODELED_RANGE"}
 
     def candidates(self,e:WarehouseEvidence,analyses:Dict[str,AnalysisResult],decisions:Sequence[OptimizationDecision])->List[CandidateRecommendation]:
         out=[]; ep=e.current_epoch
@@ -4591,7 +4621,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "max_observed_clusters": 2, "event_coverage_start": old_start,
         },
         gaps={},
-        cost={"list_cost": 3900.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
+        cost={"list_cost": 2640.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
     )
 
     cur = EpochEvidence(
@@ -4630,31 +4660,28 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "saved_idle_minutes_if_10": 12500.0, "saved_idle_minutes_if_15": 11500.0,
             "saved_idle_minutes_if_30": 9000.0, "saved_idle_minutes_if_45": 6500.0,
         },
-        cost={"list_cost": 21100.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
+        cost={"list_cost": 11000.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
     )
 
     daily = (
-        _demo_daily(dt.date(2025, 10, 1), 106, 3900.0, workspace, wh, old_start, 4800.0)
-        + _demo_daily(dt.date(2026, 1, 15), 259, 21100.0, workspace, wh, cur_start, 20000.0)
+        # Billed DBU = cluster-hours x published DBU/hour (MEDIUM 24, LARGE 40); cost = DBU x Pro list price 0.55.
+        _demo_daily(dt.date(2025, 10, 1), 106, 2640.0, workspace, wh, old_start, 4800.0)
+        + _demo_daily(dt.date(2026, 1, 15), 259, 11000.0, workspace, wh, cur_start, 20000.0)
     )
-    forecast={
-        "forecast_method": MODEL_VERSION, "active_cost_days": 259, "dbu_forecast_status": "COMPLETE",
-        "forecast_basis_start": "2026-01-15", "forecast_basis_end": "2026-09-30",
-        "run_rate_28": 28000.0, "run_rate_84": 26500.0, "zero_cost_days_in_basis": 0,
-        "trend_ratio": 1.0, "trend_adjustment_factor": 1.0,
-    }
+    model = Modeler(Thresholds()).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
+    forecast = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
     registry=load_aws_price_registry(str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json"))
     cur.resource_daily=synthesize_resource_daily(cur,analysis_time)
     aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry)
     e=WarehouseEvidence(
         warehouse_id=wh, workspace_id=workspace, account_id=cur.account_id, warehouse_name=cur.warehouse_name,
         source_region="us-east-1", analysis_time=analysis_time, current_epoch_id=cur.epoch_id, epochs=[old, cur],
-        current_cost_365=25000.0, baseline_forecast_cost_365=27000.0, currency="USD",
-        cost_history_days=259, cost_cv_84=0.25, forecast_metadata=forecast, daily_cost_365=daily,
+        current_cost_365=model["current_cost_365"], baseline_forecast_cost_365=model["forecast_cost_365"], currency="USD",
+        cost_history_days=model["cost_history_days"], cost_cv_84=model["cost_cv_84"], forecast_metadata=forecast, daily_cost_365=daily,
         billing_features={"photon_usage_pct_365": 100.0, "serverless_usage_pct_365": 0.0, "cloud": "AWS"},
         aws_baseline_cost_365=aws_cost, aws_cost_model=aws_model,
         sql_sku_prices={
-            "PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},
+            "PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.55,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},
             "PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"},
         },
         photon_observation=PhotonObservation(
