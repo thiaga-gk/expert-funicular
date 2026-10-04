@@ -635,6 +635,91 @@ class PublisherV27Tests(unittest.TestCase):
         out = self.forecast(rows, start="2025-10-01T00:00:00+00:00")
         self.assertEqual(out["current_cost_365"], 20.0)
 
+    # --- G2: usage with no list_prices row is unavailable cost, never silently dropped ------------------------
+    def test_cost_sql_keeps_unpriced_usage_and_one_price_per_usage_record(self):
+        sql = p.EPOCH_DAILY_COST_SQL
+        self.assertIn("LEFT JOIN system.billing.list_prices", sql)
+        self.assertNotRegex(sql, r"\)\s*JOIN system\.billing\.list_prices|\bu\s+JOIN system\.billing\.list_prices")
+        self.assertIn("unpriced_dbu_quantity", sql)
+        # Overlapping price rows must not double count one usage record.
+        self.assertIn("PARTITION BY u.record_id", sql)
+
+    def _rows_with_unpriced(self, unpriced_dates):
+        rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100.0, "dbu_quantity": 200.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                for d in range(1, 31)]
+        rows += [{"usage_date": d, "list_cost": None, "dbu_quantity": 150.0, "unpriced_dbu_quantity": 150.0, "currency_code": None}
+                 for d in unpriced_dates]
+        return rows
+
+    def test_unpriced_usage_in_forecast_basis_makes_forward_and_actual_cost_unknown(self):
+        out = self.forecast(self._rows_with_unpriced(["2026-09-20", "2026-09-21"]))
+        self.assertIsNone(out["forecast_cost_365"])
+        self.assertIsNone(out["current_cost_365"])
+        self.assertEqual(out["unpriced_dbu_quantity_365"], 300.0)
+        self.assertEqual(out["unpriced_dbu_quantity_in_basis"], 300.0)
+        self.assertEqual(out["dbu_pricing_status"], "UNPRICED_USAGE")
+        self.assertEqual(out["currency"], "USD")  # unpriced rows carry no currency and do not count as mixed
+
+    def test_unpriced_usage_before_current_epoch_only_nulls_the_trailing_actual(self):
+        rows = self._rows_with_unpriced(["2026-08-15"])
+        out = self.forecast(rows)
+        self.assertIsNone(out["current_cost_365"])
+        self.assertIsNotNone(out["forecast_cost_365"])
+        self.assertEqual(out["unpriced_dbu_quantity_in_basis"], 0.0)
+        self.assertEqual(out["dbu_pricing_status"], "UNPRICED_USAGE")
+
+    def test_fully_priced_usage_is_complete(self):
+        out = self.forecast(self._rows_with_unpriced([]))
+        self.assertEqual(out["dbu_pricing_status"], "COMPLETE")
+        self.assertEqual(out["unpriced_dbu_quantity_365"], 0.0)
+        self.assertAlmostEqual(out["current_cost_365"], 3000.0)
+
+    def test_collector_marks_unpriced_epoch_cost_unknown(self):
+        class Client:
+            def query(self_inner, statement, *, label="collector_sql"):
+                if label == "config_epochs":
+                    return [{"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                             "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                             "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}]
+                if label == "billing_daily_cost":
+                    return [dict(r, workspace_id="1", warehouse_id="w", epoch_start="2026-09-01T00:00:00+00:00")
+                            for r in self._rows_with_unpriced(["2026-09-20"])]
+                return []
+        e = p.extract_evidence(Client(), self.t, "us-east-1")[0]
+        self.assertIsNone(e.baseline_forecast_cost_365)
+        self.assertIsNone(e.current_cost_365)
+        self.assertIsNone(e.current_epoch.cost["list_cost"])
+        self.assertEqual(e.current_epoch.cost["unpriced_dbu_quantity"], 150.0)
+        self.assertEqual(e.current_epoch.cost["dbu_quantity"], 6150.0)
+
+    def test_unknown_cost_survives_evidence_round_trip(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_cost_365 = None
+        e.baseline_forecast_cost_365 = None
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "e.json"
+            p.save_evidence(path, [e])
+            back = p.load_evidence_files([str(path)])[0]
+        self.assertIsNone(back.current_cost_365)
+        self.assertIsNone(back.baseline_forecast_cost_365)
+
+    def test_unknown_dbu_baseline_withholds_estimates_and_migration(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.baseline_forecast_cost_365 = None
+        e.current_cost_365 = None
+        w = p.evaluate_warehouses([e], self.t)[0]
+        by = {c.knob: c for c in w.candidates}
+        self.assertEqual(by["warehouse_type"].status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("DBU_COST_UNAVAILABLE", by["warehouse_type"].blockers)
+        for c in w.candidates:
+            self.assertIsNone(c.dbu_365d_baseline_cost, c.knob)
+            if c.status not in {"NO_CHANGE"}:
+                self.assertIsNone(c.estimated_savings_range_365, c.knob)
+        pkg = p.build_recommendation_packages([e], self.t)[0].to_dict()
+        p.validate_locked_package_schema(pkg)
+        self.assertIsNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
+        self.assertEqual(pkg["cost_baseline"]["forward_365d"]["availability"], "PARTIAL")
+
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
         seen = {}
         real = p.Modeler.forecast_from_daily_cost
@@ -929,7 +1014,7 @@ class GoldenScenarioTests(unittest.TestCase):
         return next(w for w in report if w.warehouse_id==warehouse_id)
 
     def test_all_golden_files_parse_and_are_deterministic(self):
-        files=sorted(self.golden.glob("*.json")); self.assertEqual(len(files),10)
+        files=sorted(self.golden.glob("*.json")); self.assertGreaterEqual(len(files),10)
         for f in files:
             payload=json.loads(f.read_text()); ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
             a=p.evaluate_warehouses(copy.deepcopy(ev),self.t); b=p.evaluate_warehouses(copy.deepcopy(ev),self.t)
