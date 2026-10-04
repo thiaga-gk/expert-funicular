@@ -1095,7 +1095,9 @@ class GoldenScenarioTests(unittest.TestCase):
     def test_all_golden_files_parse_and_are_deterministic(self):
         files=sorted(self.golden.glob("*.json")); self.assertGreaterEqual(len(files),10)
         for f in files:
-            payload=json.loads(f.read_text()); ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            payload=json.loads(f.read_text())
+            if "evidence" not in payload: continue  # collector-level fixture (raw snapshots), covered by test_golden_scenarios
+            ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
             a=p.evaluate_warehouses(copy.deepcopy(ev),self.t); b=p.evaluate_warehouses(copy.deepcopy(ev),self.t)
             self.assertEqual(p.canonical_json(a),p.canonical_json(b),f.name)
 
@@ -1411,7 +1413,9 @@ class GoldenScenarioTests(unittest.TestCase):
         # Databricks publishes no on/off price for Photon on SQL warehouses, so the product leaves Photon at its
         # default: the billing-derived observation stays in current_config, but no candidate or plan step exists.
         for f in sorted(self.golden.glob("*.json")):
-            payload=json.loads(f.read_text()); ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            payload=json.loads(f.read_text())
+            if "evidence" not in payload: continue  # collector-level fixture (raw snapshots)
+            ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
             for w in p.evaluate_warehouses(ev,self.t):
                 self.assertNotIn("enable_photon",{c.knob for c in w.candidates},f.name)
                 for sc in w.scenarios:

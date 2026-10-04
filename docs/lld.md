@@ -250,16 +250,18 @@ Configuration values from read-only APIs **must never override** `system.compute
 
 #### `CONFIG_EPOCHS_SQL`
 
-Produces one row per configuration snapshot for active warehouses, with:
+Produces one row per configuration epoch for active warehouses, with:
 
 - account/workspace/warehouse identity,
 - warehouse name,
-- type/channel/size/min/max/auto-stop/tags,
-- `epoch_start = change_time`,
-- `epoch_end = LEAD(change_time)`,
+- type/channel/size/min/max/auto-stop (name and tags from the epoch's latest snapshot),
+- `epoch_start` = `change_time` of the first snapshot of the epoch,
+- `epoch_end` = the next epoch's `epoch_start`,
 - `is_current = epoch_end IS NULL`.
 
 The query retains epochs overlapping the last 365 days plus the current epoch.
+
+Epochs are islands of the decision fields. A shared CTE (`CONFIG_EPOCHS_CTE`) compares each snapshot with the previous one; a new epoch starts when `warehouse_type`, `warehouse_channel`, `warehouse_size`, `min_clusters`, `max_clusters` or `auto_stop_minutes` differ. Snapshots that change only the name or tags are folded into the surrounding epoch. The same CTE groups the query-metric, warehouse-event, idle-gap, daily-cost and billing-attribution queries by epoch, so all of them share one set of epoch boundaries.
 
 All collector SQL runs in a session pinned to UTC (`TIMEZONE=UTC`), so `DATE()`, `CURRENT_DATE()` and `CURRENT_TIMESTAMP()` align with UTC billing `usage_date`. The collector reads `current_timezone()` immediately after connecting and exits with an error if the session is not UTC.
 
@@ -419,7 +421,7 @@ classDiagram
 
 ### 10.1 Epoch construction
 
-An epoch is defined by a snapshot in `system.compute.warehouses` and the interval until the next snapshot.
+An epoch is a run of consecutive `system.compute.warehouses` snapshots with identical decision fields (type, channel, size, min/max clusters, auto-stop). It starts at the `change_time` of the first such snapshot and ends where the next epoch starts; snapshots that change only the name or tags are folded into it. A rename or tag edit therefore does not start a new epoch or reset epoch maturity, cost history or the forecast basis. The table has no unique snapshot key, so snapshots sharing a `change_time` are first collapsed to one row chosen deterministically (a deleted snapshot wins; otherwise the lowest decision fields, then name); every later window orders by `change_time` alone, which is then unique.
 
 Public epoch identity includes:
 

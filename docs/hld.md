@@ -207,7 +207,7 @@ It must not:
 
 **Responsibility:** Convert source-shaped rows into normalized evidence and reconstruct immutable configuration regimes.
 
-A configuration epoch is created from warehouse configuration history and includes:
+A configuration epoch is a period of unchanged decision fields (warehouse type, channel, size, min/max clusters, auto-stop) in the warehouse configuration history; snapshots that change only the name or tags are folded into the surrounding epoch. It includes:
 
 - deterministic epoch identity,
 - start/end boundary,

@@ -44,7 +44,7 @@ Status: **PLAN ONLY.** Evaluated against publisher 2.9.0 on 2026-10-04. Finding 
 | C33 | Photon | `product_features.is_photon` | Observe only. | no | covered | pass | — |
 | C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | fail | G28, G24 |
 | C35 | Spot policy | REST `spot_instance_policy` | Not modeled; AWS cost labeled as an on-demand upper bound. | no | covered | pass | S6 |
-| C36 | Tag / rename churn | Snapshot rows with only `tags` or name changed | No new configuration period, no reset of maturity gates or cost history. | yes | covered | fail | G3 |
+| C36 | Tag / rename churn | Snapshot rows with only `tags` or name changed | No new configuration period, no reset of maturity gates or cost history. | yes | covered | pass | G3 |
 | C37 | Month / quarter-end seasonality | Peaks outside the 30-day window | Capacity cuts held when longer-window or prior-period pressure shows a peak. Constructed run: max 8 → 3 proposed weeks before a known quarter-end peak. | yes | not covered | fail | G33 |
 | C38 | Growth trend | Rising query volume | Downsizes and ceiling cuts held while volume is growing. Constructed run: doubling monthly volume still gets a downsize canary. | yes | not covered | fail | G33 |
 | C39 | Dev / test warehouses | Tags or owner mark nonprod | Versioned tag-based policy profile (for example a relaxed cold-start budget). | yes | not covered | fail | G38 |

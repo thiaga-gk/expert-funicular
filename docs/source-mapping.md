@@ -2,7 +2,7 @@
 
 | Need | Source | Notes |
 |---|---|---|
-| Current + historical warehouse config snapshots | `system.compute.warehouses` | Authoritative source for config epochs. |
+| Current + historical warehouse config snapshots | `system.compute.warehouses` | Authoritative source for config epochs: a new epoch starts when type, channel, size, min/max clusters or auto-stop changes; name/tag-only snapshots do not start one. |
 | Query latency/queue/spill/cache/tags/source | `system.query.history` | Current-epoch aggregates; raw SQL is not exported. |
 | Databricks query origin | `system.query.history.query_source` | JOB, DASHBOARD/LEGACY_DASHBOARD, NOTEBOOK, ALERT, GENIE and related entity references. |
 | External client source | `system.query.history.client_application` | Used for SQL_EDITOR, POWER_BI, TABLEAU, LOOKER and other client attribution. |

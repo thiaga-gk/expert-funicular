@@ -526,29 +526,62 @@ class WarehouseOptimization:
 # System-table SQL
 # ---------------------------------------------------------------------------
 
-CONFIG_EPOCHS_SQL = r"""
-WITH history AS (
+# Configuration epochs are islands of the decision fields. system.compute.warehouses writes a snapshot whenever any
+# property changes, including the name and tags; those cosmetic snapshots are folded into the surrounding period so they
+# never reset the epoch-maturity gate, the cost history or the forecast basis. A period starts at the first snapshot
+# whose decision fields differ from the previous snapshot; its name and tags come from its latest snapshot. Portable SQL
+# (window functions, IS DISTINCT FROM) shared by every collector query that groups activity by configuration epoch.
+# The table has no unique snapshot key, so snapshots sharing a change_time are first collapsed to one deterministic row
+# (a deleted snapshot wins, so the warehouse fails closed as deleted); every later window then orders by a unique key.
+CONFIG_EPOCHS_CTE = """config_snapshot_ties AS (
   SELECT
-    account_id,
-    workspace_id,
-    warehouse_id,
-    warehouse_name,
-    warehouse_type,
-    warehouse_channel,
-    warehouse_size,
-    min_clusters,
-    max_clusters,
-    auto_stop_minutes,
-    tags,
-    change_time,
-    delete_time,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS next_change_time,
-    ROW_NUMBER() OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time DESC) AS rn_desc
+    account_id, workspace_id, warehouse_id, warehouse_name, warehouse_type, warehouse_channel, warehouse_size,
+    min_clusters, max_clusters, auto_stop_minutes, tags, change_time, delete_time,
+    ROW_NUMBER() OVER (
+      PARTITION BY workspace_id, warehouse_id, change_time
+      ORDER BY CASE WHEN delete_time IS NULL THEN 1 ELSE 0 END, warehouse_type, warehouse_channel, warehouse_size,
+        min_clusters, max_clusters, auto_stop_minutes, warehouse_name
+    ) AS rn_tie
   FROM system.compute.warehouses
-),
+), config_snapshots AS (
+  SELECT
+    account_id, workspace_id, warehouse_id, warehouse_name, warehouse_type, warehouse_channel, warehouse_size,
+    min_clusters, max_clusters, auto_stop_minutes, tags, change_time, delete_time,
+    CASE WHEN LAG(change_time) OVER w IS NULL
+      OR LAG(warehouse_type) OVER w IS DISTINCT FROM warehouse_type
+      OR LAG(warehouse_channel) OVER w IS DISTINCT FROM warehouse_channel
+      OR LAG(warehouse_size) OVER w IS DISTINCT FROM warehouse_size
+      OR LAG(min_clusters) OVER w IS DISTINCT FROM min_clusters
+      OR LAG(max_clusters) OVER w IS DISTINCT FROM max_clusters
+      OR LAG(auto_stop_minutes) OVER w IS DISTINCT FROM auto_stop_minutes
+    THEN 1 ELSE 0 END AS starts_epoch,
+    ROW_NUMBER() OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time DESC) AS rn_desc
+  FROM config_snapshot_ties
+  WHERE rn_tie = 1
+  WINDOW w AS (PARTITION BY workspace_id, warehouse_id ORDER BY change_time)
+), config_islands AS (
+  SELECT *,
+    SUM(starts_epoch) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS epoch_seq
+  FROM config_snapshots
+), config_island_rows AS (
+  SELECT *,
+    MIN(change_time) OVER (PARTITION BY workspace_id, warehouse_id, epoch_seq) AS epoch_start,
+    ROW_NUMBER() OVER (PARTITION BY workspace_id, warehouse_id, epoch_seq ORDER BY change_time DESC) AS rn_in_epoch
+  FROM config_islands
+), config_epochs AS (
+  SELECT
+    account_id, workspace_id, warehouse_id, warehouse_name, warehouse_type, warehouse_channel, warehouse_size,
+    min_clusters, max_clusters, auto_stop_minutes, tags, epoch_start,
+    LEAD(epoch_start) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY epoch_start) AS epoch_end
+  FROM config_island_rows
+  WHERE rn_in_epoch = 1
+)"""
+
+CONFIG_EPOCHS_SQL = r"""
+WITH __CONFIG_EPOCHS__,
 active AS (
   SELECT workspace_id, warehouse_id
-  FROM history
+  FROM config_snapshots
   WHERE rn_desc = 1 AND delete_time IS NULL
 )
 SELECT
@@ -563,26 +596,20 @@ SELECT
   h.max_clusters,
   h.auto_stop_minutes,
   h.tags,
-  h.change_time AS epoch_start,
-  h.next_change_time AS epoch_end,
-  CASE WHEN h.next_change_time IS NULL THEN TRUE ELSE FALSE END AS is_current
-FROM history h
+  h.epoch_start,
+  h.epoch_end,
+  CASE WHEN h.epoch_end IS NULL THEN TRUE ELSE FALSE END AS is_current
+FROM config_epochs h
 JOIN active a ON h.workspace_id = a.workspace_id AND h.warehouse_id = a.warehouse_id
-WHERE h.change_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
-   OR h.next_change_time IS NULL
-   OR h.next_change_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
-ORDER BY h.workspace_id, h.warehouse_id, h.change_time
-"""
+WHERE h.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+   OR h.epoch_end IS NULL
+   OR h.epoch_end >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+ORDER BY h.workspace_id, h.warehouse_id, h.epoch_start
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 EPOCH_QUERY_METRICS_SQL = r"""
-WITH h AS (
-  SELECT
-    workspace_id,
-    warehouse_id,
-    change_time AS epoch_start,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS epoch_end
-  FROM system.compute.warehouses
-),
+WITH __CONFIG_EPOCHS__,
+h AS (SELECT workspace_id, warehouse_id, epoch_start, epoch_end FROM config_epochs),
 q AS (
   SELECT
     x.workspace_id,
@@ -662,19 +689,11 @@ SELECT
   100.0 * COUNT_IF(COALESCE(spilled_local_bytes,0) > 0)/NULLIF(COUNT(*),0) AS epoch_spill_query_pct
 FROM q
 GROUP BY workspace_id, warehouse_id, epoch_start
-"""
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 EPOCH_EVENT_METRICS_SQL = r"""
-WITH epochs AS (
-  SELECT
-    workspace_id,
-    warehouse_id,
-    min_clusters,
-    max_clusters,
-    change_time AS epoch_start,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS epoch_end
-  FROM system.compute.warehouses
-),
+WITH __CONFIG_EPOCHS__,
+epochs AS (SELECT workspace_id, warehouse_id, min_clusters, max_clusters, epoch_start, epoch_end FROM config_epochs),
 events AS (
   SELECT
     workspace_id,
@@ -730,7 +749,7 @@ SELECT
   COUNT_IF(event_type='SCALED_DOWN' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_downs_30
 FROM durations
 GROUP BY workspace_id, warehouse_id, epoch_start
-"""
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
     """Build the gap collector from centralized auto-stop policy targets."""
@@ -745,11 +764,9 @@ def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
         for target in targets
     )
     return f"""
-WITH epochs AS (
-  SELECT workspace_id, warehouse_id, auto_stop_minutes, change_time AS epoch_start,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS epoch_end
-  FROM system.compute.warehouses
-), ordered AS (
+WITH {CONFIG_EPOCHS_CTE},
+epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
+ordered AS (
   SELECT x.workspace_id, x.compute.warehouse_id AS warehouse_id, p.epoch_start, p.auto_stop_minutes,
     x.start_time, x.end_time,
     MAX(x.end_time) OVER (
@@ -779,11 +796,9 @@ FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
 # an inner join would silently drop it and understate cost. Its cost is unknown (null), never zero. When price rows
 # overlap, each usage record takes the latest price_start_time, so it is counted once.
 EPOCH_DAILY_COST_SQL = r"""
-WITH epochs AS (
-  SELECT workspace_id, warehouse_id, change_time AS epoch_start,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS epoch_end
-  FROM system.compute.warehouses
-), cost AS (
+WITH __CONFIG_EPOCHS__,
+epochs AS (SELECT workspace_id, warehouse_id, epoch_start, epoch_end FROM config_epochs),
+cost AS (
   SELECT
     u.workspace_id,
     u.usage_metadata.warehouse_id AS warehouse_id,
@@ -809,7 +824,7 @@ FROM cost c JOIN epochs e ON c.workspace_id=e.workspace_id AND c.warehouse_id=e.
   AND c.usage_end_time>=e.epoch_start AND (e.epoch_end IS NULL OR c.usage_end_time<e.epoch_end)
 GROUP BY c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code
 ORDER BY c.workspace_id,c.warehouse_id,c.usage_date
-"""
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 BILLING_FEATURE_SQL = r"""
 SELECT
@@ -838,14 +853,9 @@ WHERE usage_date>=DATE_SUB(CURRENT_DATE(),30) AND billing_origin_product='SQL'
 """
 
 EPOCH_BILLING_ATTRIBUTION_SQL = r"""
-WITH epochs AS (
-  SELECT
-    workspace_id,
-    warehouse_id,
-    change_time AS epoch_start,
-    LEAD(change_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time) AS epoch_end
-  FROM system.compute.warehouses
-), usage AS (
+WITH __CONFIG_EPOCHS__,
+epochs AS (SELECT workspace_id, warehouse_id, epoch_start, epoch_end FROM config_epochs),
+usage AS (
   SELECT
     workspace_id,
     usage_metadata.warehouse_id AS warehouse_id,
@@ -876,7 +886,7 @@ JOIN epochs e
  AND u.usage_end_time>=e.epoch_start
  AND (e.epoch_end IS NULL OR u.usage_end_time<e.epoch_end)
 GROUP BY u.workspace_id,u.warehouse_id,e.epoch_start
-"""
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 SQL_SKU_PRICE_SQL = r"""
 SELECT

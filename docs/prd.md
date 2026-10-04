@@ -229,6 +229,8 @@ A multi-warehouse run emits multiple independent package JSON files rather than 
 
 The product shall reconstruct current and historical warehouse configuration epochs using `system.compute.warehouses`.
 
+A configuration epoch is a period during which warehouse type, channel, size, min/max clusters and auto-stop are unchanged. Snapshots that change only cosmetic properties (name, tags) do not start a new epoch.
+
 The current epoch shall be the only source of configuration used for active decisions.
 
 ### FR-SRC-002 — Query evidence
