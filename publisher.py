@@ -51,7 +51,7 @@ OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.10.0"
 MODEL_VERSION = "epoch-runrate-v2.10.0"
 ESTIMATOR_VERSION = "counterfactual-v2.10.0"
 BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
-REVIEWER_VERSION = "recommendation-reviewer-v2.9.0"
+REVIEWER_VERSION = "recommendation-reviewer-v2.10.0"
 DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
@@ -218,6 +218,8 @@ class Thresholds:
     confidence_cap_actionable: float = 0.93
     confidence_cap_default: float = 0.80
     remeasure_days_after_invalidating_change: int = 7
+    plan_risk_hitl_change: float = 1.0  # plan order divides base savings x confidence by this for an ACTIONABLE step
+    plan_risk_canary_change: float = 2.0  # ... and by this for a TEST_REQUIRED step (a canary costs a measurement cycle)
 
 
 @dataclass(frozen=True)
@@ -2435,7 +2437,7 @@ class Optimizer:
                 # The speed-up and its cost are modeled, not observed: one size up is a latency/cost canary.
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],[],
-                    ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
+                    ["max_clusters","min_clusters"],["max_clusters","min_clusters"],
                     "Spill frequency and severity both cross the deterministic upsize thresholds; one size up as a canary validates the speed-up and its cost."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
@@ -2457,8 +2459,8 @@ class Optimizer:
             if target and not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
-                    [],["max_clusters","min_clusters","auto_stop_minutes"],
-                    ["max_clusters","min_clusters","auto_stop_minutes"],
+                    [],["max_clusters","min_clusters"],
+                    ["max_clusters","min_clusters"],
                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
@@ -2532,7 +2534,7 @@ class Optimizer:
             if reduce_ok:
                 target=reduced_max
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],[],[],
                     "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
             elif held_by_epoch_peak:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
@@ -2565,7 +2567,7 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
                     ["A_B_PERFORMANCE_VALIDATION_REQUIRED","SPARE_FLOOR_CAPACITY_UNPROVEN"],["warehouse_size","max_clusters"],
-                    ["auto_stop_minutes"],["auto_stop_minutes"],
+                    [],[],
                     "Warehouse spends substantial time at minimum capacity without queue/scale pressure; time at the floor does not prove a floor cluster was spare, so the reduction is a canary candidate and its savings an upper-bound range."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
@@ -2576,7 +2578,7 @@ class Optimizer:
         a=analyses["auto_stop_minutes"]; f=a.facts; target=safe_int(f["target"])
         if cfg.auto_stop_minutes != 0 and cfg.auto_stop_minutes <= target:
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","NO_CHANGE",
-                {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},[],["min_clusters"],[],[],
+                {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},[],[],[],[],
                 "Current auto-stop is already at or below the deterministic target."))
         else:
             blockers=[]
@@ -2593,12 +2595,12 @@ class Optimizer:
             cluster_minutes=safe_float(f.get("cluster_minutes"))
             if cluster_minutes>0 and safe_float(f.get("saved_idle"))*max(1,safe_int(f.get("current_min_clusters"),1))>cluster_minutes:
                 out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","INSUFFICIENT_EVIDENCE",
-                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},["IDLE_EVIDENCE_EXCEEDS_RUNTIME"]+blockers,["min_clusters"],[],[],
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},["IDLE_EVIDENCE_EXCEEDS_RUNTIME"]+blockers,[],[],[],
                     "Idle time from query gaps exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced."))
             else:
                 status="ACTIONABLE" if not blockers else "BLOCKED"
                 out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
-                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,[],[],[],
                     "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
 
         # Warehouse-type migration is always a separate scenario branch.
@@ -3050,6 +3052,9 @@ class Reviewer:
                 if st.knob in invalidated and st.execution_state!="PENDING_REEVALUATION":
                     raise ValueError(f"Invalidated downstream step must be pending reevaluation: {st.recommendation_id}")
                 invalidated.update(st.invalidates)
+            for i,st in enumerate(sc.steps):
+                if any(st.knob in later.invalidates for later in sc.steps[i+1:]):
+                    raise ValueError(f"Plan step precedes a step that invalidates it: {st.recommendation_id}")
             pe=sc.portfolio_estimate
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
                 if r is not None and not (r.low<=r.base<=r.high):
@@ -3083,6 +3088,7 @@ class Reviewer:
 
 
 PRICING_AUTHORITATIVE = "AUTHORITATIVE"
+PLAN_KNOB_RANK = {"warehouse_size": 0, "max_clusters": 1, "min_clusters": 2, "auto_stop_minutes": 3}  # plan-order tie-break
 PRICING_CONTINGENT = "CONTINGENT_PENDING_REEVALUATION"
 
 
@@ -3094,6 +3100,9 @@ class _ChainState:
     resource_tracks: List[float]
     current_min: int
     halt: Optional[Tuple[str, str]] = None
+    # Wall-clock idle minutes a lower auto-stop already removed, per track: a later minimum-cluster cut has no floor
+    # cluster to remove while the warehouse is stopped.
+    idle_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 class StatefulBundleEstimator:
@@ -3189,7 +3198,12 @@ class StatefulBundleEstimator:
             for i,realization in enumerate(effect_realizations):
                 before=st.resource_tracks[i]
                 if before<=0: continue
-                removed=min(before,theoretical*realization)
+                claim=theoretical
+                if typ=="min_cluster_reduction":
+                    claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0,st.current_min-target_min))
+                removed=min(before,claim*realization)
+                if typ=="idle_cluster_minute_reduction":
+                    st.idle_wall_minutes[i]+=removed/max(1,st.current_min)
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
@@ -3273,6 +3287,27 @@ class ScenarioPlanner:
         score=min(scores)
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW","method":"bottleneck minimum of step confidences"}
 
+    def _plan_order(self,eligible:Sequence[CandidateRecommendation])->List[CandidateRecommendation]:
+        """Order plan steps by value, then place each step only after every step that invalidates it.
+
+        Value = base savings x confidence / risk (a canary step carries more risk than a HITL-approved one). Priced
+        positive steps come first, then unpriced steps (a canary prices them), then zero/negative ones (guardrails and
+        performance fixes); ties follow the knob rank. Rounding to cents keeps the order platform-independent.
+        """
+        def key(c:CandidateRecommendation)->Tuple[int,float,int]:
+            base=c.estimated_savings_365
+            risk=self.t.plan_risk_canary_change if c.status=="TEST_REQUIRED" else self.t.plan_risk_hitl_change
+            group=1 if base is None else 0 if base>0 else 2
+            value=0.0 if base is None else round(base*safe_float(c.confidence.get("score"),0.0)/risk,2)
+            return (group,-value,PLAN_KNOB_RANK[c.knob])
+        remaining=sorted(eligible,key=key); ordered:List[CandidateRecommendation]=[]
+        while remaining:
+            nxt=next((c for c in remaining if not any(c.knob in x.invalidates for x in remaining if x is not c)),None)
+            if nxt is None:
+                raise ValueError("Plan steps invalidate each other in a cycle: "+", ".join(c.knob for c in remaining))
+            ordered.append(nxt); remaining.remove(nxt)
+        return ordered
+
     def _gate(self,c:CandidateRecommendation)->str:
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
         if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
@@ -3316,11 +3351,9 @@ class ScenarioPlanner:
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
-        plan_order=["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
         steps=[]; pending_invalidated=set()
-        for knob in plan_order:
-            c=by_knob[knob]
-            if c.status not in {"ACTIONABLE","TEST_REQUIRED","REVIEW"}: continue
+        for c in self._plan_order([by_knob[k] for k in PLAN_KNOB_RANK if by_knob[k].status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"}]):
+            knob=c.knob
             pending = knob in pending_invalidated
             state = "PENDING_REEVALUATION" if pending else "READY_FOR_CANARY" if c.status=="TEST_REQUIRED" else "READY_FOR_HITL"
             gate = "RE_ANALYZE_AFTER_UPSTREAM_CANARY" if pending else self._gate(c)

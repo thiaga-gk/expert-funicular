@@ -121,20 +121,22 @@ class PublisherV27Tests(unittest.TestCase):
     def test_plan_a_authoritative_savings_stop_at_the_first_invalidating_step(self):
         plan = self.plan_a()
         states = {x.knob: x.execution_state for x in plan.steps}
+        self.assertEqual(states["auto_stop_minutes"], "READY_FOR_HITL")  # independent of size: never held
         self.assertEqual(states["warehouse_size"], "READY_FOR_CANARY")
-        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+        for knob in ("max_clusters", "min_clusters"):
             self.assertEqual(states[knob], "PENDING_REEVALUATION")
         size = next(x for x in plan.steps if x.knob == "warehouse_size")
         auth = plan.portfolio_estimate.estimated_savings_range_365
-        # The authoritative scenario figure is exactly the size step; pending steps add nothing to it.
+        # The authoritative figure is the running total through the size step; pending steps add nothing to it.
         self.assertAlmostEqual(auth.base, size.running_estimated_savings_range_365.base, places=2)
         self.assertAlmostEqual(auth.high, size.running_estimated_savings_range_365.high, places=2)
 
     def test_pending_steps_are_priced_as_a_labeled_contingent_upside(self):
         plan = self.plan_a()
         basis = {x.knob: x.pricing_basis for x in plan.steps}
-        self.assertEqual(basis["warehouse_size"], "AUTHORITATIVE")
-        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+        for knob in ("auto_stop_minutes", "warehouse_size"):
+            self.assertEqual(basis[knob], "AUTHORITATIVE")
+        for knob in ("max_clusters", "min_clusters"):
             self.assertEqual(basis[knob], "CONTINGENT_PENDING_REEVALUATION")
         contingent = plan.portfolio_estimate.contingent
         self.assertIsNotNone(contingent)
@@ -211,7 +213,7 @@ class PublisherV27Tests(unittest.TestCase):
         plan_a = next(s for s in self.w.scenarios if s.name.startswith("Plan A"))
         plan_b = next(s for s in self.w.scenarios if s.name.startswith("Plan B"))
         self.assertTrue(plan_a.recommended)
-        self.assertEqual([x.knob for x in plan_a.steps], ["warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"])
+        self.assertEqual([x.knob for x in plan_a.steps], ["auto_stop_minutes", "warehouse_size", "min_clusters", "max_clusters"])
         self.assertEqual(plan_b.portfolio_estimate.estimate_status, "PRE_CANARY_MODELED_RANGE")
         self.assertIsNotNone(plan_b.portfolio_estimate.dbu_365d_savings_range)
         self.assertIsNotNone(plan_b.portfolio_estimate.aws_365d_savings_range)
@@ -2164,6 +2166,59 @@ class ChannelObservedOnlyTests(unittest.TestCase):
         pkg = p.build_recommendation_packages(p.demo_evidence(), p.Thresholds())[0].to_dict()
         evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
         self.assertFalse([x for x in evidence if x["metric"] == "warehouse_channel"])
+
+
+
+class PlanOrderAndInvalidationTests(unittest.TestCase):
+    """Only true invalidations hold a step; steps run in order of value, never before their invalidator."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def plan(self, evidence):
+        w = p.evaluate_warehouses(evidence, self.t)[0]
+        plan_a = next(s for s in w.scenarios if s.recommended)
+        return w, plan_a
+
+    def test_only_true_invalidations_remain(self):
+        w, _ = self.plan(p.demo_evidence())
+        by = {c.knob: c for c in w.candidates}
+        self.assertEqual(sorted(by["warehouse_size"].invalidates), ["max_clusters", "min_clusters"])
+        self.assertEqual(by["max_clusters"].invalidates, [])  # a ceiling cut above the peak changes nothing observed
+        self.assertEqual(by["min_clusters"].invalidates, [])
+        self.assertEqual(by["auto_stop_minutes"].dependencies, [])
+
+    def test_plan_runs_by_value_and_respects_invalidations(self):
+        # BI - Sales: auto-stop 10,933 x 0.93 / 1 ranks first; min (6,074 x 0.78 / 2) outranks size (5,345 x 0.78 / 2)
+        # but size invalidates it, so size comes first; the zero-value ceiling cut comes last.
+        _, plan_a = self.plan(p.demo_evidence())
+        self.assertEqual([s.knob for s in plan_a.steps], ["auto_stop_minutes", "warehouse_size", "min_clusters", "max_clusters"])
+        self.assertEqual([s.execution_state for s in plan_a.steps], ["READY_FOR_HITL", "READY_FOR_CANARY", "PENDING_REEVALUATION", "PENDING_REEVALUATION"])
+        pe = plan_a.portfolio_estimate
+        self.assertGreater(pe.total_365d_savings_range.base, 13000)  # auto-stop + size are both authoritative now
+
+    def test_auto_stop_then_min_never_removes_more_than_recorded(self):
+        e = p.demo_evidence()[0]
+        _, plan_a = self.plan([e])
+        contingent = plan_a.portfolio_estimate.contingent
+        self.assertIsNotNone(contingent)
+        recorded = p.safe_float(e.current_epoch.events.get("cluster_minutes"))
+        # With the overlap rule the floor cluster's idle minutes that auto-stop already removed are not removed again.
+        self.assertLess(contingent.estimated_savings_range_365.base, 17000)
+
+    def test_reviewer_rejects_a_step_before_its_invalidator(self):
+        w, plan_a = self.plan(p.demo_evidence())
+        steps = list(plan_a.steps)
+        size = next(i for i, s in enumerate(steps) if s.knob == "warehouse_size")
+        mn = next(i for i, s in enumerate(steps) if s.knob == "min_clusters")
+        steps[size], steps[mn] = steps[mn], steps[size]
+        broken = dataclasses.replace(plan_a, steps=steps)
+        others = [s for s in w.scenarios if not s.recommended]
+        with self.assertRaises(ValueError):
+            p.Reviewer(self.t).review_scenarios(p.demo_evidence()[0], w.candidates, [broken] + others, broken.scenario_id)
+
+    def test_risk_thresholds_default(self):
+        self.assertEqual((self.t.plan_risk_hitl_change, self.t.plan_risk_canary_change), (1.0, 2.0))
 
 
 if __name__ == "__main__":

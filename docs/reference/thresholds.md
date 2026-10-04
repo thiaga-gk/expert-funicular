@@ -215,3 +215,5 @@ Scenario-planner timing.
 | Parameter | Default | Description | Used by |
 |---|---|---|---|
 | `remeasure_days_after_invalidating_change` | `7` | Days a plan step waits for fresh evidence after an upstream change invalidates it. | [PRD FR-PLAN-003](../product/prd.md), [LLD §19.3 Step state machine](../architecture/lld.md) |
+| `plan_risk_hitl_change` | `1.0` | Risk divisor for an `ACTIONABLE` (human-approved) step when plan steps are ordered by base savings × confidence / risk. | [PRD FR-PLAN-001](../product/prd.md) |
+| `plan_risk_canary_change` | `2.0` | Risk divisor for a `TEST_REQUIRED` (canary) step in the same plan ordering; a canary costs a measurement cycle and a rollback path. | [PRD FR-PLAN-001](../product/prd.md) |
