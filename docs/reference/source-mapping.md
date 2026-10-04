@@ -4,6 +4,7 @@
 |---|---|---|
 | Current + historical warehouse config snapshots | `system.compute.warehouses` | Authoritative source for config epochs: a new epoch starts when type, channel, size, min/max clusters or auto-stop changes; name/tag-only snapshots do not start one. |
 | Query latency/queue/spill/cache/tags/source | `system.query.history` | Current-epoch aggregates; raw SQL is not exported. |
+| Task-time utilization evidence | `system.query.history.total_task_duration_ms` | Summed over the current epoch (`epoch_task_duration_ms`) and divided by the same epoch's cluster-minutes from `system.compute.warehouse_events`: query task-minutes per running cluster-minute. Evidence only; no decision uses it yet. |
 | Databricks query origin | `system.query.history.query_source` | JOB, DASHBOARD/LEGACY_DASHBOARD, NOTEBOOK, ALERT, GENIE and related entity references. |
 | External client source | `system.query.history.client_application` | Used for SQL_EDITOR, POWER_BI, TABLEAU, LOOKER and other client attribution. |
 | Starts/scaling/cluster-minutes/time at min/max | `system.compute.warehouse_events` | Whole-epoch totals (idle/event savings ratios) plus a daily series for the current epoch over the last 120 UTC days (uptime, cluster-minutes, minutes at min/max, recycle minutes, peak excluding recycling transients, starts); event segments are split at UTC midnight. The series drives the AWS baseline, migration resource bounds and recent time at min/max/observed peak. |

@@ -12,7 +12,7 @@ Paths address the serialized RecommendationPackage. A collector-level fixture in
 ``snapshots`` (system.compute.warehouses rows) and ``now``: the real CONFIG_EPOCHS_SQL runs in sqlite, its rows go
 through extract_evidence, and ``evidence_assertions`` address the serialized WarehouseEvidence. Optional
 ``collector_rows`` ({query label: rows}) feed the other collector queries and ``analysis_time`` pins the clock. A segment is a key, ``key[*]`` (every list item) or
-``key[field=value]`` (list items whose field equals value). Operators: ``equals``, ``includes`` (list contains
+``key[field=value]`` (list items, or dict values, whose field equals value). Operators: ``equals``, ``includes`` (list contains
 every given value), ``excludes`` (list contains none of them), ``length`` (list length).
 
 With ``"recompute_forecast": true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
@@ -48,13 +48,14 @@ def resolve(node, path):
         for v in values:
             child = v[m.group("key")]
             sel = m.group("sel")
+            items = list(child.values()) if isinstance(child, dict) else child  # selectors also walk dict values (e.g. evidence by id)
             if sel is None:
                 nxt.append(child)
             elif sel == "*":
-                nxt.extend(child)
+                nxt.extend(items)
             else:
                 field, want = sel.split("=", 1)
-                nxt.extend(x for x in child if str(x.get(field)) == want)
+                nxt.extend(x for x in items if str(x.get(field)) == want)
         values = nxt
     return values
 
