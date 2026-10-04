@@ -1997,3 +1997,22 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
             # The escape flag publishes with AWS cost unavailable.
             self.assertEqual(p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
             self.assertTrue(any((Path(tmp) / "packages").glob("*.json")))
+
+
+class ServerlessRegionCheckTests(unittest.TestCase):
+    """No verified per-region Serverless list exists: a region label alone never passes the check."""
+
+    def _check(self, observed, region="us-east-1"):
+        e = p.demo_evidence()[0]
+        e.billing_features["workspace_serverless_observed_from_system_compute_warehouses"] = observed
+        e = dataclasses.replace(e, source_region=region)
+        planner = p.ScenarioPlanner(p.Thresholds())
+        compat = planner._compatibility(e, "SERVERLESS")
+        return next(c for c in compat["checks"] if c["check"] == "aws_region_serverless_availability")
+
+    def test_region_label_alone_is_unknown(self):
+        for region in ("us-east-1", "unknown", "ap-south-2"):
+            self.assertEqual(self._check(False, region)["status"], "UNKNOWN", region)
+
+    def test_existing_serverless_warehouse_in_the_workspace_proves_the_region(self):
+        self.assertEqual(self._check(True)["status"], "PASS")

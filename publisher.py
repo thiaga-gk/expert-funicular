@@ -3241,8 +3241,10 @@ class ScenarioPlanner:
         target=target_type.upper(); api=dict(e.compatibility_evidence or {})
         if target=="SERVERLESS":
             region=(e.source_region or "").split(",")[0]
-            checks.append({"check":"aws_region_serverless_availability","status":"PASS" if region and region != "unknown" else "UNKNOWN","evidence":{"region":region,"policy":"Databricks documents Serverless SQL warehouse support across AWS regions."}})
             observed=bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses"))
+            # No verified per-region Serverless availability list is used, so a region label proves nothing; a Serverless
+            # warehouse already running in this workspace does.
+            checks.append({"check":"aws_region_serverless_availability","status":"PASS" if observed else "UNKNOWN","evidence":{"region":region or None,"existing_serverless_warehouse_in_workspace":observed,"policy":"No verified per-region Serverless availability list; confirm the region supports Serverless SQL unless the workspace already runs a Serverless warehouse."},"source":"system.compute.warehouses"})
             checks.append({"check":"workspace_serverless_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
             if api.get("mode")=="B_READ_ONLY_API" and api.get("status")=="AVAILABLE":
                 enabled=api.get("enable_serverless_compute")

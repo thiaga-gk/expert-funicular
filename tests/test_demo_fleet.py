@@ -227,6 +227,17 @@ class DemoFleetTests(unittest.TestCase):
                 if c["recommended_value"] != c["current_value"]:
                     self.assertGreaterEqual(c["recommended_value"], 10, scenario)
 
+    def test_a05_serverless_region_check_is_unknown_unless_the_workspace_runs_serverless(self):
+        seen = set()
+        for scenario, (e, pkg) in self.by_scenario.items():
+            region = [c for s in pkg["scenarios"] for c in s["compatibility"]["checks"] if c["check"] == "aws_region_serverless_availability"]
+            if not region:
+                continue
+            observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses"))
+            self.assertEqual(region[0]["status"], "PASS" if observed else "UNKNOWN", scenario)
+            seen.add(observed)
+        self.assertEqual(seen, {False, True})
+
     def test_a04_cluster_targets_stay_within_limits(self):
         for scenario in self.by_scenario:
             self.assertLessEqual(self.candidate(scenario, "max_clusters")["recommended_value"], 40, scenario)
