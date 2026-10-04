@@ -47,6 +47,7 @@ class DemoFleetTests(unittest.TestCase):
         self.assertEqual(set(self.by_scenario), set(scenarios))
 
     def test_fleet_is_deterministic(self):
+        p._DEMO_ROWS_CACHE.clear()  # re-simulate, not just re-read the memo
         again = [pkg.to_dict() for pkg in p.build_recommendation_packages(p.synthetic_demo_evidence(), self.t)]
         self.assertEqual(sorted(x["recommendation_package_id"] for x in again), sorted(x["recommendation_package_id"] for x in self.packages))
 
@@ -70,6 +71,73 @@ class DemoFleetTests(unittest.TestCase):
                     checked += 1
                 if scenario != "C52":  # month-end only: may have no billed day in the 120-day series besides a few
                     self.assertGreater(checked, 0)
+
+    def test_billing_matches_warehouse_events_in_every_epoch(self):
+        analysis_day = p.DEMO_ANALYSIS_TIME[:10]
+        for scenario, (e, _) in self.by_scenario.items():
+            for ep in e.epochs:
+                rows = [r for r in e.daily_cost_365 if r["epoch_start"] == ep.epoch_start]
+                self.assertFalse([r for r in rows if r["usage_date"] >= analysis_day], scenario)  # today is never billed
+                days = ep.cost["cost_days"]
+                if days < 30 or not ep.events.get("cluster_minutes"):
+                    continue  # short epochs: events include the unbilled part of today
+                expected = ep.events["cluster_minutes"] / 60.0 * p.SQL_DBU_PER_CLUSTER_HOUR[ep.config.warehouse_size]
+                billed = sum(r["dbu_quantity"] + r["retracted_dbu_quantity"] - r["restated_dbu_quantity"] for r in rows)
+                with self.subTest(scenario=scenario, epoch=ep.epoch_start):
+                    self.assertLess(abs(billed / expected - 1.0), 0.03)
+
+    def test_each_warehouse_shows_its_golden_signature(self):
+        wall = 365 * 1440.0
+
+        def last30_uptime(e):
+            return sum(d["uptime_minutes"] for d in (e.current_epoch.resource_daily or [])[-30:])
+
+        def at_max_ever_above_recent(e):
+            recent = max((d["max_cluster_count"] for d in (e.current_epoch.resource_daily or [])[-30:]), default=0)
+            return e.current_epoch.events["max_observed_clusters"] > recent
+
+        checks = {
+            "C01": lambda e, c, q, v: c.auto_stop_minutes == 0 and v["starts_30"] == 0 and v["uptime_minutes"] > 0.99 * wall and q["queries_30"] > 0,
+            "C02": lambda e, c, q, v: c.warehouse_type == "SERVERLESS" and v["starts_30"] >= 60,
+            "C03": lambda e, c, q, v: c.auto_stop_minutes > 0 and q["queries_30"] == 0 and v["uptime_minutes"] > 0.99 * wall,
+            "C04": lambda e, c, q, v: e.current_epoch.gaps["p90_gap_minutes"] < c.auto_stop_minutes and v["uptime_minutes"] > 0.99 * wall,
+            "C05": lambda e, c, q, v: q["job_queries_30"] >= 0.9 * q["queries_30"] and v["uptime_minutes"] < 0.2 * wall,
+            "C06": lambda e, c, q, v: q["spill_query_pct_30"] == 0 and v["time_at_min_pct"] == 100 and c.max_clusters > 1,
+            "C07": lambda e, c, q, v: q["spill_query_pct_30"] >= 20,
+            "C08": lambda e, c, q, v: v["time_at_max_pct"] > 80 and q["queued_query_pct_30"] > 5,
+            "C09": lambda e, c, q, v: v["max_observed_clusters"] * 3 <= c.max_clusters,
+            "C10": lambda e, c, q, v: c.warehouse_type == "SERVERLESS" and c.min_clusters > 1 and v["time_at_min_pct"] >= 90,
+            "C11": lambda e, c, q, v: c.min_clusters == c.max_clusters > 1,
+            "C12": lambda e, c, q, v: v["scale_ups_30"] > v["starts_30"] and q["queued_query_pct_30"] > 0,
+            "C13": lambda e, c, q, v: v["starts_30"] >= 0.9 * q["queries_30"] and q["p95_wait_compute_ms_when_waited_30"] >= 60000,
+            "C14": lambda e, c, q, v: c.warehouse_type == "SERVERLESS" and c.auto_stop_minutes > 5,
+            "C16": lambda e, c, q, v: c.warehouse_type == "SERVERLESS" and v["uptime_minutes"] > 0.99 * wall,
+            "C18": lambda e, c, q, v: c.warehouse_channel == "PREVIEW",
+            "C21": lambda e, c, q, v: q["result_cache_pct_30"] >= 50,
+            "C22": lambda e, c, q, v: q["spill_query_pct_30"] <= 5 and q["p95_spill_bytes_when_spilled_30"] >= 4 * p.GIB,
+            "C25": lambda e, c, q, v: c.auto_stop_minutes == 0 and q["active_days_30"] <= 23,
+            "C26": lambda e, c, q, v: q["failure_cancel_pct_30"] >= 10,
+            "C30": lambda e, c, q, v: any(r["retracted_dbu_quantity"] > 0 for r in e.daily_cost_365),
+            "C32": lambda e, c, q, v: any(r["unpriced_dbu_quantity"] > 0 for r in e.daily_cost_365),
+            "C37": lambda e, c, q, v: at_max_ever_above_recent(e),
+            "C38": lambda e, c, q, v: q["queries_30"] > 0.3 * q["epoch_queries"],
+            "C39": lambda e, c, q, v: e.current_epoch.tags["environment"] == "nonprod",
+            "C41": lambda e, c, q, v: q["genie_queries_30"] >= 0.9 * q["queries_30"],
+            "C42": lambda e, c, q, v: q["queued_query_pct_30"] >= 50,
+            "C45": lambda e, c, q, v: c.min_clusters == 2 and v["time_at_min_pct"] >= 99 and v["uptime_minutes"] > 0.99 * wall,
+            "C46": lambda e, c, q, v: q["queued_query_pct_30"] >= 30 and v["time_at_max_pct"] < 5,
+            "C47": lambda e, c, q, v: c.warehouse_size == "2X_SMALL",
+            "C48": lambda e, c, q, v: e.current_epoch.epoch_start < "2025-10-01",
+            "C49": lambda e, c, q, v: c.auto_stop_minutes == 10 and v["starts_30"] >= 0.9 * q["queries_30"],
+            "C50": lambda e, c, q, v: c.max_clusters == 1 and q["queued_query_pct_30"] >= 35,
+            "C51": lambda e, c, q, v: 1 - 5.0 * q["queries_30"] / last30_uptime(e) >= 0.9,
+            "C52": lambda e, c, q, v: len({r["usage_date"] for r in e.daily_cost_365}) <= 13,
+        }
+        for scenario, check in checks.items():
+            e, _ = self.by_scenario[scenario]
+            ep = e.current_epoch
+            with self.subTest(scenario=scenario):
+                self.assertTrue(check(e, ep.config, ep.query, ep.events))
 
     def test_running_time_never_exceeds_wall_clock(self):
         for scenario, (e, _) in self.by_scenario.items():

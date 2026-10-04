@@ -21,6 +21,7 @@ and decision semantics.
 from __future__ import annotations
 
 import argparse
+import bisect
 import dataclasses
 import configparser
 import datetime as dt
@@ -4581,6 +4582,7 @@ DEMO_ANALYSIS_TIME = "2026-10-01T12:00:00+00:00"
 DEMO_ACCOUNT_ID = "acct-demo"
 DEMO_WORKSPACES = ("1234567890123456", "2234567890123456", "3234567890123456")
 DEMO_SKU_PRICES = {"PREMIUM_SQL_COMPUTE": 0.22, "PREMIUM_SQL_PRO_COMPUTE": 0.55, "PREMIUM_SQL_SERVERLESS_COMPUTE": 0.70}
+DEMO_UNPRICED_SKU = "PREMIUM_SQL_PRO_COMPUTE_PROMO"  # billed but absent from list_prices (golden scenario C32)
 DEMO_SKU_BY_TYPE = {"CLASSIC": "PREMIUM_SQL_COMPUTE", "PRO": "PREMIUM_SQL_PRO_COMPUTE", "SERVERLESS": "PREMIUM_SQL_SERVERLESS_COMPUTE"}
 DEMO_START_LATENCY_MS = {"CLASSIC": 240000, "PRO": 240000, "SERVERLESS": 5000}
 DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
@@ -4593,12 +4595,15 @@ DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 #   days: weekdays | all | month_end (last business day) | half_year_end (last 5 business days of June and December)
 #   start/end: "HH:MM" window; conc: concurrent queries; every/dur: periodic queries (minutes) instead of steady load;
 #   q_min: average query minutes for steady load; src: query source; client: client application.
+# Warehouse options: keepalive (an open session keeps it running with no queries), growth (volume doubles every 30
+# days), prior (earlier configuration epochs), epoch_start/created, unpriced_from (promotional SKU without a list
+# price), correction (a RETRACTION/RESTATEMENT day), and query-quality parameters (p95/p99, spill, failures, cache).
 DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C01", "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 6, "dur": 1.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C02", "name": "Marketing Dashboards", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "weekdays", "start": s, "end": e, "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"} for s, e in (("09:00", "09:30"), ("13:00", "13:20"), ("16:00", "16:30"))]},
-    {"scenario": "C03", "name": "Legacy Reporting", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 0, "keepalive": True, "work": []},
+    {"scenario": "C03", "name": "Legacy Reporting", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 30, "keepalive": True, "work": []},
     {"scenario": "C04", "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "every": 5, "dur": 0.05, "conc": 1, "src": "SQL", "client": "Tableau"},
               {"days": "weekdays", "start": "09:00", "end": "17:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD", "client": "Tableau"}]},
@@ -4661,12 +4666,12 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C41", "name": "Genie Space", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 1, "src": "GENIE"}]},
     {"scenario": "C42", "name": "Queue Flood", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 600000,
-     "work": [{"days": "weekdays", "start": "09:00", "end": "10:00", "conc": 200, "q_min": 0.2, "src": "JOB"},
+     "work": [{"days": "weekdays", "start": "09:00", "end": "09:15", "conc": 1000, "q_min": 0.2, "src": "JOB"},
               {"days": "weekdays", "start": "10:00", "end": "17:00", "conc": 12, "q_min": 0.5, "src": "DASHBOARD"}]},
     {"scenario": "C45", "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 16, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C46", "name": "Hourly Burst", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 15, "queue_wait_ms": 180000,
-     "work": [{"days": "weekdays", "start": f"{h:02d}:00", "end": f"{h:02d}:08", "conc": 35, "q_min": 0.3, "src": "DASHBOARD"} for h in range(8, 18)]
+     "work": [{"days": "weekdays", "start": f"{h:02d}:00", "end": f"{h:02d}:08", "conc": 60, "q_min": 0.3, "src": "DASHBOARD"} for h in range(8, 18)]
              + [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 4, "q_min": 0.5, "src": "DASHBOARD"}]},
     {"scenario": "C47", "name": "Tiny Lookup", "ws": 2, "type": "PRO", "size": "2X_SMALL", "min": 1, "max": 1, "auto_stop": 10, "p95": 900, "p99": 2500,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.1, "conc": 1, "src": "SQL"}]},
@@ -4675,7 +4680,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C49", "name": "Cold Start Thrash", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 10,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 14, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C50", "name": "Single Cluster Queue", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 20, "queue_wait_ms": 90000,
-     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 14, "q_min": 0.5, "src": "DASHBOARD"}]},
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 17, "q_min": 0.5, "src": "DASHBOARD"}]},
     {"scenario": "C51", "name": "Mostly Idle", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 120,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 180, "dur": 5.0, "conc": 1, "src": "NOTEBOOK"}]},
     {"scenario": "C52", "name": "Month-End Close", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
@@ -4754,36 +4759,52 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         epochs.append((at(d), end, cfg))
     sim_start = max(at(created), 0.0)
 
-    # 1. Busy segments per day from the workload components, with query counts per source.
+    # 1. Busy segments per day from the workload components. Queries are kept by start time: periodic queries as
+    # points (start, count, source) and steady load as spans (start, end, queries per minute, source).
     segments: List[Tuple[float, float, float]] = []  # (start, end, concurrency)
-    query_days: Dict[dt.date, Dict[str, float]] = {}
-    total_days = max(1, (analysis_day - created).days)
+    points: List[Tuple[float, float, str]] = []
+    spans: List[Tuple[float, float, float, str]] = []
     day = max(created, analysis_day - dt.timedelta(days=366))
     while day <= analysis_day:
         jitter = 0.9 + 0.2 * _demo_unit(spec["scenario"], day)
-        growth = (0.4 + 0.6 * min(1.0, (day - created).days / total_days)) if spec.get("growth") else 1.0
+        # Growth: volume doubles every 30 days (floored at 5% of today's), so the last month is clearly above the one before.
+        growth = max(0.05, 2.0 ** ((day - analysis_day).days / 30.0)) if spec.get("growth") else 1.0
         day_t = at(day)
         for comp in spec["work"]:
             if not _demo_day_matches(comp["days"], day):
                 continue
             s, e = _demo_minutes(comp["start"]), _demo_minutes(comp["end"])
+            key = comp["src"] + "|" + comp.get("client", "")
             if comp.get("every"):
-                conc = float(comp["conc"])
-                k, n = s, 0
+                conc = float(comp["conc"]) * growth
+                k = s
                 while k < e:
                     segments.append((day_t + k, day_t + min(k + comp["dur"], 1440), conc))
-                    k += comp["every"]; n += 1
-                queries = n * conc * growth
-                if growth != 1.0:
-                    segments[-n:] = [(a, b, c * growth) for a, b, c in segments[-n:]]
+                    points.append((day_t + k, conc, key))
+                    k += comp["every"]
             else:
                 conc = comp["conc"] * jitter * growth
                 segments.append((day_t + s, day_t + e, conc))
-                queries = conc * (e - s) / comp.get("q_min", 0.5)
-            bucket = query_days.setdefault(day, {})
-            bucket[comp["src"] + "|" + comp.get("client", "")] = bucket.get(comp["src"] + "|" + comp.get("client", ""), 0.0) + queries
+                spans.append((day_t + s, day_t + e, conc / comp.get("q_min", 0.5), key))
         day += dt.timedelta(days=1)
     segments = [(max(a, sim_start), min(b, now_t), c) for a, b, c in segments if b > sim_start and a < now_t]
+    points = sorted(x for x in points if sim_start <= x[0] < now_t)
+    point_times = [x[0] for x in points]
+    spans = sorted((max(a, sim_start), min(b, now_t), r, k) for a, b, r, k in spans if b > sim_start and a < now_t)
+
+    def queries_between(lo: float, hi: float) -> Tuple[float, Dict[str, float], set]:
+        """Queries whose start time is in [lo, hi): total, by source key, and the UTC days they start on."""
+        total, by_src, days = 0.0, {}, set()
+        for t, n, key in points[bisect.bisect_left(point_times, lo):bisect.bisect_left(point_times, hi)]:
+            total += n; by_src[key] = by_src.get(key, 0.0) + n; days.add(int(t // 1440.0))
+        for a, b, rate, key in spans:
+            if b <= lo or a >= hi:
+                continue
+            a2, b2 = max(a, lo), min(b, hi)
+            n = (b2 - a2) * rate
+            total += n; by_src[key] = by_src.get(key, 0.0) + n
+            days.update(range(int(a2 // 1440.0), int((b2 - 1e-9) // 1440.0) + 1))
+        return total, by_src, days
 
     # Sweep to merged busy runs with total concurrency (piecewise constant), split at epoch boundaries.
     marks: Dict[float, float] = {}
@@ -4825,10 +4846,10 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         if need > clusters:
             lag_end = min(b, a + lag)
             pieces.append((a, lag_end, clusters, conc, max(0.0, conc - clusters * 10.0)))
-            scale_events.append((a + min(lag, b - a), +1)); clusters = need
+            scale_events.extend([(a + min(lag, b - a), +1)] * (need - clusters)); clusters = need
             a = lag_end
         elif need < clusters:
-            scale_events.append((a, -1)); clusters = need
+            scale_events.extend([(a, -1)] * (clusters - need)); clusters = need
         if b > a:
             pieces.append((a, b, clusters, conc, max(0.0, conc - clusters * 10.0)))
         nxt = runs[i + 1][0] if i + 1 < len(runs) else now_t
@@ -4837,7 +4858,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             continue
         idle_cfg = _demo_config_at(spec, epochs, b)
         if clusters > idle_cfg["min_clusters"]:
-            scale_events.append((b, -1))
+            scale_events.extend([(b, -1)] * (clusters - idle_cfg["min_clusters"]))
         clusters = idle_cfg["min_clusters"]
         keep = gap if idle_cfg["auto_stop_minutes"] == 0 else min(gap, float(idle_cfg["auto_stop_minutes"]))
         pieces.append((b, b + keep, clusters, 0.0, 0.0))
@@ -4859,7 +4880,6 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     starts_by_day: Dict[int, int] = {}
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
-    query_day_t = sorted((at(d), srcs) for d, srcs in query_days.items())
 
     def epoch_of(t: float) -> Tuple[float, Optional[float], Dict[str, Any]]:
         for ep in epochs:
@@ -4880,27 +4900,19 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         ep_pieces = [p for p in pieces if p[0] >= ep_start and (ep_end is None or p[0] < ep_end)]
         ep_runs = [r for r in runs if r[0] >= ep_start and (ep_end is None or r[0] < ep_end)]
         # Query metrics.
-        def count(lo: float, hi: float) -> Tuple[float, Dict[str, float], int]:
-            total, by_src, days = 0.0, {}, 0
-            for day_t, srcs in query_day_t:
-                if lo <= day_t < hi and day_t >= sim_start:
-                    n = sum(srcs.values())
-                    if n > 0:
-                        days += 1; total += n
-                        for k, v in srcs.items():
-                            by_src[k] = by_src.get(k, 0.0) + v
-            return total, by_src, days
-        epoch_q, _, epoch_days = count(max(ep_start, window_365), hi_t)
-        q30, src30, days30 = count(max(ep_start, window_30), hi_t)
-        busy_conc_minutes = sum((b - a) * c for a, b, c in ep_runs)
+        epoch_q, _, epoch_day_set = queries_between(max(ep_start, window_365), hi_t)
+        q30, src30, day_set30 = queries_between(max(ep_start, window_30), hi_t)
+        epoch_days, days30 = len(epoch_day_set), len(day_set30)
+        busy_conc_minutes = sum((min(b, hi_t) - max(a, lo_t)) * c for a, b, c in ep_runs if b > lo_t and a < hi_t)
         q_avg = busy_conc_minutes / epoch_q if epoch_q > 0 else 0.5
         def queued(lo: float) -> float:
             return sum((b - a) * qc / q_avg for a, b, _, _, qc in ep_pieces if a >= lo and qc > 0) if q_avg > 0 else 0.0
         queued30 = min(q30, queued(max(ep_start, window_30)))
         queued_epoch = min(epoch_q, queued(max(ep_start, window_365)))
         starts30 = [s for s in starts if s >= max(ep_start, window_30) and (ep_end is None or s < ep_end)]
-        first_burst = max(1.0, (runs[0][2] if runs else 1.0) * DEMO_START_LATENCY_MS[typ] / 60000.0 / max(q_avg, 0.05))
-        compute_wait30 = min(q30, round(len(starts30) * first_burst))
+        # Queries that wait for compute are those arriving while the warehouse starts.
+        latency_min = DEMO_START_LATENCY_MS[typ] / 60000.0
+        compute_wait30 = int(min(q30, round(sum(queries_between(s0, s0 + latency_min)[0] for s0 in starts30))))
         spill_pct = spec.get("spill_pct", 0.0)
         def src_count(prefix: str = "", client: str = "") -> int:
             return int(round(sum(v for k, v in src30.items() if (not prefix or k.split("|")[0] == prefix) and (not client or k.split("|")[1] == client))))
@@ -4962,7 +4974,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             rows["idle_gaps"].append(gap_row)
         # Daily resource series for the current epoch (last 120 days before the analysis date).
         if ep_end is None:
-            first = max(dt.date.fromisoformat(stamp(max(ep_start, sim_start))[:10]), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
+            first_event = min([x for x in starts if x >= ep_start] or [max(ep_start, sim_start)])
+            first = max(dt.date.fromisoformat(stamp(max(ep_start, first_event))[:10]), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
             d = first
             while d < analysis_day:
                 lo_d = at(d)
@@ -4982,10 +4995,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         sku = DEMO_SKU_BY_TYPE[cfg["warehouse_type"]]
         rate = SQL_DBU_PER_CLUSTER_HOUR[cfg["warehouse_size"]]
         by_day: Dict[dt.date, float] = {}
+        first_billed_day = analysis_day - dt.timedelta(days=365)  # usage_date >= CURRENT_DATE - 365, today excluded
         for a, b, cl, _, _ in ep_pieces:
-            if cl > 0 and a >= window_365:
+            if cl > 0:
                 dd = (t0 + dt.timedelta(minutes=a)).date()
-                if dd < analysis_day:
+                if first_billed_day <= dd < analysis_day:
                     by_day[dd] = by_day.get(dd, 0.0) + (b - a) * cl / 60.0 * rate
         unpriced_from = dt.date.fromisoformat(spec["unpriced_from"]) if spec.get("unpriced_from") else None
         correction = spec.get("correction") or {}
@@ -5022,7 +5036,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         "workspace_id": workspace, "warehouse_id": wh,
         "photon_usage_pct_365": None if spec.get("photon") == "UNKNOWN" or total_dbu <= 0 else round(100.0 * photon_dbu / total_dbu, 4),
         "serverless_usage_pct_365": None if total_dbu <= 0 else (100.0 if spec["type"] == "SERVERLESS" else 0.0),
-        "cloud": "AWS", "sku_names": sorted({DEMO_SKU_BY_TYPE[c["warehouse_type"]] for _, _, c in epochs}),
+        "cloud": "AWS", "sku_names": sorted({DEMO_SKU_BY_TYPE[c["warehouse_type"]] for _, _, c in epochs} | ({DEMO_UNPRICED_SKU} if spec.get("unpriced_from") else set())),
     })
     return rows
 
