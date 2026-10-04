@@ -24,7 +24,7 @@ ESTIMATOR_VERSION = "2.9.0"
 BUNDLE_VERSION = "2.9.0"
 REVIEWER_VERSION = "2.9.0"
 DECISION_VERSION = "decision-graph-v2.9.0"
-CATALOG_VERSION = "technique-catalog-v1"
+CATALOG_VERSION = "technique-catalog-v2"
 
 
 def conf(score: float, method: str = "deterministic_weighted_evidence") -> Confidence:

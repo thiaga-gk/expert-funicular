@@ -53,7 +53,7 @@ ESTIMATOR_VERSION = "counterfactual-v2.10.0"
 BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
 REVIEWER_VERSION = "recommendation-reviewer-v2.10.0"
 DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
-TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
+TECHNIQUE_CATALOG_VERSION = "technique-catalog-v2"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
 

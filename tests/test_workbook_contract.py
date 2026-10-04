@@ -221,3 +221,17 @@ class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
     def test_plan_text_states_each_priced_steps_own_savings(self):
         texts=[r.get("execution_plan") or "" for r in wc.project_workbook(self.packages, []).scenario_plans]
         self.assertTrue(any("; step saves " in t for t in texts))
+
+    def test_incompatible_migration_is_not_experiment_upside(self):
+        e=p.demo_evidence()[0]
+        e.compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","enable_serverless_compute":False,"external_legacy_hive_metastore_detected":True}
+        pkgs=p.build_recommendation_packages([e],self.t)
+        plan_b=next(s for s in pkgs[0].scenarios if s.scenario_type==p.rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION)
+        self.assertEqual(plan_b.compatibility.status,p.rc.CompatibilityStatus.INCOMPATIBLE)
+        self.assertGreater(plan_b.portfolio_economics.savings_365d.total.high,0)
+        row={m["metric"]:m for m in wc.project_workbook(pkgs,[]).executive_metrics}["Migration experiment high"]
+        self.assertEqual(row["value"],0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -673,6 +673,7 @@ def project_executive(
                 if (s.scenario_id == p.recommended_plan.scenario_id) == recommended
                 and (recommended or s.scenario_type == rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION)
                 and s.status not in (rc.ScenarioStatus.BLOCKED, rc.ScenarioStatus.INSUFFICIENT_EVIDENCE)
+                and (recommended or s.compatibility.status != rc.CompatibilityStatus.INCOMPATIBLE)  # a failed check is not upside
                 and s.portfolio_economics.savings_365d.total is not None]
     plan_ranges = [r for p in packages for r in _scenario_total(p, True)]
     experiment_highs = [max(r.high for r in rs) for rs in (_scenario_total(p, False) for p in packages) if rs]

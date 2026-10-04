@@ -681,7 +681,7 @@
     "generated_at": "2026-10-01T18:00:00Z",
     "modeler_version": "2.9.0",
     "optimizer_version": "2.9.0",
-    "package_hash_full_sha256": "369590ADD93E8D7EE10E6DE9F5DCD61284ECEA6661F346F4DC549EA5B4D6C5E4",
+    "package_hash_full_sha256": "0FC77162BDED4FAE2882B9143132A5607FA8E843BB1DA4E77BA572EECB76BA52",
     "policy_version": "policy-v2.9.0",
     "reviewer_version": "2.9.0",
     "source_regions": [
@@ -694,7 +694,7 @@
       "system.billing.usage",
       "system.billing.list_prices"
     ],
-    "technique_catalog_version": "technique-catalog-v1"
+    "technique_catalog_version": "technique-catalog-v2"
   },
   "realization": {
     "aggregate": {
@@ -708,7 +708,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-369590ADD93E8D7EE10E6DE9",
+  "recommendation_package_id": "PKG-0FC77162BDED4FAE2882B914",
   "recommended_plan": {
     "decision_summary": "Validate one-size-down first; then remeasure and regenerate invalidated downstream recommendations.",
     "next_action": "RUN_SIZE_CANARY",
