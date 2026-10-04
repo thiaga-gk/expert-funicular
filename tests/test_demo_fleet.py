@@ -201,6 +201,10 @@ class DemoFleetTests(unittest.TestCase):
         self.assertEqual(e.photon_observation.status, "DISABLED")
         self.assertFalse([c for c in pkg["candidates"] if "photon" in c["knob"]])
 
+    def test_c37_ceiling_is_kept_for_the_half_year_peak(self):
+        c = self.candidate("C37", "max_clusters")
+        self.assertEqual((c["status"], c["recommended_value"], c["blockers"]), ("NO_CHANGE", 8, ["PEAK_OUTSIDE_RECENT_WINDOW"]))
+
     def test_c41_genie_warehouse_is_never_moved_to_classic(self):
         self.assertNotEqual(self.candidate("C41", "warehouse_type")["recommended_value"], "CLASSIC")
 

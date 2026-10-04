@@ -2064,3 +2064,34 @@ class OverallStatusTests(unittest.TestCase):
             if not plan.execution_plan:
                 self.assertNotEqual(pkg.assessment.overall_status, rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, pkg.warehouse.warehouse_name)
         self.assertTrue(any(not next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED).execution_plan for pkg in self.fleet))
+
+
+class SeasonalCeilingTests(unittest.TestCase):
+    """A ceiling cut never goes below the highest cluster count the current configuration has run at."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def max_candidate(self, epoch_peak):
+        e = p.demo_evidence()[0]  # max 3, recent peak 2 -> ceiling 3 kept today; widen the ceiling to 8
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters"] = epoch_peak
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+
+    def test_epoch_peak_inside_the_recent_window_keeps_the_recent_cut(self):
+        c = self.max_candidate(2)
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+    def test_epoch_peak_outside_the_recent_window_raises_the_cut_target(self):
+        c = self.max_candidate(4)  # 4 + 1 headroom
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 5))
+
+    def test_epoch_peak_at_the_ceiling_holds_the_cut(self):
+        c = self.max_candidate(12)  # recycling transient above the ceiling counts as the ceiling
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("NO_CHANGE", 8))
+        self.assertEqual(c.blockers, ["PEAK_OUTSIDE_RECENT_WINDOW"])
+
+    def test_unknown_epoch_peak_uses_the_recent_window(self):
+        c = self.max_candidate(None)
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))

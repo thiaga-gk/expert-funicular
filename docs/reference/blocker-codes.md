@@ -63,6 +63,7 @@ Max-clusters decisions also use the shared codes above (`QUEUE_EVIDENCE_UNAVAILA
 
 | Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
 |---|---|---|---|---|---|
+| `PEAK_OUTSIDE_RECENT_WINDOW` | The recent window would allow a lower ceiling, but the current configuration has run at a higher cluster count earlier (for example a quarter- or half-year-end peak), so the ceiling is kept. | `Optimizer.optimize` (max-clusters reduction) when the cut is otherwise eligible on the recent window's peak, but the ceiling for the whole current epoch's peak (`epoch_max_observed_clusters`, capped at the configured maximum) is not below the configured maximum. | [`pressure_window_days`](thresholds.md), [`max_cluster_headroom_clusters`](thresholds.md), [`max_cluster_headroom_pct`](thresholds.md) | `NO_CHANGE` | code only |
 | `MAX_CLUSTER_LIMIT_REACHED` | The increase signal is present but max clusters is already at the supported limit. | `Optimizer.optimize` (max-clusters increase branch: `queue_pct` >= `queue_query_pct_increase_max`, wait >= `queue_wait_p95_ms_increase_max`, saturated) when `cfg.max_clusters` >= `max_clusters_supported_limit`. | [`max_clusters_supported_limit`](thresholds.md), [`queue_query_pct_increase_max`](thresholds.md), [`queue_wait_p95_ms_increase_max`](thresholds.md) | `BLOCKED` | rule: [PRD FR-OPT-005](../product/prd.md), [LLD §15.4](../architecture/lld.md) |
 
 ### Min clusters

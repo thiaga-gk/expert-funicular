@@ -2327,7 +2327,12 @@ class Analyzer:
             self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
             self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"resource_window_state":recent["state"],
+        # Longer window: the highest scale level over the whole current epoch (events retained 365 days), capped at the
+        # ceiling (recycling transients above it are not demand). A seasonal peak outside the recent window shows here.
+        epoch_peak_raw = optional_float(ev.get("max_observed_clusters"))
+        epoch_peak = None if epoch_peak_raw is None else min(int(epoch_peak_raw), cfg.max_clusters)
+        fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, capped at the ceiling; the ceiling is never cut below it."))
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # The increase is priced on the same recent window it is decided on.
             "minutes_at_max":safe_float(recent["minutes_at_max"]),"cluster_minutes":safe_float(recent["cluster_minutes"])})
 
@@ -2510,14 +2515,22 @@ class Optimizer:
                 "The warehouse did not run in the recent window, so the ceiling is not changed."))
         else:
             peak = safe_int(f["max_observed"])
-            headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * peak))
-            reduced_max = max(cfg.min_clusters, peak + headroom)
-            eligible = (
+
+            def ceiling_for(level: int) -> int:
+                headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
+                return max(cfg.min_clusters, level + headroom)
+
+            # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent window,
+            # so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
+            epoch_peak = f.get("epoch_max_observed")
+            reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
+            base_eligible = (
                 window_known and cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
-                and reduced_max < cfg.max_clusters
             )
+            eligible = base_eligible and reduced_max < cfg.max_clusters
+            held_by_epoch_peak = base_eligible and not eligible and ceiling_for(peak) < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
             evidence_blockers: List[str] = []
@@ -2533,6 +2546,10 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
                     "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
+            elif held_by_epoch_peak:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
+                    f"The recent window peaks at {peak} cluster(s), but the current configuration has run at {safe_int(epoch_peak)}; the ceiling is kept for that peak."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
