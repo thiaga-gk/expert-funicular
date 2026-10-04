@@ -1664,15 +1664,17 @@ class Modeler:
         basis_start = max(current_start.astimezone(dt.timezone.utc).date(), window_start)
         unpriced_365 = round(sum(v for d, v in unpriced_by_date.items() if window_start <= d <= basis_end), 6)
         unpriced_in_basis = round(sum(v for d, v in unpriced_by_date.items() if basis_start <= d <= basis_end), 6)
-        # Correction share over the same settled window as the trailing actual: DBU later retracted / DBU originally
-        # billed (net + retracted - restated). A quality signal only; unknown when any day predates its collection.
+        # Correction share over the same settled window as the trailing actual: retracted DBU / DBU originally billed
+        # (net + retracted - restated, i.e. the ORIGINAL records). Retractions of earlier restatements also count, so it
+        # can exceed 1 when a day is corrected repeatedly. A quality signal only; unknown when any day predates its
+        # collection.
         window_corrections = [v for d, v in correction_by_date.items() if window_start <= d <= basis_end]
         retracted_365: Optional[float] = None
         restated_365: Optional[float] = None
         correction_share: Optional[float] = None
         if all(v is not None for v in window_corrections):
-            retracted_365 = round(sum(v[1] for v in window_corrections), 6)
-            restated_365 = round(sum(v[2] for v in window_corrections), 6)
+            retracted_365 = round(sum((v[1] for v in window_corrections), 0.0), 6)
+            restated_365 = round(sum((v[2] for v in window_corrections), 0.0), 6)
             original = sum(v[0] for v in window_corrections) + retracted_365 - restated_365
             correction_share = round(retracted_365 / original, 6) if original > 0 else None
         # Unpriced DBU has unknown cost: the trailing actual (and, when inside the forecast basis, the forecast) is
@@ -3578,14 +3580,16 @@ def _build_evidence_registry(
             observation_window="current_epoch", threshold=None, comparator="",
             interpretation="Calendar-day coverage available to the forward cost model.",
         ),
-        _add_evidence(
-            registry, e=e, contract_epoch_id=contract_epoch_id,
-            metric="billing_correction_dbu_share_365d", value=round_or_none((e.forecast_metadata or {}).get("billing_correction_dbu_share_365"), 6), unit="ratio",
-            source="system.billing.usage", source_field="record_type",
-            observation_window="trailing_365d", threshold=None, comparator="",
-            interpretation="Share of originally billed DBU in the settled trailing window that billing later retracted (RETRACTION records); a cost-basis quality signal, not used in decisions; null when not collected.",
-        ),
     ]
+    # Cost-basis quality signal: package evidence only. It is not a shared cost ref, so it never enters candidate
+    # evidence refs (and their IDs); no decision, confidence or economics reads it.
+    _add_evidence(
+        registry, e=e, contract_epoch_id=contract_epoch_id,
+        metric="billing_correction_dbu_share_365d", value=round_or_none((e.forecast_metadata or {}).get("billing_correction_dbu_share_365"), 6), unit="ratio",
+        source="system.billing.usage", source_field="record_type",
+        observation_window="trailing_365d", threshold=None, comparator="",
+        interpretation="Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
+    )
 
     for s in scenarios:
         for check in (s.compatibility or {}).get("checks", []) or []:
