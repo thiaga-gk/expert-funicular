@@ -3759,18 +3759,27 @@ def _build_locked_recommendation_package(
     return package
 
 
-def _validate_supported_warehouse_types(evidence: Sequence[WarehouseEvidence]) -> None:
-    """Fail closed before optimization when a warehouse type is not explicitly supported."""
-    unsupported = [
-        (e.workspace_id, e.warehouse_id, e.current_epoch.config.warehouse_type)
-        for e in evidence if e.current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES
+def _is_supported_warehouse(e: WarehouseEvidence) -> bool:
+    return e.current_epoch.config.warehouse_type in SUPPORTED_WAREHOUSE_TYPES
+
+
+def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> List[Dict[str, str]]:
+    """Supported-type gate: list warehouses that fail closed, one entry each, in deterministic order.
+
+    An unsupported or future type is never routed into Pro/Classic/Serverless algorithms; it is excluded
+    per warehouse and recorded in the run manifest, so the rest of the fleet is still evaluated.
+    """
+    return [
+        {
+            "workspace_id": e.workspace_id,
+            "warehouse_id": e.warehouse_id,
+            "warehouse_name": e.warehouse_name,
+            "warehouse_type": e.current_epoch.config.warehouse_type,
+            "reason_code": "UNSUPPORTED_WAREHOUSE_TYPE",
+        }
+        for e in sorted(evidence, key=lambda x: (x.workspace_id, x.warehouse_id))
+        if not _is_supported_warehouse(e)
     ]
-    if unsupported:
-        details = ", ".join(f"{ws}/{wh}={kind}" for ws, wh, kind in unsupported)
-        raise ValueError(
-            f"Unsupported SQL warehouse type(s): {details}. Supported types are {sorted(SUPPORTED_WAREHOUSE_TYPES)}. "
-            "Failing closed prevents Pro/Classic/Serverless algorithms from being applied to an unknown compute model."
-        )
 
 
 def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence]) -> None:
@@ -3817,9 +3826,14 @@ def evaluate_warehouses(
 ) -> List[WarehouseOptimization]:
     """Evaluate supported warehouses through both reviewer gates without constructing reporter objects."""
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(evidence), batch_size)
-    _validate_supported_warehouse_types(evidence)
-    _prepare_workspace_calibration(evidence)
-    ordered = sorted(evidence, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
+    for excluded in unsupported_warehouse_exclusions(evidence):
+        LOGGER.warning(
+            "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
+            excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
+        )
+    supported = [e for e in evidence if _is_supported_warehouse(e)]
+    _prepare_workspace_calibration(supported)
+    ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
     for offset in range(0, len(ordered), batch):
@@ -3929,12 +3943,15 @@ def package_locked_contract(
         result["workbook"] = str(workbook_path)
         LOGGER.info("workbook.v1.done path=%s", workbook_path)
     manifest_path = output_dir / "manifest.json"
+    exclusions = unsupported_warehouse_exclusions(evidence)
     manifest = {
         "publisher_version": PUBLISHER_VERSION,
         "reporter_contract_version": rc.CONTRACT_VERSION,
         "generated_at": max((p.provenance.generated_at for p in packages), default=dt.datetime.now(dt.timezone.utc).isoformat()),
         "package_count": len(packages),
         "packages": entries,
+        "excluded_warehouse_count": len(exclusions),
+        "excluded_warehouses": exclusions,
         "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.2.0 RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
@@ -4355,13 +4372,14 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
-    LOGGER.info("publisher.done warehouses=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence),len(packages),candidate_count,scenario_count,log_path)
+    excluded_count=len(unsupported_warehouse_exclusions(evidence))
+    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence)-excluded_count,excluded_count,len(packages),candidate_count,scenario_count,log_path)
     if args.print_json:
         if len(packages) != 1:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
+        print(f"Analyzed {len(evidence)-excluded_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0

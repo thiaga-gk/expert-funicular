@@ -1,6 +1,8 @@
 {
   "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.2.0 RecommendationPackage.",
   "evidence_file": "evidence.json",
+  "excluded_warehouse_count": 0,
+  "excluded_warehouses": [],
   "generated_at": "2026-10-01T12:00:00Z",
   "package_count": 15,
   "packages": [

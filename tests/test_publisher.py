@@ -239,10 +239,86 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIn("/api/2.0/sql/config/warehouses", source)
         self.assertIn("/api/2.1/clusters/get", source)
         self.assertNotIn("/api/2.0/sql/warehouses/{id}", source)
-        unsupported = p.demo_evidence()
-        unsupported[0].current_epoch.config = p.WarehouseConfig("LAKEHOUSE_REAL_TIME", "CURRENT", "MEDIUM", 1, 1, 10)
-        with self.assertRaises(ValueError):
-            p.build_recommendation_packages(unsupported, self.t)
+
+    def _fleet_with_one_unsupported(self):
+        fleet = p.synthetic_demo_evidence(3)
+        fleet[1].current_epoch.config = p.WarehouseConfig("LAKEHOUSE_REAL_TIME", "CURRENT", "MEDIUM", 1, 1, 10)
+        return fleet
+
+    def test_unsupported_type_is_excluded_per_warehouse_not_whole_run(self):
+        # G1: one unsupported warehouse must not abort the run for every other warehouse.
+        fleet = self._fleet_with_one_unsupported()
+        packages = p.build_recommendation_packages(fleet, self.t)
+        keys = {(pkg.warehouse.workspace_id, pkg.warehouse.warehouse_id) for pkg in packages}
+        self.assertEqual(len(packages), 2)
+        self.assertNotIn((fleet[1].workspace_id, fleet[1].warehouse_id), keys)
+        supported_only = [e for i, e in enumerate(p.synthetic_demo_evidence(3)) if i != 1]
+        expected = p.build_recommendation_packages(supported_only, self.t)
+        self.assertEqual(
+            sorted(pkg.recommendation_package_id for pkg in packages),
+            sorted(pkg.recommendation_package_id for pkg in expected),
+        )
+
+    def test_unsupported_type_never_reaches_the_analyzer(self):
+        seen = []
+        original = p.Analyzer.analyze
+
+        def spy(analyzer, e):
+            seen.append(e.current_epoch.config.warehouse_type)
+            return original(analyzer, e)
+
+        with patch.object(p.Analyzer, "analyze", spy):
+            p.evaluate_warehouses(self._fleet_with_one_unsupported(), self.t)
+        self.assertTrue(seen)
+        self.assertTrue(set(seen) <= p.SUPPORTED_WAREHOUSE_TYPES)
+
+    def test_unsupported_warehouse_does_not_feed_workspace_calibration(self):
+        fleet = p.synthetic_demo_evidence(2)
+        unsupported = fleet[1]
+        prior = copy.deepcopy(unsupported.current_epoch)
+        prior.is_current = False
+        prior.epoch_id = prior.epoch_id + "-prior"
+        prior.config = p.WarehouseConfig("SERVERLESS", "CURRENT", "MEDIUM", 1, 1, 10)
+        unsupported.epochs.insert(0, prior)
+        unsupported.current_epoch.config = p.WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
+        self.assertFalse(any(ep.config.warehouse_type == "SERVERLESS" for ep in fleet[0].epochs))
+        p.evaluate_warehouses(fleet, self.t)
+        self.assertFalse(fleet[0].billing_features["workspace_serverless_observed_from_system_compute_warehouses"])
+
+    def test_unsupported_exclusion_recorded_in_manifest(self):
+        fleet = self._fleet_with_one_unsupported()
+        packages = p.build_recommendation_packages(fleet, self.t)
+        with tempfile.TemporaryDirectory() as td:
+            files = p.package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
+            manifest = json.loads(Path(files["manifest"]).read_text())
+        self.assertEqual(manifest["package_count"], 2)
+        self.assertEqual(manifest["excluded_warehouse_count"], 1)
+        self.assertEqual(manifest["excluded_warehouses"], [{
+            "workspace_id": fleet[1].workspace_id,
+            "warehouse_id": fleet[1].warehouse_id,
+            "warehouse_name": fleet[1].warehouse_name,
+            "warehouse_type": "LAKEHOUSE_REAL_TIME",
+            "reason_code": "UNSUPPORTED_WAREHOUSE_TYPE",
+        }])
+
+    def test_all_unsupported_fleet_emits_no_packages_and_records_every_exclusion(self):
+        fleet = p.synthetic_demo_evidence(2)
+        for e in fleet:
+            e.current_epoch.config = p.WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
+        packages = p.build_recommendation_packages(fleet, self.t)
+        self.assertEqual(packages, [])
+        with tempfile.TemporaryDirectory() as td:
+            files = p.package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
+            manifest = json.loads(Path(files["manifest"]).read_text())
+        self.assertEqual(manifest["package_count"], 0)
+        self.assertEqual([x["warehouse_type"] for x in manifest["excluded_warehouses"]], ["FUTURE_TYPE", "FUTURE_TYPE"])
+
+    def test_supported_manifest_has_empty_exclusions(self):
+        with tempfile.TemporaryDirectory() as td:
+            files = p.package_locked_contract(Path(td), self.packages, self.evidence, generate_workbook=False)
+            manifest = json.loads(Path(files["manifest"]).read_text())
+        self.assertEqual(manifest["excluded_warehouse_count"], 0)
+        self.assertEqual(manifest["excluded_warehouses"], [])
 
     def test_query_source_tag_cache_evidence_exposed(self):
         metrics = {f.metric for c in self.w.candidates for f in c.findings}

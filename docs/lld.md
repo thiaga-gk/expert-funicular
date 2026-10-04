@@ -458,7 +458,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ---
 
@@ -1420,7 +1420,7 @@ Filenames are operational locators only. They are not content identities and are
 
 ### 28.2 Manifest
 
-The manifest records publisher/contract versions, package count, package paths/IDs/hashes, and workbook path when generated. It is not itself a Reporter JSON Contract package.
+The manifest records publisher/contract versions, package count, package paths/IDs/hashes, and workbook path when generated. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`). It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 
@@ -1470,7 +1470,7 @@ The product follows fail-closed semantics for decisions and publication.
 | missing AWS price region | DBU may remain assessable; AWS/total become unavailable as appropriate |
 | missing migration cost source | migration economics unavailable; no fabricated value |
 | optional compatibility API unavailable | explicit HITL fallback |
-| unsupported future warehouse type | fail closed before optimization |
+| unsupported future warehouse type | fail closed per warehouse before optimization; recorded in manifest exclusions |
 | workbook generation failure | JSON packages remain canonical; run surfaces reporting error |
 
 ---
