@@ -53,7 +53,7 @@ package economics
 = high = maximum HIGH total-savings bound across included scenarios
 ```
 
-**Unknown is null, never zero.** An estimate with `estimation_status = UNAVAILABLE` (candidate `independent_economics`, scenario `portfolio_economics`, including the `contingent_*` figures) must carry null ranges: a semantic validator rejects any number on an unavailable estimate. A candidate that is `BLOCKED` or `INSUFFICIENT_EVIDENCE` has no counterfactual attempted, so it is `UNAVAILABLE` with null ranges; a scenario whose chain needs a canary or a cost model that does not exist is `UNAVAILABLE` with null ranges and is excluded from package economics (`SCENARIO_ECONOMICS_UNAVAILABLE`). The envelope's base is the recommended scenario, so when that scenario has no authoritative price every scenario is excluded; a scenario that is itself priced is then excluded with `RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE` (or `NO_RECOMMENDED_SCENARIO` when no scenario is recommended), and its own economics stay on its scenario row. A known zero is different and keeps its zero: a `NO_CHANGE` candidate, or a scenario with no steps, is `NO_DELTA_MODELED` with zero savings.
+**Unknown is null, never zero.** An estimate with `estimation_status = UNAVAILABLE` (candidate `independent_economics`, scenario `portfolio_economics`, including the `contingent_*` figures) must carry null ranges: a semantic validator rejects any number on an unavailable estimate. A candidate that is `BLOCKED` or `INSUFFICIENT_EVIDENCE` has no counterfactual attempted, so it is `UNAVAILABLE` with null ranges; a scenario with no authoritative price is `UNAVAILABLE` with null ranges and is excluded from package economics (`SCENARIO_ECONOMICS_UNAVAILABLE`): its chain needs a canary or a cost model that does not exist, its status is `BLOCKED` or `INSUFFICIENT_EVIDENCE`, or its total savings are null. The envelope's base is the recommended scenario, so when that scenario has no authoritative price every scenario is excluded; a scenario that is itself priced is then excluded with `RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE` (or `NO_RECOMMENDED_SCENARIO` when no scenario is recommended), and its own economics stay on its scenario row. A known zero is different and keeps its zero: a `NO_CHANGE` candidate, or a scenario with no steps, is `NO_DELTA_MODELED` with zero savings.
 
 `package_economics` is **not a probability/confidence interval**. Low/base/high may originate from different scenarios. Therefore DBU/AWS component values are attached to the source `scenario_envelope` point rather than represented as a misleading package-level component range.
 
@@ -629,7 +629,7 @@ earliest_reevaluation_time = max(t_x for each active gate)
 
 Example: epoch start `2026-10-01T15:00:00Z` with both gates active gives `2026-10-08T15:00:00Z`.
 
-`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE`) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the 7-day gate lengths in the publisher policy requires a contract version bump.
+`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the epoch is mature and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the 7-day gate lengths in the publisher policy requires a contract version bump.
 
 ## 14.2 `observed_change` (new in 1.2.0)
 
@@ -752,6 +752,8 @@ Initial state:
 | `outcome` | object | Yes | No | Success/rollback/learning outcome |
 
 Realized savings may be negative. Observed costs cannot be negative.
+
+`outcome` fields: `status` (`SUCCESS | PARTIAL | FAILED | ROLLED_BACK | SUPERSEDED`), `recommendation_accuracy` (nullable, `0..1`), `rollback_required` (boolean) and `learning_codes` (list of strings).
 
 `recommendation_accuracy`, when available, is `0..1` and represents agreement between predicted and realized outcome under the product's defined accuracy formula; the formula must be versioned outside presentation prose.
 

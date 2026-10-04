@@ -13,7 +13,7 @@ Read `references/release-checklist.md` and the sibling orchestrator's `reference
 
 1. Verify release worktree/branch scope and version.
 2. Scan code/repo/docs for stale version strings, legacy/deferred TODO paths, duplicate architecture docs, dead serializers/reporters, obsolete contracts, generated caches, large accidental artifacts, and contradictory instructions.
-3. Ensure code and approved PRD/HLD/LLD/context/contracts tell one story.
+3. Ensure code, the design docs and the contracts tell one story: each topic stated once in its home, with no contradictions.
 4. Verify the six-part optimization framework is represented consistently in service/system-model, optimization policy, active techniques, runtime constraint handling, validation/golden tests, and release evidence.
 5. Ensure supported-type behavior fails closed and known limitations list only true unresolved limitations.
 6. Run compile + full tests + golden suite + deterministic rerun + policy/constraint checks + contract/schema validation + synthetic E2E.
