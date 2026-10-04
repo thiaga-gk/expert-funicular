@@ -42,14 +42,14 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from contracts import reporter_contract as rc
 
-PUBLISHER_VERSION = "2.9.0"
+PUBLISHER_VERSION = "2.10.0"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
 POLICY_VERSION = "sql-warehouse-policy-v2.9.0"
 ANALYZER_VERSION = "sql-warehouse-analyzer-v2.9.0"
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.9.0"
-MODEL_VERSION = "epoch-runrate-v2.7"
-ESTIMATOR_VERSION = "counterfactual-v2.9.0"
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.9.0"
+OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.10.0"
+MODEL_VERSION = "epoch-runrate-v2.10.0"
+ESTIMATOR_VERSION = "counterfactual-v2.10.0"
+BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
 REVIEWER_VERSION = "recommendation-reviewer-v2.9.0"
 DECISION_VERSION = "warehouse-decision-graph-v2.9.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
@@ -299,8 +299,8 @@ class WarehouseEvidence:
     analysis_time: str
     current_epoch_id: str
     epochs: List[EpochEvidence]
-    current_cost_365: float
-    baseline_forecast_cost_365: float
+    current_cost_365: Optional[float]  # None = unknown (unpriced usage in the trailing window); never 0.0
+    baseline_forecast_cost_365: Optional[float]  # None = unknown forward DBU cost; never 0.0
     currency: str
     cost_history_days: int
     cost_cv_84: Optional[float]  # None = unknown (history too short or no cost basis); never 0.0
@@ -315,12 +315,12 @@ class WarehouseEvidence:
     attribution: Optional[WarehouseAttribution] = None
 
     @property
-    def dbu_365d_baseline_cost(self) -> float:
+    def dbu_365d_baseline_cost(self) -> Optional[float]:
         return self.baseline_forecast_cost_365
 
     @property
     def total_365d_baseline_cost(self) -> Optional[float]:
-        if self.aws_baseline_cost_365 is None:
+        if self.aws_baseline_cost_365 is None or self.baseline_forecast_cost_365 is None:
             return None
         return round(self.baseline_forecast_cost_365 + self.aws_baseline_cost_365, 2)
 
@@ -397,8 +397,8 @@ class CandidateRecommendation:
     status: str
     current_config: Dict[str, Any]
     recommended_config: Dict[str, Any]
-    current_cost_365: float
-    baseline_forecast_cost_365: float
+    current_cost_365: Optional[float]
+    baseline_forecast_cost_365: Optional[float]
     estimated_cost_365: Optional[float]
     estimated_cost_range_365: Optional[Range3]
     estimated_savings_365: Optional[float]
@@ -774,6 +774,10 @@ SELECT workspace_id, warehouse_id, epoch_start,
 FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
 """
 
+# Usage with no matching list_prices row, or a row without a list price (promotional or not-yet-listed SKU), is kept
+# and counted as unpriced DBU:
+# an inner join would silently drop it and understate cost. Its cost is unknown (null), never zero. When price rows
+# overlap, each usage record takes the latest price_start_time, so it is counted once.
 EPOCH_DAILY_COST_SQL = r"""
 WITH epochs AS (
   SELECT workspace_id, warehouse_id, change_time AS epoch_start,
@@ -787,18 +791,20 @@ WITH epochs AS (
     p.currency_code,
     u.sku_name,
     CAST(u.usage_quantity AS DOUBLE) AS dbu_quantity,
+    CASE WHEN p.sku_name IS NULL OR p.pricing.effective_list.default IS NULL THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS unpriced_dbu_quantity,
     CAST(u.usage_quantity AS DOUBLE)*CAST(p.pricing.effective_list.default AS DOUBLE) AS list_cost
   FROM system.billing.usage u
-  JOIN system.billing.list_prices p
+  LEFT JOIN system.billing.list_prices p
     ON p.account_id=u.account_id AND p.sku_name=u.sku_name AND p.cloud=u.cloud
    AND u.usage_end_time>=p.price_start_time
    AND (p.price_end_time IS NULL OR u.usage_end_time<p.price_end_time)
   WHERE u.usage_metadata.warehouse_id IS NOT NULL
     AND u.billing_origin_product='SQL'
     AND u.usage_date>=DATE_SUB(CURRENT_DATE(),365) AND u.usage_date<CURRENT_DATE()
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY u.record_id ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code, p.price_end_time) = 1
 )
 SELECT c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code,
-  SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.list_cost) AS list_cost
+  SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.unpriced_dbu_quantity) AS unpriced_dbu_quantity, SUM(c.list_cost) AS list_cost
 FROM cost c JOIN epochs e ON c.workspace_id=e.workspace_id AND c.warehouse_id=e.warehouse_id
   AND c.usage_end_time>=e.epoch_start AND (e.epoch_end IS NULL OR c.usage_end_time<e.epoch_end)
 GROUP BY c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code
@@ -1447,6 +1453,10 @@ def _index_epoch_rows(rows: Iterable[Dict[str, Any]]) -> Dict[Tuple[str, str, st
     return out
 
 
+def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
+    return row.get("currency_code") is None and row.get("list_cost") is None and safe_float(row.get("unpriced_dbu_quantity")) > 0
+
+
 class Modeler:
     """Forward-looking baseline model using zero-filled calendar-day cost history."""
     def __init__(self, thresholds: Thresholds):
@@ -1460,13 +1470,15 @@ class Modeler:
         if not current_start:
             raise ValueError(f"Invalid current epoch start: {current_epoch_start}")
 
-        currencies = sorted({str(r.get("currency_code") or "USD") for r in rows})
+        # Unpriced usage rows (no list_prices match) carry no currency; they make cost unknown, not mixed.
+        currencies = sorted({str(r.get("currency_code") or "USD") for r in rows if not _is_unpriced_only_row(r)})
         if len(currencies) > 1:
             raise ValueError(f"Mixed currencies cannot be aggregated: {currencies}")
         currency = currencies[0] if currencies else "USD"
 
         by_date: Dict[dt.date, float] = {}
         current_by_date: Dict[dt.date, float] = {}
+        unpriced_by_date: Dict[dt.date, float] = {}
         for r in rows:
             date_val = parse_datetime(r.get("usage_date"))
             if not date_val:
@@ -1476,6 +1488,9 @@ class Modeler:
             by_date[d] = by_date.get(d, 0.0) + cost
             if d >= current_start.date():
                 current_by_date[d] = current_by_date.get(d, 0.0) + cost
+            unpriced = safe_float(r.get("unpriced_dbu_quantity"))
+            if unpriced:
+                unpriced_by_date[d] = unpriced_by_date.get(d, 0.0) + unpriced
 
         analysis_date = analysis_dt.astimezone(dt.timezone.utc).date()
         # Half-open window [analysis_date-365, last complete day]. Today is incomplete; yesterday is complete only once
@@ -1490,13 +1505,20 @@ class Modeler:
         else:
             completeness = "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY"
         excluded_incomplete_days = (analysis_date - dt.timedelta(days=1) - basis_end).days
-        actual = sum(v for d, v in by_date.items() if window_start <= d <= basis_end)
         basis_start = max(current_start.astimezone(dt.timezone.utc).date(), window_start)
+        unpriced_365 = round(sum(v for d, v in unpriced_by_date.items() if window_start <= d <= basis_end), 6)
+        unpriced_in_basis = round(sum(v for d, v in unpriced_by_date.items() if basis_start <= d <= basis_end), 6)
+        # Unpriced DBU has unknown cost: the trailing actual (and, when inside the forecast basis, the forecast) is
+        # unknown rather than understated.
+        actual: Optional[float] = None if unpriced_365 > 0 else round(sum(v for d, v in by_date.items() if window_start <= d <= basis_end), 2)
         completeness_meta = {
             "billing_watermark": watermark_dt.astimezone(dt.timezone.utc).isoformat() if watermark_dt else None,
             "billing_completeness": completeness,
             "billing_complete_through": basis_end.isoformat(),
             "excluded_incomplete_days": excluded_incomplete_days,
+            "unpriced_dbu_quantity_365": unpriced_365,
+            "unpriced_dbu_quantity_in_basis": unpriced_in_basis,
+            "dbu_pricing_status": "UNPRICED_USAGE" if unpriced_365 > 0 else "COMPLETE",
         }
 
         series: List[float] = []
@@ -1508,7 +1530,7 @@ class Modeler:
 
         if not series:
             return {
-                "current_cost_365": round(actual, 2),
+                "current_cost_365": actual,
                 "forecast_cost_365": 0.0,
                 "currency": currency,
                 "cost_history_days": 0,
@@ -1541,17 +1563,23 @@ class Modeler:
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
+        if unpriced_in_basis > 0:
+            # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
+            # AWS model gets no trend adjustment instead of a spurious downward one.
+            ratio = None
+            trend_adjustment_factor = 1.0
+            cv = None
         return {
-            "current_cost_365": round(actual, 2),
-            "forecast_cost_365": round(max(0.0, daily * 365), 2),
+            "current_cost_365": actual,
+            "forecast_cost_365": None if unpriced_in_basis > 0 else round(max(0.0, daily * 365), 2),
             "currency": currency,
             "cost_history_days": len(series),
             "active_cost_days": sum(1 for x in series if abs(x) > 1e-12),
             "cost_cv_84": None if cv is None else round(cv, 4),
             "forecast_method": MODEL_VERSION,
-            "run_rate_28": round(mean28 * 365, 2),
-            "run_rate_84": round(mean84 * 365, 2),
-            "trend_ratio": round(ratio, 6),
+            "run_rate_28": None if unpriced_in_basis > 0 else round(mean28 * 365, 2),
+            "run_rate_84": None if unpriced_in_basis > 0 else round(mean84 * 365, 2),
+            "trend_ratio": round_or_none(ratio, 6),
             "trend_adjustment_factor": round(trend_adjustment_factor, 6),
             "forecast_basis_start": basis_start.isoformat(),
             "forecast_basis_end": basis_end.isoformat(),
@@ -1653,13 +1681,16 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             auto_stop_minutes=safe_int(r.get("auto_stop_minutes"), 0),
         )
         epoch_daily = daily_by_epoch.get(key, [])
-        currencies = sorted({str(x.get("currency_code") or "USD") for x in epoch_daily})
+        currencies = sorted({str(x.get("currency_code") or "USD") for x in epoch_daily if not _is_unpriced_only_row(x)})
         if len(currencies) > 1:
             raise ValueError(f"Mixed currencies within epoch {key}: {currencies}")
         end = iso(r.get("epoch_end"))
+        unpriced_dbu = round(sum(safe_float(x.get("unpriced_dbu_quantity")) for x in epoch_daily), 6)
         epoch_cost = {
-            "list_cost": round(sum(safe_float(x.get("list_cost")) for x in epoch_daily), 2),
+            # Unpriced usage leaves the epoch's cost unknown; calibration then skips the epoch instead of underpricing it.
+            "list_cost": None if unpriced_dbu > 0 else round(sum(safe_float(x.get("list_cost")) for x in epoch_daily), 2),
             "dbu_quantity": round(sum(safe_float(x.get("dbu_quantity")) for x in epoch_daily), 6),
+            "unpriced_dbu_quantity": unpriced_dbu,
             "cost_days": observed_epoch_calendar_days(start, end, analysis_time),
             "active_cost_days": len({str(x.get("usage_date")) for x in epoch_daily}),
             "currency": currencies[0] if currencies else "USD",
@@ -2031,7 +2062,11 @@ class Optimizer:
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
         blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
-        if e.cost_history_days < self.t.min_economics_cost_history_days:
+        if e.baseline_forecast_cost_365 is None:
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["DBU_COST_UNAVAILABLE"],[],[],[],
+                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unavailable: usage was billed under an SKU with no list price."))
+        elif e.cost_history_days < self.t.min_economics_cost_history_days:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
                 {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["COST_HISTORY_INSUFFICIENT"],[],[],[],
                 f"Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than {self.t.min_economics_cost_history_days} days of billing history to price it."))
@@ -2112,6 +2147,12 @@ class Estimator:
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
+        if e.baseline_forecast_cost_365 is None:
+            # Every estimate below scales the forward DBU cost; with unpriced usage in its basis that cost is unknown.
+            return None,{
+                "method":"estimate withheld: the forward DBU cost is unavailable (usage billed under an SKU with no list price)",
+                "estimate_blocker":"DBU_COST_UNAVAILABLE",
+                "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":"The forward DBU cost is unavailable because usage was billed under an SKU with no list price; economics are withheld."},**meta}
         if e.cost_history_days < self.t.min_economics_cost_history_days:
             # Every estimate below scales the forward cost forecast, which is not trustworthy on a very young epoch.
             return None,{
@@ -2296,8 +2337,8 @@ class Estimator:
 
     def candidates(self,e:WarehouseEvidence,analyses:Dict[str,AnalysisResult],decisions:Sequence[OptimizationDecision])->List[CandidateRecommendation]:
         out=[]; ep=e.current_epoch
-        dbu_baseline=round(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
-        total_baseline=None if aws_baseline is None else round(dbu_baseline+aws_baseline,2)
+        dbu_baseline=round_or_none(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
+        total_baseline=None if aws_baseline is None or dbu_baseline is None else round(dbu_baseline+aws_baseline,2)
         for d in decisions:
             a=analyses[d.knob]; factors,meta=self._factors(e,d,a)
             dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
@@ -2313,7 +2354,7 @@ class Estimator:
                         total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
                 else:
                     meta["estimate_blocker"]=migration.get("blocker")
-            elif factors is not None:
+            elif factors is not None and dbu_baseline is not None:
                 dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
                 dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
                 aws_factors=self._aws_factor_range(e,d,factors,meta)
@@ -2333,7 +2374,7 @@ class Estimator:
             rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
             out.append(CandidateRecommendation(
                 recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
-                current_config=current,recommended_config=recommended,current_cost_365=round(e.current_cost_365,2),
+                current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
                 baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
                 estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
                 confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
@@ -2368,7 +2409,7 @@ class Reviewer:
                 raise ValueError(f"Candidate identity mismatch: {c.recommendation_id}")
             if c.recommendation_id in seen: raise ValueError(f"Duplicate recommendation id: {c.recommendation_id}")
             seen.add(c.recommendation_id)
-            if c.current_cost_365<0 or c.baseline_forecast_cost_365<0: raise ValueError(f"Negative cost: {c.recommendation_id}")
+            if any(x is not None and x<0 for x in (c.current_cost_365,c.baseline_forecast_cost_365)): raise ValueError(f"Negative cost: {c.recommendation_id}")
             score=safe_float(c.confidence.get("score"),-1)
             if not 0<=score<=1: raise ValueError(f"Confidence out of range: {c.recommendation_id}")
             if c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and c.current_config==c.recommended_config:
@@ -2600,11 +2641,16 @@ class StatefulBundleEstimator:
         dbu_base=e.dbu_365d_baseline_cost
         aws_base=e.aws_baseline_cost_365
         if not steps:
+            if dbu_base is None:
+                return self._withheld(e,"NO_CHANGE","No scenario steps; the forward DBU cost is unavailable.")
             return self._portfolio(e,"NO_CHANGE",[dbu_base]*3,[aws_base]*3 if aws_base is not None else None,"No scenario steps.")
 
         original_resource=max(0.0,safe_float(e.current_epoch.events.get("cluster_minutes")))
         def fresh()->_ChainState:
-            return _ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+            st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+            if dbu_base is None:
+                st.halt=("UNAVAILABLE","The forward DBU cost is unavailable (usage billed under an SKU with no list price); plan economics are withheld.")
+            return st
         auth,cont=fresh(),fresh()
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
 
@@ -3100,14 +3146,14 @@ def _build_evidence_registry(
     shared_cost_refs = [
         _add_evidence(
             registry, e=e, contract_epoch_id=contract_epoch_id,
-            metric="actual_dbu_cost_365d", value=round(e.current_cost_365, 2), unit=e.currency,
+            metric="actual_dbu_cost_365d", value=round_or_none(e.current_cost_365, 2), unit=e.currency,
             source="system.billing.usage", source_field="usage_quantity × historical effective list price",
             observation_window="trailing_365d", threshold=None, comparator="",
             interpretation="Observed trailing-365-day Databricks SQL list cost attributed to the warehouse.",
         ),
         _add_evidence(
             registry, e=e, contract_epoch_id=contract_epoch_id,
-            metric="forward_dbu_cost_365d", value=round(e.dbu_365d_baseline_cost, 2), unit=e.currency,
+            metric="forward_dbu_cost_365d", value=round_or_none(e.dbu_365d_baseline_cost, 2), unit=e.currency,
             source="derived", source_field=MODEL_VERSION,
             observation_window="forward_365d", threshold=None, comparator="",
             interpretation="No-change forward DBU cost forecast anchored to the current configuration epoch.",
@@ -4190,8 +4236,8 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         analysis_time=str(x.get("analysis_time") or ""),
         current_epoch_id=str(x["current_epoch_id"]),
         epochs=[_epoch_from_dict(e) for e in x.get("epochs", [])],
-        current_cost_365=safe_float(x.get("current_cost_365")),
-        baseline_forecast_cost_365=safe_float(x.get("baseline_forecast_cost_365")),
+        current_cost_365=None if x.get("current_cost_365") is None else safe_float(x.get("current_cost_365")),
+        baseline_forecast_cost_365=None if x.get("baseline_forecast_cost_365") is None else safe_float(x.get("baseline_forecast_cost_365")),
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
         # Evidence written before CV became Optional stored 0.0 for short histories; treat that as unknown.
@@ -4241,7 +4287,7 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
             # Top-level modeled values must describe the same observation cut.
             comparable = (
                 prior.analysis_time, prior.current_epoch_id, prior.currency,
-                round(prior.current_cost_365, 6), round(prior.baseline_forecast_cost_365, 6),
+                round_or_none(prior.current_cost_365, 6), round_or_none(prior.baseline_forecast_cost_365, 6),
                 prior.cost_history_days, round_or_none(prior.cost_cv_84, 6), canonical_json(prior.forecast_metadata),
                 None if prior.aws_baseline_cost_365 is None else round(prior.aws_baseline_cost_365, 6),
                 canonical_json(prior.aws_cost_model), canonical_json(prior.sql_sku_prices),
@@ -4249,7 +4295,7 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
             )
             incoming = (
                 e.analysis_time, e.current_epoch_id, e.currency,
-                round(e.current_cost_365, 6), round(e.baseline_forecast_cost_365, 6),
+                round_or_none(e.current_cost_365, 6), round_or_none(e.baseline_forecast_cost_365, 6),
                 e.cost_history_days, round_or_none(e.cost_cv_84, 6), canonical_json(e.forecast_metadata),
                 None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365, 6),
                 canonical_json(e.aws_cost_model), canonical_json(e.sql_sku_prices),
@@ -4266,7 +4312,8 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
 
             daily: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
             for row in prior.daily_cost_365 + e.daily_cost_365:
-                dk = (str(row.get("usage_date")), str(row.get("epoch_start")), str(row.get("currency_code") or prior.currency))
+                currency_key = "UNPRICED" if _is_unpriced_only_row(row) else str(row.get("currency_code") or prior.currency)
+                dk = (str(row.get("usage_date")), str(row.get("epoch_start")), currency_key)
                 if dk in daily and canonical_json(daily[dk]) != canonical_json(row):
                     raise SystemExit(f"Conflicting daily cost evidence for {key}/{dk}")
                 daily[dk] = row
@@ -4312,7 +4359,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.9.0 (Reporter Contract v1.2.0 + Workbook Contract v1.3.0)")
+    p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v1.3.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])

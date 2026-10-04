@@ -2,7 +2,7 @@
 
 **Document:** `docs/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.9.0  
+**Implementation baseline:** Publisher v2.10.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
 **Workbook Contract:** v1.2.0 (locked)  
 **PRD version:** 1.0.0  
@@ -259,6 +259,8 @@ Signed billing quantities shall be preserved when calculating corrected usage.
 ### FR-SRC-005 — DBU price evidence
 
 The product shall use `system.billing.list_prices` for temporal Databricks SKU list pricing and target-SKU price evidence.
+
+Usage with no matching price row shall be retained and reported as unpriced DBU, and shall make the affected DBU cost unavailable rather than understated or zero.
 
 ### FR-SRC-006 — AWS price model
 
@@ -959,7 +961,7 @@ The current product increment is accepted when all of the following remain true:
 11. Workbook financial-impact fields are numeric, explicitly currency-scoped, and use signed values: positive = savings, negative = cost increase; unavailable remains unavailable rather than zero.
 12. The test suite passes in a clean checkout/extracted artifact.
 
-**Current implementation evidence:** publisher v2.9.0 passes the repository regression suite and clean synthetic end-to-end validation; the exact final count is recorded in `examples/test-results.txt`.
+**Current implementation evidence:** publisher v2.10.0 passes the repository regression suite and clean synthetic end-to-end validation; the exact final count is recorded in `examples/test-results.txt`.
 
 ---
 

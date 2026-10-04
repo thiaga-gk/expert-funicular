@@ -396,7 +396,7 @@ Cost basis enum:
 
 #### Price semantics (apply to every cost and savings figure in the package)
 
-- **DBU dollars are list-price dollars.** `OBSERVED_DATABRICKS_BILLING` and `FORECAST` DBU values are observed `system.billing.usage` quantity multiplied by the published `system.billing.list_prices` `pricing.effective_list.default`. They are not the customer's invoiced, discounted or contract-effective price, and they do not include commitment discounts, credits or taxes.
+- **DBU dollars are list-price dollars.** `OBSERVED_DATABRICKS_BILLING` and `FORECAST` DBU values are observed `system.billing.usage` quantity multiplied by the published `system.billing.list_prices` `pricing.effective_list.default`. They are not the customer's invoiced, discounted or contract-effective price, and they do not include commitment discounts, credits or taxes. Usage with no matching list-price row is not priced: when it falls in the trailing 365-day window the observed DBU cost is null, and when it falls in the forecast basis the forecast DBU cost is null (unknown cost is null, never zero).
 - **AWS dollars are on-demand list-price dollars.** `MODELED_AWS_LIST_PRICE` values use the versioned regional on-demand EC2 registry. They do not model Spot. Pro/Classic warehouses can run with a Spot policy (the Warehouses API exposes `spot_instance_policy`, default `COST_OPTIMIZED`), so actual AWS spend and AWS savings can be lower than the modeled figures. The package does not observe the policy or the Spot mix.
 - Consequently savings are *modeled list-price* savings. Treat them as relative opportunity sizing and reconcile against invoices or CUR before financial reporting. Integrating effective rates or a Spot mix is a separate, not yet scheduled source contract.
 

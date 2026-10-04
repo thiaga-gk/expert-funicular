@@ -2,7 +2,7 @@
 
 **Document:** `docs/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.9.0  
+**Implementation baseline:** Publisher v2.10.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
 **Workbook Contract:** v1.2.0 (locked)  
@@ -72,7 +72,7 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+**Implementation conformance:** Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ### 3.3 Active candidate domains
 
@@ -522,7 +522,7 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The sealed v2.9.0 fixture exercises 15 representative warehouses and produces:
+The sealed v2.10.0 fixture exercises 15 representative warehouses and produces:
 
 - 15 recommendation packages,
 - 30 scenarios,
@@ -596,6 +596,8 @@ flowchart TD
 ### 10.1 Historical actual
 
 Observed historical Databricks DBU cost is retained separately from modeled forward cost.
+
+Billing usage is left-joined to list prices so usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as unpriced DBU rather than dropped. Unpriced DBU makes the affected actual cost (trailing 365 days) or forward cost (forecast basis) unavailable; candidate savings, migration economics and scenario/package economics are then withheld instead of computed on an understated baseline.
 
 Historical customer AWS actual cost remains unavailable unless an authoritative customer billing/effective-rate source is integrated. The architecture forbids labeling an on-demand model as historical actual.
 
@@ -942,7 +944,7 @@ flowchart TD
 ```
 
 
-The sealed v2.9.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
+The sealed v2.10.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
 
