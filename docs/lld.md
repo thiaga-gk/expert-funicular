@@ -687,7 +687,7 @@ max_observed_clusters >= current max_clusters
 current max_clusters < 40
 ```
 
-Unknown queue frequency or capacity wait is never read as 0; an increase needs both known.
+Unknown queue frequency or capacity wait is never read as 0; an increase needs both known. Like every other change it also needs a mature configuration epoch (at least 7 days), the minimum 30-day query sample and enough queued queries for the wait percentile; otherwise the decision is `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, `INSUFFICIENT_QUERY_SAMPLE` or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE`.
 
 Status: `ACTIONABLE`.
 
