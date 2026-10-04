@@ -153,6 +153,9 @@ Cold-start guards, evidence minimums, activity classes and targets for the auto-
 | `high_activity_auto_stop_target_minutes` | `45` | Auto-stop target (minutes) for Pro/Classic warehouses at or above the medium query rate. | [PRD FR-OPT-008](../product/prd.md), [LLD §15.6 Auto-stop](../architecture/lld.md) |
 | `low_activity_queries_per_day` | `50.0` | Queries per active day (queries/day) below which a warehouse is low activity. | [PRD FR-OPT-008](../product/prd.md), [LLD §15.6 Auto-stop](../architecture/lld.md) |
 | `medium_activity_queries_per_day` | `500.0` | Queries per active day (queries/day) below which a warehouse is medium activity; at or above it the warehouse is high activity. | [PRD FR-OPT-008](../product/prd.md), [LLD §15.6 Auto-stop](../architecture/lld.md) |
+| `auto_stop_grid_serverless` | `(5, 10, 15, 20, 30)` | Auto-stop values (minutes) evaluated for standard Serverless warehouses; the running-idle collector measures every value in either grid. | [LLD §15.6 Auto-stop](../architecture/lld.md) |
+| `auto_stop_grid_pro_classic` | `(10, 15, 20, 30, 45, 60)` | Auto-stop values (minutes) evaluated for Pro and Classic warehouses (never below 10). | [LLD §15.6 Auto-stop](../architecture/lld.md) |
+| `running_idle_full_window_fraction` | `0.99` | Share of an idle span the warehouse must have been running for a lower auto-stop to count an added restart there (and below which a gap counts as stopped). | [LLD §15.6 Auto-stop](../architecture/lld.md) |
 
 ### Confidence
 
