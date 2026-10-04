@@ -844,7 +844,7 @@ cur AS (
   FROM piece
   GROUP BY workspace_id, warehouse_id, epoch_start, usage_day
 )
-SELECT dl.*, COALESCE(st.starts, 0) AS starts
+SELECT dl.*, COALESCE(st.starts, 0) AS starts, DATE_SUB(CURRENT_DATE(), 120) AS collected_from
 FROM daily dl LEFT JOIN starts st
   ON st.workspace_id = dl.workspace_id AND st.warehouse_id = dl.warehouse_id AND st.usage_day = dl.usage_day
 ORDER BY dl.workspace_id, dl.warehouse_id, dl.usage_day
@@ -1923,9 +1923,13 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
     resource_daily_idx: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
+    # The query reports its own collected range (CURRENT_DATE at run time); the analysis clock is only a fallback.
+    resource_collected_from: Optional[str] = None
     for r in client.query(RESOURCE_DAILY_SQL,label="resource_daily"):
-        day = {k: (str(v)[:10] if k == "usage_day" else v) for k, v in r.items() if k not in {"workspace_id", "warehouse_id", "epoch_start"}}
+        day = {k: (str(v)[:10] if k == "usage_day" else v) for k, v in r.items() if k not in {"workspace_id", "warehouse_id", "epoch_start", "collected_from"}}
         resource_daily_idx.setdefault(_row_key(r), []).append(day)
+        if r.get("collected_from") is not None:
+            resource_collected_from = str(r.get("collected_from"))[:10]
     cost_rows = client.query(with_ingestion_cutoff(EPOCH_DAILY_COST_SQL, ingestion_cutoff),label="billing_daily_cost")
     # Billing completeness is judged per workspace: one workspace's lagging ingestion must not be hidden by another's.
     watermark_by_ws = {str(r.get("workspace_id") or ""): r for r in client.query(with_ingestion_cutoff(BILLING_WATERMARK_SQL, ingestion_cutoff),label="billing_watermark")}
@@ -2014,7 +2018,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if len(currents) != 1:
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
-        current.events["resource_daily_from"] = (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
+        current.events["resource_daily_from"] = resource_collected_from or (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
         ws_watermark = watermark_by_ws.get(workspace_id, {})
         effective_watermark, watermark_source = effective_billing_watermark(
             ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,

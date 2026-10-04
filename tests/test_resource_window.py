@@ -163,5 +163,22 @@ class ResourceWindowTests(unittest.TestCase):
             self.assertNotIn("RECENT_RESOURCE_WINDOW_UNAVAILABLE", by[knob].blockers, knob)
             self.assertIn("NO_RECENT_RUNNING_TIME", by[knob].blockers, knob)
 
+    def test_collected_range_comes_from_the_query_not_the_analysis_clock(self):
+        self.assertIn("DATE_SUB(CURRENT_DATE(), 120) AS collected_from", p.RESOURCE_DAILY_SQL)
+        epoch = {"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                 "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                 "auto_stop_minutes": 10, "epoch_start": "2026-05-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}
+        rows = [dict(r, workspace_id="1", warehouse_id="w", epoch_start="2026-05-01T00:00:00+00:00", collected_from="2026-06-14")
+                for r in day_rows("2026-06-14", 5, 60.0)]
+
+        class Client:
+            def query(self, statement, *, label="collector_sql"):
+                return [epoch] if label == "config_epochs" else rows if label == "resource_daily" else []
+
+        # A fixed analysis time earlier than the run must not widen the collected range.
+        e = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-09-01T12:00:00+00:00")[0]
+        self.assertEqual(e.current_epoch.events["resource_daily_from"], "2026-06-14")
+        self.assertNotIn("collected_from", e.current_epoch.resource_daily[0])
+
 if __name__ == "__main__":
     unittest.main()
