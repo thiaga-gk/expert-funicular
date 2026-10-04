@@ -9,7 +9,7 @@
 **Schema:** `schema/recommendation-package.schema.json`  
 **Python:** `contracts/reporter_contract.py`
 
-The contract is intentionally independent of the workbook. The JSON contract is the canonical product/API contract; the workbook will become a projection of this model after the JSON contract is implemented and validated.
+The contract is intentionally independent of the workbook. The JSON contract is the canonical product/API contract; the workbook is a projection of this model (`workbook-contract.md`) and never recomputes decisions, confidence, IDs or economics.
 
 ---
 
@@ -765,7 +765,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal `1.0.0` |
+| `contract_version` | Must equal the contract version of this document (`1.2.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -842,4 +842,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/test_reporter_contract.py`
 
-The workbook is intentionally not part of Reporter Contract v1.2.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.
+The workbook is not part of Reporter Contract v1.2.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

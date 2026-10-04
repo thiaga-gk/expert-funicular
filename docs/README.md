@@ -13,6 +13,7 @@ Contract versions are declared in code (`contracts/reporter_contract.py`, `contr
 | | [`evidence-format.md`](contracts/evidence-format.md) | You write, replay (`--from-evidence`) or change `evidence.json`. |
 | `reference/` | [`source-mapping.md`](reference/source-mapping.md) | You need which system table or API feeds which field. |
 | | [`thresholds.md`](reference/thresholds.md) | You are tuning or explaining policy thresholds. |
+| | [`blocker-codes.md`](reference/blocker-codes.md) | You need what a blocker code means and which threshold gates it. |
 | | [`technique-catalog.md`](reference/technique-catalog.md) | You need stable technique IDs and the algorithm per knob. |
 | | [`aws-cost-model.md`](reference/aws-cost-model.md) | You are working on AWS (non-DBU) economics. |
 | | [`known-limitations.md`](reference/known-limitations.md) | You need the open limitations of the current release. |
@@ -34,6 +35,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `contracts/workbook_contract.py` |
 | Replay evidence | [`contracts/evidence-format.md`](contracts/evidence-format.md) |
 | Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `publisher.py` |
+| Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/blocker-codes.md`](reference/blocker-codes.md) |
 | Technique IDs | [`reference/technique-catalog.md`](reference/technique-catalog.md) |
 | Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
 | AWS cost formulas | [`reference/aws-cost-model.md`](reference/aws-cost-model.md) |
