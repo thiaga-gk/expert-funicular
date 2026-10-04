@@ -954,7 +954,9 @@ usage AS (
     usage_end_time,
     CAST(usage_quantity AS DOUBLE) AS dbu_quantity,
     product_features.is_photon AS is_photon,
-    identity_metadata.owned_by AS owned_by
+    identity_metadata.owned_by AS owned_by,
+    usage_metadata.node_type AS node_type,
+    product_features.sql_tier AS sql_tier
   FROM system.billing.usage
   WHERE usage_metadata.warehouse_id IS NOT NULL
     AND billing_origin_product='SQL'
@@ -971,7 +973,9 @@ SELECT
   SUM(CASE WHEN u.is_photon IS NULL THEN u.dbu_quantity ELSE 0 END) AS photon_null_dbu,
   MAX(u.usage_end_time) AS latest_usage_time,
   MAX_BY(u.owned_by, CASE WHEN u.owned_by IS NOT NULL THEN u.usage_end_time END) AS latest_owner,
-  ARRAY_SORT(COLLECT_SET(u.owned_by)) AS observed_owners
+  ARRAY_SORT(COLLECT_SET(u.owned_by)) AS observed_owners,
+  ARRAY_SORT(COLLECT_SET(u.node_type)) AS observed_node_types,
+  ARRAY_SORT(COLLECT_SET(u.sql_tier)) AS observed_sql_tiers
 FROM usage u
 JOIN epochs e
   ON u.workspace_id=e.workspace_id
@@ -1908,7 +1912,7 @@ def recent_capacity_facts(window: Optional[Mapping[str, Any]], t: Thresholds) ->
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
-def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None) -> Tuple[Optional[float], Dict[str, Any]]:
+def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None, *, observed_node_types: Optional[Sequence[str]] = None) -> Tuple[Optional[float], Dict[str, Any]]:
     if current.config.warehouse_type == "SERVERLESS":
         region_prices = dict((aws_registry.get("regions") or {}).get(source_region) or {})
         return 0.0, {
@@ -1921,6 +1925,12 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     hourly, topo = aws_cluster_hourly_price(current.config.warehouse_size, source_region, aws_registry)
     if hourly is None:
         return None, topo
+    # Billed node types (driver and workers are not distinguished) must belong to the modeled topology for this size.
+    billed_nodes = sorted({str(x) for x in (observed_node_types or []) if x})
+    if billed_nodes and not set(billed_nodes) <= {topo["driver_instance"], topo["worker_instance"]}:
+        return None, {**topo, "status": "UNAVAILABLE", "blocker": "AWS_NODE_TYPE_MISMATCH", "observed_node_types": billed_nodes,
+                      "expected_node_types": sorted({topo["driver_instance"], topo["worker_instance"]})}
+    topo = {**topo, "node_type_check": "VERIFIED" if billed_nodes else "UNVERIFIED", "observed_node_types": billed_nodes}
     t = thresholds or Thresholds()
     window = resource_window_from(current, forecast_metadata.get("forecast_basis_end") or forecast_metadata.get("billing_complete_through"), t)
     if window is None:
@@ -2129,8 +2139,19 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
-        aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds)
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})
+        def as_list(value: Any) -> Optional[List[str]]:
+            if value is None:
+                return None
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except Exception:
+                    value = [value]
+            return sorted({str(x) for x in value if x is not None})
+        node_types = as_list(attribution_row.get("observed_node_types"))
+        sql_tiers = as_list(attribution_row.get("observed_sql_tiers"))
+        aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
         photon_observation = infer_photon_observation(attribution_row, analysis_time, thresholds)
         query_source = derive_query_source_profile(current.query)
         owners = attribution_row.get("observed_owners") or []
@@ -2167,7 +2188,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             cost_cv_84=model["cost_cv_84"],
             forecast_metadata={k:v for k,v in model.items() if k not in {"current_cost_365","forecast_cost_365","currency"}},
             daily_cost_365=daily_by_wh.get(wk, []),
-            billing_features=feature_rows.get(wk, {}),
+            billing_features={**feature_rows.get(wk, {}), **({} if sql_tiers is None else {"current_epoch_sql_tiers": sql_tiers}),
+                              **({} if node_types is None else {"current_epoch_node_types": node_types})},
             aws_baseline_cost_365=aws_cost,
             aws_cost_model=aws_model,
             sql_sku_prices=account_sku_prices,
@@ -2317,6 +2339,7 @@ class Analyzer:
         pro_classic_observed = bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))
         fs = [
             self._f(e,"warehouse_type","warehouse_type",cfg.warehouse_type,table="system.compute.warehouses",field="warehouse_type",window="current epoch",interpretation="Current warehouse type."),
+            self._f(e,"warehouse_type","billed_sql_tiers",e.billing_features.get("current_epoch_sql_tiers"),unit="state",table="system.billing.usage",field="product_features.sql_tier",window="current epoch",interpretation="Billed SQL tier beside the configured type (evidence only; not used in decisions)."),
             self._f(e,"warehouse_type","serverless_usage_pct_365",round(safe_float(e.billing_features.get("serverless_usage_pct_365")),4),unit="%",table="system.billing.usage",field="product_features.is_serverless",window="trailing 365 days",interpretation="Observed billing evidence; not used as current configuration source."),
             self._f(e,"warehouse_type","tagged_query_pct_30",round(safe_float(q.get("tagged_query_pct_30")),4),unit="%",table="system.query.history",field="query_tags",window="last 30 days within current epoch",interpretation="Query-tag coverage supplied to HITL for workload attribution and migration validation."),
             self._f(e,"warehouse_type","dashboard_queries_30",safe_int(q.get("dashboard_queries_30")),unit="queries",table="system.query.history",field="query_source.dashboard_id",window="last 30 days within current epoch",interpretation="Dashboard workload mix context."),
@@ -5161,6 +5184,9 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
             "photon_true_dbu": round(photon_true, 6), "photon_false_dbu": round(photon_false, 6), "photon_null_dbu": round(photon_null, 6),
             "latest_usage_time": None if last_bill is None else f"{last_bill}T23:00:00+00:00", "latest_owner": owner, "observed_owners": [owner],
+            # node_type is billed for non-serverless warehouses only; sql_tier is CLASSIC or PRO (null for Serverless).
+            "observed_node_types": [] if cfg["warehouse_type"] == "SERVERLESS" else sorted({AWS_SQL_WAREHOUSE_TOPOLOGY[cfg["warehouse_size"]]["driver"], "i3.2xlarge"}),
+            "observed_sql_tiers": [] if cfg["warehouse_type"] == "SERVERLESS" else [cfg["warehouse_type"]],
         })
     total_dbu = sum(r["dbu_quantity"] for r in rows["billing_daily_cost"])
     photon_dbu = total_dbu if spec.get("photon", "ENABLED") == "ENABLED" else 0.0
