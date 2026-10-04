@@ -1,13 +1,13 @@
 # Domain Context — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/context.md`  
+**Document:** `docs/architecture/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Implementation baseline:** Publisher v2.10.0  
-**Approved PRD:** `docs/prd.md` v1.0.0  
-**Approved HLD:** `docs/hld.md` v1.0.0  
-**Approved LLD:** `docs/lld.md` v1.0.0  
-**Reporter JSON Contract:** v1.1.0 (locked)  
-**Workbook Contract:** v1.2.0 (locked)  
+**Approved PRD:** `docs/product/prd.md` v1.0.0  
+**Approved HLD:** `docs/architecture/hld.md` v1.0.0  
+**Approved LLD:** `docs/architecture/lld.md` v1.0.0  
+**Reporter JSON Contract:** v1.2.0 (locked)  
+**Workbook Contract:** v1.3.0 (locked)  
 **Context version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01
@@ -43,8 +43,8 @@ flowchart TD
     H --> L[Approved LLD\nImplementation design]
     L --> C[Domain Context\nLanguage + semantics]
 
-    RC[Reporter JSON Contract v1.1.0\nPublic machine contract] --> L
-    WC[Workbook Contract v1.2.0\nHuman projection contract] --> L
+    RC[Reporter JSON Contract v1.2.0\nPublic machine contract] --> L
+    WC[Workbook Contract v1.3.0\nHuman projection contract] --> L
 
     CODE[publisher.py + contract modules] --> TESTS[Passing tests / golden scenarios]
     TESTS --> L
@@ -481,11 +481,11 @@ Every supported warehouse is evaluated across the same six candidate domains. Th
 | Auto-stop | Reduce avoidable idle running | Cost |
 | Warehouse type | Evaluate Pro/Classic ↔ standard Serverless migration | Alternative scenario / architecture |
 
-Stable technique IDs live in `docs/technique-catalog.md`.
+Stable technique IDs live in `docs/reference/technique-catalog.md`.
 
 ### 14.1 Channel is intentionally different
 
-`warehouse_channel` is retained in the seven-candidate model because it can affect recommendation stability and dependency risk, but it should be understood as a **governance/safety candidate**, not a direct savings technique.
+`warehouse_channel` is retained in the six-candidate model because it can affect recommendation stability and dependency risk, but it should be understood as a **governance/safety candidate**, not a direct savings technique.
 
 ---
 
@@ -561,7 +561,7 @@ Examples of current posture:
 - type migration requires compatibility review and canary validation.
 - missing spill, queue or latency evidence is unknown (null), never zero pressure: size-down and queue-based reductions are held with an `*_EVIDENCE_UNAVAILABLE` blocker, and increases need known evidence.
 
-Exact values live in `docs/thresholds.md` and the versioned policy/constants in code.
+Exact values live in `docs/reference/thresholds.md` and the versioned policy/constants in code.
 
 Do not tune thresholds based on one appealing warehouse. Calibrate using representative real workloads and false-positive/false-negative review.
 

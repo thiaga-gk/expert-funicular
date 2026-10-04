@@ -1,4 +1,4 @@
-# Threshold posture — v2.9.0
+# Threshold posture
 
 The defaults are **balanced-to-conservative overall**. They are policy defaults, not universal Databricks recommendations.
 

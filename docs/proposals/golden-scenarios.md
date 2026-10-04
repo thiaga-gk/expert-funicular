@@ -1,10 +1,10 @@
 # Golden scenarios for SQL warehouse cost optimization
 
-Status: **PLAN ONLY.** Evaluated against publisher 2.9.0 on 2026-10-04. Finding IDs appear only in the Tracker column; details and live status are in `docs/proposals/gap-review-2.8.0.md` and the tracker (https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w).
+Status: **Living table.** Rows are updated with each fix; pass/fail reflects the code at the time of the last update. Finding IDs appear only in the Tracker column; details and live status are in `docs/proposals/gap-review-2.8.0.md` and the tracker (https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w).
 
 - **In scope:** yes = the optimizer should decide it (size, min/max clusters, auto-stop, warehouse type); no = observe, flag or ignore only.
-- **Code coverage:** covered = 2.9.0 has a rule or evidence path for the scenario; not covered = none.
-- **Status:** pass = 2.9.0 behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
+- **Code coverage:** covered = the code has a rule or evidence path for the scenario; not covered = none.
+- **Status:** pass = the code behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
 - **Tracker:** finding IDs that change the behaviour; — when nothing needs to change.
 
 | ID | Scenario | Signature | Expected behavior | In scope | Code coverage | Status | Tracker |

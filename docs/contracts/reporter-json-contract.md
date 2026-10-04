@@ -835,11 +835,11 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 
 # 20. Source-of-truth artifacts
 
-1. **Semantic contract:** `docs/reporter-json-contract-v1.2.0.md`
+1. **Semantic contract:** `docs/contracts/reporter-json-contract.md`
 2. **Python executable contract:** `contracts/reporter_contract.py`
 3. **Schema builder:** `contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`
 5. **Canonical example:** `examples/recommendation-package.example.json`
-6. **Contract tests:** `tests/contracts/test_reporter_contract.py`
+6. **Contract tests:** `tests/test_reporter_contract.py`
 
 The workbook is intentionally not part of Reporter Contract v1.2.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.

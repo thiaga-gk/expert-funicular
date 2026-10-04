@@ -1,12 +1,12 @@
 # Low-Level Design — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/lld.md`  
+**Document:** `docs/architecture/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Implementation baseline:** Publisher v2.10.0  
-**Approved PRD:** `docs/prd.md` v1.0.0  
-**Approved HLD:** `docs/hld.md` v1.0.0  
+**Approved PRD:** `docs/product/prd.md` v1.0.0  
+**Approved HLD:** `docs/architecture/hld.md` v1.0.0  
 **Reporter JSON Contract:** v1.2.0 (locked)  
-**Workbook Contract:** v1.2.0 (locked)  
+**Workbook Contract:** v1.3.0 (locked)  
 **LLD version:** 1.0.0  
 **Status:** Approved / locked  
 **Last updated:** 2026-10-01  
@@ -33,8 +33,8 @@ The following contracts are independent of publisher implementation version and 
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 1.2.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.2.0.md` |
-| Workbook Contract | 1.3.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.3.0.md` |
+| Reporter JSON Contract | 1.2.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
+| Workbook Contract | 1.3.0 | `contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
 | Publisher implementation | 2.10.0 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
@@ -56,8 +56,7 @@ publisher.py
 contracts/
 ├── reporter_contract.py
 ├── reporter_schema.py
-├── workbook_contract.py
-└── workbook_contract.md
+└── workbook_contract.py
 reporters/
 └── workbook_reporter.py
 schema/
@@ -65,15 +64,11 @@ schema/
 pricing/
 └── aws_ec2_on_demand.json
 docs/
-├── prd.md
-├── hld.md
-├── lld.md
-├── reporter-json-contract-v1.2.0.md
-├── workbook-contract-v1.3.0.md
-├── thresholds.md
-├── technique-catalog.md
-├── source-mapping.md
-└── aws-cost-model.md
+├── product/prd.md
+├── architecture/{context,hld,lld}.md
+├── contracts/{reporter-json-contract,workbook-contract}.md
+├── reference/{thresholds,technique-catalog,source-mapping,aws-cost-model,known-limitations}.md
+└── skills.md
 tests/
 ├── test_publisher.py
 ├── test_locked_reporter_integration.py
@@ -210,9 +205,9 @@ sequenceDiagram
     COL->>MOD: daily DBU cost + current epoch
     MOD-->>COL: forward baseline forecast
     COL->>ANA: WarehouseEvidence
-    ANA-->>OPT: AnalysisResult[7]
-    OPT-->>EST: OptimizationDecision[7]
-    EST-->>R1: CandidateRecommendation[7]
+    ANA-->>OPT: AnalysisResult[6]
+    OPT-->>EST: OptimizationDecision[6]
+    EST-->>R1: CandidateRecommendation[6]
     R1-->>PLN: reviewed candidates
     PLN->>BND: ordered Plan A / Plan B steps
     BND-->>PLN: stateful scenario economics
@@ -1544,7 +1539,7 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.10.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
+Publisher v2.10.0 is validated by the full regression suite; reproduce the results with the commands in `CLAUDE.md`.
 
 ### 32.3 Golden scenarios
 
@@ -1623,7 +1618,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A dependency/invalidation order is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.1.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.2.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.
@@ -1641,8 +1636,8 @@ flowchart LR
     CTX[context.md<br/>domain language + concepts] --> PRD[prd.md<br/>what/why]
     PRD --> HLD[hld.md<br/>architecture]
     HLD --> LLD[lld.md<br/>implementation design]
-    LLD --> RC[Reporter Contract v1.1.0]
-    LLD --> WC[Workbook Contract v1.2.0]
+    LLD --> RC[Reporter Contract v1.2.0]
+    LLD --> WC[Workbook Contract v1.3.0]
     LLD --> CODE[publisher.py + modules]
     CODE --> TEST[tests + golden evidence]
 ```

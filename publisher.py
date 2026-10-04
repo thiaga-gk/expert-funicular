@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic Databricks SQL Warehouse optimizer and publisher.
 
-v2.7 pipeline:
+Pipeline:
 collect -> normalize/epochs -> analyze -> optimize -> model -> estimate ->
 review -> scenario plan -> stateful bundle estimate -> package/report
 

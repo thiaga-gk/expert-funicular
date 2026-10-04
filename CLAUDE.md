@@ -1,73 +1,55 @@
-# CLAUDE.md — v2.10.0 execution rules
+# inframate-v1
 
-## Primary invariants
-- `RecommendationPackage` under Reporter JSON Contract v1.2.0 is the public machine source of truth.
-- Workbook Contract v1.3.0 is projection-only; never put optimization, estimation, confidence, ID/hash, or selection logic in Excel.
-- Identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
+Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, Reporter JSON Contract v1.2.0, Workbook Contract v1.3.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
 
-## Supported scope
-- Active types: `CLASSIC`, `PRO`, standard `SERVERLESS`.
-- `SUPPORTED_WAREHOUSE_TYPES` is fail-closed; never route unknown/future warehouse types into existing algorithms.
-- One candidate per active domain: channel guardrail, size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon is observation-only: it is left at its default and never recommended (no Databricks on/off price exists for SQL warehouses; savings would be guessed).
-- Query rewrite, storage, schedule, Spot policy and statement-timeout tuning are out of scope.
-
-## Source authority
-- Authoritative config snapshots: `system.compute.warehouses`.
-- Current epoch controls active recommendations; historical epochs are calibration/backtest only.
-- Photon is observed from current-epoch billing `product_features.is_photon`; do not represent it as an authoritative config API field.
-- Owner attribution: billing `identity_metadata.owned_by`.
-- Query source: `system.query.history.query_source` + `client_application`.
-- REST is read-only and limited to target resolution/validation and optional migration compatibility evidence.
-- Preserve `(workspace_id, warehouse_id)` identity.
-
-## Decision boundaries
-Collector → Normalizer → Supported-Type Gate → Analyzer → Policy/Optimizer → Modeler/Estimator → Reviewer Gate 1 → Scenario Planner → Stateful Bundle Estimator → Reviewer Gate 2 → RecommendationPackage → JSON validation → Workbook projection.
-
-Analyzer observes; optimizer decides; candidate estimator prices isolated changes; bundle estimator prices stateful scenarios. Do not merge these responsibilities.
-
-## Economics
-- Keep DBU and AWS components separate.
-- Candidate economics are non-additive.
-- Scenario economics are stateful.
-- Package economics are a scenario envelope, not a probability interval.
-- Unknown cost is unavailable/null, never zero or guessed.
-- Workbook annual-impact fields are numeric and signed: positive = savings; negative = cost increase. Keep an explicit currency and impact type.
-
-## Public identity and validation
-Use the contract helpers for `EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, and `PKG-*` identities. Volatile presentation metadata must not alter deterministic IDs.
-
-Before writing each package:
-1. assemble the frozen `RecommendationPackage`;
-2. set/recompute package identity and full package hash;
-3. run semantic/cross-reference validation;
-4. serialize canonically;
-5. validate against the committed Draft 2020-12 schema;
-6. only then write `packages/<workspace>__<warehouse>.json`.
-
-## Workbook
-- Exact detailed-sheet column order/groups live in `contracts/workbook_contract.py`; renderer must consume those declarations rather than own a second column list.
-- Exactly four visible sheets: Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry.
-- No business formulas/macros/hidden sheets.
-- Financial values numeric where available; no strings such as `Save USD ...` in economic cells.
-- IDs stored as text; verbose audit JSON belongs at the far right.
-
-## Security
-- OAuth profiles only for live auth; reject static PAT profiles.
-- Never log credentials/tokens, raw SQL statement text, or unnecessary sensitive config values.
-- No mutation/apply API in Phase 1.
+## Commands
+Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
+- Compile check: `python -m compileall -q publisher.py contracts reporters tests tools`
+- All tests: `python -m unittest discover -s tests -v`
+- One test: `python -m unittest tests.test_publisher.<Class>.<test_name> -v` (or a module: `tests.test_workbook_contract`)
+- 15-warehouse demo: `python publisher.py --demo --demo-count 15 --output-dir ./demo_out`
+- Workbook validator: `python tools/validate_workbook.py ./demo_out`
+- Contract example: `python -m contracts.validate_example`
+- Skill suite: `python tools/validate_skill_suite.py`
 
 ## Change loop
 1. Make the smallest layer-local change.
-2. `python -m compileall -q publisher.py contracts reporters tests`
-3. `python -m unittest discover -s tests -v`
-4. regenerate the 15-warehouse demo;
-5. validate every package against semantic + JSON Schema rules;
-6. validate `workbook.xlsx` against exact sheet/column/grain rules and numeric economic semantics (`python tools/validate_workbook.py <output_dir>`);
-7. scan the repo for stale version/legacy/deferred references before release packaging.
+2. Compile check, then all tests.
+3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
+4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
+5. A decision-affecting change bumps the affected component versions in `publisher.py` and regenerates goldens and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
+
+## Invariants
+- IMPORTANT: `RecommendationPackage` (Reporter JSON Contract) is the public machine source of truth. The workbook is projection-only: never put optimization, estimation, confidence, ID/hash or selection logic in Excel.
+- IMPORTANT: identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
+- `SUPPORTED_WAREHOUSE_TYPES` (`CLASSIC`, `PRO`, standard `SERVERLESS`) is fail-closed: never route unknown or future types into existing algorithms.
+- One candidate per active domain: channel guardrail, size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon is observation-only and never recommended (no Databricks on/off price exists, so savings would be guessed). Query rewrite, storage, schedule, Spot and statement-timeout tuning are out of scope.
+- Read-only: OAuth profiles only (reject static PATs), no mutation/apply API, and never log credentials, tokens, raw SQL text or unnecessary config values.
+
+## Source authority
+- Config snapshots: `system.compute.warehouses`. The current epoch controls recommendations; older epochs are calibration/backtest only.
+- Photon comes from current-epoch billing `product_features.is_photon`, not a config API. Owner: billing `identity_metadata.owned_by`. Query source: `system.query.history` `query_source` + `client_application`.
+- REST is read-only: target resolution/validation and optional migration compatibility evidence.
+- Preserve `(workspace_id, warehouse_id)` identity.
+
+## Pipeline boundaries
+Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → Modeler/Estimator → Reviewer 1 → Scenario Planner → Stateful Bundle Estimator → Reviewer 2 → RecommendationPackage → validation → Workbook. The analyzer observes, the optimizer decides, the candidate estimator prices isolated changes, the bundle estimator prices stateful scenarios. Do not merge these responsibilities (`docs/architecture/hld.md`).
+
+## Economics
+- Keep DBU and AWS components separate. Unknown cost is null/unavailable, never zero or guessed.
+- Candidate economics are non-additive; scenario economics are stateful; package economics are a scenario envelope, not a probability interval.
+- Workbook annual impact is numeric and signed (positive = savings, negative = cost increase) with explicit currency and impact type. No strings like `Save USD ...` in economic cells.
+
+## Identity and package write order
+- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs.
+- Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
+- Write order (`_build_locked_recommendation_package`, `package_locked_contract`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
+
+## Workbook
+Column order and groups live only in `contracts/workbook_contract.py`; the renderer in `reporters/workbook_reporter.py` consumes them and keeps no second list. Exactly four visible sheets (Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry), no formulas/macros/hidden sheets, IDs as text, audit JSON at the far right.
+
+## Tests
+Unittest only, no pytest. Golden fixtures in `tests/golden/*.json` are normalized evidence plus an `expect` block; the assertion DSL is documented in the `tests/test_golden_scenarios.py` docstring. Adding a golden case needs only a JSON file.
 
 ## Reusable publisher skills
-- For a new Databricks service publisher, start with `.claude/skills/databricks-publisher-orchestrator/SKILL.md`; do not clone/search-replace SQL Warehouse semantics.
-- Use the specialist skills for discovery, source contract, technique catalog, economics, contract lock, builder, independent validator, and release sealer.
-- Approved artifacts under `artifacts/databricks/<service-id>/` are the cross-skill API. Upstream semantic changes invalidate dependent approvals.
-- Follow Skill Creator methodology: keep `SKILL.md` focused, load detailed references progressively, prefer deterministic scripts for repeatable validation, maintain trigger + functional evals, and validate the suite with `python tools/validate_skill_suite.py`.
-- The generic reusable reporter contract uses `resource`; service-specific names belong in adapters/extensions.
+For a new Databricks service publisher, start at `.claude/skills/databricks-publisher-orchestrator/SKILL.md` and do not clone or search-replace SQL Warehouse semantics. Approved artifacts under `artifacts/databricks/<service-id>/` (created on demand by the orchestrator) are the cross-skill API; an upstream semantic change invalidates dependent approvals. The generic reporter contract uses `resource`; service-specific names belong in adapters. Details: `docs/skills.md`.

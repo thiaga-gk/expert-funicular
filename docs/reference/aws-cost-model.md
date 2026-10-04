@@ -1,4 +1,4 @@
-# AWS cost model — v2.9.0
+# AWS cost model
 
 ## Purpose
 Expose customer AWS compute economics separately from Databricks DBU economics for Pro/Classic SQL warehouses.

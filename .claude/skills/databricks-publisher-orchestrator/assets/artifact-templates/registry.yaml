@@ -1,8 +1,0 @@
-service_id: example-service
-artifacts:
-  - path: discovery/service-profile.yaml
-    version: 1
-    status: DRAFT
-    owner_skill: databricks-service-discovery
-    sha256: null
-    dependencies: []

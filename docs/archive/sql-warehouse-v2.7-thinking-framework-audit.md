@@ -1,5 +1,7 @@
 # SQL Warehouse Publisher v2.7.0 — Optimization Thinking Framework Audit
 
+> **Archived.** Point-in-time audit of publisher 2.7.0. It is not maintained; version numbers and findings reflect that release.
+
 **Status:** Design audit; no runtime behavior changed by this document  
 **Skill framework:** Databricks Publisher Skills v1.1.0 / Optimization Thinking Framework v1.0  
 **Publisher:** SQL Warehouse Optimizer v2.7.0
