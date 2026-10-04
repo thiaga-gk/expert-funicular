@@ -515,6 +515,8 @@ The product shall distinguish:
 5. **Package opportunity envelope** — cross-scenario low/base/high headline economics.
 6. **Realized savings** — measured outcome after approved implementation.
 
+The forward DBU baseline shall be published only when it is known: every day in the current-epoch basis priced, at least 7 billed days in the current epoch, and a positive run rate. Otherwise it shall be unavailable (null), never zero or a run rate guessed from a few days, and savings estimates and warehouse-type migration shall be withheld.
+
 ### FR-EST-001
 
 DBU and customer AWS costs shall be represented separately where both are applicable.

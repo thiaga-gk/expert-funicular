@@ -592,6 +592,8 @@ Expected next-365-day cost if the current configuration remains unchanged.
 
 This is the primary comparison basis for counterfactual recommendations.
 
+It is published only when known: every day in the current-epoch basis priced, at least 7 billed days in the current epoch, and a positive run rate. Otherwise it is unavailable (null), never $0 or a run rate guessed from a few days, and savings estimates are withheld until it can be forecast.
+
 ### 18.3 Candidate counterfactual
 
 Independent economic estimate assuming **only one candidate** is applied.
@@ -681,7 +683,7 @@ If required regional AWS price evidence is unavailable, the product represents t
 
 One recommendation package cannot silently mix currencies.
 
-Unknown cost components remain `null`/unavailable, never `$0`. This includes DBU usage with no matching list-price row: it is reported as unpriced DBU, and the actual or forward DBU cost it affects is unavailable rather than understated.
+Unknown cost components remain `null`/unavailable, never `$0`. This includes DBU usage with no matching list-price row: it is reported as unpriced DBU, and the actual or forward DBU cost it affects is unavailable rather than understated. A forward DBU cost with fewer than 7 billed days in the current epoch is likewise unavailable, not $0.
 
 ---
 

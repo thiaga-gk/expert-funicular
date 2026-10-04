@@ -28,7 +28,7 @@ Status: **PLAN ONLY.** Evaluated against publisher 2.9.0 on 2026-10-04. Finding 
 | C17 | Classic → Pro | Classic, point-lookup / MERGE heavy | Not optimized; flagged as a performance option. | no | not covered | fail | OOS |
 | C18 | Preview channel | `warehouse_channel = PREVIEW` | Observe only: no recommendation, plan step or invalidation; reported in the current configuration with an informational note. Constructed run: a pending size change must not be blocked by the channel. | no | covered | fail | G42 |
 | C19 | Newly changed config | Recent `change_time` | Wait for the configuration to mature; show the earliest re-evaluation time. | yes | covered | pass | — |
-| C20 | Sparse / new warehouse | Few billing days or queries | Abstain; unknown cost stays unknown, never $0. | yes | covered | fail | G18 |
+| C20 | Sparse / new warehouse | Few billing days or queries | Abstain; unknown cost stays unknown, never $0. | yes | covered | pass | G18 |
 | C21 | Result-cache-heavy BI | `from_result_cache` high | Cache hits excluded from latency checks; Pro/Classic restart cost includes cache warm-up. | yes | covered | fail | G9, S4, K1 |
 | C22 | A few heavy queries drive spill | Spill concentrated in few statements | No upsize when a few statements carry most spilled bytes; flag for query rewrite. Constructed run: 3% of queries with p95 spill 5 GiB is upsized today. | yes | not covered | fail | K4 |
 | C23 | Mixed ETL and BI on one warehouse | Mixed `query_source` / `client_application` | Not optimized; flagged as a workload-isolation option. | no | not covered | fail | OOS |

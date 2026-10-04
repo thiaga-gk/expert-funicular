@@ -903,6 +903,33 @@ ORDER BY account_id, sku_name
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
 
+def dbu_baseline_blocker(e: "WarehouseEvidence", t: "Thresholds") -> str:
+    """Why the forward DBU baseline is unknown.
+
+    COST_HISTORY_INSUFFICIENT is the calendar gate (a young epoch; the re-evaluation window says when it clears);
+    BILLED_COST_DAYS_INSUFFICIENT is a mature epoch billed on too few days (not time-boxed); DBU_COST_UNAVAILABLE is a
+    cost that cannot be priced or a non-positive run rate.
+    """
+    if e.cost_history_days < t.min_economics_cost_history_days:
+        return "COST_HISTORY_INSUFFICIENT"
+    status = (e.forecast_metadata or {}).get("dbu_forecast_status")
+    return "BILLED_COST_DAYS_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+
+
+MIGRATION_BASELINE_RATIONALE = {
+    "COST_HISTORY_INSUFFICIENT": "Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than 7 days of billing history to price it.",
+    "BILLED_COST_DAYS_INSUFFICIENT": "Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than 7 billed days to forecast its DBU cost.",
+    "DBU_COST_UNAVAILABLE": "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unavailable (unpriced usage or a non-positive run rate).",
+}
+
+DBU_BASELINE_WITHHELD = {
+    # blocker -> (bundle status, reason shown on withheld plan economics)
+    "COST_HISTORY_INSUFFICIENT": ("REQUIRES_COST_HISTORY", "At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues."),
+    "BILLED_COST_DAYS_INSUFFICIENT": ("UNAVAILABLE", "The current epoch has too few billed days to forecast its DBU cost; economics are withheld."),
+    "DBU_COST_UNAVAILABLE": ("UNAVAILABLE", "The forward DBU cost is unavailable (unpriced usage or a non-positive run rate); economics are withheld."),
+}
+
+
 def optional_float(value: Any) -> Optional[float]:
     """Float or None when the source did not report a usable value; unknown evidence must not read as zero."""
     if value is None or isinstance(value, bool):
@@ -1563,7 +1590,8 @@ class Modeler:
         if not series:
             return {
                 "current_cost_365": actual,
-                "forecast_cost_365": 0.0,
+                "forecast_cost_365": None,
+                "dbu_forecast_status": "UNPRICED_USAGE" if unpriced_in_basis > 0 else "INSUFFICIENT_ACTIVE_COST_DAYS",
                 "currency": currency,
                 "cost_history_days": 0,
                 "active_cost_days": 0,
@@ -1595,6 +1623,17 @@ class Modeler:
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
+        active_cost_days = sum(1 for x in series if x > 1e-12)  # billed days; a correction-only (negative) day is not one
+        # The forward DBU cost is published only when it is known: every day priced, enough billed days to estimate a
+        # run rate, and a positive run rate. Otherwise it is unknown (null), never $0 or a guess.
+        if unpriced_in_basis > 0:
+            forecast_status = "UNPRICED_USAGE"
+        elif active_cost_days < self.t.min_economics_cost_history_days:
+            forecast_status = "INSUFFICIENT_ACTIVE_COST_DAYS"
+        elif daily <= 0:
+            forecast_status = "NON_POSITIVE_RUN_RATE"
+        else:
+            forecast_status = "COMPLETE"
         if unpriced_in_basis > 0:
             # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
             # AWS model gets no trend adjustment instead of a spurious downward one.
@@ -1603,10 +1642,11 @@ class Modeler:
             cv = None
         return {
             "current_cost_365": actual,
-            "forecast_cost_365": None if unpriced_in_basis > 0 else round(max(0.0, daily * 365), 2),
+            "forecast_cost_365": round(daily * 365, 2) if forecast_status == "COMPLETE" else None,
+            "dbu_forecast_status": forecast_status,
             "currency": currency,
             "cost_history_days": len(series),
-            "active_cost_days": sum(1 for x in series if abs(x) > 1e-12),
+            "active_cost_days": active_cost_days,
             "cost_cv_84": None if cv is None else round(cv, 4),
             "forecast_method": MODEL_VERSION,
             "run_rate_28": None if unpriced_in_basis > 0 else round(mean28 * 365, 2),
@@ -2109,14 +2149,10 @@ class Optimizer:
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
         blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
-        if e.baseline_forecast_cost_365 is None:
+        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["DBU_COST_UNAVAILABLE"],[],[],[],
-                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unavailable: usage was billed under an SKU with no list price."))
-        elif e.cost_history_days < self.t.min_economics_cost_history_days:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["COST_HISTORY_INSUFFICIENT"],[],[],[],
-                f"Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than {self.t.min_economics_cost_history_days} days of billing history to price it."))
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e,self.t)],[],[],[],
+                MIGRATION_BASELINE_RATIONALE[dbu_baseline_blocker(e,self.t)]))
         elif cfg.warehouse_type == "SERVERLESS":
             if not f.get("pro_classic_observed"):
                 blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
@@ -2194,18 +2230,14 @@ class Estimator:
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
-        if e.baseline_forecast_cost_365 is None:
-            # Every estimate below scales the forward DBU cost; with unpriced usage in its basis that cost is unknown.
+        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
+            # Every estimate below scales the forward DBU cost, which is unknown (unpriced usage, too few billed days, a
+            # non-positive run rate) or not trustworthy on a young epoch, even when replayed evidence carries a number.
+            blocker=dbu_baseline_blocker(e,self.t); status,reason=DBU_BASELINE_WITHHELD[blocker]
             return None,{
-                "method":"estimate withheld: the forward DBU cost is unavailable (usage billed under an SKU with no list price)",
-                "estimate_blocker":"DBU_COST_UNAVAILABLE",
-                "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":"The forward DBU cost is unavailable because usage was billed under an SKU with no list price; economics are withheld."},**meta}
-        if e.cost_history_days < self.t.min_economics_cost_history_days:
-            # Every estimate below scales the forward cost forecast, which is not trustworthy on a very young epoch.
-            return None,{
-                "method":f"estimate withheld: fewer than {self.t.min_economics_cost_history_days} days of current-epoch cost history",
-                "estimate_blocker":"COST_HISTORY_INSUFFICIENT",
-                "bundle_effect":{"type":"estimate_withheld","status":"REQUIRES_COST_HISTORY","reason":"At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues."},**meta}
+                "method":f"estimate withheld: {reason}",
+                "estimate_blocker":blocker,
+                "bundle_effect":{"type":"estimate_withheld","status":status,"reason":reason},**meta}
         if knob=="warehouse_type":
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
@@ -2696,7 +2728,7 @@ class StatefulBundleEstimator:
         def fresh()->_ChainState:
             st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
             if dbu_base is None:
-                st.halt=("UNAVAILABLE","The forward DBU cost is unavailable (usage billed under an SKU with no list price); plan economics are withheld.")
+                st.halt=DBU_BASELINE_WITHHELD[dbu_baseline_blocker(e,self.t)]
             return st
         auth,cont=fresh(),fresh()
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
@@ -4150,7 +4182,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         + _demo_daily(dt.date(2026, 1, 15), 259, 21100.0, workspace, wh, cur_start)
     )
     forecast={
-        "forecast_method": MODEL_VERSION, "active_cost_days": 259,
+        "forecast_method": MODEL_VERSION, "active_cost_days": 259, "dbu_forecast_status": "COMPLETE",
         "forecast_basis_start": "2026-01-15", "forecast_basis_end": "2026-09-30",
         "run_rate_28": 28000.0, "run_rate_84": 26500.0, "zero_cost_days_in_basis": 0,
         "trend_ratio": 1.0, "trend_adjustment_factor": 1.0,
@@ -4252,7 +4284,7 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         gaps={"gap_count":max(5,int(q30/25)),"p50_gap_minutes":10.0,"p90_gap_minutes":90.0 if autostop>=60 else 35.0,"saved_idle_minutes_if_10":uptime*idle_factor,"saved_idle_minutes_if_15":uptime*idle_factor*0.92,"saved_idle_minutes_if_30":uptime*idle_factor*0.72,"saved_idle_minutes_if_45":uptime*idle_factor*0.50}
         config=WarehouseConfig(wtype,"CURRENT",size,minc,maxc,autostop)
         epoch=EpochEvidence(epoch_id=epoch_id(workspace,wh,epoch_start),warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,epoch_start=epoch_start,epoch_end=None,is_current=True,config=config,tags={"environment":"production" if i not in {9,11} else "nonprod","team":owners[i-1]},query=q,events=events,gaps=gaps,cost={"list_cost":round(baseline*0.88,2),"dbu_quantity":round(baseline/0.22,2),"cost_days":age_days,"active_cost_days":age_days,"currency":"USD"})
-        forecast={"forecast_method":MODEL_VERSION,"active_cost_days":age_days,"forecast_basis_start":epoch_start[:10],"forecast_basis_end":"2026-09-30","run_rate_28":baseline*1.03,"run_rate_84":baseline*0.99,"zero_cost_days_in_basis":0,"trend_ratio":1.0,"trend_adjustment_factor":1.0}
+        forecast={"forecast_method":MODEL_VERSION,"active_cost_days":age_days,"dbu_forecast_status":"COMPLETE" if age_days>=Thresholds().min_economics_cost_history_days else "INSUFFICIENT_ACTIVE_COST_DAYS","forecast_basis_start":epoch_start[:10],"forecast_basis_end":"2026-09-30","run_rate_28":baseline*1.03,"run_rate_84":baseline*0.99,"zero_cost_days_in_basis":0,"trend_ratio":1.0,"trend_adjustment_factor":1.0}
         aws,aws_model=model_aws_baseline_cost(epoch,"us-east-1",analysis_time,forecast,registry)
         true_dbu=1000.0 if photon=="ENABLED" else 0.0
         false_dbu=1000.0 if photon=="DISABLED" else 0.0
@@ -4262,7 +4294,7 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         conf={"score":0.96 if photon!="UNKNOWN" else 0.25,"level":"HIGH" if photon!="UNKNOWN" else "LOW","components":{"feature_coverage":coverage/100.0,"freshness":1.0,"dbu_volume":1.0 if photon!="UNKNOWN" else 0.2,"state_purity":1.0 if photon!="UNKNOWN" else 0.0}}
         daily=_demo_daily(parse_datetime(epoch_start).date(),max(1,min(age_days,365)),round(baseline*0.88,2),workspace,wh,epoch_start)  # type: ignore[union-attr]
         billing={"photon_usage_pct_365":enabled_pct,"serverless_usage_pct_365":100.0 if wtype=="SERVERLESS" else 0.0,"cloud":"AWS","workspace_serverless_observed_from_system_compute_warehouses": wtype=="SERVERLESS","workspace_pro_classic_observed_from_system_compute_warehouses":wtype!="SERVERLESS"}
-        e=WarehouseEvidence(warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,source_region="us-east-1",analysis_time=analysis_time,current_epoch_id=epoch.epoch_id,epochs=[epoch],current_cost_365=round(baseline*0.88,2),baseline_forecast_cost_365=float(baseline),currency="USD",cost_history_days=age_days,cost_cv_84=(None if age_days<Thresholds().forecast_cv_min_days else 0.18 if q30>=100 else 0.55),forecast_metadata=forecast,daily_cost_365=daily,billing_features=billing,aws_baseline_cost_365=aws,aws_cost_model=aws_model,sql_sku_prices={"PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},"PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"}},compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","workspace_id":workspace,"enable_serverless_compute":True,"external_legacy_hive_metastore_detected":False,"external_legacy_hive_metastore_config_keys":[],"s3_access_policy_status":"UNKNOWN","enabled_warehouse_types":{"PRO":True},"source":"synthetic compatibility fixture"},photon_observation=PhotonObservation(status=photon,enabled_usage_pct=enabled_pct,known_feature_coverage_pct=coverage,true_dbu=true_dbu,false_dbu=false_dbu,null_dbu=null_dbu,latest_usage_time="2026-09-30T23:00:00+00:00",freshness_days=0,confidence=conf),attribution=WarehouseAttribution(owner=f"{owners[i-1]}@databricks.example",observed_owners=[f"{owners[i-1]}@databricks.example"],owner_source="system.billing.usage.identity_metadata.owned_by",query_source=derive_query_source_profile(q)))
+        e=WarehouseEvidence(warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,source_region="us-east-1",analysis_time=analysis_time,current_epoch_id=epoch.epoch_id,epochs=[epoch],current_cost_365=round(baseline*0.88,2),baseline_forecast_cost_365=(float(baseline) if age_days>=Thresholds().min_economics_cost_history_days else None),currency="USD",cost_history_days=age_days,cost_cv_84=(None if age_days<Thresholds().forecast_cv_min_days else 0.18 if q30>=100 else 0.55),forecast_metadata=forecast,daily_cost_365=daily,billing_features=billing,aws_baseline_cost_365=aws,aws_cost_model=aws_model,sql_sku_prices={"PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},"PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"}},compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","workspace_id":workspace,"enable_serverless_compute":True,"external_legacy_hive_metastore_detected":False,"external_legacy_hive_metastore_config_keys":[],"s3_access_policy_status":"UNKNOWN","enabled_warehouse_types":{"PRO":True},"source":"synthetic compatibility fixture"},photon_observation=PhotonObservation(status=photon,enabled_usage_pct=enabled_pct,known_feature_coverage_pct=coverage,true_dbu=true_dbu,false_dbu=false_dbu,null_dbu=null_dbu,latest_usage_time="2026-09-30T23:00:00+00:00",freshness_days=0,confidence=conf),attribution=WarehouseAttribution(owner=f"{owners[i-1]}@databricks.example",observed_owners=[f"{owners[i-1]}@databricks.example"],owner_source="system.billing.usage.identity_metadata.owned_by",query_source=derive_query_source_profile(q)))
         out.append(e)
     return out
 
@@ -4273,6 +4305,24 @@ def save_evidence(path:Path,evidence:Sequence[WarehouseEvidence])->None:
 def _epoch_from_dict(x:Mapping[str,Any])->EpochEvidence:
     return EpochEvidence(epoch_id=str(x["epoch_id"]),warehouse_id=str(x["warehouse_id"]),workspace_id=str(x.get("workspace_id") or ""),account_id=str(x.get("account_id") or ""),warehouse_name=str(x.get("warehouse_name") or x["warehouse_id"]),
                          epoch_start=str(x["epoch_start"]),epoch_end=x.get("epoch_end"),is_current=bool(x.get("is_current")),config=WarehouseConfig(**x["config"]),tags=dict(x.get("tags") or {}),query=dict(x.get("query") or {}),events=dict(x.get("events") or {}),gaps=dict(x.get("gaps") or {}),cost=dict(x.get("cost") or {}))
+
+
+def _replayed_dbu_forecast(x: Mapping[str, Any]) -> Tuple[Optional[float], Dict[str, Any]]:
+    """Stored forward DBU cost and forecast metadata. Evidence written before forecast statuses existed could hold $0 (a
+    floored or empty basis) or a run rate guessed from a few billed days; it replays as unknown with the status a fresh
+    run would record (like the stored-CV rule, the default policy floor applies to legacy evidence)."""
+    value = x.get("baseline_forecast_cost_365")
+    meta = dict(x.get("forecast_metadata") or {})
+    if value is None or "dbu_forecast_status" in meta:
+        return (None if value is None else safe_float(value)), meta
+    active = meta.get("active_cost_days")
+    if active is not None and safe_int(active) < Thresholds().min_economics_cost_history_days:
+        meta["dbu_forecast_status"] = "INSUFFICIENT_ACTIVE_COST_DAYS"
+        return None, meta
+    if safe_float(value) <= 0:
+        meta["dbu_forecast_status"] = "NON_POSITIVE_RUN_RATE"
+        return None, meta
+    return safe_float(value), meta
 
 
 def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
@@ -4286,12 +4336,12 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         current_epoch_id=str(x["current_epoch_id"]),
         epochs=[_epoch_from_dict(e) for e in x.get("epochs", [])],
         current_cost_365=None if x.get("current_cost_365") is None else safe_float(x.get("current_cost_365")),
-        baseline_forecast_cost_365=None if x.get("baseline_forecast_cost_365") is None else safe_float(x.get("baseline_forecast_cost_365")),
+        baseline_forecast_cost_365=_replayed_dbu_forecast(x)[0],
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
         # Evidence written before CV became Optional stored 0.0 for short histories; treat that as unknown.
         cost_cv_84=None if (x.get("cost_cv_84") is None or safe_int(x.get("cost_history_days")) < Thresholds().forecast_cv_min_days) else safe_float(x.get("cost_cv_84")),
-        forecast_metadata=dict(x.get("forecast_metadata") or {}),
+        forecast_metadata=_replayed_dbu_forecast(x)[1],
         daily_cost_365=list(x.get("daily_cost_365") or []),
         billing_features=dict(x.get("billing_features") or {}),
         aws_baseline_cost_365=(None if x.get("aws_baseline_cost_365") is None else safe_float(x.get("aws_baseline_cost_365"))),

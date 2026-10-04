@@ -474,7 +474,7 @@ Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/fut
 
 - analysis day itself is excluded,
 - basis begins at the later of current epoch start or 365 days before analysis,
-- missing calendar days are filled with zero,
+- missing calendar days are filled with zero (a day with no billing is a $0 day, but the forecast is published only when the epoch has enough billed days; see 11.2),
 - mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency).
 
 ### 11.2 Daily run rate
@@ -500,8 +500,15 @@ Trend uses the ratio of last-28 to previous-28 mean, clamped to `[0.75, 1.25]`:
 
 ```text
 trend_adjustment = 1 + 0.25 * (clamped_ratio - 1)
-forecast_365 = max(0, daily * trend_adjustment * 365)
+forecast_365 = daily * trend_adjustment * 365
 ```
+
+The forward DBU cost (`forecast_cost_365`) is published only when it is known. Otherwise it is null, never $0 and never a run rate guessed from a few days. It is known when every basis day is priced, the current epoch has at least `min_economics_cost_history_days` (7) billed (non-zero cost) days, and the run rate is positive. Forecast metadata records `dbu_forecast_status`:
+
+- `COMPLETE`: published;
+- `INSUFFICIENT_ACTIVE_COST_DAYS`: fewer than 7 billed days, including an empty basis;
+- `UNPRICED_USAGE`: unpriced DBU inside the basis (11.4);
+- `NON_POSITIVE_RUN_RATE`: net billing corrections leave a run rate at or below zero.
 
 `cost_cv_84` is the population coefficient of variation for the last-84 window when enough observations exist.
 
@@ -527,7 +534,7 @@ Unpriced DBU is unknown cost, never zero:
 - an epoch whose usage includes unpriced DBU has a null list cost and is skipped by historical-epoch calibration;
 - forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
 
-With a null forward DBU baseline, the candidate estimator withholds every savings estimate (`estimate_blocker = DBU_COST_UNAVAILABLE`), the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE` with blocker `DBU_COST_UNAVAILABLE`, and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
+With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with blocker `COST_HISTORY_INSUFFICIENT` when the epoch is younger than 7 calendar days (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when a mature epoch has fewer than 7 billed days (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
 
 ---
 

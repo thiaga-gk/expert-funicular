@@ -33,7 +33,7 @@
   "candidates": [
     {
       "blockers": [],
-      "candidate_id": "CAND-855F5E0703EB4EB53C318185",
+      "candidate_id": "CAND-202D6F32D55DF7A254F7CDE0",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -51,54 +51,30 @@
       "evidence_refs": [
         "EVID-2FCC248C10E9F48BD4D77F54",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
-          "aws": {
-            "base": 151840.0,
-            "high": 151840.0,
-            "low": 151840.0
-          },
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
-          "total": {
-            "base": 163840.0,
-            "high": 163840.0,
-            "low": 163840.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
         "savings_365d": {
-          "aws": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "total": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         }
       },
       "invalidates": [],
@@ -115,7 +91,7 @@
       "blockers": [
         "CURRENT_CONFIG_EPOCH_TOO_NEW"
       ],
-      "candidate_id": "CAND-ECBB264C9ED8EAB12F5B9121",
+      "candidate_id": "CAND-3823F906B65DFE2B7D243492",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -147,37 +123,29 @@
         "EVID-03B05DA96489C34CE2110208",
         "EVID-089CD33D495CC6061EFF7764",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
           "aws": null,
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
+          "dbu": null,
           "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
         "savings_365d": {
           "aws": null,
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
+          "dbu": null,
           "total": null
         }
       },
@@ -193,7 +161,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-2984D4BC2F7EE3852163E1CD",
+      "candidate_id": "CAND-1E247325AF60F1AD3F8BA36D",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -222,54 +190,30 @@
         "EVID-FEA1593579C33BD7E3F5E803",
         "EVID-686AD89E86CEBC94CB6BED6C",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
-          "aws": {
-            "base": 151840.0,
-            "high": 151840.0,
-            "low": 151840.0
-          },
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
-          "total": {
-            "base": 163840.0,
-            "high": 163840.0,
-            "low": 163840.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
         "savings_365d": {
-          "aws": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "total": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         }
       },
       "invalidates": [],
@@ -284,7 +228,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-ED04A5AD4FBC2F4E2823AEDD",
+      "candidate_id": "CAND-4FCA3EA4C15A8B9ED9401CE7",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -317,54 +261,30 @@
         "EVID-DD24119637B30D9234FEEA1B",
         "EVID-DC8EDE09C90729113AE9AB54",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
-          "aws": {
-            "base": 151840.0,
-            "high": 151840.0,
-            "low": 151840.0
-          },
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
-          "total": {
-            "base": 163840.0,
-            "high": 163840.0,
-            "low": 163840.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
         "savings_365d": {
-          "aws": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "total": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         }
       },
       "invalidates": [],
@@ -381,7 +301,7 @@
       "blockers": [
         "CURRENT_CONFIG_EPOCH_TOO_NEW"
       ],
-      "candidate_id": "CAND-D783EBE3D7F08F6A12F7559F",
+      "candidate_id": "CAND-5F809CE654AC0096F8D1CDD2",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -412,18 +332,18 @@
         "EVID-3138604EBCD528E08EA037B3",
         "EVID-BB0C712245F54E1792FB4DFF",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
           "aws": null,
@@ -452,7 +372,7 @@
       "blockers": [
         "COST_HISTORY_INSUFFICIENT"
       ],
-      "candidate_id": "CAND-B41115AFC839F930DF3E4708",
+      "candidate_id": "CAND-075312146CF66996760E5740",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -482,18 +402,18 @@
         "EVID-E7592E31B8FF567DFD8C4BAC",
         "EVID-9EBEB2F65E2632EC2AE72129",
         "EVID-75644FA33C29D8ED513B803F",
-        "EVID-E051999032917A838DDCD461",
+        "EVID-91DFCBDB867B74E1B80A3855",
         "EVID-58EC282F7FC8A787ECCBF4CA",
         "EVID-22737B2A74C73AA4C040BE38"
       ],
       "independent_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "estimated_cost_365d": {
           "aws": null,
@@ -551,12 +471,12 @@
       "model": "epoch-runrate-v2.10.0"
     },
     "forward_365d": {
-      "availability": "COMPLETE",
+      "availability": "PARTIAL",
       "aws_basis": "MODELED_AWS_LIST_PRICE",
       "aws_cost": 151840.0,
-      "dbu_basis": "FORECAST",
-      "dbu_cost": 12000.0,
-      "total_cost": 163840.0
+      "dbu_basis": "UNAVAILABLE",
+      "dbu_cost": null,
+      "total_cost": null
     }
   },
   "current_config": {
@@ -904,6 +824,19 @@
       "unit": "value",
       "value": 2
     },
+    "EVID-91DFCBDB867B74E1B80A3855": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-91DFCBDB867B74E1B80A3855",
+      "interpretation": "No-change forward DBU cost forecast anchored to the current configuration epoch.",
+      "metric": "forward_dbu_cost_365d",
+      "observation_window": "forward_365d",
+      "source": "derived",
+      "source_field": "epoch-runrate-v2.10.0",
+      "threshold": null,
+      "unit": "USD",
+      "value": null
+    },
     "EVID-9EBEB2F65E2632EC2AE72129": {
       "comparator": "",
       "epoch_scope": "CURRENT",
@@ -1102,19 +1035,6 @@
       "unit": "queries",
       "value": 0
     },
-    "EVID-E051999032917A838DDCD461": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-E051999032917A838DDCD461",
-      "interpretation": "No-change forward DBU cost forecast anchored to the current configuration epoch.",
-      "metric": "forward_dbu_cost_365d",
-      "observation_window": "forward_365d",
-      "source": "derived",
-      "source_field": "epoch-runrate-v2.10.0",
-      "threshold": null,
-      "unit": "USD",
-      "value": 12000.0
-    },
     "EVID-E3969B0FEA1EC3E2953E6635": {
       "comparator": "",
       "epoch_scope": "CURRENT",
@@ -1236,72 +1156,31 @@
   "observed_change": null,
   "package_economics": {
     "baseline_365d": {
-      "availability": "COMPLETE",
+      "availability": "PARTIAL",
       "aws_basis": "MODELED_AWS_LIST_PRICE",
       "aws_cost": 151840.0,
-      "dbu_basis": "FORECAST",
-      "dbu_cost": 12000.0,
-      "total_cost": 163840.0
+      "dbu_basis": "UNAVAILABLE",
+      "dbu_cost": null,
+      "total_cost": null
     },
     "currency": "USD",
-    "estimated_cost_365d": {
-      "base": 163840.0,
-      "high": 163840.0,
-      "low": 163840.0
-    },
-    "estimated_savings_365d": {
-      "base": 0.0,
-      "high": 0.0,
-      "low": 0.0
-    },
-    "excluded_scenarios": [],
-    "included_scenario_ids": [
-      "SCN-0AC9FD46A1C9A180B84B6313",
-      "SCN-81FA38FBB36266F1B735E002"
-    ],
-    "scenario_envelope": {
-      "maximum_savings": {
-        "bound": "HIGH",
-        "estimated_cost_365d": {
-          "aws": 151840.0,
-          "dbu": 12000.0,
-          "total": 163840.0
-        },
-        "savings_365d": {
-          "aws": 0.0,
-          "dbu": 0.0,
-          "total": 0.0
-        },
+    "estimated_cost_365d": null,
+    "estimated_savings_365d": null,
+    "excluded_scenarios": [
+      {
+        "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
         "scenario_id": "SCN-0AC9FD46A1C9A180B84B6313"
       },
-      "minimum_savings": {
-        "bound": "LOW",
-        "estimated_cost_365d": {
-          "aws": 151840.0,
-          "dbu": 12000.0,
-          "total": 163840.0
-        },
-        "savings_365d": {
-          "aws": 0.0,
-          "dbu": 0.0,
-          "total": 0.0
-        },
-        "scenario_id": "SCN-0AC9FD46A1C9A180B84B6313"
-      },
-      "recommended_base": {
-        "bound": "BASE",
-        "estimated_cost_365d": {
-          "aws": 151840.0,
-          "dbu": 12000.0,
-          "total": 163840.0
-        },
-        "savings_365d": {
-          "aws": 0.0,
-          "dbu": 0.0,
-          "total": 0.0
-        },
-        "scenario_id": "SCN-0AC9FD46A1C9A180B84B6313"
+      {
+        "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
+        "scenario_id": "SCN-81FA38FBB36266F1B735E002"
       }
+    ],
+    "included_scenario_ids": [],
+    "scenario_envelope": {
+      "maximum_savings": null,
+      "minimum_savings": null,
+      "recommended_base": null
     },
     "semantics": {
       "is_additive": false,
@@ -1315,11 +1194,11 @@
     "contract_version": "1.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.9.0",
     "estimator_version": "counterfactual-v2.10.0",
-    "evidence_fingerprint": "SHA256:B40FACE159F4A956A23A9D795AA1A4C6721B3A5651DF2A2705734B41394AE19E",
+    "evidence_fingerprint": "SHA256:D7A96BD2963D4B5991259D776BAC2023D47FDAFBAA80D16BF6BAD5CE5F051464",
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.10.0",
-    "package_hash_full_sha256": "E50214E590A9998433A2D6CCCB55C638648A03FDB1FEBABFB8916B9F668E0D3F",
+    "package_hash_full_sha256": "CB1F2FC87C40BFEA94AAA764E6170F72F600C7BC18AC41E610F42807560951A1",
     "policy_version": "sql-warehouse-policy-v2.9.0",
     "reviewer_version": "recommendation-reviewer-v2.9.0",
     "source_regions": [
@@ -1346,7 +1225,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-E50214E590A9998433A2D6CC",
+  "recommendation_package_id": "PKG-CB1F2FC87C40BFEA94AAA764",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type has no step ready yet: the current epoch is too new for a trustworthy decision. Earliest re-evaluation is 2026-10-05T00:00:00Z (gates: COST_HISTORY_INSUFFICIENT, CURRENT_CONFIG_EPOCH_TOO_NEW).",
     "next_action": "WAIT_FOR_REEVALUATION",
@@ -1381,51 +1260,27 @@
       "execution_plan": [],
       "portfolio_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "contingent_estimated_cost_365d": null,
         "contingent_savings_365d": null,
         "estimated_cost_365d": {
-          "aws": {
-            "base": 151840.0,
-            "high": 151840.0,
-            "low": 151840.0
-          },
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
-          "total": {
-            "base": 163840.0,
-            "high": 163840.0,
-            "low": 163840.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
-        "method": "No scenario steps.",
+        "method": "No scenario steps; the forward DBU cost is unavailable.",
         "savings_365d": {
-          "aws": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "total": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         }
       },
       "scenario_id": "SCN-0AC9FD46A1C9A180B84B6313",
@@ -1482,51 +1337,27 @@
       "execution_plan": [],
       "portfolio_economics": {
         "baseline_365d": {
-          "availability": "COMPLETE",
+          "availability": "PARTIAL",
           "aws_basis": "MODELED_AWS_LIST_PRICE",
           "aws_cost": 151840.0,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 12000.0,
-          "total_cost": 163840.0
+          "dbu_basis": "UNAVAILABLE",
+          "dbu_cost": null,
+          "total_cost": null
         },
         "contingent_estimated_cost_365d": null,
         "contingent_savings_365d": null,
         "estimated_cost_365d": {
-          "aws": {
-            "base": 151840.0,
-            "high": 151840.0,
-            "low": 151840.0
-          },
-          "dbu": {
-            "base": 12000.0,
-            "high": 12000.0,
-            "low": 12000.0
-          },
-          "total": {
-            "base": 163840.0,
-            "high": 163840.0,
-            "low": 163840.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         },
         "estimation_status": "NO_DELTA_MODELED",
         "is_additive": false,
-        "method": "No scenario steps.",
+        "method": "No scenario steps; the forward DBU cost is unavailable.",
         "savings_365d": {
-          "aws": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "dbu": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          },
-          "total": {
-            "base": 0.0,
-            "high": 0.0,
-            "low": 0.0
-          }
+          "aws": null,
+          "dbu": null,
+          "total": null
         }
       },
       "scenario_id": "SCN-81FA38FBB36266F1B735E002",
