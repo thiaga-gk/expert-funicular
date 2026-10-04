@@ -630,6 +630,8 @@ Common facts include query count, active days, queries per active day, epoch age
 
 `Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob.
 
+Reliability guard shared by every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above 5% (`failure_cancel_pct_downsize_safe`) holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
+
 ### 15.1 Channel
 
 | Current state | Decision |

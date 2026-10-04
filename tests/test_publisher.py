@@ -880,6 +880,31 @@ class PublisherV27Tests(unittest.TestCase):
                     pass
         self.assertTrue(calls.get("closed"))
 
+    # --- A high or unknown failure share blocks every capacity cut ---------------------------------------------
+    def _with_failure(self, pct):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query["failure_cancel_pct_30"] = pct
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_high_failure_share_blocks_every_capacity_cut(self):
+        by = self._with_failure(12.0)
+        for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+            with self.subTest(knob=knob):
+                self.assertTrue(by[knob].status == "BLOCKED" or by[knob].recommended_config == by[knob].current_config, by[knob].status)
+                self.assertIn("FAILURE_CANCEL_RATE_HIGH", by[knob].blockers)
+
+    def test_unknown_failure_share_blocks_every_capacity_cut(self):
+        by = self._with_failure(None)
+        for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+            with self.subTest(knob=knob):
+                self.assertTrue(by[knob].status == "BLOCKED" or by[knob].recommended_config == by[knob].current_config, by[knob].status)
+                self.assertIn("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE", by[knob].blockers)
+
+    def test_low_failure_share_does_not_block_cuts(self):
+        by = self._with_failure(0.2)
+        for knob in ("max_clusters", "auto_stop_minutes"):
+            self.assertNotEqual(by[knob].recommended_config, by[knob].current_config, knob)
+
     # --- Max-cluster increase has the same maturity and sample gates as every change --------------------------
     def _queueing_at_ceiling(self, age_days, queries):
         payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())

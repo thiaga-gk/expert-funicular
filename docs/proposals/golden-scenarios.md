@@ -34,7 +34,7 @@ Status: **PLAN ONLY.** Evaluated against publisher 2.9.0 on 2026-10-04. Finding 
 | C23 | Mixed ETL and BI on one warehouse | Mixed `query_source` / `client_application` | Not optimized; flagged as a workload-isolation option. | no | not covered | fail | OOS |
 | C24 | Many small duplicate warehouses | Same owner, low utilization each | Not optimized (cross-warehouse); flagged. | no | not covered | fail | OOS |
 | C25 | Off-hours / weekend idle | Weekday-only activity, long or zero auto-stop | Overnight and weekend idle captured at any finite auto-stop; value set by the added cold-start budget. | yes | covered | fail | K1, M1 |
-| C26 | Failure-heavy warehouse | `execution_status` FAILED/CANCELED high | No capacity cuts of any kind while the failure share is high; failures surfaced. Constructed run: at 12% failures only size is blocked. | yes | covered | fail | G34 |
+| C26 | Failure-heavy warehouse | `execution_status` FAILED/CANCELED high | No capacity cuts of any kind while the failure share is high; failures surfaced. Constructed run: at 12% failures only size is blocked. | yes | covered | pass | G34 |
 | C27 | Long queries keep warehouse alive | Queries near the 2-day statement timeout | Not optimized; flagged. | no | not covered | fail | OOS |
 | C28 | Cluster recycling transients | Short count spikes above max | Not read as demand. | yes | covered | pass | — |
 | C29 | Deleted / recreated warehouse | `delete_time` set; new id | Identities kept separate. | yes | covered | pass | — |
