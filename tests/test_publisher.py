@@ -1612,6 +1612,7 @@ class GoldenScenarioTests(unittest.TestCase):
         ev = payload["evidence"][0]
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         epoch["query"]["queries_30"] = queries_30
+        epoch["query"]["decision_queries_30"] = queries_30  # spill and latency are judged on executed queries
         if epoch_start is not None:
             epoch["epoch_start"] = epoch_start
         return [p.evidence_from_dict(ev)]

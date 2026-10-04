@@ -1,11 +1,13 @@
-"""Backfill billed DBU per day and event coverage into evidence fixtures that predate them (fixtures only).
+"""Backfill collector fields into evidence fixtures that predate them (fixtures only).
 
-Usage: python tools/add_billed_dbu.py tests/golden/*.json
+Usage: python tools/backfill_fixture_fields.py tests/golden/*.json
 
-Each daily cost row without `dbu_quantity` gets its list cost times its epoch's DBU-to-cost ratio (epoch
-`cost.dbu_quantity / cost.list_cost`), and each epoch without `events.event_coverage_start` is marked as covered from
-its start, as synthetic fixtures are. Workspace DBU-per-cluster-hour rates then equal the old epoch totals. Real
-evidence is never backfilled: rates fail closed without these fields.
+- Each daily cost row without `dbu_quantity` gets its list cost times its epoch's DBU-to-cost ratio (epoch
+  `cost.dbu_quantity / cost.list_cost`), and each epoch without `events.event_coverage_start` is marked as covered from
+  its start, as synthetic fixtures are; workspace DBU-per-cluster-hour rates then equal the old epoch totals.
+- Each current epoch without `query.decision_queries_30` gets the finished, non-result-cache share of its 30-day
+  queries (queries_30 x (1 - result-cache % - failed/cancelled %)).
+Real evidence is never backfilled: missing fields fail closed.
 """
 import json
 import sys
@@ -23,6 +25,11 @@ def backfill(evidence):
             events = ep.setdefault("events", {})
             if events and "event_coverage_start" not in events:
                 events["event_coverage_start"] = ep["epoch_start"]
+                changed += 1
+            query = ep.get("query") or {}
+            if ep.get("is_current") and "queries_30" in query and "decision_queries_30" not in query:
+                excluded = (query.get("result_cache_pct_30") or 0.0) + (query.get("failure_cancel_pct_30") or 0.0)
+                query["decision_queries_30"] = int(round(query["queries_30"] * max(0.0, 1.0 - excluded / 100.0)))
                 changed += 1
         for row in x.get("daily_cost_365") or []:
             r = ratio.get(row.get("epoch_start"))
