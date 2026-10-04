@@ -761,6 +761,8 @@ SELECT
   100.0*SUM(CASE WHEN cluster_count=max_clusters AND cluster_count>0 THEN duration_minutes ELSE 0 END)
     /NULLIF(SUM(CASE WHEN cluster_count>0 THEN duration_minutes ELSE 0 END),0) AS time_at_max_pct,
   MAX(cluster_count) AS max_observed_clusters,
+  -- Like the recent window's peak: counts above the ceiling are cluster-recycling transients, not demand.
+  MAX(CASE WHEN cluster_count<=max_clusters THEN cluster_count END) AS max_observed_clusters_within_ceiling,
   MIN(segment_start) AS event_coverage_start,
   COUNT_IF(event_type='STARTING' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS starts_30,
   COUNT_IF(event_type='SCALED_UP' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_ups_30,
@@ -810,9 +812,10 @@ ordered AS (
   WHERE x.compute.type='WAREHOUSE' AND x.start_time>=CURRENT_TIMESTAMP()-INTERVAL 365 DAYS
 ), busy AS (
   -- Wall-clock minutes with at least one query running (length of the union of query intervals), over the same
-  -- period as the gaps: each query adds only the part that extends past every earlier-starting query.
+  -- period as the gaps: each query adds only the part that extends past every earlier-starting query. Milliseconds:
+  -- most queries last under a second, and whole-second differences would drop them.
   SELECT workspace_id, warehouse_id, epoch_start,
-    SUM(GREATEST(0.0,TIMESTAMPDIFF(SECOND,GREATEST(start_time,COALESCE(previous_busy_end_time,start_time)),COALESCE(end_time,start_time))/60.0)) AS busy_minutes
+    SUM(GREATEST(0.0,TIMESTAMPDIFF(MILLISECOND,GREATEST(start_time,COALESCE(previous_busy_end_time,start_time)),COALESCE(end_time,start_time))/60000.0)) AS busy_minutes
   FROM ordered GROUP BY workspace_id,warehouse_id,epoch_start
 ), gaps AS (
   SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
@@ -1935,14 +1938,15 @@ def size_busy_share(busy_minutes: Any, uptime_minutes: Any, cluster_minutes: Any
     """Share of running cluster-minutes spent with queries running; None when unknown.
 
     Idle running time is assumed to hold the minimum cluster count (Classic/Pro scale down only after sustained low
-    load), so idle cluster-minutes = (running minutes - busy minutes) x min clusters. Busy time above running time
-    (sources disagree) counts as all busy.
+    load), so idle cluster-minutes = (running minutes - busy minutes) x min clusters, and busy cluster-minutes are
+    at least busy wall-minutes. Busy time above running time (sources disagree) counts as all busy.
     """
     busy = optional_float(busy_minutes); uptime = optional_float(uptime_minutes); cluster = optional_float(cluster_minutes)
     if busy is None or uptime is None or cluster is None or uptime <= 0 or cluster <= 0:
         return None
     idle_cluster_minutes = max(0.0, uptime - busy) * max(1, safe_int(min_clusters, 1))
-    return round(clamp(1.0 - idle_cluster_minutes / cluster, 0.0, 1.0), 6)
+    # Busy cluster-minutes are never below busy wall-minutes (cluster counts under the floor would otherwise give 0).
+    return round(clamp(max(1.0 - idle_cluster_minutes / cluster, busy / cluster), 0.0, 1.0), 6)
 
 
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
@@ -2327,11 +2331,12 @@ class Analyzer:
             self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
             self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        # Longer window: the highest scale level over the whole current epoch (events retained 365 days), capped at the
-        # ceiling (recycling transients above it are not demand). A seasonal peak outside the recent window shows here.
-        epoch_peak_raw = optional_float(ev.get("max_observed_clusters"))
-        epoch_peak = None if epoch_peak_raw is None else min(int(epoch_peak_raw), cfg.max_clusters)
-        fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, capped at the ceiling; the ceiling is never cut below it."))
+        # Longer window: the highest scale level over the whole current epoch (events retained 365 days), excluding
+        # recycling transients above the ceiling. A seasonal peak outside the recent window shows here; unknown on
+        # evidence collected without it.
+        epoch_peak_raw = optional_float(ev.get("max_observed_clusters_within_ceiling"))
+        epoch_peak = None if epoch_peak_raw is None else int(epoch_peak_raw)
+        fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, excluding cluster-recycling transients above the ceiling; the ceiling is never cut below it."))
         out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # The increase is priced on the same recent window it is decided on.
             "minutes_at_max":safe_float(recent["minutes_at_max"]),"cluster_minutes":safe_float(recent["cluster_minutes"])})
@@ -2533,12 +2538,14 @@ class Optimizer:
             held_by_epoch_peak = base_eligible and not eligible and ceiling_for(peak) < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
+            # A cut held for the epoch's peak still names these, so the holds stay visible together.
+            considered = eligible or held_by_epoch_peak
             evidence_blockers: List[str] = []
-            if eligible and not queue_known:
+            if considered and not queue_known:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
-            elif eligible and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
+            elif considered and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
                 evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
-            if eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
+            if considered and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
                 evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
@@ -2548,7 +2555,7 @@ class Optimizer:
                     "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
             elif held_by_epoch_peak:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
                     f"The recent window peaks at {peak} cluster(s), but the current configuration has run at {safe_int(epoch_peak)}; the ceiling is kept for that peak."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
@@ -3867,9 +3874,11 @@ def _compatibility_contract(
 ) -> rc.Compatibility:
     comp = s.compatibility or {}
     assessment = str(comp.get("assessment") or "CURRENT_TYPE")
+    # A planner FAIL (a check failed) is incompatible; its PASS stays REQUIRES_VALIDATION for now: an empty
+    # alternative marked COMPATIBLE would hash to the same scenario ID as an empty recommended plan.
     if assessment in {"CURRENT_TYPE", "COMPATIBLE"}:
         status = rc.CompatibilityStatus.COMPATIBLE
-    elif assessment in {"INCOMPATIBLE", "BLOCKED"}:
+    elif assessment in {"INCOMPATIBLE", "BLOCKED", "FAIL"}:
         status = rc.CompatibilityStatus.INCOMPATIBLE
     else:
         status = rc.CompatibilityStatus.REQUIRES_VALIDATION
@@ -4078,7 +4087,8 @@ def _overall_status(candidates: Sequence[rc.CandidateRecommendation], scenarios:
     """Package status from the recommended plan; the migration experiment alone never makes a warehouse optimizable.
 
     Steps to apply in the recommended plan: OPTIMIZATION_AVAILABLE (REVIEW_REQUIRED when every step is a review).
-    An empty recommended plan with an alternative whose priced base savings are positive: REVIEW_REQUIRED. Otherwise
+    An empty recommended plan with a compatible-or-unvalidated alternative whose priced base savings are positive:
+    REVIEW_REQUIRED. Otherwise
     the most severe reason nothing ships: BLOCKED, then INSUFFICIENT_EVIDENCE, else NO_CHANGE.
     """
     S = rc.RecommendationStatus
@@ -4094,7 +4104,8 @@ def _overall_status(candidates: Sequence[rc.CandidateRecommendation], scenarios:
         return rc.AssessmentStatus.REVIEW_REQUIRED
     for s in scenarios:
         total = s.portfolio_economics.savings_365d.total
-        if s.status == rc.ScenarioStatus.ALTERNATIVE and step_statuses(s) and total is not None and total.base > 0:
+        if (s.status == rc.ScenarioStatus.ALTERNATIVE and step_statuses(s) and total is not None and total.base > 0
+                and s.compatibility.status != rc.CompatibilityStatus.INCOMPATIBLE):
             return rc.AssessmentStatus.REVIEW_REQUIRED
     statuses = set(by_id.values())
     if S.BLOCKED in statuses:
@@ -4725,7 +4736,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 8000.0, "cluster_minutes": 12000.0, "minutes_at_min": 6000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 75.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2, "event_coverage_start": old_start,
+            "max_observed_clusters": 2, "max_observed_clusters_within_ceiling": 2, "event_coverage_start": old_start,
         },
         gaps={},
         cost={"list_cost": 2640.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
@@ -4759,7 +4770,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 80.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
+            "max_observed_clusters": 2, "max_observed_clusters_within_ceiling": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
             "event_coverage_start": cur_start, "resource_coverage_from": None,
         },
         gaps={
@@ -5193,6 +5204,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
                 "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
                 "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
+                "max_observed_clusters_within_ceiling": max((cl for _, _, cl, _, _ in live if cl <= cfg["max_clusters"]), default=None),
                 "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
                 "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
                 "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),

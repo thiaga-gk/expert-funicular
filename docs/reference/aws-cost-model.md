@@ -20,7 +20,7 @@ Billed node types (`usage_metadata.node_type`; driver and worker are not disting
 Serverless runs on Databricks-managed infrastructure, so the separate customer AWS EC2 line is `0`. Its infrastructure economics are reflected in the Serverless SKU/DBU price rather than a customer EC2 bill line.
 
 ## Regional registry
-The shipped registry intentionally has no default-region fallback. Missing region => `AWS_PRICE_REGION_NOT_IN_REGISTRY`. A live run whose `--source-region` is not in the registry and that has a supported Pro/Classic warehouse stops before writing anything; `--allow-missing-aws-price` publishes with Pro/Classic AWS cost unavailable. Serverless-only fleets and `--from-evidence` replays are not affected.
+The shipped registry intentionally has no default-region fallback. Missing region => `AWS_PRICE_REGION_NOT_IN_REGISTRY`. A live run whose `--source-region` is not in the registry and that has a supported Pro/Classic warehouse stops after collection, before writing packages, evidence or the workbook; `--allow-missing-aws-price` publishes with Pro/Classic AWS cost unavailable. Serverless-only fleets and `--from-evidence` replays are not affected.
 
 ## Scope exclusions
 The model does not include network/data transfer, public IPv4, support, tax, RI/Savings Plans, Spot or negotiated discounts. In particular every EC2 hour is priced **on demand**: the Warehouses API's `spot_instance_policy` (default `COST_OPTIMIZED`) is neither read nor modeled, so real Pro/Classic AWS cost, and the AWS part of any savings, can be materially lower. For production financial reconciliation, replace the price registry with organization-effective rates, preferably CUR-derived when available.

@@ -3274,6 +3274,7 @@
             "epoch_start": "2025-07-01T00:00:00+00:00",
             "event_coverage_start": "2025-10-01T18:00:00+00:00",
             "max_observed_clusters": 8,
+            "max_observed_clusters_within_ceiling": 8,
             "minutes_at_max": 4760.0,
             "minutes_at_min": 6525.0,
             "resource_coverage_from": null,

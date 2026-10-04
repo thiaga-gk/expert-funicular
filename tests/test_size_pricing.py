@@ -149,10 +149,6 @@ class CostValueGateTests(unittest.TestCase):
         self.assertEqual(p.Thresholds().size_rate_published_band, 0.25)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
     """An upsize is a canary, and the size speed-up (or slow-down) applies to busy running time only."""
 
@@ -184,6 +180,8 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         self.assertEqual(p.size_busy_share(25000.0, 20000.0, 20000.0, 1), 1.0)
         self.assertIsNone(p.size_busy_share(None, 20000.0, 20000.0, 1))
         self.assertIsNone(p.size_busy_share(100.0, 0.0, 0.0, 1))
+        # Cluster count below the floor (sources disagree): busy cluster-minutes are never below busy wall-minutes.
+        self.assertAlmostEqual(p.size_busy_share(100.0, 1000.0, 1500.0, 2), 100.0 / 1500.0, places=6)
 
     def test_upsize_is_a_canary_not_actionable(self):
         size = self.size(self.spill_serverless(5000.0))
@@ -218,3 +216,11 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("AS busy_minutes", sql)
         self.assertIn("LEFT JOIN gap_stats", sql)
+        # Whole-second TIMESTAMPDIFF would drop most of every sub-second query's contribution.
+        busy = sql[sql.index("busy AS ("):sql.index("), gaps AS (")]
+        self.assertIn("TIMESTAMPDIFF(MILLISECOND,", busy)
+        self.assertNotIn("TIMESTAMPDIFF(SECOND,", busy)
+
+
+if __name__ == "__main__":
+    unittest.main()

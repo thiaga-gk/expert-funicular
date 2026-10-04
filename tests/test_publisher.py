@@ -1946,10 +1946,6 @@ class GoldenScenarioTests(unittest.TestCase):
 
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class AwsRegionPriceGuardTests(unittest.TestCase):
     """Live runs refuse to publish Pro/Classic economics for a region the AWS price registry does not cover."""
 
@@ -2057,6 +2053,17 @@ class OverallStatusTests(unittest.TestCase):
             status = self.with_plans([], total)
             self.assertNotIn(status, {p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, p.rc.AssessmentStatus.REVIEW_REQUIRED}, total)
 
+    def test_incompatible_experiment_is_not_a_reason_to_review(self):
+        e = p.demo_evidence()[0]
+        e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "enable_serverless_compute": False,
+                                    "external_legacy_hive_metastore_detected": True}
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        plan_b = next(s for s in pkg.scenarios if s.status == p.rc.ScenarioStatus.ALTERNATIVE)
+        self.assertEqual(plan_b.compatibility.status, p.rc.CompatibilityStatus.INCOMPATIBLE)
+        scenarios = [dataclasses.replace(s, execution_plan=[]) if s.status == p.rc.ScenarioStatus.RECOMMENDED else s for s in pkg.scenarios]
+        self.assertGreater(plan_b.portfolio_economics.savings_365d.total.base, 0)
+        self.assertNotEqual(p._overall_status(pkg.candidates, scenarios), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+
     def test_fleet_status_matches_the_recommended_plan(self):
         rc = p.rc
         for pkg in self.fleet:
@@ -2076,7 +2083,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         e = p.demo_evidence()[0]  # max 3, recent peak 2 -> ceiling 3 kept today; widen the ceiling to 8
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
-        e.current_epoch.events["max_observed_clusters"] = epoch_peak
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
 
     def test_epoch_peak_inside_the_recent_window_keeps_the_recent_cut(self):
@@ -2088,10 +2095,36 @@ class SeasonalCeilingTests(unittest.TestCase):
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 5))
 
     def test_epoch_peak_at_the_ceiling_holds_the_cut(self):
-        c = self.max_candidate(12)  # recycling transient above the ceiling counts as the ceiling
+        c = self.max_candidate(8)
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("NO_CHANGE", 8))
         self.assertEqual(c.blockers, ["PEAK_OUTSIDE_RECENT_WINDOW"])
+
+    def test_recycling_transients_above_the_ceiling_are_not_a_peak(self):
+        # The epoch peak is measured within the ceiling, like the recent window's: counts above max are not demand.
+        sql = p.EPOCH_EVENT_METRICS_SQL.replace(" ", "")
+        self.assertIn("MAX(CASEWHENcluster_count<=max_clustersTHENcluster_countEND)ASmax_observed_clusters_within_ceiling", sql)
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters"] = 12
+        e.current_epoch.events.pop("max_observed_clusters_within_ceiling", None)
+        c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+    def test_held_cut_still_names_queue_evidence_gaps(self):
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = 8
+        e.current_epoch.query.pop("queued_query_pct_30", None)
+        c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertEqual(c.blockers, ["QUEUE_EVIDENCE_UNAVAILABLE", "PEAK_OUTSIDE_RECENT_WINDOW"])
 
     def test_unknown_epoch_peak_uses_the_recent_window(self):
         c = self.max_candidate(None)
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+
+if __name__ == "__main__":
+    unittest.main()

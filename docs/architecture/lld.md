@@ -141,7 +141,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--execution-kind` / `--execution-id` | generic execution target pair; `--execution-kind` is `warehouse` or `cluster` and is required with `--execution-id` |
 | `--workspace-id` | required for the cluster HTTP path when it cannot be discovered; default `DATABRICKS_WORKSPACE_ID` |
 | `--source-region` | AWS region of the workspace, used for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
-| `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops before anything is written. With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
+| `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops after collection, before any package, evidence or workbook is written (the log is already open). With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
 | `--aws-price-registry` | versioned EC2 registry path; default `AWS_PRICE_REGISTRY`, else the shipped `pricing/aws_ec2_on_demand.json` |
 | `--batch-size` | downstream Python batch size (31.2); collector remains set-based; default `WAREHOUSE_BATCH_SIZE`, else 100 |
 | `--billing-ingested-through` | `YYYY-MM-DD`; pins every billing query to records ingested on or before that date, so a re-collection reproduces an earlier run despite later billing corrections |
@@ -704,7 +704,7 @@ headroom = max(max_cluster_headroom_clusters,
 target   = max(min_clusters, peak + headroom)
 ```
 
-`recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), capped at the configured maximum, so a seasonal peak outside the recent window is not cut away. When the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
+`recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum (as the recent window does), so a seasonal peak outside the recent window is not cut away. When the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
 The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard applies. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported) or the `FAILURE_CANCEL_*` codes. An ineligible ceiling is `NO_CHANGE` without a code.
 
@@ -1029,7 +1029,7 @@ Plan B contains at most one warehouse-type migration candidate. It is an alterna
 
 Compatibility checks may include:
 
-- region/Serverless availability: `aws_region_serverless_availability` passes only when the workspace already runs a Serverless warehouse (`system.compute.warehouses`), otherwise it is `UNKNOWN` and needs human confirmation; a region label alone never passes because no verified per-region list is used,
+- region/Serverless availability: `aws_region_serverless_availability` passes only when the workspace has run a Serverless warehouse in the collected history (`system.compute.warehouses`), otherwise it is `UNKNOWN` and needs human confirmation; a region label alone never passes because no verified per-region list is used,
 - observed Serverless or Pro/Classic workspace capability,
 - workspace enablement from optional read-only API,
 - external legacy Hive metastore workspace configuration,
@@ -1392,7 +1392,7 @@ The product follows fail-closed semantics for decisions and publication.
 | conflicting replay evidence | terminate replay |
 | invalid candidate invariant | no scenario/public package |
 | invalid scenario invariant | no public package |
-| missing AWS price region | live run with a supported Pro/Classic warehouse: stops before writing unless `--allow-missing-aws-price`; then (and in replay) DBU may remain assessable and AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
+| missing AWS price region | live run with a supported Pro/Classic warehouse: stops after collection, before writing packages, unless `--allow-missing-aws-price`; then (and in replay) DBU may remain assessable and AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
 | missing migration cost source | migration economics unavailable; no fabricated value |
 | optional compatibility API unavailable | explicit HITL fallback |
 | unsupported future warehouse type | fail closed per warehouse before optimization; recorded in manifest exclusions |
