@@ -682,7 +682,7 @@ events AS (
     event_type,
     COALESCE(cluster_count,0) AS cluster_count,
     event_time,
-    LEAD(event_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY event_time) AS next_event_time
+    LEAD(event_time) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY event_time, event_type, cluster_count) AS next_event_time
   FROM system.compute.warehouse_events
   WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
 ),
@@ -754,7 +754,7 @@ WITH epochs AS (
     x.start_time, x.end_time,
     MAX(x.end_time) OVER (
       PARTITION BY x.workspace_id,x.compute.warehouse_id,p.epoch_start
-      ORDER BY x.start_time
+      ORDER BY x.start_time, x.end_time, x.statement_id
       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
     ) AS previous_busy_end_time
   FROM system.query.history x
@@ -1402,6 +1402,9 @@ def collect_workspace_compatibility_evidence(auth: AuthContext, mode: str = "aut
         return {"mode":"A_HITL_FALLBACK","status":"READ_ONLY_API_UNAVAILABLE","workspace_id":str(workspace_id),"error_type":type(exc).__name__}
 
 
+UTC_TIMEZONE_NAMES = frozenset({"UTC", "Etc/UTC", "Etc/UCT", "UCT", "Z", "+00:00", "GMT", "Etc/GMT"})
+
+
 class SqlClient:
     """Thin read-only Databricks SQL connector wrapper with labeled query logging."""
     def __init__(self, auth: AuthContext):
@@ -1413,12 +1416,20 @@ class SqlClient:
             from databricks import sql  # type: ignore
         except ImportError as exc:
             raise SystemExit('Install dependency: python -m pip install "databricks-sql-connector>=4.2.6"') from exc
+        # Billing usage_date and every analysis window are UTC; DATE()/CURRENT_DATE() follow the session time zone,
+        # so the session is pinned to UTC and verified before any collector query runs.
         self._connection = sql.connect(
             server_hostname=self.auth.host,
             http_path=self.auth.http_path,
             access_token=self.auth.access_token,
             user_agent_entry=f"sql-warehouse-optimizer/{PUBLISHER_VERSION}",
+            session_configuration={"TIMEZONE": "UTC"},
         )
+        rows = self.query("SELECT current_timezone() AS tz", label="session_timezone")
+        timezone = str(rows[0].get("tz") if rows else "")
+        if timezone not in UTC_TIMEZONE_NAMES:
+            self.__exit__(None, None, None)
+            raise SystemExit(f"SQL session time zone is {timezone or 'unknown'}, not UTC; collector dates would not align with UTC billing dates.")
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

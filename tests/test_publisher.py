@@ -749,6 +749,56 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIsNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
         self.assertEqual(pkg["cost_baseline"]["forward_365d"]["availability"], "PARTIAL")
 
+    # --- Collector determinism: tie-broken window ordering and UTC session dates ---------------------------------
+    def test_gap_sql_orders_the_busy_window_with_a_unique_tie_breaker(self):
+        sql = p.build_epoch_gap_metrics_sql(self.t)
+        self.assertIn("ORDER BY x.start_time, x.end_time, x.statement_id", sql)
+
+    def test_event_sql_orders_tied_events_deterministically(self):
+        self.assertIn("ORDER BY event_time, event_type, cluster_count", p.EPOCH_EVENT_METRICS_SQL)
+
+    def _fake_connector(self, timezone):
+        import types
+        calls = {}
+
+        class Cursor:
+            def __enter__(self_inner): return self_inner
+            def __exit__(self_inner, *a): return False
+            def execute(self_inner, statement): calls.setdefault("statements", []).append(statement)
+            description = [("tz",)]
+            def fetchall(self_inner): return [(timezone,)]
+
+        class Connection:
+            def cursor(self_inner): return Cursor()
+            def close(self_inner): calls["closed"] = True
+
+        def connect(**kwargs):
+            calls["connect"] = kwargs
+            return Connection()
+
+        sql_mod = types.ModuleType("databricks.sql"); sql_mod.connect = connect
+        pkg = types.ModuleType("databricks"); pkg.sql = sql_mod
+        return calls, {"databricks": pkg, "databricks.sql": sql_mod}
+
+    def _auth(self):
+        return p.AuthContext("DEFAULT", "host", "/sql/1.0/warehouses/x", "token", None, "warehouse", "x")
+
+    def test_sql_session_is_pinned_and_verified_to_utc(self):
+        calls, modules = self._fake_connector("Etc/UTC")
+        with patch.dict(sys.modules, modules):
+            with p.SqlClient(self._auth()):
+                pass
+        self.assertEqual(calls["connect"]["session_configuration"], {"TIMEZONE": "UTC"})
+        self.assertIn("current_timezone()", calls["statements"][0])
+
+    def test_sql_session_not_in_utc_fails_closed(self):
+        calls, modules = self._fake_connector("America/Los_Angeles")
+        with patch.dict(sys.modules, modules):
+            with self.assertRaises(SystemExit):
+                with p.SqlClient(self._auth()):
+                    pass
+        self.assertTrue(calls.get("closed"))
+
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
         seen = {}
         real = p.Modeler.forecast_from_daily_cost
