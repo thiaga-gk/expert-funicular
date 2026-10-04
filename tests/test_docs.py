@@ -3,6 +3,9 @@
 Scope is the four design documents, docs/README.md, README.md, docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
+import ast
+import dataclasses
+import json
 import re
 import sys
 import unittest
@@ -12,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from contracts import reporter_contract as rc  # noqa: E402
 from contracts import workbook_contract as wc  # noqa: E402
+import publisher  # noqa: E402
 
 CORE = {
     "prd": ROOT / "docs/product/prd.md",
@@ -98,6 +102,74 @@ class DocsGuardTests(unittest.TestCase):
             with self.subTest(doc=key):
                 numbers = [int(n) for n in re.findall(r"^## (\d+)\. ", FENCE.sub("", read(path)), re.M)]
                 self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
+
+
+    def test_thresholds_reference_lists_every_parameter_with_its_default(self):
+        text = read(ROOT / "docs/reference/thresholds.md")
+        rows = re.findall(r"^\| `(\w+)` \| `([^`]+)` \|", text, re.M)
+        documented = {}
+        for name, default in rows:
+            self.assertNotIn(name, documented, f"{name} is listed twice")
+            documented[name] = ast.literal_eval(default)
+        fields = {f.name: f.default for f in dataclasses.fields(publisher.Thresholds)}
+        self.assertEqual(sorted(set(fields) - set(documented)), [], "parameters missing from thresholds.md")
+        self.assertEqual(sorted(set(documented) - set(fields)), [], "thresholds.md lists parameters the code no longer has")
+        self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
+
+    def test_blocker_reference_matches_the_code(self):
+        text = read(ROOT / "docs/reference/blocker-codes.md")
+        documented = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \|", text, re.M))
+        self.assertGreater(len(documented), 20)
+        source = read(ROOT / "publisher.py")
+        self.assertEqual(sorted(c for c in documented if c not in source), [], "documented blockers the code no longer has")
+        evidence = list(publisher.demo_evidence()) + list(publisher.synthetic_demo_evidence())
+        for fixture in sorted((ROOT / "tests" / "golden").glob("*.json")):
+            evidence += [publisher.evidence_from_dict(x) for x in json.loads(read(fixture)).get("evidence") or []]
+        emitted = set()
+        # One build per evidence item: fixtures reuse warehouse identities, so they must not be merged into one run.
+        for item in evidence:
+            for package in publisher.build_recommendation_packages([item], publisher.Thresholds()):
+                for candidate in package.to_dict()["candidates"]:
+                    emitted.update(candidate["blockers"])
+        self.assertEqual(sorted(emitted - documented), [], "blockers emitted by the fixtures but not documented")
+
+    def test_reporter_contract_provenance_row_matches_the_code(self):
+        text = read(ROOT / "docs/contracts/reporter-json-contract.md")
+        match = re.search(r"\| `contract_version` \| Must equal the contract version of this document \(`(\d+\.\d+\.\d+)`\)", text)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), rc.CONTRACT_VERSION)
+
+
+    def _core_lines(self):
+        for key, path in CORE.items():
+            for number, line in enumerate(read(path).splitlines(), 1):
+                yield key, number, line
+
+    def test_design_docs_carry_no_approval_status_or_competing_precedence_text(self):
+        pattern = re.compile(
+            r"Approved / locked|^\**Last updated|^\**Approved (PRD|HLD|LLD)|Status:\s*Approved|"
+            r"order of authority|When documents disagree|Where an implementation document is stale"
+        )
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "precedence and ownership live only in docs/README.md")
+
+    def test_design_docs_do_not_restate_workbook_or_signed_value_details(self):
+        pattern = re.compile(r"\b\d+ columns\b|positive[- ]magnitude")
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "column counts and presentation rules live in docs/contracts/workbook-contract.md")
+
+    def test_design_docs_carry_no_version_stamps_or_internal_ids(self):
+        pattern = re.compile(r"\b[Pp]ublisher v\d|\bv2\.\d+\.\d+\b|\baudit M\d|\bM9\b|\b[GK]\d{1,2}\b")
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "versions live in code constants; findings live in the tracker")
+
+    def test_lld_hierarchy_diagram_matches_the_schema(self):
+        text = read(CORE["lld"])
+        block = re.search(r"### 22\.1 .*?```mermaid\n(.*?)```", text, re.S).group(1)
+        drawn = set(re.findall(r"RecommendationPackage --> \w+: (\w+)", block))
+        drawn |= {w for w in re.findall(r"^\s+(\w+)\s*$", block, re.M) if w not in {"RecommendationPackage"}}
+        schema = json.loads(read(ROOT / "schema" / "recommendation-package.schema.json"))
+        self.assertEqual(sorted(drawn), sorted(schema["required"]))
 
 
 if __name__ == "__main__":
