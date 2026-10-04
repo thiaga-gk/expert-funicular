@@ -238,6 +238,55 @@ class DemoFleetTests(unittest.TestCase):
         worst = c["independent_economics"]["savings_365d"]["total"]["low"]
         self.assertLess(abs(-worst / pkg["cost_baseline"]["forward_365d"]["total_cost"] - 1.0), 0.03)
 
+    # --- Auto-stop: cost-minimizing value on measured running idle time ----------------------------------------
+    def auto_stop(self, scenario):
+        c = self.candidate(scenario, "auto_stop_minutes")
+        return c["status"], c["recommended_value"], c
+
+    def test_c01_c25_always_on_goes_to_the_cheapest_value_within_two_percent_and_the_cold_start_budget(self):
+        for scenario in ("C01", "C25"):
+            status, value, c = self.auto_stop(scenario)
+            self.assertEqual(status, "ACTIONABLE", scenario)
+            self.assertTrue(10 <= value <= 60, (scenario, value))
+            self.assertGreater(c["independent_economics"]["savings_365d"]["total"]["base"], 20000, scenario)
+
+    def test_c02_c10_serverless_goes_to_five(self):
+        for scenario in ("C02", "C10"):
+            self.assertEqual(self.auto_stop(scenario)[:2], ("ACTIONABLE", 5), scenario)
+
+    def test_c05_nightly_etl_goes_to_the_ten_minute_floor(self):
+        self.assertEqual(self.auto_stop("C05")[:2], ("ACTIONABLE", 10))
+
+    def test_c13_lowered_when_it_adds_no_cold_starts(self):
+        # Queries every 45 minutes: the warehouse already restarts for each one, so 10 adds no restart.
+        self.assertEqual(self.auto_stop("C13")[:2], ("ACTIONABLE", 10))
+
+    def test_c39_nonprod_tag_gets_the_larger_cold_start_budget(self):
+        import copy
+        status, value, _ = self.auto_stop("C39")
+        self.assertEqual((status, value), ("ACTIONABLE", 10))  # adds restarts for about 5% of queries: within 10%
+        e = copy.deepcopy(self.by_scenario["C39"][0])
+        e.current_epoch.tags["environment"] = "staging"  # staging stays production: 2% budget
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "auto_stop_minutes")
+        self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["COLD_START_BUDGET_EXCEEDED"]))
+
+    def test_c45_steady_warehouse_gets_no_zero_value_auto_stop_change(self):
+        status, value, c = self.auto_stop("C45")
+        self.assertEqual((status, value), ("NO_CHANGE", 30))
+
+    def test_c49_auto_stop_is_raised_when_restarts_saved_outweigh_idle_added(self):
+        status, value, c = self.auto_stop("C49")
+        self.assertEqual((status, value), ("TEST_REQUIRED", 15))
+        self.assertIn("RESTART_BILLING_UNVERIFIED", c["blockers"])
+
+    def test_c51_mostly_idle_removes_far_more_than_sixty_percent(self):
+        e, _ = self.by_scenario["C51"]
+        status, value, _ = self.auto_stop("C51")
+        self.assertEqual((status, value), ("ACTIONABLE", 10))
+        w = p.evaluate_warehouses([e], self.t)[0]
+        raw = next(c for c in w.candidates if c.knob == "auto_stop_minutes").metadata["raw_savings_fraction"]
+        self.assertGreater(raw, 0.8)
+
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
         self.assertEqual((c["current_value"], c["status"]), (1, "NO_CHANGE"))

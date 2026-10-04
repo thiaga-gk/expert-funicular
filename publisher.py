@@ -147,25 +147,35 @@ class Thresholds:
     max_clusters_supported_limit: int = 40
     min_clusters_supported_limit: int = 30
 
-    # Auto-stop / cold-start
-    cold_start_p95_ms_block: int = 60_000
-    cold_starts_per_active_day_block: float = 0.5
-    min_idle_gap_sample_size: int = 30
+    # Auto-stop
     min_cluster_minutes_for_cost_model: float = 1.0
-    auto_stop_savings_cap: float = 0.60
-    serverless_auto_stop_target_minutes: int = 10
-    low_activity_auto_stop_target_minutes: int = 15
-    medium_activity_auto_stop_target_minutes: int = 30
-    high_activity_auto_stop_target_minutes: int = 45
-    low_activity_queries_per_day: float = 50.0
-    medium_activity_queries_per_day: float = 500.0
-    # Auto-stop values evaluated per warehouse type (minutes). Pro/Classic never go below 10; Serverless values below 5
-    # set through the API are left alone.
-    auto_stop_grid_serverless: Tuple[int, ...] = (5, 10, 15, 20, 30)
-    auto_stop_grid_pro_classic: Tuple[int, ...] = (10, 15, 20, 30, 45, 60)
+    # Auto-stop values evaluated: every step from the type's floor up to the maximum (minutes). Pro/Classic never go
+    # below 10; Serverless values below 5 set through the API are left alone.
+    auto_stop_floor_pro_classic: int = 10
+    auto_stop_floor_serverless: int = 5
+    auto_stop_step_minutes: int = 5
+    auto_stop_max_minutes: int = 1440
+    # A value covers an idle gap (keeps the warehouse up until the next query) only when it is at least this much longer
+    # than the gap, so a small schedule drift does not turn every gap into a restart.
+    auto_stop_bridge_margin_pct: float = 10.0
     # A gap counts as running throughout (a lower auto-stop adds a restart there) when the warehouse ran at least this
     # fraction of it; the slack absorbs event-time rounding.
     running_idle_full_window_fraction: float = 0.99
+    # Cost of one restart in cluster-minutes per cluster started. Pro/Classic take about 4 minutes to start (documented);
+    # whether the starting minutes are billed is not documented, so this is a priced assumption. Serverless starts in
+    # seconds.
+    restart_cost_cluster_minutes_pro_classic: float = 4.0
+    restart_cost_cluster_minutes_serverless: float = 0.0
+    # Cold-start budget: restarts a lower auto-stop adds, as a share of queries over the same window (Pro/Classic only;
+    # nonprod warehouses by tag get the larger budget).
+    cold_start_added_share_max_pct: float = 2.0
+    cold_start_added_share_max_pct_nonprod: float = 10.0
+    # Among auto-stop values whose net saving is within this share of the best, the smallest change is chosen.
+    auto_stop_near_best_pct: float = 2.0
+    # Nonprod profile: a warehouse tag whose key (case-insensitive) is one of these keys and whose value is one of these
+    # values. Staging and UAT stay production.
+    nonprod_tag_keys: Tuple[str, ...] = ("env", "environment", "stage", "tier")
+    nonprod_tag_values: Tuple[str, ...] = ("dev", "development", "test", "testing", "qa", "sandbox", "nonprod", "non-prod")
 
     # Forecast
     forecast_recent_days: int = 28
@@ -792,18 +802,7 @@ GROUP BY workspace_id, warehouse_id, epoch_start
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
-    """Build the gap collector from centralized auto-stop policy targets."""
-    targets = sorted({
-        t.serverless_auto_stop_target_minutes,
-        t.low_activity_auto_stop_target_minutes,
-        t.medium_activity_auto_stop_target_minutes,
-        t.high_activity_auto_stop_target_minutes,
-    })
-    saved = ",\n  ".join(
-        f"SUM(GREATEST(LEAST(gap_minutes,CASE WHEN auto_stop_minutes=0 THEN gap_minutes ELSE auto_stop_minutes END)-{target},0)) AS saved_idle_minutes_if_{target}"
-        for target in targets
-    )
-    saved_cols = ", ".join(f"g.saved_idle_minutes_if_{target}" for target in targets)
+    """Busy time and the inter-query gap sample per epoch (auto-stop savings come from the running-idle collector)."""
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
@@ -838,34 +837,46 @@ ordered AS (
     SUM(GREATEST(0.0,TIMESTAMPDIFF(MILLISECOND,GREATEST(start_time,COALESCE(previous_busy_end_time,start_time)),COALESCE(end_time,start_time))/60000.0)) AS busy_minutes
   FROM ordered GROUP BY workspace_id,warehouse_id,epoch_start
 ), gaps AS (
-  SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
+  SELECT *, GREATEST(0.0,TIMESTAMPDIFF(MILLISECOND,previous_busy_end_time,start_time)/60000.0) AS gap_minutes
   FROM ordered WHERE previous_busy_end_time IS NOT NULL AND start_time>previous_busy_end_time
 ), gap_stats AS (
   SELECT workspace_id, warehouse_id, epoch_start,
   COUNT(*) AS gap_count,
   PERCENTILE_APPROX(gap_minutes,0.50) AS p50_gap_minutes,
-  PERCENTILE_APPROX(gap_minutes,0.90) AS p90_gap_minutes,
-  {saved}
+  PERCENTILE_APPROX(gap_minutes,0.90) AS p90_gap_minutes
   FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
 )
 SELECT b.workspace_id, b.warehouse_id, b.epoch_start, b.busy_minutes,
-  COALESCE(g.gap_count,0) AS gap_count, g.p50_gap_minutes, g.p90_gap_minutes,
-  {saved_cols}
+  COALESCE(g.gap_count,0) AS gap_count, g.p50_gap_minutes, g.p90_gap_minutes
 FROM busy b LEFT JOIN gap_stats g
   ON g.workspace_id=b.workspace_id AND g.warehouse_id=b.warehouse_id AND g.epoch_start=b.epoch_start
 """
 
 def auto_stop_targets(t: Thresholds) -> List[int]:
     """Every auto-stop value any supported warehouse type may be evaluated at (the collector measures each)."""
-    return sorted(set(t.auto_stop_grid_serverless) | set(t.auto_stop_grid_pro_classic))
+    return list(range(min(t.auto_stop_floor_serverless, t.auto_stop_floor_pro_classic), t.auto_stop_max_minutes + 1, t.auto_stop_step_minutes))
 
 
-RUNNING_IDLE_KEYS = ("removable_running_wall_minutes_if_", "removable_running_cluster_minutes_if_", "additional_starts_if_",
-                     "avoided_starts_if_", "added_idle_wall_minutes_if_")
+def auto_stop_candidates(t: Thresholds, warehouse_type: str) -> List[int]:
+    """Auto-stop values evaluated for one warehouse type: every step from the type's floor up to the maximum."""
+    floor = t.auto_stop_floor_serverless if warehouse_type == "SERVERLESS" else t.auto_stop_floor_pro_classic
+    return [x for x in auto_stop_targets(t) if x >= floor]
+
+
+def is_nonprod(tags: Mapping[str, Any], t: Thresholds) -> bool:
+    """Nonprod profile by warehouse tag: a known environment key (case-insensitive) with a known nonprod value."""
+    keys, values = set(t.nonprod_tag_keys), set(t.nonprod_tag_values)
+    return any(str(k).strip().lower() in keys and str(v).strip().lower() in values for k, v in (tags or {}).items())
+
+
+RUNNING_IDLE_TARGET_FIELDS = ("removable_running_wall_minutes", "removable_running_cluster_minutes", "additional_starts",
+                              "avoided_starts", "added_idle_wall_minutes")
+RUNNING_IDLE_HEADER_FIELDS = ("running_idle_window_start", "running_idle_window_end", "running_idle_queries", "running_segment_count",
+                              "observed_running_cluster_minutes", "kept_alive_wall_minutes", "kept_alive_gap_count")
 
 
 def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence[Tuple[float, float, int]], window: Tuple[float, float],
-                         auto_stop: int, targets: Sequence[int], full_fraction: float = 0.99) -> Dict[str, Any]:
+                         auto_stop: int, targets: Sequence[float], full_fraction: float = 0.99, margin_pct: float = 10.0) -> Dict[str, Any]:
     """Reference implementation of the running-idle collector (times in minutes, intervals half-open).
 
     ``busy`` are query intervals (start, end), ``segments`` RUNNING intervals (start, end, clusters > 0), ``window`` the
@@ -873,19 +884,21 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
     that query's start; the gap after the last query runs to the window end (from the window start when there was no
     query). Under target T the warehouse would stop T minutes into a gap, but a lower auto-stop cannot stop it later
     than the current setting already does: running time past the current auto-stop was kept alive by something other
-    than queries (open sessions, result fetching) and is reported, not removed. Per T:
+    than queries (open sessions, result fetching) and is reported, not removed. A value covers a gap (keeps the
+    warehouse up until the next query) only when it is at least ``margin_pct`` longer than the gap, so a small schedule
+    drift does not turn every gap into a restart. Per T (``running_idle_by_target``, only values with a non-zero field):
 
     * removable running wall/cluster minutes: RUNNING time in [gap start + T, min(gap end, gap start + current));
-    * additional starts: gaps with a next query that the warehouse ran through at least ``full_fraction`` of that span
-      and that the current setting does not already stop;
+    * additional starts: gaps with a next query that the warehouse ran through (it did not restart for that query)
+      and that T does not cover;
     * avoided starts / added idle wall minutes (raising auto-stop): gaps the warehouse stopped in, restarting for the
-      next query; under T it stays up for min(gap, T) minutes, so a gap shorter than T saves its restart.
+      next query; under T it stays up for min(gap, T) minutes, and a gap T covers saves its restart.
     """
     w0, w1 = window
-    ordered = sorted(busy)
+    cover = 1.0 + margin_pct / 100.0
     gaps: List[Tuple[float, float, bool]] = []
     frontier: Optional[float] = None
-    for start, end in ordered:
+    for start, end in sorted(busy):
         if frontier is not None and start > frontier:
             gaps.append((frontier, start, True))
         frontier = end if frontier is None else max(frontier, end)
@@ -896,12 +909,12 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
     # Cumulative running time F(x) = sum over segments of max(0, min(x, end) - start): with segment starts and ends
     # sorted, F(x) = sum over starts < x of (x - start) minus sum over ends < x of (x - end), so any overlap is
     # F(b) - F(a) in O(log n).
-    def prefix(points: List[Tuple[float, float]]) -> Tuple[List[float], List[float], List[float], List[float]]:
+    def prefix(points: List[Tuple[float, float]]) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
         points = sorted(points)
         xs = [x for x, _ in points]; cw, cwx, cn, cnx = [0.0], [0.0], [0.0], [0.0]
         for x, w in points:
             cw.append(cw[-1] + w); cwx.append(cwx[-1] + w * x); cn.append(cn[-1] + 1); cnx.append(cnx[-1] + x)
-        return xs, cw, cwx, cn, cnx  # type: ignore[return-value]
+        return xs, cw, cwx, cn, cnx
     starts, ends = prefix([(a, c) for a, _, c in segs]), prefix([(b, c) for _, b, c in segs])
 
     def cumulative(x: float, weighted: bool) -> float:
@@ -926,50 +939,51 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
         running = overlap(c0, c1)
         alive = overlap(max(c0, stop_at), c1) if stop_at is not None else 0.0
         kept_alive += alive; kept_gaps += 1 if alive > 0 else 0
-        per_gap.append((g0, g1, has_next, c0, c1, stop_at, running))
+        per_gap.append((g0, g1, has_next, c0, c1, stop_at, running, running >= full_fraction * (c1 - c0)))
     out["kept_alive_wall_minutes"] = round(kept_alive, 3)
     out["kept_alive_gap_count"] = kept_gaps
+    by_target: Dict[str, Dict[str, Any]] = {}
+    # Only gap/value pairs that can contribute (as in the SQL): a gap the warehouse ran through matters to values that
+    # do not cover it; a gap it stopped in matters to every value.
+    through = sorted((x for x in per_gap if x[7]), key=lambda x: x[1] - x[0], reverse=True)
+    stopped = [x for x in per_gap if not x[7]]
     for target in targets:
         wall = cluster = added_idle = 0.0
         added = avoided = 0
-        for g0, g1, has_next, c0, c1, stop_at, running in per_gap:
+        k = 0
+        while k < len(through) and target < cover * (through[k][1] - through[k][0]):
+            k += 1
+        for g0, g1, has_next, c0, c1, stop_at, running, ran_through in through[:k] + stopped:
             r0 = max(g0 + target, c0)
             r1 = c1 if stop_at is None else min(c1, stop_at)
-            span = max(0.0, r1 - r0)
-            w = overlap(r0, r1); wall += w; cluster += overlap(r0, r1, True)
-            if has_next and span > 0 and (stop_at is None or stop_at >= g1) and w >= full_fraction * span:
+            wall += overlap(r0, r1); cluster += overlap(r0, r1, True)
+            covered = target >= cover * (g1 - g0)
+            # A restart is added only where the warehouse ran through to the next query because of the current setting
+            # (a gap within the current auto-stop); one kept alive past it would not stop at a lower value either.
+            if has_next and ran_through and not covered and (stop_at is None or stop_at >= g1):
                 added += 1
-            stopped = running < full_fraction * (c1 - c0)
-            if stopped:
+            if not ran_through:
                 added_idle += max(0.0, min(g1 - g0, float(target)) - running)
-                if has_next and g1 - g0 < target:
+                if has_next and covered:
                     avoided += 1
-        out[f"removable_running_wall_minutes_if_{target}"] = round(wall, 3)
-        out[f"removable_running_cluster_minutes_if_{target}"] = round(cluster, 3)
-        out[f"additional_starts_if_{target}"] = added
-        out[f"avoided_starts_if_{target}"] = avoided
-        out[f"added_idle_wall_minutes_if_{target}"] = round(added_idle, 3)
+        row = {"removable_running_wall_minutes": round(wall, 3), "removable_running_cluster_minutes": round(cluster, 3),
+               "additional_starts": added, "avoided_starts": avoided, "added_idle_wall_minutes": round(added_idle, 3)}
+        if any(row.values()):
+            by_target[str(target)] = row
+    out["running_idle_by_target"] = by_target
     return out
 
 
-def build_running_idle_sql(t: Thresholds) -> str:
-    """Running-idle collector (current epoch): idle gaps intersected with RUNNING warehouse-event segments.
+def _running_idle_ctes(t: Thresholds) -> str:
+    """Shared CTEs of the running-idle collector: same arithmetic as ``running_idle_metrics``.
 
-    Same arithmetic as ``running_idle_metrics`` and the same period as the event totals (events.cluster_minutes): from
-    the later of the epoch start and the warehouse's first event retained in the last 365 days, to now. Milliseconds:
-    whole-second differences would drop sub-second remainders on every gap.
+    Same period as the event totals (events.cluster_minutes): from the later of the epoch start and the warehouse's
+    first event retained in the last 365 days, to now. Milliseconds: whole-second differences would drop sub-second
+    remainders on every gap.
     """
-    targets = auto_stop_targets(t)
     full = t.running_idle_full_window_fraction
-    values = ", ".join(f"({x})" for x in targets)
-    pivot = ",\n  ".join(
-        f"COALESCE(SUM(CASE WHEN target_min = {x} THEN wall_min END), 0) AS removable_running_wall_minutes_if_{x},\n"
-        f"  COALESCE(SUM(CASE WHEN target_min = {x} THEN cluster_min END), 0) AS removable_running_cluster_minutes_if_{x},\n"
-        f"  COUNT_IF(target_min = {x} AND added_start) AS additional_starts_if_{x},\n"
-        f"  COUNT_IF(target_min = {x} AND avoided_start) AS avoided_starts_if_{x},\n"
-        f"  COALESCE(SUM(CASE WHEN target_min = {x} THEN added_idle END), 0) AS added_idle_wall_minutes_if_{x}"
-        for x in targets)
-    pivot_cols = ",\n  ".join(f"COALESCE(t.{k}{x}, 0) AS {k}{x}" for x in targets for k in RUNNING_IDLE_KEYS)
+    cover = 1.0 + t.auto_stop_bridge_margin_pct / 100.0
+    targets = auto_stop_targets(t)
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 retained AS (
@@ -1032,33 +1046,35 @@ retained AS (
   FROM g LEFT JOIN running s ON s.workspace_id = g.workspace_id AND s.warehouse_id = g.warehouse_id
     AND s.seg_start < g.c1 AND s.seg_end > g.c0
   GROUP BY g.workspace_id, g.warehouse_id, g.g0, g.g1
+), gaps_full AS (
+  SELECT g.*, gr.running_min, gr.kept_alive_min,
+    gr.running_min >= {full} * TIMESTAMPDIFF(MILLISECOND, g.c0, g.c1) / 60000.0 AS ran_through
+  FROM g JOIN gap_running gr ON gr.workspace_id = g.workspace_id AND gr.warehouse_id = g.warehouse_id AND gr.g0 = g.g0 AND gr.g1 = g.g1
 ), per_target AS (
-  SELECT g.workspace_id, g.warehouse_id, g.g0, g.g1, g.has_next, g.c0, g.c1, g.gap_min, g.stop_at, t.target_min,
-    GREATEST(TIMESTAMPADD(MINUTE, t.target_min, g.g0), g.c0) AS r_start,
-    CASE WHEN g.stop_at IS NULL THEN g.c1 ELSE LEAST(g.c1, g.stop_at) END AS r_end
-  FROM g CROSS JOIN (VALUES {values}) AS t(target_min)
+  -- Only pairs that can contribute: a gap the warehouse ran through matters to values that do not cover it (with the
+  -- margin); a gap it stopped in matters to every value (removable time, added idle, restarts saved).
+  SELECT f.*, t.target_min,
+    GREATEST(TIMESTAMPADD(MINUTE, t.target_min, f.g0), f.c0) AS r_start,
+    CASE WHEN f.stop_at IS NULL THEN f.c1 ELSE LEAST(f.c1, f.stop_at) END AS r_end
+  FROM gaps_full f CROSS JOIN (SELECT EXPLODE(SEQUENCE({targets[0]}, {targets[-1]}, {t.auto_stop_step_minutes})) AS target_min) t
+  WHERE NOT f.ran_through OR t.target_min < {cover} * f.gap_min
 ), removable AS (
-  SELECT p.workspace_id, p.warehouse_id, p.g0, p.g1, p.has_next, p.c0, p.c1, p.gap_min, p.stop_at, p.target_min,
-    GREATEST(0, TIMESTAMPDIFF(MILLISECOND, p.r_start, p.r_end)) / 60000.0 AS span_min,
+  SELECT p.workspace_id, p.warehouse_id, p.g0, p.g1, p.has_next, p.gap_min, p.running_min, p.ran_through, p.target_min,
+    p.stop_at IS NULL OR p.stop_at >= p.g1 AS within_current,
     COALESCE(SUM(GREATEST(0, TIMESTAMPDIFF(MILLISECOND, GREATEST(p.r_start, s.seg_start), LEAST(p.r_end, s.seg_end)))), 0) / 60000.0 AS wall_min,
     COALESCE(SUM(GREATEST(0, TIMESTAMPDIFF(MILLISECOND, GREATEST(p.r_start, s.seg_start), LEAST(p.r_end, s.seg_end))) * s.cluster_count), 0) / 60000.0 AS cluster_min
   FROM per_target p LEFT JOIN running s ON s.workspace_id = p.workspace_id AND s.warehouse_id = p.warehouse_id
-    AND s.seg_start < p.r_end AND s.seg_end > p.r_start
-  GROUP BY p.workspace_id, p.warehouse_id, p.g0, p.g1, p.has_next, p.c0, p.c1, p.gap_min, p.stop_at, p.target_min, p.r_start, p.r_end
-), flagged AS (
-  SELECT m.workspace_id, m.warehouse_id, m.target_min, m.wall_min, m.cluster_min,
-    m.has_next AND m.span_min > 0 AND (m.stop_at IS NULL OR m.stop_at >= m.g1) AND m.wall_min >= {full} * m.span_min AS added_start,
-    m.has_next AND m.gap_min < m.target_min AND gr.running_min < {full} * TIMESTAMPDIFF(MILLISECOND, m.c0, m.c1) / 60000.0 AS avoided_start,
-    CASE WHEN gr.running_min < {full} * TIMESTAMPDIFF(MILLISECOND, m.c0, m.c1) / 60000.0
-      THEN GREATEST(0, LEAST(m.gap_min, m.target_min) - gr.running_min) ELSE 0 END AS added_idle
-  FROM removable m JOIN gap_running gr ON gr.workspace_id = m.workspace_id AND gr.warehouse_id = m.warehouse_id AND gr.g0 = m.g0 AND gr.g1 = m.g1
-), target_stats AS (
-  SELECT workspace_id, warehouse_id,
-  {pivot}
-  FROM flagged GROUP BY workspace_id, warehouse_id
-), gap_stats AS (
+    AND p.r_end > p.r_start AND s.seg_start < p.r_end AND s.seg_end > p.r_start
+  GROUP BY p.workspace_id, p.warehouse_id, p.g0, p.g1, p.has_next, p.gap_min, p.running_min, p.ran_through, p.target_min, p.stop_at
+)"""
+
+
+def build_running_idle_sql(t: Thresholds) -> str:
+    """Running-idle collector, one row per current warehouse: window, queries, running segments, kept-alive time."""
+    return _running_idle_ctes(t) + """
+, gap_stats AS (
   SELECT workspace_id, warehouse_id, SUM(kept_alive_min) AS kept_alive_wall_minutes, COUNT_IF(kept_alive_min > 0) AS kept_alive_gap_count
-  FROM gap_running GROUP BY workspace_id, warehouse_id
+  FROM gaps_full GROUP BY workspace_id, warehouse_id
 ), seg_stats AS (
   SELECT workspace_id, warehouse_id, COUNT(*) AS running_segment_count,
     SUM(TIMESTAMPDIFF(MILLISECOND, seg_start, seg_end) * cluster_count) / 60000.0 AS observed_running_cluster_minutes
@@ -1074,14 +1090,32 @@ SELECT c.workspace_id, c.warehouse_id, c.epoch_start,
   COALESCE(ss.running_segment_count, 0) AS running_segment_count,
   COALESCE(ss.observed_running_cluster_minutes, 0) AS observed_running_cluster_minutes,
   COALESCE(gs.kept_alive_wall_minutes, 0) AS kept_alive_wall_minutes,
-  COALESCE(gs.kept_alive_gap_count, 0) AS kept_alive_gap_count,
-  {pivot_cols}
+  COALESCE(gs.kept_alive_gap_count, 0) AS kept_alive_gap_count
 FROM cur c
-LEFT JOIN target_stats t ON t.workspace_id = c.workspace_id AND t.warehouse_id = c.warehouse_id
 LEFT JOIN gap_stats gs ON gs.workspace_id = c.workspace_id AND gs.warehouse_id = c.warehouse_id
 LEFT JOIN seg_stats ss ON ss.workspace_id = c.workspace_id AND ss.warehouse_id = c.warehouse_id
 LEFT JOIN query_stats qs ON qs.workspace_id = c.workspace_id AND qs.warehouse_id = c.warehouse_id
 """
+
+
+def build_running_idle_targets_sql(t: Thresholds) -> str:
+    """Running-idle collector, one row per current warehouse and auto-stop value with a non-zero field (absent = 0)."""
+    cover = 1.0 + t.auto_stop_bridge_margin_pct / 100.0
+    return _running_idle_ctes(t) + f"""
+SELECT c.workspace_id, c.warehouse_id, c.epoch_start, m.target_min,
+  SUM(m.wall_min) AS removable_running_wall_minutes,
+  SUM(m.cluster_min) AS removable_running_cluster_minutes,
+  COUNT_IF(m.has_next AND m.ran_through AND m.within_current AND m.target_min < {cover} * m.gap_min) AS additional_starts,
+  COUNT_IF(m.has_next AND NOT m.ran_through AND m.target_min >= {cover} * m.gap_min) AS avoided_starts,
+  SUM(CASE WHEN NOT m.ran_through THEN GREATEST(0, LEAST(m.gap_min, m.target_min) - m.running_min) ELSE 0 END) AS added_idle_wall_minutes
+FROM removable m JOIN cur c ON c.workspace_id = m.workspace_id AND c.warehouse_id = m.warehouse_id
+GROUP BY c.workspace_id, c.warehouse_id, c.epoch_start, m.target_min
+HAVING SUM(m.wall_min) > 0 OR SUM(m.cluster_min) > 0 OR COUNT_IF(m.has_next AND m.ran_through AND m.within_current AND m.target_min < {cover} * m.gap_min) > 0
+  OR COUNT_IF(m.has_next AND NOT m.ran_through AND m.target_min >= {cover} * m.gap_min) > 0
+  OR SUM(CASE WHEN NOT m.ran_through THEN GREATEST(0, LEAST(m.gap_min, m.target_min) - m.running_min) ELSE 0 END) > 0
+ORDER BY c.workspace_id, c.warehouse_id, m.target_min
+"""
+
 
 RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic billing lag; Python clips to what was collected
 
@@ -2334,6 +2368,11 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         for k in ("running_idle_window_start", "running_idle_window_end"):
             if r.get(k) is not None:
                 r[k] = iso(r[k])
+        r["running_idle_by_target"] = {}  # collected: an auto-stop value without a row is a known zero
+    for r in client.query(build_running_idle_targets_sql(thresholds),label="running_idle_targets"):
+        header = running_idle_idx.get(_row_key(r))
+        if header is not None:
+            header["running_idle_by_target"][str(safe_int(r.get("target_min")))] = {k: r.get(k) for k in RUNNING_IDLE_TARGET_FIELDS}
     resource_daily_idx: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
     # The query reports its own collected range (CURRENT_DATE at run time); the analysis clock is only a fallback.
     resource_collected_from: Optional[str] = None
@@ -2628,27 +2667,60 @@ class Analyzer:
             # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
             "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
-        # Auto stop
-        target = (
-            self.t.serverless_auto_stop_target_minutes if cfg.warehouse_type=="SERVERLESS"
-            else self.t.low_activity_auto_stop_target_minutes if per_day < self.t.low_activity_queries_per_day
-            else self.t.medium_activity_auto_stop_target_minutes if per_day < self.t.medium_activity_queries_per_day
-            else self.t.high_activity_auto_stop_target_minutes
-        )
-        saved_idle = safe_float(gaps.get(f"saved_idle_minutes_if_{target}")); uptime = safe_float(ev.get("uptime_minutes")); wait_compute, wait_compute_n = conditional_severity(q, "compute_wait_queries_30", "p95_wait_compute_ms_when_waited_30")
-        gap_count=safe_int(gaps.get("gap_count")); cluster_minutes=safe_float(ev.get("cluster_minutes"))
+        # Auto stop: every value on the type's grid, scored on running-idle evidence (idle gaps intersected with the
+        # warehouse's observed RUNNING time, over the same period as the event totals). Lowering removes running idle
+        # time and adds the restarts of gaps the warehouse used to run through; raising adds idle time and saves the
+        # restarts of gaps shorter than the new value. A restart costs restart-cost cluster-minutes per floor cluster.
+        cluster_minutes = safe_float(ev.get("cluster_minutes")); current_auto = cfg.auto_stop_minutes
+        serverless = cfg.warehouse_type == "SERVERLESS"
+        grid = auto_stop_candidates(self.t, cfg.warehouse_type)
+        floor_clusters = max(1, cfg.min_clusters)
+        restart_cost = (self.t.restart_cost_cluster_minutes_serverless if serverless else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
+        nonprod = is_nonprod(ep.tags, self.t)
+        budget = None if serverless else (self.t.cold_start_added_share_max_pct_nonprod if nonprod else self.t.cold_start_added_share_max_pct)
+        ri_queries = optional_float(gaps.get("running_idle_queries"))
+        by_target = gaps.get("running_idle_by_target")
+        running_available = isinstance(by_target, Mapping) and all(gaps.get(k) is not None for k in
+                                                                   ("running_idle_queries", "observed_running_cluster_minutes", "kept_alive_wall_minutes"))
+        options: List[Dict[str, Any]] = []
+        if running_available:
+            for x in grid:
+                if x == current_auto:
+                    continue
+                row = by_target.get(str(x)) or {}  # collected, no row: nothing removed, added or avoided at this value
+                lower = current_auto == 0 or x < current_auto
+                if lower:
+                    gain = safe_float(row.get("removable_running_cluster_minutes")); starts = safe_int(row.get("additional_starts"))
+                    loss = starts * restart_cost
+                else:
+                    starts = -safe_int(row.get("avoided_starts"))
+                    gain = -starts * restart_cost; loss = safe_float(row.get("added_idle_wall_minutes")) * floor_clusters
+                share = None if not ri_queries else round(100.0 * starts / ri_queries, 4)
+                options.append({"target": x, "direction": "LOWER" if lower else "RAISE", "gain_cluster_minutes": round(gain, 3),
+                                "loss_cluster_minutes": round(loss, 3), "net_cluster_minutes": round(gain - loss, 3), "added_starts": starts,
+                                "removable_wall_minutes": safe_float(row.get("removable_running_wall_minutes")) if lower else 0.0,
+                                "added_cold_start_share_pct": share,
+                                "within_cold_start_budget": budget is None or starts <= 0 or (share is not None and share <= budget)})
+        kept_alive = optional_float(gaps.get("kept_alive_wall_minutes"))
+        window = "current epoch since the first retained warehouse event"
+        positive = [o for o in options if o["net_cluster_minutes"] > 0]
+        best_any = max(positive, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
+        best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
         fs = [
-            self._f(e,"auto_stop_minutes","auto_stop_minutes",cfg.auto_stop_minutes,unit="minutes",threshold=target,comparator="> target",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting versus deterministic policy target."),
+            self._f(e,"auto_stop_minutes","auto_stop_minutes",current_auto,unit="minutes",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting."),
             self._f(e,"auto_stop_minutes","failure_cancel_pct_30",round_or_none(common["failure_pct"],4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= cut-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high or unknown rate holds every capacity cut."),
-            self._f(e,"auto_stop_minutes","queries_per_active_day_30",round(per_day,2),unit="queries/day",table="system.query.history",field="start_time",window="last 30 days within current epoch",interpretation="Activity density selects the auto-stop target."),
-            self._f(e,"auto_stop_minutes","idle_gap_count",gap_count,unit="gaps",threshold=self.t.min_idle_gap_sample_size,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="current epoch",interpretation="Non-overlapping inter-query gap sample supporting the auto-stop counterfactual."),
-            self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window="current epoch",interpretation="Observed resource-time basis used to convert idle time into cost effect."),
-            self._f(e,"auto_stop_minutes","compute_wait_queries_30",wait_compute_n,unit="queries",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Queries that waited for compute; the wait percentile is computed over these queries only."),
-            self._f(e,"auto_stop_minutes","p95_wait_compute_ms_when_waited_30",round_or_none(wait_compute),unit="ms",threshold=self.t.cold_start_p95_ms_block,comparator=">= cold-start blocker",table="system.query.history",field="waiting_for_compute_duration_ms",window="last 30 days within current epoch",interpretation="Cold-start sensitivity guardrail at p95 among queries that waited for compute."),
-            self._f(e,"auto_stop_minutes","starts_per_active_day_30",round(starts_per_day,4),unit="starts/day",threshold=self.t.cold_starts_per_active_day_block,comparator=">= cold-start blocker",table="system.compute.warehouse_events",field="event_type=STARTING",window="last 30 days within current epoch",interpretation="Restart frequency guardrail."),
-            self._f(e,"auto_stop_minutes","estimated_additional_off_minutes",round(saved_idle,2),unit="minutes",table="system.query.history",field="inter-query gap",window="current epoch",interpretation="Estimated additional off-time at the candidate target."),
+            self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window=window,interpretation="Running cluster-minutes: the basis idle-time savings are a share of."),
+            self._f(e,"auto_stop_minutes","running_idle_queries",None if ri_queries is None else int(ri_queries),unit="queries",table="system.query.history",field="start_time",window=window,interpretation="Queries over the running-idle window; added restarts are judged as a share of them."),
+            self._f(e,"auto_stop_minutes","kept_alive_wall_minutes",round_or_none(kept_alive,2),unit="minutes",table="system.query.history + system.compute.warehouse_events",field="end_time, cluster_count",window=window,interpretation="Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it."),
+            self._f(e,"auto_stop_minutes","restart_cost_cluster_minutes",round(restart_cost,3),unit="cluster-minutes per restart",table="policy",field="restart cost",window="policy",interpretation="Priced cost of one restart (start time x floor clusters); Pro/Classic starting minutes are assumed billed (not documented)."),
+            self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value); only effect: the larger cold-start budget."),
+            self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
+            self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share."),
+            self._f(e,"auto_stop_minutes","auto_stop_best_option_within_budget",best_ok,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving among those within the cold-start budget."),
         ]
-        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"target":target,"saved_idle":saved_idle,"gap_count":gap_count,"uptime":uptime,"cluster_minutes":cluster_minutes,"current_min_clusters":cfg.min_clusters,"wait_compute":wait_compute,"wait_compute_n":wait_compute_n,"starts_per_day":starts_per_day})
+        out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
+            "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
+            "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -2867,34 +2939,56 @@ class Optimizer:
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},blockers,["warehouse_size","max_clusters"],[],[],
                     "Minimum-cluster reduction is not sufficiently supported by current-epoch evidence."))
 
-        # Auto stop
-        a=analyses["auto_stop_minutes"]; f=a.facts; target=safe_int(f["target"])
-        if cfg.auto_stop_minutes != 0 and cfg.auto_stop_minutes <= target:
-            out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","NO_CHANGE",
-                {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},[],[],[],[],
-                "Current auto-stop is already at or below the deterministic target."))
-        else:
-            blockers=[]
-            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
-            if safe_int(f.get("gap_count")) < self.t.min_idle_gap_sample_size: blockers.append("INSUFFICIENT_IDLE_GAP_SAMPLE")
-            if safe_float(f.get("cluster_minutes")) < self.t.min_cluster_minutes_for_cost_model: blockers.append("INSUFFICIENT_EVENT_RESOURCE_EVIDENCE")
-            if f["wait_compute"] is None: blockers.append("COLD_START_EVIDENCE_UNAVAILABLE")
-            elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
-                blockers.append("COLD_START_SENSITIVE")
-            blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            # Idle time a lower auto-stop removes (gap minutes at the minimum cluster count) cannot exceed the running
-            # cluster-minutes the events recorded; if it does, one source is wrong and nothing can be priced.
-            cluster_minutes=safe_float(f.get("cluster_minutes"))
-            if cluster_minutes>0 and safe_float(f.get("saved_idle"))*max(1,safe_int(f.get("current_min_clusters"),1))>cluster_minutes:
-                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","INSUFFICIENT_EVIDENCE",
-                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},["IDLE_EVIDENCE_EXCEEDS_RUNTIME"]+blockers,[],[],[],
-                    "Idle time from query gaps exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced."))
+        # Auto stop: jump to the cost-minimizing value on the type's grid.
+        a=analyses["auto_stop_minutes"]; f=a.facts; cur_auto=cfg.auto_stop_minutes
+        def auto_stop(status:str,target:int,blockers:List[str],rationale:str)->None:
+            out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
+                {"auto_stop_minutes":cur_auto},{"auto_stop_minutes":target},sorted(set(blockers)),[],[],[],rationale))
+        grid=f["grid"]; options={o["target"]:o for o in f["options"]}
+        if cfg.warehouse_type=="SERVERLESS" and 0<cur_auto<min(grid):
+            auto_stop("NO_CHANGE",cur_auto,[],"Serverless auto-stop is below the lowest value the console offers (set through the API); it is left alone.")
+        elif not f["running_available"]:
+            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
+                "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
+        elif safe_float(f.get("cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
+            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["INSUFFICIENT_EVENT_RESOURCE_EVIDENCE"],"The warehouse recorded too little running time to price an auto-stop change.")
+        elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes"]>safe_float(f.get("cluster_minutes"))+0.01 for o in options.values()):
+            # Running idle time is part of running time by construction; more of it than the events recorded means the
+            # two collectors saw different periods or data, so nothing can be priced.
+            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["IDLE_EVIDENCE_EXCEEDS_RUNTIME"],
+                "Removable idle time exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced.")
+        elif age < self.t.current_config_stability_days:
+            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["CURRENT_CONFIG_EPOCH_TOO_NEW"],"The current configuration is too new to measure its idle gaps; auto-stop is re-evaluated once the epoch matures.")
+        elif not f.get("running_idle_queries"):
+            # No queries but running time: a human decides whether the warehouse is still needed or what keeps it up.
+            floor=min(grid); o=options.get(floor)
+            if o is not None and o["direction"]=="LOWER" and o["net_cluster_minutes"]>0:
+                auto_stop("REVIEW",floor,["NO_QUERIES_WHILE_RUNNING"],
+                    "The warehouse ran with no queries in the window; review whether it is still needed. The lowest auto-stop value is priced on its measured idle time.")
             else:
-                status="ACTIONABLE" if not blockers else "BLOCKED"
-                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
-                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,[],[],[],
-                    "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
+                auto_stop("NO_CHANGE",cur_auto,["NO_QUERIES_WHILE_RUNNING"],
+                    "The warehouse ran with no queries in the window, and no lower auto-stop removes that running time; review whether it is still needed or what keeps it running.")
+        else:
+            saving=[o for o in options.values() if o["net_cluster_minutes"]>0]
+            allowed=[o for o in saving if o["within_cold_start_budget"]]
+            if not allowed:
+                auto_stop("NO_CHANGE",cur_auto,["COLD_START_BUDGET_EXCEEDED"] if saving else [],
+                    "Every value that saves money adds more cold starts than the budget allows; auto-stop stays." if saving else "No auto-stop value saves money on the measured idle gaps; the current value is cost-optimal.")
+            else:
+                best=max(o["net_cluster_minutes"] for o in allowed)
+                near=[o for o in allowed if o["net_cluster_minutes"]>=(1-self.t.auto_stop_near_best_pct/100.0)*best]
+                # The smallest change among near-best values (an always-on warehouse changes least at the largest value).
+                pick=min(near,key=lambda o:((abs(o["target"]-cur_auto) if cur_auto>0 else -o["target"]),o["target"]))
+                blockers=failure_blockers(f["failure_pct"], self.t) if pick["direction"]=="LOWER" else []
+                if blockers:
+                    auto_stop("BLOCKED",pick["target"],blockers,"A cheaper auto-stop exists but guardrails block the recommendation.")
+                elif pick["direction"]=="RAISE":
+                    # The saving is entirely restarts avoided, priced on the assumption that starting minutes are billed.
+                    auto_stop("TEST_REQUIRED",pick["target"],["RESTART_BILLING_UNVERIFIED"],
+                        "A higher auto-stop saves more restart cost than the idle time it adds; the restart cost is an assumption (starting minutes billed), so billed cost is measured after the change.")
+                else:
+                    auto_stop("ACTIONABLE",pick["target"],[],
+                        "The cost-minimizing auto-stop on measured running idle time, counting the restarts it adds, within the cold-start budget.")
 
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
@@ -2972,17 +3066,21 @@ class Estimator:
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
         if knob=="auto_stop_minutes":
-            saved_idle=safe_float(a.facts.get("saved_idle"))
+            target=safe_int(d.recommended_config.get("auto_stop_minutes"))
+            opt=next((o for o in a.facts.get("options") or [] if o["target"]==target),None)
             cluster=safe_float(a.facts.get("cluster_minutes"))
-            current_min=max(1,safe_int(a.facts.get("current_min_clusters"),1))
-            theoretical_removed=saved_idle*current_min
-            raw=clamp(theoretical_removed/cluster,0,self.t.auto_stop_savings_cap) if cluster>0 else 0
+            if opt is None or cluster<=0:
+                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop","bundle_effect":{"type":"no_cost_change"},**meta}
+            # Net cluster-minutes saved (idle removed minus restarts added, or restarts saved minus idle added) as a share
+            # of running cluster-minutes over the same period; the realization range applies to that net.
+            raw=clamp(opt["net_cluster_minutes"]/cluster,0,1)
             factors=Range3(1-raw*self.t.realization_optimistic,1-raw*self.t.realization_base,1-raw*self.t.realization_conservative)
             return factors,{
-                "method":"current-epoch inter-query idle-gap converted to removable cluster-minutes",
-                "raw_savings_fraction":round(raw,4),
-                # The same cap the candidate applies, as a ceiling on removable cluster-minutes, so both models agree.
-                "bundle_effect":{"type":"idle_cluster_minute_reduction","idle_minutes":saved_idle,"max_removable_cluster_minutes":self.t.auto_stop_savings_cap*cluster},
+                "method":"running idle time (idle gaps intersected with observed RUNNING time) at the recommended auto-stop, net of priced restarts",
+                "raw_savings_fraction":round(raw,4),"auto_stop_option":dict(opt),
+                "restart_cost_assumption":"Pro/Classic starting minutes are assumed billed at the floor cluster count (start time about 4 minutes, documented; billing not documented); Serverless restarts cost about nothing.",
+                "bundle_effect":{"type":"idle_cluster_minute_reduction","gain_cluster_minutes":opt["gain_cluster_minutes"],"loss_cluster_minutes":opt["loss_cluster_minutes"],
+                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1),"removes_idle":opt["direction"]=="LOWER"},
                 **meta,
             }
 
@@ -3307,6 +3405,8 @@ class Reviewer:
             if c.knob=="auto_stop_minutes":
                 x=safe_int(c.recommended_config.get("auto_stop_minutes"),cfg.auto_stop_minutes)
                 if x < 0: raise ValueError("auto_stop_minutes < 0")
+                if x != cfg.auto_stop_minutes and cfg.warehouse_type != "SERVERLESS" and x < self.t.auto_stop_floor_pro_classic:
+                    raise ValueError("auto_stop_minutes below the Pro/Classic minimum")
             if str(c.metadata.get("currency"))!=e.currency: raise ValueError("Currency mismatch")
 
     def review_scenarios(
@@ -3486,25 +3586,30 @@ class StatefulBundleEstimator:
             if rr and original_resource>0:
                 rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
                 for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
-        elif typ in {"min_cluster_reduction","idle_cluster_minute_reduction"}:
-            if typ=="min_cluster_reduction":
-                theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
-                target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
-            else:
-                theoretical=max(0.0,safe_float(effect.get("idle_minutes")))*st.current_min
-                if effect.get("max_removable_cluster_minutes") is not None:
-                    theoretical=min(theoretical,max(0.0,safe_float(effect.get("max_removable_cluster_minutes"))))
-                target_min=st.current_min
+        elif typ=="idle_cluster_minute_reduction":
+            # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
+            # measured at the floor the candidate saw; both terms scale with the chain's current floor.
+            scale=st.current_min/max(1,safe_int(effect.get("floor_clusters"),1))
+            net=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))*scale
+            for i,realization in enumerate(realizations):
+                before=st.resource_tracks[i]
+                if before<=0 or net<=0: continue
+                removed=min(before,net*realization)
+                if effect.get("removes_idle"):
+                    st.idle_wall_minutes[i]+=removed/max(1,st.current_min)
+                ratio=(before-removed)/before
+                st.dbu_tracks[i]*=ratio
+                if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
+                st.resource_tracks[i]=before-removed
+        elif typ=="min_cluster_reduction":
+            theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
+            target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
             effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
             for i,realization in enumerate(effect_realizations):
                 before=st.resource_tracks[i]
                 if before<=0: continue
-                claim=theoretical
-                if typ=="min_cluster_reduction":
-                    claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0,st.current_min-target_min))
+                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0,st.current_min-target_min))
                 removed=min(before,claim*realization)
-                if typ=="idle_cluster_minute_reduction":
-                    st.idle_wall_minutes[i]+=removed/max(1,st.current_min)
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
@@ -3617,6 +3722,7 @@ class ScenarioPlanner:
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
         if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
+        if c.knob=="auto_stop_minutes" and c.status=="TEST_REQUIRED": return "A_B_CANARY_BILLED_COST"
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
     def _compatibility(self,e:WarehouseEvidence,target_type:str)->Dict[str,Any]:
@@ -5050,6 +5156,15 @@ def synthesize_resource_daily(epoch: EpochEvidence, analysis_time: str) -> List[
     } for i in range((analysis_day - first).days)]
 
 
+def _demo_interp(x: float, points: Sequence[Tuple[float, float, int]]) -> Tuple[float, int]:
+    """Linear interpolation of (value, count) between (x, value, count) points (core demo evidence only)."""
+    for (x0, v0, n0), (x1, v1, n1) in zip(points, points[1:]):
+        if x0 <= x <= x1:
+            w = (x - x0) / (x1 - x0)
+            return round(v0 + (v1 - v0) * w, 3), int(round(n0 + (n1 - n0) * w))
+    raise ValueError(f"{x} outside the interpolation points")
+
+
 def demo_evidence() -> List[WarehouseEvidence]:
     workspace = "1234567890123456"
     wh = "wh-demo-001"
@@ -5109,15 +5224,16 @@ def demo_evidence() -> List[WarehouseEvidence]:
         },
         gaps={
             "gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0,
-            "saved_idle_minutes_if_10": 12500.0, "saved_idle_minutes_if_15": 11500.0,
-            "saved_idle_minutes_if_30": 9000.0, "saved_idle_minutes_if_45": 6500.0,
             # Running-idle evidence: idle running time at the minimum (2 clusters) and the restarts each value adds.
             "running_idle_window_start": cur_start, "running_idle_window_end": analysis_time, "running_idle_queries": 110000,
             "running_segment_count": 1000, "observed_running_cluster_minutes": 30000.0, "kept_alive_wall_minutes": 0.0, "kept_alive_gap_count": 0,
-            **{f"{k}{t}": v for t, wall, starts in ((5, 13000.0, 300), (10, 12500.0, 210), (15, 11500.0, 170), (20, 10500.0, 150),
-                                                    (30, 9000.0, 120), (45, 6500.0, 90), (60, 5000.0, 70))
-               for k, v in (("removable_running_wall_minutes_if_", wall), ("removable_running_cluster_minutes_if_", 2 * wall),
-                            ("additional_starts_if_", starts), ("avoided_starts_if_", 0), ("added_idle_wall_minutes_if_", 0.0))},
+            # Idle running time at the minimum (2 clusters) removed by each auto-stop value and the restarts it adds:
+            # linear between the measured points, nothing at or above the current 120 minutes.
+            "running_idle_by_target": {str(t): {"removable_running_wall_minutes": wall, "removable_running_cluster_minutes": 2 * wall, "additional_starts": starts,
+                                                "avoided_starts": 0, "added_idle_wall_minutes": 0.0}
+                                       for t in range(5, 120, 5)
+                                       for wall, starts in [_demo_interp(t, ((5, 13000.0, 300), (10, 12500.0, 210), (15, 11500.0, 170), (20, 10500.0, 150),
+                                                                            (30, 9000.0, 120), (45, 6500.0, 90), (60, 5000.0, 70), (90, 2500.0, 40), (120, 0.0, 0)))]},
         },
         cost={"list_cost": 11000.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
     )
@@ -5244,7 +5360,9 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C38", "name": "Growing Product BI", "ws": 0, "type": "PRO", "size": "LARGE", "min": 1, "max": 4, "auto_stop": 20, "growth": True,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 1, "dur": 0.3, "conc": 3, "src": "DASHBOARD"}]},
     {"scenario": "C39", "name": "Dev Sandbox", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30, "env": "nonprod",
-     "work": [{"days": "weekdays", "start": "10:00", "end": "17:00", "every": 20, "dur": 2.0, "conc": 1, "src": "NOTEBOOK"}]},
+     # Hour-long notebook sessions with ~25-minute breaks: a lower auto-stop adds ~4 restarts a day for ~75 queries.
+     "work": [{"days": "weekdays", "start": s, "end": e, "every": 4, "dur": 0.5, "conc": 1, "src": "NOTEBOOK"}
+              for s, e in (("10:00", "11:00"), ("11:25", "12:25"), ("12:50", "13:50"), ("14:15", "15:15"), ("15:40", "16:40"))]},
     {"scenario": "C41", "name": "Genie Space", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 1, "src": "GENIE"}]},
     {"scenario": "C42", "name": "Queue Flood", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 600000,
@@ -5476,7 +5594,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
 
-    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "running_idle", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
     tags = {"environment": spec.get("env", "production"), "team": spec["name"].lower().replace(" ", "-"), "golden_scenario": spec["scenario"]}
     dbu_rate = SQL_DBU_PER_CLUSTER_HOUR[spec["size"]]
     owner = f"{tags['team']}@databricks.example"
@@ -5555,35 +5673,32 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
                 "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
             })
-        # Idle gaps between busy runs (query-level gaps) after the first retained event, saved idle at each target.
+        # Idle gaps between busy runs (query-level gaps) after the first retained event.
         gap_lo = lo_t if coverage is None else max(lo_t, coverage)
         gaps = [] if coverage is None else [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1)
                                             if ep_runs[i][0] >= gap_lo and ep_runs[i + 1][0] > ep_runs[i][1]]
         # Busy wall-clock minutes (union of query runs) over the same period: every epoch with queries gets a row.
         busy_runs = [] if coverage is None else [(a, b) for a, b, _ in ep_runs if a >= gap_lo]
         if busy_runs:
-            th = Thresholds()
-            targets = sorted({th.serverless_auto_stop_target_minutes, th.low_activity_auto_stop_target_minutes, th.medium_activity_auto_stop_target_minutes, th.high_activity_auto_stop_target_minutes})
             gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "busy_minutes": round(sum(b - a for a, b in busy_runs), 3),
-                       "gap_count": len(gaps), "p50_gap_minutes": None, "p90_gap_minutes": None, **{f"saved_idle_minutes_if_{t}": None for t in targets}}
+                       "gap_count": len(gaps), "p50_gap_minutes": None, "p90_gap_minutes": None}
             if gaps:
                 ordered = sorted(gaps)
                 def pct(q: float) -> float:
                     return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
-                auto = cfg["auto_stop_minutes"]
                 gap_row.update({"p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)})
-                kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
-                for target in targets:
-                    gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
             rows["idle_gaps"].append(gap_row)
         # Running-idle evidence (current epoch): query gaps intersected with the simulated running timeline, over the
         # same period as the event totals; queries from a day before the window seed the busy frontier.
         if ep_end is None and cov is not None:
+            th = Thresholds()
             ri = running_idle_metrics([(a, b) for a, b, _ in ep_runs if b > cov - 1440.0], [(a, b, cl) for a, b, cl, _, _ in live if cl > 0],
-                                      (cov, hi_t), cfg["auto_stop_minutes"], auto_stop_targets(Thresholds()), Thresholds().running_idle_full_window_fraction)
-            rows["running_idle"].append({"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
-                                         "running_idle_window_start": stamp(cov), "running_idle_window_end": stamp(hi_t),
-                                         "running_idle_queries": int(round(queries_between(cov, hi_t)[0])), **ri})
+                                      (cov, hi_t), cfg["auto_stop_minutes"], auto_stop_targets(th), th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct)
+            key_cols = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso}
+            rows["running_idle"].append({**key_cols, "running_idle_window_start": stamp(cov), "running_idle_window_end": stamp(hi_t),
+                                         "running_idle_queries": int(round(queries_between(cov, hi_t)[0])),
+                                         **{k: v for k, v in ri.items() if k != "running_idle_by_target"}})
+            rows["running_idle_targets"].extend({**key_cols, "target_min": int(x), **v} for x, v in ri["running_idle_by_target"].items())
         # Daily resource series for the current epoch (last 120 days before the analysis date).
         if ep_end is None and coverage is not None:
             series_from = max(ep_start, coverage, at(analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)))

@@ -6,6 +6,7 @@ to the next query. ``publisher.running_idle_metrics`` is the reference implement
 arithmetic; the demo simulator computes its evidence with it, and these cases pin its semantics.
 """
 import copy
+import dataclasses
 import logging
 import sys
 import unittest
@@ -25,7 +26,12 @@ def hm(day, hhmm):
 
 class RunningIdleOracleTests(unittest.TestCase):
     def metrics(self, busy, segments, window, auto_stop, targets=(10, 30)):
-        return p.running_idle_metrics(busy, segments, window, auto_stop, targets)
+        m = p.running_idle_metrics(busy, segments, window, auto_stop, targets)
+        zero = dict.fromkeys(p.RUNNING_IDLE_TARGET_FIELDS, 0)
+        for t in targets:  # flatten the sparse per-value rows (absent = 0) for readable assertions
+            for k, v in (m["running_idle_by_target"].get(str(t)) or zero).items():
+                m[f"{k}_if_{t}"] = v
+        return m
 
     def test_manually_stopped_always_on_warehouse_credits_only_running_idle(self):
         # Auto-stop 0; queries 08:00-18:00; an ops job stops the warehouse at 19:00; it restarts at 08:00. Target 30:
@@ -84,10 +90,19 @@ class RunningIdleOracleTests(unittest.TestCase):
         # minutes later. At 15 it would stay up: one restart avoided and 4 idle minutes added per gap.
         busy = [(k * 15.0, k * 15.0 + 1.0) for k in range(5)]
         running = [(k * 15.0, k * 15.0 + 11.0, 1) for k in range(5)]
-        m = self.metrics(busy, running, (0.0, 61.0), 10, targets=(15, 30))
-        self.assertEqual(m["avoided_starts_if_15"], 4)
-        self.assertAlmostEqual(m["added_idle_wall_minutes_if_15"], 4 * 4.0, places=3)
-        self.assertEqual(m["removable_running_wall_minutes_if_15"], 0.0)
+        m = self.metrics(busy, running, (0.0, 61.0), 10, targets=(15, 16, 30))
+        # 15 covers a 14-minute gap with less than the 10% margin: no restart counted as saved; 16 covers it.
+        self.assertEqual(m["avoided_starts_if_15"], 0)
+        self.assertEqual(m["avoided_starts_if_16"], 4)
+        self.assertAlmostEqual(m["added_idle_wall_minutes_if_16"], 4 * 4.0, places=3)
+        self.assertEqual(m["removable_running_wall_minutes_if_16"], 0.0)
+
+    def test_a_value_just_above_the_gap_still_counts_the_restart_without_the_margin(self):
+        # Warehouse never stops (auto-stop 0), 87-minute gaps: 90 is under 1.1 x 87, so its restarts still count.
+        busy = [(k * 90.0, k * 90.0 + 3.0) for k in range(5)]
+        m = self.metrics(busy, [(0.0, 363.0, 1)], (0.0, 363.0), 0, targets=(90, 100))
+        self.assertEqual(m["additional_starts_if_90"], 4)
+        self.assertEqual(m["additional_starts_if_100"], 0)
 
     def test_zero_query_window_is_one_trailing_gap_from_the_window_start(self):
         m = self.metrics([], [(0.0, 600.0, 1)], (0.0, 600.0), 0)
@@ -106,14 +121,24 @@ class RunningIdleSqlTests(unittest.TestCase):
     def setUp(self):
         self.t = p.Thresholds()
         self.sql = p.build_running_idle_sql(self.t)
+        self.targets_sql = p.build_running_idle_targets_sql(self.t)
 
-    def test_every_grid_target_is_rendered(self):
-        for target in p.auto_stop_targets(self.t):
-            for key in ("removable_running_wall_minutes_if_", "removable_running_cluster_minutes_if_", "additional_starts_if_",
-                        "avoided_starts_if_", "added_idle_wall_minutes_if_"):
-                self.assertIn(f"{key}{target}", self.sql)
+    def test_every_auto_stop_step_is_evaluated_in_one_row_per_value(self):
+        self.assertEqual(p.auto_stop_targets(self.t)[:3], [5, 10, 15])
+        self.assertEqual(p.auto_stop_targets(self.t)[-1], 1440)
+        self.assertIn("EXPLODE(SEQUENCE(5, 1440, 5))", self.targets_sql)
+        for key in p.RUNNING_IDLE_TARGET_FIELDS:
+            self.assertIn(f"AS {key}", self.targets_sql)
+        self.assertIn("1.1 * m.gap_min", self.targets_sql)  # a value covers a gap only with the 10% margin
+        for key in p.RUNNING_IDLE_HEADER_FIELDS:
+            self.assertIn(key, self.sql)
+
+    def test_candidates_start_at_the_type_floor(self):
+        self.assertEqual(p.auto_stop_candidates(self.t, "PRO")[0], 10)
+        self.assertEqual(p.auto_stop_candidates(self.t, "SERVERLESS")[0], 5)
 
     def test_same_period_as_event_totals_and_millisecond_precision(self):
+        self.assertEqual(self.sql.split("\n, gap_stats")[0], self.targets_sql.split("\nSELECT c.workspace_id")[0])  # shared CTEs
         self.assertIn("INTERVAL 365 DAYS", self.sql)
         self.assertIn("first_event_time", self.sql)
         self.assertIn("TIMESTAMPDIFF(MILLISECOND", self.sql)
@@ -134,15 +159,14 @@ class RunningIdleEvidenceTests(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def test_demo_running_idle_covers_the_same_period_as_event_totals(self):
-        targets = p.auto_stop_targets(self.t)
         for e in self.fleet:
             ep = e.current_epoch
             if "cluster_minutes" not in ep.events:  # no retained warehouse event: running time unknown
                 self.assertNotIn("observed_running_cluster_minutes", ep.gaps, e.warehouse_name)
                 continue
             self.assertAlmostEqual(ep.gaps["observed_running_cluster_minutes"], ep.events["cluster_minutes"], delta=0.01, msg=e.warehouse_name)
-            for target in targets:
-                self.assertLessEqual(ep.gaps[f"removable_running_cluster_minutes_if_{target}"], ep.events["cluster_minutes"] + 0.01, e.warehouse_name)
+            for row in ep.gaps["running_idle_by_target"].values():
+                self.assertLessEqual(row["removable_running_cluster_minutes"], ep.events["cluster_minutes"] + 0.01, e.warehouse_name)
             self.assertIsNotNone(ep.gaps.get("running_idle_queries"), e.warehouse_name)
 
     def test_collector_merges_running_idle_rows_into_the_current_epoch(self):
@@ -153,17 +177,68 @@ class RunningIdleEvidenceTests(unittest.TestCase):
                              "warehouse_channel": "CURRENT", "warehouse_size": "SMALL", "min_clusters": 1, "max_clusters": 1,
                              "auto_stop_minutes": 0, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}]
                 if label == "running_idle":
-                    return [{"workspace_id": "1", "warehouse_id": "w", "epoch_start": "2026-09-01T00:00:00+00:00",
-                             "removable_running_wall_minutes_if_10": 42.0, "running_idle_queries": 7}]
+                    return [{"workspace_id": "1", "warehouse_id": "w", "epoch_start": "2026-09-01T00:00:00+00:00", "running_idle_queries": 7}]
+                if label == "running_idle_targets":
+                    return [{"workspace_id": "1", "warehouse_id": "w", "epoch_start": "2026-09-01T00:00:00+00:00", "target_min": 10,
+                             "removable_running_wall_minutes": 42.0, "removable_running_cluster_minutes": 42.0, "additional_starts": 1,
+                             "avoided_starts": 0, "added_idle_wall_minutes": 0.0}]
                 return []
         e = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-01T12:00:00+00:00")[0]
-        self.assertEqual(e.current_epoch.gaps["removable_running_wall_minutes_if_10"], 42.0)
+        self.assertEqual(e.current_epoch.gaps["running_idle_by_target"]["10"]["removable_running_wall_minutes"], 42.0)
         self.assertEqual(e.current_epoch.gaps["running_idle_queries"], 7)
 
     def test_core_demo_evidence_carries_running_idle_fields(self):
         ep = p.demo_evidence()[0].current_epoch
-        for target in p.auto_stop_targets(self.t):
-            self.assertIn(f"removable_running_cluster_minutes_if_{target}", ep.gaps)
+        self.assertEqual(ep.gaps["running_idle_by_target"]["10"]["removable_running_cluster_minutes"], 25000.0)
+        self.assertNotIn("120", ep.gaps["running_idle_by_target"])  # nothing at or above the current auto-stop
+
+
+class AutoStopDecisionTests(unittest.TestCase):
+    """Decision paths on running-idle evidence (core demo warehouse: Pro LARGE, min 2, auto-stop 120)."""
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+        self.t = p.Thresholds()
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
+    def auto_stop(self, e):
+        return next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "auto_stop_minutes")
+
+    def test_sparse_warehouse_is_priced_from_measured_idle_tails_without_sample_gates(self):
+        e = p.demo_evidence()[0]
+        e.current_epoch.query.update(queries_30=40, decision_queries_30=40)
+        e.current_epoch.gaps.update(running_idle_queries=40, gap_count=12)
+        for row in e.current_epoch.gaps["running_idle_by_target"].values():
+            row["additional_starts"] = 0
+        c = self.auto_stop(e)
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertGreater(c.estimated_savings_365, 0)
+
+    def test_zero_queries_with_running_time_is_a_review_item_at_the_floor(self):
+        e = p.demo_evidence()[0]
+        e.current_epoch.gaps["running_idle_queries"] = 0
+        c = self.auto_stop(e)
+        self.assertEqual((c.status, c.recommended_config, c.blockers), ("REVIEW", {"auto_stop_minutes": 10}, ["NO_QUERIES_WHILE_RUNNING"]))
+
+    def test_restart_cost_moves_the_choice_away_from_the_floor(self):
+        # 10 removes the most idle time, but with enough added restarts a larger value nets more.
+        e = p.demo_evidence()[0]
+        rows = e.current_epoch.gaps["running_idle_by_target"]
+        rows["10"]["additional_starts"] = 200  # 200 x 4 min x 2 clusters = 1,600 of 25,000 removed
+        rows["5"]["additional_starts"] = 200
+        base = self.auto_stop(e).recommended_config
+        rows["10"]["additional_starts"] = 1000  # 8,000: 10 now nets 17,000, below 15's 23,000 - 1,360
+        self.assertEqual(base, {"auto_stop_minutes": 10})
+        self.assertEqual(self.auto_stop(e).recommended_config, {"auto_stop_minutes": 15})
+
+    def test_reviewer_rejects_a_pro_classic_auto_stop_below_ten(self):
+        e = p.demo_evidence()[0]
+        w = p.evaluate_warehouses([e], self.t)[0]
+        bad = [dataclasses.replace(c, recommended_config={"auto_stop_minutes": 5}) if c.knob == "auto_stop_minutes" else c for c in w.candidates]
+        with self.assertRaises(ValueError):
+            p.Reviewer(self.t).review(e, bad)
 
 
 if __name__ == "__main__":

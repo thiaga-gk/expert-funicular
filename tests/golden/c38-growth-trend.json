@@ -3292,12 +3292,38 @@
             "busy_minutes": 46872.0,
             "epoch_start": "2025-07-01T00:00:00+00:00",
             "gap_count": 156239,
+            "kept_alive_gap_count": 0,
+            "kept_alive_wall_minutes": 0.0,
+            "observed_running_cluster_minutes": 161258.0,
             "p50_gap_minutes": 0.7,
             "p90_gap_minutes": 0.7,
-            "saved_idle_minutes_if_10": 2600.0,
-            "saved_idle_minutes_if_15": 1300.0,
-            "saved_idle_minutes_if_30": 0,
-            "saved_idle_minutes_if_45": 0,
+            "running_idle_by_target": {
+              "10": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 2600.0,
+                "removable_running_wall_minutes": 2600.0
+              },
+              "15": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 1300.0,
+                "removable_running_wall_minutes": 1300.0
+              },
+              "5": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 3900.0,
+                "removable_running_wall_minutes": 3900.0
+              }
+            },
+            "running_idle_queries": 28514,
+            "running_idle_window_end": "2026-10-01T12:00:00+00:00",
+            "running_idle_window_start": "2025-10-01T18:19:18+00:00",
+            "running_segment_count": 1,
             "warehouse_id": "wh-demo-026",
             "workspace_id": "1234567890123456"
           },
