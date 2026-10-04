@@ -192,6 +192,8 @@ It must:
 - preserve workspace/warehouse identity,
 - preserve regional source context,
 - preserve signed billing corrections,
+- read a daily resource series for the current epoch (uptime, cluster-minutes, time at min/max, peak, starts) on the same window and calendar as the DBU forecast,
+- judge billing completeness per workspace: a UTC day counts only after a settle buffer (24 hours) and once that workspace's billing watermark has passed it, and optionally pin billing reads to an ingestion date (`--billing-ingested-through`) so a re-collection reproduces an earlier run,
 - run in a UTC-pinned SQL session, verified at connect (fails closed otherwise), so date logic matches UTC billing dates,
 - order window functions with deterministic tie-breakers,
 - avoid exporting raw SQL text,
@@ -440,7 +442,7 @@ Negative signed savings in JSON are rendered as a positive-magnitude `COST_INCRE
 | Versioned AWS price registry | Local/versioned | explicit regional Pro/Classic EC2 reference price |
 | Read-only Databricks REST | Workspace-scoped | execution-target validation and compatibility evidence only |
 
-Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Query-history records are typically available within roughly one hour, and original billing usage records are typically available within roughly 12 hours. These source-latency characteristics affect confidence/freshness policy rather than changing source authority.
+Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Query-history records are typically available within roughly one hour, and original billing usage records are typically available within roughly 12 hours. These source-latency characteristics affect confidence/freshness policy rather than changing source authority; billing latency is handled by the per-workspace watermark and settle buffer, not by treating late days as zero.
 
 ### 7.2 Authority rules
 

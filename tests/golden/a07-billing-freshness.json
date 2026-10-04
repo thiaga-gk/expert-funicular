@@ -1,0 +1,836 @@
+{
+  "description": "A07 Billing freshness: analysis at 2026-10-01 12:00 UTC; 2026-09-30 is only half ingested ($50 of a steady $100/day). A day counts only once it has settled (24 h after it ends), so the forecast uses 2026-09-01..09-29 and is 36,500/yr, not dragged down by the partial day.",
+  "evidence": [
+    {
+      "account_id": "acct-demo",
+      "analysis_time": "2026-10-01T12:00:00+00:00",
+      "attribution": {
+        "observed_owners": [
+          "golden-owner@databricks.example"
+        ],
+        "owner": "golden-owner@databricks.example",
+        "owner_source": "system.billing.usage.identity_metadata.owned_by",
+        "query_source": {
+          "categories": {
+            "ALERT": 300,
+            "DASHBOARD": 7000,
+            "GENIE": 500,
+            "JOB": 3000,
+            "LOOKER": 0,
+            "NOTEBOOK": 1000,
+            "POWER_BI": 0,
+            "SQL_EDITOR": 200,
+            "TABLEAU": 0
+          },
+          "client_applications": [],
+          "multi_label": true,
+          "percentages": {
+            "ALERT": 2.5,
+            "DASHBOARD": 58.333,
+            "GENIE": 4.167,
+            "JOB": 25.0,
+            "LOOKER": 0.0,
+            "NOTEBOOK": 8.333,
+            "POWER_BI": 0.0,
+            "SQL_EDITOR": 1.667,
+            "TABLEAU": 0.0
+          },
+          "primary_category": "DASHBOARD"
+        }
+      },
+      "aws_baseline_cost_365": 8793.82,
+      "aws_cost_model": {
+        "annualized_cluster_hours": 704.633,
+        "annualized_cluster_minutes": 42277.992,
+        "cluster_hourly_price": 12.48,
+        "currency": "USD",
+        "driver_hourly_price": 2.496,
+        "driver_instance": "i3.8xlarge",
+        "method": "current-config-epoch cluster-minute run-rate \u00d7 documented SQL warehouse AWS topology \u00d7 versioned regional EC2 price registry",
+        "observed_cluster_minutes": 30000.0,
+        "observed_days": 259,
+        "pricing_mode": "ON_DEMAND_LIST",
+        "region": "us-east-1",
+        "region_instance_prices": {
+          "i3.16xlarge": 4.992,
+          "i3.2xlarge": 0.624,
+          "i3.4xlarge": 1.248,
+          "i3.8xlarge": 2.496
+        },
+        "sources": [
+          "https://aws.amazon.com/ec2/pricing/on-demand/",
+          "https://aws.amazon.com/blogs/aws/now-available-i3-instances-for-demanding-io-intensive-applications/",
+          "https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior"
+        ],
+        "status": "MODELED",
+        "trend_adjustment_factor": 1.0,
+        "warehouse_size": "LARGE",
+        "worker_count": 16,
+        "worker_hourly_price": 0.624,
+        "worker_instance": "i3.2xlarge"
+      },
+      "baseline_forecast_cost_365": 9733.33,
+      "billing_features": {
+        "cloud": "AWS",
+        "photon_usage_pct_365": 100.0,
+        "serverless_usage_pct_365": 0.0
+      },
+      "cost_cv_84": null,
+      "cost_history_days": 30,
+      "currency": "USD",
+      "current_cost_365": 800.0,
+      "current_epoch_id": "EPOCH-27128C89AB38B378",
+      "daily_cost_365": [
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-01",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-02",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-03",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-04",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-05",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-06",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-07",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-08",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-09",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-10",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-11",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-12",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-13",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-14",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-15",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-16",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-17",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-18",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-19",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-20",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-21",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-22",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-23",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-24",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-25",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-26",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-27",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-28",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 125.0,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 100.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-29",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        },
+        {
+          "currency_code": "USD",
+          "dbu_quantity": 62.5,
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "list_cost": 50.0,
+          "unpriced_dbu_quantity": 0.0,
+          "usage_date": "2026-09-30",
+          "warehouse_id": "wh-demo-001",
+          "workspace_id": "1234567890123456"
+        }
+      ],
+      "epochs": [
+        {
+          "account_id": "acct-demo",
+          "config": {
+            "auto_stop_minutes": 120,
+            "max_clusters": 4,
+            "min_clusters": 2,
+            "warehouse_channel": "CURRENT",
+            "warehouse_size": "LARGE",
+            "warehouse_type": "PRO"
+          },
+          "cost": {
+            "active_cost_days": 30,
+            "cost_days": 30,
+            "currency": "USD",
+            "dbu_quantity": 3687.5,
+            "list_cost": 2950.0,
+            "unpriced_dbu_quantity": 0.0
+          },
+          "epoch_end": null,
+          "epoch_id": "EPOCH-27128C89AB38B378",
+          "epoch_start": "2026-09-01T00:00:00+00:00",
+          "events": {
+            "cluster_minutes": 30000.0,
+            "max_observed_clusters": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 16000.0,
+            "scale_downs_30": 3,
+            "scale_ups_30": 3,
+            "starts_30": 8,
+            "time_at_max_pct": 0.0,
+            "time_at_min_pct": 80.0,
+            "uptime_minutes": 20000.0
+          },
+          "gaps": {
+            "gap_count": 480,
+            "p50_gap_minutes": 8.0,
+            "p90_gap_minutes": 95.0,
+            "saved_idle_minutes_if_10": 12500.0,
+            "saved_idle_minutes_if_15": 11500.0,
+            "saved_idle_minutes_if_30": 9000.0,
+            "saved_idle_minutes_if_45": 6500.0
+          },
+          "is_current": true,
+          "query": {
+            "active_days_30": 30,
+            "alert_queries_30": 300,
+            "avg_read_io_cache_percent_30": 42.0,
+            "compute_wait_queries_30": 8,
+            "dashboard_queries_30": 7000,
+            "epoch_active_days": 250,
+            "epoch_p95_execution_ms": 2700,
+            "epoch_queries": 110000,
+            "epoch_queued_query_pct": 0.0,
+            "epoch_spill_query_pct": 0.0,
+            "failure_cancel_pct_30": 0.2,
+            "genie_queries_30": 500,
+            "hive_metastore_reference_queries_30": 0,
+            "job_queries_30": 3000,
+            "max_execution_ms_30": 220000,
+            "notebook_queries_30": 1000,
+            "p95_execution_ms_30": 2500,
+            "p95_read_bytes_30": 20971520,
+            "p95_spill_bytes_when_spilled_30": null,
+            "p95_total_ms_30": 3200,
+            "p95_wait_capacity_ms_when_queued_30": null,
+            "p95_wait_compute_ms_when_waited_30": 4000,
+            "p99_execution_ms_30": 10000,
+            "queries_30": 12000,
+            "queued_queries_30": 0,
+            "queued_query_pct_30": 0.0,
+            "result_cache_pct_30": 14.0,
+            "spill_queries_30": 0,
+            "spill_query_pct_30": 0.0,
+            "sql_query_source_queries_30": 200,
+            "statement_text_visible_pct_30": 100.0,
+            "tagged_query_pct_30": 78.0,
+            "total_spill_gib_30": 0.0
+          },
+          "resource_daily": [
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-01"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-02"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-03"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-04"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-05"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-06"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-07"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-08"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-09"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-10"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-11"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-12"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-13"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-14"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-15"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-16"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-17"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-18"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-19"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-20"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-21"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-22"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-23"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-24"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-25"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-26"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-27"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-28"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-29"
+            },
+            {
+              "cluster_minutes": 1000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 533.333333,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 666.666667,
+              "usage_day": "2026-09-30"
+            }
+          ],
+          "tags": {
+            "environment": "production",
+            "team": "sales-analytics"
+          },
+          "warehouse_id": "wh-demo-001",
+          "warehouse_name": "BI - Sales",
+          "workspace_id": "1234567890123456"
+        }
+      ],
+      "forecast_metadata": {
+        "active_cost_days": 30,
+        "forecast_basis_end": "2026-09-30",
+        "forecast_basis_start": "2026-09-01",
+        "forecast_method": "epoch-runrate-v2.10.0"
+      },
+      "photon_observation": {
+        "confidence": {
+          "components": {
+            "dbu_volume": 1.0,
+            "feature_coverage": 1.0,
+            "freshness": 1.0,
+            "state_purity": 1.0
+          },
+          "level": "HIGH",
+          "score": 0.98
+        },
+        "enabled_usage_pct": 100.0,
+        "evidence_source": "system.billing.usage.product_features.is_photon",
+        "false_dbu": 0.0,
+        "freshness_days": 0,
+        "known_feature_coverage_pct": 100.0,
+        "latest_usage_time": "2026-09-30T23:00:00+00:00",
+        "null_dbu": 0.0,
+        "status": "ENABLED",
+        "true_dbu": 20000.0
+      },
+      "source_region": "us-east-1",
+      "sql_sku_prices": {
+        "PREMIUM_SQL_PRO_COMPUTE": {
+          "classification": "PRO",
+          "cloud": "AWS",
+          "currency_code": "USD",
+          "effective_list_price": 0.22,
+          "usage_unit": "DBU"
+        },
+        "PREMIUM_SQL_SERVERLESS_COMPUTE": {
+          "classification": "SERVERLESS",
+          "cloud": "AWS",
+          "currency_code": "USD",
+          "effective_list_price": 0.7,
+          "usage_unit": "DBU"
+        }
+      },
+      "warehouse_id": "wh-demo-001",
+      "warehouse_name": "BI - Sales",
+      "workspace_id": "1234567890123456"
+    }
+  ],
+  "expect": {
+    "assertions": [
+      {
+        "equals": 36500.0,
+        "path": "cost_baseline.forward_365d.dbu_cost"
+      }
+    ],
+    "recompute_forecast": true,
+    "scenario": "A07",
+    "warehouse": "wh-demo-001"
+  },
+  "name": "a07-billing-freshness"
+}

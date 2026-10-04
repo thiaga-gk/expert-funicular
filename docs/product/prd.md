@@ -266,7 +266,7 @@ Usage with no matching price row shall be retained and reported as unpriced DBU,
 
 ### FR-SRC-006 — AWS price model
 
-For Pro/Classic, forward AWS compute cost shall be modeled separately from DBU cost using current-epoch resource time, explicit SQL warehouse topology, and a versioned region-specific AWS on-demand price registry.
+For Pro/Classic, forward AWS compute cost shall be modeled separately from DBU cost using current-epoch resource time on the same recent window and blend as the DBU forecast, explicit SQL warehouse topology, and a versioned region-specific AWS on-demand price registry.
 
 There shall be no silent default-region price fallback.
 
