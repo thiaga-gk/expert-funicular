@@ -4057,20 +4057,41 @@ def _scenario_contracts(
     return out, by_old_id
 
 
-def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.CandidateRecommendation], t: Thresholds) -> rc.Assessment:
+def _overall_status(candidates: Sequence[rc.CandidateRecommendation], scenarios: Sequence[rc.Scenario]) -> rc.AssessmentStatus:
+    """Package status from the recommended plan; the migration experiment alone never makes a warehouse optimizable.
+
+    Steps to apply in the recommended plan: OPTIMIZATION_AVAILABLE (REVIEW_REQUIRED when every step is a review).
+    An empty recommended plan with an alternative whose priced base savings are positive: REVIEW_REQUIRED. Otherwise
+    the most severe reason nothing ships: BLOCKED, then INSUFFICIENT_EVIDENCE, else NO_CHANGE.
+    """
+    S = rc.RecommendationStatus
+    by_id = {c.candidate_id: c.status for c in candidates}
+
+    def step_statuses(s: rc.Scenario) -> set:
+        return {by_id[x.candidate_id] for x in s.execution_plan if x.candidate_id in by_id}
+
+    plan = set().union(*(step_statuses(s) for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED))
+    if plan & {S.ACTIONABLE, S.TEST_REQUIRED}:
+        return rc.AssessmentStatus.OPTIMIZATION_AVAILABLE
+    if S.REVIEW in plan:
+        return rc.AssessmentStatus.REVIEW_REQUIRED
+    for s in scenarios:
+        total = s.portfolio_economics.savings_365d.total
+        if s.status == rc.ScenarioStatus.ALTERNATIVE and step_statuses(s) and total is not None and total.base > 0:
+            return rc.AssessmentStatus.REVIEW_REQUIRED
+    statuses = set(by_id.values())
+    if S.BLOCKED in statuses:
+        return rc.AssessmentStatus.BLOCKED
+    if S.INSUFFICIENT_EVIDENCE in statuses:
+        return rc.AssessmentStatus.INSUFFICIENT_EVIDENCE
+    return rc.AssessmentStatus.NO_CHANGE
+
+
+def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.CandidateRecommendation], scenarios: Sequence[rc.Scenario], t: Thresholds) -> rc.Assessment:
     counts = {status: 0 for status in rc.RecommendationStatus}
     for c in candidates:
         counts[c.status] += 1
-    if counts[rc.RecommendationStatus.ACTIONABLE] or counts[rc.RecommendationStatus.TEST_REQUIRED]:
-        overall = rc.AssessmentStatus.OPTIMIZATION_AVAILABLE
-    elif counts[rc.RecommendationStatus.REVIEW]:
-        overall = rc.AssessmentStatus.REVIEW_REQUIRED
-    elif counts[rc.RecommendationStatus.BLOCKED]:
-        overall = rc.AssessmentStatus.BLOCKED
-    elif counts[rc.RecommendationStatus.INSUFFICIENT_EVIDENCE]:
-        overall = rc.AssessmentStatus.INSUFFICIENT_EVIDENCE
-    else:
-        overall = rc.AssessmentStatus.NO_CHANGE
+    overall = _overall_status(candidates, scenarios)
 
     q = e.current_epoch.query
     query_ok = safe_int(q.get("queries_30")) >= t.min_query_sample_size
@@ -4368,7 +4389,7 @@ def _build_locked_recommendation_package(
             currency=e.currency, actual_365d=actual, forward_365d=forward,
             forecast=rc.ForecastInfo(MODEL_VERSION, _forecast_confidence(e, thresholds), forecast_assumptions),
         ),
-        assessment=_assessment_contract(e, candidate_contracts, thresholds),
+        assessment=_assessment_contract(e, candidate_contracts, scenario_contracts, thresholds),
         evidence=evidence_registry, candidates=candidate_contracts, scenarios=scenario_contracts,
         recommended_plan=recommended, package_economics=package_economics,
         realization=rc.Realization(

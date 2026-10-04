@@ -2016,3 +2016,51 @@ class ServerlessRegionCheckTests(unittest.TestCase):
 
     def test_existing_serverless_warehouse_in_the_workspace_proves_the_region(self):
         self.assertEqual(self._check(True)["status"], "PASS")
+
+
+class OverallStatusTests(unittest.TestCase):
+    """The package status follows the recommended plan, not every candidate (the migration experiment is always a canary)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import logging
+        logging.disable(logging.CRITICAL)
+        cls.t = p.Thresholds()
+        cls.pkg = p.build_recommendation_packages(p.demo_evidence(), cls.t)[0]
+        cls.fleet = p.build_recommendation_packages(p.synthetic_demo_evidence(), cls.t)
+
+    @classmethod
+    def tearDownClass(cls):
+        import logging
+        logging.disable(logging.NOTSET)
+
+    def with_plans(self, plan_a_steps=None, plan_b_total="keep"):
+        rc = p.rc
+        scenarios = []
+        for s in self.pkg.scenarios:
+            if s.status == rc.ScenarioStatus.RECOMMENDED and plan_a_steps is not None:
+                s = dataclasses.replace(s, execution_plan=plan_a_steps)
+            if s.status == rc.ScenarioStatus.ALTERNATIVE and plan_b_total != "keep":
+                econ = s.portfolio_economics
+                s = dataclasses.replace(s, portfolio_economics=dataclasses.replace(econ, savings_365d=dataclasses.replace(econ.savings_365d, total=plan_b_total)))
+            scenarios.append(s)
+        return p._overall_status(self.pkg.candidates, scenarios)
+
+    def test_recommended_plan_with_steps_is_optimization_available(self):
+        self.assertEqual(self.pkg.assessment.overall_status, p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE)
+
+    def test_empty_plan_with_priced_positive_experiment_needs_review(self):
+        self.assertEqual(self.with_plans([], p.rc.Range3(-500.0, 1200.0, 4000.0)), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+
+    def test_empty_plan_with_negative_or_unpriced_experiment_is_not_an_optimization(self):
+        for total in (p.rc.Range3(-3000.0, -1443.0, -200.0), None):
+            status = self.with_plans([], total)
+            self.assertNotIn(status, {p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, p.rc.AssessmentStatus.REVIEW_REQUIRED}, total)
+
+    def test_fleet_status_matches_the_recommended_plan(self):
+        rc = p.rc
+        for pkg in self.fleet:
+            plan = next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED)
+            if not plan.execution_plan:
+                self.assertNotEqual(pkg.assessment.overall_status, rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, pkg.warehouse.warehouse_name)
+        self.assertTrue(any(not next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED).execution_plan for pkg in self.fleet))
