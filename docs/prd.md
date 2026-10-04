@@ -2,7 +2,7 @@
 
 **Document:** `docs/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.1  
+**Implementation baseline:** Publisher v2.8.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
 **Workbook Contract:** v1.2.0 (locked)  
 **PRD version:** 1.0.0  
@@ -959,7 +959,7 @@ The current product increment is accepted when all of the following remain true:
 11. Workbook financial-impact fields are numeric, explicitly currency-scoped, and use signed values: positive = savings, negative = cost increase; unavailable remains unavailable rather than zero.
 12. The test suite passes in a clean checkout/extracted artifact.
 
-**Current implementation evidence:** publisher v2.7.1 passes the repository regression suite and clean synthetic end-to-end validation; the exact final count is recorded in `examples/test-results.txt`.
+**Current implementation evidence:** publisher v2.8.0 passes the repository regression suite and clean synthetic end-to-end validation; the exact final count is recorded in `examples/test-results.txt`.
 
 ---
 

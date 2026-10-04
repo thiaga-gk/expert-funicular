@@ -2,7 +2,7 @@
 
 **Document:** `docs/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.7.1  
+**Implementation baseline:** Publisher v2.8.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Reporter JSON Contract:** v1.1.0 (locked)  
 **Workbook Contract:** v1.2.0 (locked)  
@@ -72,7 +72,7 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.7.1 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+**Implementation conformance:** Publisher v2.8.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
 
 ### 3.3 Active candidate domains
 
@@ -522,7 +522,7 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The sealed v2.7.1 fixture exercises 15 representative warehouses and produces:
+The sealed v2.8.0 fixture exercises 15 representative warehouses and produces:
 
 - 15 recommendation packages,
 - 30 scenarios,
@@ -942,7 +942,7 @@ flowchart TD
 ```
 
 
-The sealed v2.7.1 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
+The sealed v2.8.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; exact final results are retained in `examples/test-results.txt`.
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
 

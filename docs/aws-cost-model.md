@@ -1,4 +1,4 @@
-# AWS cost model — v2.7.1
+# AWS cost model — v2.8.0
 
 ## Purpose
 Expose customer AWS compute economics separately from Databricks DBU economics for Pro/Classic SQL warehouses.
@@ -19,4 +19,4 @@ Serverless runs on Databricks-managed infrastructure, so the separate customer A
 The shipped registry intentionally has no default-region fallback. Missing region => `AWS_PRICE_REGION_NOT_IN_REGISTRY`.
 
 ## Scope exclusions
-The model does not include network/data transfer, public IPv4, support, tax, RI/Savings Plans, Spot or negotiated discounts. For production financial reconciliation, replace the price registry with organization-effective rates, preferably CUR-derived when available.
+The model does not include network/data transfer, public IPv4, support, tax, RI/Savings Plans, Spot or negotiated discounts. In particular every EC2 hour is priced **on demand**: the Warehouses API's `spot_instance_policy` (default `COST_OPTIMIZED`) is neither read nor modeled, so real Pro/Classic AWS cost, and the AWS part of any savings, can be materially lower. For production financial reconciliation, replace the price registry with organization-effective rates, preferably CUR-derived when available.

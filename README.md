@@ -1,4 +1,4 @@
-# Databricks SQL Warehouse Optimizer — v2.7.1
+# Databricks SQL Warehouse Optimizer — v2.8.0
 
 Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.1.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
 

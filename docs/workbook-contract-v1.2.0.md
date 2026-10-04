@@ -61,6 +61,7 @@ The exact ordered set is `REGISTRY_COLUMNS` (**53 columns**) and is regression-t
 - Freeze title/header rows and key identity columns.
 - Excel tables on detailed sheets.
 - Numeric cost/impact format: `#,##0.00;[Red](#,##0.00);-` (accounting-style negative parentheses).
+- Cost and impact figures are modeled **list-price** dollars (DBU at `system.billing.list_prices`, AWS at on-demand EC2 list price, no Spot or contract discounts); see *Price semantics* in the Reporter JSON Contract. The column set and headers are unchanged.
 - Percent/confidence fields use numeric percentage formats.
 - IDs are text, preventing precision loss.
 - Status/impact/confidence fields use presentation-only conditional formatting.

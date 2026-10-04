@@ -49,7 +49,7 @@ package economics
 = high = maximum HIGH total-savings bound across included scenarios
 ```
 
-**Unknown is null, never zero.** An estimate with `estimation_status = UNAVAILABLE` (candidate `independent_economics`, scenario `portfolio_economics`, including the `contingent_*` figures) must carry null ranges: a semantic validator rejects any number on an unavailable estimate. A candidate that is `BLOCKED` or `INSUFFICIENT_EVIDENCE` has no counterfactual attempted, so it is `UNAVAILABLE` with null ranges; a scenario whose chain needs a canary or a cost model that does not exist is `UNAVAILABLE` with null ranges and is excluded from package economics (`RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE`). A known zero is different and keeps its zero: a `NO_CHANGE` candidate, or a scenario with no steps, is `NO_DELTA_MODELED` with zero savings.
+**Unknown is null, never zero.** An estimate with `estimation_status = UNAVAILABLE` (candidate `independent_economics`, scenario `portfolio_economics`, including the `contingent_*` figures) must carry null ranges: a semantic validator rejects any number on an unavailable estimate. A candidate that is `BLOCKED` or `INSUFFICIENT_EVIDENCE` has no counterfactual attempted, so it is `UNAVAILABLE` with null ranges; a scenario whose chain needs a canary or a cost model that does not exist is `UNAVAILABLE` with null ranges and is excluded from package economics (`SCENARIO_ECONOMICS_UNAVAILABLE`). The envelope's base is the recommended scenario, so when that scenario has no authoritative price every scenario is excluded; a scenario that is itself priced is then excluded with `RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE` (or `NO_RECOMMENDED_SCENARIO` when no scenario is recommended), and its own economics stay on its scenario row. A known zero is different and keeps its zero: a `NO_CHANGE` candidate, or a scenario with no steps, is `NO_DELTA_MODELED` with zero savings.
 
 `package_economics` is **not a probability/confidence interval**. Low/base/high may originate from different scenarios. Therefore DBU/AWS component values are attached to the source `scenario_envelope` point rather than represented as a misleading package-level component range.
 
@@ -384,6 +384,12 @@ Availability semantics:
 Cost basis enum:
 
 `OBSERVED_DATABRICKS_BILLING | OBSERVED_AWS_BILLING | MODELED_AWS_LIST_PRICE | MODELED_CURRENT_EPOCH | FORECAST | COUNTERFACTUAL | UNAVAILABLE`
+
+#### Price semantics (apply to every cost and savings figure in the package)
+
+- **DBU dollars are list-price dollars.** `OBSERVED_DATABRICKS_BILLING` and `FORECAST` DBU values are observed `system.billing.usage` quantity multiplied by the published `system.billing.list_prices` `pricing.effective_list.default`. They are not the customer's invoiced, discounted or contract-effective price, and they do not include commitment discounts, credits or taxes.
+- **AWS dollars are on-demand list-price dollars.** `MODELED_AWS_LIST_PRICE` values use the versioned regional on-demand EC2 registry. They do not model Spot. Pro/Classic warehouses can run with a Spot policy (the Warehouses API exposes `spot_instance_policy`, default `COST_OPTIMIZED`), so actual AWS spend and AWS savings can be lower than the modeled figures. The package does not observe the policy or the Spot mix.
+- Consequently savings are *modeled list-price* savings. Treat them as relative opportunity sizing and reconcile against invoices or CUR before financial reporting. Integrating effective rates or a Spot mix is a separate, not yet scheduled source contract.
 
 ### Forecast
 

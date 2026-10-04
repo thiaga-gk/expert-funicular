@@ -297,6 +297,410 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(out["zero_cost_days_in_basis"], 2)
         self.assertAlmostEqual(out["forecast_cost_365"], 50 * 365, places=2)
 
+    def _cost_rows(self, days, start="2026-09-01", cost=lambda i: 100.0):
+        import datetime as dt
+        d0 = dt.date.fromisoformat(start)
+        return [{"usage_date": (d0 + dt.timedelta(days=i)).isoformat(), "list_cost": cost(i), "currency_code": "USD"} for i in range(days)]
+
+    def test_cv_is_unknown_when_history_is_too_short(self):
+        # 4 days < forecast_cv_min_days (7): the old code published CV 0.0 = "perfectly stable".
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(4, "2026-09-26"), "2026-09-26T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_unknown_without_any_cost_basis(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost([], "2026-10-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_unknown_when_mean_cost_is_zero(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 0.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cv_is_computed_when_history_is_sufficient(self):
+        model = p.Modeler(self.t)
+        out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 50.0 if i % 2 else 150.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertAlmostEqual(out["cost_cv_84"], 0.5, places=3)
+
+    def test_unknown_cv_is_unknown_stability_not_perfect_stability(self):
+        known = copy.deepcopy(self.evidence)
+        unknown = copy.deepcopy(self.evidence)
+        known[0].cost_cv_84 = 0.0
+        unknown[0].cost_cv_84 = None
+        c_known = self.candidate_of(known, "warehouse_size")
+        c_unknown = self.candidate_of(unknown, "warehouse_size")
+        self.assertEqual(c_known.confidence["components"]["stability"], 1.0)
+        self.assertIsNone(c_unknown.confidence["components"]["stability"])
+        # Unknown stability earns no credit, so confidence can only go down (some candidates sit at a cap).
+        scores = [(self.candidate_of(known, k).confidence["score"], self.candidate_of(unknown, k).confidence["score"]) for k in p.ACTIVE_KNOBS]
+        self.assertTrue(all(u <= k for k, u in scores))
+        self.assertTrue(any(u < k for k, u in scores))
+        fc = p._forecast_confidence(unknown[0], self.t)
+        self.assertIsNone(fc.components["cost_stability"])
+        self.assertLess(fc.score, p._forecast_confidence(known[0], self.t).score)
+
+    def candidate_of(self, evidence, knob):
+        return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
+
+    def test_unknown_cv_survives_evidence_roundtrip_and_merge(self):
+        self.evidence[0].cost_cv_84 = None
+        with tempfile.TemporaryDirectory() as td:
+            a, b = Path(td) / "a.json", Path(td) / "b.json"
+            p.save_evidence(a, self.evidence)
+            p.save_evidence(b, self.evidence)
+            self.assertIsNone(p.load_evidence_files([str(a)])[0].cost_cv_84)
+            merged = p.load_evidence_files([str(a), str(b)])
+            self.assertIsNone(merged[0].cost_cv_84)
+
+    def test_unknown_cv_packages_validate(self):
+        self.evidence[0].cost_cv_84 = None
+        pkgs = p.build_recommendation_packages(self.evidence, self.t)
+        self.assertTrue(pkgs)
+
+    def size_candidate_with_failure_rate(self, value, *, drop=False):
+        ev = copy.deepcopy(self.evidence)
+        q = ev[0].current_epoch.query
+        if drop:
+            q.pop("failure_cancel_pct_30", None)
+        else:
+            q["failure_cancel_pct_30"] = value
+        return self.candidate_of(ev, "warehouse_size")
+
+    def test_elevated_failure_cancel_rate_blocks_size_down(self):
+        # Demo warehouse downsizes LARGE->MEDIUM at 0.2% failures; at 8% the "no pressure" evidence is not trustworthy.
+        self.assertEqual(self.size_candidate_with_failure_rate(0.2).status, "TEST_REQUIRED")
+        c = self.size_candidate_with_failure_rate(8.0)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", c.blockers)
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_failure_cancel_threshold_boundary_is_inclusive(self):
+        limit = self.t.failure_cancel_pct_downsize_safe
+        self.assertEqual(self.size_candidate_with_failure_rate(limit).status, "TEST_REQUIRED")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", self.size_candidate_with_failure_rate(limit + 0.01).blockers)
+
+    def test_missing_failure_cancel_evidence_fails_closed_for_size_down(self):
+        for c in (self.size_candidate_with_failure_rate(None, drop=True), self.size_candidate_with_failure_rate(None)):
+            self.assertEqual(c.status, "NO_CHANGE")
+            self.assertIn("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE", c.blockers)
+
+    def test_failure_cancel_rate_is_reported_as_a_size_finding(self):
+        ev = copy.deepcopy(self.evidence)
+        ev[0].current_epoch.query["failure_cancel_pct_30"] = 8.0
+        analysis = p.Analyzer(self.t).analyze(ev[0])["warehouse_size"]
+        finding = next(f for f in analysis.findings if f.metric == "failure_cancel_pct_30")
+        self.assertEqual(finding.value, 8.0)
+        self.assertEqual(finding.threshold, self.t.failure_cancel_pct_downsize_safe)
+
+    def serverless_size_evidence(self, size, golden="serverless", **query):
+        payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+        ev = payload["evidence"][0]
+        for ep in ev["epochs"]:
+            ep["config"]["warehouse_size"] = size
+            ep["config"]["warehouse_type"] = "SERVERLESS"
+        next(x for x in ev["epochs"] if x["is_current"])["query"].update(query)
+        return [p.evidence_from_dict(ev)]
+
+    def test_serverless_5x_large_downsize_is_not_priced_from_a_nominal_ratio(self):
+        # 5X-Large has no published Serverless DBU/hour. Before: 5X->4X was priced at a guessed 0.5 ratio (~$9,450).
+        c = self.candidate_of(self.serverless_size_evidence("5X_LARGE"), "warehouse_size")
+        self.assertEqual(c.status, "TEST_REQUIRED")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "4X_LARGE"})
+        self.assertIsNone(c.estimated_cost_365)
+        self.assertIsNone(c.estimated_savings_365)
+        self.assertIsNone(c.total_365d_savings_estimate)
+        self.assertIsNone(c.dbu_365d_savings_range)
+        self.assertEqual(c.metadata["estimate_blocker"], "SERVERLESS_DBU_RATE_NOT_PUBLISHED")
+        self.assertNotIn("capacity_ratio_source", c.metadata)
+        self.assertEqual(c.metadata["bundle_effect"]["type"], "requires_canary")
+
+    def test_serverless_upsize_into_5x_large_is_not_priced_from_a_nominal_ratio(self):
+        ev = self.serverless_size_evidence(
+            "4X_LARGE", golden="spill-constrained",
+        )
+        c = self.candidate_of(ev, "warehouse_size")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "5X_LARGE"})
+        self.assertIsNone(c.estimated_savings_365)
+        self.assertEqual(c.metadata["estimate_blocker"], "SERVERLESS_DBU_RATE_NOT_PUBLISHED")
+
+    def test_serverless_sizes_with_published_rates_are_still_priced(self):
+        c = self.candidate_of(self.serverless_size_evidence("4X_LARGE"), "warehouse_size")
+        self.assertEqual(c.recommended_config, {"warehouse_size": "3X_LARGE"})
+        self.assertGreater(c.estimated_savings_365, 0)
+        self.assertEqual(c.metadata["capacity_ratio_source"], "DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO")
+        self.assertNotIn("estimate_blocker", c.metadata)
+
+    def test_unpriceable_serverless_size_step_withholds_scenario_economics(self):
+        ev = self.serverless_size_evidence("5X_LARGE")
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        scenario = next(s for s in w.scenarios if any(st.knob == "warehouse_size" for st in s.steps))
+        self.assertEqual(scenario.portfolio_estimate.estimate_status, "REQUIRES_CANARY")
+        self.assertIsNone(scenario.portfolio_estimate.total_365d_savings_range)
+        self.assertIsNone(scenario.portfolio_estimate.dbu_365d_savings_range)
+        self.assertTrue(p.build_recommendation_packages(ev, self.t))
+
+    def test_withheld_serverless_size_candidate_is_published_as_unavailable(self):
+        pkg = p.build_recommendation_packages(self.serverless_size_evidence("5X_LARGE"), self.t)[0]
+        size = next(c for c in pkg.candidates if c.knob.value == "warehouse_size")
+        self.assertEqual(size.status.value, "TEST_REQUIRED")
+        self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
+        self.assertIsNone(size.independent_economics.savings_365d.total)
+
+    def with_cost_history(self, days, golden=None):
+        if golden:
+            payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+            ev = [p.evidence_from_dict(payload["evidence"][0])]
+        else:
+            ev = copy.deepcopy(self.evidence)
+        ev[0].cost_history_days = days
+        return ev
+
+    def test_migration_needs_the_cost_history_floor(self):
+        floor = self.t.min_economics_cost_history_days
+        self.assertEqual(floor, 7)
+        short = self.candidate_of(self.with_cost_history(floor - 1), "warehouse_type")
+        self.assertEqual(short.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(short.blockers, ["COST_HISTORY_INSUFFICIENT"])
+        self.assertEqual(short.recommended_config, short.current_config)
+        self.assertIsNone(short.estimated_savings_365)
+        ok = self.candidate_of(self.with_cost_history(floor), "warehouse_type")
+        self.assertEqual(ok.status, "TEST_REQUIRED")
+        self.assertIsNotNone(ok.estimated_savings_365)
+
+    def test_short_cost_history_keeps_the_decision_but_withholds_economics(self):
+        # Queue pressure on a 6-day-old epoch: the performance decision stands (it does not rest on cost), the number does not.
+        short = self.candidate_of(self.with_cost_history(6, "concurrency-constrained"), "max_clusters")
+        full = self.candidate_of(self.with_cost_history(7, "concurrency-constrained"), "max_clusters")
+        self.assertEqual(short.status, full.status)
+        self.assertEqual(short.recommended_config, full.recommended_config)
+        self.assertIsNone(short.estimated_savings_365)
+        self.assertIsNone(short.estimated_cost_range_365)
+        self.assertEqual(short.metadata["estimate_blocker"], "COST_HISTORY_INSUFFICIENT")
+        self.assertEqual(short.metadata["bundle_effect"]["type"], "estimate_withheld")
+        self.assertNotIn("estimate_blocker", full.metadata)
+
+    def test_short_cost_history_does_not_touch_no_change_candidates(self):
+        for c in p.evaluate_warehouses(self.with_cost_history(3, "newly-changed-config"), self.t)[0].candidates:
+            if c.status == "NO_CHANGE":
+                self.assertNotIn("estimate_blocker", c.metadata)
+
+    def test_short_cost_history_withholds_scenario_economics_and_packages_validate(self):
+        ev = self.with_cost_history(6, "concurrency-constrained")
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        plan_a = next(s for s in w.scenarios if s.steps and any(st.knob == "max_clusters" for st in s.steps))
+        self.assertEqual(plan_a.portfolio_estimate.estimate_status, "REQUIRES_COST_HISTORY")
+        self.assertIsNone(plan_a.portfolio_estimate.total_365d_savings_range)
+        pkg = p.build_recommendation_packages(ev, self.t)[0]
+        size = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertEqual(size.independent_economics.estimation_status.value, "UNAVAILABLE")
+
+    # --- M7: billing window boundary and completeness watermark -------------------------------------------------
+    ANALYSIS = "2026-10-01T12:00:00+00:00"
+
+    def forecast(self, rows, watermark="UNSET", start="2026-09-01T00:00:00+00:00"):
+        kwargs = {} if watermark == "UNSET" else {"billing_watermark": watermark}
+        return p.Modeler(self.t).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
+
+    def test_billing_sql_uses_an_exact_half_open_window_that_excludes_today(self):
+        for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
+            sql = getattr(p, name)
+            self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),365)", sql, name)
+            self.assertIn("usage_date<CURRENT_DATE()", sql, name)
+
+    def test_billing_cost_sql_keeps_corrections_in_the_sum(self):
+        # RETRACTION (negative) and RESTATEMENT rows net out original usage; filtering to ORIGINAL would overstate cost.
+        for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
+            self.assertNotIn("record_type", getattr(p, name), name)
+
+    def test_billing_watermark_sql_is_read_only_and_bounded(self):
+        sql = p.BILLING_WATERMARK_SQL
+        self.assertIn("MAX(usage_end_time)", sql)
+        self.assertIn("system.billing.usage", sql)
+        self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE()", sql)
+        self.assertNotRegex(sql.upper(), r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b")
+
+    def test_day_not_yet_covered_by_the_watermark_is_excluded_from_the_basis(self):
+        rows = self._cost_rows(30, "2026-09-01")  # 09-01 .. 09-30, $100/day; 09-30 is only partly ingested
+        rows[-1]["list_cost"] = 20.0
+        out = self.forecast(rows, watermark="2026-09-30T20:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-29")
+        self.assertEqual(out["billing_completeness"], "COVERED_BY_WATERMARK")
+        self.assertEqual(out["excluded_incomplete_days"], 1)
+        self.assertEqual(out["cost_history_days"], 29)
+        self.assertAlmostEqual(out["forecast_cost_365"], 100 * 365, places=2)
+        self.assertAlmostEqual(out["current_cost_365"], 29 * 100, places=2)
+
+    def test_watermark_exactly_at_midnight_completes_the_previous_day(self):
+        rows = self._cost_rows(30, "2026-09-01")
+        self.assertEqual(self.forecast(rows, watermark="2026-10-01T00:00:00+00:00")["billing_complete_through"], "2026-09-30")
+        self.assertEqual(self.forecast(rows, watermark="2026-09-30T23:00:00+00:00")["billing_complete_through"], "2026-09-29")
+
+    def test_watermark_never_extends_the_basis_past_yesterday(self):
+        out = self.forecast(self._cost_rows(30, "2026-09-01"), watermark="2026-10-02T06:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-30")
+        self.assertEqual(out["excluded_incomplete_days"], 0)
+
+    def test_missing_watermark_is_labeled_unverified_not_silently_complete(self):
+        out = self.forecast(self._cost_rows(30, "2026-09-01"))
+        self.assertEqual(out["billing_completeness"], "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY")
+        self.assertIsNone(out["billing_watermark"])
+        self.assertEqual(out["billing_complete_through"], "2026-09-30")
+        also_none = self.forecast(self._cost_rows(30, "2026-09-01"), watermark=None)
+        self.assertEqual(also_none["billing_completeness"], "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY")
+
+    def test_actual_cost_uses_the_same_half_open_365_day_window(self):
+        rows = [
+            {"usage_date": "2025-09-30", "list_cost": 1000.0, "currency_code": "USD"},  # 366 days back: outside
+            {"usage_date": "2025-10-01", "list_cost": 10.0, "currency_code": "USD"},   # 365 days back: inside
+            {"usage_date": "2026-09-30", "list_cost": 10.0, "currency_code": "USD"},   # yesterday: inside
+            {"usage_date": "2026-10-01", "list_cost": 500.0, "currency_code": "USD"},  # today (incomplete): outside
+        ]
+        out = self.forecast(rows, start="2025-10-01T00:00:00+00:00")
+        self.assertEqual(out["current_cost_365"], 20.0)
+
+    def test_collector_passes_the_billing_watermark_to_the_forecast(self):
+        seen = {}
+        real = p.Modeler.forecast_from_daily_cost
+        def spy(model, rows, start, analysis_time, **kw):
+            seen.update(kw)
+            return real(model, rows, start, analysis_time, **kw)
+        class Client:
+            def query(self_inner, statement, *, label="collector_sql"):
+                if label == "billing_watermark":
+                    return [{"billing_watermark": "2026-09-30T20:00:00+00:00"}]
+                if label == "config_epochs":
+                    return [{"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                             "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                             "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}]
+                return []
+        with patch.object(p.Modeler, "forecast_from_daily_cost", spy):
+            p.extract_evidence(Client(), self.t, "us-east-1")
+        self.assertEqual(p.parse_datetime(seen["billing_watermark"]).isoformat(), "2026-09-30T20:00:00+00:00")
+
+    def auto_stop_only(self, idle_multiple):
+        """Idle-expensive fixture where auto-stop is the only plan step (no size/min/max change)."""
+        import dataclasses
+        payload = json.loads((ROOT / "tests" / "golden" / "idle-expensive-warehouse.json").read_text())
+        ev = p.evidence_from_dict(payload["evidence"][0])
+        ep = ev.current_epoch
+        ep.config = dataclasses.replace(ep.config, min_clusters=1)
+        ep.query.update(queued_query_pct_30=0.6, queued_queries_30=72, p95_wait_capacity_ms_when_queued_30=1000)
+        for k in list(ep.gaps):
+            if k.startswith("saved_idle_minutes_if_"):
+                ep.gaps[k] = ep.events["cluster_minutes"] * idle_multiple
+        w = p.evaluate_warehouses([ev], self.t)[0]
+        cand = next(c for c in w.candidates if c.knob == "auto_stop_minutes")
+        plan = next(s for s in w.scenarios if [st.knob for st in s.steps] == ["auto_stop_minutes"])
+        return cand, plan
+
+    def test_single_step_auto_stop_scenario_matches_the_capped_candidate(self):
+        # Idle gaps worth 90% of all cluster-minutes: the candidate caps removable time at auto_stop_savings_cap (60%).
+        # Before: the stateful bundle used the uncapped idle minutes, so the one-step plan claimed more than its own step.
+        for multiple in (0.2, 0.9, 2.0):
+            cand, plan = self.auto_stop_only(multiple)
+            self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)
+            self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.high, cand.dbu_365d_savings_range.high, places=2, msg=multiple)
+        capped, _ = self.auto_stop_only(2.0)
+        self.assertEqual(capped.metadata["raw_savings_fraction"], self.t.auto_stop_savings_cap)
+
+    def test_guardrail_changes_with_no_direct_savings_are_labeled_no_delta_modeled(self):
+        # Demo max-cluster tightening (4 -> 3) is a guardrail: it carries no priced delta, so it is not a "modeled range".
+        pkg = self.packages[0]
+        mx = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertEqual(mx.status.value, "ACTIONABLE")
+        self.assertEqual(mx.independent_economics.estimation_status.value, "NO_DELTA_MODELED")
+        self.assertEqual(mx.independent_economics.savings_365d.total.base, 0)
+
+    def test_priced_changes_keep_their_modeled_label(self):
+        up = self.increase_candidate_package()
+        self.assertEqual(up.status.value, "ACTIONABLE")
+        self.assertEqual(up.independent_economics.estimation_status.value, "MODELED_RANGE")
+        for c in self.packages[0].candidates:
+            if c.knob.value in {"auto_stop_minutes", "min_clusters", "warehouse_size"} and c.status.value in {"ACTIONABLE", "TEST_REQUIRED"}:
+                self.assertNotEqual(c.independent_economics.estimation_status.value, "NO_DELTA_MODELED", c.knob.value)
+
+    def increase_candidate_package(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        pkg = p.build_recommendation_packages([p.evidence_from_dict(payload["evidence"][0])], self.t)[0]
+        return next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+
+    def test_planner_ready_for_hitl_maps_explicitly_to_contract_ready(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        ev = [p.evidence_from_dict(payload["evidence"][0])]
+        w = p.evaluate_warehouses(ev, self.t)[0]
+        internal = {st.knob: st.execution_state for s in w.scenarios for st in s.steps}
+        self.assertEqual(internal["max_clusters"], "READY_FOR_HITL")
+        pkg = p.build_recommendation_packages(ev, self.t)[0]
+        states = {st.knob.value: st.execution_state.value for sc in pkg.scenarios for st in sc.execution_plan if getattr(st, "knob", None)}
+        self.assertEqual(states["max_clusters"], "READY")
+
+    def test_unknown_planner_execution_state_fails_loudly_instead_of_becoming_ready(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        ev = [p.evidence_from_dict(payload["evidence"][0])]
+        real = p.ScenarioPlanner.scenarios
+        def corrupt(planner, e, candidates):
+            scenarios, recommended = real(planner, e, candidates)
+            scenarios[0].steps[0].execution_state = "NOT_A_STATE"
+            return scenarios, recommended
+        with patch.object(p.ScenarioPlanner, "scenarios", corrupt):
+            with self.assertRaises(ValueError) as ctx:
+                p.build_recommendation_packages(ev, self.t)
+        self.assertIn("NOT_A_STATE", str(ctx.exception))
+
+    def envelope_cases(self):
+        """Serverless golden: Plan A is priced, Plan B (Pro migration) is UNAVAILABLE."""
+        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())
+        e = p.evidence_from_dict(payload["evidence"][0])
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        priced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is not None)
+        unpriced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is None)
+        return e, pkg.scenarios, priced, unpriced
+
+    def reasons(self, e, scenarios, recommended):
+        econ = p._package_economics(e, scenarios, recommended.scenario_id if recommended else None)
+        return {x.scenario_id: x.reason_code for x in econ.excluded_scenarios}, econ
+
+    def test_unpriced_alternative_is_not_blamed_on_the_recommended_scenario(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, priced)
+        self.assertEqual(why, {unpriced.scenario_id: "SCENARIO_ECONOMICS_UNAVAILABLE"})
+        self.assertEqual(econ.included_scenario_ids, [priced.scenario_id])
+
+    def test_envelope_stays_empty_when_the_recommended_scenario_is_unpriced(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, unpriced)
+        self.assertEqual(why, {
+            unpriced.scenario_id: "SCENARIO_ECONOMICS_UNAVAILABLE",
+            priced.scenario_id: "RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE",
+        })
+        self.assertIsNone(econ.estimated_savings_365d)
+        self.assertEqual(econ.included_scenario_ids, [])
+
+    def test_priced_scenario_with_no_recommendation_gets_its_own_reason(self):
+        e, scenarios, priced, unpriced = self.envelope_cases()
+        why, econ = self.reasons(e, scenarios, None)
+        self.assertEqual(why[priced.scenario_id], "NO_RECOMMENDED_SCENARIO")
+        self.assertEqual(why[unpriced.scenario_id], "SCENARIO_ECONOMICS_UNAVAILABLE")
+
+    def test_watermark_sql_looks_back_far_enough_to_catch_a_stalled_feed_and_is_sql_scoped(self):
+        sql = p.BILLING_WATERMARK_SQL
+        self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),30)", sql)
+        self.assertIn("billing_origin_product='SQL'", sql)
+
+    def test_replayed_short_history_cv_of_zero_is_unknown(self):
+        # Evidence written before the CV fix stored 0.0 for short histories; replay must not grant full stability credit.
+        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())["evidence"][0]
+        payload["cost_history_days"], payload["cost_cv_84"] = 3, 0.0
+        self.assertIsNone(p.evidence_from_dict(payload).cost_cv_84)
+        payload["cost_history_days"], payload["cost_cv_84"] = 30, 0.0
+        self.assertEqual(p.evidence_from_dict(payload).cost_cv_84, 0.0)
+
+    def test_demo_cv_is_unknown_for_a_warehouse_with_too_little_history(self):
+        for e in p.synthetic_demo_evidence(15):
+            if e.cost_history_days < self.t.forecast_cv_min_days:
+                self.assertIsNone(e.cost_cv_84, e.warehouse_name)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
@@ -591,6 +995,58 @@ class GoldenScenarioTests(unittest.TestCase):
         c = self.candidate(ev, "auto_stop_minutes")
         self.assertEqual(c.status, "BLOCKED")
         self.assertIn("COLD_START_SENSITIVE", c.blockers)
+
+    def scaled(self, golden, *, max_clusters=None, **events):
+        """Severity-schema golden fixture with the current epoch's max_clusters / events overridden (audit M3)."""
+        import dataclasses
+        ev = self.severity_evidence(golden)
+        ep = ev[0].current_epoch
+        if max_clusters is not None:
+            ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
+        ep.events.update(events)
+        return ev
+
+    def queued(self, **overrides):
+        return self.scaled("concurrency-constrained", **overrides)
+
+    def increase_candidate(self, **events):
+        ev = self.queued(**events)
+        q = ev[0].current_epoch.query
+        q.update(queued_query_pct_30=5.0, queued_queries_30=600, p95_wait_capacity_ms_when_queued_30=45000)
+        return self.candidate(ev, "max_clusters")
+
+    def test_cluster_recycling_blip_above_max_is_not_saturation(self):
+        # Peak 3 > configured max 2 (recycle transient) but only 0.2% of running time actually at the ceiling.
+        c = self.increase_candidate(max_observed_clusters=3, time_at_max_pct=0.2, minutes_at_max=20)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertEqual(c.recommended_config, c.current_config)
+
+    def test_increase_needs_sustained_time_at_max_with_boundary(self):
+        limit = self.t.time_at_max_pct_saturated
+        self.assertEqual(limit, 5.0)
+        up = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit)
+        self.assertEqual(up.status, "ACTIONABLE")
+        self.assertEqual(up.recommended_config["max_clusters"], 3)
+        below = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit - 0.01)
+        self.assertEqual(below.status, "NO_CHANGE")
+
+    def reduction(self, max_clusters, peak):
+        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=peak, time_at_max_pct=0.0, minutes_at_max=0.0)
+        return self.candidate(ev, "max_clusters")
+
+    def test_max_reduction_keeps_headroom_above_observed_peak(self):
+        # Before: max 4, peak 3 -> target 3 (no growth room at all). Now one cluster of headroom is required.
+        self.assertEqual(self.reduction(4, 3).status, "NO_CHANGE")
+        self.assertEqual(self.reduction(4, 2).recommended_config["max_clusters"], 3)
+        # Headroom scales with the peak: max(1, ceil(25% x peak)). Peak 8 needs 2 -> 10, which is not below max 10.
+        self.assertEqual(self.reduction(10, 8).status, "NO_CHANGE")
+        self.assertEqual(self.reduction(10, 4).recommended_config["max_clusters"], 5)
+        self.assertEqual(self.reduction(10, 5).recommended_config["max_clusters"], 7)
+        self.assertEqual(self.reduction(10, 2).recommended_config["max_clusters"], 3)
+
+    def test_max_reduction_never_goes_below_min_clusters(self):
+        c = self.reduction(10, 1)  # idle-expensive min_clusters is 2
+        self.assertEqual(c.recommended_config["max_clusters"], 2)
 
     def test_few_long_capacity_waits_block_min_cluster_reduction(self):
         # Guard rules fire on any affected queries: 12 queued queries (0.1%) waiting 20s block a savings change.
