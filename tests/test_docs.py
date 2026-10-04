@@ -140,5 +140,37 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(match.group(1), rc.CONTRACT_VERSION)
 
 
+    def _core_lines(self):
+        for key, path in CORE.items():
+            for number, line in enumerate(read(path).splitlines(), 1):
+                yield key, number, line
+
+    def test_design_docs_carry_no_approval_status_or_competing_precedence_text(self):
+        pattern = re.compile(
+            r"Approved / locked|^\**Last updated|^\**Approved (PRD|HLD|LLD)|Status:\s*Approved|"
+            r"order of authority|When documents disagree|Where an implementation document is stale"
+        )
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "precedence and ownership live only in docs/README.md")
+
+    def test_design_docs_do_not_restate_workbook_or_signed_value_details(self):
+        pattern = re.compile(r"\b\d+ columns\b|positive[- ]magnitude")
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "column counts and presentation rules live in docs/contracts/workbook-contract.md")
+
+    def test_design_docs_carry_no_version_stamps_or_internal_ids(self):
+        pattern = re.compile(r"\b[Pp]ublisher v\d|\bv2\.\d+\.\d+\b|\baudit M\d|\bM9\b|\b[GK]\d{1,2}\b")
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        self.assertEqual(found, [], "versions live in code constants; findings live in the tracker")
+
+    def test_lld_hierarchy_diagram_matches_the_schema(self):
+        text = read(CORE["lld"])
+        block = re.search(r"### 22\.1 .*?```mermaid\n(.*?)```", text, re.S).group(1)
+        drawn = set(re.findall(r"RecommendationPackage --> \w+: (\w+)", block))
+        drawn |= {w for w in re.findall(r"^\s+(\w+)\s*$", block, re.M) if w not in {"RecommendationPackage"}}
+        schema = json.loads(read(ROOT / "schema" / "recommendation-package.schema.json"))
+        self.assertEqual(sorted(drawn), sorted(schema["required"]))
+
+
 if __name__ == "__main__":
     unittest.main()

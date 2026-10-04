@@ -2,22 +2,18 @@
 
 **Document:** `docs/architecture/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.10.0  
-**Approved PRD:** `docs/product/prd.md` v1.0.0  
-**Approved HLD:** `docs/architecture/hld.md` v1.0.0  
-**Reporter JSON Contract:** v1.2.0 (locked)  
-**Workbook Contract:** v1.3.0 (locked)  
-**LLD version:** 1.0.0  
-**Status:** Approved / locked  
-**Last updated:** 2026-10-01  
+**Reporter JSON Contract:** v1.2.0  
+**Workbook Contract:** v1.3.0  
+
+Role: implementation design of the current publisher.
 
 ---
 
 ## 1. Purpose
 
-This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the approved PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
+This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
 
-The LLD describes the **actual v2.10.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
+The LLD describes the **actual implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
 
 The implementation has one central invariant:
 
@@ -29,17 +25,16 @@ The implementation has one central invariant:
 
 ### 2.1 Locked external contracts
 
-The following contracts are independent of publisher implementation version and are already locked:
+The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
 | Reporter JSON Contract | 1.2.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
 | Workbook Contract | 1.3.0 | `contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
-| Publisher implementation | 2.10.0 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
 
-Publisher v2.10.0 implements the sealed design directly:
+The publisher implements the design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
@@ -51,31 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-```text
-publisher.py
-contracts/
-├── reporter_contract.py
-├── reporter_schema.py
-└── workbook_contract.py
-reporters/
-└── workbook_reporter.py
-schema/
-└── recommendation-package.schema.json
-pricing/
-└── aws_ec2_on_demand.json
-docs/
-├── product/prd.md
-├── architecture/{context,hld,lld}.md
-├── contracts/{reporter-json-contract,workbook-contract}.md
-├── reference/{thresholds,technique-catalog,source-mapping,aws-cost-model,known-limitations}.md
-└── skills.md
-tests/
-├── test_publisher.py
-├── test_locked_reporter_integration.py
-├── test_reporter_contract.py
-├── test_workbook_contract.py
-└── golden/
-```
+The repository is organized in layers: `publisher.py` (the domain engine and CLI), `contracts/` (the public Reporter and Workbook contracts and their schema/example tooling), `reporters/` (workbook rendering), `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `tools/` (validators and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -87,6 +58,8 @@ tests/
 | `contracts/workbook_contract.py` | pure JSON-package-to-workbook row projection | No |
 | `reporters/workbook_reporter.py` | Excel rendering, number formats, widths, filters, frozen panes, conditional formatting | No |
 | `pricing/aws_ec2_on_demand.json` | versioned regional EC2 price reference | No |
+| `schema/*.schema.json` | committed Draft 2020-12 schemas for the package and for replay evidence | No |
+| `tools/validate_workbook.py` | independent workbook validator (sheets, columns, grains, numeric economics) | No |
 
 ### 3.2 Layer dependency rule
 
@@ -109,20 +82,22 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-Publisher v2.10.0 declares independent version identifiers for deterministic replay:
+The publisher declares independent version identifiers for deterministic replay. Values: `publisher.py` (`PUBLISHER_VERSION` and the other `*_VERSION` constants).
 
-| Constant | Current value | Purpose |
-|---|---|---|
-| `PUBLISHER_VERSION` | `2.10.0` | implementation release |
-| `POLICY_VERSION` | `sql-warehouse-policy-v2.9.0` | threshold/policy semantics |
-| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.10.0` | analyzer semantics |
-| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.10.0` | decision semantics |
-| `MODEL_VERSION` | `epoch-runrate-v2.10.0` | forward forecast |
-| `ESTIMATOR_VERSION` | `counterfactual-v2.10.0` | candidate economics |
-| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.10.0` | scenario economics |
-| `REVIEWER_VERSION` | `recommendation-reviewer-v2.9.0` | invariant policy |
-| `DECISION_VERSION` | `warehouse-decision-graph-v2.9.0` | dependency/order semantics |
-| `TECHNIQUE_CATALOG_VERSION` | `technique-catalog-v1` | stable technique mapping |
+| Constant | Purpose |
+|---|---|
+| `PUBLISHER_VERSION` | implementation release |
+| `CONTRACT_VERSION` | public Reporter contract version (from `contracts/reporter_contract.py`) |
+| `POLICY_VERSION` | threshold/policy semantics |
+| `ANALYZER_VERSION` | analyzer semantics |
+| `OPTIMIZER_VERSION` | decision semantics |
+| `MODEL_VERSION` | forward forecast |
+| `ESTIMATOR_VERSION` | candidate economics |
+| `BUNDLE_MODEL_VERSION` | scenario economics |
+| `REVIEWER_VERSION` | invariant policy |
+| `DECISION_VERSION` | dependency/order semantics |
+| `TECHNIQUE_CATALOG_VERSION` | stable technique mapping |
+| `EVIDENCE_FORMAT_VERSION` | replay evidence file format (`docs/contracts/evidence-format.md`) |
 
 Changing a decision-affecting implementation without changing the corresponding version is prohibited.
 
@@ -135,7 +110,7 @@ Changing a decision-affecting implementation without changing the corresponding 
 ```mermaid
 flowchart TD
     CLI[CLI] --> M{Mode}
-    M -->|--demo| DEMO[Simulated collector evidence<br/>1..38 warehouses]
+    M -->|--demo| DEMO[Simulated collector evidence<br/>one warehouse per golden scenario]
     M -->|--from-evidence| REPLAY[Load normalized evidence files]
     M -->|live default| LIVE[Databricks collector]
 
@@ -150,29 +125,33 @@ flowchart TD
 
 ### 5.2 Key CLI arguments
 
+This table is the CLI reference. Defaults read from the environment are noted; every option has a default or is optional unless stated.
+
 | Argument | Semantics |
 |---|---|
 | `--output-dir` | output root; default `./warehouse_optimizer_out` |
-| `--demo` | synthetic collector mode |
-| `--demo-count` | number of simulated warehouses, `1..38` (default: the full fleet) |
-| `--from-evidence` | replay one or more normalized evidence files |
-| `--profile` | Databricks CLI profile |
-| `--serverless-warehouse-id` | SQL execution target convenience flag |
-| `--sql-warehouse-id` | SQL execution target convenience flag |
-| `--all-purpose-cluster-id` | all-purpose SQL Connector target |
-| `--execution-kind` / `--execution-id` | generic execution target pair |
-| `--workspace-id` | required for cluster HTTP path when not discoverable |
-| `--source-region` | regional context for source collection and AWS model |
-| `--aws-price-registry` | versioned EC2 registry path |
-| `--batch-size` | downstream Python batch size; collector remains set-based |
+| `--demo` | synthetic collector mode; takes precedence over `--from-evidence` and live collection |
+| `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
+| `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3) |
+| `--profile` | Databricks CLI profile; default `DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`. OAuth profiles only: a profile that holds a static PAT is rejected |
+| `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE` |
+| `--serverless-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SERVERLESS_WAREHOUSE_ID`) |
+| `--sql-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SQL_WAREHOUSE_ID`) |
+| `--all-purpose-cluster-id` | all-purpose SQL Connector target (default `DATABRICKS_ALL_PURPOSE_CLUSTER_ID`) |
+| `--execution-kind` / `--execution-id` | generic execution target pair; `--execution-kind` is `warehouse` or `cluster` and is required with `--execution-id` |
+| `--workspace-id` | required for the cluster HTTP path when it cannot be discovered; default `DATABRICKS_WORKSPACE_ID` |
+| `--source-region` | regional context for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
+| `--aws-price-registry` | versioned EC2 registry path; default `AWS_PRICE_REGISTRY`, else the shipped `pricing/aws_ec2_on_demand.json` |
+| `--batch-size` | downstream Python batch size (31.2); collector remains set-based; default `WAREHOUSE_BATCH_SIZE`, else 100 |
 | `--billing-ingested-through` | `YYYY-MM-DD`; pins every billing query to records ingested on or before that date, so a re-collection reproduces an earlier run despite later billing corrections |
-| `--compatibility-api-mode` | `auto` or `off` |
+| `--compatibility-api-mode` | `auto` or `off`; default `COMPATIBILITY_API_MODE`, else `auto` (8.3) |
+| `--log-level` | `DEBUG`, `INFO`, `WARNING` or `ERROR`; default `PUBLISHER_LOG_LEVEL`, else `INFO`. Sets the verbosity of the logger that writes to stderr and `publisher.log` (29); it never changes what is excluded from the log |
 | `--no-workbook` | suppress workbook while preserving canonical JSON |
-| `--print-json` | print exactly one package to stdout |
+| `--print-json` | print exactly one package to stdout; a run that produces more or fewer than one package exits with an error |
 
 ### 5.3 Execution target resolution
 
-A live run must resolve exactly one SQL execution target. SQL warehouses use `/sql/1.0/warehouses/<id>`. All-purpose compute uses the SQL Connector cluster path after read-only validation that the supplied cluster is not jobs compute.
+A live run must resolve exactly one SQL execution target: one of the three convenience flags, or `--execution-kind` with `--execution-id`. Combining the pair with a convenience flag, supplying more than one convenience flag, or supplying none exits with an error. SQL warehouses use `/sql/1.0/warehouses/<id>`. All-purpose compute uses the SQL Connector cluster path after read-only validation that the supplied cluster is not jobs compute.
 
 The execution target is only where collector SQL runs; it is not the warehouse being optimized.
 
@@ -224,6 +203,8 @@ sequenceDiagram
     CLI-->>OUT: publisher.log
 ```
 
+Reviewer Gate 2 hands the reviewed candidates and scenarios (`WarehouseOptimization`) to the public contract adapter; no internal run report exists. The adapter is `build_recommendation_packages()`, which evaluates the supported warehouses and assembles each frozen package.
+
 ---
 
 ## 7. Source contracts and collector SQL
@@ -240,7 +221,7 @@ sequenceDiagram
 | versioned AWS registry | region + instance family | Pro/Classic customer EC2 model |
 | read-only workspace SQL config API | current connected workspace only | compatibility evidence only |
 
-Configuration values from read-only APIs **must never override** `system.compute.warehouses`.
+Configuration values from read-only APIs **must never override** `system.compute.warehouses`. Field-level source mapping: [`docs/reference/source-mapping.md`](../reference/source-mapping.md).
 
 ### 7.2 Collector projections
 
@@ -257,7 +238,7 @@ Produces one row per configuration epoch for active warehouses, with:
 
 The query retains epochs overlapping the last 365 days plus the current epoch.
 
-Epochs are islands of the decision fields. A shared CTE (`CONFIG_EPOCHS_CTE`) compares each snapshot with the previous one; a new epoch starts when `warehouse_type`, `warehouse_channel`, `warehouse_size`, `min_clusters`, `max_clusters` or `auto_stop_minutes` differ. Snapshots that change only the name or tags are folded into the surrounding epoch. The same CTE groups the query-metric, warehouse-event, idle-gap, daily-cost and billing-attribution queries by epoch, so all of them share one set of epoch boundaries.
+Epochs are islands of the decision fields (10.1). A shared CTE (`CONFIG_EPOCHS_CTE`) compares each snapshot with the previous one. The same CTE groups the query-metric, warehouse-event, idle-gap, daily-cost and billing-attribution queries by epoch, so all of them share one set of epoch boundaries.
 
 All collector SQL runs in a session pinned to UTC (`TIMEZONE=UTC`), so `DATE()`, `CURRENT_DATE()` and `CURRENT_TIMESTAMP()` align with UTC billing `usage_date`. The collector reads `current_timezone()` immediately after connecting and exits with an error if the session is not UTC.
 
@@ -278,7 +259,7 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - external/client application counts for Power BI/Tableau/Looker/Databricks SQL Editor,
 - statement-text visibility and legacy Hive metastore reference count,
 - epoch-level p95 execution, queue and spill percentages,
-- epoch-level total task duration (`epoch_task_duration_ms`, the sum of `total_task_duration_ms`), the numerator of the task-time utilization evidence.
+- epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`).
 
 Raw query rows are not loaded into the optimizer.
 
@@ -297,7 +278,7 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 
 #### `RESOURCE_DAILY_SQL`
 
-Reads a daily resource series for the current epoch over the last 120 UTC days: uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the last 30 days have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
+Reads a daily resource series for the current epoch over the last `RESOURCE_DAILY_COLLECT_DAYS` UTC days (a hard-coded constant that covers the long forecast window plus billing lag): uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the last `pressure_window_days` have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
 
 #### Idle-gap SQL
 
@@ -305,7 +286,7 @@ Reads a daily resource series for the current epoch over the last 120 UTC days: 
 
 #### `EPOCH_DAILY_COST_SQL`
 
-Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Signed usage quantities are preserved so billing corrections flow into the run-rate model. Each daily row also carries `retracted_dbu_quantity` (the magnitude of RETRACTION records, positive) and `restated_dbu_quantity` (RESTATEMENT records); `record_type` only labels these two quantities and never filters rows, so every record type stays in the signed cost sums.
+Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Each daily row also carries the retracted and restated DBU quantities (`retracted_dbu_quantity`, `restated_dbu_quantity`; `docs/reference/source-mapping.md`); every record type stays in the signed cost sums.
 
 #### `BILLING_WATERMARK_SQL`
 
@@ -467,7 +448,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+The publisher enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ---
 
@@ -478,7 +459,7 @@ Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/fut
 ### 11.1 Basis
 
 - analysis day itself is excluded,
-- a UTC day is complete, and so enters the basis, only `billing_settle_hours` (24) after it ends and once the billing watermark of its own workspace has passed it; the basis ends at the last complete day,
+- a UTC day is complete, and so enters the basis, only `billing_settle_hours` after it ends and once the billing watermark of its own workspace has passed it; the basis ends at the last complete day,
 - basis begins at the later of current epoch start or 365 days before analysis,
 - missing calendar days are filled with zero (a day with no billing is a $0 day, but the forecast is published only when the epoch has enough billed days; see 11.2),
 - mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency),
@@ -489,38 +470,38 @@ Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/fut
 
 Let:
 
-- `m28` = mean daily cost over the most recent 28 basis days,
-- `m84` = mean daily cost over the most recent 84 basis days,
-- `mall` = mean over the available current-epoch basis.
+- `m28` = mean daily cost over the most recent `forecast_recent_days` rate days,
+- `m84` = mean daily cost over the most recent `forecast_long_days` rate days,
+- `mall` = mean over the available current-epoch rate days.
 
-All rates (and the trend and CV) use the most recent whole weeks of the basis (`rate_basis_days`, a multiple of 7; the oldest 0–6 days are dropped), so an epoch that is not a whole number of weeks does not over- or under-weight weekends. The 7-billed-day floor counts billed days inside those rate weeks (`rate_billed_days`), so a weekday-only warehouse gets its first forecast after two weeks rather than one from a single week's partial billing. The daily resource blend for AWS and migration bounds uses the same trim.
+All rates (and the trend and CV) use the most recent whole weeks of the basis (`rate_basis_days`, a multiple of 7; the oldest 0-6 days are dropped), so an epoch that is not a whole number of weeks does not over- or under-weight weekends. The billed-day floor (`min_economics_cost_history_days`) counts billed days inside those rate weeks (`rate_billed_days`), so a weekday-only warehouse gets its first forecast after two weeks rather than one from a single week's partial billing. The daily resource blend for AWS and migration bounds uses the same trim.
 
-Then:
+Then, with `rate_days` the number of rate days:
 
 ```text
-if history >= 84d:
-  daily = 0.65*m28 + 0.35*m84
-elif history >= 28d:
-  daily = 0.75*m28 + 0.25*mall
+if rate_days >= forecast_long_days:
+  daily = forecast_weight_28_long*m28 + (1 - forecast_weight_28_long)*m84
+elif rate_days >= forecast_recent_days:
+  daily = forecast_weight_28_mid*m28 + (1 - forecast_weight_28_mid)*mall
 else:
   daily = mall
 ```
 
-Trend uses the ratio of last-28 to previous-28 mean, clamped to `[0.75, 1.25]`:
+Trend is the ratio of the last-`forecast_recent_days` mean to the previous `forecast_recent_days` mean (1.0 when fewer than twice that many rate days exist or the previous mean is not positive), clamped to `[trend_ratio_floor, trend_ratio_ceiling]`:
 
 ```text
-trend_adjustment = 1 + 0.25 * (clamped_ratio - 1)
+trend_adjustment = 1 + trend_adjustment_weight * (clamped_ratio - 1)
 forecast_365 = daily * trend_adjustment * 365
 ```
 
-The forward DBU cost (`forecast_cost_365`) is published only when it is known. Otherwise it is null, never $0 and never a run rate guessed from a few days. It is known when every basis day is priced, the current epoch has at least `min_economics_cost_history_days` (7) billed (non-zero cost) days, and the run rate is positive. Forecast metadata records `dbu_forecast_status`:
+The forward DBU cost (`forecast_cost_365`) is published only when it is known. Otherwise it is null, never $0 and never a run rate guessed from a few days. It is known when every basis day is priced, the rate window holds at least `min_economics_cost_history_days` billed (non-zero cost) days, and the run rate is positive. Forecast metadata records `dbu_forecast_status`:
 
 - `COMPLETE`: published;
-- `INSUFFICIENT_ACTIVE_COST_DAYS`: fewer than 7 billed days, including an empty basis;
+- `INSUFFICIENT_ACTIVE_COST_DAYS`: fewer than `min_economics_cost_history_days` billed days, including an empty basis;
 - `UNPRICED_USAGE`: unpriced DBU inside the basis (11.4);
 - `NON_POSITIVE_RUN_RATE`: net billing corrections leave a run rate at or below zero.
 
-`cost_cv_84` is the population coefficient of variation for the last-84 window when enough observations exist.
+`cost_cv_84` is the population coefficient of variation for the last-`forecast_long_days` window when it holds at least `forecast_cv_min_days` observations. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Cost forecast and billing windows).
 
 ### 11.3 Forecast semantics
 
@@ -544,7 +525,7 @@ Unpriced DBU is unknown cost, never zero:
 - an epoch whose usage includes unpriced DBU has a null list cost and is skipped by historical-epoch calibration;
 - forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
 
-With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with blocker `COST_HISTORY_INSUFFICIENT` when the epoch is younger than 7 calendar days (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when a mature epoch has fewer than 7 billed days (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
+With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
 
 ---
 
@@ -552,31 +533,15 @@ With a null forward DBU baseline, the candidate estimator withholds every saving
 
 ### 12.1 Serverless
 
-For standard Serverless SQL warehouses:
-
-- separate customer AWS EC2 cost is modeled as `0`,
-- Databricks-managed infrastructure cost is considered embedded in the Serverless DBU price line.
+Standard Serverless SQL warehouses model no separate customer AWS EC2 cost; Databricks-managed infrastructure is embedded in the Serverless DBU price line. Formula and rationale: [`docs/reference/aws-cost-model.md`](../reference/aws-cost-model.md).
 
 ### 12.2 Pro/Classic
 
-For Pro/Classic:
+For Pro/Classic, annual AWS cost is the annualized recent cluster-minutes (daily resource series on the DBU forecast's window, calendar and recent/long-window blend (`forecast_recent_days`, `forecast_long_days`), times the forecast trend adjustment and 365) divided by 60 and priced at the modeled cluster hourly price from the versioned regional registry. Formula, topology and registry rules: [`docs/reference/aws-cost-model.md`](../reference/aws-cost-model.md).
 
-```text
-annual_cluster_minutes
-  = blended_daily_cluster_minutes      # 28/84-day blend, as the DBU forecast
-    * 365
-    * forecast_trend_adjustment
+The resource window is the last `forecast_long_days` complete days ending at the billing basis end, clipped to the epoch start, with missing days zero-filled (days before the collected range are unknown, so the window shrinks), so DBU and AWS describe the same period.
 
-annual_aws_cost
-  = annual_cluster_minutes / 60
-    * modeled_cluster_hourly_price
-```
-
-`blended_daily_cluster_minutes` is computed from the current epoch's daily resource series on the DBU forecast's window and calendar (the last 84 complete days ending at the billing basis end, clipped to the epoch start, missing days zero-filled) with the same 28/84-day blend, so DBU and AWS describe the same period.
-
-`modeled_cluster_hourly_price` comes from documented warehouse topology encoded against the versioned regional EC2 price registry.
-
-If region pricing or the daily resource series is unavailable, AWS baseline is `null`/unavailable rather than zero (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
+The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (meanings: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)).
 
 ---
 
@@ -593,23 +558,25 @@ Photon is inferred from signed current-epoch DBU billing evidence.
 
 ### 13.2 Thresholds
 
-| Threshold | Value |
-|---|---:|
-| minimum known feature coverage | 90% |
-| inferred enabled | ≥95% of known DBU usage true |
-| inferred disabled | ≤5% true |
-| minimum epoch DBU | 1 DBU |
-| max evidence age | 14 days |
+Parameters (defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md), Photon observation):
+
+- `photon_min_feature_coverage_pct`: minimum share of current-epoch DBU whose billing row carries a non-null Photon flag;
+- `photon_enabled_usage_pct`: share of known-flag DBU that must be Photon-enabled for `ENABLED`;
+- `photon_disabled_usage_pct`: share at or below which the state is `DISABLED`;
+- `photon_min_epoch_dbu`: minimum total current-epoch DBU;
+- `photon_freshness_days`: maximum age of the latest supporting usage.
+
+Derivation: `known = photon_true_dbu + photon_false_dbu`, `total = known + photon_null_dbu`, `coverage = known / total` and `enabled share = photon_true_dbu / known`. The observation is sufficient only when `total`, `coverage` and the age of the latest usage all satisfy their parameters and `known > 0`; otherwise the state is `UNKNOWN`. A sufficient observation is `ENABLED` at or above `photon_enabled_usage_pct`, `DISABLED` at or below `photon_disabled_usage_pct`, and `MIXED` in between. The observation also carries a deterministic confidence score; it is never a recommendation input.
 
 ### 13.3 State flow
 
 ```mermaid
 flowchart TD
-    B[Signed current-epoch DBU billing] --> C{Coverage >=90%<br/>DBU >=1<br/>fresh <=14d?}
+    B[Signed current-epoch DBU billing] --> C{Coverage >= photon_min_feature_coverage_pct<br/>DBU >= photon_min_epoch_dbu<br/>fresh within photon_freshness_days?}
     C -->|No| U[UNKNOWN]
     C -->|Yes| P[Enabled usage %]
-    P -->|>=95%| E[ENABLED]
-    P -->|<=5%| D[DISABLED]
+    P -->|>= photon_enabled_usage_pct| E[ENABLED]
+    P -->|<= photon_disabled_usage_pct| D[DISABLED]
     P -->|otherwise| M[MIXED]
 ```
 
@@ -626,7 +593,7 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | Candidate | Principal analyzer evidence |
 |---|---|
 | `warehouse_channel` | current channel |
-| ~~`enable_photon`~~ | retired in v2.7.1; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
+| ~~`enable_photon`~~ | retired; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
 | `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache, task-time utilization |
 | `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
 | `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization |
@@ -641,9 +608,14 @@ The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_
 
 ## 15. Optimizer decision algorithms
 
-`Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob.
+`Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob. Each rule below states its conditions in words and names the `Thresholds` parameter that gates it; defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md). Meaning, gating parameter and resulting status of every blocker code: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md).
 
-Reliability guard shared by every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above 5% (`failure_cancel_pct_downsize_safe`) holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
+Rules shared by several knobs:
+
+- **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW` (max-cluster reduction applies the same test without a code).
+- **Reliability guard** for every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above `failure_cancel_pct_downsize_safe` holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
+- **Missing evidence is never read as zero.** An unreported spill, queue, latency or severity value holds the change with an `*_EVIDENCE_UNAVAILABLE` code.
+- **Recent capacity facts** (time at max, time at min, observed peak) come from the last `pressure_window_days` of the daily resource window, not the whole epoch. When the series was not collected the max/min-cluster change is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`; when it was collected but the warehouse did not run in the window, it is held with `NO_RECENT_RUNNING_TIME`.
 
 ### 15.1 Channel
 
@@ -654,126 +626,121 @@ Reliability guard shared by every capacity cut (one size down, lower max cluster
 
 ### 15.2 Photon
 
-No Photon decision is made (v2.7.1). Photon is **left at its default** (v2.7.1): the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted. The observed state (`ENABLED`/`DISABLED`/`MIXED`/`UNKNOWN`) is reported in `current_config.photon` and never creates a candidate, plan step or invalidation.
+No Photon decision is made. Photon is **left at its default**: the product observes Photon state from billing but makes no Photon recommendation, because Databricks publishes no on/off price or rate for Photon on SQL warehouses and no savings can be modeled without guessing. The reserved `enable_photon` knob/technique `WH-PHOTON-ENABLE-001` is no longer emitted. The observed state (`ENABLED`/`DISABLED`/`MIXED`/`UNKNOWN`) is reported in `current_config.photon` and never creates a candidate, plan step or invalidation.
 
 ### 15.3 Warehouse size
 
+A size outside the known size ordering is `BLOCKED` with `UNKNOWN_WAREHOUSE_SIZE`.
+
 #### Upsize
 
-Upsize one nominal size when both hold:
+Upsize one nominal size when spill is both frequent and severe: the share of spilled queries reaches `spill_query_pct_upsize` and the p95 spilled bytes among spilled queries reach `spill_p95_bytes_upsize`. Outcomes:
 
-```text
-spill_query_pct >= 2%
-AND p95_spill_bytes >= 1 GiB
-```
-
-Status is `ACTIONABLE`; if already at the largest known size, status becomes `BLOCKED`.
+- the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
+- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` queries in the 30-day window (`INSUFFICIENT_QUERY_SAMPLE`) and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
+- both signals reached, a larger size exists and no gate holds: `ACTIONABLE`, one size up; the change invalidates max/min/auto-stop;
+- both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
 
 #### Downsize
 
-Downsize exactly one size only when all hold:
+Every case that is not an upsize is evaluated for a downsize of exactly one size. It is proposed only when a smaller size exists and none of these blockers applies:
 
-```text
-epoch_age >= 7d
-queries_30 >= 500
-spill_query_pct <= 0.1%
-queued_query_pct <= 0.5%
-p95_execution <= 5s
-p99_execution <= 30s
-previous size exists
-```
+- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
+- fewer than `strong_query_sample_size` queries in the 30-day window (`INSUFFICIENT_STRONG_QUERY_SAMPLE`);
+- spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
+- queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
+- the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
+- p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
-Spill frequency, queue frequency and p95/p99 execution latency must be known. When the collector did not report one, the value stays null (never read as 0 / no pressure) and the downsize is held as `NO_CHANGE` with `SPILL_EVIDENCE_UNAVAILABLE`, `QUEUE_EVIDENCE_UNAVAILABLE` or `LATENCY_EVIDENCE_UNAVAILABLE`.
+Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
 
-Status is `TEST_REQUIRED`; an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
+With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
 
-Otherwise the result is `NO_CHANGE` with reasons preserved as blockers/context.
+Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
 ### 15.4 Max clusters
 
 #### Increase
 
-Increase by one when all hold:
+An increase of one cluster is considered when all of these hold:
 
-```text
-queued_query_pct >= 5%
-p95_wait_at_capacity >= 30s
-max_observed_clusters >= current max_clusters
-current max_clusters < 40
-```
+- the queued-query share is known and reaches `queue_query_pct_increase_max`;
+- the p95 capacity wait among queued queries reaches `queue_wait_p95_ms_increase_max`;
+- the warehouse is saturated: time at the configured maximum (pressure window) reaches `time_at_max_pct_saturated`.
 
-`time_at_max` and `max_observed_clusters` (here and in the rules below) come from the last `pressure_window_days` (30) of the daily resource window, not the whole epoch. When the series was not collected (older evidence) they are unknown and the max/min-cluster changes are held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`.
+Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 
-Unknown queue frequency or capacity wait is never read as 0; an increase needs both known. Like every other change it also needs a mature configuration epoch (at least 7 days), the minimum 30-day query sample and enough queued queries for the wait percentile; otherwise the decision is `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, `INSUFFICIENT_QUERY_SAMPLE` or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE`.
+- queue share and saturation reached but the capacity wait was not reported: `INSUFFICIENT_EVIDENCE` with `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`;
+- all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
+- all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (epoch younger than `current_config_stability_days`), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
+- all signals reached and no gate holds: `ACTIONABLE`, one cluster more; the change invalidates min clusters.
 
-Status: `ACTIONABLE`.
+When the recent resource window is unavailable, saturation cannot be judged and the decision is `NO_CHANGE` with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected but the warehouse did not run in the window).
 
 #### Reduce ceiling
 
-A lower max-cluster guardrail is considered when:
+A lower max-cluster guardrail is considered only when all of these hold:
 
-```text
-max_clusters > min_clusters
-epoch_age >= 7d
-queries_30 >= 100
-queued_query_pct <= 0.5%
-time_at_max <= 1%
-0 < max_observed_clusters < configured max
-```
-
-Queue frequency must be known, and when queries queued their capacity wait must be known too. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported) or `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported).
+- the recent resource window is known and the observed peak is above zero;
+- `max_clusters` is above `min_clusters`;
+- the epoch is at least `current_config_stability_days` old and at least `min_query_sample_size` queries were seen in the 30-day window;
+- time at the configured maximum is at most `time_at_max_pct_safe_reduce`;
+- the target below is lower than the current maximum.
 
 Target:
 
 ```text
-max(current_min, min(current_max - 1, max_observed + 1))
+headroom = max(max_cluster_headroom_clusters,
+               ceil(max_cluster_headroom_pct / 100 * observed_peak))
+target   = max(min_clusters, observed_peak + headroom)
 ```
 
-This is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**.
+The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard applies. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported) or the `FAILURE_CANCEL_*` codes. An ineligible ceiling is `NO_CHANGE` without a code.
+
+An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates min clusters.
 
 ### 15.5 Min clusters
 
-If current minimum ≤1, return `NO_CHANGE`.
+If the current minimum is 1 or lower, return `NO_CHANGE`.
 
-Otherwise reduce by exactly one only when:
+Otherwise reduce by exactly one cluster only when none of these blockers applies:
 
-```text
-epoch_age >= 7d
-queries_30 >= 100
-queued_query_pct <= 0.5%
-p95_wait_at_capacity <= 5s
-time_at_max < 20%
-time_at_min >= 25%
-```
+- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), or fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
+- queued-query share not reported (`QUEUE_EVIDENCE_UNAVAILABLE`), above `queue_query_pct_safe`, or a known p95 capacity wait above `queue_wait_p95_ms_safe` (`QUEUE_PRESSURE_PRESENT`);
+- capacity wait not reported (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`);
+- recent resource window unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`) or idle (`NO_RECENT_RUNNING_TIME`);
+- time at the configured maximum at or above `time_at_max_pct_block_min_reduce` (`SUSTAINED_SCALE_PRESSURE`);
+- time at the configured minimum below `time_at_min_pct_reduce` (`WAREHOUSE_RARELY_AT_MINIMUM`);
+- the reliability guard.
 
-`time_at_min` and `time_at_max` are measured over the last 30 days of the daily resource window. Queue frequency and capacity wait must be known; an unreported value is held as a blocker (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`), never read as 0. Without the resource series the reduction is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`.
+`time_at_min` and `time_at_max` are measured over the last `pressure_window_days` of the daily resource window. An unreported value is held as a blocker, never read as 0.
 
-Status: `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates auto-stop because baseline capacity changed.
+With no blocker the status is `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates auto-stop because baseline capacity changed. Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
 ### 15.6 Auto-stop
 
-Target is deterministic by workload activity:
+The target is deterministic by workload activity (queries per active day in the 30-day window):
 
 ```text
-SERVERLESS                      -> 10 min
-<50 queries / active day       -> 15 min
-50..499 queries / active day   -> 30 min
->=500 queries / active day     -> 45 min
+SERVERLESS                                       -> serverless_auto_stop_target_minutes
+< low_activity_queries_per_day                   -> low_activity_auto_stop_target_minutes
+< medium_activity_queries_per_day                -> medium_activity_auto_stop_target_minutes
+otherwise                                        -> high_activity_auto_stop_target_minutes
 ```
 
-No change when current nonzero auto-stop is already at/below target.
+No change when the current non-zero auto-stop is already at or below the target (an auto-stop of 0 is evaluated).
 
-Otherwise a recommendation is blocked when any hold:
+Otherwise the recommendation is `BLOCKED` when any of these hold, each with its code:
 
-```text
-epoch age < 7d
-queries_30 < 100
-idle-gap count < 30
-cluster_minutes < 1
-p95 compute wait among queries that waited >= 60s AND starts/active-day >= 0.5
-```
+- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
+- fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
+- fewer than `min_idle_gap_sample_size` measured idle gaps (`INSUFFICIENT_IDLE_GAP_SAMPLE`);
+- fewer than `min_cluster_minutes_for_cost_model` cluster-minutes (`INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`);
+- compute-wait severity not reported (`COLD_START_EVIDENCE_UNAVAILABLE`);
+- p95 compute wait among queries that waited at or above `cold_start_p95_ms_block` and starts per active day at or above `cold_starts_per_active_day_block` (`COLD_START_SENSITIVE`);
+- the reliability guard.
 
-The final blocker is `COLD_START_SENSITIVE`.
+With none of them the status is `ACTIONABLE`.
 
 ### 15.7 Warehouse type
 
@@ -788,7 +755,7 @@ flowchart LR
     P --> C
 ```
 
-Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observed workspace capability is retained as a blocker/HITL condition rather than removing the branch.
+Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observed workspace capability is retained as a blocker/HITL condition (`PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`, `SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`) rather than removing the branch. When the forward DBU baseline is unknown, or `cost_history_days` is below `min_economics_cost_history_days`, the migration candidate is `INSUFFICIENT_EVIDENCE` with the DBU baseline code instead (11.4).
 
 ### 15.8 Dependency graph
 
@@ -815,43 +782,29 @@ flowchart LR
 
 Candidate confidence is deterministic evidence quality, **not probability that savings will materialize**.
 
-Components:
+Components (parameters: [`docs/reference/thresholds.md`](../reference/thresholds.md), Confidence):
 
 ```text
-coverage = clamp(cost_history_days / 90, 0, 1)
-sample = clamp(queries_30 / 500, 0, 1)
-stability = clamp(1 - cost_cv_84 / 2, 0, 1)
-epoch_maturity = clamp(epoch_age_days / 30, 0, 1)
-signal = 1.0 for change, 0.7 for no-change/default
+coverage       = clamp(cost_history_days / confidence_coverage_days, 0, 1)
+sample         = clamp(queries_30 / strong_query_sample_size, 0, 1)
+stability      = clamp(1 - cost_cv_84 / 2, 0, 1)          # unknown cv earns no credit
+epoch_maturity = clamp(epoch_age_days / confidence_epoch_maturity_days, 0, 1)
+signal         = confidence_signal_change for ACTIONABLE / TEST_REQUIRED,
+                 confidence_signal_no_change otherwise
 ```
 
 Weighted score:
 
 ```text
-0.10
-+ 0.25*coverage
-+ 0.25*sample
-+ 0.15*stability
-+ 0.15*epoch_maturity
-+ 0.10*signal
+score = confidence_base_weight
+      + confidence_coverage_weight  * coverage
+      + confidence_sample_weight    * sample
+      + confidence_stability_weight * stability
+      + confidence_epoch_weight     * epoch_maturity
+      + confidence_signal_weight    * signal
 ```
 
-Then clamp to a status cap:
-
-| Candidate state | Score cap |
-|---|---:|
-| `TEST_REQUIRED` | 0.78 |
-| `ACTIONABLE` | 0.93 |
-| other | 0.80 |
-
-Levels:
-
-```text
-HIGH   >= 0.80
-MEDIUM >= 0.60
-LOW    < 0.60
-```
-
+The score is clamped to a cap by candidate status (`confidence_cap_test_required`, `confidence_cap_actionable`, `confidence_cap_default`) and mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences.
 
 ---
 
@@ -865,8 +818,9 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 ### 17.2 No-change/guardrail candidates
 
-- `NO_CHANGE` / `BLOCKED` use factor `1.0` where an economics object is needed.
-- channel stability and max-cluster ceiling reduction receive **no direct savings**.
+- `NO_CHANGE` candidates use factor `1.0` (a known no-change), as do channel stability and max-cluster ceiling reduction, which receive **no direct savings**.
+- `BLOCKED` and `INSUFFICIENT_EVIDENCE` candidates are not priced: no counterfactual is attempted and their economics are null, never zero.
+- With a null forward DBU baseline (11.4) every other candidate that needs a priced counterfactual is withheld the same way, and `estimate_blocker` names the reason.
 
 ### 17.3 Auto-stop estimator
 
@@ -875,10 +829,10 @@ theoretical_removed_cluster_minutes
   = saved_idle_minutes * current_min_clusters
 
 raw_savings_fraction
-  = min(theoretical_removed / current_cluster_minutes, 0.60)
+  = clamp(theoretical_removed / current_cluster_minutes, 0, auto_stop_savings_cap)
 ```
 
-Realization tracks use conservative/base/optimistic multipliers `0.50 / 0.75 / 1.00`.
+Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings); the same cap bounds the removable minutes in the bundle.
 
 ### 17.4 Min-cluster estimator
 
@@ -887,12 +841,12 @@ theoretical_removed_cluster_minutes
   = minutes_at_current_min * (current_min - target_min)
 
 raw_fraction
-  = min(theoretical_removed / current_cluster_minutes, 0.50)
+  = clamp(theoretical_removed / current_cluster_minutes, 0, min_cluster_savings_fraction_cap)
 ```
 
 Both terms use whole-epoch event totals, so the ratio covers one period. The same applies to the auto-stop estimator (17.3) with whole-epoch idle minutes.
 
-The same `0.50 / 0.75 / 1.00` realization tracks are applied.
+The realization tracks are `min_cluster_realization_optimistic`, `min_cluster_realization_base` and `min_cluster_realization_conservative` (high, base and low savings), not the auto-stop `realization_*` tracks: time at the floor does not prove a floor cluster was spare, so the high track is an upper bound and the low track assumes no savings.
 
 ### 17.5 Size estimator
 
@@ -904,22 +858,25 @@ capacity_ratio * runtime_elasticity
 
 Capacity ratio source:
 
-1. **Serverless:** published Serverless SQL DBU/hour size ratio.
+1. **Serverless:** published Serverless SQL DBU/hour size ratio. A size with no published rate is not priced (`SERVERLESS_DBU_RATE_NOT_PUBLISHED`): the candidate keeps its decision status with null economics and a plan containing it is withheld as `REQUIRES_CANARY`.
 2. **Pro/Classic:** same-workspace observed Pro/Classic DBU-per-cluster-hour ratio when both sizes exist.
 3. **Fallback:** nominal deterministic size-capacity ratio.
 
-Runtime multiplier ranges:
+Runtime elasticity is a low/base/high multiplier range: a capacity ratio below 1 (downsize) uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; otherwise `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`.
 
-| Direction | optimistic | base | conservative |
-|---|---:|---:|---:|
-| downsize | 1.10 | 1.30 | 1.55 |
-| upsize | 0.50 | 0.70 | 1.00 |
-
-If a prior historical epoch exactly matches the target knob while all other active config fields match current config, the factor is blended 50/50 with normalized historical cost-per-1,000-query evidence, subject to configured factor clamps.
+If a prior historical epoch has the target value for the knob, matches every other active config field, and has at least `min_epoch_calibration_days` billed days and `min_epoch_calibration_queries` queries, its cost per `cost_normalization_query_count` queries relative to the current epoch (clamped to `epoch_factor_floor`..`epoch_factor_ceiling`) is blended into each factor with weight `epoch_calibration_weight`. The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Epoch calibration).
 
 ### 17.6 Max-cluster increase estimator
 
-When increasing max clusters, cost uplift is bounded by the additional capacity that could have been used during observed time at the existing maximum. Direct savings are not expected; the range can represent a cost increase for performance.
+When increasing max clusters, cost uplift is bounded by the additional capacity that could have been used during observed time at the existing maximum (pressure window):
+
+```text
+raw_uplift = clamp(minutes_at_max * (target_max - current_max) / cluster_minutes,
+                   0, max_cluster_uplift_fraction_cap)
+cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, high = 1 + raw_uplift
+```
+
+Direct savings are not expected; the range represents a cost increase for performance.
 
 ### 17.7 Migration estimator
 
@@ -928,10 +885,10 @@ Migration uses a structural annualized resource-time range:
 ```text
 low  = annualized uptime minutes
 base = annualized cluster-minutes
-high = annualized uptime * max_observed_clusters
+high = max(base, annualized uptime * max_observed_clusters)
 ```
 
-Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and 28/84-day blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
+Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and recent/long-window blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
 For target Serverless:
 
@@ -968,7 +925,7 @@ It validates:
 - nonnegative actual/forward baseline cost,
 - confidence score in `[0,1]`,
 - change statuses must actually change config,
-- blocked candidates must contain blockers,
+- `BLOCKED` and `INSUFFICIENT_EVIDENCE` candidates must contain blockers, and `INSUFFICIENT_EVIDENCE` cannot change config,
 - `NO_CHANGE` cannot claim savings,
 - ordered cost and savings ranges,
 - findings used for decisions belong to the current epoch,
@@ -1012,7 +969,7 @@ execution_state = PENDING_REEVALUATION
 gate = RE_ANALYZE_AFTER_UPSTREAM_CANARY
 ```
 
-**Pricing of pending steps (Contract 1.1.0).** The stateful bundle estimator prices a plan as two chains over the same
+**Pricing of pending steps.** The stateful bundle estimator prices a plan as two chains over the same
 evolving cost/resource state:
 
 - the **authoritative** chain applies only steps that are not `PENDING_REEVALUATION`. Their evidence has not been
@@ -1037,9 +994,11 @@ stateDiagram-v2
     READY_FOR_HITL --> PENDING_REEVALUATION: upstream change invalidates
     READY_FOR_CANARY --> Remeasure: canary performed externally
     READY_FOR_HITL --> Remeasure: change performed externally
-    Remeasure --> Regenerate: 7-day default measurement gate
+    Remeasure --> Regenerate: remeasure_days_after_invalidating_change measurement gate
     Regenerate --> [*]
 ```
+
+`READY_FOR_HITL` is the planner's internal state for a step that needs human approval but no canary. When the package is built it maps to the public `READY` execution state (`READY_FOR_CANARY`, `PENDING_REEVALUATION` and `BLOCKED` map to themselves; an unmapped state is an error, never a silent `READY`).
 
 ### 19.4 Plan B
 
@@ -1089,6 +1048,7 @@ Each track carries:
 | `idle_cluster_minute_reduction` | remove realized idle cluster-minutes from remaining state |
 | `migration_cost_override` | replace evolving state with migration counterfactual |
 | `requires_canary` | withhold portfolio economics and return `REQUIRES_CANARY` |
+| `estimate_withheld` | withhold portfolio economics with the status the effect carries (`REQUIRES_COST_HISTORY` or `UNAVAILABLE`, chosen from the DBU baseline blocker, 11.4) |
 
 ### 20.3 Double-count prevention
 
@@ -1105,12 +1065,21 @@ Min-cluster and auto-stop do not both claim the same original capacity minute.
 
 ### 20.4 Scenario estimate statuses
 
+Priced estimates:
+
 - `NO_CHANGE`
 - `MODELED_RANGE`
 - `PROVISIONAL_MODELED_RANGE`
 - `PRE_CANARY_MODELED_RANGE`
+
+Withheld estimates (every range null; the public package reports them as `UNAVAILABLE`):
+
 - `REQUIRES_CANARY`
 - `REQUIRES_COST_MODEL`
+- `REQUIRES_COST_HISTORY`
+- `UNAVAILABLE`
+
+The codes that explain each withheld status: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md) (Not blockers, internal withheld-estimate statuses).
 
 ---
 
@@ -1159,81 +1128,26 @@ classDiagram
     RecommendationPackage --> RecommendedPlan: recommended_plan
     RecommendationPackage --> PackageEconomics: package_economics
     RecommendationPackage --> Realization: realization
+    RecommendationPackage --> ObservedConfigChange: observed_change
+    RecommendationPackage --> CarriedForwardPlan: carried_forward_plan
     RecommendationPackage --> Provenance: provenance
 ```
 
 ### 22.2 Stable top-level sections
 
-```text
-recommendation_package_id
-contract_version
-warehouse
-current_config
-workload_profile
-cost_baseline
-assessment
-evidence
-candidates
-scenarios
-recommended_plan
-package_economics
-realization
-provenance
-```
-
-Stable keys are not omitted to represent missing information.
+Top-level keys and their order: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 1. Stable keys are not omitted to represent missing information.
 
 ### 22.3 Null semantics
 
-```text
-null = unavailable / unknown / not measured
-0    = known numeric zero
-[]   = known empty collection
-```
-
-These meanings must survive JSON→workbook projection.
+`null` means unavailable, unknown or not measured; `0` is a known numeric zero; `[]` is a known empty collection (contract section 2). These meanings must survive JSON-to-workbook projection.
 
 ### 22.4 Public candidate identity
 
-Internal `recommendation_id` is transitional. The public `candidate_id` is content-addressed from:
-
-- contract version,
-- workspace/warehouse,
-- epoch ID,
-- technique ID,
-- knob,
-- current value,
-- recommended value,
-- sorted evidence references,
-- policy version,
-- analyzer version,
-- optimizer version,
-- estimator version,
-- reviewer version,
-- decision-graph version.
+The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `contracts/reporter_contract.py` and are 24 hex characters; `publisher.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
 
 ### 22.5 Technique IDs
 
-Current stable mappings include:
-
-```text
-WH-SIZE-DOWNSIZE-001
-WH-SIZE-UPSIZE-001
-WH-SIZE-RIGHTSIZE-001
-WH-MAX-CLUSTER-REDUCE-001
-WH-MAX-CLUSTER-INCREASE-001
-WH-MAX-CLUSTER-ASSESS-001
-WH-MIN-CLUSTER-REDUCE-001
-WH-MIN-CLUSTER-INCREASE-001
-WH-MIN-CLUSTER-ASSESS-001
-WH-AUTOSTOP-REDUCE-001
-WH-AUTOSTOP-ASSESS-001
-WH-SERVERLESS-MIGRATE-001
-WH-PRO-MIGRATE-001
-WH-WAREHOUSE-TYPE-ASSESS-001
-WH-CHANNEL-CURRENT-001
-WH-CHANNEL-STABILITY-001
-```
+Stable technique IDs and their mapping to knobs: [`docs/reference/technique-catalog.md`](../reference/technique-catalog.md).
 
 ### 22.6 Deterministic content IDs
 
@@ -1253,23 +1167,11 @@ flowchart TD
     VERS[Version set] --> PKG
 ```
 
-IDs use canonical JSON + SHA-256 and a fixed prefix with the configured leading digest length.
+Canonical hash rules and the inputs of each ID: contract section 3 (Identity model).
 
 ### 22.7 Package hash payload
 
-`recommendation_package_id` includes:
-
-- contract version,
-- workspace ID,
-- warehouse ID,
-- current epoch ID,
-- canonical current config,
-- evidence fingerprint,
-- policy/analyzer/optimizer/modeler/estimator/bundle/reviewer/decision-graph/technique-catalog versions,
-- ordered candidate IDs,
-- ordered scenario IDs.
-
-It excludes volatile presentation metadata such as generation timestamp, output path, workbook formatting, or log filename.
+The inputs of `recommendation_package_id` and the volatile metadata it excludes: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Package hash inputs).
 
 ---
 
@@ -1314,7 +1216,7 @@ flowchart TD
 
 ### 24.2 Package scenario envelope
 
-Only economically assessable scenarios are included. Blocked/unavailable scenarios are explicitly excluded with reason codes.
+Only economically assessable scenarios are included. Blocked/unavailable scenarios are explicitly excluded with reason codes ([`docs/reference/blocker-codes.md`](../reference/blocker-codes.md), Scenario and planner; fields: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 15).
 
 Package savings semantics:
 
@@ -1332,9 +1234,7 @@ cost.base = baseline - savings.base
 cost.high = baseline - savings.low
 ```
 
-Each envelope point stores its source `scenario_id` so DBU/AWS component details are never fabricated by mixing unrelated scenarios.
-
-Negative savings are valid and mean **cost increase**. The JSON preserves the signed value. Workbook presentation converts the sign into explicit `SAVINGS` vs `COST_INCREASE` semantics.
+Negative savings are valid and mean **cost increase**. The JSON preserves the signed value; the workbook presents it as a negative number with an explicit impact type (27.4).
 
 ---
 
@@ -1358,25 +1258,13 @@ Before a package is emitted it must pass:
 14. optional full package hash validation,
 15. JSON Schema Draft 2020-12 validation.
 
-Failure is fatal for publication of that run/package.
+Failure is fatal for publication of that run/package. The contract-level list of validations: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 18.
 
 ---
 
 ## 26. Realization contract
 
-Phase 1 emits an initialized realization section even though the publisher does not yet ingest applied-change measurements.
-
-Initial state:
-
-```text
-status = NOT_APPLIED
-realization_records = []
-measured_candidates = 0
-successful_candidates = 0
-rolled_back_candidates = 0
-realized_savings_to_date = 0
-annualized_realized_savings = 0
-```
+Phase 1 emits an initialized `realization` section (`status = NOT_APPLIED`, no records, zero aggregates; initial state: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 16) even though the publisher does not yet ingest applied-change measurements.
 
 Future `REAL-*` records reference the immutable package/scenario/candidate identity and capture applied config, validation window, observed cost, realized savings, rollback, and learning codes.
 
@@ -1390,12 +1278,7 @@ The workbook is generated from already-validated `RecommendationPackage` objects
 
 ### 27.1 Sheet grains
 
-| Sheet | Grain | Current synthetic example |
-|---|---|---:|
-| Executive Summary | portfolio aggregation | 1 summary surface |
-| Warehouse Portfolio | one `recommendation_package_id` | 38 rows |
-| Scenario Plans | one `scenario_id` | 76 rows |
-| Recommendation Registry | one `candidate_id` | 228 rows |
+Sheets, grains and the sheet list: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md).
 
 ### 27.2 Projection architecture
 
@@ -1415,29 +1298,13 @@ flowchart LR
 
 ### 27.3 Contract-owned columns
 
-Exact ordered columns and column groups live in `contracts/workbook_contract.py`; the renderer must not maintain a separate column list.
-
-Current detailed-sheet column counts:
-
-- Warehouse Portfolio: **58**
-- Scenario Plans: **42**
-- Recommendation Registry: **53**
+Exact ordered columns and column groups live in `contracts/workbook_contract.py`; the renderer must not maintain a separate column list. Column groups per sheet: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md). Tests pin the column counts from the contract declarations.
 
 ### 27.4 Presentation rules
 
-- row 1: title,
-- row 2: context/subtitle,
-- row 3: grouped section bands,
-- row 4: filterable field headers,
-- frozen identity columns,
-- explicit currency/percentage/confidence formats,
-- no optimizer/business formulas in Excel,
-- no hidden worksheets,
-- no macros,
-- long JSON/audit columns at the right edge,
-- blanks normalized to explicit `—`, `UNKNOWN`, or `UNAVAILABLE`,
-- signed negative savings displayed as positive magnitude with `COST_INCREASE` semantics,
-- IDs rendered as text to prevent numeric truncation.
+Presentation rules (title and header rows, frozen identity columns, number formats, explicit states for blanks, text IDs, audit JSON at the right edge, no formulas, hidden sheets or macros): [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md).
+
+A cost increase is a negative annual-impact number (shown in red parentheses) with Impact Type `COST_INCREASE`; the sign is never flipped.
 
 The workbook must not alter the underlying JSON economics.
 
@@ -1445,28 +1312,15 @@ The workbook must not alter the underlying JSON economics.
 
 ## 28. Packaging and output directory
 
-`package_locked_contract()` writes:
-
-```text
-<output-dir>/
-├── packages/
-│   ├── <workspace>__<warehouse>.json
-│   └── ...
-├── workbook.xlsx
-├── evidence.json
-├── manifest.json
-└── publisher.log
-```
-
-`workbook.xlsx` is omitted only with `--no-workbook`.
+`package_locked_contract()` writes one `packages/<workspace>__<warehouse>.json` per package, `workbook.xlsx` (omitted only with `--no-workbook`), `evidence.json` and `manifest.json` into the output directory; the logger writes `publisher.log` there (29.1). Output tree: [`README.md`](../../README.md) (Output directory).
 
 ### 28.1 Package filenames
 
-Filenames are operational locators only. They are not content identities and are excluded from hashes.
+Filenames are operational locators only. They are not content identities and are excluded from hashes. In a file name every character other than alphanumerics, `-`, `_` and `.` becomes `_`.
 
 ### 28.2 Manifest
 
-The manifest records publisher/contract versions, package count, package paths/IDs/hashes, and workbook path when generated. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`). It is not itself a Reporter JSON Contract package.
+The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 
@@ -1513,7 +1367,7 @@ The product follows fail-closed semantics for decisions and publication.
 | conflicting replay evidence | terminate replay |
 | invalid candidate invariant | no scenario/public package |
 | invalid scenario invariant | no public package |
-| missing AWS price region | DBU may remain assessable; AWS/total become unavailable as appropriate |
+| missing AWS price region | DBU may remain assessable; AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
 | missing migration cost source | migration economics unavailable; no fabricated value |
 | optional compatibility API unavailable | explicit HITL fallback |
 | unsupported future warehouse type | fail closed per warehouse before optimization; recorded in manifest exclusions |
@@ -1525,11 +1379,11 @@ The product follows fail-closed semantics for decisions and publication.
 
 ### 31.1 Source-side reduction
 
-All expensive query/event/billing aggregation executes in Databricks SQL. Python receives per-warehouse/per-epoch aggregates.
+All expensive query/event/billing aggregation executes in Databricks SQL; Python receives per-warehouse/per-epoch aggregates. Scale strategy: [`hld.md`](hld.md) sections 9.1 and 17.1.
 
 ### 31.2 Downstream batching
 
-`build_report()` processes warehouses in configurable batches, default `100`. Batching controls local decision/report work; it does not change source query semantics.
+`evaluate_warehouses()` (called by `build_recommendation_packages()`) processes supported warehouses in `--batch-size` batches ordered by workspace, warehouse name and warehouse ID. Batching controls local decision work; it does not change source query semantics, decisions or IDs. Design: [`hld.md`](hld.md) section 17.2.
 
 ### 31.3 Multi-region merge
 
@@ -1539,7 +1393,7 @@ Replay/multi-region normalized evidence merges on:
 (workspace_id, warehouse_id)
 ```
 
-The merge requires equivalent modeled values for duplicate identities and unions compatible epochs/daily cost/features. Conflicting evidence fails closed.
+The merge requires equivalent modeled values for duplicate identities and unions compatible epochs/daily cost/features. Conflicting evidence fails closed. Topology: [`hld.md`](hld.md) section 9.
 
 ---
 
@@ -1550,7 +1404,7 @@ The merge requires equivalent modeled values for duplicate identities and unions
 ```mermaid
 flowchart TD
     U[Unit / algorithm tests] --> I[Publisher integration tests]
-    G[10 golden scenarios] --> I
+    G[golden scenarios] --> I
     C[Reporter contract tests] --> I
     W[Workbook contract tests] --> I
     I --> D[Golden-scenario fleet synthetic end-to-end run]
@@ -1559,22 +1413,13 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.10.0 is validated by the full regression suite; reproduce the results with the commands in `CLAUDE.md`.
+The full regression suite is the validation baseline; reproduce the results with the commands in `CLAUDE.md`.
 
 ### 32.3 Golden scenarios
 
-The golden suite includes:
+Golden fixtures are normalized evidence plus an `expect` block. The fixture list, the assertion DSL and the scenario catalog: `tests/golden/README.md`, the docstring of `tests/test_golden_scenarios.py` and `docs/proposals/golden-scenarios.md`.
 
-- idle-expensive warehouse,
-- spill-constrained,
-- concurrency-constrained,
-- cold-start-sensitive,
-- Serverless,
-- Photon-disabled,
-- newly changed config,
-- sparse evidence,
-- Serverless→Pro costed migration,
-- missing AWS-region price evidence.
+Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/test_resource_window.py`, `tests/test_config_epochs_sql.py`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
 
 ### 32.4 Required contract assertions
 
@@ -1585,13 +1430,15 @@ Tests verify:
 - public JSON schema/semantic validation,
 - scenario confidence propagation,
 - scenario dependency/invalidation behavior,
+- current-epoch boundaries (evidence from older epochs never satisfies a current safety threshold),
+- unavailable evidence stays null and fails closed (it is never read as zero),
 - package economics envelope,
 - exact workbook column set/order,
 - sheet grains,
 - no blank semantic workbook cells,
-- no negative numeric presentation values,
+- signed numeric impact cells with no decorated money strings,
 - no Excel business formulas,
-- output generation from the 38 simulated fleet warehouses.
+- output generation from the simulated demo fleet.
 
 ---
 
@@ -1604,9 +1451,7 @@ Tests verify:
 5. **Workbook columns are contract-owned.** Renderer code cannot invent/drop columns.
 6. **New warehouse types fail closed.** A new type requires explicit analyzer/optimizer/estimator/golden support.
 7. **New techniques require stable `technique_id`.** IDs must be cataloged before publication.
-8. **Decision-affecting code changes require version changes and golden-test updates.**
-9. **Read-only APIs remain compatibility evidence only.** Authoritative config continues to come from system tables.
-10. **No probabilistic/LLM output may override deterministic decisions.** Explanation may vary separately from the locked package.
+8. **Decision-affecting code changes require version changes and golden-test updates** (`CLAUDE.md`, change loop).
 
 ---
 
@@ -1614,15 +1459,15 @@ Tests verify:
 
 ### 34.1 Realization ingestion is not implemented
 
-The public contract supports realization, but Phase 1 initializes `realization.status = NOT_APPLIED`. A future release must define authoritative post-change measurement sources, attribution windows, rollback semantics, and validation rules before measured realization becomes writable.
+Phase 1 initializes `realization.status = NOT_APPLIED` (26); measured realization is not writable. Open limitation: [`docs/reference/known-limitations.md`](../reference/known-limitations.md).
 
 ### 34.2 Compatibility API remains optional evidence
 
-The read-only workspace compatibility API is intentionally non-authoritative and has a deterministic fallback. Any future dependency on it for a hard optimization decision requires a separately approved source contract.
+The read-only workspace compatibility API is intentionally non-authoritative and has a deterministic fallback (8.3). Any future dependency on it for a hard optimization decision requires a separately approved source contract. See [`docs/reference/known-limitations.md`](../reference/known-limitations.md).
 
 ### 34.3 Threshold calibration
 
-Current thresholds are conservative policy defaults. Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
+Thresholds are conservative policy defaults ([`docs/reference/thresholds.md`](../reference/thresholds.md)). Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
 
 ---
 
@@ -1653,4 +1498,4 @@ The LLD is satisfied by an implementation when all of the following hold:
 
 Document ownership and precedence: `docs/README.md`.
 
-The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.10.0 produces and consumes those contracts.
+The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how the current publisher produces and consumes those contracts.

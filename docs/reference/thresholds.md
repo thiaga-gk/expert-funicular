@@ -4,7 +4,7 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 
 | Decision | Current policy | Posture | Why |
 |---|---|---|---|
-| Photon observed state | >=90% non-null feature coverage, >=1 current-epoch DBU, <=14d freshness; >=95% true=ENABLED, <=5%=DISABLED, else MIXED | Conservative | Observation only (v2.7.1): reported in `current_config.photon`, never turned into a recommendation. Databricks publishes no Photon on/off price for SQL warehouses, so no savings can be modeled without guessing. |
+| Photon observed state | >=90% non-null feature coverage, >=1 current-epoch DBU, <=14d freshness; >=95% true=ENABLED, <=5%=DISABLED, else MIXED | Conservative | Observation only: reported in `current_config.photon`, never turned into a recommendation. Databricks publishes no Photon on/off price for SQL warehouses, so no savings can be modeled without guessing. |
 | Size down | >=500 queries, <=0.1% spill, <=0.5% queued, p95<=5s, p99<=30s, epoch>=7d, one size only, canary required | Conservative | Multiple independent safety signals; never auto-applies. |
 | Size up | spill >=2% of queries and p95 spill **among spilled queries** >=1 GiB, **and** >=20 spilled queries, >=100 queries and epoch >=7d; otherwise `INSUFFICIENT_EVIDENCE` with no resize recommended | Balanced/conservative | Dual frequency+severity signal avoids reacting to isolated spills; sample/maturity gate stops a single query or an immature config regime from driving a resize. |
 | Max clusters up | >=5% queued + p95 capacity wait **among queued queries** >=30s + >=20 queued queries + observed saturation; fewer than 20 queued → `INSUFFICIENT_EVIDENCE` | Conservative | Triple gate avoids over-scaling. |
@@ -13,7 +13,7 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 | Auto-stop | 15/30/45 min by activity; Serverless 10 min target; >=30 gaps; cold-start-sensitive workloads blocked | Balanced; most aggressive cost rule | Uses measured idle gaps, but guards against cold-start latency. |
 | Type migration | compatibility gate + pre-canary modeled range + canary | Conservative | IWM/runtime response is not assumed. |
 | Failure guard on capacity cuts | failed/cancelled share >5% of queries, or unreported, holds every capacity cut (size down, max/min clusters down, lower auto-stop) | Conservative | A cut on a warehouse that is already failing queries would add risk where the evidence is least trustworthy. Blockers `FAILURE_CANCEL_RATE_HIGH` / `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. |
-| Forward DBU forecast | published only when every basis day is priced, the current epoch has >=7 billed (positive-cost) days (`min_economics_cost_history_days`) and the run rate is positive; otherwise null (never $0), and savings estimates and type migration are withheld | Conservative | A run rate from a few days, or a floor at zero, would guess the baseline every savings figure scales. Blocker `COST_HISTORY_INSUFFICIENT` (epoch younger than 7 calendar days), `BILLED_COST_DAYS_INSUFFICIENT` (mature epoch with too few billed days) or `DBU_COST_UNAVAILABLE`. |
+| Forward DBU forecast | published only when every basis day is priced, the current epoch has >=7 billed (positive-cost) days (`min_economics_cost_history_days`) and the run rate is positive; otherwise null (never $0), and savings estimates and type migration are withheld | Conservative | A run rate from a few days, or a floor at zero, would guess the baseline every savings figure scales. Blocker `COST_HISTORY_INSUFFICIENT` (fewer settled billed days in the forecast basis than `min_economics_cost_history_days`), `BILLED_COST_DAYS_INSUFFICIENT` (mature epoch with too few billed days) or `DBU_COST_UNAVAILABLE`. |
 | Billing settle | a UTC day enters the cost basis `billing_settle_hours` = 24 after it ends and once its workspace's billing watermark has passed it | Conservative | Original billing records are typically available within 12 hours; the buffer keeps a still-arriving day out of the run rate. |
 | Pressure window | `pressure_window_days` = 30: time at min, time at max and observed peak come from the last 30 days of the daily resource window | Balanced | Capacity facts describe recent behavior on the same calendar as the DBU forecast rather than the whole epoch. Without the series, max/min-cluster changes are held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`. |
 
@@ -36,7 +36,7 @@ Spill, capacity-wait and compute-wait severity percentiles are computed **only o
 
 ## Cost-estimator guardrail
 
-Serverless size economics may use the published SQL Serverless DBU/hour schedule. Pro/Classic size economics must **not** reuse that schedule. v2.9.0 uses same-workspace observed Pro/Classic DBU-per-cluster-hour ratios when both sizes exist; otherwise it falls back to nominal size-capacity ratios and preserves the A/B canary requirement.
+Serverless size economics may use the published SQL Serverless DBU/hour schedule. Pro/Classic size economics must **not** reuse that schedule. The publisher uses same-workspace observed Pro/Classic DBU-per-cluster-hour ratios when both sizes exist; otherwise it falls back to nominal size-capacity ratios and preserves the A/B canary requirement.
 
 ## Tuning recommendation
 

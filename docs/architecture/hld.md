@@ -2,21 +2,18 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.10.0  
-**Approved PRD:** `docs/product/prd.md` v1.0.0  
 **Reporter JSON Contract:** v1.2.0 (locked)  
-**Workbook Contract:** v1.3.0 (locked)  
-**HLD version:** 1.0.0  
-**Status:** Approved / locked  
-**Last updated:** 2026-10-01
+**Workbook Contract:** v1.3.0 (locked)
+
+Role: component architecture, runtime flows and trade-offs.
 
 ---
 
 ## 1. Purpose
 
-This document defines the high-level architecture for the Databricks SQL Warehouse Optimizer described in the approved PRD. It establishes the system boundaries, component responsibilities, data flows, source authority, deterministic decision path, scenario/economic model, publication architecture, runtime modes, security posture, scale model, and failure behavior.
+This document defines the high-level architecture for the Databricks SQL Warehouse Optimizer described in the PRD (`docs/product/prd.md`). It establishes the system boundaries, component responsibilities, data flows, source authority, deterministic decision path, scenario/economic model, publication architecture, runtime modes, security posture, scale model, and failure behavior.
 
-This HLD intentionally remains above implementation-level class/field detail. Exact public field contracts, hash payloads, schemas, SQL projections, thresholds, and method behavior belong in `docs/architecture/lld.md` and the locked contract artifacts.
+This HLD intentionally remains above implementation-level class/field detail. Exact public field contracts, hash payloads and schemas belong in the locked contract artifacts (`docs/contracts/`); SQL projections and method behavior belong in `docs/architecture/lld.md`; numeric defaults belong in `docs/reference/thresholds.md`.
 
 The architecture is designed around one central rule:
 
@@ -72,11 +69,11 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+**Implementation conformance:** the publisher enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ### 3.3 Active candidate domains
 
-Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but not a candidate domain as of v2.7.1):
+Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but is not a candidate domain):
 
 1. `warehouse_channel`
 2. `warehouse_size`
@@ -192,12 +189,14 @@ It must:
 - preserve workspace/warehouse identity,
 - preserve regional source context,
 - preserve signed billing corrections,
-- read a daily resource series for the current epoch (uptime, cluster-minutes, time at min/max, peak, starts) on the same window and calendar as the DBU forecast,
-- judge billing completeness per workspace: a UTC day counts only after a settle buffer (24 hours) and once that workspace's billing watermark has passed it, and optionally pin billing reads to an ingestion date (`--billing-ingested-through`) so a re-collection reproduces an earlier run,
+- read a daily resource series for the current epoch on the same window and calendar as the DBU forecast,
+- judge billing completeness per workspace, using a settle buffer (`billing_settle_hours`) and that workspace's billing watermark, and optionally pin billing reads to an ingestion date so a re-collection reproduces an earlier run,
 - run in a UTC-pinned SQL session, verified at connect (fails closed otherwise), so date logic matches UTC billing dates,
 - order window functions with deterministic tie-breakers,
 - avoid exporting raw SQL text,
 - retain enough source metadata for audit and replay.
+
+Collector SQL semantics: `docs/architecture/lld.md` section 7.2 and `docs/reference/source-mapping.md`. Defaults: `docs/reference/thresholds.md`.
 
 It must not:
 
@@ -260,15 +259,7 @@ The analyzer does not produce final recommendations and does not perform configu
 
 **Responsibility:** Apply versioned deterministic policy thresholds to analyzer facts and produce one decision state per active candidate domain.
 
-Possible public states include:
-
-- `ACTIONABLE`
-- `TEST_REQUIRED`
-- `REVIEW`
-- `BLOCKED`
-- `NO_CHANGE`
-- `NOT_APPLICABLE`
-- `INSUFFICIENT_EVIDENCE`
+The decision states are the public recommendation statuses (`docs/contracts/reporter-json-contract.md`, shared enums); blocker meanings and gating parameters: `docs/reference/blocker-codes.md`.
 
 The optimizer determines current/recommended config values, blockers, dependencies, invalidations, rationale, and objective. It does not own cost arithmetic.
 
@@ -282,7 +273,7 @@ Key architecture rules:
 - candidate savings are non-additive,
 - unavailable evidence remains unavailable,
 - Pro/Classic and Serverless use type-appropriate cost models,
-- Photon is left at its default (v2.7.1): no on/off price is published and the workload-specific benefit is not safely inferable,
+- Photon is observation-only and is never priced or recommended (section 7.3),
 - migration economics are pre-canary modeled ranges.
 
 ### 6.7 Reviewer Gate 1 — candidate integrity
@@ -326,9 +317,7 @@ flowchart TD
     SZ -. may invalidate idle/cost assumptions .-> AS
 ```
 
-Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence.
-
-An upstream change that invalidates downstream evidence does not erase those candidates. Downstream steps remain visible as `PENDING_REEVALUATION` until fresh evidence is collected.
+Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
 
 ### 6.9 Stateful bundle estimator
 
@@ -370,24 +359,7 @@ It verifies, at minimum:
 
 **Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.2.0.
 
-The public hierarchy is:
-
-```text
-recommendation_package_id
-contract_version
-warehouse
-current_config
-workload_profile
-cost_baseline
-assessment
-evidence
-candidates
-scenarios
-recommended_plan
-package_economics
-realization
-provenance
-```
+The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
 One public package represents exactly one warehouse/current configuration epoch.
 
@@ -408,12 +380,7 @@ Any failure prevents package publication.
 
 **Responsibility:** Render human decision views from valid public packages only.
 
-Workbook Contract v1.3.0 contains exactly four views:
-
-1. Executive Summary
-2. Warehouse Portfolio
-3. Scenario Plans
-4. Recommendation Registry
+Sheets, grains and columns: `docs/contracts/workbook-contract.md`.
 
 The workbook must not:
 
@@ -423,7 +390,7 @@ The workbook must not:
 - alter deterministic identifiers,
 - interpret unavailable cost as zero.
 
-Negative signed savings in JSON are rendered as a positive-magnitude `COST_INCREASE` presentation, not as a misleading negative “savings” value.
+A cost increase is a negative annual-impact number (shown in red parentheses) with Impact Type `COST_INCREASE`; the sign is never flipped.
 
 ---
 
@@ -441,7 +408,7 @@ Negative signed savings in JSON are rendered as a positive-magnitude `COST_INCRE
 | Versioned AWS price registry | Local/versioned | explicit regional Pro/Classic EC2 reference price |
 | Read-only Databricks REST | Workspace-scoped | execution-target validation and compatibility evidence only |
 
-Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Query-history records are typically available within roughly one hour, and original billing usage records are typically available within roughly 12 hours. These source-latency characteristics affect confidence/freshness policy rather than changing source authority; billing latency is handled by the per-workspace watermark and settle buffer, not by treating late days as zero.
+Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Source latency affects confidence/freshness policy rather than changing source authority; billing latency is handled by the per-workspace watermark and settle buffer, not by treating late days as zero (`docs/architecture/context.md` section 8.2). Field-level source mapping: `docs/reference/source-mapping.md`.
 
 ### 7.2 Authority rules
 
@@ -466,15 +433,15 @@ REST compatibility evidence may add blockers or validation context but cannot ov
 
 ### 7.3 Photon semantics
 
-`product_features.is_photon` is treated as **observed workload/billing state**, not as a direct configuration read. The normalizer derives `ENABLED`, `DISABLED`, `MIXED`, or `UNKNOWN` from current-epoch signed DBU evidence using coverage/freshness policy.
-
-This distinction must remain visible through analyzer findings and the public contract.
+Photon is observation-only: it is derived from current-epoch billing evidence, never read from configuration and never recommended (state model and parameters: `docs/reference/source-mapping.md` and `docs/reference/thresholds.md`).
 
 ### 7.4 Owner and workload-source attribution
 
 - owner is inferred from current-epoch billing attribution where available;
 - query source is multi-label and can simultaneously include Databricks entity origin and client application;
 - absence of attribution remains explicit rather than guessed.
+
+Field mapping: `docs/reference/source-mapping.md`.
 
 ---
 
@@ -525,12 +492,7 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The demo fleet has one simulated warehouse per golden scenario. Its evidence is simulated from workload descriptions (query windows, auto-stop, concurrency-driven clusters, billed DBU from published DBU/hour and SKU list prices) and normalized by the same extraction used for live evidence. The full fleet produces:
-
-- 38 recommendation packages,
-- 76 scenarios,
-- 228 candidate rows,
-- one four-sheet workbook.
+The demo fleet has one simulated warehouse per golden scenario. Its evidence is simulated from workload descriptions (query windows, auto-stop, concurrency-driven clusters, billed DBU from published DBU/hour and SKU list prices) and normalized by the same extraction used for live evidence. It produces one package per simulated warehouse and one workbook; expected output counts: `README.md`.
 
 Synthetic mode is a test/illustration facility, not an alternate recommendation engine.
 
@@ -575,13 +537,13 @@ flowchart TD
     PY --> OUT[Packages / scenarios / candidates]
 ```
 
-The production decision path intentionally does not require pandas. Python processes bounded domain objects/dataclasses in deterministic batches (default 100 warehouses).
+The production decision path intentionally does not require pandas. Python processes bounded domain objects/dataclasses in deterministic batches (batch size: `docs/architecture/lld.md` section 5.2, `--batch-size`).
 
 ---
 
 ## 10. Economic architecture
 
-The system deliberately maintains six economic layers:
+The system keeps the economic layers below separate. Definitions and semantics: `docs/architecture/context.md` sections 18 to 21 and `docs/contracts/reporter-json-contract.md`.
 
 ```mermaid
 flowchart TD
@@ -598,21 +560,17 @@ flowchart TD
 
 ### 10.1 Historical actual
 
-Observed historical Databricks DBU cost is retained separately from modeled forward cost.
+Observed historical Databricks DBU cost is retained separately from modeled forward cost. Usage with no matching list price is reported as unpriced DBU and makes the affected cost unavailable rather than understated (`docs/architecture/lld.md` section 11.4).
 
-Billing usage is left-joined to list prices so usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as unpriced DBU rather than dropped. Unpriced DBU makes the affected actual cost (trailing 365 days) or forward cost (forecast basis) unavailable; candidate savings, migration economics and scenario/package economics are then withheld instead of computed on an understated baseline.
-
-Historical customer AWS actual cost remains unavailable unless an authoritative customer billing/effective-rate source is integrated. The architecture forbids labeling an on-demand model as historical actual.
+Historical customer AWS actual cost remains unavailable unless an authoritative customer billing/effective-rate source is integrated. The architecture forbids labeling an on-demand model as historical actual (`docs/reference/aws-cost-model.md`).
 
 ### 10.2 Forward baseline
 
-The forward baseline represents the expected next-365-day cost with no change. It uses current-epoch-aware cost history/forecasting and type-appropriate AWS treatment.
-
-The forward DBU cost is published only when it is known: every basis day priced, at least 7 billed days in the current epoch, and a positive run rate. Otherwise it is null (never $0 or a guessed run rate) and forecast metadata records why (`dbu_forecast_status`: `INSUFFICIENT_ACTIVE_COST_DAYS`, `UNPRICED_USAGE` or `NON_POSITIVE_RUN_RATE`; `COMPLETE` when published). Savings estimates and migration economics are then withheld with blocker `COST_HISTORY_INSUFFICIENT` (epoch younger than 7 calendar days), `BILLED_COST_DAYS_INSUFFICIENT` (mature epoch with too few billed days) or `DBU_COST_UNAVAILABLE`.
+The forward baseline is the expected next-365-day cost with no change, built from current-epoch-aware cost history and type-appropriate AWS treatment. It is published only when it is known: otherwise it is null (never $0 or a guessed run rate), the forecast metadata records why, and savings estimates and migration economics are withheld. Forecast algorithm: `docs/architecture/lld.md` section 11. Gating parameter: `min_economics_cost_history_days` (`docs/reference/thresholds.md`). Resulting codes: `docs/reference/blocker-codes.md` (section "DBU and AWS cost availability").
 
 ### 10.3 Candidate economics
 
-Each candidate estimates only its isolated change and is explicitly non-additive.
+The modeler/estimator prices each candidate in isolation; candidate economics are non-additive.
 
 ### 10.4 Scenario economics
 
@@ -620,15 +578,7 @@ The stateful bundle estimator owns scenario-level economics because it accounts 
 
 ### 10.5 Package economics
 
-Package economics provide a human-facing opportunity envelope:
-
-- `low` = minimum LOW total-savings bound across assessable scenarios,
-- `base` = BASE savings of the deterministic recommended scenario,
-- `high` = maximum HIGH total-savings bound across assessable scenarios.
-
-This is an **opportunity envelope**, not a statistical confidence interval.
-
-DBU/AWS components remain attached to the scenario that generated each envelope point; components from different scenarios are never mixed into a synthetic total.
+Package economics are derived from scenario economics only, as an opportunity envelope rather than a statistical confidence interval; DBU/AWS components stay attached to the scenario that generated each envelope point. Field semantics: `docs/contracts/reporter-json-contract.md` section 15.
 
 ### 10.6 Realization
 
@@ -674,6 +624,8 @@ flowchart TD
     REAL -. references immutable package/scenario/candidate .-> PKG
 ```
 
+Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `contracts/reporter_contract.py`. The internal join keys that `publisher.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
+
 Volatile data such as `generated_at`, filenames, log paths, or workbook formatting must not influence recommendation identities.
 
 ---
@@ -696,7 +648,9 @@ Workbook Contract v1.3.0 is an independently versioned presentation contract:
 - renderer: `reporters/workbook_reporter.py`
 - specification: `docs/contracts/workbook-contract.md`
 
-The exact ordered workbook columns and column groups are defined in the workbook contract module and consumed by the renderer. This prevents renderer-only formatting changes from silently dropping agreed fields.
+The ordered workbook columns and column groups are declared only in the workbook contract module and consumed by the renderer, so renderer-only formatting changes cannot silently drop agreed fields. Sheets, grains and columns: `docs/contracts/workbook-contract.md`.
+
+Signed values: a cost increase is a negative annual-impact number (shown in red parentheses) with Impact Type `COST_INCREASE`; the sign is never flipped.
 
 ```mermaid
 flowchart LR
@@ -711,11 +665,12 @@ flowchart LR
     SP --> X
     RR --> X
 ```
+
 ### 12.3 Internal domain contracts
 
 `publisher.py` keeps typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result. After reviewer gate 2, the publisher assembles the locked public `RecommendationPackage` directly; there is no separate internal report serialization model.
 
-These internal objects are **not public APIs**. The public JSON contract remains `RecommendationPackage` v1.2.0.
+These internal objects are **not public APIs**. The public JSON contract remains the `RecommendationPackage` of the Reporter JSON Contract.
 
 ---
 
@@ -803,29 +758,9 @@ The architecture forbids silent fallbacks that convert unknown into:
 
 ## 15. Observability
 
-Each run emits:
+Each run writes packages, the workbook, replay evidence, a run manifest and a log; the output tree is in `README.md`.
 
-```text
-<output-dir>/
-├── packages/
-│   └── <workspace_id>__<warehouse_id>.json
-├── workbook.xlsx
-├── evidence.json
-├── manifest.json
-└── publisher.log
-```
-
-The manifest/logging surface provides sufficient context to identify:
-
-- publisher version,
-- policy/analyzer/optimizer/model/estimator/reviewer versions,
-- source/evidence mode,
-- source region(s),
-- packages emitted,
-- validation success/failure,
-- output locations.
-
-Detailed metric evidence remains in the package/evidence artifacts rather than being duplicated into logs.
+The manifest and log identify the run (publisher and contract versions, emitted packages and warehouses excluded by the supported-type gate) without duplicating metric evidence, which stays in the package and evidence artifacts. Manifest contents: `docs/architecture/lld.md` section 28.2. Policy, model and component versions are recorded in each package's provenance.
 
 ---
 
@@ -895,7 +830,7 @@ This avoids a design in which local runtime performance scales linearly with raw
 
 ### 17.2 Downstream batching
 
-Normalized warehouses are processed in deterministic batches. Default batch size is 100 and is an execution/memory control, not a decision semantic input.
+Normalized warehouses are processed in deterministic batches. The batch size is an execution/memory control, not a decision semantic input (default: `docs/architecture/lld.md` section 5.2, `--batch-size`).
 
 Changing batch size must not change package decisions or IDs.
 
@@ -930,6 +865,7 @@ A future policy can promote a migration scenario only through a versioned change
 | Source compute | Databricks SQL/system tables | push high-volume aggregation to the platform |
 | Auth | Databricks CLI OAuth profile | short-lived user-authorized credentials; no token logging |
 | Public contract | typed dataclasses + JSON Schema | stable machine-readable boundary + semantic validation |
+| Public contract validation | `jsonschema` (Draft 2020-12) | package schema validation before any package is written; mandatory dependency (`requirements.txt`) |
 | Workbook | `openpyxl` projection | presentation-only, no decision formulas |
 | Local data processing | Python objects/dataclasses | bounded per-warehouse evidence; avoids pandas dependency in core |
 | AWS forward price source | versioned JSON registry | explicit, reproducible, region-specific reference pricing |
@@ -950,18 +886,7 @@ flowchart TD
     WC --> E2E[Golden-scenario fleet end-to-end synthetic run]
 ```
 
-
-The sealed v2.10.0 repository is validated by the full regression suite plus the golden-scenario fleet synthetic end-to-end run; reproduce the results with the commands in `CLAUDE.md`.
-
-The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
-
-- current-epoch boundaries,
-- unavailable evidence,
-- signed economic ranges,
-- dependency invalidation,
-- deterministic hashes,
-- scenario envelope lineage,
-- workbook no-recalculation behavior.
+The architecture expects tests to prove both positive behavior and fail-closed behavior. Test design, golden scenarios and required contract assertions: `docs/architecture/lld.md` section 32. Reproduce results with the commands in `CLAUDE.md`.
 
 ---
 
@@ -1007,15 +932,7 @@ The architecture expects tests to prove both positive behavior and fail-closed b
 
 ## 22. Implementation conformance
 
-Publisher v2.7.1 closes the architecture-alignment items identified during document review:
-
-- the supported-type gate is explicitly enforced before active optimization;
-- only `CLASSIC`, `PRO`, and standard `SERVERLESS` enter optimization logic;
-- reviewed candidate/scenario state is adapted directly into the locked public package without a transitional run-report serialization layer;
-- Workbook Contract v1.3.0 is numeric-first, currency-explicit, and projection-only;
-- repository documentation has one canonical approved PRD/HLD/LLD/context set plus supporting contract/source references.
-
-Realization ingestion remains intentionally future scope: the contract is present, while Phase 1 initializes packages at `NOT_APPLIED`.
+Open limitations and unimplemented scope: `docs/reference/known-limitations.md`.
 
 ---
 
@@ -1041,41 +958,16 @@ Any future decision-authority change requires a PRD/architecture revision rather
 
 ## 24. HLD acceptance criteria
 
-This HLD is accepted when the product owner agrees that:
+Product acceptance criteria: `docs/product/prd.md` section 23. The architecture additionally holds when:
 
-1. the pipeline boundaries match the approved PRD;
-2. system-table source authority and read-only API boundaries are correct;
-3. supported warehouse types and the unsupported-type gate are explicit;
-4. current-epoch evidence is the only active decision authority;
-5. candidate, scenario, and package economics have distinct responsibilities;
-6. two reviewer gates protect publication;
-7. Reporter JSON Contract v1.2.0 is the public source of truth;
-8. Workbook Contract v1.3.0 is projection-only;
-9. live, replay, synthetic, and multi-region execution paths are correctly represented;
-10. read-only/HITL/security behavior is explicit;
-11. the listed implementation-alignment items are acknowledged rather than hidden.
+1. system-table source authority and read-only API boundaries are as stated in sections 7 and 13;
+2. live, replay, synthetic, and multi-region execution paths are represented (sections 8 and 9);
+3. read-only/HITL/security behavior is explicit (section 13).
 
 ---
 
 ## 25. Reference sources
 
-Current platform facts used by this HLD were revalidated against Databricks documentation on 2026-10-01:
+External platform references: `docs/product/prd.md` section 28.
 
-- System tables scope/retention: https://docs.databricks.com/aws/en/admin/system-tables/
-- Query history system table: https://docs.databricks.com/aws/en/admin/system-tables/query-history
-- Billing usage system table: https://docs.databricks.com/aws/en/admin/system-tables/billing
-- SQL warehouse monitoring sources: https://docs.databricks.com/aws/en/compute/sql-warehouse/monitor/queries
-- SQL warehouse sizing/scaling behavior: https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior
-- SQL warehouse types: https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-types
-- Lakehouse Real-Time: https://docs.databricks.com/aws/en/compute/sql-warehouse/real-time
-
-Repository source-of-truth references:
-
-- `docs/product/prd.md`
-- `docs/contracts/reporter-json-contract.md`
-- `docs/contracts/workbook-contract.md`
-- `contracts/reporter_contract.py`
-- `contracts/workbook_contract.py`
-- `publisher.py`
-- `reporters/workbook_reporter.py`
-- `tests/`
+Repository source-of-truth references: the topic homes in `docs/README.md`, plus `contracts/reporter_contract.py`, `contracts/workbook_contract.py`, `publisher.py`, `reporters/workbook_reporter.py` and `tests/`.
