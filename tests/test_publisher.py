@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import json
 import tempfile
 import unittest
@@ -1947,3 +1948,52 @@ class GoldenScenarioTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AwsRegionPriceGuardTests(unittest.TestCase):
+    """Live runs refuse to publish Pro/Classic economics for a region the AWS price registry does not cover."""
+
+    def setUp(self):
+        self.evidence = p.demo_evidence()  # one Pro warehouse
+        self.registry = p.load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
+
+    def _serverless_only(self):
+        ev = copy.deepcopy(self.evidence)
+        for e in ev:
+            for ep in e.epochs:
+                ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS")
+        return ev
+
+    def test_unknown_or_unregistered_region_with_pro_warehouse_is_refused(self):
+        for region in ("unknown", "eu-west-1", ""):
+            msg = p.aws_region_price_guard(self.evidence, region, self.registry, allow_missing=False)
+            self.assertIsNotNone(msg, region)
+            self.assertIn("--allow-missing-aws-price", msg)
+            self.assertIn("1 Pro/Classic", msg)
+
+    def test_registered_region_escape_flag_and_serverless_only_fleet_pass(self):
+        self.assertIsNone(p.aws_region_price_guard(self.evidence, "us-east-1", self.registry, allow_missing=False))
+        self.assertIsNone(p.aws_region_price_guard(self.evidence, "unknown", self.registry, allow_missing=True))
+        self.assertIsNone(p.aws_region_price_guard(self._serverless_only(), "unknown", self.registry, allow_missing=False))
+
+    def test_unsupported_types_do_not_trigger_the_guard(self):
+        ev = copy.deepcopy(self.evidence)
+        for ep in ev[0].epochs:
+            ep.config = dataclasses.replace(ep.config, warehouse_type="LAKEHOUSE_REALTIME")
+        self.assertIsNone(p.aws_region_price_guard(ev, "unknown", self.registry, allow_missing=False))
+
+    def test_live_main_refuses_before_writing_packages(self):
+        import contextlib, io
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), \
+                patch.object(p, "resolve_cli_oauth", return_value=MagicMock()), \
+                patch.object(p, "collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
+                patch.object(p, "SqlClient", MagicMock()), \
+                patch.object(p, "extract_evidence", return_value=self.evidence):
+            with self.assertRaises(SystemExit) as cm:
+                p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
+            self.assertIn("--allow-missing-aws-price", str(cm.exception.code))
+            self.assertFalse((Path(tmp) / "packages").exists())
+            # The escape flag publishes with AWS cost unavailable.
+            self.assertEqual(p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
+            self.assertTrue(any((Path(tmp) / "packages").glob("*.json")))

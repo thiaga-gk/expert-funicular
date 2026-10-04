@@ -5428,7 +5428,8 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--all-purpose-cluster-id",default=os.getenv("DATABRICKS_ALL_PURPOSE_CLUSTER_ID"),help="Convenience alias for an all-purpose compute execution target")
     p.add_argument("--workspace-id",default=os.getenv("DATABRICKS_WORKSPACE_ID"),help="Workspace/org ID; optional for warehouse, used to construct all-purpose cluster HTTP path")
     p.add_argument("--config-file",default=os.getenv("DATABRICKS_CONFIG_FILE"))
-    p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"))
+    p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"),help="AWS region of the workspace; Pro/Classic AWS cost uses its registry prices")
+    p.add_argument("--allow-missing-aws-price",action="store_true",help="Live mode: publish even when --source-region is missing from the AWS price registry (Pro/Classic AWS cost unavailable)")
     p.add_argument("--billing-ingested-through",default=None,help="YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)")
     default_registry=str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json")
     p.add_argument("--aws-price-registry",default=os.getenv("AWS_PRICE_REGISTRY",default_registry))
@@ -5439,6 +5440,25 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--no-workbook",action="store_true",help="Skip workbook.xlsx generation; locked JSON packages are still emitted")
     p.add_argument("--print-json",action="store_true")
     return p.parse_args(argv)
+
+
+def aws_region_price_guard(evidence: Sequence[WarehouseEvidence], source_region: str, aws_registry: Mapping[str, Any], *, allow_missing: bool) -> Optional[str]:
+    """Return a refusal message when supported Pro/Classic warehouses need AWS prices for a region the registry lacks.
+
+    Without the region's instance prices every Pro/Classic AWS, total and package figure would silently be null (or,
+    with a wrong label, priced for the wrong region); a live run stops instead unless the operator opts in.
+    """
+    if allow_missing:
+        return None
+    regions = sorted((aws_registry.get("regions") or {}).keys())
+    if source_region in regions:
+        return None
+    pro_classic = [e for e in evidence if e.current_epoch.config.warehouse_type in {"PRO", "CLASSIC"}]
+    if not pro_classic:
+        return None
+    return (f"--source-region {source_region or '(empty)'!r} is not in the AWS price registry (regions: {', '.join(regions) or 'none'}); "
+            f"{len(pro_classic)} Pro/Classic warehouse(s) need AWS instance prices. Pass the workspace's AWS region, extend the "
+            "registry, or pass --allow-missing-aws-price to publish with AWS cost unavailable.")
 
 
 def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
@@ -5473,6 +5493,11 @@ def main(argv:Optional[Sequence[str]]=None)->int:
         registry=load_aws_price_registry(args.aws_price_registry)
         with SqlClient(auth) as client:
             evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
+        refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
+        if refusal:
+            raise SystemExit(refusal)
+        if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
+            LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
     packages=build_recommendation_packages(evidence,t,args.batch_size)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
