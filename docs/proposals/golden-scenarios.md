@@ -60,6 +60,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 | C49 | Auto-stop too low | Pro auto-stop 10, many starts, long compute waits | Auto-stop raised when the restarts it saves outweigh the idle time added. | yes | not covered | fail | K1 |
 | C50 | Single-cluster warehouse with heavy queueing | `max_clusters = 1`, 40% queued | Max 1 → 2, with a worst case of roughly double the cost. | yes | covered | fail | G35 |
 | C51 | Mostly idle warehouse, long auto-stop | Pro 1/1, about 95% of running time idle, auto-stop 120 | About 95% of running time removable (not capped at 60%); Serverless shown as strongly positive, not negative. | yes | covered | fail | G19, M1, G36, K5 |
+| C52 | Periodic low-frequency workload | Billed days spaced weekly or rarer (bi-weekly, monthly, month-end close, quarterly, yearly) | Forward cost forecast from enough observed cycles over a window long enough to hold them (up to the 365 days collected); unknown, never a wrong number, until then. | yes | not covered | fail | G43 |
 | A01 | Serverless auto-stop below 5 via API | Serverless `auto_stop_minutes` < 5 | Read the actual value; leave it alone. | yes | covered | pass | — |
 | A02 | Pro/Classic auto-stop below 10 | Target < 10 on Pro/Classic | Never emitted; rejected by the reviewer. | yes | covered | pass | K1 |
 | A03 | Serverless sizing and concurrency | Serverless with high max | Queue-based ceiling rule at low confidence. | yes | covered | fail | K2 |
