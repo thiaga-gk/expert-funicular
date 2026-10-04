@@ -12,7 +12,10 @@ Paths address the serialized RecommendationPackage. A collector-level fixture in
 ``snapshots`` (system.compute.warehouses rows) and ``now``: the real CONFIG_EPOCHS_SQL runs in sqlite, its rows go
 through extract_evidence, and ``evidence_assertions`` address the serialized WarehouseEvidence. A segment is a key, ``key[*]`` (every list item) or
 ``key[field=value]`` (list items whose field equals value). Operators: ``equals``, ``includes`` (list contains
-every given value), ``excludes`` (list contains none of them), ``length`` (list length). With ``[*]`` or a filter the operator applies
+every given value), ``excludes`` (list contains none of them), ``length`` (list length).
+
+With ``"recompute_forecast": true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
+rows (as the collector does) before the package is built, so a fixture can exercise the forecast itself. With ``[*]`` or a filter the operator applies
 to every matched item, and at least one item must match.
 """
 import json
@@ -53,6 +56,20 @@ def resolve(node, path):
                 nxt.extend(x for x in child if str(x.get(field)) == want)
         values = nxt
     return values
+
+
+def recompute_forecast(e):
+    """Mirror extract_evidence: forecast fields come from Modeler.forecast_from_daily_cost over the daily rows."""
+    model = p.Modeler(p.Thresholds()).forecast_from_daily_cost(
+        e.daily_cost_365, e.current_epoch.epoch_start, e.analysis_time,
+        billing_watermark=e.forecast_metadata.get("billing_watermark"),
+    )
+    e.current_cost_365 = model["current_cost_365"]
+    e.baseline_forecast_cost_365 = model["forecast_cost_365"]
+    e.currency = model["currency"]
+    e.cost_history_days = model["cost_history_days"]
+    e.cost_cv_84 = model["cost_cv_84"]
+    e.forecast_metadata = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
 
 
 def check(package, assertion):
@@ -108,6 +125,9 @@ class GoldenScenarioTests(unittest.TestCase):
             expect = payload["expect"]
             with self.subTest(scenario=expect.get("scenario"), fixture=fixture.name):
                 evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
+                if expect.get("recompute_forecast"):
+                    for e in evidence:
+                        recompute_forecast(e)
                 packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, p.Thresholds())}
                 package = packages[expect["warehouse"]].to_dict()
                 p.validate_locked_package_schema(package)

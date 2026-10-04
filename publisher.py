@@ -903,6 +903,12 @@ ORDER BY account_id, sku_name
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
 
+def dbu_baseline_blocker(e: "WarehouseEvidence") -> str:
+    """Why the forward DBU baseline is unknown: too few billed days (time clears it) or a cost that cannot be priced."""
+    status = (e.forecast_metadata or {}).get("dbu_forecast_status")
+    return "COST_HISTORY_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+
+
 def optional_float(value: Any) -> Optional[float]:
     """Float or None when the source did not report a usable value; unknown evidence must not read as zero."""
     if value is None or isinstance(value, bool):
@@ -1563,7 +1569,8 @@ class Modeler:
         if not series:
             return {
                 "current_cost_365": actual,
-                "forecast_cost_365": 0.0,
+                "forecast_cost_365": None,
+                "dbu_forecast_status": "UNPRICED_USAGE" if unpriced_in_basis > 0 else "INSUFFICIENT_ACTIVE_COST_DAYS",
                 "currency": currency,
                 "cost_history_days": 0,
                 "active_cost_days": 0,
@@ -1595,6 +1602,17 @@ class Modeler:
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
+        active_cost_days = sum(1 for x in series if abs(x) > 1e-12)
+        # The forward DBU cost is published only when it is known: every day priced, enough billed days to estimate a
+        # run rate, and a positive run rate. Otherwise it is unknown (null), never $0 or a guess.
+        if unpriced_in_basis > 0:
+            forecast_status = "UNPRICED_USAGE"
+        elif active_cost_days < self.t.min_economics_cost_history_days:
+            forecast_status = "INSUFFICIENT_ACTIVE_COST_DAYS"
+        elif daily <= 0:
+            forecast_status = "NON_POSITIVE_RUN_RATE"
+        else:
+            forecast_status = "COMPLETE"
         if unpriced_in_basis > 0:
             # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
             # AWS model gets no trend adjustment instead of a spurious downward one.
@@ -1603,10 +1621,11 @@ class Modeler:
             cv = None
         return {
             "current_cost_365": actual,
-            "forecast_cost_365": None if unpriced_in_basis > 0 else round(max(0.0, daily * 365), 2),
+            "forecast_cost_365": round(daily * 365, 2) if forecast_status == "COMPLETE" else None,
+            "dbu_forecast_status": forecast_status,
             "currency": currency,
             "cost_history_days": len(series),
-            "active_cost_days": sum(1 for x in series if abs(x) > 1e-12),
+            "active_cost_days": active_cost_days,
             "cost_cv_84": None if cv is None else round(cv, 4),
             "forecast_method": MODEL_VERSION,
             "run_rate_28": None if unpriced_in_basis > 0 else round(mean28 * 365, 2),
@@ -2111,8 +2130,8 @@ class Optimizer:
         blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
         if e.baseline_forecast_cost_365 is None:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["DBU_COST_UNAVAILABLE"],[],[],[],
-                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unavailable: usage was billed under an SKU with no list price."))
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e)],[],[],[],
+                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unknown (too few billed days, unpriced usage or a non-positive run rate)."))
         elif e.cost_history_days < self.t.min_economics_cost_history_days:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
                 {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["COST_HISTORY_INSUFFICIENT"],[],[],[],
@@ -2195,11 +2214,18 @@ class Estimator:
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
         if e.baseline_forecast_cost_365 is None:
-            # Every estimate below scales the forward DBU cost; with unpriced usage in its basis that cost is unknown.
+            # Every estimate below scales the forward DBU cost, which is unknown: unpriced usage, too few billed days or a
+            # non-positive run rate in the current epoch.
+            blocker=dbu_baseline_blocker(e)
+            if blocker=="COST_HISTORY_INSUFFICIENT":
+                return None,{
+                    "method":f"estimate withheld: fewer than {self.t.min_economics_cost_history_days} billed days in the current epoch to forecast its DBU cost",
+                    "estimate_blocker":blocker,
+                    "bundle_effect":{"type":"estimate_withheld","status":"REQUIRES_COST_HISTORY","reason":"At least one step cannot be priced because the current epoch has too few billed days to forecast its cost; economics are withheld until it accrues."},**meta}
             return None,{
-                "method":"estimate withheld: the forward DBU cost is unavailable (usage billed under an SKU with no list price)",
-                "estimate_blocker":"DBU_COST_UNAVAILABLE",
-                "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":"The forward DBU cost is unavailable because usage was billed under an SKU with no list price; economics are withheld."},**meta}
+                "method":"estimate withheld: the forward DBU cost is unavailable (unpriced usage or a non-positive run rate)",
+                "estimate_blocker":blocker,
+                "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":"The forward DBU cost is unavailable (unpriced usage or a non-positive run rate); economics are withheld."},**meta}
         if e.cost_history_days < self.t.min_economics_cost_history_days:
             # Every estimate below scales the forward cost forecast, which is not trustworthy on a very young epoch.
             return None,{

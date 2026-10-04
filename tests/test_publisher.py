@@ -446,15 +446,13 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_forecast_zero_fills_calendar_days(self):
         model = p.Modeler(self.t)
-        rows = [
-            {"usage_date": "2026-09-28", "list_cost": 100, "currency_code": "USD"},
-            {"usage_date": "2026-09-30", "list_cost": 100, "currency_code": "USD"},
-        ]
-        out = model.forecast_from_daily_cost(rows, "2026-09-27T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
-        self.assertEqual(out["cost_history_days"], 4)
-        self.assertEqual(out["active_cost_days"], 2)
+        # 10-day epoch billed on 8 days (enough billed days to forecast): the 2 idle days count as $0 days.
+        rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100, "currency_code": "USD"} for d in (21, 22, 23, 24, 26, 27, 29, 30)]
+        out = model.forecast_from_daily_cost(rows, "2026-09-21T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertEqual(out["cost_history_days"], 10)
+        self.assertEqual(out["active_cost_days"], 8)
         self.assertEqual(out["zero_cost_days_in_basis"], 2)
-        self.assertAlmostEqual(out["forecast_cost_365"], 50 * 365, places=2)
+        self.assertAlmostEqual(out["forecast_cost_365"], 80 * 365, places=2)
 
     def _cost_rows(self, days, start="2026-09-01", cost=lambda i: 100.0):
         import datetime as dt
@@ -881,6 +879,43 @@ class PublisherV27Tests(unittest.TestCase):
                 with p.SqlClient(self._auth()):
                     pass
         self.assertTrue(calls.get("closed"))
+
+    # --- An unknown DBU baseline is never published as $0 -------------------------------------------------------
+    def test_too_few_active_cost_days_leave_the_forecast_unknown(self):
+        rows = [{"usage_date": d, "list_cost": 200.0, "currency_code": "USD"} for d in ("2026-09-05", "2026-09-12", "2026-09-19", "2026-09-26")]
+        out = self.forecast(rows)
+        self.assertEqual(out["cost_history_days"], 30)
+        self.assertEqual(out["active_cost_days"], 4)
+        self.assertIsNone(out["forecast_cost_365"])
+        self.assertEqual(out["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
+
+    def test_no_cost_rows_give_an_unknown_forecast_not_zero(self):
+        out = self.forecast([], start="2026-09-25T00:00:00+00:00")
+        self.assertIsNone(out["forecast_cost_365"])
+        self.assertEqual(out["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
+        out = self.forecast([], start="2026-10-01T00:00:00+00:00")  # epoch starts today: empty basis
+        self.assertIsNone(out["forecast_cost_365"])
+
+    def test_non_positive_run_rate_is_unknown_not_zero(self):
+        rows = self._cost_rows(30, cost=lambda i: 10.0)
+        rows.append({"usage_date": "2026-09-30", "list_cost": -5000.0, "currency_code": "USD"})  # large net correction
+        out = self.forecast(rows)
+        self.assertIsNone(out["forecast_cost_365"])
+        self.assertEqual(out["dbu_forecast_status"], "NON_POSITIVE_RUN_RATE")
+
+    def test_regular_history_forecasts_normally(self):
+        out = self.forecast(self._cost_rows(30))
+        self.assertEqual(out["dbu_forecast_status"], "COMPLETE")
+        self.assertAlmostEqual(out["forecast_cost_365"], 36500.0, places=2)
+
+    def test_insufficient_active_days_withhold_with_cost_history_code(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.baseline_forecast_cost_365 = None
+        e.forecast_metadata = dict(e.forecast_metadata, dbu_forecast_status="INSUFFICIENT_ACTIVE_COST_DAYS")
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertIn("COST_HISTORY_INSUFFICIENT", by["warehouse_type"].blockers)
+        self.assertNotIn("DBU_COST_UNAVAILABLE", by["warehouse_type"].blockers)
+        self.assertEqual(by["auto_stop_minutes"].metadata["estimate_blocker"], "COST_HISTORY_INSUFFICIENT")
 
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
         seen = {}
