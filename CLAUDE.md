@@ -41,7 +41,7 @@ Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → 
 - Workbook annual impact is numeric and signed (positive = savings, negative = cost increase) with explicit currency and impact type. No strings like `Save USD ...` in economic cells.
 
 ## Identity and package write order
-- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs.
+- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/test_locked_reporter_integration.py` pins that packages ignore them).
 - Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
 - Write order (`_build_locked_recommendation_package`, `package_locked_contract`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
 
