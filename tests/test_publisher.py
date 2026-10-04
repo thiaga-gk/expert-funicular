@@ -272,6 +272,19 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertTrue(seen)
         self.assertTrue(set(seen) <= p.SUPPORTED_WAREHOUSE_TYPES)
 
+    def test_unsupported_warehouse_does_not_feed_workspace_calibration(self):
+        fleet = p.synthetic_demo_evidence(2)
+        unsupported = fleet[1]
+        prior = copy.deepcopy(unsupported.current_epoch)
+        prior.is_current = False
+        prior.epoch_id = prior.epoch_id + "-prior"
+        prior.config = p.WarehouseConfig("SERVERLESS", "CURRENT", "MEDIUM", 1, 1, 10)
+        unsupported.epochs.insert(0, prior)
+        unsupported.current_epoch.config = p.WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
+        self.assertFalse(any(ep.config.warehouse_type == "SERVERLESS" for ep in fleet[0].epochs))
+        p.evaluate_warehouses(fleet, self.t)
+        self.assertFalse(fleet[0].billing_features["workspace_serverless_observed_from_system_compute_warehouses"])
+
     def test_unsupported_exclusion_recorded_in_manifest(self):
         fleet = self._fleet_with_one_unsupported()
         packages = p.build_recommendation_packages(fleet, self.t)

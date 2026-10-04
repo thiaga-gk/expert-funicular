@@ -3831,8 +3831,8 @@ def evaluate_warehouses(
             "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
-    _prepare_workspace_calibration(evidence)
     supported = [e for e in evidence if _is_supported_warehouse(e)]
+    _prepare_workspace_calibration(supported)
     ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
@@ -4372,14 +4372,14 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
-    LOGGER.info("publisher.done warehouses=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence),len(packages),candidate_count,scenario_count,log_path)
+    excluded_count=len(unsupported_warehouse_exclusions(evidence))
+    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence)-excluded_count,excluded_count,len(packages),candidate_count,scenario_count,log_path)
     if args.print_json:
         if len(packages) != 1:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        excluded_count=len(unsupported_warehouse_exclusions(evidence))
-        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
+        print(f"Analyzed {len(evidence)-excluded_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0
