@@ -164,8 +164,6 @@ class WorkbookContractTests(unittest.TestCase):
             self.assertEqual(manifest["workbook_status"],"GENERATED")
 
 
-if __name__=="__main__":
-    unittest.main()
 
 
 class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
