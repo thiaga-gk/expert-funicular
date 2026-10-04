@@ -16,12 +16,15 @@ Core fixtures (used by `tests/test_publisher.py`):
 
 Scenario fixtures (`c*.json` and `a*.json`, run by `tests/test_golden_scenarios.py`; the number is the catalog row):
 - a07-billing-freshness
+- c06-oversized-warehouse (asserts the task-time utilization evidence only)
 - c08-concurrency-gates
+- c10-over-provisioned-floor (asserts the task-time utilization evidence only)
 - c20-sparse-cost-history
 - c26-failure-heavy
 - c31-multi-region-billing (collector-level)
 - c32-unpriced-sku
 - c36-tag-rename-churn (collector-level)
+- c45-steady-high-utilization (asserts the task-time utilization evidence only)
 - c48-long-unchanged-warehouse
 
 Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/test_evidence_format.py` fails otherwise.

@@ -277,7 +277,8 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - Databricks source counts for dashboard/job/notebook/Genie/alert/SQL query,
 - external/client application counts for Power BI/Tableau/Looker/Databricks SQL Editor,
 - statement-text visibility and legacy Hive metastore reference count,
-- epoch-level p95 execution, queue and spill percentages.
+- epoch-level p95 execution, queue and spill percentages,
+- epoch-level total task duration (`epoch_task_duration_ms`, the sum of `total_task_duration_ms`), the numerator of the task-time utilization evidence.
 
 Raw query rows are not loaded into the optimizer.
 
@@ -625,13 +626,15 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 |---|---|
 | `warehouse_channel` | current channel |
 | ~~`enable_photon`~~ | retired in v2.7.1; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
-| `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache |
+| `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache, task-time utilization |
 | `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
-| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries |
+| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization |
 | `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, source/compatibility evidence |
 
 Common facts include query count, active days, queries per active day, epoch age, epoch query count, cost-history days, and cost variability.
+
+The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_task_duration_ms / 60000 / cluster_minutes` over the whole current epoch (both terms cover the same period), rounded to 6 places; it is null when either term is missing or zero. It is emitted on the `warehouse_size` and `min_clusters` candidates as evidence only: no optimizer decision reads it, and it is not yet calibrated on real data.
 
 ---
 

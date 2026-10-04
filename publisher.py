@@ -622,6 +622,7 @@ q AS (
     h.epoch_end,
     x.start_time,
     x.total_duration_ms,
+    x.total_task_duration_ms,
     x.execution_duration_ms,
     x.waiting_for_compute_duration_ms,
     x.waiting_at_capacity_duration_ms,
@@ -690,7 +691,8 @@ SELECT
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(statement_text,'')) LIKE '%hive_metastore.%') AS hive_metastore_reference_queries_30,
   PERCENTILE_APPROX(execution_duration_ms,0.95) AS epoch_p95_execution_ms,
   100.0 * COUNT_IF(COALESCE(waiting_at_capacity_duration_ms,0) > 0)/NULLIF(COUNT(*),0) AS epoch_queued_query_pct,
-  100.0 * COUNT_IF(COALESCE(spilled_local_bytes,0) > 0)/NULLIF(COUNT(*),0) AS epoch_spill_query_pct
+  100.0 * COUNT_IF(COALESCE(spilled_local_bytes,0) > 0)/NULLIF(COUNT(*),0) AS epoch_spill_query_pct,
+  SUM(total_task_duration_ms) AS epoch_task_duration_ms
 FROM q
 GROUP BY workspace_id, warehouse_id, epoch_start
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
@@ -2140,6 +2142,15 @@ class Analyzer:
         out["warehouse_channel"] = AnalysisResult(e.warehouse_id,"warehouse_channel",ep.epoch_id,fs,{**common,"channel":cfg.warehouse_channel})
 
         # Size
+        # Task-time utilization: query task-minutes per running cluster-minute over the whole current epoch (both terms
+        # over the same period). Evidence only: no decision uses it until it is calibrated on real data.
+        task_ms = optional_float(q.get("epoch_task_duration_ms")); epoch_cluster_minutes = safe_float(ev.get("cluster_minutes"))
+        utilization = None if task_ms is None or epoch_cluster_minutes <= 0 else round(task_ms / 60000.0 / epoch_cluster_minutes, 6)
+
+        def utilization_finding(knob: str) -> Finding:
+            return self._f(e,knob,"task_minutes_per_cluster_minute",utilization,unit="ratio",table="system.query.history",field="total_task_duration_ms",
+                window="current epoch",interpretation="Query task time per running cluster-minute (evidence only; not used in decisions until calibrated on real data).")
+
         # Missing pressure evidence stays None (unknown), never 0 ("no pressure"): capacity cuts fail closed on it.
         spill_pct = optional_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         failure_pct = optional_float(q.get("failure_cancel_pct_30"))
@@ -2156,6 +2167,7 @@ class Analyzer:
             self._f(e,"warehouse_size","p99_execution_ms_30",round_or_none(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
             self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
         ]
+        fs.append(utilization_finding("warehouse_size"))
         out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99})
 
         # Max clusters
@@ -2187,6 +2199,7 @@ class Analyzer:
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round_or_none(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window=recent_label,interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
+        fs.append(utilization_finding("min_clusters"))
         out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
             "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
