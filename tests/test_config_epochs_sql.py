@@ -88,6 +88,23 @@ class ConfigEpochIslandTests(unittest.TestCase):
         out = self.epochs([snapshot("2025-01-01 00:00:00")])
         self.assertEqual([(r["epoch_start"], r["is_current"]) for r in out], [("2025-01-01 00:00:00", 1)])
 
+    def test_snapshots_with_the_same_change_time_give_one_deterministic_epoch_set(self):
+        prior = snapshot("2026-03-01 00:00:00")
+        renamed = snapshot("2026-06-01 00:00:00", name="renamed")
+        resized = snapshot("2026-06-01 00:00:00", size="LARGE")
+        a = self.epochs([prior, renamed, resized])
+        b = self.epochs([prior, resized, renamed])
+        self.assertEqual(a, b)
+        starts = [r["epoch_start"] for r in a]
+        self.assertEqual(len(starts), len(set(starts)), a)  # no zero-length epoch sharing an id with the next one
+
+    def test_a_deleted_snapshot_wins_a_change_time_tie(self):
+        live = snapshot("2026-06-01 00:00:00")
+        deleted = snapshot("2026-09-01 00:00:00", delete_time="2026-09-01 00:00:00")
+        undeleted_twin = snapshot("2026-09-01 00:00:00")
+        self.assertEqual(self.epochs([live, deleted, undeleted_twin]), [])
+        self.assertEqual(self.epochs([live, undeleted_twin, deleted]), [])
+
     def test_deleted_warehouse_is_not_active(self):
         out = self.epochs([snapshot("2026-06-01 00:00:00"), snapshot("2026-09-01 00:00:00", delete_time="2026-09-01 00:00:00")])
         self.assertEqual(out, [])

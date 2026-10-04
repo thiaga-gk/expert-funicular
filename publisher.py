@@ -531,7 +531,19 @@ class WarehouseOptimization:
 # never reset the epoch-maturity gate, the cost history or the forecast basis. A period starts at the first snapshot
 # whose decision fields differ from the previous snapshot; its name and tags come from its latest snapshot. Portable SQL
 # (window functions, IS DISTINCT FROM) shared by every collector query that groups activity by configuration epoch.
-CONFIG_EPOCHS_CTE = """config_snapshots AS (
+# The table has no unique snapshot key, so snapshots sharing a change_time are first collapsed to one deterministic row
+# (a deleted snapshot wins, so the warehouse fails closed as deleted); every later window then orders by a unique key.
+CONFIG_EPOCHS_CTE = """config_snapshot_ties AS (
+  SELECT
+    account_id, workspace_id, warehouse_id, warehouse_name, warehouse_type, warehouse_channel, warehouse_size,
+    min_clusters, max_clusters, auto_stop_minutes, tags, change_time, delete_time,
+    ROW_NUMBER() OVER (
+      PARTITION BY workspace_id, warehouse_id, change_time
+      ORDER BY CASE WHEN delete_time IS NULL THEN 1 ELSE 0 END, warehouse_type, warehouse_channel, warehouse_size,
+        min_clusters, max_clusters, auto_stop_minutes, warehouse_name
+    ) AS rn_tie
+  FROM system.compute.warehouses
+), config_snapshots AS (
   SELECT
     account_id, workspace_id, warehouse_id, warehouse_name, warehouse_type, warehouse_channel, warehouse_size,
     min_clusters, max_clusters, auto_stop_minutes, tags, change_time, delete_time,
@@ -544,7 +556,8 @@ CONFIG_EPOCHS_CTE = """config_snapshots AS (
       OR LAG(auto_stop_minutes) OVER w IS DISTINCT FROM auto_stop_minutes
     THEN 1 ELSE 0 END AS starts_epoch,
     ROW_NUMBER() OVER (PARTITION BY workspace_id, warehouse_id ORDER BY change_time DESC) AS rn_desc
-  FROM system.compute.warehouses
+  FROM config_snapshot_ties
+  WHERE rn_tie = 1
   WINDOW w AS (PARTITION BY workspace_id, warehouse_id ORDER BY change_time)
 ), config_islands AS (
   SELECT *,
