@@ -1102,6 +1102,36 @@ class PublisherV27Tests(unittest.TestCase):
         lagging = self._idle_workspace_evidence(running_after_last_usage=True)
         self.assertEqual(lagging.forecast_metadata["billing_complete_through"], "2026-09-19")
 
+    def _ran(self, *days):
+        return [{"usage_day": d, "uptime_minutes": 60.0} for d in days]
+
+    def test_running_on_the_watermark_day_itself_is_lag(self):
+        import datetime as dt
+        # Midnight watermark, any running that day; 10:00 watermark, running until 23:00 (780 minutes > 600 before it).
+        for wm, minutes in (("2026-09-28T00:00:00+00:00", 60.0), ("2026-09-28T10:00:00+00:00", 780.0)):
+            with self.subTest(watermark=wm):
+                _, source = p.effective_billing_watermark(wm, "2026-10-04T08:00:00+00:00", [{"usage_day": "2026-09-28", "uptime_minutes": minutes}],
+                                                          check_through=dt.date(2026, 10, 2))
+                self.assertEqual(source, "WORKSPACE_LAGGING")
+        # 18:00 watermark with one hour of running that day: it may all precede the watermark, so it is not lag.
+        _, source = p.effective_billing_watermark("2026-09-28T18:00:00+00:00", "2026-10-04T08:00:00+00:00",
+                                                  [{"usage_day": "2026-09-28", "uptime_minutes": 60.0}], check_through=dt.date(2026, 10, 2))
+        self.assertEqual(source, "ACCOUNT_IDLE_WAREHOUSE")
+
+    def test_running_on_days_not_yet_billable_does_not_count_as_lag(self):
+        import datetime as dt
+        # Idle since 09-20; the only run is on 10-03, which the settle buffer has not released yet.
+        wm, source = p.effective_billing_watermark("2026-09-20T18:00:00+00:00", "2026-10-04T08:00:00+00:00", self._ran("2026-10-03"),
+                                                   check_through=dt.date(2026, 10, 2))
+        self.assertEqual(source, "ACCOUNT_IDLE_WAREHOUSE")
+        self.assertEqual(wm, "2026-10-04T08:00:00+00:00")
+
+    def test_check_window_ends_at_the_earliest_billable_bound(self):
+        import datetime as dt
+        bound = p.billing_check_through("2026-10-14T12:00:00+00:00", "2026-10-14T08:00:00+00:00", ingestion_cutoff="2026-10-04", settle_hours=24)
+        self.assertEqual(bound, dt.date(2026, 10, 3))  # a re-collection pinned to 10-04 must not see the 10-08 restart
+        self.assertEqual(p.billing_check_through("2026-10-04T12:00:00+00:00", "2026-10-04T08:00:00+00:00", None, 24), dt.date(2026, 10, 2))
+
     def test_reevaluation_method_names_the_settle_buffer(self):
         e = copy.deepcopy(self.evidence[0])
         e.cost_history_days = 3

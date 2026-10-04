@@ -1845,7 +1845,20 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     }
 
 
-def effective_billing_watermark(workspace_watermark: Any, account_watermark: Optional[str], resource_daily: Optional[Sequence[Mapping[str, Any]]]) -> Tuple[Optional[str], str]:
+def billing_check_through(analysis_time: str, account_watermark: Optional[str], ingestion_cutoff: Optional[str], settle_hours: int) -> dt.date:
+    """Last UTC day whose billing should already be present: settled, passed by the account watermark and, for a
+    re-collection pinned to an ingestion date, before that date. Running after it says nothing about ingestion lag."""
+    analysis = parse_datetime(analysis_time).astimezone(dt.timezone.utc)
+    bound = (analysis - dt.timedelta(hours=settle_hours)).date() - dt.timedelta(days=1)
+    acct = parse_datetime(account_watermark) if account_watermark else None
+    if acct is not None:
+        bound = min(bound, acct.astimezone(dt.timezone.utc).date() - dt.timedelta(days=1))
+    if ingestion_cutoff:
+        bound = min(bound, dt.date.fromisoformat(str(ingestion_cutoff)) - dt.timedelta(days=1))
+    return bound
+
+
+def effective_billing_watermark(workspace_watermark: Any, account_watermark: Optional[str], resource_daily: Optional[Sequence[Mapping[str, Any]]], *, check_through: dt.date) -> Tuple[Optional[str], str]:
     """The workspace's own billing watermark, unless the warehouse simply stopped running.
 
     A workspace whose SQL warehouses go idle stops producing usage, so its watermark stalls at the last usage even though
@@ -1859,8 +1872,21 @@ def effective_billing_watermark(workspace_watermark: Any, account_watermark: Opt
         return (iso(workspace_watermark) if ws is not None else account_watermark), "WORKSPACE" if ws is not None else "ACCOUNT"
     if resource_daily is None:
         return (iso(workspace_watermark) if ws is not None else None), "WORKSPACE_UNVERIFIED_IDLE"
-    after = ws.astimezone(dt.timezone.utc).date().isoformat() if ws is not None else ""
-    ran_since = any(str(r.get("usage_day"))[:10] > after and safe_float(r.get("uptime_minutes")) > 0 for r in resource_daily)
+    # Running counts as lag on days after the watermark's day through the last day that should already be billed, and on
+    # the watermark's own day only when it provably ran after the watermark (more running minutes than had elapsed
+    # before the watermark time; the daily series cannot place them within the day).
+    ws_utc = ws.astimezone(dt.timezone.utc) if ws is not None else None
+    ws_day = ws_utc.date().isoformat() if ws_utc is not None else ""
+    before_watermark = (ws_utc.hour * 60 + ws_utc.minute + ws_utc.second / 60.0) if ws_utc is not None else 0.0
+    last = check_through.isoformat()
+
+    def ran_after(row: Mapping[str, Any]) -> bool:
+        day, uptime = str(row.get("usage_day"))[:10], safe_float(row.get("uptime_minutes"))
+        if day == ws_day:
+            return uptime > before_watermark
+        return ws_day < day <= last and uptime > 0
+
+    ran_since = any(ran_after(r) for r in resource_daily)
     if ran_since:
         return (iso(workspace_watermark) if ws is not None else None), "WORKSPACE_LAGGING"
     return account_watermark, "ACCOUNT_IDLE_WAREHOUSE"
@@ -1981,7 +2007,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         current = currents[0]
         current.events["resource_daily_from"] = (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
         ws_watermark = watermark_by_ws.get(workspace_id, {})
-        effective_watermark, watermark_source = effective_billing_watermark(ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily)
+        effective_watermark, watermark_source = effective_billing_watermark(
+            ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,
+            check_through=billing_check_through(analysis_time, account_watermark, ingestion_cutoff, thresholds.billing_settle_hours))
         model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=effective_watermark)
         model["billing_watermark_source"] = watermark_source
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
