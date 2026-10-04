@@ -880,6 +880,52 @@ class PublisherV27Tests(unittest.TestCase):
                     pass
         self.assertTrue(calls.get("closed"))
 
+    # --- A high or unknown failure share blocks every capacity cut ---------------------------------------------
+    def _with_failure(self, pct):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query["failure_cancel_pct_30"] = pct
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_high_failure_share_blocks_every_capacity_cut(self):
+        by = self._with_failure(12.0)
+        for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+            with self.subTest(knob=knob):
+                self.assertTrue(by[knob].status == "BLOCKED" or by[knob].recommended_config == by[knob].current_config, by[knob].status)
+                self.assertIn("FAILURE_CANCEL_RATE_HIGH", by[knob].blockers)
+
+    def test_unknown_failure_share_blocks_every_capacity_cut(self):
+        by = self._with_failure(None)
+        for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+            with self.subTest(knob=knob):
+                self.assertTrue(by[knob].status == "BLOCKED" or by[knob].recommended_config == by[knob].current_config, by[knob].status)
+                self.assertIn("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE", by[knob].blockers)
+
+    def test_low_failure_share_does_not_block_cuts(self):
+        by = self._with_failure(0.2)
+        for knob in ("max_clusters", "auto_stop_minutes"):
+            self.assertNotEqual(by[knob].recommended_config, by[knob].current_config, knob)
+
+    # --- Max-cluster increase has the same maturity and sample gates as every change --------------------------
+    def _queueing_at_ceiling(self, age_days, queries):
+        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        e = p.evidence_from_dict(payload["evidence"][0])
+        start = (p.parse_datetime(e.analysis_time) - __import__("datetime").timedelta(days=age_days)).isoformat()
+        e.current_epoch.epoch_start = start
+        e.current_epoch.query.update(queries_30=queries)
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+
+    def test_max_increase_waits_for_a_mature_epoch_and_a_query_sample(self):
+        young = self._queueing_at_ceiling(1, 25)
+        self.assertEqual(young.recommended_config, young.current_config)
+        self.assertEqual(young.status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", young.blockers)
+        self.assertIn("INSUFFICIENT_QUERY_SAMPLE", young.blockers)
+
+    def test_max_increase_stays_actionable_when_gates_pass(self):
+        mature = self._queueing_at_ceiling(30, 12000)
+        self.assertEqual(mature.status, "ACTIONABLE")
+        self.assertEqual(mature.recommended_config, {"max_clusters": mature.current_config["max_clusters"] + 1})
+
     # --- An unknown DBU baseline is never published as $0 -------------------------------------------------------
     def test_too_few_active_cost_days_leave_the_forecast_unknown(self):
         rows = [{"usage_date": d, "list_cost": 200.0, "currency_code": "USD"} for d in ("2026-09-05", "2026-09-12", "2026-09-19", "2026-09-26")]

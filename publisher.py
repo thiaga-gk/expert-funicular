@@ -903,6 +903,13 @@ ORDER BY account_id, sku_name
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
 
+def failure_blockers(failure_pct: Optional[float], t: "Thresholds") -> List[str]:
+    """Reliability guard for every capacity cut: a high or unknown failed/cancelled share holds the cut."""
+    if failure_pct is None:
+        return ["FAILURE_CANCEL_EVIDENCE_UNAVAILABLE"]
+    return ["FAILURE_CANCEL_RATE_HIGH"] if failure_pct > t.failure_cancel_pct_downsize_safe else []
+
+
 def dbu_baseline_blocker(e: "WarehouseEvidence", t: "Thresholds") -> str:
     """Why the forward DBU baseline is unknown.
 
@@ -1890,7 +1897,8 @@ class Analyzer:
         # Size
         # Missing pressure evidence stays None (unknown), never 0 ("no pressure"): capacity cuts fail closed on it.
         spill_pct = optional_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
-        failure_pct = None if q.get("failure_cancel_pct_30") is None else safe_float(q.get("failure_cancel_pct_30"))
+        failure_pct = optional_float(q.get("failure_cancel_pct_30"))
+        common["failure_pct"] = failure_pct  # reliability guard shared by every capacity cut
         queue_pct = optional_float(q.get("queued_query_pct_30")); p95 = optional_float(q.get("p95_execution_ms_30")); p99 = optional_float(q.get("p99_execution_ms_30"))
         fs = [
             self._f(e,"warehouse_size","warehouse_size",cfg.warehouse_size,table="system.compute.warehouses",field="warehouse_size",window="current epoch",interpretation="Current warehouse size."),
@@ -1912,6 +1920,7 @@ class Analyzer:
             self._f(e,"max_clusters","max_observed_clusters",max_obs,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Highest observed scale level."),
             self._f(e,"max_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_safe_reduce,comparator="<= reduce-safe",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Fraction of running time at configured maximum."),
             self._f(e,"max_clusters","queued_query_pct_30",round_or_none(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Frequency of capacity queueing."),
+            self._f(e,"max_clusters","failure_cancel_pct_30",round_or_none(common["failure_pct"],4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= cut-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high or unknown rate holds every capacity cut."),
             self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
             self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
@@ -1923,6 +1932,7 @@ class Analyzer:
             self._f(e,"min_clusters","min_clusters",cfg.min_clusters,table="system.compute.warehouses",field="min_clusters",window="current epoch",interpretation="Configured minimum scale."),
             self._f(e,"min_clusters","time_at_min_pct",round(at_min,4),unit="%",threshold=self.t.time_at_min_pct_reduce,comparator=">= reduction signal",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="How often the warehouse sits at its minimum."),
             self._f(e,"min_clusters","queued_query_pct_30",round_or_none(queue_pct,4),unit="%",threshold=self.t.queue_query_pct_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue guardrail before reducing baseline capacity."),
+            self._f(e,"min_clusters","failure_cancel_pct_30",round_or_none(common["failure_pct"],4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= cut-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high or unknown rate holds every capacity cut."),
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window="current epoch",interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
@@ -1939,6 +1949,7 @@ class Analyzer:
         gap_count=safe_int(gaps.get("gap_count")); cluster_minutes=safe_float(ev.get("cluster_minutes"))
         fs = [
             self._f(e,"auto_stop_minutes","auto_stop_minutes",cfg.auto_stop_minutes,unit="minutes",threshold=target,comparator="> target",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting versus deterministic policy target."),
+            self._f(e,"auto_stop_minutes","failure_cancel_pct_30",round_or_none(common["failure_pct"],4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= cut-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high or unknown rate holds every capacity cut."),
             self._f(e,"auto_stop_minutes","queries_per_active_day_30",round(per_day,2),unit="queries/day",table="system.query.history",field="start_time",window="last 30 days within current epoch",interpretation="Activity density selects the auto-stop target."),
             self._f(e,"auto_stop_minutes","idle_gap_count",gap_count,unit="gaps",threshold=self.t.min_idle_gap_sample_size,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="current epoch",interpretation="Non-overlapping inter-query gap sample supporting the auto-stop counterfactual."),
             self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window="current epoch",interpretation="Observed resource-time basis used to convert idle time into cost effect."),
@@ -2035,8 +2046,7 @@ class Optimizer:
             elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
             elif f["queue_pct"] > self.t.queue_query_pct_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
-            if f["failure_pct"] is None: blockers.append("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE")
-            elif f["failure_pct"] > self.t.failure_cancel_pct_downsize_safe: blockers.append("FAILURE_CANCEL_RATE_HIGH")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
             if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
             if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
@@ -2064,10 +2074,15 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                     ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
-            elif f["queue_n"] < self.t.severity_min_affected_queries:
+            elif f["queue_n"] < self.t.severity_min_affected_queries or age < self.t.current_config_stability_days or f["queries_30"] < self.t.min_query_sample_size:
+                # Like every other change: a mature configuration epoch, a query sample and enough queued queries.
+                gates=[code for code,hit in (
+                    ("CURRENT_CONFIG_EPOCH_TOO_NEW",age < self.t.current_config_stability_days),
+                    ("INSUFFICIENT_QUERY_SAMPLE",f["queries_30"] < self.t.min_query_sample_size),
+                    ("INSUFFICIENT_AFFECTED_QUERY_SAMPLE",f["queue_n"] < self.t.severity_min_affected_queries)) if hit]
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_AFFECTED_QUERY_SAMPLE"],
-                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but too few queries queued for the wait percentile to be reliable; no change is recommended."))
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},gates,
+                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but the configuration epoch, query sample or queued-query count is too new/small to act on; no change is recommended."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
@@ -2089,6 +2104,8 @@ class Optimizer:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
             elif eligible and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
                 evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
+            if eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
+                evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
                 target=reduced_max
@@ -2098,7 +2115,7 @@ class Optimizer:
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
-                    "Queue evidence is unavailable, so the ceiling is not changed." if evidence_blockers else
+                    "Queue or failure evidence holds the ceiling cut." if evidence_blockers else
                     "No sustained saturation requiring an increase and no strong evidence for a lower ceiling."))
 
         # Min clusters
@@ -2115,6 +2132,7 @@ class Optimizer:
             if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
             if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
             if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             if not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
@@ -2141,6 +2159,7 @@ class Optimizer:
             if f["wait_compute"] is None: blockers.append("COLD_START_EVIDENCE_UNAVAILABLE")
             elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             status="ACTIONABLE" if not blockers else "BLOCKED"
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
                 {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],

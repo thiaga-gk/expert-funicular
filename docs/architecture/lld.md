@@ -625,6 +625,8 @@ Common facts include query count, active days, queries per active day, epoch age
 
 `Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob.
 
+Reliability guard shared by every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above 5% (`failure_cancel_pct_downsize_safe`) holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
+
 ### 15.1 Channel
 
 | Current state | Decision |
@@ -682,7 +684,7 @@ max_observed_clusters >= current max_clusters
 current max_clusters < 40
 ```
 
-Unknown queue frequency or capacity wait is never read as 0; an increase needs both known.
+Unknown queue frequency or capacity wait is never read as 0; an increase needs both known. Like every other change it also needs a mature configuration epoch (at least 7 days), the minimum 30-day query sample and enough queued queries for the wait percentile; otherwise the decision is `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, `INSUFFICIENT_QUERY_SAMPLE` or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE`.
 
 Status: `ACTIONABLE`.
 

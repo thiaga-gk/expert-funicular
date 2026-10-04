@@ -15,7 +15,9 @@ Core fixtures (used by `tests/test_publisher.py`):
 - aws-region-missing
 
 Scenario fixtures (`c*.json`, run by `tests/test_golden_scenarios.py`; the number is the catalog row):
+- c08-concurrency-gates
 - c20-sparse-cost-history
+- c26-failure-heavy
 - c32-unpriced-sku
 - c36-tag-rename-churn
 - c48-long-unchanged-warehouse
