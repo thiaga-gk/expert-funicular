@@ -126,9 +126,11 @@ class DocsGuardTests(unittest.TestCase):
         for fixture in sorted((ROOT / "tests" / "golden").glob("*.json")):
             evidence += [publisher.evidence_from_dict(x) for x in json.loads(read(fixture)).get("evidence") or []]
         emitted = set()
-        for package in publisher.build_recommendation_packages(evidence, publisher.Thresholds()):
-            for candidate in package.to_dict()["candidates"]:
-                emitted.update(candidate["blockers"])
+        # One build per evidence item: fixtures reuse warehouse identities, so they must not be merged into one run.
+        for item in evidence:
+            for package in publisher.build_recommendation_packages([item], publisher.Thresholds()):
+                for candidate in package.to_dict()["candidates"]:
+                    emitted.update(candidate["blockers"])
         self.assertEqual(sorted(emitted - documented), [], "blockers emitted by the fixtures but not documented")
 
     def test_reporter_contract_provenance_row_matches_the_code(self):
