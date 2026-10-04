@@ -903,6 +903,13 @@ ORDER BY account_id, sku_name
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
 
+def failure_blockers(failure_pct: Optional[float], t: "Thresholds") -> List[str]:
+    """Reliability guard for every capacity cut: a high or unknown failed/cancelled share holds the cut."""
+    if failure_pct is None:
+        return ["FAILURE_CANCEL_EVIDENCE_UNAVAILABLE"]
+    return ["FAILURE_CANCEL_RATE_HIGH"] if failure_pct > t.failure_cancel_pct_downsize_safe else []
+
+
 def dbu_baseline_blocker(e: "WarehouseEvidence", t: "Thresholds") -> str:
     """Why the forward DBU baseline is unknown.
 
@@ -1890,7 +1897,8 @@ class Analyzer:
         # Size
         # Missing pressure evidence stays None (unknown), never 0 ("no pressure"): capacity cuts fail closed on it.
         spill_pct = optional_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
-        failure_pct = None if q.get("failure_cancel_pct_30") is None else safe_float(q.get("failure_cancel_pct_30"))
+        failure_pct = optional_float(q.get("failure_cancel_pct_30"))
+        common["failure_pct"] = failure_pct  # reliability guard shared by every capacity cut
         queue_pct = optional_float(q.get("queued_query_pct_30")); p95 = optional_float(q.get("p95_execution_ms_30")); p99 = optional_float(q.get("p99_execution_ms_30"))
         fs = [
             self._f(e,"warehouse_size","warehouse_size",cfg.warehouse_size,table="system.compute.warehouses",field="warehouse_size",window="current epoch",interpretation="Current warehouse size."),
@@ -2035,8 +2043,7 @@ class Optimizer:
             elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
             elif f["queue_pct"] > self.t.queue_query_pct_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
-            if f["failure_pct"] is None: blockers.append("FAILURE_CANCEL_EVIDENCE_UNAVAILABLE")
-            elif f["failure_pct"] > self.t.failure_cancel_pct_downsize_safe: blockers.append("FAILURE_CANCEL_RATE_HIGH")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
             if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
             if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
@@ -2094,6 +2101,8 @@ class Optimizer:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
             elif eligible and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
                 evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
+            if eligible:
+                evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
                 target=reduced_max
@@ -2103,7 +2112,7 @@ class Optimizer:
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
-                    "Queue evidence is unavailable, so the ceiling is not changed." if evidence_blockers else
+                    "Queue or failure evidence holds the ceiling cut." if evidence_blockers else
                     "No sustained saturation requiring an increase and no strong evidence for a lower ceiling."))
 
         # Min clusters
@@ -2120,6 +2129,7 @@ class Optimizer:
             if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
             if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
             if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             if not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
@@ -2146,6 +2156,7 @@ class Optimizer:
             if f["wait_compute"] is None: blockers.append("COLD_START_EVIDENCE_UNAVAILABLE")
             elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
+            blockers.extend(failure_blockers(f["failure_pct"], self.t))
             status="ACTIONABLE" if not blockers else "BLOCKED"
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
                 {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
