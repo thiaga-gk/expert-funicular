@@ -71,4 +71,4 @@ Required:
 - live-source E2E evidence when available;
 - release-evidence.yaml.
 
-Exit: release may merge from worktree to develop/main according to repo policy.
+Exit: release may merge from worktree to the integration branch according to repo policy.
