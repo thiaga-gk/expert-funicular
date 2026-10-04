@@ -760,6 +760,8 @@ SELECT
   100.0*SUM(CASE WHEN cluster_count=max_clusters AND cluster_count>0 THEN duration_minutes ELSE 0 END)
     /NULLIF(SUM(CASE WHEN cluster_count>0 THEN duration_minutes ELSE 0 END),0) AS time_at_max_pct,
   MAX(cluster_count) AS max_observed_clusters,
+  -- Like the recent window's peak: counts above the ceiling are cluster-recycling transients, not demand.
+  MAX(CASE WHEN cluster_count<=max_clusters THEN cluster_count END) AS max_observed_clusters_within_ceiling,
   MIN(segment_start) AS event_coverage_start,
   COUNT_IF(event_type='STARTING' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS starts_30,
   COUNT_IF(event_type='SCALED_UP' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_ups_30,
@@ -780,6 +782,7 @@ def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
         f"SUM(GREATEST(LEAST(gap_minutes,CASE WHEN auto_stop_minutes=0 THEN gap_minutes ELSE auto_stop_minutes END)-{target},0)) AS saved_idle_minutes_if_{target}"
         for target in targets
     )
+    saved_cols = ", ".join(f"g.saved_idle_minutes_if_{target}" for target in targets)
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
@@ -806,16 +809,29 @@ ordered AS (
   JOIN retained r ON r.workspace_id=x.workspace_id AND r.warehouse_id=x.compute.warehouse_id
     AND x.start_time >= r.first_event_time
   WHERE x.compute.type='WAREHOUSE' AND x.start_time>=CURRENT_TIMESTAMP()-INTERVAL 365 DAYS
+), busy AS (
+  -- Wall-clock minutes with at least one query running (length of the union of query intervals), over the same
+  -- period as the gaps: each query adds only the part that extends past every earlier-starting query. Milliseconds:
+  -- most queries last under a second, and whole-second differences would drop them.
+  SELECT workspace_id, warehouse_id, epoch_start,
+    SUM(GREATEST(0.0,TIMESTAMPDIFF(MILLISECOND,GREATEST(start_time,COALESCE(previous_busy_end_time,start_time)),COALESCE(end_time,start_time))/60000.0)) AS busy_minutes
+  FROM ordered GROUP BY workspace_id,warehouse_id,epoch_start
 ), gaps AS (
   SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
   FROM ordered WHERE previous_busy_end_time IS NOT NULL AND start_time>previous_busy_end_time
-)
-SELECT workspace_id, warehouse_id, epoch_start,
+), gap_stats AS (
+  SELECT workspace_id, warehouse_id, epoch_start,
   COUNT(*) AS gap_count,
   PERCENTILE_APPROX(gap_minutes,0.50) AS p50_gap_minutes,
   PERCENTILE_APPROX(gap_minutes,0.90) AS p90_gap_minutes,
   {saved}
-FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
+  FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
+)
+SELECT b.workspace_id, b.warehouse_id, b.epoch_start, b.busy_minutes,
+  COALESCE(g.gap_count,0) AS gap_count, g.p50_gap_minutes, g.p90_gap_minutes,
+  {saved_cols}
+FROM busy b LEFT JOIN gap_stats g
+  ON g.workspace_id=b.workspace_id AND g.warehouse_id=b.warehouse_id AND g.epoch_start=b.epoch_start
 """
 
 RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic billing lag; Python clips to what was collected
@@ -1917,6 +1933,21 @@ def recent_capacity_facts(window: Optional[Mapping[str, Any]], t: Thresholds) ->
     }
 
 
+def size_busy_share(busy_minutes: Any, uptime_minutes: Any, cluster_minutes: Any, min_clusters: Any) -> Optional[float]:
+    """Share of running cluster-minutes spent with queries running; None when unknown.
+
+    Idle running time is assumed to hold the minimum cluster count (Classic/Pro scale down only after sustained low
+    load), so idle cluster-minutes = (running minutes - busy minutes) x min clusters, and busy cluster-minutes are
+    at least busy wall-minutes. Busy time above running time (sources disagree) counts as all busy.
+    """
+    busy = optional_float(busy_minutes); uptime = optional_float(uptime_minutes); cluster = optional_float(cluster_minutes)
+    if busy is None or uptime is None or cluster is None or uptime <= 0 or cluster <= 0:
+        return None
+    idle_cluster_minutes = max(0.0, uptime - busy) * max(1, safe_int(min_clusters, 1))
+    # Busy cluster-minutes are never below busy wall-minutes (cluster counts under the floor would otherwise give 0).
+    return round(clamp(max(1.0 - idle_cluster_minutes / cluster, busy / cluster), 0.0, 1.0), 6)
+
+
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
@@ -2278,7 +2309,11 @@ class Analyzer:
             self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
         ])
         fs.append(utilization_finding("warehouse_size"))
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99})
+        # Busy share of running cluster time (whole epoch, same period as the event totals): a size change speeds up or
+        # slows down query execution, not the idle running time around it.
+        busy_share = size_busy_share(gaps.get("busy_minutes"), ev.get("uptime_minutes"), ev.get("cluster_minutes"), cfg.min_clusters)
+        fs.append(self._f(e,"warehouse_size","busy_cluster_time_share",busy_share,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window="current epoch",interpretation="Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy)."))
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
         # Max clusters
         # Capacity facts come from the recent resource window (last pressure_window_days of the DBU forecast's calendar),
@@ -2295,7 +2330,13 @@ class Analyzer:
             self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
             self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"resource_window_state":recent["state"],
+        # Longer window: the highest scale level over the whole current epoch (events retained 365 days), excluding
+        # recycling transients above the ceiling. A seasonal peak outside the recent window shows here; unknown on
+        # evidence collected without it.
+        epoch_peak_raw = optional_float(ev.get("max_observed_clusters_within_ceiling"))
+        epoch_peak = None if epoch_peak_raw is None else int(epoch_peak_raw)
+        fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, excluding cluster-recycling transients above the ceiling; the ceiling is never cut below it."))
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # The increase is priced on the same recent window it is decided on.
             "minutes_at_max":safe_float(recent["minutes_at_max"]),"cluster_minutes":safe_float(recent["cluster_minutes"])})
 
@@ -2409,10 +2450,11 @@ class Optimizer:
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
                     "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
             elif target:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel"],
+                # The speed-up and its cost are modeled, not observed: one size up is a latency/cost canary.
+                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","TEST_REQUIRED",
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],["warehouse_channel"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
-                    "Spill frequency and severity both cross the deterministic upsize thresholds."))
+                    "Spill frequency and severity both cross the deterministic upsize thresholds; one size up as a canary validates the speed-up and its cost."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
@@ -2477,22 +2519,32 @@ class Optimizer:
                 "The warehouse did not run in the recent window, so the ceiling is not changed."))
         else:
             peak = safe_int(f["max_observed"])
-            headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * peak))
-            reduced_max = max(cfg.min_clusters, peak + headroom)
-            eligible = (
+
+            def ceiling_for(level: int) -> int:
+                headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
+                return max(cfg.min_clusters, level + headroom)
+
+            # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent window,
+            # so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
+            epoch_peak = f.get("epoch_max_observed")
+            reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
+            base_eligible = (
                 window_known and cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
-                and reduced_max < cfg.max_clusters
             )
+            eligible = base_eligible and reduced_max < cfg.max_clusters
+            held_by_epoch_peak = base_eligible and not eligible and ceiling_for(peak) < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
+            # A cut held for the epoch's peak still names these, so the holds stay visible together.
+            considered = eligible or held_by_epoch_peak
             evidence_blockers: List[str] = []
-            if eligible and not queue_known:
+            if considered and not queue_known:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
-            elif eligible and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
+            elif considered and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
                 evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
-            if eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
+            if considered and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
                 evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
@@ -2500,6 +2552,10 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
                     "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
+            elif held_by_epoch_peak:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
+                    f"The recent window peaks at {peak} cluster(s), but the current configuration has run at {safe_int(epoch_peak)}; the ceiling is kept for that peak."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -2703,9 +2759,14 @@ class Estimator:
                 capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
             # Speed-up multipliers follow the decided direction, never the price ratio.
             if SIZE_ORDER.index(target)<SIZE_ORDER.index(cur):
-                runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
+                busy_runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
             else:
-                runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
+                busy_runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
+            # The multiplier changes query execution time only; idle running time is unchanged. Unknown busy share:
+            # all running time is treated as busy.
+            busy_share=a.facts.get("busy_share")
+            share=1.0 if busy_share is None else float(busy_share)
+            runtime=Range3(*(round(share*x+(1.0-share),6) for x in (busy_runtime.low,busy_runtime.base,busy_runtime.high)))
             factors=Range3(capacity*runtime.low,capacity*runtime.base,capacity*runtime.high)
             vals=sorted([
                 clamp(factors.low,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
@@ -2714,9 +2775,11 @@ class Estimator:
             ])
             factors=Range3(vals[0],vals[1],vals[2])
             return factors,{
-                "method":"capacity ratio × runtime elasticity",
+                "method":"capacity ratio × runtime elasticity on busy running time",
                 "capacity_ratio":capacity,
                 "capacity_ratio_source":capacity_source,
+                "busy_share":busy_share,
+                "busy_runtime_multiplier_range":as_serializable(busy_runtime),
                 "runtime_multiplier_range":as_serializable(runtime),
                 "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(runtime)},
                 **meta,
@@ -3240,8 +3303,10 @@ class ScenarioPlanner:
         target=target_type.upper(); api=dict(e.compatibility_evidence or {})
         if target=="SERVERLESS":
             region=(e.source_region or "").split(",")[0]
-            checks.append({"check":"aws_region_serverless_availability","status":"PASS" if region and region != "unknown" else "UNKNOWN","evidence":{"region":region,"policy":"Databricks documents Serverless SQL warehouse support across AWS regions."}})
             observed=bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses"))
+            # No verified per-region Serverless availability list is used, so a region label proves nothing; a Serverless
+            # warehouse already running in this workspace does.
+            checks.append({"check":"aws_region_serverless_availability","status":"PASS" if observed else "UNKNOWN","evidence":{"region":region or None,"existing_serverless_warehouse_in_workspace":observed,"policy":"No verified per-region Serverless availability list; confirm the region supports Serverless SQL unless the workspace already runs a Serverless warehouse."},"source":"system.compute.warehouses"})
             checks.append({"check":"workspace_serverless_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
             if api.get("mode")=="B_READ_ONLY_API" and api.get("status")=="AVAILABLE":
                 enabled=api.get("enable_serverless_compute")
@@ -3808,9 +3873,11 @@ def _compatibility_contract(
 ) -> rc.Compatibility:
     comp = s.compatibility or {}
     assessment = str(comp.get("assessment") or "CURRENT_TYPE")
+    # A planner FAIL (a check failed) is incompatible; its PASS stays REQUIRES_VALIDATION for now: an empty
+    # alternative marked COMPATIBLE would hash to the same scenario ID as an empty recommended plan.
     if assessment in {"CURRENT_TYPE", "COMPATIBLE"}:
         status = rc.CompatibilityStatus.COMPATIBLE
-    elif assessment in {"INCOMPATIBLE", "BLOCKED"}:
+    elif assessment in {"INCOMPATIBLE", "BLOCKED", "FAIL"}:
         status = rc.CompatibilityStatus.INCOMPATIBLE
     else:
         status = rc.CompatibilityStatus.REQUIRES_VALIDATION
@@ -3928,6 +3995,8 @@ def _scenario_contracts(
                 state = _CONTRACT_EXECUTION_STATE[st.execution_state]
             except KeyError:
                 raise ValueError(f"Planner execution state {st.execution_state!r} has no locked-contract mapping") from None
+            if compatibility.status == rc.CompatibilityStatus.INCOMPATIBLE:
+                state = rc.ExecutionState.BLOCKED  # a failed compatibility check: no canary until it is resolved
             plan_steps.append(rc.PlanStep(
                 step=next_step,
                 step_type=rc.PlanStepType.CANDIDATE,
@@ -4015,20 +4084,43 @@ def _scenario_contracts(
     return out, by_old_id
 
 
-def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.CandidateRecommendation], t: Thresholds) -> rc.Assessment:
+def _overall_status(candidates: Sequence[rc.CandidateRecommendation], scenarios: Sequence[rc.Scenario]) -> rc.AssessmentStatus:
+    """Package status from the recommended plan; the migration experiment alone never makes a warehouse optimizable.
+
+    Steps to apply in the recommended plan: OPTIMIZATION_AVAILABLE (REVIEW_REQUIRED when every step is a review).
+    An empty recommended plan with a compatible-or-unvalidated alternative whose priced base savings are positive:
+    REVIEW_REQUIRED. Otherwise
+    the most severe reason nothing ships: BLOCKED, then INSUFFICIENT_EVIDENCE, else NO_CHANGE.
+    """
+    S = rc.RecommendationStatus
+    by_id = {c.candidate_id: c.status for c in candidates}
+
+    def step_statuses(s: rc.Scenario) -> set:
+        return {by_id[x.candidate_id] for x in s.execution_plan if x.candidate_id in by_id}
+
+    plan = set().union(*(step_statuses(s) for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED))
+    if plan & {S.ACTIONABLE, S.TEST_REQUIRED}:
+        return rc.AssessmentStatus.OPTIMIZATION_AVAILABLE
+    if S.REVIEW in plan:
+        return rc.AssessmentStatus.REVIEW_REQUIRED
+    for s in scenarios:
+        total = s.portfolio_economics.savings_365d.total
+        if (s.status == rc.ScenarioStatus.ALTERNATIVE and step_statuses(s) and total is not None and total.base > 0
+                and s.compatibility.status != rc.CompatibilityStatus.INCOMPATIBLE):
+            return rc.AssessmentStatus.REVIEW_REQUIRED
+    statuses = set(by_id.values())
+    if S.BLOCKED in statuses:
+        return rc.AssessmentStatus.BLOCKED
+    if S.INSUFFICIENT_EVIDENCE in statuses:
+        return rc.AssessmentStatus.INSUFFICIENT_EVIDENCE
+    return rc.AssessmentStatus.NO_CHANGE
+
+
+def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.CandidateRecommendation], scenarios: Sequence[rc.Scenario], t: Thresholds) -> rc.Assessment:
     counts = {status: 0 for status in rc.RecommendationStatus}
     for c in candidates:
         counts[c.status] += 1
-    if counts[rc.RecommendationStatus.ACTIONABLE] or counts[rc.RecommendationStatus.TEST_REQUIRED]:
-        overall = rc.AssessmentStatus.OPTIMIZATION_AVAILABLE
-    elif counts[rc.RecommendationStatus.REVIEW]:
-        overall = rc.AssessmentStatus.REVIEW_REQUIRED
-    elif counts[rc.RecommendationStatus.BLOCKED]:
-        overall = rc.AssessmentStatus.BLOCKED
-    elif counts[rc.RecommendationStatus.INSUFFICIENT_EVIDENCE]:
-        overall = rc.AssessmentStatus.INSUFFICIENT_EVIDENCE
-    else:
-        overall = rc.AssessmentStatus.NO_CHANGE
+    overall = _overall_status(candidates, scenarios)
 
     q = e.current_epoch.query
     query_ok = safe_int(q.get("queries_30")) >= t.min_query_sample_size
@@ -4326,7 +4418,7 @@ def _build_locked_recommendation_package(
             currency=e.currency, actual_365d=actual, forward_365d=forward,
             forecast=rc.ForecastInfo(MODEL_VERSION, _forecast_confidence(e, thresholds), forecast_assumptions),
         ),
-        assessment=_assessment_contract(e, candidate_contracts, thresholds),
+        assessment=_assessment_contract(e, candidate_contracts, scenario_contracts, thresholds),
         evidence=evidence_registry, candidates=candidate_contracts, scenarios=scenario_contracts,
         recommended_plan=recommended, package_economics=package_economics,
         realization=rc.Realization(
@@ -4645,7 +4737,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 8000.0, "cluster_minutes": 12000.0, "minutes_at_min": 6000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 75.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2, "event_coverage_start": old_start,
+            "max_observed_clusters": 2, "max_observed_clusters_within_ceiling": 2, "event_coverage_start": old_start,
         },
         gaps={},
         cost={"list_cost": 2640.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
@@ -4679,7 +4771,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 80.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
+            "max_observed_clusters": 2, "max_observed_clusters_within_ceiling": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
             "event_coverage_start": cur_start, "resource_coverage_from": None,
         },
         gaps={
@@ -5113,6 +5205,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
                 "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
                 "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
+                "max_observed_clusters_within_ceiling": max((cl for _, _, cl, _, _ in live if cl <= cfg["max_clusters"]), default=None),
                 "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
                 "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
                 "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
@@ -5121,17 +5214,22 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         gap_lo = lo_t if coverage is None else max(lo_t, coverage)
         gaps = [] if coverage is None else [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1)
                                             if ep_runs[i][0] >= gap_lo and ep_runs[i + 1][0] > ep_runs[i][1]]
-        if gaps:
-            ordered = sorted(gaps)
-            def pct(q: float) -> float:
-                return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
-            auto = cfg["auto_stop_minutes"]
-            gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "gap_count": len(gaps), "p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)}
+        # Busy wall-clock minutes (union of query runs) over the same period: every epoch with queries gets a row.
+        busy_runs = [] if coverage is None else [(a, b) for a, b, _ in ep_runs if a >= gap_lo]
+        if busy_runs:
             th = Thresholds()
             targets = sorted({th.serverless_auto_stop_target_minutes, th.low_activity_auto_stop_target_minutes, th.medium_activity_auto_stop_target_minutes, th.high_activity_auto_stop_target_minutes})
-            kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
-            for target in targets:
-                gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
+            gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "busy_minutes": round(sum(b - a for a, b in busy_runs), 3),
+                       "gap_count": len(gaps), "p50_gap_minutes": None, "p90_gap_minutes": None, **{f"saved_idle_minutes_if_{t}": None for t in targets}}
+            if gaps:
+                ordered = sorted(gaps)
+                def pct(q: float) -> float:
+                    return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
+                auto = cfg["auto_stop_minutes"]
+                gap_row.update({"p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)})
+                kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
+                for target in targets:
+                    gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
             rows["idle_gaps"].append(gap_row)
         # Daily resource series for the current epoch (last 120 days before the analysis date).
         if ep_end is None and coverage is not None:
@@ -5427,7 +5525,8 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--all-purpose-cluster-id",default=os.getenv("DATABRICKS_ALL_PURPOSE_CLUSTER_ID"),help="Convenience alias for an all-purpose compute execution target")
     p.add_argument("--workspace-id",default=os.getenv("DATABRICKS_WORKSPACE_ID"),help="Workspace/org ID; optional for warehouse, used to construct all-purpose cluster HTTP path")
     p.add_argument("--config-file",default=os.getenv("DATABRICKS_CONFIG_FILE"))
-    p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"))
+    p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"),help="AWS region of the workspace; Pro/Classic AWS cost uses its registry prices")
+    p.add_argument("--allow-missing-aws-price",action="store_true",help="Live mode: publish even when --source-region is missing from the AWS price registry (Pro/Classic AWS cost unavailable)")
     p.add_argument("--billing-ingested-through",default=None,help="YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)")
     default_registry=str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json")
     p.add_argument("--aws-price-registry",default=os.getenv("AWS_PRICE_REGISTRY",default_registry))
@@ -5438,6 +5537,25 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--no-workbook",action="store_true",help="Skip workbook.xlsx generation; locked JSON packages are still emitted")
     p.add_argument("--print-json",action="store_true")
     return p.parse_args(argv)
+
+
+def aws_region_price_guard(evidence: Sequence[WarehouseEvidence], source_region: str, aws_registry: Mapping[str, Any], *, allow_missing: bool) -> Optional[str]:
+    """Return a refusal message when supported Pro/Classic warehouses need AWS prices for a region the registry lacks.
+
+    Without the region's instance prices every Pro/Classic AWS, total and package figure would silently be null (or,
+    with a wrong label, priced for the wrong region); a live run stops instead unless the operator opts in.
+    """
+    if allow_missing:
+        return None
+    regions = sorted((aws_registry.get("regions") or {}).keys())
+    if source_region in regions:
+        return None
+    pro_classic = [e for e in evidence if e.current_epoch.config.warehouse_type in {"PRO", "CLASSIC"}]
+    if not pro_classic:
+        return None
+    return (f"--source-region {source_region or '(empty)'!r} is not in the AWS price registry (regions: {', '.join(regions) or 'none'}); "
+            f"{len(pro_classic)} Pro/Classic warehouse(s) need AWS instance prices. Pass the workspace's AWS region, extend the "
+            "registry, or pass --allow-missing-aws-price to publish with AWS cost unavailable.")
 
 
 def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
@@ -5472,6 +5590,11 @@ def main(argv:Optional[Sequence[str]]=None)->int:
         registry=load_aws_price_registry(args.aws_price_registry)
         with SqlClient(auth) as client:
             evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
+        refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
+        if refusal:
+            raise SystemExit(refusal)
+        if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
+            LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
     packages=build_recommendation_packages(evidence,t,args.batch_size)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)

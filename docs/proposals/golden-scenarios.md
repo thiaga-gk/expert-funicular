@@ -47,7 +47,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | fail | G28, G24 |
 | C35 | Spot policy | REST `spot_instance_policy` | Not modeled; AWS cost labeled as an on-demand upper bound. | no | covered | pass | S6 |
 | C36 | Tag / rename churn | Snapshot rows with only `tags` or name changed | No new configuration period, no reset of maturity gates or cost history. | yes | covered | pass | G3 |
-| C37 | Month / quarter-end seasonality | Peaks outside the 30-day window | Capacity cuts held when longer-window or prior-period pressure shows a peak. Constructed run: max 8 → 3 proposed weeks before a known quarter-end peak. | yes | not covered | fail | G33 |
+| C37 | Month / quarter-end seasonality | Peaks outside the 30-day window | Capacity cuts held when longer-window or prior-period pressure shows a peak. Constructed run: max 8 → 3 proposed weeks before a known quarter-end peak. | yes | covered | fail | G33 |
 | C38 | Growth trend | Rising query volume | Downsizes and ceiling cuts held while volume is growing. Constructed run: doubling monthly volume still gets a downsize canary. | yes | not covered | fail | G33 |
 | C39 | Dev / test warehouses | Tags or owner mark nonprod | Versioned tag-based policy profile (for example a relaxed cold-start budget). | yes | not covered | fail | G38 |
 | C40 | Serverless budget / usage policies | `usage_policy_id` | Attribution only; not evaluated. | no | not covered | pass | — |
@@ -67,7 +67,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | A02 | Pro/Classic auto-stop below 10 | Target < 10 on Pro/Classic | Never emitted; rejected by the reviewer. | yes | covered | pass | K1 |
 | A03 | Serverless sizing and concurrency | Serverless with high max | Queue-based ceiling rule at low confidence. | yes | covered | fail | K2 |
 | A04 | Cluster limits | Targets above 40 max or 30 min | Clamped. | yes | covered | pass | — |
-| A05 | Region or networking blocks Serverless | No Serverless in region; custom networking | No migration proposed; region check unknown unless verified. | yes | covered | fail | G41 |
+| A05 | Region or networking blocks Serverless | No Serverless in region; custom networking | No migration proposed; region check unknown unless verified. | yes | covered | pass | G41 |
 | A06 | Starter warehouse left running | Auto-created default warehouse idle | Treated as always-on or zero-query idle. | yes | covered | fail | G8, K1 |
 | A07 | Billing freshness | Last day partially ingested | Days used only once settled (24 h after the day ends and past the workspace watermark). | yes | covered | pass | G21, S2 |
 | A08 | Owner attribution | `identity_metadata.owned_by` | Owner reported; redacted values become unknown. | yes | covered | fail | G13 |

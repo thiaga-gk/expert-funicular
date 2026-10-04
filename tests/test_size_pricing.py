@@ -73,7 +73,12 @@ class SizePricingTests(unittest.TestCase):
         m = size.metadata
         self.assertEqual(m["capacity_ratio_source"], "WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO")
         self.assertLess(abs(m["capacity_ratio"] / (24.0 / 40.0) - 1.0), 0.05)
-        self.assertEqual(m["runtime_multiplier_range"], {"low": self.t.downsize_runtime_multiplier_optimistic, "base": self.t.downsize_runtime_multiplier_base, "high": self.t.downsize_runtime_multiplier_conservative})
+        busy = {"low": self.t.downsize_runtime_multiplier_optimistic, "base": self.t.downsize_runtime_multiplier_base, "high": self.t.downsize_runtime_multiplier_conservative}
+        self.assertEqual(m["busy_runtime_multiplier_range"], busy)
+        share = m["busy_share"]  # the slow-down stretches busy running time only
+        self.assertTrue(0 < share < 1)
+        for k, v in busy.items():
+            self.assertAlmostEqual(m["runtime_multiplier_range"][k], share * v + (1 - share), places=5)
         self.assertNotIn("historical_epoch_calibration", m)
 
     def test_unverified_size_rate_withholds_the_estimate(self):
@@ -114,7 +119,8 @@ class CostValueGateTests(unittest.TestCase):
 
     def test_cost_change_with_negative_savings_does_not_ship(self):
         # A downsize that runs so much slower it costs more: the change is held, the modeled loss stays visible.
-        t = dataclasses.replace(p.Thresholds(), downsize_runtime_multiplier_optimistic=2.5, downsize_runtime_multiplier_base=2.5, downsize_runtime_multiplier_conservative=2.5)
+        # (Busy time is about 30% of C06's running time, so queries must run 5x slower to outweigh the 0.6 price ratio.)
+        t = dataclasses.replace(p.Thresholds(), downsize_runtime_multiplier_optimistic=5.0, downsize_runtime_multiplier_base=5.0, downsize_runtime_multiplier_conservative=5.0)
         size = candidates_by_scenario(self.fleet, t)["C06"]["warehouse_size"]
         self.assertEqual(size.status, "NO_CHANGE")
         self.assertEqual(size.recommended_config, size.current_config)
@@ -141,6 +147,79 @@ class CostValueGateTests(unittest.TestCase):
     def test_default_floor_is_500(self):
         self.assertEqual(p.Thresholds().cost_change_min_annual_savings, 500.0)
         self.assertEqual(p.Thresholds().size_rate_published_band, 0.25)
+
+
+class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
+    """An upsize is a canary, and the size speed-up (or slow-down) applies to busy running time only."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def spill_serverless(self, busy_minutes):
+        # Core fixture as Serverless LARGE with spill: one size up (X_LARGE) at the published 2.0 DBU ratio.
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS", min_clusters=1)
+        q = e.current_epoch.query
+        q.update({"spill_query_pct_30": 6.0, "spill_queries_30": 300, "p95_spill_bytes_when_spilled_30": 4 * p.GIB})
+        if busy_minutes is None:
+            e.current_epoch.gaps.pop("busy_minutes", None)
+        else:
+            e.current_epoch.gaps["busy_minutes"] = busy_minutes
+        return e
+
+    def size(self, e):
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["warehouse_size"]
+
+    def test_busy_share_of_cluster_time(self):
+        # Single cluster, 20,000 running minutes of which 10,000 busy: half the cluster time is busy.
+        self.assertAlmostEqual(p.size_busy_share(10000.0, 20000.0, 20000.0, 1), 0.5)
+        # Two-cluster floor: idle time runs min clusters, so 10,000 idle wall minutes are 20,000 idle cluster-minutes.
+        self.assertAlmostEqual(p.size_busy_share(10000.0, 20000.0, 50000.0, 2), 0.6)
+        # Busy time above running time (inconsistent sources) counts as all busy; unknown stays unknown.
+        self.assertEqual(p.size_busy_share(25000.0, 20000.0, 20000.0, 1), 1.0)
+        self.assertIsNone(p.size_busy_share(None, 20000.0, 20000.0, 1))
+        self.assertIsNone(p.size_busy_share(100.0, 0.0, 0.0, 1))
+        # Cluster count below the floor (sources disagree): busy cluster-minutes are never below busy wall-minutes.
+        self.assertAlmostEqual(p.size_busy_share(100.0, 1000.0, 1500.0, 2), 100.0 / 1500.0, places=6)
+
+    def test_upsize_is_a_canary_not_actionable(self):
+        size = self.size(self.spill_serverless(5000.0))
+        self.assertEqual(size.recommended_config, {"warehouse_size": "X_LARGE"})
+        self.assertEqual(size.status, "TEST_REQUIRED")
+        self.assertIn("A_B_PERFORMANCE_VALIDATION_REQUIRED", size.blockers)
+
+    def test_upsize_speed_up_applies_to_busy_time_only(self):
+        # uptime 20,000, cluster 30,000, busy 5,000: idle cluster-minutes 15,000, busy share 0.5.
+        # Base cost factor 2.0 x (0.5 x 0.70 + 0.5) = 1.70, not 2.0 x 0.70 = 1.40.
+        m = self.size(self.spill_serverless(5000.0)).metadata
+        self.assertAlmostEqual(m["busy_share"], 0.5)
+        self.assertAlmostEqual(m["runtime_multiplier_range"]["base"], 0.85)
+        self.assertAlmostEqual(m["runtime_multiplier_range"]["low"], 0.75)
+        self.assertAlmostEqual(m["runtime_multiplier_range"]["high"], 1.0)
+        self.assertEqual(m["busy_runtime_multiplier_range"], {"low": 0.5, "base": 0.7, "high": 1.0})
+
+    def test_unknown_busy_time_treats_all_running_time_as_busy(self):
+        m = self.size(self.spill_serverless(None)).metadata
+        self.assertIsNone(m["busy_share"])
+        self.assertAlmostEqual(m["runtime_multiplier_range"]["base"], 0.70)
+
+    def test_downsize_slow_down_applies_to_busy_time_only(self):
+        e = p.demo_evidence()[0]  # LARGE -> MEDIUM canary, min 2 clusters
+        e.current_epoch.gaps["busy_minutes"] = 12000.0
+        m = self.size(e).metadata
+        share = m["busy_share"]
+        self.assertGreater(share, 0.0); self.assertLess(share, 1.0)
+        self.assertAlmostEqual(m["runtime_multiplier_range"]["base"], share * 1.30 + (1 - share), places=6)
+
+    def test_gap_collector_reports_busy_wall_minutes_for_every_epoch_with_queries(self):
+        sql = p.build_epoch_gap_metrics_sql(self.t)
+        self.assertIn("AS busy_minutes", sql)
+        self.assertIn("LEFT JOIN gap_stats", sql)
+        # Whole-second TIMESTAMPDIFF would drop most of every sub-second query's contribution.
+        busy = sql[sql.index("busy AS ("):sql.index("), gaps AS (")]
+        self.assertIn("TIMESTAMPDIFF(MILLISECOND,", busy)
+        self.assertNotIn("TIMESTAMPDIFF(SECOND,", busy)
 
 
 if __name__ == "__main__":

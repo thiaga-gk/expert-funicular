@@ -201,6 +201,10 @@ class DemoFleetTests(unittest.TestCase):
         self.assertEqual(e.photon_observation.status, "DISABLED")
         self.assertFalse([c for c in pkg["candidates"] if "photon" in c["knob"]])
 
+    def test_c37_ceiling_is_kept_for_the_half_year_peak(self):
+        c = self.candidate("C37", "max_clusters")
+        self.assertEqual((c["status"], c["recommended_value"], c["blockers"]), ("NO_CHANGE", 8, ["PEAK_OUTSIDE_RECENT_WINDOW"]))
+
     def test_c41_genie_warehouse_is_never_moved_to_classic(self):
         self.assertNotEqual(self.candidate("C41", "warehouse_type")["recommended_value"], "CLASSIC")
 
@@ -226,6 +230,17 @@ class DemoFleetTests(unittest.TestCase):
                 c = self.candidate(scenario, "auto_stop_minutes")
                 if c["recommended_value"] != c["current_value"]:
                     self.assertGreaterEqual(c["recommended_value"], 10, scenario)
+
+    def test_a05_serverless_region_check_is_unknown_unless_the_workspace_runs_serverless(self):
+        seen = set()
+        for scenario, (e, pkg) in self.by_scenario.items():
+            region = [c for s in pkg["scenarios"] for c in s["compatibility"]["checks"] if c["check"] == "aws_region_serverless_availability"]
+            if not region:
+                continue
+            observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses"))
+            self.assertEqual(region[0]["status"], "PASS" if observed else "UNKNOWN", scenario)
+            seen.add(observed)
+        self.assertEqual(seen, {False, True})
 
     def test_a04_cluster_targets_stay_within_limits(self):
         for scenario in self.by_scenario:

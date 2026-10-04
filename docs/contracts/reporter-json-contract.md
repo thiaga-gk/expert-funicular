@@ -414,6 +414,12 @@ Cost basis enum:
 
 `OPTIMIZATION_AVAILABLE | NO_CHANGE | REVIEW_REQUIRED | BLOCKED | INSUFFICIENT_EVIDENCE`
 
+The status follows the recommended scenario, not every candidate: the warehouse-type migration experiment is always `TEST_REQUIRED` and alone never makes a warehouse optimizable.
+
+1. `OPTIMIZATION_AVAILABLE` when a step of the recommended scenario refers to an `ACTIONABLE` or `TEST_REQUIRED` candidate.
+2. `REVIEW_REQUIRED` when the recommended scenario has only `REVIEW` steps, or when it is empty and an alternative scenario that is not `INCOMPATIBLE` has steps and a positive priced base 365-day savings total.
+3. Otherwise `BLOCKED` when any candidate is `BLOCKED`, else `INSUFFICIENT_EVIDENCE` when any candidate is, else `NO_CHANGE`.
+
 ### Summary fields
 
 All are required non-negative integers:
@@ -543,6 +549,8 @@ Scenarios are mutually exclusive/alternative execution strategies, not candidate
 - checks[]: `check`, `status`, `requires_hitl`, `evidence_refs`, nullable `details`
 
 Check status: `PASS | FAIL | UNKNOWN | NOT_APPLICABLE`.
+
+The recommended (current-type) scenario is `COMPATIBLE`. A migration scenario is `INCOMPATIBLE` when any check fails; its migration step is then `BLOCKED`. Otherwise it is `REQUIRES_VALIDATION`, even when every check passes, and its plan opens with a compatibility-validation step.
 
 ### Scenario economics
 

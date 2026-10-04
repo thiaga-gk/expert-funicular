@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import json
 import tempfile
 import unittest
@@ -1605,7 +1606,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_spill_constrained(self):
         _,r=self.load("spill-constrained"); c=next(c for c in r[0].candidates if c.knob=="warehouse_size")
-        self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
+        self.assertEqual(c.status,"TEST_REQUIRED"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
 
     def spill_evidence(self, *, queries_30=12000, epoch_start=None):
         """Spill-constrained golden fixture with the sample size / epoch age overridden (audit H2)."""
@@ -1643,10 +1644,10 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertEqual(set(c.blockers), {"INSUFFICIENT_QUERY_SAMPLE", "CURRENT_CONFIG_EPOCH_TOO_NEW"})
 
-    def test_upsize_actionable_exactly_at_evidence_boundaries(self):
+    def test_upsize_canary_exactly_at_evidence_boundaries(self):
         # 100 queries and exactly 7 days of epoch age are sufficient.
         _, c = self.size_candidate(self.spill_evidence(queries_30=100, epoch_start="2026-09-24T12:00:00+00:00"))
-        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.status, "TEST_REQUIRED")
         self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
         _, below = self.size_candidate(self.spill_evidence(queries_30=99))
         self.assertEqual(below.status, "INSUFFICIENT_EVIDENCE")
@@ -1691,7 +1692,7 @@ class GoldenScenarioTests(unittest.TestCase):
         ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
                                     p95_spill_bytes_when_spilled_30=self.GIB10)
         c = self.candidate(ev, "warehouse_size")
-        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.status, "TEST_REQUIRED")
         self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
 
     def test_spill_severity_is_judged_among_spilled_queries(self):
@@ -1943,6 +1944,188 @@ class GoldenScenarioTests(unittest.TestCase):
         _,r=self.load("aws-region-missing"); w=r[0]
         self.assertIsNone(w.aws_365d_baseline_cost); self.assertIsNone(w.total_365d_baseline_cost)
 
+
+
+class AwsRegionPriceGuardTests(unittest.TestCase):
+    """Live runs refuse to publish Pro/Classic economics for a region the AWS price registry does not cover."""
+
+    def setUp(self):
+        self.evidence = p.demo_evidence()  # one Pro warehouse
+        self.registry = p.load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
+
+    def _serverless_only(self):
+        ev = copy.deepcopy(self.evidence)
+        for e in ev:
+            for ep in e.epochs:
+                ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS")
+        return ev
+
+    def test_unknown_or_unregistered_region_with_pro_warehouse_is_refused(self):
+        for region in ("unknown", "eu-west-1", ""):
+            msg = p.aws_region_price_guard(self.evidence, region, self.registry, allow_missing=False)
+            self.assertIsNotNone(msg, region)
+            self.assertIn("--allow-missing-aws-price", msg)
+            self.assertIn("1 Pro/Classic", msg)
+
+    def test_registered_region_escape_flag_and_serverless_only_fleet_pass(self):
+        self.assertIsNone(p.aws_region_price_guard(self.evidence, "us-east-1", self.registry, allow_missing=False))
+        self.assertIsNone(p.aws_region_price_guard(self.evidence, "unknown", self.registry, allow_missing=True))
+        self.assertIsNone(p.aws_region_price_guard(self._serverless_only(), "unknown", self.registry, allow_missing=False))
+
+    def test_unsupported_types_do_not_trigger_the_guard(self):
+        ev = copy.deepcopy(self.evidence)
+        for ep in ev[0].epochs:
+            ep.config = dataclasses.replace(ep.config, warehouse_type="LAKEHOUSE_REALTIME")
+        self.assertIsNone(p.aws_region_price_guard(ev, "unknown", self.registry, allow_missing=False))
+
+    def test_live_main_refuses_before_writing_packages(self):
+        import contextlib, io
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), \
+                patch.object(p, "resolve_cli_oauth", return_value=MagicMock()), \
+                patch.object(p, "collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
+                patch.object(p, "SqlClient", MagicMock()), \
+                patch.object(p, "extract_evidence", return_value=self.evidence):
+            with self.assertRaises(SystemExit) as cm:
+                p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
+            self.assertIn("--allow-missing-aws-price", str(cm.exception.code))
+            self.assertFalse((Path(tmp) / "packages").exists())
+            # The escape flag publishes with AWS cost unavailable.
+            self.assertEqual(p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
+            self.assertTrue(any((Path(tmp) / "packages").glob("*.json")))
+
+
+class ServerlessRegionCheckTests(unittest.TestCase):
+    """No verified per-region Serverless list exists: a region label alone never passes the check."""
+
+    def _check(self, observed, region="us-east-1"):
+        e = p.demo_evidence()[0]
+        e.billing_features["workspace_serverless_observed_from_system_compute_warehouses"] = observed
+        e = dataclasses.replace(e, source_region=region)
+        planner = p.ScenarioPlanner(p.Thresholds())
+        compat = planner._compatibility(e, "SERVERLESS")
+        return next(c for c in compat["checks"] if c["check"] == "aws_region_serverless_availability")
+
+    def test_region_label_alone_is_unknown(self):
+        for region in ("us-east-1", "unknown", "ap-south-2"):
+            self.assertEqual(self._check(False, region)["status"], "UNKNOWN", region)
+
+    def test_existing_serverless_warehouse_in_the_workspace_proves_the_region(self):
+        self.assertEqual(self._check(True)["status"], "PASS")
+
+
+class OverallStatusTests(unittest.TestCase):
+    """The package status follows the recommended plan, not every candidate (the migration experiment is always a canary)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import logging
+        logging.disable(logging.CRITICAL)
+        cls.t = p.Thresholds()
+        cls.pkg = p.build_recommendation_packages(p.demo_evidence(), cls.t)[0]
+        cls.fleet = p.build_recommendation_packages(p.synthetic_demo_evidence(), cls.t)
+
+    @classmethod
+    def tearDownClass(cls):
+        import logging
+        logging.disable(logging.NOTSET)
+
+    def with_plans(self, plan_a_steps=None, plan_b_total="keep"):
+        rc = p.rc
+        scenarios = []
+        for s in self.pkg.scenarios:
+            if s.status == rc.ScenarioStatus.RECOMMENDED and plan_a_steps is not None:
+                s = dataclasses.replace(s, execution_plan=plan_a_steps)
+            if s.status == rc.ScenarioStatus.ALTERNATIVE and plan_b_total != "keep":
+                econ = s.portfolio_economics
+                s = dataclasses.replace(s, portfolio_economics=dataclasses.replace(econ, savings_365d=dataclasses.replace(econ.savings_365d, total=plan_b_total)))
+            scenarios.append(s)
+        return p._overall_status(self.pkg.candidates, scenarios)
+
+    def test_recommended_plan_with_steps_is_optimization_available(self):
+        self.assertEqual(self.pkg.assessment.overall_status, p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE)
+
+    def test_empty_plan_with_priced_positive_experiment_needs_review(self):
+        self.assertEqual(self.with_plans([], p.rc.Range3(-500.0, 1200.0, 4000.0)), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+
+    def test_empty_plan_with_negative_or_unpriced_experiment_is_not_an_optimization(self):
+        for total in (p.rc.Range3(-3000.0, -1443.0, -200.0), None):
+            status = self.with_plans([], total)
+            self.assertNotIn(status, {p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, p.rc.AssessmentStatus.REVIEW_REQUIRED}, total)
+
+    def test_incompatible_experiment_is_not_a_reason_to_review(self):
+        e = p.demo_evidence()[0]
+        e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "enable_serverless_compute": False,
+                                    "external_legacy_hive_metastore_detected": True}
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        plan_b = next(s for s in pkg.scenarios if s.status == p.rc.ScenarioStatus.ALTERNATIVE)
+        self.assertEqual(plan_b.compatibility.status, p.rc.CompatibilityStatus.INCOMPATIBLE)
+        migration = [x for x in plan_b.execution_plan if x.candidate_id]
+        self.assertEqual([x.execution_state for x in migration], [p.rc.ExecutionState.BLOCKED])
+        scenarios = [dataclasses.replace(s, execution_plan=[]) if s.status == p.rc.ScenarioStatus.RECOMMENDED else s for s in pkg.scenarios]
+        self.assertGreater(plan_b.portfolio_economics.savings_365d.total.base, 0)
+        self.assertNotEqual(p._overall_status(pkg.candidates, scenarios), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+
+    def test_fleet_status_matches_the_recommended_plan(self):
+        rc = p.rc
+        for pkg in self.fleet:
+            plan = next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED)
+            if not plan.execution_plan:
+                self.assertNotEqual(pkg.assessment.overall_status, rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, pkg.warehouse.warehouse_name)
+        self.assertTrue(any(not next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED).execution_plan for pkg in self.fleet))
+
+
+class SeasonalCeilingTests(unittest.TestCase):
+    """A ceiling cut never goes below the highest cluster count the current configuration has run at."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def max_candidate(self, epoch_peak):
+        e = p.demo_evidence()[0]  # max 3, recent peak 2 -> ceiling 3 kept today; widen the ceiling to 8
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+
+    def test_epoch_peak_inside_the_recent_window_keeps_the_recent_cut(self):
+        c = self.max_candidate(2)
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+    def test_epoch_peak_outside_the_recent_window_raises_the_cut_target(self):
+        c = self.max_candidate(4)  # 4 + 1 headroom
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 5))
+
+    def test_epoch_peak_at_the_ceiling_holds_the_cut(self):
+        c = self.max_candidate(8)
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("NO_CHANGE", 8))
+        self.assertEqual(c.blockers, ["PEAK_OUTSIDE_RECENT_WINDOW"])
+
+    def test_recycling_transients_above_the_ceiling_are_not_a_peak(self):
+        # The epoch peak is measured within the ceiling, like the recent window's: counts above max are not demand.
+        sql = p.EPOCH_EVENT_METRICS_SQL.replace(" ", "")
+        self.assertIn("MAX(CASEWHENcluster_count<=max_clustersTHENcluster_countEND)ASmax_observed_clusters_within_ceiling", sql)
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters"] = 12
+        e.current_epoch.events.pop("max_observed_clusters_within_ceiling", None)
+        c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+    def test_held_cut_still_names_queue_evidence_gaps(self):
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = 8
+        e.current_epoch.query.pop("queued_query_pct_30", None)
+        c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertEqual(c.blockers, ["QUEUE_EVIDENCE_UNAVAILABLE", "PEAK_OUTSIDE_RECENT_WINDOW"])
+
+    def test_unknown_epoch_peak_uses_the_recent_window(self):
+        c = self.max_candidate(None)
+        self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
 
 
 if __name__ == "__main__":
