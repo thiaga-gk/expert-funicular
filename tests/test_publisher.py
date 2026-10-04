@@ -927,6 +927,20 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertNotIn("no list price", methods)
         self.assertIn("billed days", methods)
 
+    def test_legacy_sparse_evidence_replays_with_the_same_blocker_as_a_fresh_run(self):
+        x = json.loads(json.dumps(p.as_serializable(self.evidence[0])))
+        x["forecast_metadata"].pop("dbu_forecast_status", None)
+        x["forecast_metadata"]["active_cost_days"] = 4
+        e = p.evidence_from_dict(x)
+        self.assertEqual(e.forecast_metadata["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
+        self.assertEqual(p.dbu_baseline_blocker(e, self.t), "BILLED_COST_DAYS_INSUFFICIENT")
+
+    def test_blocker_follows_the_configured_cost_history_floor(self):
+        import dataclasses
+        t14 = dataclasses.replace(self.t, min_economics_cost_history_days=14)
+        self.assertEqual(p.dbu_baseline_blocker(self._sparse(10), t14), "COST_HISTORY_INSUFFICIENT")
+        self.assertEqual(p.dbu_baseline_blocker(self._sparse(10), self.t), "BILLED_COST_DAYS_INSUFFICIENT")
+
     def test_young_epoch_keeps_the_time_gate_code(self):
         by = {c.knob: c for c in p.evaluate_warehouses([self._sparse(3)], self.t)[0].candidates}
         self.assertEqual(by["warehouse_type"].blockers, ["COST_HISTORY_INSUFFICIENT"])
