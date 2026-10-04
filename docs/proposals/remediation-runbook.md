@@ -30,7 +30,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 4. **Refactor**, then run the full CLAUDE.md change loop:
    1. `python -m compileall -q publisher.py contracts reporters tests`
    2. `python -m unittest discover -s tests -v`
-   3. regenerate the 15-warehouse demo (`python publisher.py --demo --demo-count 15 --output-dir ./demo_out`)
+   3. regenerate the demo fleet (one simulated warehouse per golden scenario: `python publisher.py --demo --output-dir ./demo_out`)
    4. validate every package (semantic + JSON Schema)
    5. `python tools/validate_workbook.py ./demo_out`
    6. stale version/legacy reference scan before any release step

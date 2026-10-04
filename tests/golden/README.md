@@ -28,6 +28,8 @@ Scenario fixtures (`c*.json` and `a*.json`, run by `tests/test_golden_scenarios.
 - c45-steady-high-utilization (asserts the task-time utilization evidence only)
 - c48-long-unchanged-warehouse
 
+The `--demo` fleet is separate from these fixtures: the fixtures are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/test_demo_fleet.py`).
+
 Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/test_evidence_format.py` fails otherwise.
 
 Evidence fixtures carry the current epoch's daily resource series (`resource_daily`). `tools/add_resource_daily.py` backfills a synthetic one (event totals spread evenly) into older fixtures; real evidence without it fails closed.

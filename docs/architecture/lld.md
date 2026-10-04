@@ -135,7 +135,7 @@ Changing a decision-affecting implementation without changing the corresponding 
 ```mermaid
 flowchart TD
     CLI[CLI] --> M{Mode}
-    M -->|--demo| DEMO[Synthetic collector evidence<br/>1..15 warehouses]
+    M -->|--demo| DEMO[Simulated collector evidence<br/>1..38 warehouses]
     M -->|--from-evidence| REPLAY[Load normalized evidence files]
     M -->|live default| LIVE[Databricks collector]
 
@@ -154,7 +154,7 @@ flowchart TD
 |---|---|
 | `--output-dir` | output root; default `./warehouse_optimizer_out` |
 | `--demo` | synthetic collector mode |
-| `--demo-count` | number of synthetic warehouses, `1..15` |
+| `--demo-count` | number of simulated warehouses, `1..38` (default: the full fleet) |
 | `--from-evidence` | replay one or more normalized evidence files |
 | `--profile` | Databricks CLI profile |
 | `--serverless-warehouse-id` | SQL execution target convenience flag |
@@ -1393,9 +1393,9 @@ The workbook is generated from already-validated `RecommendationPackage` objects
 | Sheet | Grain | Current synthetic example |
 |---|---|---:|
 | Executive Summary | portfolio aggregation | 1 summary surface |
-| Warehouse Portfolio | one `recommendation_package_id` | 15 rows |
-| Scenario Plans | one `scenario_id` | 30 rows |
-| Recommendation Registry | one `candidate_id` | 90 rows |
+| Warehouse Portfolio | one `recommendation_package_id` | 38 rows |
+| Scenario Plans | one `scenario_id` | 76 rows |
+| Recommendation Registry | one `candidate_id` | 228 rows |
 
 ### 27.2 Projection architecture
 
@@ -1553,7 +1553,7 @@ flowchart TD
     G[10 golden scenarios] --> I
     C[Reporter contract tests] --> I
     W[Workbook contract tests] --> I
-    I --> D[15-warehouse synthetic end-to-end run]
+    I --> D[Golden-scenario fleet synthetic end-to-end run]
     D --> X[XLSX re-import / visual QA]
 ```
 
@@ -1591,7 +1591,7 @@ Tests verify:
 - no blank semantic workbook cells,
 - no negative numeric presentation values,
 - no Excel business formulas,
-- output generation from 15 synthetic warehouses.
+- output generation from the 38 simulated fleet warehouses.
 
 ---
 
