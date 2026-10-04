@@ -221,8 +221,9 @@ class ResourceWindowTests(unittest.TestCase):
         e.current_epoch.events["minutes_at_max"] = 0.0
         e.current_epoch.resource_daily = day_rows("2026-07-08", 84, 300.0, at_max=40.0, peak=4, uptime=100.0)
         e.current_epoch.query.update(queued_query_pct_30=20.0, queued_queries_30=500, p95_wait_capacity_ms_when_queued_30=90000)
+        e.current_epoch.query["concurrency_histogram"]["RECENT"] = {"1": 9900.0, "50": 100.0}  # 5 clusters at P99.5
         mx = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
-        self.assertEqual(mx.recommended_config["max_clusters"], mx.current_config["max_clusters"] + 1)
+        self.assertEqual(mx.recommended_config["max_clusters"], 6)
         self.assertGreater(mx.metadata["raw_uplift_fraction"], 0.0)
 
     def test_missing_series_holds_max_clusters_even_when_min_equals_max(self):

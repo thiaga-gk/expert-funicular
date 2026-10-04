@@ -144,6 +144,15 @@ class Thresholds:
     # A reduced ceiling must leave growth room above the observed peak: max(clusters, ceil(pct x peak)).
     max_cluster_headroom_clusters: int = 1
     max_cluster_headroom_pct: float = 25.0
+    # Concurrency-derived cluster targets (Pro/Classic add one cluster per this many concurrent queries, documented).
+    queries_per_cluster_pro_classic: int = 10
+    max_cluster_target_percentile: float = 99.5  # of busy minutes' running + queued queries (recent window and whole epoch)
+    max_cluster_target_headroom_clusters: int = 1
+    min_cluster_busy_start_percentile: float = 95.0  # of busy periods' peak demand in their first scale-up-lag minutes
+    scale_up_lag_minutes_pro_classic: int = 5
+    scale_up_lag_minutes_serverless: int = 1
+    concurrency_min_busy_minutes: int = 200  # a P99.5 needs at least this many busy minutes
+    min_cluster_min_busy_periods: int = 20  # a P95 of busy-period starts needs at least this many periods
     max_clusters_supported_limit: int = 40
     min_clusters_supported_limit: int = 30
 
@@ -1114,6 +1123,126 @@ HAVING SUM(m.wall_min) > 0 OR SUM(m.cluster_min) > 0 OR COUNT_IF(m.has_next AND 
   OR COUNT_IF(m.has_next AND NOT m.ran_through AND m.target_min >= {cover} * m.gap_min) > 0
   OR SUM(CASE WHEN NOT m.ran_through THEN GREATEST(0, LEAST(m.gap_min, m.target_min) - m.running_min) ELSE 0 END) > 0
 ORDER BY c.workspace_id, c.warehouse_id, m.target_min
+"""
+
+
+CONCURRENCY_SCOPES = ("RECENT", "EPOCH", "BUSY_START")
+
+
+def concurrency_histograms(intervals: Sequence[Tuple[float, float, float]], epoch_window: Tuple[float, float], recent_start: Optional[float],
+                           lag_minutes: int) -> Dict[str, Dict[str, float]]:
+    """Reference implementation of the concurrency collector (times in minutes from any origin aligned to UTC minutes).
+
+    ``intervals`` are (start, end, queries) spans of running or queued queries (one query each in the collector). Each
+    UTC minute's concurrency is the time-weighted number of queries in it (query-minutes / 1); its level is that number
+    rounded up. Histograms (level -> weight, levels as strings): EPOCH = busy minutes (level >= 1) over the epoch
+    window, RECENT = busy minutes from ``recent_start`` (current epoch only), BUSY_START = for each busy period that
+    starts after at least ``lag_minutes`` idle minutes, its highest level in its first ``lag_minutes`` minutes (count of
+    periods), within the recent window.
+    """
+    lo, hi = epoch_window
+    per_minute: Dict[int, float] = {}
+    for a, b, w in intervals:
+        a, b = max(a, lo), min(b, hi)
+        while a < b:
+            m = math.floor(a + 1e-9)
+            cut = min(b, m + 1.0)
+            per_minute[m] = per_minute.get(m, 0.0) + (cut - a) * w
+            a = cut
+    out: Dict[str, Dict[str, float]] = {"EPOCH": {}}
+
+    def add(hist: Dict[str, float], level: int, weight: float = 1.0) -> None:
+        hist[str(level)] = hist.get(str(level), 0.0) + weight
+
+    busy = sorted(m for m, c in per_minute.items() if c > 1e-9)
+    for m in busy:
+        add(out["EPOCH"], math.ceil(per_minute[m] - 1e-9))
+    if recent_start is not None:
+        out["RECENT"], out["BUSY_START"] = {}, {}
+        recent = [m for m in busy if m >= recent_start]
+        for m in recent:
+            add(out["RECENT"], math.ceil(per_minute[m] - 1e-9))
+        prev: Optional[int] = None
+        for i, m in enumerate(recent):
+            if prev is None or m - prev > lag_minutes:
+                peak = max(math.ceil(per_minute[x] - 1e-9) for x in recent[i:] if x < m + lag_minutes)
+                add(out["BUSY_START"], peak)
+            prev = m
+    return out
+
+
+def histogram_percentile(hist: Optional[Mapping[str, Any]], pct: float) -> Optional[int]:
+    """Smallest level whose cumulative weight reaches pct% of the total; None when the histogram is empty or missing."""
+    if not hist:
+        return None
+    items = sorted((int(k), safe_float(v)) for k, v in hist.items())
+    total = sum(w for _, w in items)
+    if total <= 0:
+        return None
+    run = 0.0
+    for level, w in items:
+        run += w
+        if run >= pct / 100.0 * total - 1e-9:
+            return level
+    return items[-1][0]
+
+
+def build_concurrency_sql(t: Thresholds) -> str:
+    """Per-minute query concurrency (running + queued, time-weighted) as histograms per epoch (last 365 days).
+
+    Same arithmetic as ``concurrency_histograms``: EPOCH for every epoch, RECENT (last 30 days) and BUSY_START for the
+    current epoch. A query occupies [start_time, end_time); milliseconds keep sub-second queries.
+    """
+    return f"""
+WITH {CONFIG_EPOCHS_CTE},
+ep AS (
+  SELECT workspace_id, warehouse_id, epoch_start, epoch_end, warehouse_type,
+    GREATEST(epoch_start, CURRENT_TIMESTAMP() - INTERVAL 365 DAYS) AS e_start, COALESCE(epoch_end, CURRENT_TIMESTAMP()) AS e_end,
+    CASE WHEN warehouse_type = 'SERVERLESS' THEN {t.scale_up_lag_minutes_serverless} ELSE {t.scale_up_lag_minutes_pro_classic} END AS lag_min
+  FROM config_epochs
+  WHERE COALESCE(epoch_end, CURRENT_TIMESTAMP()) > CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+), q AS (
+  SELECT p.workspace_id, p.warehouse_id, p.epoch_start, p.epoch_end, p.lag_min,
+    GREATEST(x.start_time, p.e_start) AS s,
+    LEAST(COALESCE(x.end_time, TIMESTAMPADD(MILLISECOND, COALESCE(x.total_duration_ms, 0), x.start_time)), p.e_end) AS t
+  FROM system.query.history x
+  JOIN ep p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
+    AND x.start_time >= p.epoch_start AND x.start_time < p.e_end
+  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 366 DAYS
+), qm AS (
+  SELECT q.workspace_id, q.warehouse_id, q.epoch_start, q.epoch_end, q.lag_min, m AS minute_start,
+    TIMESTAMPDIFF(MILLISECOND, GREATEST(q.s, m), LEAST(q.t, TIMESTAMPADD(MINUTE, 1, m))) AS ms
+  FROM q LATERAL VIEW EXPLODE(SEQUENCE(DATE_TRUNC('MINUTE', q.s), DATE_TRUNC('MINUTE', TIMESTAMPADD(MILLISECOND, -1, q.t)), INTERVAL 1 MINUTE)) mm AS m
+  WHERE q.t > q.s
+), minutes AS (
+  SELECT workspace_id, warehouse_id, epoch_start, epoch_end, lag_min, minute_start, CAST(CEIL(SUM(ms) / 60000.0) AS INT) AS level
+  FROM qm GROUP BY workspace_id, warehouse_id, epoch_start, epoch_end, lag_min, minute_start
+  HAVING SUM(ms) > 0
+), recent AS (
+  SELECT *, CASE WHEN LAG(minute_start) OVER w IS NULL
+      OR TIMESTAMPDIFF(MINUTE, LAG(minute_start) OVER w, minute_start) > lag_min THEN 1 ELSE 0 END AS starts_period
+  FROM minutes
+  WHERE epoch_end IS NULL AND minute_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
+  WINDOW w AS (PARTITION BY workspace_id, warehouse_id ORDER BY minute_start)
+), periods AS (
+  SELECT *, SUM(starts_period) OVER (PARTITION BY workspace_id, warehouse_id ORDER BY minute_start ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS period_id
+  FROM recent
+), period_peaks AS (
+  -- Each busy period's highest level in its first lag minutes: demand the autoscaler cannot meet above the floor yet.
+  SELECT workspace_id, warehouse_id, epoch_start, period_id, MAX(level) AS level
+  FROM (SELECT *, MIN(minute_start) OVER (PARTITION BY workspace_id, warehouse_id, period_id) AS period_start FROM periods) x
+  WHERE minute_start < TIMESTAMPADD(MINUTE, lag_min, period_start)
+  GROUP BY workspace_id, warehouse_id, epoch_start, period_id
+)
+SELECT workspace_id, warehouse_id, epoch_start, 'EPOCH' AS scope, level, COUNT(*) AS weight
+FROM minutes GROUP BY workspace_id, warehouse_id, epoch_start, level
+UNION ALL
+SELECT workspace_id, warehouse_id, epoch_start, 'RECENT' AS scope, level, COUNT(*) AS weight
+FROM recent GROUP BY workspace_id, warehouse_id, epoch_start, level
+UNION ALL
+SELECT workspace_id, warehouse_id, epoch_start, 'BUSY_START' AS scope, level, COUNT(*) AS weight
+FROM period_peaks GROUP BY workspace_id, warehouse_id, epoch_start, level
+ORDER BY workspace_id, warehouse_id, epoch_start, scope, level
 """
 
 
@@ -2373,6 +2502,11 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         header = running_idle_idx.get(_row_key(r))
         if header is not None:
             header["running_idle_by_target"][str(safe_int(r.get("target_min")))] = {k: r.get(k) for k in RUNNING_IDLE_TARGET_FIELDS}
+    concurrency_idx: Dict[Tuple[str, str, str], Dict[str, Dict[str, float]]] = {}
+    for r in client.query(build_concurrency_sql(thresholds),label="concurrency"):
+        scope = str(r.get("scope") or "")
+        if scope in CONCURRENCY_SCOPES:
+            concurrency_idx.setdefault(_row_key(r), {}).setdefault(scope, {})[str(safe_int(r.get("level")))] = safe_float(r.get("weight"))
     resource_daily_idx: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
     # The query reports its own collected range (CURRENT_DATE at run time); the analysis clock is only a fallback.
     resource_collected_from: Optional[str] = None
@@ -2452,7 +2586,10 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             is_current=bool(r.get("is_current")),
             config=config,
             tags=normalize_map(r.get("tags")),
-            query=query_idx.get(key, {}),
+            # Concurrency histograms (collected for every epoch in the last 365 days; an empty histogram is a known zero).
+            query={**query_idx.get(key, {}), **({"concurrency_histogram": {**{sc: {} for sc in (CONCURRENCY_SCOPES if bool(r.get("is_current")) else ("EPOCH",))},
+                                                                         **concurrency_idx.get(key, {})}}
+                                                if (end is None or parse_datetime(end) > parse_datetime(analysis_time) - dt.timedelta(days=365)) else {})},
             events=event_idx.get(key, {}),
             # Running-idle evidence (current epoch only) joins the gap facts; absent keys mean not collected.
             gaps={**gap_idx.get(key, {}), **(running_idle_idx.get(key, {}) if bool(r.get("is_current")) else {})},
@@ -2626,6 +2763,32 @@ class Analyzer:
         fs.append(self._f(e,"warehouse_size","busy_cluster_time_share",busy_share,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window="current epoch",interpretation="Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy)."))
         out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
+        # Concurrency demand: per-minute running + queued queries (time-weighted), as clusters at the documented
+        # queries per cluster. P99.5 of busy minutes over the recent window and the whole current epoch; P95 of busy
+        # periods' peak demand in their first scale-up-lag minutes (before the autoscaler can add clusters).
+        hist = q.get("concurrency_histogram") if isinstance(q.get("concurrency_histogram"), Mapping) else None
+        qpc = self.t.queries_per_cluster_pro_classic
+        def clusters_for(level: Optional[int]) -> Optional[int]:
+            return None if level is None else max(1, math.ceil(level / qpc))
+        conc_recent = histogram_percentile((hist or {}).get("RECENT"), self.t.max_cluster_target_percentile)
+        conc_epoch = histogram_percentile((hist or {}).get("EPOCH"), self.t.max_cluster_target_percentile)
+        conc_busy_start = histogram_percentile((hist or {}).get("BUSY_START"), self.t.min_cluster_busy_start_percentile)
+        busy_minutes_recent = sum(safe_float(v) for v in ((hist or {}).get("RECENT") or {}).values()) if hist else None
+        busy_periods = sum(safe_float(v) for v in ((hist or {}).get("BUSY_START") or {}).values()) if hist else None
+        concurrency = {"concurrency_available": hist is not None and all(sc in hist for sc in CONCURRENCY_SCOPES),
+                       "peak_concurrency_recent": conc_recent, "peak_concurrency_epoch": conc_epoch, "busy_start_concurrency": conc_busy_start,
+                       "required_clusters_recent": clusters_for(conc_recent), "required_clusters_epoch": clusters_for(conc_epoch),
+                       "required_clusters_busy_start": clusters_for(conc_busy_start), "busy_minutes_recent": busy_minutes_recent, "busy_periods_recent": busy_periods,
+                       "recent_concurrency_histogram": (hist or {}).get("RECENT")}
+        def concurrency_findings(knob: str) -> List[Finding]:
+            return [
+                self._f(e,knob,"peak_concurrency_recent",conc_recent,unit="queries",threshold=self.t.max_cluster_target_percentile,comparator="percentile of busy minutes",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation=f"P{self.t.max_cluster_target_percentile:g} of running + queued queries per busy minute; one cluster per {qpc} concurrent queries on Pro/Classic."),
+                self._f(e,knob,"peak_concurrency_epoch",conc_epoch,unit="queries",threshold=self.t.max_cluster_target_percentile,comparator="percentile of busy minutes",table="system.query.history",field="start_time/end_time",window="current epoch (last 365 days)",interpretation="The same peak over the whole current epoch, so a seasonal peak outside the recent window keeps the ceiling."),
+                self._f(e,knob,"busy_start_concurrency",conc_busy_start,unit="queries",threshold=self.t.min_cluster_busy_start_percentile,comparator="percentile of busy periods",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Peak running + queued queries in the first scale-up-lag minutes of busy periods: demand the floor must carry before the autoscaler adds clusters."),
+                self._f(e,knob,"busy_minutes_recent",None if busy_minutes_recent is None else int(busy_minutes_recent),unit="minutes",threshold=self.t.concurrency_min_busy_minutes,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Minutes with at least one query running or queued: the sample the peak percentile is taken over."),
+                self._f(e,knob,"busy_periods_recent",None if busy_periods is None else int(busy_periods),unit="periods",threshold=self.t.min_cluster_min_busy_periods,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Busy periods starting after at least the scale-up lag of idle time: the sample the floor percentile is taken over."),
+            ]
+
         # Max clusters
         # Capacity facts come from the recent resource window (last pressure_window_days of the DBU forecast's calendar),
         # not from whole-epoch totals; unknown when the daily series was not collected.
@@ -2648,7 +2811,8 @@ class Analyzer:
         epoch_peak = None if epoch_peak_raw is None else int(epoch_peak_raw)
         fs.append(growth_finding("max_clusters"))
         fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, excluding cluster-recycling transients above the ceiling; the ceiling is never cut below it."))
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
+        fs.extend(concurrency_findings("max_clusters"))
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,**concurrency,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # The increase is priced on the same recent window it is decided on.
             "minutes_at_max":safe_float(recent["minutes_at_max"]),"cluster_minutes":safe_float(recent["cluster_minutes"])})
 
@@ -2662,8 +2826,8 @@ class Analyzer:
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round_or_none(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window=recent_label,interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
-        fs.append(utilization_finding("min_clusters")); fs.append(growth_finding("min_clusters"))
-        out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
+        fs.append(utilization_finding("min_clusters")); fs.append(growth_finding("min_clusters")); fs.extend(concurrency_findings("min_clusters"))
+        out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,**concurrency,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
             "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
@@ -2853,10 +3017,28 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},gates,
                     ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but the configuration epoch, query sample or queued-query count is too new/small to act on; no change is recommended."))
+            elif cfg.warehouse_type!="SERVERLESS" and not f["concurrency_available"]:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["CONCURRENCY_EVIDENCE_UNAVAILABLE"],["warehouse_size"],[],[],
+                    "Queueing crosses the increase thresholds, but per-minute concurrency was not collected (older evidence), so the target cannot be derived."))
+            elif cfg.warehouse_type!="SERVERLESS" and safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_BUSY_MINUTE_SAMPLE"],["warehouse_size"],[],[],
+                    "Queueing crosses the increase thresholds, but too few busy minutes support a peak-concurrency target."))
             else:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
-                    "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
+                # Pro/Classic: one move to the demand-derived ceiling (peak running + queued queries per cluster, plus
+                # headroom). Serverless scales differently, so it keeps one step at a time (at low confidence).
+                target = (min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters))
+                          if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1)
+                if target <= cfg.max_clusters:
+                    out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},[],["warehouse_size"],[],[],
+                        f"Queries queue, but peak demand ({f['peak_concurrency_recent']} concurrent queries) fits the current ceiling: the queueing is not caused by the ceiling."))
+                else:
+                    out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
+                        "Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
+                        "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
         elif not window_known:
             # Without recent resource time neither saturation nor the unused ceiling can be judged.
             missing = f["resource_window_state"] == "MISSING"
@@ -2866,21 +3048,35 @@ class Optimizer:
                 "The warehouse did not run in the recent window, so the ceiling is not changed."))
         else:
             peak = safe_int(f["max_observed"])
-
-            def ceiling_for(level: int) -> int:
-                return self._ceiling_for(level, cfg.min_clusters)
-
-            # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent window,
-            # so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
             epoch_peak = f.get("epoch_max_observed")
-            reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
+            demand_blocker: Optional[str] = None
+            if cfg.warehouse_type!="SERVERLESS":
+                # Pro/Classic: the ceiling is the demand-derived target; the whole current epoch's peak demand keeps it
+                # for a seasonal peak outside the recent window.
+                def target_for(clusters: Optional[int]) -> int:
+                    return min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
+                if not f["concurrency_available"]:
+                    demand_blocker = "CONCURRENCY_EVIDENCE_UNAVAILABLE"
+                elif safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:
+                    demand_blocker = "INSUFFICIENT_BUSY_MINUTE_SAMPLE"
+                recent_max = target_for(f["required_clusters_recent"])
+                reduced_max = target_for(max(safe_int(f["required_clusters_recent"]), safe_int(f["required_clusters_epoch"])))
+                epoch_peak_label = f"{f['peak_concurrency_epoch']} concurrent queries"
+            else:
+                def ceiling_for(level: int) -> int:
+                    return self._ceiling_for(level, cfg.min_clusters)
+                # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent
+                # window, so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
+                recent_max = ceiling_for(peak)
+                reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
+                epoch_peak_label = f"{safe_int(epoch_peak)} cluster(s)"
             base_eligible = (
                 window_known and cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
             )
-            eligible = base_eligible and reduced_max < cfg.max_clusters
-            held_by_epoch_peak = base_eligible and not eligible and ceiling_for(peak) < cfg.max_clusters
+            eligible = base_eligible and demand_blocker is None and reduced_max < cfg.max_clusters
+            held_by_epoch_peak = base_eligible and demand_blocker is None and not eligible and recent_max < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
             # A cut held for the epoch's peak still names these, so the holds stay visible together.
@@ -2894,6 +3090,8 @@ class Optimizer:
                 evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
             if considered and self._growing(f):
                 evidence_blockers = evidence_blockers + ["QUERY_VOLUME_GROWING"]
+            if base_eligible and demand_blocker is not None:
+                evidence_blockers = evidence_blockers + [demand_blocker]
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
                 target=reduced_max
@@ -2903,7 +3101,7 @@ class Optimizer:
             elif held_by_epoch_peak:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
-                    f"The recent window peaks at {peak} cluster(s), but the current configuration has run at {safe_int(epoch_peak)}; the ceiling is kept for that peak."))
+                    f"The recent window would allow a lower ceiling, but the current configuration has peaked at {epoch_peak_label}; the ceiling is kept for that peak."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -2924,16 +3122,31 @@ class Optimizer:
             if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
             if f["at_max_pct"] is None or f["at_min_pct"] is None: blockers.append(RESOURCE_WINDOW_BLOCKERS.get(f["resource_window_state"], "RECENT_RESOURCE_WINDOW_UNAVAILABLE"))
             else:
-                if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
+                # A pinned warehouse (min = max) always runs at its maximum: fixed capacity, so pressure is judged on
+                # queueing only.
+                if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce and cfg.min_clusters < cfg.max_clusters: blockers.append("SUSTAINED_SCALE_PRESSURE")
                 if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
             blockers.extend(failure_blockers(f["failure_pct"], self.t))
             if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
-            if not blockers:
+            # The floor carries busy-period starts until the autoscaler adds clusters (scale-up lag): the smallest
+            # floor covering the P95 busy-start demand, in one canary.
+            floor_target = None
+            if not f["concurrency_available"]:
+                blockers.append("CONCURRENCY_EVIDENCE_UNAVAILABLE")
+            elif safe_float(f["busy_periods_recent"]) < self.t.min_cluster_min_busy_periods:
+                blockers.append("INSUFFICIENT_BUSY_PERIOD_SAMPLE")
+            else:
+                floor_target = max(1, safe_int(f["required_clusters_busy_start"], 1))
+            if not blockers and floor_target is not None and floor_target < cfg.min_clusters:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
+                    {"min_clusters":cfg.min_clusters},{"min_clusters":floor_target},
                     ["A_B_PERFORMANCE_VALIDATION_REQUIRED","SPARE_FLOOR_CAPACITY_UNPROVEN"],["warehouse_size","max_clusters"],
                     [],[],
-                    "Warehouse spends substantial time at minimum capacity without queue/scale pressure; time at the floor does not prove a floor cluster was spare, so the reduction is a canary candidate and its savings an upper-bound range."))
+                    f"Busy periods start with at most {f['busy_start_concurrency']} concurrent queries (P{self.t.min_cluster_busy_start_percentile:g}), which {floor_target} cluster(s) carry until the autoscaler adds more; the floor moves there in one canary and its savings are an upper-bound range."))
+            elif not blockers:
+                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
+                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},[],["warehouse_size","max_clusters"],[],[],
+                    f"Busy periods start with {f['busy_start_concurrency']} concurrent queries (P{self.t.min_cluster_busy_start_percentile:g}), which needs the current floor."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},blockers,["warehouse_size","max_clusters"],[],[],
@@ -3167,10 +3380,19 @@ class Estimator:
             # Worst case: the added clusters run whenever the warehouse sat at its ceiling. No cap: a single-cluster
             # warehouse at its ceiling all the time doubles its cost with a second cluster.
             raw=max(0.0,(at*delta)/cluster) if cluster>0 else 0
-            factors=Range3(1.0,1+raw*self.t.max_cluster_base_uplift_weight,1+raw)
+            hist=a.facts.get("recent_concurrency_histogram")
+            if e.current_epoch.config.warehouse_type!="SERVERLESS" and hist and cluster>0:
+                # Base: each busy minute runs only the clusters its running + queued queries need under the new ceiling
+                # (one per documented queries-per-cluster), never more than the worst case.
+                qpc=self.t.queries_per_cluster_pro_classic
+                added=sum(safe_float(w)*(min(math.ceil(int(level)/qpc),target)-min(math.ceil(int(level)/qpc),current)) for level,w in hist.items())
+                base=min(raw,max(0.0,added/cluster)); method="cost uplift from the clusters peak demand needs under the new ceiling (base) up to the added clusters running whenever the warehouse sat at its ceiling (worst case)"
+            else:
+                base=raw*self.t.max_cluster_base_uplift_weight; method="upper-bound cost uplift from additional clusters during observed saturation"
+            factors=Range3(1.0,1+base,1+raw)
             return factors,{
-                "method":"upper-bound cost uplift from additional clusters during observed saturation",
-                "raw_uplift_fraction":round(raw,4),
+                "method":method,
+                "raw_uplift_fraction":round(raw,4),"base_uplift_fraction":round(base,4),
                 "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(factors)},
                 **meta,
             }
@@ -3716,7 +3938,11 @@ class ScenarioPlanner:
             if nxt is None:
                 raise ValueError("Plan steps invalidate each other in a cycle: "+", ".join(c.knob for c in remaining))
             ordered.append(nxt); remaining.remove(nxt)
-        return ordered
+        # A step another plan step invalidates is always pending re-evaluation (its invalidator precedes it), so ready
+        # steps come first: what can be applied now is listed before what waits, and the pending tail prices the
+        # contingent upside on its own.
+        invalidated={k for c in ordered for k in c.invalidates}
+        return [c for c in ordered if c.knob not in invalidated]+[c for c in ordered if c.knob in invalidated]
 
     def _gate(self,c:CandidateRecommendation)->str:
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
@@ -5181,6 +5407,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         query={
             "epoch_queries": 30000, "epoch_active_days": 100, "epoch_p95_execution_ms": 3300,
             "epoch_queued_query_pct": 0.1, "epoch_spill_query_pct": 0.0,
+            "concurrency_histogram": {"EPOCH": {"1": 5940.0, "8": 54.0, "20": 6.0}},
         },
         events={
             "uptime_minutes": 8000.0, "cluster_minutes": 12000.0, "minutes_at_min": 6000.0,
@@ -5215,6 +5442,10 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "statement_text_visible_pct_30": 100.0, "hive_metastore_reference_queries_30": 0,
             "epoch_p95_execution_ms": 2700, "epoch_queued_query_pct": 0.0, "epoch_spill_query_pct": 0.0,
             "decision_queries_30": 10320, "p95_compilation_ms_30": 420, "p95_result_fetch_ms_30": 900,
+            # Running + queued queries per busy minute: P99.5 = 20 (2 clusters); busy periods start at <= 10 (1 cluster).
+            "concurrency_histogram": {"RECENT": {"1": 1500.0, "6": 280.0, "15": 12.0, "20": 8.0},
+                                      "EPOCH": {"1": 12500.0, "6": 2300.0, "15": 100.0, "20": 100.0},
+                                      "BUSY_START": {"4": 20.0, "10": 8.0}},
         },
         events={
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
@@ -5599,7 +5830,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
 
-    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "concurrency", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
     tags = {"environment": spec.get("env", "production"), "team": spec["name"].lower().replace(" ", "-"), "golden_scenario": spec["scenario"]}
     dbu_rate = SQL_DBU_PER_CLUSTER_HOUR[spec["size"]]
     owner = f"{tags['team']}@databricks.example"
@@ -5693,6 +5924,13 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                     return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
                 gap_row.update({"p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)})
             rows["idle_gaps"].append(gap_row)
+        # Per-minute concurrency histograms (running + queued queries) for the epoch, plus the recent window and busy
+        # starts for the current epoch.
+        conc = concurrency_histograms([(a, b, c) for a, b, c in ep_runs], (max(ep_start, window_365), hi_t),
+                                      max(ep_start, window_30) if ep_end is None else None,
+                                      Thresholds().scale_up_lag_minutes_serverless if cfg["warehouse_type"] == "SERVERLESS" else Thresholds().scale_up_lag_minutes_pro_classic)
+        rows["concurrency"].extend({"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "scope": sc, "level": int(level), "weight": w}
+                                   for sc, hist in sorted(conc.items()) for level, w in sorted(hist.items(), key=lambda x: int(x[0])))
         # Running-idle evidence (current epoch): query gaps intersected with the simulated running timeline, over the
         # same period as the event totals; queries from a day before the window seed the busy frontier.
         if ep_end is None and cov is not None:

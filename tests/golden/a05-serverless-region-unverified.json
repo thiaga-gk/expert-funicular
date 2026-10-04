@@ -3409,6 +3409,12 @@
           "gaps": {},
           "is_current": false,
           "query": {
+            "concurrency_histogram": {
+              "EPOCH": {
+                "1": 990.0,
+                "20": 10.0
+              }
+            },
             "epoch_active_days": 100,
             "epoch_p95_execution_ms": 3300,
             "epoch_queries": 30000,
@@ -3594,6 +3600,19 @@
               "Databricks SQL Editor"
             ],
             "compute_wait_queries_30": 8,
+            "concurrency_histogram": {
+              "BUSY_START": {
+                "10": 30.0
+              },
+              "EPOCH": {
+                "1": 990.0,
+                "20": 10.0
+              },
+              "RECENT": {
+                "1": 990.0,
+                "20": 10.0
+              }
+            },
             "dashboard_queries_30": 7000,
             "databricks_sql_editor_client_queries_30": 400,
             "decision_queries_30": 10320,

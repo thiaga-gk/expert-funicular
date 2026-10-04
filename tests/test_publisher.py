@@ -1789,22 +1789,22 @@ class GoldenScenarioTests(unittest.TestCase):
         below = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit - 0.01)
         self.assertEqual(below.status, "NO_CHANGE")
 
-    def reduction(self, max_clusters, peak):
-        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=peak, time_at_max_pct=0.0, minutes_at_max=0.0)
+    def reduction(self, max_clusters, peak_queries):
+        """Idle-expensive fixture with max overridden and P99.5 running + queued queries per busy minute = peak_queries."""
+        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=2, time_at_max_pct=0.0, minutes_at_max=0.0)
+        hist = {"1": 990.0, str(peak_queries): 10.0}
+        ev[0].current_epoch.query["concurrency_histogram"].update(RECENT=dict(hist), EPOCH=dict(hist))
         return self.candidate(ev, "max_clusters")
 
-    def test_max_reduction_keeps_headroom_above_observed_peak(self):
-        # Before: max 4, peak 3 -> target 3 (no growth room at all). Now one cluster of headroom is required.
-        self.assertEqual(self.reduction(4, 3).status, "NO_CHANGE")
-        self.assertEqual(self.reduction(4, 2).recommended_config["max_clusters"], 3)
-        # Headroom scales with the peak: max(1, ceil(25% x peak)). Peak 8 needs 2 -> 10, which is not below max 10.
-        self.assertEqual(self.reduction(10, 8).status, "NO_CHANGE")
-        self.assertEqual(self.reduction(10, 4).recommended_config["max_clusters"], 5)
-        self.assertEqual(self.reduction(10, 5).recommended_config["max_clusters"], 7)
-        self.assertEqual(self.reduction(10, 2).recommended_config["max_clusters"], 3)
+    def test_max_reduction_targets_peak_demand_plus_one_cluster(self):
+        # Pro/Classic: one cluster per 10 concurrent queries at P99.5, plus one cluster of headroom, in one move.
+        self.assertEqual(self.reduction(4, 20).recommended_config["max_clusters"], 3)   # 2 clusters needed
+        self.assertEqual(self.reduction(4, 30).status, "NO_CHANGE")                      # 3 + 1 = 4: not below max 4
+        self.assertEqual(self.reduction(10, 40).recommended_config["max_clusters"], 5)  # 4 + 1
+        self.assertEqual(self.reduction(10, 21).recommended_config["max_clusters"], 4)  # 21 queries need 3 clusters
 
     def test_max_reduction_never_goes_below_min_clusters(self):
-        c = self.reduction(10, 1)  # idle-expensive min_clusters is 2
+        c = self.reduction(10, 5)  # 1 cluster + 1 = 2; idle-expensive min_clusters is 2
         self.assertEqual(c.recommended_config["max_clusters"], 2)
 
     def test_few_long_capacity_waits_block_min_cluster_reduction(self):
@@ -2090,16 +2090,18 @@ class OverallStatusTests(unittest.TestCase):
 
 
 class SeasonalCeilingTests(unittest.TestCase):
-    """A ceiling cut never goes below the highest cluster count the current configuration has run at."""
+    """A ceiling cut never goes below the peak demand of the whole current epoch (Pro/Classic: concurrency)."""
 
     def setUp(self):
         self.t = p.Thresholds()
 
-    def max_candidate(self, epoch_peak):
-        e = p.demo_evidence()[0]  # max 3, recent peak 2 -> ceiling 3 kept today; widen the ceiling to 8
+    def max_candidate(self, epoch_peak_clusters):
+        e = p.demo_evidence()[0]  # recent P99.5 = 20 queries (2 clusters) -> ceiling 3; widen the ceiling to 8
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
-        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
+        hist = e.current_epoch.query["concurrency_histogram"]
+        hist["EPOCH"] = {} if epoch_peak_clusters is None else {"1": 9900.0, str(10 * epoch_peak_clusters): 100.0}
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak_clusters
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
 
     def test_epoch_peak_inside_the_recent_window_keeps_the_recent_cut(self):
@@ -2107,7 +2109,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
 
     def test_epoch_peak_outside_the_recent_window_raises_the_cut_target(self):
-        c = self.max_candidate(4)  # 4 + 1 headroom
+        c = self.max_candidate(4)  # 40 queries at the epoch's P99.5: 4 clusters + 1 headroom
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 5))
 
     def test_epoch_peak_at_the_ceiling_holds_the_cut(self):
@@ -2132,6 +2134,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         e.current_epoch.events["max_observed_clusters_within_ceiling"] = 8
+        e.current_epoch.query["concurrency_histogram"]["EPOCH"] = {"1": 9900.0, "80": 100.0}
         e.current_epoch.query.pop("queued_query_pct_30", None)
         c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
         self.assertEqual(c.status, "NO_CHANGE")

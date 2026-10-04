@@ -3334,6 +3334,19 @@
             "avg_read_io_cache_percent_30": 35.0,
             "client_applications_30": [],
             "compute_wait_queries_30": 194,
+            "concurrency_histogram": {
+              "BUSY_START": {
+                "10": 30.0
+              },
+              "EPOCH": {
+                "1": 46403.28,
+                "10": 468.72
+              },
+              "RECENT": {
+                "1": 46403.28,
+                "10": 468.72
+              }
+            },
             "dashboard_queries_30": 28514,
             "databricks_sql_editor_client_queries_30": 0,
             "decision_queries_30": 25663,
