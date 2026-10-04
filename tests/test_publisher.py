@@ -21,9 +21,10 @@ class PublisherV27Tests(unittest.TestCase):
         self.by_knob = {c.knob: c for c in self.w.candidates}
         self.packages = p.build_recommendation_packages(self.evidence, self.t)
 
-    def test_six_deterministic_candidates_and_no_photon_recommendation(self):
+    def test_five_deterministic_candidates_and_no_photon_or_channel_recommendation(self):
         self.assertEqual(set(self.by_knob), set(p.ACTIVE_KNOBS))
-        self.assertEqual(len(self.w.candidates), 6)
+        self.assertEqual(len(self.w.candidates), 5)
+        self.assertNotIn("warehouse_channel", self.by_knob)
         self.assertNotIn("enable_photon", self.by_knob)
 
     def test_expected_demo_decisions(self):
@@ -231,7 +232,7 @@ class PublisherV27Tests(unittest.TestCase):
             payload = json.loads(Path(files[f"package:{self.evidence[0].workspace_id}:{self.evidence[0].warehouse_id}"]).read_text())
             for field in ("candidates", "scenarios", "recommended_plan", "package_economics", "evidence", "workload_profile", "realization"):
                 self.assertIn(field, payload)
-            self.assertEqual(len(payload["candidates"]), 6)
+            self.assertEqual(len(payload["candidates"]), 5)
             self.assertGreater(len(payload["evidence"]), 0)
             wb = load_workbook(files["workbook"])
             self.assertEqual(wb.sheetnames, ["Executive Summary", "Warehouse Portfolio", "Scenario Plans", "Recommendation Registry"])
@@ -1874,8 +1875,9 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_no_change_candidate_keeps_a_known_zero(self):
         pkg = self.golden_package("cold-start-sensitive")
-        channel = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_channel")
-        econ = channel["independent_economics"]
+        # A no-change candidate (or the unpriced ceiling guardrail) is a known zero, not unknown.
+        unchanged = next(c for c in pkg["candidates"] if c["status"] == "NO_CHANGE" or c["knob"] == "max_clusters")
+        econ = unchanged["independent_economics"]
         self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
         self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
 
@@ -1928,7 +1930,7 @@ class GoldenScenarioTests(unittest.TestCase):
         pkg=self.golden_package("photon-disabled")
         self.assertEqual(pkg["current_config"]["photon"]["status"],"DISABLED")
         self.assertNotIn("enable_photon",[c["knob"] for c in pkg["candidates"]])
-        self.assertEqual(len(pkg["candidates"]),6)
+        self.assertEqual(len(pkg["candidates"]),5)
         plan_a=next(x for x in pkg["scenarios"] if x["scenario_name"].startswith("Plan A"))
         self.assertNotEqual(plan_a["portfolio_economics"]["estimation_status"],"UNAVAILABLE")  # no longer blocked by Photon
         self.assertIsNotNone(plan_a["portfolio_economics"]["savings_365d"]["total"])
@@ -2126,6 +2128,42 @@ class SeasonalCeilingTests(unittest.TestCase):
     def test_unknown_epoch_peak_uses_the_recent_window(self):
         c = self.max_candidate(None)
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+
+
+class ChannelObservedOnlyTests(unittest.TestCase):
+    """The warehouse channel is reported, never recommended: no candidate, plan step or invalidation."""
+
+    def preview(self):
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, warehouse_channel="PREVIEW")
+        return e
+
+    def test_five_candidates_and_no_channel_knob(self):
+        self.assertNotIn("warehouse_channel", p.ACTIVE_KNOBS)
+        w = p.evaluate_warehouses([self.preview()], p.Thresholds())[0]
+        self.assertEqual(len(w.candidates), 5)
+        self.assertNotIn("warehouse_channel", {c.knob for c in w.candidates})
+        for c in w.candidates:
+            self.assertNotIn("warehouse_channel", c.dependencies)
+
+    def test_preview_channel_blocks_nothing_and_is_reported(self):
+        pkg = p.build_recommendation_packages([self.preview()], p.Thresholds())[0].to_dict()
+        self.assertEqual(pkg["current_config"]["warehouse_channel"], "PREVIEW")
+        plan_a = next(s for s in pkg["scenarios"] if s["status"] == "RECOMMENDED")
+        self.assertNotIn("warehouse_channel", [s["knob"] for s in plan_a["execution_plan"]])
+        size = next(s for s in plan_a["execution_plan"] if s["knob"] == "warehouse_size")
+        self.assertNotEqual(size["execution_state"], "PENDING_REEVALUATION")
+        evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
+        note = [x for x in evidence if x["metric"] == "warehouse_channel"]
+        self.assertEqual(len(note), 1)
+        self.assertEqual(note[0]["value"], "PREVIEW")
+
+    def test_current_channel_has_no_note(self):
+        pkg = p.build_recommendation_packages(p.demo_evidence(), p.Thresholds())[0].to_dict()
+        evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
+        self.assertFalse([x for x in evidence if x["metric"] == "warehouse_channel"])
 
 
 if __name__ == "__main__":

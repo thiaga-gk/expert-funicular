@@ -20,9 +20,9 @@
     "summary": {
       "actionable_count": 3,
       "blocked_count": 0,
-      "candidate_count": 6,
+      "candidate_count": 5,
       "insufficient_evidence_count": 0,
-      "no_change_count": 1,
+      "no_change_count": 0,
       "not_applicable_count": 0,
       "review_count": 0,
       "test_required_count": 2
@@ -413,77 +413,6 @@
       "recommended_value": "SERVERLESS",
       "status": "TEST_REQUIRED",
       "technique_id": "WH-SERVERLESS-MIGRATE-001"
-    },
-    {
-      "blockers": [],
-      "candidate_id": "CAND-F2DC5279FE715009373476BE",
-      "confidence": {
-        "components": {
-          "coverage": 0.99,
-          "signal": 0.94
-        },
-        "level": "HIGH",
-        "method": "deterministic_weighted_evidence",
-        "score": 0.94
-      },
-      "current_value": "CURRENT",
-      "dependencies": [],
-      "evidence_refs": [],
-      "independent_economics": {
-        "baseline_365d": {
-          "availability": "COMPLETE",
-          "aws_basis": "MODELED_AWS_LIST_PRICE",
-          "aws_cost": 8793.82,
-          "dbu_basis": "FORECAST",
-          "dbu_cost": 27000.0,
-          "total_cost": 35793.82
-        },
-        "estimated_cost_365d": {
-          "aws": {
-            "base": 8793.82,
-            "high": 8793.82,
-            "low": 8793.82
-          },
-          "dbu": {
-            "base": 27000.0,
-            "high": 27000.0,
-            "low": 27000.0
-          },
-          "total": {
-            "base": 35793.82,
-            "high": 35793.82,
-            "low": 35793.82
-          }
-        },
-        "estimation_status": "NO_DELTA_MODELED",
-        "is_additive": false,
-        "savings_365d": {
-          "aws": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          },
-          "dbu": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          },
-          "total": {
-            "base": 0,
-            "high": 0,
-            "low": 0
-          }
-        }
-      },
-      "invalidates": [],
-      "knob": "warehouse_channel",
-      "objectives": [
-        "STABILITY"
-      ],
-      "rationale": "Warehouse already uses the current channel.",
-      "recommended_value": "CURRENT",
-      "status": "NO_CHANGE",
-      "technique_id": "WH-CHANNEL-CURRENT-001"
     }
   ],
   "carried_forward_plan": null,
@@ -752,7 +681,7 @@
     "generated_at": "2026-10-01T18:00:00Z",
     "modeler_version": "2.9.0",
     "optimizer_version": "2.9.0",
-    "package_hash_full_sha256": "14ACA3AE5755E1D1F28736D2E08311DE1F237036BB7F95BA8EE4818ADE1B4DEB",
+    "package_hash_full_sha256": "9BCE4B0391A65C823E451D616B54CE617245845F703DD1A13F9202E7A5E749D6",
     "policy_version": "policy-v2.9.0",
     "reviewer_version": "2.9.0",
     "source_regions": [
@@ -779,7 +708,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-14ACA3AE5755E1D1F28736D2",
+  "recommendation_package_id": "PKG-9BCE4B0391A65C823E451D61",
   "recommended_plan": {
     "decision_summary": "Validate one-size-down first; then remeasure and regenerate invalidated downstream recommendations.",
     "next_action": "RUN_SIZE_CANARY",

@@ -205,13 +205,22 @@ class DemoFleetTests(unittest.TestCase):
         c = self.candidate("C37", "max_clusters")
         self.assertEqual((c["status"], c["recommended_value"], c["blockers"]), ("NO_CHANGE", 8, ["PEAK_OUTSIDE_RECENT_WINDOW"]))
 
+    def test_c18_preview_channel_is_observed_only(self):
+        e, pkg = self.by_scenario["C18"]
+        self.assertEqual(pkg["current_config"]["warehouse_channel"], "PREVIEW")
+        self.assertNotIn("warehouse_channel", [c["knob"] for c in pkg["candidates"]])
+        steps = [s for sc in pkg["scenarios"] for s in sc["execution_plan"]]
+        self.assertNotIn("warehouse_channel", [s["knob"] for s in steps])
+        evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
+        self.assertEqual([x["value"] for x in evidence if x["metric"] == "warehouse_channel"], ["PREVIEW"])
+
     def test_c41_genie_warehouse_is_never_moved_to_classic(self):
         self.assertNotEqual(self.candidate("C41", "warehouse_type")["recommended_value"], "CLASSIC")
 
     def test_c48_long_unchanged_warehouse_is_analyzed(self):
         e, pkg = self.by_scenario["C48"]
         self.assertLess(e.current_epoch.epoch_start, "2025-01-01")
-        self.assertEqual(len(pkg["candidates"]), 6)
+        self.assertEqual(len(pkg["candidates"]), 5)
 
     def test_c50_single_cluster_increase_shows_about_double_the_cost_as_worst_case(self):
         e, pkg = self.by_scenario["C50"]

@@ -108,13 +108,9 @@ class ReevaluationFromPublisherTests(unittest.TestCase):
         self.assertEqual(re.blocking_codes, ["COST_HISTORY_INSUFFICIENT"])
         self.assertEqual(re.earliest_reevaluation_time, "2026-01-22T00:00:00Z")  # 00:00Z of epoch_start_date + 7d
 
-    def test_ready_step_on_a_young_epoch_keeps_its_next_action(self):
-        # A Preview-channel review has no maturity gate, so it is ready on a 2-day-old epoch: the plan is not "wait".
-        import dataclasses
-        evidence = golden_evidence("concurrency-constrained", current_start="2026-09-29T00:00:00+00:00")
-        ep = evidence[0].current_epoch
-        ep.config = dataclasses.replace(ep.config, warehouse_channel="PREVIEW")
-        pkg = build(evidence)
+    def test_ready_step_while_billing_accrues_keeps_its_next_action(self):
+        # Mature configuration, three billed days: the ready step can proceed while the cost history fills in.
+        pkg = build(golden_evidence("spill-constrained", cost_history_days=3))
         self.assertIsNotNone(pkg.recommended_plan.reevaluation)
         self.assertNotEqual(pkg.recommended_plan.next_action, "WAIT_FOR_REEVALUATION")
 

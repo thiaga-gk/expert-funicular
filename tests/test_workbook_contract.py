@@ -25,7 +25,7 @@ class WorkbookContractTests(unittest.TestCase):
         self.assertEqual(len(self.packages),n)
         self.assertEqual(len(self.projection.warehouse_portfolio),n)
         self.assertEqual(len(self.projection.scenario_plans),2*n)
-        self.assertEqual(len(self.projection.recommendation_registry),6*n)
+        self.assertEqual(len(self.projection.recommendation_registry),5*n)
 
     def test_scenario_plans_carry_contingent_upside_apart_from_authoritative_impact(self):
         """Contract 1.1.0 / workbook 1.2.0: contingent upside is separate, numeric, signed and tagged in the plan text."""

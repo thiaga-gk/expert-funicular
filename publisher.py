@@ -89,7 +89,6 @@ AWS_SQL_WAREHOUSE_TOPOLOGY = {
 SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
 
 ACTIVE_KNOBS = (
-    "warehouse_channel",
     "warehouse_size",
     "max_clusters",
     "min_clusters",
@@ -2272,10 +2271,6 @@ class Analyzer:
         }
         out: Dict[str, AnalysisResult] = {}
 
-        # Channel
-        fs = [self._f(e,"warehouse_channel","warehouse_channel",cfg.warehouse_channel,table="system.compute.warehouses",field="warehouse_channel",window="current epoch",interpretation="Current release channel from the current configuration epoch.")]
-        out["warehouse_channel"] = AnalysisResult(e.warehouse_id,"warehouse_channel",ep.epoch_id,fs,{**common,"channel":cfg.warehouse_channel})
-
         # Size
         # Task-time utilization: query task-minutes per running cluster-minute over the whole current epoch (both terms
         # over the same period). Evidence only: no decision uses it until it is calibrated on real data.
@@ -2413,29 +2408,16 @@ class Optimizer:
         age = epoch_age_days(e.current_epoch, e.analysis_time)
         out: List[OptimizationDecision] = []
 
-        # Channel first: channel changes can invalidate all tuning assumptions.
-        a = analyses["warehouse_channel"]
-        if cfg.warehouse_channel == "PREVIEW":
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","REVIEW",
-                {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":"CURRENT"},
-                ["PREVIEW_FEATURE_DEPENDENCY_UNKNOWN"],[],["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                "Move to CURRENT only after confirming no workload depends on Preview-only behavior."))
-        else:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_channel","STABILITY","NO_CHANGE",
-                {"warehouse_channel":cfg.warehouse_channel},{"warehouse_channel":cfg.warehouse_channel},[],[],[],[],
-                "No channel change indicated."))
-
         # Size
         a = analyses["warehouse_size"]; f=a.facts
         blockers: List[str] = []
         if cfg.warehouse_size not in SIZE_ORDER:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
                 {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
-                ["warehouse_channel"],[],[],"Warehouse size is outside the known deterministic ordering."))
+                [],[],[],"Warehouse size is outside the known deterministic ordering."))
         elif f["spill_pct"] is not None and f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is None:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"],["warehouse_channel"],[],[],
+                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"],[],[],[],
                 "Spill frequency crosses the upsize threshold, but spill severity was not reported (older collector evidence); no resize is recommended."))
         elif f["spill_pct"] is not None and f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
@@ -2447,18 +2429,18 @@ class Optimizer:
             if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
             if target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
                     "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
             elif target:
                 # The speed-up and its cost are modeled, not observed: one size up is a latency/cost canary.
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","TEST_REQUIRED",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],["warehouse_channel"],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],[],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
                     "Spill frequency and severity both cross the deterministic upsize thresholds; one size up as a canary validates the speed-up and its cost."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
-                    ["warehouse_channel"],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
+                    [],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
         else:
             target = previous_size(cfg.warehouse_size)
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
@@ -2475,12 +2457,12 @@ class Optimizer:
             if target and not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
-                    ["warehouse_channel"],["max_clusters","min_clusters","auto_stop_minutes"],
+                    [],["max_clusters","min_clusters","auto_stop_minutes"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],
                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
                     "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
 
         # Max clusters
@@ -2681,7 +2663,7 @@ class Estimator:
             return None,{"method":"estimate withheld: the candidate is blocked or lacks the evidence to be priced","bundle_effect":{"type":"no_cost_change"},**meta}
         if d.status=="NO_CHANGE":
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
-        if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
+        if knob=="max_clusters" and d.objective=="COST_GUARDRAIL":
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
         if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
             # Every estimate below scales the forward DBU cost, which is unknown (unpriced usage, too few billed days, a
@@ -3292,7 +3274,6 @@ class ScenarioPlanner:
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW","method":"bottleneck minimum of step confidences"}
 
     def _gate(self,c:CandidateRecommendation)->str:
-        if c.knob=="warehouse_channel": return "HITL_CONFIRM_PREVIEW_DEPENDENCIES"
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
         if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
@@ -3335,7 +3316,7 @@ class ScenarioPlanner:
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
-        plan_order=["warehouse_channel","warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
+        plan_order=["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"]
         steps=[]; pending_invalidated=set()
         for knob in plan_order:
             c=by_knob[knob]
@@ -3599,8 +3580,6 @@ def _technique_id(c: CandidateRecommendation) -> str:
         if cur == "SERVERLESS" and rec in {"PRO", "CLASSIC"}:
             return "WH-PRO-MIGRATE-001"
         return "WH-WAREHOUSE-TYPE-ASSESS-001"
-    if knob == "warehouse_channel":
-        return "WH-CHANNEL-CURRENT-001" if rec == "CURRENT" else "WH-CHANNEL-STABILITY-001"
     raise ValueError(f"No technique catalog mapping for knob {knob!r}")
 
 
@@ -3778,6 +3757,17 @@ def _build_evidence_registry(
         observation_window="trailing_365d", threshold=None, comparator="",
         interpretation="Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
     )
+
+    # The channel is observed, never recommended: a Preview warehouse gets an informational record only (package
+    # evidence; no candidate references it, so no decision or ID depends on it).
+    if e.current_epoch.config.warehouse_channel == "PREVIEW":
+        _add_evidence(
+            registry, e=e, contract_epoch_id=contract_epoch_id,
+            metric="warehouse_channel", value="PREVIEW", unit="state",
+            source="system.compute.warehouses", source_field="warehouse_channel",
+            observation_window="current_epoch", threshold=None, comparator="",
+            interpretation="Informational: the warehouse runs on the Preview channel. No recommendation is made; confirm no workload depends on Preview-only behavior before any move to Current.",
+        )
 
     for s in scenarios:
         for check in (s.compatibility or {}).get("checks", []) or []:

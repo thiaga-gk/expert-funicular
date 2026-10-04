@@ -97,7 +97,6 @@ A change made to save money (objective `COST`: a size reduction, a lower minimum
 
 | Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
 |---|---|---|---|---|---|
-| `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN` | The warehouse is on the `PREVIEW` channel and Preview-only dependencies are unknown. | `Optimizer.optimize` (channel) when `cfg.warehouse_channel` is `PREVIEW`; proposes `CURRENT`. | none | `REVIEW` | [PRD FR-OPT-001](../product/prd.md), [LLD §15.1](../architecture/lld.md) |
 
 ### Canary validation markers
 
@@ -192,7 +191,7 @@ These strings look like blockers but are not. Do not add them to the tables.
 - Candidate and assessment statuses: `INSUFFICIENT_EVIDENCE`, `TEST_REQUIRED`, `REVIEW`, `REVIEW_REQUIRED`, `BLOCKED`, `NO_CHANGE`, `ACTIONABLE`, `NOT_APPLICABLE`. These are recommendation, assessment and compatibility statuses that blockers explain.
 - Estimate and cost statuses: `UNAVAILABLE`, `MODELED_RANGE`, `PROVISIONAL_MODELED_RANGE`, `PRE_CANARY_MODELED_RANGE`, `NOT_CUSTOMER_BILLED` (Serverless has no separate customer EC2 line: a known zero basis, not a missing cost), `COMPLETE`.
 - Internal withheld-estimate statuses `REQUIRES_COST_HISTORY`, `REQUIRES_COST_MODEL`, `REQUIRES_CANARY`: the bundle estimator's status for a plan it cannot price. The package maps them to `UNAVAILABLE`; the codes that explain them are above. `REQUIRES_COST_HISTORY` follows `COST_HISTORY_INSUFFICIENT`; `REQUIRES_COST_MODEL` is a migration step with no DBU counterfactual; `REQUIRES_CANARY` follows `SERVERLESS_DBU_RATE_NOT_PUBLISHED`.
-- HITL and plan step names and gates: `REVIEW_AND_EXECUTE_FIRST_READY_STEP`, `WAIT_FOR_REEVALUATION`, `REVIEW_EVIDENCE`, `REVIEW_SCENARIO`, `VALIDATE_COMPATIBILITY`, `VALIDATE_WAREHOUSE_TYPE_COMPATIBILITY`, `RUN_CANARY`, `RE_ANALYZE`, `RE_ANALYZE_AFTER_UPSTREAM_CANARY`, `REGENERATE_RECOMMENDATIONS`, `REMEASURE_AND_REGENERATE`, `HITL_CONFIRM_PREVIEW_DEPENDENCIES`, `HITL_APPROVAL_AND_POST_CHANGE_VALIDATION`, `A_B_CANARY_LATENCY_COST_ERROR`, `A_B_CANARY_QUEUE_LATENCY_COST`, `A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY`, `CONTINUE_IF_PASS`.
+- HITL and plan step names and gates: `REVIEW_AND_EXECUTE_FIRST_READY_STEP`, `WAIT_FOR_REEVALUATION`, `REVIEW_EVIDENCE`, `REVIEW_SCENARIO`, `VALIDATE_COMPATIBILITY`, `VALIDATE_WAREHOUSE_TYPE_COMPATIBILITY`, `RUN_CANARY`, `RE_ANALYZE`, `RE_ANALYZE_AFTER_UPSTREAM_CANARY`, `REGENERATE_RECOMMENDATIONS`, `REMEASURE_AND_REGENERATE`, `HITL_APPROVAL_AND_POST_CHANGE_VALIDATION`, `A_B_CANARY_LATENCY_COST_ERROR`, `A_B_CANARY_QUEUE_LATENCY_COST`, `A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY`, `CONTINUE_IF_PASS`.
 - Execution and pricing states: `READY_FOR_CANARY`, `READY_FOR_HITL`, `PENDING_REEVALUATION`, `CONTINGENT_PENDING_REEVALUATION` (pricing basis of a step whose evidence an upstream change invalidated).
 - Selection reasons that are positive: `CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE`, `MIGRATION_SCENARIO_SELECTED_BY_POLICY`.
 - Billing settlement labels: `COVERED_BY_WATERMARK` and `UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY` (`billing_completeness`); `WORKSPACE_UNVERIFIED_IDLE`, `WORKSPACE_LAGGING` and `ACCOUNT_IDLE_WAREHOUSE` (billing watermark source). They describe how complete the billing window is; they do not hold a decision.

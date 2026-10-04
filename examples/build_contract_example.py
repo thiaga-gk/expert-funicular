@@ -116,8 +116,6 @@ def build_package() -> RecommendationPackage:
          ranges((4000,8100,12000),(1200,3000,5000),(5200,11100,17000))),
         ("WH-SERVERLESS-MIGRATE-001", TunableKnob.WAREHOUSE_TYPE, RecommendationStatus.TEST_REQUIRED, "PRO", "SERVERLESS", [Objective.MIGRATION,Objective.COST_AND_PERFORMANCE], [by_metric["serverless_workspace_eligibility"]], ["SERVERLESS_COMPATIBILITY_VALIDATION_REQUIRED","A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"], [TunableKnob.WAREHOUSE_SIZE,TunableKnob.MIN_CLUSTERS,TunableKnob.MAX_CLUSTERS,TunableKnob.AUTO_STOP_MINUTES], 0.61,
          ranges((4000,9000,13000),(8793.82,8793.82,8793.82),(12793.82,17793.82,21793.82))),
-        ("WH-CHANNEL-CURRENT-001", TunableKnob.WAREHOUSE_CHANNEL, RecommendationStatus.NO_CHANGE, "CURRENT", "CURRENT", [Objective.STABILITY], [], [], [], 0.94,
-         ranges((0,0,0),(0,0,0),(0,0,0))),
     ]
 
     candidates: list[CandidateRecommendation] = []
@@ -144,7 +142,6 @@ def build_package() -> RecommendationPackage:
                 TunableKnob.MIN_CLUSTERS:"The warehouse spends most running time at minimum capacity without queue pressure.",
                 TunableKnob.AUTO_STOP_MINUTES:"Idle-gap analysis shows material avoidable running time with acceptable cold-start risk.",
                 TunableKnob.WAREHOUSE_TYPE:"Serverless is economically assessable but requires compatibility and representative canary validation.",
-                TunableKnob.WAREHOUSE_CHANNEL:"Warehouse already uses the current channel.",
             }[knob],
             evidence_refs=refs, blockers=blockers, dependencies=[], invalidates=invalidates,
             confidence=conf(score),
@@ -236,7 +233,7 @@ def build_package() -> RecommendationPackage:
 
     assessment = Assessment(
         AssessmentStatus.OPTIMIZATION_AVAILABLE,
-        AssessmentSummary(candidate_count=6,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=1,not_applicable_count=0,insufficient_evidence_count=0),
+        AssessmentSummary(candidate_count=5,actionable_count=3,test_required_count=2,review_count=0,blocked_count=0,no_change_count=0,not_applicable_count=0,insufficient_evidence_count=0),
         EvidenceQuality(EvidenceQualityStatus.SUFFICIENT,conf(0.94),True,True,True,100.0),
     )
 
