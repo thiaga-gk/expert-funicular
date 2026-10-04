@@ -53,6 +53,7 @@ Column order and groups live only in `contracts/workbook_contract.py`; the rende
 
 ## Tests
 Unittest only, no pytest. Golden fixtures in `tests/golden/*.json` are normalized evidence plus an `expect` block; the assertion DSL is documented in the `tests/test_golden_scenarios.py` docstring. Adding a golden case needs only a JSON file.
+`tests/test_docs.py` guards the docs (links, contract versions, cited headings). Which document owns which topic, the precedence rule and the writing rules are in `docs/README.md`.
 
 ## Reusable publisher skills
 For a new Databricks service publisher, start at `.claude/skills/databricks-publisher-orchestrator/SKILL.md` and do not clone or search-replace SQL Warehouse semantics. Approved artifacts under `artifacts/databricks/<service-id>/` (created on demand by the orchestrator) are the cross-skill API; an upstream semantic change invalidates dependent approvals. The generic reporter contract uses `resource`; service-specific names belong in adapters. Details: `docs/skills.md`.

@@ -1039,7 +1039,7 @@ Future ML or LLM components may assist explanation, anomaly diagnosis, or thresh
 - `docs/reference/source-mapping.md`
 - `docs/reference/aws-cost-model.md`
 
-These lower-level artifacts must not contradict this PRD. Where an implementation document is stale, the PRD and explicitly locked Reporter/Workbook contracts take precedence until the stale document is corrected.
+Document ownership and precedence are defined once, in `docs/README.md`.
 
 ---
 

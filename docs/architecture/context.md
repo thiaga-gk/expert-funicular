@@ -35,29 +35,7 @@ The central domain rule is:
 
 ## 2. Document precedence
 
-When documents disagree, use the following order of authority:
-
-```mermaid
-flowchart TD
-    P[Approved PRD\nProduct scope + requirements] --> H[Approved HLD\nArchitecture boundaries]
-    H --> L[Approved LLD\nImplementation design]
-    L --> C[Domain Context\nLanguage + semantics]
-
-    RC[Reporter JSON Contract v1.2.0\nPublic machine contract] --> L
-    WC[Workbook Contract v1.3.0\nHuman projection contract] --> L
-
-    CODE[publisher.py + contract modules] --> TESTS[Passing tests / golden scenarios]
-    TESTS --> L
-
-    NOTE[Supporting docs\nthresholds / source mapping / technique catalog] -. subordinate .-> C
-```
-
-For **public serialized fields**, the locked Reporter JSON Contract is authoritative.  
-For **workbook columns/grains**, the locked Workbook Contract is authoritative.  
-For **product scope**, the approved PRD is authoritative.  
-For **implementation behavior**, the approved LLD plus passing tests are authoritative unless explicitly marked as an implementation gap.
-
-Supporting documents are useful but must not silently override the locked documents.
+Ownership of each topic and the precedence rule are defined once, in `docs/README.md`. In short: the code and its tests, then the locked contracts, settle behavior; the PRD settles product scope; every other document owns the topics listed there.
 
 ---
 
