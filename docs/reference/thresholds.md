@@ -131,6 +131,7 @@ Saturation, headroom and range limits for the max-cluster ceiling.
 | `scale_up_lag_minutes_pro_classic` | `5` | Minutes before a Pro/Classic warehouse adds clusters for queued demand (busy-period start window, and idle minutes that separate busy periods). | [LLD §15.5 Min clusters](../architecture/lld.md) |
 | `scale_up_lag_minutes_serverless` | `1` | The same window for Serverless warehouses. | [LLD §15.5 Min clusters](../architecture/lld.md) |
 | `concurrency_min_busy_minutes` | `200` | Busy minutes in the recent window needed before a peak-demand ceiling target is used. | [LLD §15.4 Max clusters](../architecture/lld.md), Gates [`INSUFFICIENT_BUSY_MINUTE_SAMPLE`](blocker-codes.md) |
+| `peak_demand_min_minutes` | `30` | Long windows (the whole current epoch, older epochs) measure peak demand as the level of running + queued queries reached in at least this many busy minutes. | [LLD §15.4 Max clusters](../architecture/lld.md), Gates [`OLDER_EPOCH_PEAK_DEMAND_HIGHER`](blocker-codes.md) |
 | `min_cluster_min_busy_periods` | `20` | Busy periods in the recent window needed before a floor target is used. | [LLD §15.5 Min clusters](../architecture/lld.md), Gates [`INSUFFICIENT_BUSY_PERIOD_SAMPLE`](blocker-codes.md) |
 | `max_clusters_supported_limit` | `40` | Largest max-cluster value (clusters) the policy will recommend or accept; an increase at this ceiling is blocked. | [LLD §15.4 Max clusters](../architecture/lld.md), [LLD §18 Reviewer Gate 1 — candidate invariants](../architecture/lld.md), Gates [`MAX_CLUSTER_LIMIT_REACHED`](blocker-codes.md) |
 

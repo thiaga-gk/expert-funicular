@@ -82,5 +82,55 @@ class ClusterTargetDemoTests(unittest.TestCase):
         self.assertEqual(self.move("C45", "min_clusters")[0], "NO_CHANGE")
 
 
+class OlderEpochHoldTests(unittest.TestCase):
+    """Core demo warehouse: recent peak 20 queries (2 clusters); max widened to 8 so a cut to 3 is on the table."""
+
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+        self.t = p.Thresholds()
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
+    def evidence(self, older_epoch_hist=None, current_epoch_hist=None):
+        import dataclasses
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, max_clusters=8)
+        if older_epoch_hist is not None:
+            e.epochs[0].query["concurrency_histogram"] = {"EPOCH": older_epoch_hist}
+        if current_epoch_hist is not None:
+            e.current_epoch.query["concurrency_histogram"]["EPOCH"] = current_epoch_hist
+        return e
+
+    def candidates(self, e):
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_older_epoch_with_more_clusters_of_demand_holds_every_capacity_cut(self):
+        by = self.candidates(self.evidence({"1": 5000.0, "45": 60.0}))  # 45 queries for an hour: 5 clusters vs 2
+        self.assertEqual(by["max_clusters"].status, "NO_CHANGE")
+        self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", by["max_clusters"].blockers)
+        self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", by["min_clusters"].blockers)
+        self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", by["warehouse_size"].blockers)
+        self.assertEqual(by["auto_stop_minutes"].status, "ACTIONABLE")  # not a capacity cut
+
+    def test_holds_compare_clusters_not_queries(self):
+        # Recent peak 20 queries = 2 clusters. An older 19 is also 2 clusters: no hold. An older 21 needs 3: held.
+        by = self.candidates(self.evidence({"1": 5000.0, "19": 60.0}))
+        self.assertEqual(by["max_clusters"].recommended_config["max_clusters"], 3)
+        by = self.candidates(self.evidence({"1": 5000.0, "21": 60.0}))
+        self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", by["max_clusters"].blockers)
+
+    def test_a_short_older_spike_is_not_a_peak(self):
+        by = self.candidates(self.evidence({"1": 5000.0, "80": 10.0}))  # 10 minutes only
+        self.assertEqual(by["max_clusters"].recommended_config["max_clusters"], 3)
+
+    def test_quarter_end_peak_in_the_current_epoch_keeps_the_ceiling(self):
+        # 2 hours at 72 queries out of 150,000 busy minutes (0.08%): P99.5 misses it, the 30-busy-minute peak does not.
+        by = self.candidates(self.evidence(current_epoch_hist={"1": 149880.0, "72": 120.0}))
+        self.assertEqual(by["max_clusters"].status, "NO_CHANGE")
+        self.assertIn("PEAK_OUTSIDE_RECENT_WINDOW", by["max_clusters"].blockers)
+
+
 if __name__ == "__main__":
     unittest.main()
