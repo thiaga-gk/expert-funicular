@@ -1592,7 +1592,7 @@ class Modeler:
     def __init__(self, thresholds: Thresholds):
         self.t = thresholds
 
-    def forecast_from_daily_cost(self, rows: Sequence[Dict[str, Any]], current_epoch_start: str, analysis_time: str, billing_watermark: Optional[str] = None) -> Dict[str, Any]:
+    def forecast_from_daily_cost(self, rows: Sequence[Dict[str, Any]], current_epoch_start: str, analysis_time: str, billing_watermark: Optional[str] = None, ingestion_cutoff: Optional[str] = None) -> Dict[str, Any]:
         analysis_dt = parse_datetime(analysis_time)
         current_start = parse_datetime(current_epoch_start)
         if not analysis_dt:
@@ -1628,7 +1628,7 @@ class Modeler:
         window_start = analysis_date - dt.timedelta(days=365)
         # A day is complete once it has settled (billing_settle_hours after it ends) and, when known, the workspace's
         # billing watermark has passed it. Records arrive "typically within 12 hours"; the buffer covers that latency.
-        settled_through = (analysis_dt - dt.timedelta(hours=self.t.billing_settle_hours)).astimezone(dt.timezone.utc).date() - dt.timedelta(days=1)
+        settled_through = (settle_reference_time(analysis_time, ingestion_cutoff) - dt.timedelta(hours=self.t.billing_settle_hours)).date() - dt.timedelta(days=1)
         basis_end = min(analysis_date - dt.timedelta(days=1), settled_through)
         watermark_dt = parse_datetime(billing_watermark) if billing_watermark else None
         if watermark_dt is not None:
@@ -1845,11 +1845,20 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     }
 
 
+def settle_reference_time(analysis_time: str, ingestion_cutoff: Optional[str]) -> dt.datetime:
+    """The time the settle buffer is measured from: the analysis time, or for a re-collection pinned to an ingestion
+    date, that date's 00:00 UTC (earlier of the two), so a later re-collection reproduces the original run's basis."""
+    reference = parse_datetime(analysis_time).astimezone(dt.timezone.utc)
+    if ingestion_cutoff:
+        cutoff = dt.datetime.combine(dt.date.fromisoformat(str(ingestion_cutoff)), dt.time.min, tzinfo=dt.timezone.utc)
+        reference = min(reference, cutoff)
+    return reference
+
+
 def billing_check_through(analysis_time: str, account_watermark: Optional[str], ingestion_cutoff: Optional[str], settle_hours: int) -> dt.date:
     """Last UTC day whose billing should already be present: settled, passed by the account watermark and, for a
     re-collection pinned to an ingestion date, before that date. Running after it says nothing about ingestion lag."""
-    analysis = parse_datetime(analysis_time).astimezone(dt.timezone.utc)
-    bound = (analysis - dt.timedelta(hours=settle_hours)).date() - dt.timedelta(days=1)
+    bound = (settle_reference_time(analysis_time, ingestion_cutoff) - dt.timedelta(hours=settle_hours)).date() - dt.timedelta(days=1)
     acct = parse_datetime(account_watermark) if account_watermark else None
     if acct is not None:
         bound = min(bound, acct.astimezone(dt.timezone.utc).date() - dt.timedelta(days=1))
@@ -2010,7 +2019,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         effective_watermark, watermark_source = effective_billing_watermark(
             ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,
             check_through=billing_check_through(analysis_time, account_watermark, ingestion_cutoff, thresholds.billing_settle_hours))
-        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=effective_watermark)
+        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=effective_watermark, ingestion_cutoff=ingestion_cutoff)
         model["billing_watermark_source"] = watermark_source
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff

@@ -1129,8 +1129,15 @@ class PublisherV27Tests(unittest.TestCase):
     def test_check_window_ends_at_the_earliest_billable_bound(self):
         import datetime as dt
         bound = p.billing_check_through("2026-10-14T12:00:00+00:00", "2026-10-14T08:00:00+00:00", ingestion_cutoff="2026-10-04", settle_hours=24)
-        self.assertEqual(bound, dt.date(2026, 10, 3))  # a re-collection pinned to 10-04 must not see the 10-08 restart
+        self.assertEqual(bound, dt.date(2026, 10, 2))  # same as the original 10-04 run: settle applied at the cut-off day
         self.assertEqual(p.billing_check_through("2026-10-04T12:00:00+00:00", "2026-10-04T08:00:00+00:00", None, 24), dt.date(2026, 10, 2))
+
+    def test_pinned_recollection_reproduces_the_original_basis_end(self):
+        rows = self._daily("2026-10-03")
+        original = p.Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-04T23:00:00+00:00")
+        pinned = p.Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-14T12:00:00+00:00", ingestion_cutoff="2026-10-04")
+        self.assertEqual(original["billing_complete_through"], "2026-10-02")
+        self.assertEqual(pinned["billing_complete_through"], "2026-10-02")
 
     def test_reevaluation_method_names_the_settle_buffer(self):
         e = copy.deepcopy(self.evidence[0])
