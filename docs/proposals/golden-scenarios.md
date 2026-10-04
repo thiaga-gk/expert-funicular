@@ -39,7 +39,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 | C28 | Cluster recycling transients | Short count spikes above max | Not read as demand. | yes | covered | pass | — |
 | C29 | Deleted / recreated warehouse | `delete_time` set; new id | Identities kept separate. | yes | covered | pass | — |
 | C30 | Billing corrections | `record_type` RETRACTION / RESTATEMENT | Signed sums; only settled days used; replay pinned to an ingestion cut-off; correction share reported. | yes | covered | fail | G21, S2, S7a |
-| C31 | Multi-region account | Workspaces in several regions | Per-region collection merged by id; billing completeness judged per workspace. | yes | covered | fail | G21 |
+| C31 | Multi-region account | Workspaces in several regions | Per-region collection merged by id; billing completeness judged per workspace. | yes | covered | pass | G21 |
 | C32 | Unpriced / promotional SKU | `sku_name` with no `list_prices` row | Cost unavailable (null), never silently dropped. | yes | covered | pass | G2 |
 | C33 | Photon | `product_features.is_photon` | Observe only. | no | covered | pass | — |
 | C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | fail | G28, G24 |
@@ -66,7 +66,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 | A04 | Cluster limits | Targets above 40 max or 30 min | Clamped. | yes | covered | pass | — |
 | A05 | Region or networking blocks Serverless | No Serverless in region; custom networking | No migration proposed; region check unknown unless verified. | yes | covered | fail | G41 |
 | A06 | Starter warehouse left running | Auto-created default warehouse idle | Treated as always-on or zero-query idle. | yes | covered | fail | G8, K1 |
-| A07 | Billing freshness | Last day partially ingested | Days used only once settled (24 h after the day ends and past the workspace watermark). | yes | covered | fail | G21, S2 |
+| A07 | Billing freshness | Last day partially ingested | Days used only once settled (24 h after the day ends and past the workspace watermark). | yes | covered | pass | G21, S2 |
 | A08 | Owner attribution | `identity_metadata.owned_by` | Owner reported; redacted values become unknown. | yes | covered | fail | G13 |
 | A09 | Statement-timeout change restarts warehouse | — | Never touched. | no | not covered | pass | — |
 | A10 | Scheduled dashboard refresh keeps warehouse alive | Regular dashboard-sourced queries | Refresh schedule flagged. | yes | not covered | fail | G40 |
