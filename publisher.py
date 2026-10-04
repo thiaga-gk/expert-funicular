@@ -904,8 +904,14 @@ ORDER BY account_id, sku_name
 # ---------------------------------------------------------------------------
 
 def optional_float(value: Any) -> Optional[float]:
-    """Float or None when the source did not report the value; unknown evidence must not read as zero."""
-    return None if value is None else safe_float(value)
+    """Float or None when the source did not report a usable value; unknown evidence must not read as zero."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if math.isfinite(out) else None
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -2030,16 +2036,21 @@ class Optimizer:
             peak = f["max_observed"]
             headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * peak))
             reduced_max = max(cfg.min_clusters, peak + headroom)
-            # Queueing must be known to be low; when queries did queue, their capacity wait must be known too.
-            evidence_blockers = (["QUEUE_EVIDENCE_UNAVAILABLE"] if not queue_known else
-                                 ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"] if f["queue_pct"] > 0 and f["wait_capacity"] is None else [])
-            reduce_ok = (
+            eligible = (
                 cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
-                and f["queries_30"] >= self.t.min_query_sample_size and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe
+                and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
                 and reduced_max < cfg.max_clusters
             )
-            if reduce_ok and not evidence_blockers:
+            # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
+            # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
+            evidence_blockers: List[str] = []
+            if eligible and not queue_known:
+                evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
+            elif eligible and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
+                evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
+            reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
+            if reduce_ok:
                 target=reduced_max
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
@@ -2953,15 +2964,17 @@ def _workload_profile(e: WarehouseEvidence, t: Thresholds) -> rc.WorkloadProfile
         latency_class = rc.WorkloadLatencyClass.UNKNOWN
         concurrency = rc.ConcurrencyPattern.UNKNOWN
     else:
-        p95 = safe_float(q.get("p95_execution_ms_30"))
+        p95 = optional_float(q.get("p95_execution_ms_30"))
         latency_class = (
-            rc.WorkloadLatencyClass.INTERACTIVE if p95 <= 5_000
+            rc.WorkloadLatencyClass.UNKNOWN if p95 is None
+            else rc.WorkloadLatencyClass.INTERACTIVE if p95 <= 5_000
             else rc.WorkloadLatencyClass.BATCH if p95 >= 60_000
             else rc.WorkloadLatencyClass.MIXED
         )
-        queued = safe_float(q.get("queued_query_pct_30"))
+        queued = optional_float(q.get("queued_query_pct_30"))
         concurrency = (
-            rc.ConcurrencyPattern.STEADY if queued <= t.queue_query_pct_safe
+            rc.ConcurrencyPattern.UNKNOWN if queued is None
+            else rc.ConcurrencyPattern.STEADY if queued <= t.queue_query_pct_safe
             else rc.ConcurrencyPattern.BURSTY if queued >= t.queue_query_pct_increase_max
             else rc.ConcurrencyPattern.MIXED
         )

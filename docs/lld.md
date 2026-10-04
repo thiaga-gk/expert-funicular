@@ -724,7 +724,7 @@ time_at_min >= 25%
 
 Queue frequency and capacity wait must be known; an unreported value is held as a blocker (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`), never read as 0.
 
-Status: `ACTIONABLE`. It invalidates auto-stop because baseline capacity changed.
+Status: `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates auto-stop because baseline capacity changed.
 
 ### 15.6 Auto-stop
 

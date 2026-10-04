@@ -268,6 +268,47 @@ class PublisherV27Tests(unittest.TestCase):
         pkg = p.build_recommendation_packages([self._without_pressure_evidence()], self.t)[0]
         p.validate_locked_package_schema(pkg.to_dict())
 
+    def test_each_missing_pressure_field_blocks_the_cuts_that_depend_on_it(self):
+        cases = {
+            "p95_execution_ms_30": ({"warehouse_size": "LATENCY_EVIDENCE_UNAVAILABLE"}, {"max_clusters", "min_clusters"}),
+            "p99_execution_ms_30": ({"warehouse_size": "LATENCY_EVIDENCE_UNAVAILABLE"}, {"max_clusters", "min_clusters"}),
+            "spill_query_pct_30": ({"warehouse_size": "SPILL_EVIDENCE_UNAVAILABLE"}, {"max_clusters", "min_clusters"}),
+            "queued_query_pct_30": ({k: "QUEUE_EVIDENCE_UNAVAILABLE" for k in ("warehouse_size", "max_clusters", "min_clusters")}, set()),
+        }
+        for field, (blocked, still_cut) in cases.items():
+            with self.subTest(missing=field):
+                by = {c.knob: c for c in p.evaluate_warehouses([self._without_pressure_evidence((field,))], self.t)[0].candidates}
+                for knob, code in blocked.items():
+                    self.assertEqual(by[knob].recommended_config, by[knob].current_config, knob)
+                    self.assertIn(code, by[knob].blockers, knob)
+                for knob in still_cut:
+                    self.assertNotEqual(by[knob].recommended_config, by[knob].current_config, knob)
+
+    def test_unparseable_pressure_value_is_unknown(self):
+        self.assertIsNone(p.optional_float("n/a"))
+        self.assertIsNone(p.optional_float(None))
+        self.assertEqual(p.optional_float("1.5"), 1.5)
+
+    def test_known_queue_pressure_is_not_reported_as_missing_evidence(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query.update(queued_query_pct_30=3.0, queued_queries_30=None, p95_wait_capacity_ms_when_queued_30=None)
+        mx = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual(mx.recommended_config, mx.current_config)
+        self.assertNotIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", mx.blockers)
+
+    def test_no_queueing_does_not_need_a_wait_percentile_for_the_floor_cut(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query.update(queued_query_pct_30=0.0, queued_queries_30=0, p95_wait_capacity_ms_when_queued_30=None)
+        mn = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["min_clusters"]
+        self.assertNotIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", mn.blockers)
+        self.assertNotEqual(mn.recommended_config, mn.current_config)
+
+    def test_workload_profile_reports_missing_pressure_as_unknown(self):
+        pkg = p.build_recommendation_packages([self._without_pressure_evidence(("p95_execution_ms_30", "queued_query_pct_30"))], self.t)[0]
+        profile = pkg.to_dict()["workload_profile"]["workload_characteristics"]
+        self.assertEqual(profile["latency_class"], "UNKNOWN")
+        self.assertEqual(profile["concurrency_pattern"], "UNKNOWN")
+
     def test_queued_queries_without_wait_evidence_block_the_ceiling_cut(self):
         e = copy.deepcopy(self.evidence[0])
         e.current_epoch.query.update(queued_query_pct_30=0.5, queued_queries_30=40, p95_wait_capacity_ms_when_queued_30=None)
