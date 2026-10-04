@@ -4899,7 +4899,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         busy_conc_minutes = sum((min(b, hi_t) - max(a, lo_t)) * c for a, b, c in ep_runs if b > lo_t and a < hi_t)
         q_avg = busy_conc_minutes / epoch_q if epoch_q > 0 else 0.5
         def queued(lo: float) -> float:
-            return sum((b - a) * qc / q_avg for a, b, _, _, qc in ep_pieces if a >= lo and qc > 0) if q_avg > 0 else 0.0
+            return sum((b - max(a, lo)) * qc / q_avg for a, b, _, _, qc in ep_pieces if b > lo and qc > 0) if q_avg > 0 else 0.0
         queued30 = min(q30, queued(max(ep_start, window_30)))
         queued_epoch = min(epoch_q, queued(max(ep_start, window_365)))
         starts30 = [s for s in starts if s >= max(ep_start, window_30) and (ep_end is None or s < ep_end)]
@@ -4936,7 +4936,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "epoch_task_duration_ms": round(busy_conc_minutes * 60000.0 * spec.get("task_parallelism", 4), 1) if epoch_q else None,
         })
         # Warehouse events.
-        live = [p for p in ep_pieces if p[0] >= lo_t]
+        live = [(max(a, lo_t), b, cl, c, qc) for a, b, cl, c, qc in ep_pieces if b > lo_t]  # clipped at the window start
         uptime = sum(b - a for a, b, cl, _, _ in live if cl > 0)
         cluster_minutes = sum((b - a) * cl for a, b, cl, _, _ in live)
         at_min = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["min_clusters"])
