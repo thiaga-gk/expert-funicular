@@ -21,6 +21,7 @@ Scenario fixtures (`c*.json` and `a*.json`, run by `tests/test_golden_scenarios.
 - c10-over-provisioned-floor (asserts the task-time utilization evidence only)
 - c20-sparse-cost-history
 - c26-failure-heavy
+- c30-billing-corrections (collector-level)
 - c31-multi-region-billing (collector-level)
 - c32-unpriced-sku
 - c36-tag-rename-churn (collector-level)

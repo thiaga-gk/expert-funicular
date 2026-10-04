@@ -855,7 +855,9 @@ ORDER BY dl.workspace_id, dl.warehouse_id, dl.usage_day
 # Usage with no matching list_prices row, or a row without a list price (promotional or not-yet-listed SKU), is kept
 # and counted as unpriced DBU:
 # an inner join would silently drop it and understate cost. Its cost is unknown (null), never zero. When price rows
-# overlap, each usage record takes the latest price_start_time, so it is counted once.
+# overlap, each usage record takes the latest price_start_time, so it is counted once. Every record_type stays in the
+# signed sums (RETRACTION rows are negative); record_type only labels the retracted and restated quantities, which feed
+# the billing correction share (a quality signal, not a filter).
 EPOCH_DAILY_COST_SQL = r"""
 WITH __CONFIG_EPOCHS__,
 epochs AS (SELECT workspace_id, warehouse_id, epoch_start, epoch_end FROM config_epochs),
@@ -868,6 +870,8 @@ cost AS (
     u.sku_name,
     CAST(u.usage_quantity AS DOUBLE) AS dbu_quantity,
     CASE WHEN p.sku_name IS NULL OR p.pricing.effective_list.default IS NULL THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS unpriced_dbu_quantity,
+    CASE WHEN u.record_type='RETRACTION' THEN -CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS retracted_dbu_quantity,
+    CASE WHEN u.record_type='RESTATEMENT' THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS restated_dbu_quantity,
     CAST(u.usage_quantity AS DOUBLE)*CAST(p.pricing.effective_list.default AS DOUBLE) AS list_cost
   FROM system.billing.usage u
   LEFT JOIN system.billing.list_prices p
@@ -881,7 +885,8 @@ cost AS (
   QUALIFY ROW_NUMBER() OVER (PARTITION BY u.record_id ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code, p.price_end_time) = 1
 )
 SELECT c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code,
-  SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.unpriced_dbu_quantity) AS unpriced_dbu_quantity, SUM(c.list_cost) AS list_cost
+  SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.unpriced_dbu_quantity) AS unpriced_dbu_quantity, SUM(c.list_cost) AS list_cost,
+  SUM(c.retracted_dbu_quantity) AS retracted_dbu_quantity, SUM(c.restated_dbu_quantity) AS restated_dbu_quantity
 FROM cost c JOIN epochs e ON c.workspace_id=e.workspace_id AND c.warehouse_id=e.warehouse_id
   AND c.usage_end_time>=e.epoch_start AND (e.epoch_end IS NULL OR c.usage_end_time<e.epoch_end)
 GROUP BY c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code
@@ -1619,6 +1624,8 @@ class Modeler:
         by_date: Dict[dt.date, float] = {}
         current_by_date: Dict[dt.date, float] = {}
         unpriced_by_date: Dict[dt.date, float] = {}
+        # Billing corrections per day: (net DBU, retracted DBU, restated DBU); None when the row predates their collection.
+        correction_by_date: Dict[dt.date, Optional[Tuple[float, float, float]]] = {}
         for r in rows:
             date_val = parse_datetime(r.get("usage_date"))
             if not date_val:
@@ -1631,6 +1638,12 @@ class Modeler:
             unpriced = safe_float(r.get("unpriced_dbu_quantity"))
             if unpriced:
                 unpriced_by_date[d] = unpriced_by_date.get(d, 0.0) + unpriced
+            retracted, restated = optional_float(r.get("retracted_dbu_quantity")), optional_float(r.get("restated_dbu_quantity"))
+            prior = correction_by_date.get(d, (0.0, 0.0, 0.0))
+            if retracted is None or restated is None or prior is None:
+                correction_by_date[d] = None
+            else:
+                correction_by_date[d] = (prior[0] + safe_float(r.get("dbu_quantity")), prior[1] + retracted, prior[2] + restated)
 
         analysis_date = analysis_dt.astimezone(dt.timezone.utc).date()
         # Half-open window [analysis_date-365, last complete day]. Today is incomplete; yesterday is complete only once
@@ -1651,6 +1664,19 @@ class Modeler:
         basis_start = max(current_start.astimezone(dt.timezone.utc).date(), window_start)
         unpriced_365 = round(sum(v for d, v in unpriced_by_date.items() if window_start <= d <= basis_end), 6)
         unpriced_in_basis = round(sum(v for d, v in unpriced_by_date.items() if basis_start <= d <= basis_end), 6)
+        # Correction share over the same settled window as the trailing actual: retracted DBU / DBU originally billed
+        # (net + retracted - restated, i.e. the ORIGINAL records). Retractions of earlier restatements also count, so it
+        # can exceed 1 when a day is corrected repeatedly. A quality signal only; unknown when any day predates its
+        # collection.
+        window_corrections = [v for d, v in correction_by_date.items() if window_start <= d <= basis_end]
+        retracted_365: Optional[float] = None
+        restated_365: Optional[float] = None
+        correction_share: Optional[float] = None
+        if all(v is not None for v in window_corrections):
+            retracted_365 = round(sum((v[1] for v in window_corrections), 0.0), 6)
+            restated_365 = round(sum((v[2] for v in window_corrections), 0.0), 6)
+            original = sum(v[0] for v in window_corrections) + retracted_365 - restated_365
+            correction_share = round(retracted_365 / original, 6) if original > 0 else None
         # Unpriced DBU has unknown cost: the trailing actual (and, when inside the forecast basis, the forecast) is
         # unknown rather than understated.
         actual: Optional[float] = None if unpriced_365 > 0 else round(sum(v for d, v in by_date.items() if window_start <= d <= basis_end), 2)
@@ -1663,6 +1689,9 @@ class Modeler:
             "unpriced_dbu_quantity_365": unpriced_365,
             "unpriced_dbu_quantity_in_basis": unpriced_in_basis,
             "dbu_pricing_status": "UNPRICED_USAGE" if unpriced_365 > 0 else "COMPLETE",
+            "billing_retracted_dbu_quantity_365": retracted_365,
+            "billing_restated_dbu_quantity_365": restated_365,
+            "billing_correction_dbu_share_365": correction_share,
         }
 
         series: List[float] = []
@@ -3552,6 +3581,15 @@ def _build_evidence_registry(
             interpretation="Calendar-day coverage available to the forward cost model.",
         ),
     ]
+    # Cost-basis quality signal: package evidence only. It is not a shared cost ref, so it never enters candidate
+    # evidence refs (and their IDs); no decision, confidence or economics reads it.
+    _add_evidence(
+        registry, e=e, contract_epoch_id=contract_epoch_id,
+        metric="billing_correction_dbu_share_365d", value=round_or_none((e.forecast_metadata or {}).get("billing_correction_dbu_share_365"), 6), unit="ratio",
+        source="system.billing.usage", source_field="record_type",
+        observation_window="trailing_365d", threshold=None, comparator="",
+        interpretation="Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
+    )
 
     for s in scenarios:
         for check in (s.compatibility or {}).get("checks", []) or []:
@@ -4607,7 +4645,7 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         gaps={"gap_count":max(5,int(q30/25)),"p50_gap_minutes":10.0,"p90_gap_minutes":90.0 if autostop>=60 else 35.0,"saved_idle_minutes_if_10":uptime*idle_factor,"saved_idle_minutes_if_15":uptime*idle_factor*0.92,"saved_idle_minutes_if_30":uptime*idle_factor*0.72,"saved_idle_minutes_if_45":uptime*idle_factor*0.50}
         config=WarehouseConfig(wtype,"CURRENT",size,minc,maxc,autostop)
         epoch=EpochEvidence(epoch_id=epoch_id(workspace,wh,epoch_start),warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,epoch_start=epoch_start,epoch_end=None,is_current=True,config=config,tags={"environment":"production" if i not in {9,11} else "nonprod","team":owners[i-1]},query=q,events=events,gaps=gaps,cost={"list_cost":round(baseline*0.88,2),"dbu_quantity":round(baseline/0.22,2),"cost_days":age_days,"active_cost_days":age_days,"currency":"USD"})
-        forecast={"forecast_method":MODEL_VERSION,"active_cost_days":age_days,"dbu_forecast_status":"COMPLETE" if age_days>=Thresholds().min_economics_cost_history_days else "INSUFFICIENT_ACTIVE_COST_DAYS","forecast_basis_start":epoch_start[:10],"forecast_basis_end":"2026-09-30","run_rate_28":baseline*1.03,"run_rate_84":baseline*0.99,"zero_cost_days_in_basis":0,"trend_ratio":1.0,"trend_adjustment_factor":1.0}
+        forecast={"forecast_method":MODEL_VERSION,"active_cost_days":age_days,"dbu_forecast_status":"COMPLETE" if age_days>=Thresholds().min_economics_cost_history_days else "INSUFFICIENT_ACTIVE_COST_DAYS","forecast_basis_start":epoch_start[:10],"forecast_basis_end":"2026-09-30","run_rate_28":baseline*1.03,"run_rate_84":baseline*0.99,"zero_cost_days_in_basis":0,"trend_ratio":1.0,"trend_adjustment_factor":1.0,"billing_retracted_dbu_quantity_365":0.0,"billing_restated_dbu_quantity_365":0.0,"billing_correction_dbu_share_365":0.0}
         epoch.resource_daily=synthesize_resource_daily(epoch,analysis_time)
         aws,aws_model=model_aws_baseline_cost(epoch,"us-east-1",analysis_time,forecast,registry)
         true_dbu=1000.0 if photon=="ENABLED" else 0.0
