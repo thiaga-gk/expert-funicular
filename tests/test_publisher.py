@@ -1,4 +1,5 @@
 import copy
+import re
 import json
 import tempfile
 import unittest
@@ -702,8 +703,85 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_billing_cost_sql_keeps_corrections_in_the_sum(self):
         # RETRACTION (negative) and RESTATEMENT rows net out original usage; filtering to ORIGINAL would overstate cost.
+        # record_type may only label correction quantities, never filter rows out of a sum.
         for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
+            sql = getattr(p, name)
+            for clause in re.findall(r"\b(?:WHERE|AND|ON)\b[^\n]*", sql):
+                self.assertNotIn("record_type", clause, name)
+        for name in ("BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
             self.assertNotIn("record_type", getattr(p, name), name)
+
+    # --- Billing corrections: share of originally billed DBU later retracted (evidence only) -------------------
+    def correction_rows(self, days=30, first="2026-09-01", retracted=None, restated=None):
+        rows = self._cost_rows(days, first)
+        for r in rows:
+            r["dbu_quantity"] = 100.0
+            r["retracted_dbu_quantity"] = 0.0
+            r["restated_dbu_quantity"] = 0.0
+        for day, qty in (retracted or {}).items():
+            row = next(r for r in rows if r["usage_date"] == day)
+            row["retracted_dbu_quantity"] = qty; row["dbu_quantity"] -= qty
+        for day, qty in (restated or {}).items():
+            row = next(r for r in rows if r["usage_date"] == day)
+            row["restated_dbu_quantity"] = qty; row["dbu_quantity"] += qty
+        return rows
+
+    def test_cost_sql_collects_retracted_and_restated_dbu(self):
+        sql = p.EPOCH_DAILY_COST_SQL
+        self.assertIn("u.record_type='RETRACTION'", sql)
+        self.assertIn("u.record_type='RESTATEMENT'", sql)
+        self.assertIn("SUM(c.retracted_dbu_quantity) AS retracted_dbu_quantity", sql)
+        self.assertIn("SUM(c.restated_dbu_quantity) AS restated_dbu_quantity", sql)
+
+    def test_correction_share_is_retracted_over_originally_billed_dbu(self):
+        # 30 days x 100 DBU originally billed = 3,000; 09-10 retracted 60 and restated 45 (net 85 that day).
+        rows = self.correction_rows(retracted={"2026-09-10": 60.0}, restated={"2026-09-10": 45.0})
+        out = self.forecast(rows, watermark="2026-10-01T00:00:00+00:00")
+        self.assertEqual(out["billing_retracted_dbu_quantity_365"], 60.0)
+        self.assertEqual(out["billing_restated_dbu_quantity_365"], 45.0)
+        self.assertEqual(out["billing_correction_dbu_share_365"], 0.02)  # 60 / 3,000
+
+    def test_correction_share_is_zero_without_corrections(self):
+        out = self.forecast(self.correction_rows(), watermark="2026-10-01T00:00:00+00:00")
+        self.assertEqual(out["billing_correction_dbu_share_365"], 0.0)
+
+    def test_correction_share_uses_the_settled_cost_window(self):
+        # A retraction on a day the watermark has not passed is outside the cost basis and outside the share.
+        rows = self.correction_rows(retracted={"2026-09-30": 50.0})
+        out = self.forecast(rows, watermark="2026-09-30T20:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-29")
+        self.assertEqual(out["billing_retracted_dbu_quantity_365"], 0.0)
+        self.assertEqual(out["billing_correction_dbu_share_365"], 0.0)
+
+    def test_correction_share_is_unknown_when_not_collected(self):
+        rows = self.correction_rows()
+        for r in rows:
+            r.pop("retracted_dbu_quantity"); r.pop("restated_dbu_quantity")
+        out = self.forecast(rows, watermark="2026-10-01T00:00:00+00:00")
+        self.assertIsNone(out["billing_correction_dbu_share_365"])
+        self.assertIsNone(out["billing_retracted_dbu_quantity_365"])
+
+    def with_correction_share(self, share):
+        e = copy.deepcopy(self.evidence[0])
+        e.forecast_metadata = {**e.forecast_metadata, "billing_correction_dbu_share_365": share}
+        return e
+
+    def test_correction_share_is_package_evidence(self):
+        pkg = p.build_recommendation_packages([self.with_correction_share(0.02)], self.t)[0].to_dict()
+        found = [x for x in pkg["evidence"].values() if x["metric"] == "billing_correction_dbu_share_365d"]
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["value"], 0.02)
+        self.assertEqual(found[0]["source"], "system.billing.usage")
+        self.assertEqual(found[0]["source_field"], "record_type")
+        unknown = p.build_recommendation_packages([self.with_correction_share(None)], self.t)[0].to_dict()
+        self.assertIsNone(next(x for x in unknown["evidence"].values() if x["metric"] == "billing_correction_dbu_share_365d")["value"])
+
+    def test_correction_share_does_not_change_decisions(self):
+        decisions = []
+        for share in (0.0, 0.5):
+            w = p.evaluate_warehouses([self.with_correction_share(share)], self.t)[0]
+            decisions.append([(c.knob, c.status, c.recommended_config, c.blockers, c.estimated_savings_range_365) for c in w.candidates])
+        self.assertEqual(decisions[0], decisions[1])
 
     def test_billing_watermark_sql_is_read_only_and_bounded(self):
         sql = p.BILLING_WATERMARK_SQL

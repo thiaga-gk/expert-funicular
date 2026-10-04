@@ -38,7 +38,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 | C27 | Long queries keep warehouse alive | Queries near the 2-day statement timeout | Not optimized; flagged. | no | not covered | fail | OOS |
 | C28 | Cluster recycling transients | Short count spikes above max | Not read as demand. | yes | covered | pass | — |
 | C29 | Deleted / recreated warehouse | `delete_time` set; new id | Identities kept separate. | yes | covered | pass | — |
-| C30 | Billing corrections | `record_type` RETRACTION / RESTATEMENT | Signed sums; only settled days used; replay pinned to an ingestion cut-off; correction share reported. | yes | covered | fail | G21, S2, S7a |
+| C30 | Billing corrections | `record_type` RETRACTION / RESTATEMENT | Signed sums; only settled days used; replay pinned to an ingestion cut-off; correction share reported. | yes | covered | pass | G21, S2, S7a |
 | C31 | Multi-region account | Workspaces in several regions | Per-region collection merged by id; billing completeness judged per workspace. | yes | covered | pass | G21 |
 | C32 | Unpriced / promotional SKU | `sku_name` with no `list_prices` row | Cost unavailable (null), never silently dropped. | yes | covered | pass | G2 |
 | C33 | Photon | `product_features.is_photon` | Observe only. | no | covered | pass | — |
