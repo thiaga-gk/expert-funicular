@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import re, sys, yaml
+import re, sys
 from pathlib import Path
+try:
+    import yaml
+except ModuleNotFoundError:
+    sys.exit('PyYAML is required: pip install -r requirements.txt')
 
-EXPECTED={
-'databricks-publisher-orchestrator','databricks-service-discovery','databricks-source-contract','databricks-technique-catalog','databricks-economics-model','databricks-contract-designer','databricks-publisher-builder','databricks-publisher-validator','databricks-release-sealer'
-}
 FORBIDDEN={'README.md','CHANGELOG.md','INSTALLATION_GUIDE.md','QUICK_REFERENCE.md'}
 FRAMEWORK=['F1_FIRST_PRINCIPLES','F2_CAUSAL_MECHANISM','F3_CONSTRAINTS_FIRST','F4_COUNTERFACTUAL','F5_SECOND_ORDER_EFFECTS','F6_VALIDATION_LEARNING']
-FRAMEWORK_SKILLS={
-'databricks-publisher-orchestrator','databricks-service-discovery','databricks-source-contract','databricks-technique-catalog','databricks-economics-model','databricks-contract-designer','databricks-publisher-builder','databricks-publisher-validator','databricks-release-sealer'
-}
 
 def frontmatter(text:str):
     if not text.startswith('---\n'): raise ValueError('missing YAML frontmatter')
@@ -20,17 +18,17 @@ def frontmatter(text:str):
 def main():
     repo=Path(__file__).resolve().parents[1]; root=repo/'.claude/skills'; errs=[]
     skills={p.name for p in root.iterdir() if p.is_dir() and (p/'SKILL.md').exists()}
-    if skills!=EXPECTED: errs.append(f'skill set mismatch: expected={sorted(EXPECTED)} actual={sorted(skills)}')
     manifest_path=root/'suite.yaml'
-    if not manifest_path.exists(): errs.append('missing .claude/skills/suite.yaml')
-    else:
-        manifest=yaml.safe_load(manifest_path.read_text()) or {}
-        if manifest.get('version')!='1.1.0': errs.append('suite version must be 1.1.0')
-        if manifest.get('entrypoint')!='databricks-publisher-orchestrator': errs.append('suite entrypoint mismatch')
-        manifest_skills={x.get('name') for x in manifest.get('skills',[])}
-        if manifest_skills!=EXPECTED: errs.append('suite manifest skill set mismatch')
-        fw=(manifest.get('optimization_framework') or {}).get('axes') or []
-        if fw!=FRAMEWORK: errs.append(f'optimization framework axes must equal {FRAMEWORK}')
+    if not manifest_path.exists():
+        print('ERROR: missing .claude/skills/suite.yaml'); return 1
+    manifest=yaml.safe_load(manifest_path.read_text()) or {}
+    version=str(manifest.get('version',''))
+    if not re.fullmatch(r'\d+\.\d+\.\d+', version): errs.append(f'suite version must be semver, got {version!r}')
+    if manifest.get('entrypoint')!='databricks-publisher-orchestrator': errs.append('suite entrypoint mismatch')
+    expected={x.get('name') for x in manifest.get('skills',[])}
+    if skills!=expected: errs.append(f'skill set mismatch: manifest={sorted(expected)} on disk={sorted(skills)}')
+    fw=(manifest.get('optimization_framework') or {}).get('axes') or []
+    if fw!=FRAMEWORK: errs.append(f'optimization framework axes must equal {FRAMEWORK}')
     framework_ref=root/'databricks-publisher-orchestrator/references/optimization-thinking-framework.md'
     if not framework_ref.exists(): errs.append('missing optimization-thinking-framework.md')
     total_triggers=0; total_functional=0
@@ -42,7 +40,7 @@ def main():
         desc=str(fm.get('description','')).strip()
         if len(desc)<120: errs.append(f'{name}: description too weak/short ({len(desc)})')
         if len(body.splitlines())>500: errs.append(f'{name}: SKILL.md body exceeds 500 lines')
-        if name in FRAMEWORK_SKILLS and 'optimization-thinking-framework.md' not in body and name!='databricks-publisher-orchestrator':
+        if 'optimization-thinking-framework.md' not in body and name!='databricks-publisher-orchestrator':
             errs.append(f'{name}: must reference the optimization thinking framework')
         if re.search(r'(?m)^\s*TODO(?:[:\s]|$)', text): errs.append(f'{name}: unresolved TODO placeholder in SKILL.md')
         for bad in FORBIDDEN:
@@ -68,6 +66,6 @@ def main():
         errs.append('cross-service eval set incomplete')
     if errs:
         print('\n'.join('ERROR: '+e for e in errs)); return 1
-    print(f'skill suite: OK | version=1.1.0 skills={len(skills)} trigger_cases={total_triggers} functional_cases={total_functional} cross_service_cases={len(cross.get("cases",[]))} framework_axes=6')
+    print(f'skill suite: OK | version={version} skills={len(skills)} trigger_cases={total_triggers} functional_cases={total_functional} cross_service_cases={len(cross.get("cases",[]))} framework_axes={len(FRAMEWORK)}')
     return 0
 if __name__=='__main__': sys.exit(main())

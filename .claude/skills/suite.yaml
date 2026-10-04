@@ -2,7 +2,7 @@ version: 1.1.0
 name: databricks-publisher-skill-suite
 reference_exemplar:
   product: databricks-sql-warehouse-optimizer
-  publisher_version: 2.7.0
+  publisher_version: 2.10.0
 entrypoint: databricks-publisher-orchestrator
 optimization_framework:
   version: 1.0

@@ -1,6 +1,6 @@
 # Gap review of publisher 2.8.0: findings, decisions and batch plan
 
-Status: **PLAN ONLY. No code, contract, schema, threshold or fixture has been changed.** Reviewed 2026-10-03 against `docs/prd.md`, `docs/hld.md`, `docs/lld.md`, `docs/context.md`, `publisher.py` and current Databricks documentation. Items already tracked in `docs/known-limitations.md` and `docs/proposals/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
+Status: **Living design record.** Per-item implementation status is in the tracker and in the golden table (`docs/proposals/golden-scenarios.md`). Reviewed 2026-10-03 against `docs/product/prd.md`, `docs/architecture/hld.md`, `docs/architecture/lld.md`, `docs/architecture/context.md`, `publisher.py` and current Databricks documentation. Items already tracked in `docs/reference/known-limitations.md` and `docs/archive/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
 
 No change to `schema/recommendation-package.schema.json` is needed for any item. Existing enums and fields cover every fix (`availability: PARTIAL`, `overall_status: NO_CHANGE / REVIEW_REQUIRED`, blocker codes). Most fixes change decisions or IDs, so each batch needs the matching policy/analyzer/optimizer/estimator/bundle/decision-graph version bump and regenerated goldens.
 
@@ -156,7 +156,7 @@ Each batch follows the CLAUDE.md change loop with a per-item summary and worked 
 
 ## Coordination with M9
 
-`docs/proposals/m9-contract-design.md` (signed off) claims publisher 2.9.0, Reporter contract 1.2.0 and Workbook contract 1.3.0. The G1 exclusion row and the D2 Executive Summary rows should ride the same Workbook 1.3.0 bump. G3 must land before or with M9 Stage 1: otherwise M9's `observed_change` would report a rename or tag edit as an applied configuration change.
+`docs/archive/m9-contract-design.md` (signed off) claims publisher 2.9.0, Reporter contract 1.2.0 and Workbook contract 1.3.0. The G1 exclusion row and the D2 Executive Summary rows should ride the same Workbook 1.3.0 bump. G3 must land before or with M9 Stage 1: otherwise M9's `observed_change` would report a rename or tag edit as an applied configuration change.
 
 ## Verification still needed on first real data
 

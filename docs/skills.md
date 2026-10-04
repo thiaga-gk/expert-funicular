@@ -1,12 +1,26 @@
-# Databricks Publisher Skill System — v1.1.0
+# Databricks Publisher Skill System
 
-**Status:** Approved design / implemented  
-**Reference exemplar:** SQL Warehouse Publisher v2.7.0  
+**Status:** Implemented. The suite version is declared in `.claude/skills/suite.yaml`.
+**Reference exemplar:** the SQL Warehouse publisher in this repository.
 **Purpose:** Reusable skill suite for designing, building, validating, and sealing deterministic `publisher.py` optimization engines for other Databricks services.
 
-## v1.1.0 change
+## Start
 
-v1.1.0 formalizes a six-axis optimization thinking framework across the existing nine skills. The framework is encoded in artifacts, templates, validators, implementation rules, and evals rather than left as advisory prose.
+Copy `.claude/skills/` into the target repo and invoke the orchestrator, for example:
+
+> Use the Databricks publisher orchestrator to build a deterministic job-cluster compute optimization publisher. Start with discovery and stop at the first approval gate.
+
+Validate the skill package with `python tools/validate_skill_suite.py`. The suite also ships deterministic validators for source, optimization policy, technique, economics, contract, golden-manifest, and release artifacts.
+
+## Expected lifecycle
+
+`Discovery/System Model → Source Contract → Optimization Policy + Technique Catalog → Economics → Contract Lock → publisher.py → Independent Validation → Release Seal`
+
+Independent research can run in parallel, but contract-dependent implementation stages stay sequential.
+
+## Thinking framework
+
+Every publisher must pass a six-axis optimization thinking framework. It is encoded in artifacts, templates, validators, implementation rules, and evals rather than left as advisory prose. The authoritative description is `.claude/skills/databricks-publisher-orchestrator/references/optimization-thinking-framework.md`.
 
 1. **F1 First Principles** — model demand, resource state, pressure, performance/reliability, consumption and cost before choosing knobs.
 2. **F2 Causal Mechanism** — require observation → mechanism → intervention → expected direct effect + falsifiers.
@@ -155,7 +169,7 @@ flowchart LR
   P --> W[Workbook projection]
 ```
 
-The single `publisher.py` core remains the default fast-iteration implementation shape. Locked public contracts/reporters may remain separate modules.
+The single `publisher.py` core remains the default fast-iteration implementation shape for early validation; do not prematurely split the optimization engine into many modules. Locked public contracts/reporters may remain separate modules.
 
 LLMs are permitted for discovery, challenge, explanation, and development assistance. They are not the authoritative runtime recommendation engine.
 
@@ -166,8 +180,8 @@ Each skill includes:
 - 10 negative/non-trigger prompts;
 - at least 3 functional eval cases with assertions.
 
-v1.1.0 contains 180 trigger/non-trigger cases and 39 functional cases, plus cross-service control/adaptation tests for SQL Warehouse, Job Cluster, and Lakeflow/DLT. Static structure and resource integrity are validated by `tools/validate_skill_suite.py`. The functional prompts are intended for with-skill vs baseline model evaluation in an environment that can execute such model evals.
+The orchestrator adds cross-service control/adaptation tests for SQL Warehouse, Job Cluster, and Lakeflow/DLT. Static structure and resource integrity are validated by `tools/validate_skill_suite.py`. The functional prompts are intended for with-skill vs baseline model evaluation in an environment that can execute such model evals.
 
 ## Reference exemplar rule
 
-SQL Warehouse v2.7.0 is an exemplar of architecture and release discipline, not a template to search/replace. New services must rediscover resource identity, first-principles system model, constraints, source authority, technique causality, cost model, and supported types before contract lock.
+The SQL Warehouse publisher is an exemplar of architecture and release discipline, not a template to search/replace. New services must rediscover resource identity, first-principles system model, constraints, source authority, technique causality, cost model, and supported types before contract lock.

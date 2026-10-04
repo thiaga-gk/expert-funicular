@@ -1,5 +1,7 @@
 # Audit M-items, group B: design proposals (M1, M2, M3b, M4, M9)
 
+> **Archived.** Historical design drafts. M9 shipped (see `m9-contract-design.md`); M1, M2, M3b and M4 remain open and are summarized in `docs/reference/known-limitations.md`. The SQL below has never been executed.
+
 Status: **DRAFT DESIGN PROPOSAL. Documentation only.** No code, contract, schema, threshold or fixture has been changed. **All SQL in this file is UNEXECUTED**: it has never run against a Databricks workspace, and some function spellings are marked ASSUMED.
 
 Baseline read: `publisher.py` on branch `fix/v2.7-audit-m-items` (`EPOCH_QUERY_METRICS_SQL`, `EPOCH_EVENT_METRICS_SQL`, `build_epoch_gap_metrics_sql`, `extract_evidence`, `Analyzer.analyze`, `Optimizer.optimize`, `Estimator._factors`, `Estimator._matched_epoch_factor`, `StatefulBundleEstimator._apply/estimate`, `Modeler.forecast_from_daily_cost`, `model_aws_baseline_cost`). The local M3 fix (`time_at_max_pct_saturated = 5.0`, max-reduction headroom) is already in place.

@@ -1,8 +1,8 @@
 # Golden scenarios
 
-Deterministic fixtures for the SQL Warehouse optimizer. Each JSON file contains normalized evidence plus expected semantic outcomes.
+Deterministic fixtures for the SQL Warehouse optimizer. Each JSON file contains normalized evidence plus expected semantic outcomes (an `expect` block). The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length`, collector-level `snapshots` fixtures) is documented in the docstring of `tests/test_golden_scenarios.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
 
-Core fixtures retained from the design discussion:
+Core fixtures (used by `tests/test_publisher.py`):
 - idle-expensive-warehouse
 - spill-constrained
 - concurrency-constrained
@@ -11,9 +11,15 @@ Core fixtures retained from the design discussion:
 - photon-disabled (Photon observed DISABLED: reported in `current_config.photon`, never recommended)
 - newly-changed-config
 - sparse-evidence
-
-Additional cost/scenario fixtures:
 - serverless-to-pro-costed
 - aws-region-missing
 
-Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance.
+Scenario fixtures (`c*.json`, run by `tests/test_golden_scenarios.py`; the number is the catalog row):
+- c08-concurrency-gates
+- c20-sparse-cost-history
+- c26-failure-heavy
+- c32-unpriced-sku
+- c36-tag-rename-churn
+- c48-long-unchanged-warehouse
+
+Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions.

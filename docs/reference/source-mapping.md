@@ -1,4 +1,4 @@
-# Source mapping — v2.10.0
+# Source mapping
 
 | Need | Source | Notes |
 |---|---|---|
