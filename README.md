@@ -44,12 +44,12 @@ Active candidate domains (one candidate per domain/warehouse): warehouse channel
 ├── packages/
 │   └── <workspace_id>__<warehouse_id>.json
 ├── workbook.xlsx
-├── evidence.json
+├── evidence.json          # versioned replay input for --from-evidence
 ├── manifest.json
 └── publisher.log
 ```
 
-Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication.
+Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication. `evidence.json` is validated the same way (`schema/evidence.schema.json`); see [`docs/contracts/evidence-format.md`](docs/contracts/evidence-format.md).
 
 ## Professional workbook
 

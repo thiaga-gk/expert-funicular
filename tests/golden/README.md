@@ -22,4 +22,4 @@ Scenario fixtures (`c*.json`, run by `tests/test_golden_scenarios.py`; the numbe
 - c36-tag-rename-churn
 - c48-long-unchanged-warehouse
 
-Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions.
+Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/test_evidence_format.py` fails otherwise.

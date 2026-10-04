@@ -2880,6 +2880,8 @@ def _scalar_config(d: Mapping[str, Any]) -> Any:
 
 
 _CONTRACT_SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "recommendation-package.schema.json"
+EVIDENCE_FORMAT_VERSION = "1.0.0"
+_EVIDENCE_SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "evidence.schema.json"
 _ENTITY_QUERY_SOURCE_CATEGORIES = {"DASHBOARD", "JOB", "NOTEBOOK", "GENIE", "ALERT", "SQL_EDITOR", "OTHER", "UNKNOWN"}
 _CLIENT_QUERY_SOURCE_CATEGORIES = {"POWER_BI", "TABLEAU", "LOOKER", "SQL_EDITOR"}
 
@@ -4317,31 +4319,37 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         out.append(e)
     return out
 
+def validate_evidence_payload(payload: Any) -> None:
+    """Fail closed unless the payload is an evidence file of exactly EVIDENCE_FORMAT_VERSION that matches the schema.
+
+    The message names the failing path and rule, never the offending value: evidence carries owner emails and tags.
+    """
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"evidence file must be an object with evidence_format_version {EVIDENCE_FORMAT_VERSION}")
+    version = payload.get("evidence_format_version")
+    if version != EVIDENCE_FORMAT_VERSION:
+        raise ValueError(f"unsupported evidence_format_version {version!r}; this publisher reads only {EVIDENCE_FORMAT_VERSION}")
+    try:
+        import jsonschema  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError("jsonschema>=4.23 is required to validate evidence files") from exc
+    schema = json.loads(_EVIDENCE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    error = jsonschema.exceptions.best_match(jsonschema.Draft202012Validator(schema).iter_errors(dict(payload)))
+    if error is not None:
+        where = "/".join(str(x) for x in error.absolute_path) or "<file>"
+        rule = error.message if error.validator == "required" else f"fails '{error.validator}'"
+        raise ValueError(f"evidence file invalid at {where}: {rule}")
+
+
 def save_evidence(path:Path,evidence:Sequence[WarehouseEvidence])->None:
-    path.write_text(json.dumps(as_serializable(evidence),indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    payload = {"evidence_format_version": EVIDENCE_FORMAT_VERSION, "publisher_version": PUBLISHER_VERSION, "warehouses": as_serializable(evidence)}
+    validate_evidence_payload(payload)
+    path.write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
 
 
 def _epoch_from_dict(x:Mapping[str,Any])->EpochEvidence:
     return EpochEvidence(epoch_id=str(x["epoch_id"]),warehouse_id=str(x["warehouse_id"]),workspace_id=str(x.get("workspace_id") or ""),account_id=str(x.get("account_id") or ""),warehouse_name=str(x.get("warehouse_name") or x["warehouse_id"]),
                          epoch_start=str(x["epoch_start"]),epoch_end=x.get("epoch_end"),is_current=bool(x.get("is_current")),config=WarehouseConfig(**x["config"]),tags=dict(x.get("tags") or {}),query=dict(x.get("query") or {}),events=dict(x.get("events") or {}),gaps=dict(x.get("gaps") or {}),cost=dict(x.get("cost") or {}))
-
-
-def _replayed_dbu_forecast(x: Mapping[str, Any]) -> Tuple[Optional[float], Dict[str, Any]]:
-    """Stored forward DBU cost and forecast metadata. Evidence written before forecast statuses existed could hold $0 (a
-    floored or empty basis) or a run rate guessed from a few billed days; it replays as unknown with the status a fresh
-    run would record (like the stored-CV rule, the default policy floor applies to legacy evidence)."""
-    value = x.get("baseline_forecast_cost_365")
-    meta = dict(x.get("forecast_metadata") or {})
-    if value is None or "dbu_forecast_status" in meta:
-        return (None if value is None else safe_float(value)), meta
-    active = meta.get("active_cost_days")
-    if active is not None and safe_int(active) < Thresholds().min_economics_cost_history_days:
-        meta["dbu_forecast_status"] = "INSUFFICIENT_ACTIVE_COST_DAYS"
-        return None, meta
-    if safe_float(value) <= 0:
-        meta["dbu_forecast_status"] = "NON_POSITIVE_RUN_RATE"
-        return None, meta
-    return safe_float(value), meta
 
 
 def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
@@ -4355,12 +4363,11 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         current_epoch_id=str(x["current_epoch_id"]),
         epochs=[_epoch_from_dict(e) for e in x.get("epochs", [])],
         current_cost_365=None if x.get("current_cost_365") is None else safe_float(x.get("current_cost_365")),
-        baseline_forecast_cost_365=_replayed_dbu_forecast(x)[0],
+        baseline_forecast_cost_365=None if x.get("baseline_forecast_cost_365") is None else safe_float(x.get("baseline_forecast_cost_365")),
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
-        # Evidence written before CV became Optional stored 0.0 for short histories; treat that as unknown.
-        cost_cv_84=None if (x.get("cost_cv_84") is None or safe_int(x.get("cost_history_days")) < Thresholds().forecast_cv_min_days) else safe_float(x.get("cost_cv_84")),
-        forecast_metadata=_replayed_dbu_forecast(x)[1],
+        cost_cv_84=None if x.get("cost_cv_84") is None else safe_float(x.get("cost_cv_84")),
+        forecast_metadata=dict(x.get("forecast_metadata") or {}),
         daily_cost_365=list(x.get("daily_cost_365") or []),
         billing_features=dict(x.get("billing_features") or {}),
         aws_baseline_cost_365=(None if x.get("aws_baseline_cost_365") is None else safe_float(x.get("aws_baseline_cost_365"))),
@@ -4388,10 +4395,12 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
     merged: Dict[Tuple[str, str], WarehouseEvidence] = {}
 
     for filename in paths:
-        payload = json.loads(Path(filename).read_text(encoding="utf-8"))
-        if not isinstance(payload, list):
-            raise SystemExit(f"Evidence file must contain a list: {filename}")
-        for item in payload:
+        try:
+            payload = json.loads(Path(filename).read_text(encoding="utf-8"))
+            validate_evidence_payload(payload)
+        except ValueError as exc:
+            raise SystemExit(f"{filename}: {exc}") from exc
+        for item in payload["warehouses"]:
             e = evidence_from_dict(item)
             key = (e.workspace_id, e.warehouse_id)
             if not e.analysis_time:

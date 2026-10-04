@@ -45,6 +45,9 @@ Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → 
 - Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
 - Write order (`_build_locked_recommendation_package`, `package_locked_contract`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
 
+## Replay evidence
+`<output-dir>/evidence.json` is a versioned envelope (`evidence_format_version` 1.0.0) checked against `schema/evidence.schema.json` on write and on `--from-evidence` load; other versions and bare lists are rejected, with no legacy shims. It holds owner emails and tags, so treat it as sensitive. A format change updates the dataclass, schema, version, `docs/contracts/evidence-format.md` and the `tests/golden/` fixtures together.
+
 ## Workbook
 Column order and groups live only in `contracts/workbook_contract.py`; the renderer in `reporters/workbook_reporter.py` consumes them and keeps no second list. Exactly four visible sheets (Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry), no formulas/macros/hidden sheets, IDs as text, audit JSON at the far right.
 

@@ -55,6 +55,7 @@
         "photon_usage_pct_365": 100.0,
         "serverless_usage_pct_365": 100.0
       },
+      "compatibility_evidence": {},
       "cost_cv_84": 0.25,
       "cost_history_days": 259,
       "currency": "USD",
@@ -3116,6 +3117,7 @@
       ],
       "forecast_metadata": {
         "active_cost_days": 259,
+        "dbu_forecast_status": "COMPLETE",
         "forecast_basis_end": "2026-09-30",
         "forecast_basis_start": "2026-01-15",
         "forecast_method": "epoch-runrate-v2.7",
@@ -3241,6 +3243,7 @@
         "photon_usage_pct_365": 100.0,
         "serverless_usage_pct_365": 0.0
       },
+      "compatibility_evidence": {},
       "cost_cv_84": 0.25,
       "cost_history_days": 259,
       "currency": "USD",
@@ -6302,6 +6305,7 @@
       ],
       "forecast_metadata": {
         "active_cost_days": 259,
+        "dbu_forecast_status": "COMPLETE",
         "forecast_basis_end": "2026-09-30",
         "forecast_basis_start": "2026-01-15",
         "forecast_method": "epoch-runrate-v2.7",
