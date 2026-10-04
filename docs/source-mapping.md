@@ -1,4 +1,4 @@
-# Source mapping — v2.9.0
+# Source mapping — v2.10.0
 
 | Need | Source | Notes |
 |---|---|---|
@@ -10,7 +10,7 @@
 | DBU quantity / SQL warehouse attribution | `system.billing.usage` | Signed quantities preserve billing corrections. |
 | Observed Photon status | `system.billing.usage.product_features.is_photon` + signed DBUs | Inferred inside current config epoch with coverage/freshness guards; emits ENABLED/DISABLED/MIXED/UNKNOWN. |
 | Warehouse owner | `system.billing.usage.identity_metadata.owned_by` | Latest current-epoch owner evidence; observed owners retained. May be null when no attributable billing evidence exists. |
-| Effective DBU list price / target SKU price | `system.billing.list_prices` | Temporal baseline join and target-SKU price registry. |
+| Effective DBU list price / target SKU price | `system.billing.list_prices` | Temporal baseline join (left join; usage with no price row is reported as unpriced DBU) and target-SKU price registry. |
 | Pro/Classic EC2 topology | Databricks SQL warehouse sizing docs | Driver type + worker count by size. |
 | AWS EC2 price | `pricing/aws_ec2_on_demand.json` | Versioned and region explicit; no hidden fallback. |
 

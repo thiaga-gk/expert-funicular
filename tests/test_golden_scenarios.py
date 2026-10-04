@@ -70,6 +70,7 @@ def check(package, assertion):
 
 class GoldenScenarioTests(unittest.TestCase):
     def test_fixtures_exist_for_harness(self):
+        self.assertTrue(scenario_fixtures(), "no golden scenario fixtures found")
         for fixture in scenario_fixtures():
             payload = json.loads(fixture.read_text())
             self.assertIn("assertions", payload["expect"], fixture.name)

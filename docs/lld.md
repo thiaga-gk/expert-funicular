@@ -2,7 +2,7 @@
 
 **Document:** `docs/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.9.0  
+**Implementation baseline:** Publisher v2.10.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Reporter JSON Contract:** v1.2.0 (locked)  
@@ -17,7 +17,7 @@
 
 This document defines the implementation-level design of the Databricks SQL Warehouse Optimizer. It translates the approved PRD and HLD into concrete modules, classes, data contracts, SQL projections, algorithms, thresholds, deterministic identities, reviewer invariants, scenario state transitions, economics, publication behavior, CLI/runtime behavior, and test seams.
 
-The LLD describes the **actual v2.9.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
+The LLD describes the **actual v2.10.0 implementation** unless a section is explicitly marked as an implementation-alignment requirement. It does not redesign the product while documenting it.
 
 The implementation has one central invariant:
 
@@ -35,11 +35,11 @@ The following contracts are independent of publisher implementation version and 
 |---|---:|---|
 | Reporter JSON Contract | 1.2.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/reporter-json-contract-v1.2.0.md` |
 | Workbook Contract | 1.3.0 | `contracts/workbook_contract.py`, `docs/workbook-contract-v1.3.0.md` |
-| Publisher implementation | 2.9.0 | `publisher.py` plus reporter/contract modules |
+| Publisher implementation | 2.10.0 | `publisher.py` plus reporter/contract modules |
 
 ### 2.2 Implementation conformance
 
-Publisher v2.9.0 implements the sealed design directly:
+Publisher v2.10.0 implements the sealed design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
@@ -114,17 +114,17 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-Publisher v2.9.0 declares independent version identifiers for deterministic replay:
+Publisher v2.10.0 declares independent version identifiers for deterministic replay:
 
 | Constant | Current value | Purpose |
 |---|---|---|
-| `PUBLISHER_VERSION` | `2.9.0` | implementation release |
+| `PUBLISHER_VERSION` | `2.10.0` | implementation release |
 | `POLICY_VERSION` | `sql-warehouse-policy-v2.9.0` | threshold/policy semantics |
 | `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.9.0` | analyzer semantics |
-| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.9.0` | decision semantics |
-| `MODEL_VERSION` | `epoch-runrate-v2.7` | forward forecast |
-| `ESTIMATOR_VERSION` | `counterfactual-v2.9.0` | candidate economics |
-| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.9.0` | scenario economics |
+| `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.10.0` | decision semantics |
+| `MODEL_VERSION` | `epoch-runrate-v2.10.0` | forward forecast |
+| `ESTIMATOR_VERSION` | `counterfactual-v2.10.0` | candidate economics |
+| `BUNDLE_MODEL_VERSION` | `stateful-resource-bundle-v2.10.0` | scenario economics |
 | `REVIEWER_VERSION` | `recommendation-reviewer-v2.9.0` | invariant policy |
 | `DECISION_VERSION` | `warehouse-decision-graph-v2.9.0` | dependency/order semantics |
 | `TECHNIQUE_CATALOG_VERSION` | `technique-catalog-v1` | stable technique mapping |
@@ -300,7 +300,7 @@ Reconstructs event segments and aggregates:
 
 #### `EPOCH_DAILY_COST_SQL`
 
-Joins billing usage with active list prices to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Signed usage quantities are preserved so billing corrections flow into the run-rate model.
+Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Signed usage quantities are preserved so billing corrections flow into the run-rate model.
 
 #### `EPOCH_BILLING_ATTRIBUTION_SQL`
 
@@ -458,7 +458,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ---
 
@@ -471,7 +471,7 @@ Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/futu
 - analysis day itself is excluded,
 - basis begins at the later of current epoch start or 365 days before analysis,
 - missing calendar days are filled with zero,
-- mixed currencies are rejected.
+- mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency).
 
 ### 11.2 Daily run rate
 
@@ -512,6 +512,18 @@ flowchart LR
 ```
 
 Actual and forward baseline are deliberately different concepts.
+
+### 11.4 Unpriced usage
+
+Unpriced DBU is unknown cost, never zero:
+
+- unpriced DBU in the trailing 365-day window makes `current_cost_365` (the actual DBU cost) null;
+- unpriced DBU inside the current-epoch forecast basis makes the forward DBU baseline (`forecast_cost_365`) null; because unpriced days would read as $0 days, `trend_ratio`, `run_rate_28`, `run_rate_84` and `cost_cv_84` are also null and `trend_adjustment_factor` is 1.0 (no trend adjustment of the AWS model);
+- price rows without a list price count as unpriced; when price rows overlap, the latest `price_start_time` wins, with currency and end time as tie-breakers;
+- an epoch whose usage includes unpriced DBU has a null list cost and is skipped by historical-epoch calibration;
+- forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
+
+With a null forward DBU baseline, the candidate estimator withholds every savings estimate (`estimate_blocker = DBU_COST_UNAVAILABLE`), the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE` with blocker `DBU_COST_UNAVAILABLE`, and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
 
 ---
 
@@ -1513,7 +1525,7 @@ flowchart TD
 
 ### 32.2 Current regression baseline
 
-Publisher v2.9.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
+Publisher v2.10.0 is validated by the full regression suite; exact final results are retained in `examples/test-results.txt`.
 
 ### 32.3 Golden scenarios
 
@@ -1616,4 +1628,4 @@ flowchart LR
     CODE --> TEST[tests + golden evidence]
 ```
 
-The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.9.0 produces and consumes those contracts.
+The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.10.0 produces and consumes those contracts.

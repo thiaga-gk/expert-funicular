@@ -692,6 +692,35 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(e.current_epoch.cost["unpriced_dbu_quantity"], 150.0)
         self.assertEqual(e.current_epoch.cost["dbu_quantity"], 6150.0)
 
+    def test_unpriced_usage_in_basis_leaves_trend_and_stability_unknown(self):
+        # A run of unpriced days is not a cost drop: trend, run rates and CV must not read it as $0 days.
+        rows = [{"usage_date": f"2026-{m:02d}-{d:02d}", "list_cost": 100.0, "dbu_quantity": 200.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                for m, days in ((5, 31), (6, 30), (7, 31), (8, 31)) for d in range(1, days + 1)]
+        rows += [{"usage_date": f"2026-09-{d:02d}", "list_cost": None, "dbu_quantity": 200.0, "unpriced_dbu_quantity": 200.0, "currency_code": None}
+                 for d in range(1, 31)]
+        out = self.forecast(rows, start="2026-05-01T00:00:00+00:00")
+        self.assertIsNone(out["forecast_cost_365"])
+        self.assertIsNone(out["trend_ratio"])
+        self.assertEqual(out["trend_adjustment_factor"], 1.0)
+        self.assertIsNone(out["run_rate_28"])
+        self.assertIsNone(out["run_rate_84"])
+        self.assertIsNone(out["cost_cv_84"])
+
+    def test_cost_sql_treats_a_null_list_price_as_unpriced_and_breaks_price_ties(self):
+        sql = p.EPOCH_DAILY_COST_SQL
+        self.assertIn("p.pricing.effective_list.default IS NULL", sql)
+        self.assertIn("ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code", sql)
+
+    def test_evidence_with_unpriced_rows_merges_with_itself(self):
+        payload = json.loads((ROOT / "tests" / "golden" / "c32-unpriced-sku.json").read_text())
+        with tempfile.TemporaryDirectory() as td:
+            a, b = Path(td) / "a.json", Path(td) / "b.json"
+            for path in (a, b):
+                path.write_text(json.dumps(payload["evidence"]))
+            merged = p.load_evidence_files([str(a), str(b)])
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(len(merged[0].daily_cost_365), len(payload["evidence"][0]["daily_cost_365"]))
+
     def test_unknown_cost_survives_evidence_round_trip(self):
         e = copy.deepcopy(self.evidence[0])
         e.current_cost_365 = None

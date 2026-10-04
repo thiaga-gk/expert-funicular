@@ -774,7 +774,8 @@ SELECT workspace_id, warehouse_id, epoch_start,
 FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
 """
 
-# Usage with no matching list_prices row (promotional or not-yet-listed SKU) is kept and counted as unpriced DBU:
+# Usage with no matching list_prices row, or a row without a list price (promotional or not-yet-listed SKU), is kept
+# and counted as unpriced DBU:
 # an inner join would silently drop it and understate cost. Its cost is unknown (null), never zero. When price rows
 # overlap, each usage record takes the latest price_start_time, so it is counted once.
 EPOCH_DAILY_COST_SQL = r"""
@@ -790,7 +791,7 @@ WITH epochs AS (
     p.currency_code,
     u.sku_name,
     CAST(u.usage_quantity AS DOUBLE) AS dbu_quantity,
-    CASE WHEN p.sku_name IS NULL THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS unpriced_dbu_quantity,
+    CASE WHEN p.sku_name IS NULL OR p.pricing.effective_list.default IS NULL THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS unpriced_dbu_quantity,
     CAST(u.usage_quantity AS DOUBLE)*CAST(p.pricing.effective_list.default AS DOUBLE) AS list_cost
   FROM system.billing.usage u
   LEFT JOIN system.billing.list_prices p
@@ -800,7 +801,7 @@ WITH epochs AS (
   WHERE u.usage_metadata.warehouse_id IS NOT NULL
     AND u.billing_origin_product='SQL'
     AND u.usage_date>=DATE_SUB(CURRENT_DATE(),365) AND u.usage_date<CURRENT_DATE()
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY u.record_id ORDER BY p.price_start_time DESC NULLS LAST) = 1
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY u.record_id ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code, p.price_end_time) = 1
 )
 SELECT c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code,
   SUM(c.dbu_quantity) AS dbu_quantity, SUM(c.unpriced_dbu_quantity) AS unpriced_dbu_quantity, SUM(c.list_cost) AS list_cost
@@ -1562,6 +1563,12 @@ class Modeler:
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
+        if unpriced_in_basis > 0:
+            # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
+            # AWS model gets no trend adjustment instead of a spurious downward one.
+            ratio = None
+            trend_adjustment_factor = 1.0
+            cv = None
         return {
             "current_cost_365": actual,
             "forecast_cost_365": None if unpriced_in_basis > 0 else round(max(0.0, daily * 365), 2),
@@ -1570,9 +1577,9 @@ class Modeler:
             "active_cost_days": sum(1 for x in series if abs(x) > 1e-12),
             "cost_cv_84": None if cv is None else round(cv, 4),
             "forecast_method": MODEL_VERSION,
-            "run_rate_28": round(mean28 * 365, 2),
-            "run_rate_84": round(mean84 * 365, 2),
-            "trend_ratio": round(ratio, 6),
+            "run_rate_28": None if unpriced_in_basis > 0 else round(mean28 * 365, 2),
+            "run_rate_84": None if unpriced_in_basis > 0 else round(mean84 * 365, 2),
+            "trend_ratio": round_or_none(ratio, 6),
             "trend_adjustment_factor": round(trend_adjustment_factor, 6),
             "forecast_basis_start": basis_start.isoformat(),
             "forecast_basis_end": basis_end.isoformat(),
@@ -4305,7 +4312,8 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
 
             daily: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
             for row in prior.daily_cost_365 + e.daily_cost_365:
-                dk = (str(row.get("usage_date")), str(row.get("epoch_start")), str(row.get("currency_code") or prior.currency))
+                currency_key = "UNPRICED" if _is_unpriced_only_row(row) else str(row.get("currency_code") or prior.currency)
+                dk = (str(row.get("usage_date")), str(row.get("epoch_start")), currency_key)
                 if dk in daily and canonical_json(daily[dk]) != canonical_json(row):
                     raise SystemExit(f"Conflicting daily cost evidence for {key}/{dk}")
                 daily[dk] = row
@@ -4351,7 +4359,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.9.0 (Reporter Contract v1.2.0 + Workbook Contract v1.3.0)")
+    p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v1.3.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])

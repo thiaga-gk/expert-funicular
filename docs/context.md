@@ -2,7 +2,7 @@
 
 **Document:** `docs/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Implementation baseline:** Publisher v2.9.0  
+**Implementation baseline:** Publisher v2.10.0  
 **Approved PRD:** `docs/prd.md` v1.0.0  
 **Approved HLD:** `docs/hld.md` v1.0.0  
 **Approved LLD:** `docs/lld.md` v1.0.0  
@@ -148,7 +148,7 @@ flowchart TD
 
 ### 5.1 Current implementation alignment
 
-Publisher v2.9.0 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
+Publisher v2.10.0 enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
 
 ---
 
@@ -680,7 +680,7 @@ If required regional AWS price evidence is unavailable, the product represents t
 
 One recommendation package cannot silently mix currencies.
 
-Unknown cost components remain `null`/unavailable, never `$0`.
+Unknown cost components remain `null`/unavailable, never `$0`. This includes DBU usage with no matching list-price row: it is reported as unpriced DBU, and the actual or forward DBU cost it affects is unavailable rather than understated.
 
 ---
 
@@ -1358,7 +1358,7 @@ The existing max/min/auto-stop candidates are explainable opportunities, but the
 
 ### 40.1 Supported-type gate
 
-Publisher v2.9.0 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
+Publisher v2.10.0 enforces the fail-closed gate for `CLASSIC`, `PRO`, and standard `SERVERLESS`; future/unknown types are rejected before active optimization.
 
 ### 40.2 Internal orchestration
 
