@@ -72,7 +72,7 @@ flowchart LR
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed.
+**Implementation conformance:** Publisher v2.9.0 enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ### 3.3 Active candidate domains
 
