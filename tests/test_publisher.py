@@ -683,6 +683,24 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(why[priced.scenario_id], "NO_RECOMMENDED_SCENARIO")
         self.assertEqual(why[unpriced.scenario_id], "SCENARIO_ECONOMICS_UNAVAILABLE")
 
+    def test_watermark_sql_looks_back_far_enough_to_catch_a_stalled_feed_and_is_sql_scoped(self):
+        sql = p.BILLING_WATERMARK_SQL
+        self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),30)", sql)
+        self.assertIn("billing_origin_product='SQL'", sql)
+
+    def test_replayed_short_history_cv_of_zero_is_unknown(self):
+        # Evidence written before the CV fix stored 0.0 for short histories; replay must not grant full stability credit.
+        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())["evidence"][0]
+        payload["cost_history_days"], payload["cost_cv_84"] = 3, 0.0
+        self.assertIsNone(p.evidence_from_dict(payload).cost_cv_84)
+        payload["cost_history_days"], payload["cost_cv_84"] = 30, 0.0
+        self.assertEqual(p.evidence_from_dict(payload).cost_cv_84, 0.0)
+
+    def test_demo_cv_is_unknown_for_a_warehouse_with_too_little_history(self):
+        for e in p.synthetic_demo_evidence(15):
+            if e.cost_history_days < self.t.forecast_cv_min_days:
+                self.assertIsNone(e.cost_cv_84, e.warehouse_name)
+
     def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)

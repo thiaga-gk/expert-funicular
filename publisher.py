@@ -105,8 +105,9 @@ class Thresholds:
     strong_query_sample_size: int = 500
     min_cost_history_days: int = 14
     # Hard floor: below this many current-epoch billing days no forecast-dependent estimate is published and a
-    # cost-judged migration is INSUFFICIENT_EVIDENCE. Equals the config-epoch maturity gate, so it adds no wait between
-    # plan steps (cost history restarts with each applied change and can never lag epoch age).
+    # cost-judged migration is INSUFFICIENT_EVIDENCE. It equals the config-epoch maturity gate, so it adds no meaningful
+    # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
+    # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
     strong_cost_history_days: int = 60
     min_epoch_calibration_days: int = 14
@@ -827,7 +828,7 @@ GROUP BY workspace_id, usage_metadata.warehouse_id
 BILLING_WATERMARK_SQL = r"""
 SELECT MAX(usage_end_time) AS billing_watermark
 FROM system.billing.usage
-WHERE usage_date>=DATE_SUB(CURRENT_DATE(),3)
+WHERE usage_date>=DATE_SUB(CURRENT_DATE(),30) AND billing_origin_product='SQL'
 """
 
 EPOCH_BILLING_ATTRIBUTION_SQL = r"""
@@ -4062,7 +4063,7 @@ def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
         conf={"score":0.96 if photon!="UNKNOWN" else 0.25,"level":"HIGH" if photon!="UNKNOWN" else "LOW","components":{"feature_coverage":coverage/100.0,"freshness":1.0,"dbu_volume":1.0 if photon!="UNKNOWN" else 0.2,"state_purity":1.0 if photon!="UNKNOWN" else 0.0}}
         daily=_demo_daily(parse_datetime(epoch_start).date(),max(1,min(age_days,365)),round(baseline*0.88,2),workspace,wh,epoch_start)  # type: ignore[union-attr]
         billing={"photon_usage_pct_365":enabled_pct,"serverless_usage_pct_365":100.0 if wtype=="SERVERLESS" else 0.0,"cloud":"AWS","workspace_serverless_observed_from_system_compute_warehouses": wtype=="SERVERLESS","workspace_pro_classic_observed_from_system_compute_warehouses":wtype!="SERVERLESS"}
-        e=WarehouseEvidence(warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,source_region="us-east-1",analysis_time=analysis_time,current_epoch_id=epoch.epoch_id,epochs=[epoch],current_cost_365=round(baseline*0.88,2),baseline_forecast_cost_365=float(baseline),currency="USD",cost_history_days=age_days,cost_cv_84=0.18 if q30>=100 else 0.55,forecast_metadata=forecast,daily_cost_365=daily,billing_features=billing,aws_baseline_cost_365=aws,aws_cost_model=aws_model,sql_sku_prices={"PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},"PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"}},compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","workspace_id":workspace,"enable_serverless_compute":True,"external_legacy_hive_metastore_detected":False,"external_legacy_hive_metastore_config_keys":[],"s3_access_policy_status":"UNKNOWN","enabled_warehouse_types":{"PRO":True},"source":"synthetic compatibility fixture"},photon_observation=PhotonObservation(status=photon,enabled_usage_pct=enabled_pct,known_feature_coverage_pct=coverage,true_dbu=true_dbu,false_dbu=false_dbu,null_dbu=null_dbu,latest_usage_time="2026-09-30T23:00:00+00:00",freshness_days=0,confidence=conf),attribution=WarehouseAttribution(owner=f"{owners[i-1]}@databricks.example",observed_owners=[f"{owners[i-1]}@databricks.example"],owner_source="system.billing.usage.identity_metadata.owned_by",query_source=derive_query_source_profile(q)))
+        e=WarehouseEvidence(warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,source_region="us-east-1",analysis_time=analysis_time,current_epoch_id=epoch.epoch_id,epochs=[epoch],current_cost_365=round(baseline*0.88,2),baseline_forecast_cost_365=float(baseline),currency="USD",cost_history_days=age_days,cost_cv_84=(None if age_days<Thresholds().forecast_cv_min_days else 0.18 if q30>=100 else 0.55),forecast_metadata=forecast,daily_cost_365=daily,billing_features=billing,aws_baseline_cost_365=aws,aws_cost_model=aws_model,sql_sku_prices={"PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},"PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"}},compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","workspace_id":workspace,"enable_serverless_compute":True,"external_legacy_hive_metastore_detected":False,"external_legacy_hive_metastore_config_keys":[],"s3_access_policy_status":"UNKNOWN","enabled_warehouse_types":{"PRO":True},"source":"synthetic compatibility fixture"},photon_observation=PhotonObservation(status=photon,enabled_usage_pct=enabled_pct,known_feature_coverage_pct=coverage,true_dbu=true_dbu,false_dbu=false_dbu,null_dbu=null_dbu,latest_usage_time="2026-09-30T23:00:00+00:00",freshness_days=0,confidence=conf),attribution=WarehouseAttribution(owner=f"{owners[i-1]}@databricks.example",observed_owners=[f"{owners[i-1]}@databricks.example"],owner_source="system.billing.usage.identity_metadata.owned_by",query_source=derive_query_source_profile(q)))
         out.append(e)
     return out
 
@@ -4089,7 +4090,8 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         baseline_forecast_cost_365=safe_float(x.get("baseline_forecast_cost_365")),
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
-        cost_cv_84=None if x.get("cost_cv_84") is None else safe_float(x.get("cost_cv_84")),
+        # Evidence written before CV became Optional stored 0.0 for short histories; treat that as unknown.
+        cost_cv_84=None if (x.get("cost_cv_84") is None or safe_int(x.get("cost_history_days")) < Thresholds().forecast_cv_min_days) else safe_float(x.get("cost_cv_84")),
         forecast_metadata=dict(x.get("forecast_metadata") or {}),
         daily_cost_365=list(x.get("daily_cost_365") or []),
         billing_features=dict(x.get("billing_features") or {}),

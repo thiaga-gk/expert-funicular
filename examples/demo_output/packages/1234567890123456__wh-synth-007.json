@@ -40,11 +40,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": "CURRENT",
       "dependencies": [],
@@ -122,11 +122,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": "SMALL",
       "dependencies": [
@@ -200,11 +200,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": 2,
       "dependencies": [
@@ -291,11 +291,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": 1,
       "dependencies": [
@@ -388,11 +388,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": 120,
       "dependencies": [
@@ -459,11 +459,11 @@
           "epoch_maturity": 0.1,
           "sample": 1.0,
           "signal": 0.7,
-          "stability": 0.91
+          "stability": null
         },
         "level": "LOW",
         "method": "deterministic_evidence_score",
-        "score": 0.58
+        "score": 0.443
       },
       "current_value": "PRO",
       "dependencies": [],
@@ -540,12 +540,12 @@
       ],
       "confidence": {
         "components": {
-          "cost_stability": 0.91,
+          "cost_stability": null,
           "history_coverage": 0.035714
         },
         "level": "LOW",
         "method": "current_epoch_runrate_evidence",
-        "score": 0.341714
+        "score": 0.023214
       },
       "model": "epoch-runrate-v2.7"
     },
