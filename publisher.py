@@ -4577,88 +4577,498 @@ def demo_evidence() -> List[WarehouseEvidence]:
 
 
 
-def synthetic_demo_evidence(count: int = 15) -> List[WarehouseEvidence]:
-    """Return up to 15 deterministic warehouse observations at the collector boundary.
+DEMO_ANALYSIS_TIME = "2026-10-01T12:00:00+00:00"
+DEMO_ACCOUNT_ID = "acct-demo"
+DEMO_WORKSPACES = ("1234567890123456", "2234567890123456", "3234567890123456")
+DEMO_SKU_PRICES = {"PREMIUM_SQL_COMPUTE": 0.22, "PREMIUM_SQL_PRO_COMPUTE": 0.55, "PREMIUM_SQL_SERVERLESS_COMPUTE": 0.70}
+DEMO_SKU_BY_TYPE = {"CLASSIC": "PREMIUM_SQL_COMPUTE", "PRO": "PREMIUM_SQL_PRO_COMPUTE", "SERVERLESS": "PREMIUM_SQL_SERVERLESS_COMPUTE"}
+DEMO_START_LATENCY_MS = {"CLASSIC": 240000, "PRO": 240000, "SERVERLESS": 5000}
+DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 
-    The fixture intentionally spans materially different operating conditions so
-    every downstream layer (epochs, analyzers, candidates, scenarios, package
-    contract, workbook projection) is exercised by one `--demo` run.
+# Demo fleet: each warehouse instantiates one golden scenario (docs/proposals/golden-scenarios.md, tag golden_scenario).
+# Its evidence is simulated from a workload, not hand-set: query windows and concurrency drive busy time; auto-stop
+# drives running time and restarts; clusters follow concurrency (one per 10 concurrent queries, within min/max, with a
+# scale-up lag); billed DBU = cluster-hours x published DBU/hour (+-3% daily noise) and cost = DBU x SKU list price.
+# The resulting collector rows go through the real extract_evidence. Workload components:
+#   days: weekdays | all | month_end (last business day) | half_year_end (last 5 business days of June and December)
+#   start/end: "HH:MM" window; conc: concurrent queries; every/dur: periodic queries (minutes) instead of steady load;
+#   q_min: average query minutes for steady load; src: query source; client: client application.
+DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
+    {"scenario": "C01", "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 6, "dur": 1.5, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C02", "name": "Marketing Dashboards", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
+     "work": [{"days": "weekdays", "start": s, "end": e, "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"} for s, e in (("09:00", "09:30"), ("13:00", "13:20"), ("16:00", "16:30"))]},
+    {"scenario": "C03", "name": "Legacy Reporting", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 0, "keepalive": True, "work": []},
+    {"scenario": "C04", "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
+     "work": [{"days": "all", "start": "00:00", "end": "24:00", "every": 5, "dur": 0.05, "conc": 1, "src": "SQL", "client": "Tableau"},
+              {"days": "weekdays", "start": "09:00", "end": "17:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD", "client": "Tableau"}]},
+    {"scenario": "C05", "name": "Nightly ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 45,
+     "p95": 600000, "p99": 1500000, "task_parallelism": 24,
+     "work": [{"days": "all", "start": "01:00", "end": "02:30", "conc": 6, "q_min": 4.0, "src": "JOB"}]},
+    {"scenario": "C06", "name": "Sales Analytics", "ws": 0, "type": "PRO", "size": "LARGE", "min": 1, "max": 4, "auto_stop": 15, "photon": "DISABLED",
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 1, "dur": 0.3, "conc": 3, "src": "DASHBOARD", "client": "Power BI"}]},
+    {"scenario": "C07", "name": "Data Science Spill", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20,
+     "p95": 240000, "p99": 600000, "spill_pct": 25.0, "spill_p95_bytes": 6 * GIB, "task_parallelism": 16,
+     "work": [{"days": "weekdays", "start": "09:00", "end": "17:00", "conc": 3, "q_min": 2.0, "src": "NOTEBOOK"}]},
+    {"scenario": "C08", "name": "Finance Concurrency", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 65000,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 18, "q_min": 0.5, "src": "DASHBOARD"},
+              {"days": "weekdays", "start": "10:00", "end": "12:00", "conc": 12, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C09", "name": "Executive KPIs", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 10, "auto_stop": 20,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 12, "q_min": 0.4, "src": "DASHBOARD"}]},
+    {"scenario": "C10", "name": "Serverless Floor", "ws": 0, "type": "SERVERLESS", "size": "MEDIUM", "min": 4, "max": 8, "auto_stop": 10,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 8, "q_min": 0.4, "src": "DASHBOARD"}]},
+    {"scenario": "C11", "name": "Pinned Capacity", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 3, "max": 3, "auto_stop": 30,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 9, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C12", "name": "Morning Rush", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 6, "auto_stop": 30, "queue_wait_ms": 150000,
+     "work": [{"days": "weekdays", "start": "08:45", "end": "09:30", "conc": 45, "q_min": 0.5, "src": "DASHBOARD"},
+              {"days": "weekdays", "start": "09:30", "end": "17:00", "conc": 5, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C13", "name": "Interactive Analysts", "ws": 1, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 45, "dur": 3.0, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
+    {"scenario": "C14", "name": "Serverless BI", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 4, "auto_stop": 20,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
+    {"scenario": "C16", "name": "Serverless 24x7 Feed", "ws": 1, "type": "SERVERLESS", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 10,
+     "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 8, "q_min": 0.5, "src": "JOB"}]},
+    {"scenario": "C18", "name": "Preview Channel", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 20, "channel": "PREVIEW",
+     "work": [{"days": "weekdays", "start": "09:00", "end": "17:00", "every": 5, "dur": 0.5, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
+    {"scenario": "C19", "name": "Product Launch", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30, "epoch_start": "2026-09-28",
+     "prior": [{"start": "2025-10-01", "size": "MEDIUM"}],
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C20", "name": "New Team Sandbox", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 10, "created": "2026-09-26",
+     "work": [{"days": "weekdays", "start": "10:00", "end": "16:00", "every": 30, "dur": 1.0, "conc": 1, "src": "NOTEBOOK"}]},
+    {"scenario": "C21", "name": "Cached BI", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20, "cache_pct": 70.0,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 1, "dur": 0.2, "conc": 4, "src": "DASHBOARD", "client": "Power BI"}]},
+    {"scenario": "C22", "name": "Few Heavy Queries", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20,
+     "spill_pct": 3.0, "spill_p95_bytes": 5 * GIB,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
+    {"scenario": "C25", "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
+     "work": [{"days": "weekdays", "start": "07:00", "end": "19:00", "every": 3, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C26", "name": "Flaky ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 3, "auto_stop": 20, "failure_pct": 12.0,
+     "p95": 300000, "p99": 900000, "task_parallelism": 24,
+     "work": [{"days": "all", "start": "02:00", "end": "04:00", "conc": 5, "q_min": 3.0, "src": "JOB"},
+              {"days": "weekdays", "start": "09:00", "end": "17:00", "every": 10, "dur": 2.0, "conc": 1, "src": "JOB"}]},
+    {"scenario": "C30", "name": "Billing Corrected", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 15,
+     "correction": {"day": "2026-09-15", "retracted_share": 0.3, "restated_share": 0.2},
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C32", "name": "Promotional SKU", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 15, "unpriced_from": "2026-09-10",
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C37", "name": "Half-Year Close", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 8, "auto_stop": 20,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 15, "q_min": 0.5, "src": "DASHBOARD"},
+              {"days": "half_year_end", "start": "08:00", "end": "20:00", "conc": 60, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C38", "name": "Growing Product BI", "ws": 0, "type": "PRO", "size": "LARGE", "min": 1, "max": 4, "auto_stop": 20, "growth": True,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 1, "dur": 0.3, "conc": 3, "src": "DASHBOARD"}]},
+    {"scenario": "C39", "name": "Dev Sandbox", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30, "env": "nonprod",
+     "work": [{"days": "weekdays", "start": "10:00", "end": "17:00", "every": 20, "dur": 2.0, "conc": 1, "src": "NOTEBOOK"}]},
+    {"scenario": "C41", "name": "Genie Space", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 1, "src": "GENIE"}]},
+    {"scenario": "C42", "name": "Queue Flood", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 600000,
+     "work": [{"days": "weekdays", "start": "09:00", "end": "10:00", "conc": 200, "q_min": 0.2, "src": "JOB"},
+              {"days": "weekdays", "start": "10:00", "end": "17:00", "conc": 12, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C45", "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
+     "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 16, "q_min": 0.5, "src": "JOB"}]},
+    {"scenario": "C46", "name": "Hourly Burst", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 15, "queue_wait_ms": 180000,
+     "work": [{"days": "weekdays", "start": f"{h:02d}:00", "end": f"{h:02d}:08", "conc": 35, "q_min": 0.3, "src": "DASHBOARD"} for h in range(8, 18)]
+             + [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 4, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C47", "name": "Tiny Lookup", "ws": 2, "type": "PRO", "size": "2X_SMALL", "min": 1, "max": 1, "auto_stop": 10, "p95": 900, "p99": 2500,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.1, "conc": 1, "src": "SQL"}]},
+    {"scenario": "C48", "name": "Long Unchanged", "ws": 1, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 20, "epoch_start": "2024-06-01",
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C49", "name": "Cold Start Thrash", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 10,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 14, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
+    {"scenario": "C50", "name": "Single Cluster Queue", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 20, "queue_wait_ms": 90000,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "conc": 14, "q_min": 0.5, "src": "DASHBOARD"}]},
+    {"scenario": "C51", "name": "Mostly Idle", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 120,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 180, "dur": 5.0, "conc": 1, "src": "NOTEBOOK"}]},
+    {"scenario": "C52", "name": "Month-End Close", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
+     "work": [{"days": "month_end", "start": "08:00", "end": "20:00", "conc": 8, "q_min": 1.0, "src": "DASHBOARD"}]},
+    {"scenario": "A01", "name": "Serverless Fast Stop", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 1,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 10, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
+)
+
+
+def _demo_unit(*parts: Any) -> float:
+    """Deterministic pseudo-random number in [0, 1) from the given parts (no global RNG state)."""
+    digest = hashlib.sha256("|".join(str(p) for p in parts).encode()).digest()
+    return int.from_bytes(digest[:8], "big") / 2.0 ** 64
+
+
+def _demo_minutes(hhmm: str) -> int:
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _demo_day_matches(rule: str, day: dt.date) -> bool:
+    if rule == "all":
+        return True
+    if rule == "weekdays":
+        return day.weekday() < 5
+    if rule == "month_end":
+        nxt = (day.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+        last = nxt - dt.timedelta(days=1)
+        while last.weekday() >= 5:
+            last -= dt.timedelta(days=1)
+        return day == last
+    if rule == "half_year_end":
+        if day.month not in (6, 12) or day.weekday() >= 5:
+            return False
+        nxt = (day.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+        business_left = sum(1 for i in range((nxt - day).days) if (day + dt.timedelta(days=i)).weekday() < 5)
+        return business_left <= 5
+    raise ValueError(f"unknown demo day rule {rule}")
+
+
+def _demo_config_at(spec: Mapping[str, Any], epochs: Sequence[Tuple[float, Optional[float], Dict[str, Any]]], t: float) -> Dict[str, Any]:
+    for start, end, cfg in epochs:
+        if start <= t and (end is None or t < end):
+            return cfg
+    return epochs[0][2]
+
+
+def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Collector rows (one list per collector query label) for one simulated demo warehouse."""
+    analysis = parse_datetime(analysis_time)
+    assert analysis is not None
+    analysis_day = analysis.date()
+    t0 = dt.datetime.combine(analysis_day - dt.timedelta(days=366), dt.time(), dt.timezone.utc)
+    now_t = (analysis - t0).total_seconds() / 60.0
+    window_365 = now_t - 365 * 1440.0
+    window_30 = now_t - 30 * 1440.0
+
+    def at(day: dt.date, minute: float = 0.0) -> float:
+        return (dt.datetime.combine(day, dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0 + minute
+
+    def stamp(t: float) -> str:
+        return (t0 + dt.timedelta(minutes=t)).isoformat()
+
+    workspace = DEMO_WORKSPACES[spec["ws"]]
+    wh = f"wh-demo-{index:03d}"
+    base_cfg = {"warehouse_type": spec["type"], "warehouse_channel": spec.get("channel", "CURRENT"), "warehouse_size": spec["size"],
+                "min_clusters": spec["min"], "max_clusters": spec["max"], "auto_stop_minutes": spec["auto_stop"]}
+    created = dt.date.fromisoformat(spec.get("created") or (spec["prior"][0]["start"] if spec.get("prior") else spec.get("epoch_start") or "2025-07-01"))
+    current_start = dt.date.fromisoformat(spec.get("epoch_start") or created.isoformat())
+    epoch_defs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**base_cfg, **{k: v for k, v in p.items() if k != "start"}}) for p in spec.get("prior", [])]
+    epoch_defs = [(d, {**c, "warehouse_size": c.pop("size", c["warehouse_size"])}) for d, c in epoch_defs]
+    epoch_defs.append((current_start, base_cfg))
+    epochs: List[Tuple[float, Optional[float], Dict[str, Any]]] = []
+    for i, (d, cfg) in enumerate(epoch_defs):
+        end = at(epoch_defs[i + 1][0]) if i + 1 < len(epoch_defs) else None
+        epochs.append((at(d), end, cfg))
+    sim_start = max(at(created), 0.0)
+
+    # 1. Busy segments per day from the workload components, with query counts per source.
+    segments: List[Tuple[float, float, float]] = []  # (start, end, concurrency)
+    query_days: Dict[dt.date, Dict[str, float]] = {}
+    total_days = max(1, (analysis_day - created).days)
+    day = max(created, analysis_day - dt.timedelta(days=366))
+    while day <= analysis_day:
+        jitter = 0.9 + 0.2 * _demo_unit(spec["scenario"], day)
+        growth = (0.4 + 0.6 * min(1.0, (day - created).days / total_days)) if spec.get("growth") else 1.0
+        day_t = at(day)
+        for comp in spec["work"]:
+            if not _demo_day_matches(comp["days"], day):
+                continue
+            s, e = _demo_minutes(comp["start"]), _demo_minutes(comp["end"])
+            if comp.get("every"):
+                conc = float(comp["conc"])
+                k, n = s, 0
+                while k < e:
+                    segments.append((day_t + k, day_t + min(k + comp["dur"], 1440), conc))
+                    k += comp["every"]; n += 1
+                queries = n * conc * growth
+                if growth != 1.0:
+                    segments[-n:] = [(a, b, c * growth) for a, b, c in segments[-n:]]
+            else:
+                conc = comp["conc"] * jitter * growth
+                segments.append((day_t + s, day_t + e, conc))
+                queries = conc * (e - s) / comp.get("q_min", 0.5)
+            bucket = query_days.setdefault(day, {})
+            bucket[comp["src"] + "|" + comp.get("client", "")] = bucket.get(comp["src"] + "|" + comp.get("client", ""), 0.0) + queries
+        day += dt.timedelta(days=1)
+    segments = [(max(a, sim_start), min(b, now_t), c) for a, b, c in segments if b > sim_start and a < now_t]
+
+    # Sweep to merged busy runs with total concurrency (piecewise constant), split at epoch boundaries.
+    marks: Dict[float, float] = {}
+    for a, b, c in segments:
+        marks[a] = marks.get(a, 0.0) + c
+        marks[b] = marks.get(b, 0.0) - c
+    for start, _, _ in epochs[1:]:
+        marks.setdefault(start, 0.0)
+    runs: List[List[float]] = []  # [start, end, conc]
+    level, prev = 0.0, None
+    for x in sorted(marks):
+        if prev is not None and level > 1e-9 and x > prev:
+            if runs and abs(runs[-1][1] - prev) < 1e-9 and abs(runs[-1][2] - level) < 1e-9 and not any(abs(prev - s) < 1e-9 for s, _, _ in epochs[1:]):
+                runs[-1][1] = x
+            else:
+                runs.append([prev, x, level])
+        level += marks[x]; prev = x
+
+    # 2. Running timeline: pieces (start, end, clusters, conc, queued_conc), starts and scaling events.
+    typ = spec["type"]
+    lag = DEMO_SCALE_UP_LAG_MINUTES[typ]
+    pieces: List[Tuple[float, float, int, float, float]] = []
+    starts: List[float] = []
+    scale_events: List[Tuple[float, int]] = []  # (time, +1 up / -1 down)
+    if spec.get("keepalive"):
+        starts.append(sim_start)
+        t = sim_start
+        while t < now_t:
+            cfg = _demo_config_at(spec, epochs, t)
+            nxt = min([now_t] + [s for s, _, _ in epochs if s > t])
+            pieces.append((t, nxt, cfg["min_clusters"], 0.0, 0.0)); t = nxt
+    clusters = 0
+    for i, (a, b, conc) in enumerate(runs):
+        cfg = _demo_config_at(spec, epochs, a)
+        lo, hi, auto = cfg["min_clusters"], cfg["max_clusters"], cfg["auto_stop_minutes"]
+        if i == 0 or clusters == 0:
+            starts.append(a); clusters = lo
+        need = min(max(lo, int(math.ceil(conc / 10.0 - 1e-9))), hi)
+        if need > clusters:
+            lag_end = min(b, a + lag)
+            pieces.append((a, lag_end, clusters, conc, max(0.0, conc - clusters * 10.0)))
+            scale_events.append((a + min(lag, b - a), +1)); clusters = need
+            a = lag_end
+        elif need < clusters:
+            scale_events.append((a, -1)); clusters = need
+        if b > a:
+            pieces.append((a, b, clusters, conc, max(0.0, conc - clusters * 10.0)))
+        nxt = runs[i + 1][0] if i + 1 < len(runs) else now_t
+        gap = nxt - b
+        if gap <= 0:
+            continue
+        idle_cfg = _demo_config_at(spec, epochs, b)
+        if clusters > idle_cfg["min_clusters"]:
+            scale_events.append((b, -1))
+        clusters = idle_cfg["min_clusters"]
+        keep = gap if idle_cfg["auto_stop_minutes"] == 0 else min(gap, float(idle_cfg["auto_stop_minutes"]))
+        pieces.append((b, b + keep, clusters, 0.0, 0.0))
+        if keep < gap:
+            clusters = 0
+
+    # Split pieces at midnight so daily series and billing land on their UTC day.
+    def split_daily(items: Iterable[Tuple[float, float, int, float, float]]) -> List[Tuple[float, float, int, float, float]]:
+        out = []
+        for a, b, cl, c, qc in items:
+            while a < b:
+                cut = min(b, (math.floor(a / 1440.0) + 1) * 1440.0)
+                out.append((a, cut, cl, c, qc)); a = cut
+        return out
+    pieces = split_daily(pieces)
+    pieces_by_day: Dict[int, List[Tuple[float, float, int, float, float]]] = {}
+    for piece in pieces:
+        pieces_by_day.setdefault(int(piece[0] // 1440.0), []).append(piece)
+    starts_by_day: Dict[int, int] = {}
+    for s0 in starts:
+        starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
+    query_day_t = sorted((at(d), srcs) for d, srcs in query_days.items())
+
+    def epoch_of(t: float) -> Tuple[float, Optional[float], Dict[str, Any]]:
+        for ep in epochs:
+            if ep[0] <= t and (ep[1] is None or t < ep[1]):
+                return ep
+        return epochs[0]
+
+    q_avg = {}
+    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    tags = {"environment": spec.get("env", "production"), "team": spec["name"].lower().replace(" ", "-"), "golden_scenario": spec["scenario"]}
+    dbu_rate = SQL_DBU_PER_CLUSTER_HOUR[spec["size"]]
+    owner = f"{tags['team']}@databricks.example"
+    for ep_start, ep_end, cfg in epochs:
+        lo_t, hi_t = max(ep_start, window_365), (ep_end if ep_end is not None else now_t)
+        start_iso = stamp(ep_start)
+        rows["config_epochs"].append({"account_id": DEMO_ACCOUNT_ID, "workspace_id": workspace, "warehouse_id": wh, "warehouse_name": spec["name"], **cfg,
+                                      "tags": dict(tags), "epoch_start": start_iso, "epoch_end": None if ep_end is None else stamp(ep_end), "is_current": ep_end is None})
+        ep_pieces = [p for p in pieces if p[0] >= ep_start and (ep_end is None or p[0] < ep_end)]
+        ep_runs = [r for r in runs if r[0] >= ep_start and (ep_end is None or r[0] < ep_end)]
+        # Query metrics.
+        def count(lo: float, hi: float) -> Tuple[float, Dict[str, float], int]:
+            total, by_src, days = 0.0, {}, 0
+            for day_t, srcs in query_day_t:
+                if lo <= day_t < hi and day_t >= sim_start:
+                    n = sum(srcs.values())
+                    if n > 0:
+                        days += 1; total += n
+                        for k, v in srcs.items():
+                            by_src[k] = by_src.get(k, 0.0) + v
+            return total, by_src, days
+        epoch_q, _, epoch_days = count(max(ep_start, window_365), hi_t)
+        q30, src30, days30 = count(max(ep_start, window_30), hi_t)
+        busy_conc_minutes = sum((b - a) * c for a, b, c in ep_runs)
+        q_avg = busy_conc_minutes / epoch_q if epoch_q > 0 else 0.5
+        def queued(lo: float) -> float:
+            return sum((b - a) * qc / q_avg for a, b, _, _, qc in ep_pieces if a >= lo and qc > 0) if q_avg > 0 else 0.0
+        queued30 = min(q30, queued(max(ep_start, window_30)))
+        queued_epoch = min(epoch_q, queued(max(ep_start, window_365)))
+        starts30 = [s for s in starts if s >= max(ep_start, window_30) and (ep_end is None or s < ep_end)]
+        first_burst = max(1.0, (runs[0][2] if runs else 1.0) * DEMO_START_LATENCY_MS[typ] / 60000.0 / max(q_avg, 0.05))
+        compute_wait30 = min(q30, round(len(starts30) * first_burst))
+        spill_pct = spec.get("spill_pct", 0.0)
+        def src_count(prefix: str = "", client: str = "") -> int:
+            return int(round(sum(v for k, v in src30.items() if (not prefix or k.split("|")[0] == prefix) and (not client or k.split("|")[1] == client))))
+        clients = sorted({k.split("|")[1] for k in src30 if k.split("|")[1]})
+        n30 = int(round(q30))
+        p95, p99 = spec.get("p95", 2500), spec.get("p99", 9000)
+        rows["query_metrics"].append({
+            "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
+            "epoch_queries": int(round(epoch_q)), "epoch_active_days": epoch_days, "queries_30": n30, "active_days_30": days30,
+            "p95_total_ms_30": p95 + 500, "compute_wait_queries_30": compute_wait30,
+            "p95_wait_compute_ms_when_waited_30": DEMO_START_LATENCY_MS[typ] if compute_wait30 else None,
+            "queued_queries_30": int(round(queued30)), "p95_wait_capacity_ms_when_queued_30": spec.get("queue_wait_ms", 120000) if queued30 >= 0.5 else None,
+            "p95_execution_ms_30": p95 if n30 else None, "p99_execution_ms_30": p99 if n30 else None, "max_execution_ms_30": p99 * 2 if n30 else None,
+            "queued_query_pct_30": round(100.0 * round(queued30) / n30, 4) if n30 else None,
+            "spill_query_pct_30": spill_pct if n30 else None, "spill_queries_30": int(round(n30 * spill_pct / 100.0)),
+            "p95_spill_bytes_when_spilled_30": spec.get("spill_p95_bytes") if spill_pct and n30 else None,
+            "total_spill_gib_30": round(n30 * spill_pct / 100.0 * spec.get("spill_p95_bytes", 0) / 2 / GIB, 2),
+            "p95_read_bytes_30": 50 * 1024 ** 2, "avg_read_io_cache_percent_30": 35.0 if n30 else None,
+            "failure_cancel_pct_30": spec.get("failure_pct", 0.3) if n30 else None, "result_cache_pct_30": spec.get("cache_pct", 10.0) if n30 else None,
+            "tagged_query_pct_30": 60.0 if n30 else None,
+            "dashboard_queries_30": src_count("DASHBOARD"), "job_queries_30": src_count("JOB"), "notebook_queries_30": src_count("NOTEBOOK"),
+            "genie_queries_30": src_count("GENIE"), "alert_queries_30": 0, "sql_query_source_queries_30": src_count("SQL"),
+            "power_bi_queries_30": src_count(client="Power BI"), "tableau_queries_30": src_count(client="Tableau"), "looker_queries_30": 0,
+            "databricks_sql_editor_client_queries_30": src_count(client="Databricks SQL Editor"), "client_applications_30": clients,
+            "statement_text_visible_pct_30": 100.0 if n30 else None, "hive_metastore_reference_queries_30": 0,
+            "epoch_p95_execution_ms": p95 if epoch_q else None, "epoch_queued_query_pct": round(100.0 * queued_epoch / epoch_q, 4) if epoch_q else None,
+            "epoch_spill_query_pct": spill_pct if epoch_q else None,
+            "epoch_task_duration_ms": round(busy_conc_minutes * 60000.0 * spec.get("task_parallelism", 4), 1) if epoch_q else None,
+        })
+        # Warehouse events.
+        live = [p for p in ep_pieces if p[0] >= lo_t]
+        uptime = sum(b - a for a, b, cl, _, _ in live if cl > 0)
+        cluster_minutes = sum((b - a) * cl for a, b, cl, _, _ in live)
+        at_min = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["min_clusters"])
+        at_max = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["max_clusters"])
+        lo30 = max(ep_start, window_30)
+        rows["warehouse_events"].append({
+            "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
+            "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
+            "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
+            "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
+            "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
+            "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+            "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+        })
+        # Idle gaps between busy runs (query-level gaps), saved idle at each policy target.
+        gaps = [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1) if ep_runs[i + 1][0] >= lo_t and ep_runs[i + 1][0] > ep_runs[i][1]]
+        if gaps:
+            ordered = sorted(gaps)
+            def pct(q: float) -> float:
+                return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
+            auto = cfg["auto_stop_minutes"]
+            gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "gap_count": len(gaps), "p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)}
+            th = Thresholds()
+            targets = sorted({th.serverless_auto_stop_target_minutes, th.low_activity_auto_stop_target_minutes, th.medium_activity_auto_stop_target_minutes, th.high_activity_auto_stop_target_minutes})
+            kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
+            for target in targets:
+                gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
+            rows["idle_gaps"].append(gap_row)
+        # Daily resource series for the current epoch (last 120 days before the analysis date).
+        if ep_end is None:
+            first = max(dt.date.fromisoformat(stamp(max(ep_start, sim_start))[:10]), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
+            d = first
+            while d < analysis_day:
+                lo_d = at(d)
+                dp = [p for p in pieces_by_day.get(int(lo_d // 1440.0), []) if p[0] >= ep_start]
+                rows["resource_daily"].append({
+                    "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "usage_day": d.isoformat(),
+                    "uptime_minutes": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0), 3),
+                    "cluster_minutes": round(sum((b - a) * cl for a, b, cl, _, _ in dp), 3),
+                    "minutes_at_min": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0 and cl == cfg["min_clusters"]), 3),
+                    "minutes_at_max": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0 and cl == cfg["max_clusters"]), 3),
+                    "recycle_minutes": 0.0, "max_cluster_count": max((cl for _, _, cl, _, _ in dp), default=0),
+                    "starts": starts_by_day.get(int(lo_d // 1440.0), 0),
+                    "collected_from": (analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat(),
+                })
+                d += dt.timedelta(days=1)
+        # Billing: DBU from cluster-hours at the published rate, priced at the SKU list price.
+        sku = DEMO_SKU_BY_TYPE[cfg["warehouse_type"]]
+        rate = SQL_DBU_PER_CLUSTER_HOUR[cfg["warehouse_size"]]
+        by_day: Dict[dt.date, float] = {}
+        for a, b, cl, _, _ in ep_pieces:
+            if cl > 0 and a >= window_365:
+                dd = (t0 + dt.timedelta(minutes=a)).date()
+                if dd < analysis_day:
+                    by_day[dd] = by_day.get(dd, 0.0) + (b - a) * cl / 60.0 * rate
+        unpriced_from = dt.date.fromisoformat(spec["unpriced_from"]) if spec.get("unpriced_from") else None
+        correction = spec.get("correction") or {}
+        photon_true = photon_false = photon_null = 0.0
+        for dd in sorted(by_day):
+            dbu = round(by_day[dd] * (0.97 + 0.06 * _demo_unit(spec["scenario"], "dbu", dd)), 6)
+            retracted = restated = 0.0
+            if correction and dd.isoformat() == correction["day"]:
+                retracted = round(dbu * correction["retracted_share"], 6); restated = round(dbu * correction["restated_share"], 6)
+            net = round(dbu - retracted + restated, 6)
+            unpriced = unpriced_from is not None and dd >= unpriced_from
+            rows["billing_daily_cost"].append({
+                "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "usage_date": dd.isoformat(),
+                "currency_code": None if unpriced else "USD", "dbu_quantity": net, "unpriced_dbu_quantity": net if unpriced else 0.0,
+                "list_cost": None if unpriced else round(net * DEMO_SKU_PRICES[sku], 6),
+                "retracted_dbu_quantity": retracted, "restated_dbu_quantity": restated,
+            })
+            photon = spec.get("photon", "ENABLED")
+            if photon == "ENABLED":
+                photon_true += net
+            elif photon == "DISABLED":
+                photon_false += net
+            else:
+                photon_null += net
+        last_bill = max((r["usage_date"] for r in rows["billing_daily_cost"] if r["epoch_start"] == start_iso), default=None)
+        rows["billing_attribution_photon_owner"].append({
+            "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
+            "photon_true_dbu": round(photon_true, 6), "photon_false_dbu": round(photon_false, 6), "photon_null_dbu": round(photon_null, 6),
+            "latest_usage_time": None if last_bill is None else f"{last_bill}T23:00:00+00:00", "latest_owner": owner, "observed_owners": [owner],
+        })
+    total_dbu = sum(r["dbu_quantity"] for r in rows["billing_daily_cost"])
+    photon_dbu = total_dbu if spec.get("photon", "ENABLED") == "ENABLED" else 0.0
+    rows["billing_features"].append({
+        "workspace_id": workspace, "warehouse_id": wh,
+        "photon_usage_pct_365": None if spec.get("photon") == "UNKNOWN" or total_dbu <= 0 else round(100.0 * photon_dbu / total_dbu, 4),
+        "serverless_usage_pct_365": None if total_dbu <= 0 else (100.0 if spec["type"] == "SERVERLESS" else 0.0),
+        "cloud": "AWS", "sku_names": sorted({DEMO_SKU_BY_TYPE[c["warehouse_type"]] for _, _, c in epochs}),
+    })
+    return rows
+
+
+_DEMO_ROWS_CACHE: Dict[Tuple[int, str], Dict[str, List[Dict[str, Any]]]] = {}
+
+
+def _demo_fleet_rows(count: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
+    merged: Dict[str, List[Dict[str, Any]]] = {}
+    for i, spec in enumerate(DEMO_FLEET[:count], start=1):
+        # The simulation is deterministic, so each warehouse is simulated once per process; callers get copies.
+        if (i, analysis_time) not in _DEMO_ROWS_CACHE:
+            _DEMO_ROWS_CACHE[(i, analysis_time)] = _simulate_demo_warehouse(spec, i, analysis_time)
+        for label, items in _DEMO_ROWS_CACHE[(i, analysis_time)].items():
+            merged.setdefault(label, []).extend(json.loads(json.dumps(items)))
+    merged["billing_watermark"] = [{"workspace_id": ws, "billing_watermark": analysis_time[:10] + "T06:00:00+00:00", "billing_ingested_through": analysis_time[:10]}
+                                   for ws in sorted({r["workspace_id"] for r in merged.get("config_epochs", [])})]
+    merged["sql_sku_prices"] = [{"account_id": DEMO_ACCOUNT_ID, "sku_name": name, "cloud": "AWS", "currency_code": "USD", "usage_unit": "DBU", "effective_list_price": price}
+                                for name, price in sorted(DEMO_SKU_PRICES.items())]
+    return merged
+
+
+def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvidence]:
+    """Deterministic demo fleet at the collector boundary: one simulated warehouse per golden scenario.
+
+    Collector rows are simulated from each warehouse's workload (see DEMO_FLEET) and normalized by the real
+    extract_evidence, so every downstream layer (epochs, analyzers, candidates, scenarios, package contract, workbook
+    projection) runs on physically consistent evidence in one `--demo` run.
     """
-    if not (1 <= count <= 15):
-        raise ValueError("demo count must be between 1 and 15")
-    analysis_time = "2026-10-01T12:00:00+00:00"
+    if not (1 <= count <= len(DEMO_FLEET)):
+        raise ValueError(f"demo count must be between 1 and {len(DEMO_FLEET)}")
+    rows = _demo_fleet_rows(count, DEMO_ANALYSIS_TIME)
+
+    class _DemoClient:
+        def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
+            return [dict(r) for r in rows.get(label, [])]
+
     registry = load_aws_price_registry(str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json"))
-    specs = [
-        # name, type, size, min, max, autostop, q30, queue%, wait_ms, spill%, spill_p95, p95, p99, min%, max%, observed_max, starts, source, baseline, photon, epoch_start
-        ("BI - Sales", "PRO", "LARGE", 2, 4, 120, 12000, 0.0, 0, 0.0, 0, 2500, 10000, 80, 0, 2, 8, "DASHBOARD", 27000, "ENABLED", "2026-01-15T00:00:00+00:00"),
-        ("Finance Executive", "PRO", "MEDIUM", 1, 4, 30, 9000, 0.2, 1000, 0.0, 0, 2200, 7000, 62, 1, 2, 7, "DASHBOARD", 18000, "ENABLED", "2026-02-01T00:00:00+00:00"),
-        ("Marketing Ad Hoc", "PRO", "LARGE", 1, 3, 120, 900, 0.0, 0, 0.0, 0, 2800, 11000, 55, 0, 1, 5, "NOTEBOOK", 14500, "ENABLED", "2026-02-15T00:00:00+00:00"),
-        ("ETL Heavy", "PRO", "X_LARGE", 2, 8, 60, 6500, 0.8, 5000, 6.5, 3*GIB, 14000, 48000, 25, 12, 7, 5, "JOB", 64000, "ENABLED", "2026-01-10T00:00:00+00:00"),
-        ("Finance Concurrency", "PRO", "MEDIUM", 1, 2, 30, 18000, 12.0, 65000, 0.0, 0, 3600, 15000, 30, 45, 2, 4, "DASHBOARD", 36000, "ENABLED", "2026-01-20T00:00:00+00:00"),
-        ("Executive Dashboards", "PRO", "LARGE", 3, 6, 120, 15000, 0.0, 0, 0.0, 0, 1900, 6500, 88, 0, 3, 6, "DASHBOARD", 48000, "ENABLED", "2026-03-01T00:00:00+00:00"),
-        ("New Product Launch", "PRO", "SMALL", 1, 2, 120, 2400, 0.0, 0, 0.0, 0, 2400, 8000, 60, 0, 1, 3, "DASHBOARD", 12000, "ENABLED", "2026-09-28T00:00:00+00:00"),
-        ("Serverless Analytics", "SERVERLESS", "MEDIUM", 1, 10, 10, 22000, 0.0, 0, 0.0, 0, 1800, 5500, 0, 0, 4, 0, "DASHBOARD", 52000, "ENABLED", "2026-01-05T00:00:00+00:00"),
-        ("Photon Migration Lab", "PRO", "SMALL", 1, 4, 60, 7200, 0.1, 1000, 0.0, 0, 4200, 16000, 55, 2, 2, 5, "NOTEBOOK", 21000, "DISABLED", "2026-02-10T00:00:00+00:00"),
-        ("Cold Start BI", "PRO", "MEDIUM", 1, 4, 120, 4800, 0.0, 0, 0.0, 0, 3000, 9000, 60, 0, 2, 24, "DASHBOARD", 17000, "ENABLED", "2026-01-25T00:00:00+00:00"),
-        ("Sandbox Sparse", "PRO", "SMALL", 1, 2, 120, 45, 0.0, 0, 0.0, 0, 1600, 4000, 45, 0, 1, 2, "NOTEBOOK", 3200, "UNKNOWN", "2026-06-01T00:00:00+00:00"),
-        ("Supply Chain BI", "PRO", "LARGE", 1, 5, 60, 11000, 0.1, 800, 0.0, 0, 2300, 8500, 65, 0, 2, 6, "POWER_BI", 33000, "ENABLED", "2026-01-15T00:00:00+00:00"),
-        ("Customer 360", "PRO", "LARGE", 2, 8, 45, 9800, 1.0, 9000, 4.2, 2*GIB, 11000, 36000, 35, 15, 7, 5, "JOB", 58000, "ENABLED", "2026-01-12T00:00:00+00:00"),
-        ("Ops Dashboards", "PRO", "MEDIUM", 1, 8, 30, 13000, 0.0, 0, 0.0, 0, 2100, 7200, 58, 0, 2, 6, "DASHBOARD", 26000, "ENABLED", "2026-01-18T00:00:00+00:00"),
-        ("HR Reporting", "PRO", "SMALL", 2, 2, 120, 3200, 0.0, 0, 0.0, 0, 2000, 6000, 90, 0, 2, 4, "DASHBOARD", 15500, "ENABLED", "2026-01-22T00:00:00+00:00"),
-    ]
-    owners = ["sales-bi","finance-bi","marketing-analytics","data-engineering","finance-platform","exec-analytics","product-analytics","serverless-analytics","platform-lab","bi-platform","sandbox","supply-chain","customer360","operations","hr-analytics"]
-    workspace_ids = ["1234567890123456"]*8 + ["2234567890123456"]*7
-    out: List[WarehouseEvidence] = []
-    for i, spec in enumerate(specs[:count], start=1):
-        name,wtype,size,minc,maxc,autostop,q30,queue_pct,wait_ms,spill_pct,spill_p95,p95,p99,min_pct,max_pct,observed_max,starts,source,baseline,photon,epoch_start = spec
-        workspace = workspace_ids[i-1]
-        wh = f"wh-synth-{i:03d}"
-        age_days=max(1,(parse_datetime(analysis_time)-parse_datetime(epoch_start)).days)  # type: ignore[operator]
-        active_days=min(30,max(1,30 if q30>=300 else max(1,int(q30/10))))
-        epoch_queries=max(q30,int(q30*age_days/30))
-        source_counts={"dashboard_queries_30":0,"job_queries_30":0,"notebook_queries_30":0,"genie_queries_30":0,"alert_queries_30":0,"sql_query_source_queries_30":0,"power_bi_queries_30":0,"tableau_queries_30":0,"looker_queries_30":0,"databricks_sql_editor_client_queries_30":0}
-        source_key={"DASHBOARD":"dashboard_queries_30","JOB":"job_queries_30","NOTEBOOK":"notebook_queries_30","GENIE":"genie_queries_30","POWER_BI":"power_bi_queries_30"}.get(source,"sql_query_source_queries_30")
-        source_counts[source_key]=int(q30*0.75)
-        source_counts["sql_query_source_queries_30"]=source_counts["sql_query_source_queries_30"] or int(q30*0.08)
-        if source=="DASHBOARD": source_counts["power_bi_queries_30"]=int(q30*0.25)
-        wait_compute=85000 if name=="Cold Start BI" else 3500
-        queued_n=round(queue_pct/100.0*q30); spill_n=round(spill_pct/100.0*q30)
-        compute_wait_n=starts  # compute waits come from the first query after each warehouse (re)start
-        q={
-            "epoch_queries":epoch_queries,"epoch_active_days":min(age_days,250),"queries_30":q30,"active_days_30":active_days,
-            "p95_total_ms_30":p95+1000,"compute_wait_queries_30":compute_wait_n,"p95_wait_compute_ms_when_waited_30":wait_compute if compute_wait_n else None,
-            "queued_queries_30":queued_n,"p95_wait_capacity_ms_when_queued_30":wait_ms if queued_n else None,
-            "p95_execution_ms_30":p95,"p99_execution_ms_30":p99,"max_execution_ms_30":max(p99*2,120000),
-            "queued_query_pct_30":queue_pct,"queue_time_share_pct_30":min(queue_pct,25.0),"spill_query_pct_30":spill_pct,"spill_queries_30":spill_n,"p95_spill_bytes_when_spilled_30":spill_p95 if spill_n else None,
-            "total_spill_gib_30":round(spill_pct*2,2),"p95_read_bytes_30":20*1024**2,"avg_read_io_cache_percent_30":35.0,
-            "failure_cancel_pct_30":0.3,"result_cache_pct_30":10.0,"tagged_query_pct_30":70.0,
-            "statement_text_visible_pct_30":100.0,"hive_metastore_reference_queries_30":0,
-            "epoch_p95_execution_ms":p95,"epoch_queued_query_pct":queue_pct,"epoch_spill_query_pct":spill_pct,
-            **source_counts,
-            "client_applications_30":[source.replace("_"," ").title()] if source in {"POWER_BI"} else [],
-        }
-        uptime=20000.0 if wtype!="SERVERLESS" else 16000.0
-        avg_clusters=max(float(minc),min(float(maxc),max(1.0,float(observed_max)-0.5)))
-        cluster_minutes=uptime*avg_clusters
-        events={"uptime_minutes":uptime,"cluster_minutes":cluster_minutes,"minutes_at_min":uptime*min_pct/100.0,"minutes_at_max":uptime*max_pct/100.0,"time_at_min_pct":float(min_pct),"time_at_max_pct":float(max_pct),"max_observed_clusters":observed_max,"starts_30":starts,"scale_ups_30":max(0,observed_max-minc),"scale_downs_30":max(0,observed_max-minc)}
-        idle_factor=0.55 if autostop>=120 else 0.25 if autostop>=60 else 0.12
-        gaps={"gap_count":max(5,int(q30/25)),"p50_gap_minutes":10.0,"p90_gap_minutes":90.0 if autostop>=60 else 35.0,"saved_idle_minutes_if_10":uptime*idle_factor,"saved_idle_minutes_if_15":uptime*idle_factor*0.92,"saved_idle_minutes_if_30":uptime*idle_factor*0.72,"saved_idle_minutes_if_45":uptime*idle_factor*0.50}
-        config=WarehouseConfig(wtype,"CURRENT",size,minc,maxc,autostop)
-        epoch=EpochEvidence(epoch_id=epoch_id(workspace,wh,epoch_start),warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,epoch_start=epoch_start,epoch_end=None,is_current=True,config=config,tags={"environment":"production" if i not in {9,11} else "nonprod","team":owners[i-1]},query=q,events=events,gaps=gaps,cost={"list_cost":round(baseline*0.88,2),"dbu_quantity":round(baseline/0.22,2),"cost_days":age_days,"active_cost_days":age_days,"currency":"USD"})
-        forecast={"forecast_method":MODEL_VERSION,"active_cost_days":age_days,"dbu_forecast_status":"COMPLETE" if age_days>=Thresholds().min_economics_cost_history_days else "INSUFFICIENT_ACTIVE_COST_DAYS","forecast_basis_start":epoch_start[:10],"forecast_basis_end":"2026-09-30","run_rate_28":baseline*1.03,"run_rate_84":baseline*0.99,"zero_cost_days_in_basis":0,"trend_ratio":1.0,"trend_adjustment_factor":1.0,"billing_retracted_dbu_quantity_365":0.0,"billing_restated_dbu_quantity_365":0.0,"billing_correction_dbu_share_365":0.0}
-        epoch.resource_daily=synthesize_resource_daily(epoch,analysis_time)
-        aws,aws_model=model_aws_baseline_cost(epoch,"us-east-1",analysis_time,forecast,registry)
-        true_dbu=1000.0 if photon=="ENABLED" else 0.0
-        false_dbu=1000.0 if photon=="DISABLED" else 0.0
-        null_dbu=1000.0 if photon=="UNKNOWN" else 0.0
-        coverage=0.0 if photon=="UNKNOWN" else 100.0
-        enabled_pct=100.0 if photon=="ENABLED" else 0.0 if photon=="DISABLED" else None
-        conf={"score":0.96 if photon!="UNKNOWN" else 0.25,"level":"HIGH" if photon!="UNKNOWN" else "LOW","components":{"feature_coverage":coverage/100.0,"freshness":1.0,"dbu_volume":1.0 if photon!="UNKNOWN" else 0.2,"state_purity":1.0 if photon!="UNKNOWN" else 0.0}}
-        daily=_demo_daily(parse_datetime(epoch_start).date(),max(1,min(age_days,365)),round(baseline*0.88,2),workspace,wh,epoch_start)  # type: ignore[union-attr]
-        billing={"photon_usage_pct_365":enabled_pct,"serverless_usage_pct_365":100.0 if wtype=="SERVERLESS" else 0.0,"cloud":"AWS","workspace_serverless_observed_from_system_compute_warehouses": wtype=="SERVERLESS","workspace_pro_classic_observed_from_system_compute_warehouses":wtype!="SERVERLESS"}
-        e=WarehouseEvidence(warehouse_id=wh,workspace_id=workspace,account_id="acct-demo",warehouse_name=name,source_region="us-east-1",analysis_time=analysis_time,current_epoch_id=epoch.epoch_id,epochs=[epoch],current_cost_365=round(baseline*0.88,2),baseline_forecast_cost_365=(float(baseline) if age_days>=Thresholds().min_economics_cost_history_days else None),currency="USD",cost_history_days=age_days,cost_cv_84=(None if age_days<Thresholds().forecast_cv_min_days else 0.18 if q30>=100 else 0.55),forecast_metadata=forecast,daily_cost_365=daily,billing_features=billing,aws_baseline_cost_365=aws,aws_cost_model=aws_model,sql_sku_prices={"PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},"PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"}},compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","workspace_id":workspace,"enable_serverless_compute":True,"external_legacy_hive_metastore_detected":False,"external_legacy_hive_metastore_config_keys":[],"s3_access_policy_status":"UNKNOWN","enabled_warehouse_types":{"PRO":True},"source":"synthetic compatibility fixture"},photon_observation=PhotonObservation(status=photon,enabled_usage_pct=enabled_pct,known_feature_coverage_pct=coverage,true_dbu=true_dbu,false_dbu=false_dbu,null_dbu=null_dbu,latest_usage_time="2026-09-30T23:00:00+00:00",freshness_days=0,confidence=conf),attribution=WarehouseAttribution(owner=f"{owners[i-1]}@databricks.example",observed_owners=[f"{owners[i-1]}@databricks.example"],owner_source="system.billing.usage.identity_metadata.owned_by",query_source=derive_query_source_profile(q)))
-        out.append(e)
-    return out
+    evidence = extract_evidence(_DemoClient(), Thresholds(), "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]
+    for e in evidence:
+        e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "workspace_id": e.workspace_id, "enable_serverless_compute": True,
+                                    "external_legacy_hive_metastore_detected": False, "external_legacy_hive_metastore_config_keys": [],
+                                    "s3_access_policy_status": "UNKNOWN", "enabled_warehouse_types": {"PRO": True, "SERVERLESS": True},
+                                    "source": "synthetic compatibility fixture"}
+    return evidence
+
 
 def validate_evidence_payload(payload: Any) -> None:
     """Fail closed unless the payload is an evidence file of exactly EVIDENCE_FORMAT_VERSION that matches the schema.
@@ -4847,7 +5257,7 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--batch-size",type=int,default=int(os.getenv("WAREHOUSE_BATCH_SIZE","100")),help="Downstream analysis/report batch size; collector SQL is set-based and aggregated in Databricks")
     p.add_argument("--compatibility-api-mode",choices=("auto","off"),default=os.getenv("COMPATIBILITY_API_MODE","auto"),help="auto=B read-only workspace compatibility API when available, else A HITL fallback")
     p.add_argument("--log-level",choices=("DEBUG","INFO","WARNING","ERROR"),default=os.getenv("PUBLISHER_LOG_LEVEL","INFO"))
-    p.add_argument("--demo-count",type=int,default=15,help="Synthetic collector warehouse count for --demo (1..15)")
+    p.add_argument("--demo-count",type=int,default=len(DEMO_FLEET),help=f"Synthetic collector warehouse count for --demo (1..{len(DEMO_FLEET)}, one per golden scenario)")
     p.add_argument("--no-workbook",action="store_true",help="Skip workbook.xlsx generation; locked JSON packages are still emitted")
     p.add_argument("--print-json",action="store_true")
     return p.parse_args(argv)
@@ -4870,8 +5280,8 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     log_path=setup_logging(out,args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",POLICY_VERSION,ANALYZER_VERSION,OPTIMIZER_VERSION,ESTIMATOR_VERSION,BUNDLE_MODEL_VERSION)
     if args.demo:
-        if not (1 <= args.demo_count <= 15):
-            raise SystemExit("--demo-count must be between 1 and 15")
+        if not (1 <= args.demo_count <= len(DEMO_FLEET)):
+            raise SystemExit(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
         LOGGER.info("mode.demo synthetic_collector_warehouses=%d", args.demo_count)
         evidence=synthetic_demo_evidence(args.demo_count)
     elif args.from_evidence:

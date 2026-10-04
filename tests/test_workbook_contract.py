@@ -15,16 +15,17 @@ class WorkbookContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.t=p.Thresholds()
-        cls.evidence=p.synthetic_demo_evidence(15)
+        cls.evidence=p.synthetic_demo_evidence()
         cls.packages=p.build_recommendation_packages(cls.evidence,cls.t)
         cls.projection=wc.project_workbook(cls.packages)
 
     def test_four_locked_sheet_grains(self):
         self.assertEqual(wc.SHEET_NAMES,("Executive Summary","Warehouse Portfolio","Scenario Plans","Recommendation Registry"))
-        self.assertEqual(len(self.packages),15)
-        self.assertEqual(len(self.projection.warehouse_portfolio),15)
-        self.assertEqual(len(self.projection.scenario_plans),30)
-        self.assertEqual(len(self.projection.recommendation_registry),90)
+        n=len(p.DEMO_FLEET)
+        self.assertEqual(len(self.packages),n)
+        self.assertEqual(len(self.projection.warehouse_portfolio),n)
+        self.assertEqual(len(self.projection.scenario_plans),2*n)
+        self.assertEqual(len(self.projection.recommendation_registry),6*n)
 
     def test_scenario_plans_carry_contingent_upside_apart_from_authoritative_impact(self):
         """Contract 1.1.0 / workbook 1.2.0: contingent upside is separate, numeric, signed and tagged in the plan text."""

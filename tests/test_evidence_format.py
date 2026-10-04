@@ -108,7 +108,7 @@ class EvidenceFormatTests(unittest.TestCase):
             items += json.loads(Path(name).read_text()).get("evidence") or []
         self.assertGreaterEqual(len(items), 16)
         p.validate_evidence_payload(envelope(items))
-        p.validate_evidence_payload(envelope(p.as_serializable(p.synthetic_demo_evidence(15))))
+        p.validate_evidence_payload(envelope(p.as_serializable(p.synthetic_demo_evidence())))
 
     def test_schema_properties_match_the_dataclasses(self):
         defs = SCHEMA["$defs"]

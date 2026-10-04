@@ -182,7 +182,7 @@ class PublicIdentityTests(unittest.TestCase):
 
     @staticmethod
     def _fleet():
-        evidence = publisher.demo_evidence() + publisher.synthetic_demo_evidence(15)
+        evidence = publisher.demo_evidence() + publisher.synthetic_demo_evidence()
         packages = publisher.build_recommendation_packages(evidence, publisher.Thresholds())
         return evidence, [package.to_dict() for package in packages]
 
@@ -196,7 +196,7 @@ class PublicIdentityTests(unittest.TestCase):
         self.assertTrue(all(m.called for m in mocks))
         self.assertFalse(any(e.current_epoch_id.startswith("ZZ") for e in baseline_evidence))
         self.assertTrue(all(e.current_epoch_id.startswith("ZZEPOCH-") for e in scrambled_evidence))
-        self.assertEqual(len(baseline), 16)
+        self.assertEqual(len(baseline), 1 + len(publisher.DEMO_FLEET))
         self.assertEqual(scrambled, baseline)
 
 
