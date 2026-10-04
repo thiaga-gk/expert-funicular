@@ -1343,11 +1343,12 @@ class PublisherV27Tests(unittest.TestCase):
     def test_single_step_auto_stop_scenario_matches_the_capped_candidate(self):
         # Idle gaps worth 90% of all cluster-minutes: the candidate caps removable time at auto_stop_savings_cap (60%).
         # Before: the stateful bundle used the uncapped idle minutes, so the one-step plan claimed more than its own step.
-        for multiple in (0.2, 0.9, 2.0):
+        # (Idle above 100% of running time is contradictory evidence and is not priced at all: test_auto_stop_evidence.)
+        for multiple in (0.2, 0.9):
             cand, plan = self.auto_stop_only(multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.high, cand.dbu_365d_savings_range.high, places=2, msg=multiple)
-        capped, _ = self.auto_stop_only(2.0)
+        capped, _ = self.auto_stop_only(0.9)
         self.assertEqual(capped.metadata["raw_savings_fraction"], self.t.auto_stop_savings_cap)
 
     def test_guardrail_changes_with_no_direct_savings_are_labeled_no_delta_modeled(self):

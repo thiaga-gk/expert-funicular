@@ -2520,10 +2520,18 @@ class Optimizer:
             elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
             blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            status="ACTIONABLE" if not blockers else "BLOCKED"
-            out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
-                {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
-                "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
+            # Idle time a lower auto-stop removes (gap minutes at the minimum cluster count) cannot exceed the running
+            # cluster-minutes the events recorded; if it does, one source is wrong and nothing can be priced.
+            cluster_minutes=safe_float(f.get("cluster_minutes"))
+            if cluster_minutes>0 and safe_float(f.get("saved_idle"))*max(1,safe_int(f.get("current_min_clusters"),1))>cluster_minutes:
+                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","INSUFFICIENT_EVIDENCE",
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},["IDLE_EVIDENCE_EXCEEDS_RUNTIME"]+blockers,["min_clusters"],[],[],
+                    "Idle time from query gaps exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced."))
+            else:
+                status="ACTIONABLE" if not blockers else "BLOCKED"
+                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
+                    "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
 
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
