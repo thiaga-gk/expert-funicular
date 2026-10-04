@@ -233,6 +233,35 @@ class PublisherV27Tests(unittest.TestCase):
             self.assertGreater(len(payload["evidence"]), 0)
             wb = load_workbook(files["workbook"])
             self.assertEqual(wb.sheetnames, ["Executive Summary", "Warehouse Portfolio", "Scenario Plans", "Recommendation Registry"])
+    # --- Task-time utilization: evidence only, no decision effect ----------------------------------------------
+    def _utilization(self, by, knob):
+        return {f.metric: f.value for f in by[knob].findings}.get("task_minutes_per_cluster_minute")
+
+    def test_query_sql_collects_epoch_task_time(self):
+        self.assertIn("SUM(total_task_duration_ms) AS epoch_task_duration_ms", p.EPOCH_QUERY_METRICS_SQL)
+
+    def test_utilization_is_reported_on_size_and_floor(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query["epoch_task_duration_ms"] = 60000.0 * e.current_epoch.events["cluster_minutes"] * 0.4
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        for knob in ("warehouse_size", "min_clusters"):
+            self.assertAlmostEqual(self._utilization(by, knob), 0.4, places=4)
+
+    def test_missing_task_time_is_unknown(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.current_epoch.query.pop("epoch_task_duration_ms", None)
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertIsNone(self._utilization(by, "warehouse_size"))
+
+    def test_utilization_does_not_change_decisions(self):
+        decisions = []
+        for ratio in (0.01, 5.0):
+            e = copy.deepcopy(self.evidence[0])
+            e.current_epoch.query["epoch_task_duration_ms"] = 60000.0 * e.current_epoch.events["cluster_minutes"] * ratio
+            decisions.append([(c.knob, c.status, c.recommended_config, c.blockers, c.estimated_savings_range_365)
+                              for c in p.evaluate_warehouses([e], self.t)[0].candidates])
+        self.assertEqual(decisions[0], decisions[1])
+
     # --- Missing pressure evidence fails closed --------------------------------------------------------------
     PRESSURE_FIELDS = ("spill_query_pct_30", "queued_query_pct_30", "p95_execution_ms_30", "p99_execution_ms_30")
 
