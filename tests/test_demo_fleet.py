@@ -287,6 +287,14 @@ class DemoFleetTests(unittest.TestCase):
         raw = next(c for c in w.candidates if c.knob == "auto_stop_minutes").metadata["raw_savings_fraction"]
         self.assertGreater(raw, 0.8)
 
+    def test_c53_c54_long_auto_stop_drops_to_the_value_covering_daytime_gaps(self):
+        # Gaps of ~87 minutes (C53) and ~190 minutes (C54): the smallest 5-minute value at least 10% longer than the gap
+        # keeps every daytime gap without a restart and cuts the overnight tail.
+        for scenario, value in (("C53", 100), ("C54", 210)):
+            status, got, c = self.auto_stop(scenario)
+            self.assertEqual((status, got), ("ACTIONABLE", value), scenario)
+            self.assertGreater(c["independent_economics"]["savings_365d"]["total"]["base"], 5000, scenario)
+
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
         self.assertEqual((c["current_value"], c["status"]), (1, "NO_CHANGE"))

@@ -161,11 +161,11 @@ class Thresholds:
     # A gap counts as running throughout (a lower auto-stop adds a restart there) when the warehouse ran at least this
     # fraction of it; the slack absorbs event-time rounding.
     running_idle_full_window_fraction: float = 0.99
-    # Cost of one restart in cluster-minutes per cluster started. Pro/Classic take about 4 minutes to start (documented);
-    # whether the starting minutes are billed is not documented, so this is a priced assumption. Serverless starts in
-    # seconds.
+    # Cost of one restart in cluster-minutes per cluster started, from the documented start times: Pro/Classic about 4
+    # minutes, Serverless 2-6 seconds (upper end). Whether starting time is billed is not documented, so this is a
+    # priced assumption.
     restart_cost_cluster_minutes_pro_classic: float = 4.0
-    restart_cost_cluster_minutes_serverless: float = 0.0
+    restart_cost_cluster_minutes_serverless: float = 0.1
     # Cold-start budget: restarts a lower auto-stop adds, as a share of queries over the same window (Pro/Classic only;
     # nonprod warehouses by tag get the larger budget).
     cold_start_added_share_max_pct: float = 2.0
@@ -5385,6 +5385,11 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 180, "dur": 5.0, "conc": 1, "src": "NOTEBOOK"}]},
     {"scenario": "C52", "name": "Month-End Close", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15,
      "work": [{"days": "month_end", "start": "08:00", "end": "20:00", "conc": 8, "q_min": 1.0, "src": "DASHBOARD"}]},
+    {"scenario": "C53", "name": "Hourly Sync Reports", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 275,
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 90, "dur": 3.0, "conc": 1, "src": "JOB"}]},
+    {"scenario": "C54", "name": "Morning Batch Pair", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 365,
+     "work": [{"days": "weekdays", "start": "06:00", "end": "06:20", "conc": 2, "q_min": 2.0, "src": "JOB"},
+              {"days": "weekdays", "start": "09:30", "end": "09:50", "conc": 2, "q_min": 2.0, "src": "JOB"}]},
     {"scenario": "A01", "name": "Serverless Fast Stop", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 1,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 10, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
 )
