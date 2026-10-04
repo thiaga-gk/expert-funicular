@@ -262,7 +262,7 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`),
 - the decision population count (`decision_queries_30`) and p95 compilation and result-fetch time (evidence only).
 
-Latency (p95/p99/max execution) and spill (share, count, p95 bytes) are measured on the decision population: queries with `execution_status = 'FINISHED'` that were not served from the result cache, because cache hits take about 0 ms and failed or cancelled queries stop early, so both would loosen the latency gates. `decision_queries_30` counts that population and is the sample size the size gates use; when it is missing the size change is held. Queue and failure shares, and the other metrics, still use all queries.
+Latency (p95/p99/max execution) and spill (share, count, p95 bytes) are measured on the decision population: queries not served from the result cache, because cache hits take about 0 ms and would loosen the latency gates; failed and cancelled queries stay in, since a statement timeout is latency. `decision_queries_30` counts that population and is the sample size the size gates use; when it is missing the size change is held with `DECISION_QUERY_EVIDENCE_UNAVAILABLE`. Queue and failure shares, and the other metrics, still use all queries.
 
 Raw query rows are not loaded into the optimizer.
 
@@ -659,7 +659,7 @@ Every case that is not an upsize is evaluated for a downsize of exactly one size
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
 - p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
-The decision population is the finished, non-result-cache queries (7.2), so latency and spill are not loosened by cache hits or early-stopped failures. Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
+The decision population is the non-result-cache queries (7.2), so latency and spill are not loosened by cache hits; failed and cancelled queries (timeouts included) stay in the tail. Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
 
 With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
 

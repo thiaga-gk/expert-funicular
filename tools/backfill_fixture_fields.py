@@ -5,13 +5,17 @@ Usage: python tools/backfill_fixture_fields.py tests/golden/*.json
 - Each daily cost row without `dbu_quantity` gets its list cost times its epoch's DBU-to-cost ratio (epoch
   `cost.dbu_quantity / cost.list_cost`), and each epoch without `events.event_coverage_start` is marked as covered from
   its start, as synthetic fixtures are; workspace DBU-per-cluster-hour rates then equal the old epoch totals.
-- Each current epoch without `query.decision_queries_30` gets the finished, non-result-cache share of its 30-day
-  queries (queries_30 x (1 - result-cache % - failed/cancelled %)).
+- Each current epoch without `query.decision_queries_30` gets the non-result-cache share of its 30-day queries
+  (queries_30 x (1 - result-cache %)).
 Real evidence is never backfilled: missing fields fail closed.
 """
 import json
 import sys
 from pathlib import Path
+
+
+def _decision(query):
+    return int(round(query["queries_30"] * max(0.0, 1.0 - (query.get("result_cache_pct_30") or 0.0) / 100.0)))
 
 
 def backfill(evidence):
@@ -27,9 +31,8 @@ def backfill(evidence):
                 events["event_coverage_start"] = ep["epoch_start"]
                 changed += 1
             query = ep.get("query") or {}
-            if ep.get("is_current") and "queries_30" in query and "decision_queries_30" not in query:
-                excluded = (query.get("result_cache_pct_30") or 0.0) + (query.get("failure_cancel_pct_30") or 0.0)
-                query["decision_queries_30"] = int(round(query["queries_30"] * max(0.0, 1.0 - excluded / 100.0)))
+            if ep.get("is_current") and "queries_30" in query and query.get("decision_queries_30") != _decision(query):
+                query["decision_queries_30"] = _decision(query)
                 changed += 1
         for row in x.get("daily_cost_365") or []:
             r = ratio.get(row.get("epoch_start"))

@@ -1,8 +1,9 @@
-"""Latency and spill gates read the decision population: finished queries not served from the result cache.
+"""Latency and spill gates read the decision population: queries not served from the result cache.
 
-Result-cache hits finish in about 0 ms and failed or cancelled queries stop early, so mixing them in makes the
-downsize latency gate more permissive than intended (40% cache hits: executed p95 7 s is blocked, mixed p95 4.1 s
-passes). Compilation and result-fetch time are collected as evidence of latency a size change cannot fix.
+Result-cache hits finish in about 0 ms, so mixing them in makes the downsize latency gate more permissive than
+intended (40% cache hits: executed p95 7 s is blocked, mixed p95 4.1 s passes). Failed and cancelled queries stay in:
+a statement timeout is the slowest latency there is. Compilation and result-fetch time are collected as evidence of
+latency a size change cannot fix.
 """
 import copy
 import logging
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
 
-POPULATION = "x.execution_status = 'FINISHED' AND COALESCE(x.from_result_cache, FALSE) = FALSE"
+POPULATION = "COALESCE(x.from_result_cache, FALSE) = FALSE"
 
 
 class DecisionPopulationTests(unittest.TestCase):
@@ -36,6 +37,7 @@ class DecisionPopulationTests(unittest.TestCase):
             line = next(x for x in sql.splitlines() if x.rstrip(",").endswith(f"AS {metric}"))
             self.assertIn("in_decision_population", line, metric)
         self.assertIn("AS decision_queries_30", sql)
+        self.assertNotIn("execution_status = 'FINISHED'", sql)  # timeouts (cancelled at the limit) stay in the tail
         self.assertIn("NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population),0) AS spill_query_pct_30", sql)
 
     def test_size_sample_counts_decision_queries_only(self):
@@ -47,7 +49,9 @@ class DecisionPopulationTests(unittest.TestCase):
 
     def test_unknown_decision_sample_fails_closed(self):
         self.e.current_epoch.query.pop("decision_queries_30", None)
-        self.assertIn("INSUFFICIENT_STRONG_QUERY_SAMPLE", self.size(self.e).blockers)
+        size = self.size(self.e)
+        self.assertIn("DECISION_QUERY_EVIDENCE_UNAVAILABLE", size.blockers)
+        self.assertNotIn(size.status, {"ACTIONABLE", "TEST_REQUIRED"})
 
     def test_compilation_and_result_fetch_are_evidence_only(self):
         sql = p.EPOCH_QUERY_METRICS_SQL

@@ -636,9 +636,9 @@ q AS (
     x.from_result_cache,
     x.compilation_duration_ms,
     x.result_fetch_duration_ms,
-    -- Decision population for latency and spill: finished queries not served from the result cache (cache hits take
-    -- about 0 ms and failed or cancelled queries stop early, so both would loosen the latency gates).
-    x.execution_status = 'FINISHED' AND COALESCE(x.from_result_cache, FALSE) = FALSE AS in_decision_population,
+    -- Decision population for latency and spill: queries not served from the result cache (cache hits take about
+    -- 0 ms and would loosen the latency gates). Failed and cancelled queries stay in: a statement timeout is latency.
+    COALESCE(x.from_result_cache, FALSE) = FALSE AS in_decision_population,
     x.query_tags,
     x.query_source,
     x.client_application,
@@ -1847,14 +1847,11 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
         start_day = max(start_day, collected_from.date())
-    days_with_rows = sorted(str(r.get("usage_day"))[:10] for r in epoch.resource_daily)
-    if days_with_rows:
-        # warehouse_events keeps 365 days, so a warehouse running since before its first retained event has no rows
-        # until that event: those days are unknown, never idle, and the first row's day is only partly covered.
-        first_row = dt.date.fromisoformat(days_with_rows[0])
-        epoch_day = start_dt.astimezone(dt.timezone.utc).date()
-        if first_row > max(epoch_day, collected_from.date() if collected_from is not None else epoch_day):
-            start_day = max(start_day, first_row + dt.timedelta(days=1))
+    coverage_from = parse_datetime(epoch.events.get("resource_coverage_from"))
+    if coverage_from is not None:
+        # Billed days before the first retained warehouse event have unknown running time (never idle): the collector
+        # marks the first fully covered day. Unbilled lead-in days (not yet created, dormant) stay known zeros.
+        start_day = max(start_day, coverage_from.date())
     if start_day > end_day:
         return None
     by_day = {str(r.get("usage_day"))[:10]: r for r in epoch.resource_daily}
@@ -2123,6 +2120,14 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
         current.events["resource_daily_from"] = resource_collected_from or (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
+        rows_days = sorted(str(r.get("usage_day"))[:10] for r in (current.resource_daily or []))
+        lead_from = max(current.events["resource_daily_from"], current.epoch_start[:10])
+        if rows_days and rows_days[0] > lead_from and any(
+                lead_from <= str(x.get("usage_date"))[:10] < rows_days[0] and safe_float(x.get("dbu_quantity")) > 0
+                for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
+            # Billed before the warehouse's first retained event: running time is unknown until the first full day
+            # the event history covers.
+            current.events["resource_coverage_from"] = (dt.date.fromisoformat(rows_days[0]) + dt.timedelta(days=1)).isoformat()
         if current.resource_daily == [] and any(
                 str(x.get("usage_date"))[:10] >= current.events["resource_daily_from"] and safe_float(x.get("dbu_quantity")) > 0
                 for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
@@ -2147,8 +2152,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
                 try:
                     value = json.loads(value)
                 except Exception:
-                    value = [value]
-            return sorted({str(x) for x in value if x is not None})
+                    text = value.strip()
+                    value = [v.strip().strip('"') for v in text[1:-1].split(",")] if text.startswith("[") and text.endswith("]") else [text]
+            return sorted({str(x) for x in value if x not in (None, "")})
         node_types = as_list(attribution_row.get("observed_node_types"))
         sql_tiers = as_list(attribution_row.get("observed_sql_tiers"))
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
@@ -2271,7 +2277,7 @@ class Analyzer:
         ]
         decision_queries = optional_float(q.get("decision_queries_30"))
         fs.extend([
-            self._f(e,"warehouse_size","decision_queries_30",round_or_none(decision_queries),unit="queries",threshold=self.t.strong_query_sample_size,comparator=">= downsize sample",table="system.query.history",field="execution_status/from_result_cache",window="last 30 days within current epoch",interpretation="Finished, non-result-cache queries: the population latency and spill are measured on."),
+            self._f(e,"warehouse_size","decision_queries_30",round_or_none(decision_queries),unit="queries",threshold=self.t.strong_query_sample_size,comparator=">= downsize sample",table="system.query.history",field="execution_status/from_result_cache",window="last 30 days within current epoch",interpretation="Queries not served from the result cache: the population latency and spill are measured on."),
             self._f(e,"warehouse_size","p95_compilation_ms_30",round_or_none(optional_float(q.get("p95_compilation_ms_30"))),unit="ms",table="system.query.history",field="compilation_duration_ms",window="last 30 days within current epoch",interpretation="Metadata loading and optimization time; a size change does not shorten it (evidence only)."),
             self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
         ])
@@ -2398,8 +2404,9 @@ class Optimizer:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            # Spill and latency are measured on executed queries (finished, not result-cache hits); so is the sample.
-            if f["decision_queries"] is None or f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
+            # Spill and latency are measured on executed queries (not result-cache hits); so is the sample.
+            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
+            elif f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
             if target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
@@ -2417,7 +2424,8 @@ class Optimizer:
         else:
             target = previous_size(cfg.warehouse_size)
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["decision_queries"] is None or f["decision_queries"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
+            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
+            elif f["decision_queries"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
             if f["spill_pct"] is None: blockers.append("SPILL_EVIDENCE_UNAVAILABLE")
             elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
@@ -4670,7 +4678,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "client_applications_30": ["Power BI", "Tableau", "Databricks SQL Editor"],
             "statement_text_visible_pct_30": 100.0, "hive_metastore_reference_queries_30": 0,
             "epoch_p95_execution_ms": 2700, "epoch_queued_query_pct": 0.0, "epoch_spill_query_pct": 0.0,
-            "decision_queries_30": 10296, "p95_compilation_ms_30": 420, "p95_result_fetch_ms_30": 900,
+            "decision_queries_30": 10320, "p95_compilation_ms_30": 420, "p95_result_fetch_ms_30": 900,
         },
         events={
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
@@ -5068,6 +5076,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             return int(round(sum(v for k, v in src30.items() if (not prefix or k.split("|")[0] == prefix) and (not client or k.split("|")[1] == client))))
         clients = sorted({k.split("|")[1] for k in src30 if k.split("|")[1]})
         n30 = int(round(q30))
+        decision30 = int(round(n30 * max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)))  # not result-cache hits
         p95, p99 = spec.get("p95", 2500), spec.get("p99", 9000)
         rows["query_metrics"].append({
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
@@ -5075,11 +5084,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "p95_total_ms_30": p95 + 500, "compute_wait_queries_30": compute_wait30,
             "p95_wait_compute_ms_when_waited_30": DEMO_START_LATENCY_MS[typ] if compute_wait30 else None,
             "queued_queries_30": int(round(queued30)), "p95_wait_capacity_ms_when_queued_30": spec.get("queue_wait_ms", 120000) if queued30 >= 0.5 else None,
-            "decision_queries_30": int(round(n30 * max(0.0, 1.0 - (spec.get("cache_pct", 10.0) + spec.get("failure_pct", 0.3)) / 100.0))),
+            "decision_queries_30": decision30,
             "p95_compilation_ms_30": 400 if n30 else None, "p95_result_fetch_ms_30": 800 if n30 else None,
             "p95_execution_ms_30": p95 if n30 else None, "p99_execution_ms_30": p99 if n30 else None, "max_execution_ms_30": p99 * 2 if n30 else None,
             "queued_query_pct_30": round(100.0 * round(queued30) / n30, 4) if n30 else None,
-            "spill_query_pct_30": spill_pct if n30 else None, "spill_queries_30": int(round(n30 * spill_pct / 100.0)),
+            "spill_query_pct_30": spill_pct if decision30 else None, "spill_queries_30": int(round(decision30 * spill_pct / 100.0)),
             "p95_spill_bytes_when_spilled_30": spec.get("spill_p95_bytes") if spill_pct and n30 else None,
             "total_spill_gib_30": round(n30 * spill_pct / 100.0 * spec.get("spill_p95_bytes", 0) / 2 / GIB, 2),
             "p95_read_bytes_30": 50 * 1024 ** 2, "avg_read_io_cache_percent_30": 35.0 if n30 else None,

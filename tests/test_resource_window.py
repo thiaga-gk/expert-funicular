@@ -63,6 +63,7 @@ class ResourceWindowTests(unittest.TestCase):
         # Always on, but the first event the 365-day retention still holds is a restart 50 days ago (08-11): the 34
         # window days before it have no event rows and are unknown, not idle. Its partial first day is skipped too.
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
+        self.e.current_epoch.events["resource_coverage_from"] = "2026-08-12"  # set by the collector (billed lead-in)
         self.e.current_epoch.resource_daily = day_rows("2026-08-11", 50, 1440.0)
         w = p.resource_window(self.e, self.t)
         self.assertEqual((w["start"], w["days"]), ("2026-08-12", 49))
@@ -70,6 +71,28 @@ class ResourceWindowTests(unittest.TestCase):
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
         cost, meta = p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
         self.assertAlmostEqual(meta["annualized_cluster_minutes"], 1440.0 * 365, places=3)  # full uptime, not 49/84 of it
+
+    def collect(self, rows):
+        class Client:
+            def query(self, statement, *, label="collector_sql"):
+                return [dict(r) for r in rows.get(label, [])]
+        registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
+        return p.extract_evidence(Client(), self.t, "us-east-1", registry, analysis_time=p.DEMO_ANALYSIS_TIME)[0]
+
+    def test_billed_days_before_the_first_event_mark_coverage(self):
+        rows = copy.deepcopy(p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME))  # always on, billed every day
+        rows["resource_daily"] = [r for r in rows["resource_daily"] if r["usage_day"] >= "2026-08-11"]
+        e = self.collect(rows)
+        self.assertEqual(e.current_epoch.events["resource_coverage_from"], "2026-08-12")
+
+    def test_unbilled_days_before_the_first_event_are_known_idle(self):
+        # A warehouse dormant (nothing billed) until 2026-08-11: the lead-in days are zeros, so AWS and DBU agree.
+        rows = copy.deepcopy(p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME))
+        rows["resource_daily"] = [r for r in rows["resource_daily"] if r["usage_day"] >= "2026-08-11"]
+        rows["billing_daily_cost"] = [r for r in rows["billing_daily_cost"] if r["usage_date"] >= "2026-08-11"]
+        e = self.collect(rows)
+        self.assertNotIn("resource_coverage_from", e.current_epoch.events)
+        self.assertEqual(p.resource_window(e, self.t)["start"], "2026-07-08")
 
     def test_series_starting_at_the_collected_range_is_not_clipped(self):
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
