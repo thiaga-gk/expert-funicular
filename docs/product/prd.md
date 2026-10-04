@@ -376,7 +376,7 @@ Downsize status shall be `TEST_REQUIRED`, not auto-actionable. When any conditio
 
 ### FR-OPT-004 — Size up
 
-An upsize may be proposed only when all of the following hold:
+An upsize canary may be proposed only when all of the following hold:
 
 - spill frequency is at or above the upsize level (`spill_query_pct_upsize`) and p95 spill among spilled queries is at or above the upsize severity level (`spill_p95_bytes_upsize`);
 - enough queries spilled for the p95 to be meaningful (`severity_min_affected_queries`);
@@ -384,6 +384,8 @@ An upsize may be proposed only when all of the following hold:
 - a larger known size exists.
 
 When spill frequency crosses the upsize level but spill severity is unreported, or the sample, affected-query count or epoch age is insufficient, the candidate is `INSUFFICIENT_EVIDENCE` and no resize is recommended. At the largest known size the candidate is `BLOCKED`. Unknown spill evidence is never treated as zero.
+
+Upsize status shall be `TEST_REQUIRED`, not auto-actionable: the speed-up and its cost are modeled, not observed, so an A/B canary validates them.
 
 ### FR-OPT-005 — Max clusters increase
 
@@ -406,9 +408,9 @@ A reduction may be proposed only when the configured maximum is demonstrably unu
 - time at the configured maximum is low (`time_at_max_pct_safe_reduce`);
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
-- the new maximum is the observed peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), and it is below the current maximum.
+- the new maximum is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), and it is below the current maximum; the peak is the larger of the recent-window peak and the whole current epoch's peak, so a seasonal peak outside the recent window is never cut away.
 
-Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too (`docs/reference/blocker-codes.md`).
+Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/blocker-codes.md`).
 
 This candidate is primarily a cost/operational guardrail; the system shall not fabricate direct savings if observed resource consumption would not change.
 

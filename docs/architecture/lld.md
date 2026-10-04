@@ -140,7 +140,8 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--all-purpose-cluster-id` | all-purpose SQL Connector target (default `DATABRICKS_ALL_PURPOSE_CLUSTER_ID`) |
 | `--execution-kind` / `--execution-id` | generic execution target pair; `--execution-kind` is `warehouse` or `cluster` and is required with `--execution-id` |
 | `--workspace-id` | required for the cluster HTTP path when it cannot be discovered; default `DATABRICKS_WORKSPACE_ID` |
-| `--source-region` | regional context for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
+| `--source-region` | AWS region of the workspace, used for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
+| `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops before anything is written. With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
 | `--aws-price-registry` | versioned EC2 registry path; default `AWS_PRICE_REGISTRY`, else the shipped `pricing/aws_ec2_on_demand.json` |
 | `--batch-size` | downstream Python batch size (31.2); collector remains set-based; default `WAREHOUSE_BATCH_SIZE`, else 100 |
 | `--billing-ingested-through` | `YYYY-MM-DD`; pins every billing query to records ingested on or before that date, so a re-collection reproduces an earlier run despite later billing corrections |
@@ -288,7 +289,7 @@ Reads a daily resource series for the current epoch over the last `RESOURCE_DAIL
 
 #### Idle-gap SQL
 
-`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps. A `retained` CTE (the warehouse's first `warehouse_events` event in the last 365 days) restricts the sample to queries after that event, so the gap sample covers the same period as the event totals it is divided by.
+`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps. A `retained` CTE (the warehouse's first `warehouse_events` event in the last 365 days) restricts the sample to queries after that event, so the gap sample covers the same period as the event totals it is divided by. The query returns one row per epoch with queries, also carrying `busy_minutes`: the wall-clock minutes with at least one query running (the length of the union of the query intervals) over the same period. The gap columns are null (`gap_count` 0) when an epoch has no gaps.
 
 #### `EPOCH_DAILY_COST_SQL`
 
@@ -645,7 +646,7 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
 - both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
-- both signals reached, a larger size exists and no gate holds: `ACTIONABLE`, one size up; the change invalidates max/min/auto-stop;
+- both signals reached, a larger size exists and no gate holds: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max/min/auto-stop;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
 
 #### Downsize
@@ -697,10 +698,13 @@ A lower max-cluster guardrail is considered only when all of these hold:
 Target:
 
 ```text
+peak     = max(recent_window_peak, epoch_max_observed_clusters)
 headroom = max(max_cluster_headroom_clusters,
-               ceil(max_cluster_headroom_pct / 100 * observed_peak))
-target   = max(min_clusters, observed_peak + headroom)
+               ceil(max_cluster_headroom_pct / 100 * peak))
+target   = max(min_clusters, peak + headroom)
 ```
+
+`recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), capped at the configured maximum, so a seasonal peak outside the recent window is not cut away. When the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
 The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard applies. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported) or the `FAILURE_CANCEL_*` codes. An ineligible ceiling is `NO_CHANGE` without a code.
 
@@ -872,7 +876,15 @@ Capacity ratio source:
 1. **Serverless:** published Serverless SQL DBU/hour size ratio. A size with no published rate is not priced (`SERVERLESS_DBU_RATE_NOT_PUBLISHED`): the candidate keeps its decision status with null economics and a plan containing it is withheld as `REQUIRES_CANARY`.
 2. **Pro/Classic:** the target/current ratio of the workspace's billed DBU per cluster-hour by size (billed DBU over running cluster-hours, on the same days: the current epoch on its event-covered resource window, earlier epochs from their event coverage start), used only when the observed rates rise with size and the pair ratio is within `size_rate_published_band` of the published per-size ratio. Otherwise the estimate is withheld (`PRO_CLASSIC_SIZE_RATE_UNVERIFIED`; `size_rate_check` is `RATES_NOT_RISING_WITH_SIZE`, `SIZE_RATE_NOT_OBSERVED`, `OUTSIDE_PUBLISHED_RATIO_BAND` or `NO_PUBLISHED_SIZE_RATE`): the candidate keeps its decision status with null economics and the plan step needs a canary. There is no nominal capacity-ratio fallback.
 
-Runtime elasticity is a low/base/high multiplier range chosen by the decided direction in size order, not by the price ratio: a downsize uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; an upsize uses `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`.
+Runtime elasticity is a low/base/high multiplier range chosen by the decided direction in size order, not by the price ratio: a downsize uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; an upsize uses `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`. The multiplier changes query execution time only; idle running time is unchanged. It is therefore applied to the busy share of running cluster time:
+
+```text
+busy_cluster_time_share = clamp(1 - (uptime - busy) * min_clusters / cluster_minutes, 0, 1)
+effective_multiplier    = busy_cluster_time_share * runtime_multiplier + (1 - busy_cluster_time_share)
+cost_factor             = capacity_ratio * effective_multiplier
+```
+
+`busy_cluster_time_share` is the analyzer's size finding over the whole current epoch (`uptime` and `cluster_minutes` from the event totals, `busy` from the idle-gap query); it is null when any input is unknown, and an unknown share treats all running time as busy. Candidate metadata records `busy_share`, `busy_runtime_multiplier_range` (the policy multipliers) and `runtime_multiplier_range` (the effective range). Example: Serverless LARGE to X_LARGE (DBU ratio 2.0) with half of the cluster time busy has a base factor of 2.0 x (0.5 x 0.70 + 0.5) = 1.70, not 1.40.
 
 The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No historical epoch enters the size factor. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).
 
@@ -1017,7 +1029,7 @@ Plan B contains at most one warehouse-type migration candidate. It is an alterna
 
 Compatibility checks may include:
 
-- region/Serverless availability context,
+- region/Serverless availability: `aws_region_serverless_availability` passes only when the workspace already runs a Serverless warehouse (`system.compute.warehouses`), otherwise it is `UNKNOWN` and needs human confirmation; a region label alone never passes because no verified per-region list is used,
 - observed Serverless or Pro/Classic workspace capability,
 - workspace enablement from optional read-only API,
 - external legacy Hive metastore workspace configuration,
@@ -1380,7 +1392,7 @@ The product follows fail-closed semantics for decisions and publication.
 | conflicting replay evidence | terminate replay |
 | invalid candidate invariant | no scenario/public package |
 | invalid scenario invariant | no public package |
-| missing AWS price region | DBU may remain assessable; AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
+| missing AWS price region | live run with a supported Pro/Classic warehouse: stops before writing unless `--allow-missing-aws-price`; then (and in replay) DBU may remain assessable and AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
 | missing migration cost source | migration economics unavailable; no fabricated value |
 | optional compatibility API unavailable | explicit HITL fallback |
 | unsupported future warehouse type | fail closed per warehouse before optimization; recorded in manifest exclusions |
