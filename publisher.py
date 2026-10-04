@@ -2064,10 +2064,15 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                     ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
-            elif f["queue_n"] < self.t.severity_min_affected_queries:
+            elif f["queue_n"] < self.t.severity_min_affected_queries or age < self.t.current_config_stability_days or f["queries_30"] < self.t.min_query_sample_size:
+                # Like every other change: a mature configuration epoch, a query sample and enough queued queries.
+                gates=[code for code,hit in (
+                    ("CURRENT_CONFIG_EPOCH_TOO_NEW",age < self.t.current_config_stability_days),
+                    ("INSUFFICIENT_QUERY_SAMPLE",f["queries_30"] < self.t.min_query_sample_size),
+                    ("INSUFFICIENT_AFFECTED_QUERY_SAMPLE",f["queue_n"] < self.t.severity_min_affected_queries)) if hit]
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_AFFECTED_QUERY_SAMPLE"],
-                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but too few queries queued for the wait percentile to be reliable; no change is recommended."))
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},gates,
+                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but the configuration epoch, query sample or queued-query count is too new/small to act on; no change is recommended."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],

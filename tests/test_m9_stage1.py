@@ -109,10 +109,20 @@ class ReevaluationFromPublisherTests(unittest.TestCase):
         self.assertEqual(re.earliest_reevaluation_time, "2026-01-22T00:00:00Z")  # 00:00Z of epoch_start_date + 7d
 
     def test_ready_step_on_a_young_epoch_keeps_its_next_action(self):
-        # Queue pressure on a 2-day-old epoch: the max-cluster step is ready, so the plan is not "wait".
-        pkg = build(golden_evidence("concurrency-constrained", current_start="2026-09-29T00:00:00+00:00"))
+        # A Preview-channel review has no maturity gate, so it is ready on a 2-day-old epoch: the plan is not "wait".
+        import dataclasses
+        evidence = golden_evidence("concurrency-constrained", current_start="2026-09-29T00:00:00+00:00")
+        ep = evidence[0].current_epoch
+        ep.config = dataclasses.replace(ep.config, warehouse_channel="PREVIEW")
+        pkg = build(evidence)
         self.assertIsNotNone(pkg.recommended_plan.reevaluation)
         self.assertNotEqual(pkg.recommended_plan.next_action, "WAIT_FOR_REEVALUATION")
+
+    def test_queue_pressure_on_a_young_epoch_waits_for_reevaluation(self):
+        # A max-cluster increase needs a mature epoch like every other change, so the plan waits.
+        pkg = build(golden_evidence("concurrency-constrained", current_start="2026-09-29T00:00:00+00:00"))
+        self.assertIsNotNone(pkg.recommended_plan.reevaluation)
+        self.assertEqual(pkg.recommended_plan.next_action, "WAIT_FOR_REEVALUATION")
 
     def test_both_gates_report_sorted_codes_and_the_later_time(self):
         pkg = build(golden_evidence("newly-changed-config", cost_history_days=2))
