@@ -122,5 +122,46 @@ class ResourceWindowTests(unittest.TestCase):
         self.assertNotIn("workspace_id", e.current_epoch.resource_daily[0])
 
 
+    # --- review round 1 ----------------------------------------------------------------------------------------
+    def test_days_before_the_collected_range_are_unknown_not_zero(self):
+        # The query collected 2026-07-10 onwards; a lagging basis end of 09-25 must not invent zeros for 07-04..07-09.
+        self.e.current_epoch.events["resource_daily_from"] = "2026-07-10"
+        self.e.current_epoch.resource_daily = day_rows("2026-07-10", 80, 100.0)
+        self.e.forecast_metadata["forecast_basis_end"] = "2026-09-25"
+        w = p.resource_window(self.e, self.t)
+        self.assertEqual(w["start"], "2026-07-10")
+        self.assertNotIn(0.0, w["cluster_minutes"])
+        self.assertAlmostEqual(p.blended_daily_rate(w["cluster_minutes"], self.t) * 365, 36500.0, places=3)
+
+    def test_collector_widens_collection_and_records_its_start(self):
+        self.assertIn("DATE_SUB(CURRENT_DATE(), 120)", p.RESOURCE_DAILY_SQL)
+        self.assertIn("s.seg_end > s.seg_start", p.RESOURCE_DAILY_SQL)  # zero-length segments add nothing
+
+    def test_max_increase_is_priced_on_the_window_it_is_decided_on(self):
+        # Whole-epoch minutes at max are 0, but 40% of recent uptime is at the ceiling with heavy queueing.
+        e = self.e
+        e.current_epoch.events["minutes_at_max"] = 0.0
+        e.current_epoch.resource_daily = day_rows("2026-07-08", 84, 300.0, at_max=40.0, peak=4, uptime=100.0)
+        e.current_epoch.query.update(queued_query_pct_30=20.0, queued_queries_30=500, p95_wait_capacity_ms_when_queued_30=90000)
+        mx = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertEqual(mx.recommended_config["max_clusters"], mx.current_config["max_clusters"] + 1)
+        self.assertGreater(mx.metadata["raw_uplift_fraction"], 0.0)
+
+    def test_missing_series_holds_max_clusters_even_when_min_equals_max(self):
+        import dataclasses
+        e = self.e
+        e.current_epoch.config = dataclasses.replace(e.current_epoch.config, min_clusters=2, max_clusters=2)
+        e.current_epoch.resource_daily = None
+        e.current_epoch.query.update(queued_query_pct_30=10.0, queued_queries_30=600, p95_wait_capacity_ms_when_queued_30=60000)
+        mx = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
+        self.assertIn("RECENT_RESOURCE_WINDOW_UNAVAILABLE", mx.blockers)
+
+    def test_collected_but_idle_window_is_not_reported_as_missing(self):
+        self.e.current_epoch.resource_daily = day_rows("2026-07-08", 54, 200.0, at_min=100.0, uptime=100.0, peak=2) + day_rows("2026-08-31", 30, 0.0, peak=0, uptime=0.0)
+        by = {c.knob: c for c in p.evaluate_warehouses([self.e], self.t)[0].candidates}
+        for knob in ("max_clusters", "min_clusters"):
+            self.assertNotIn("RECENT_RESOURCE_WINDOW_UNAVAILABLE", by[knob].blockers, knob)
+            self.assertIn("NO_RECENT_RUNNING_TIME", by[knob].blockers, knob)
+
 if __name__ == "__main__":
     unittest.main()

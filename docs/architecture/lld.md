@@ -296,7 +296,7 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 
 #### `RESOURCE_DAILY_SQL`
 
-Reads a daily resource series for the current epoch over the last 86 UTC days: uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day. The Python side trims the series to the billing basis (11.1).
+Reads a daily resource series for the current epoch over the last 120 UTC days: uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the last 30 days have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
 
 #### Idle-gap SQL
 
@@ -308,7 +308,7 @@ Left-joins billing usage to the list price effective at each usage record's end 
 
 #### `BILLING_WATERMARK_SQL`
 
-Returns, per workspace, `MAX(usage_end_time)` (the billing watermark) and `MAX(ingestion_date)` (billing ingested-through) over recent SQL-product usage. Billing completeness is judged per workspace, so one workspace's lagging ingestion is not hidden by another's. With `--billing-ingested-through`, every billing query (watermark, daily cost, features, attribution) only reads records ingested on or before that date.
+Returns, per workspace, `MAX(usage_end_time)` (the billing watermark) and `MAX(ingestion_date)` (billing ingested-through) over recent SQL-product usage. Billing completeness is judged per workspace, so one workspace's lagging ingestion is not hidden by another's. A workspace whose warehouses stopped running also stops producing usage, so its watermark stalls although billing is complete: when the warehouse's daily resource series shows no running time after the workspace watermark, the account-wide watermark applies (`billing_watermark_source = ACCOUNT_IDLE_WAREHOUSE`); when it did run, the gap is ingestion lag and the workspace watermark stands (`WORKSPACE_LAGGING`). With `--billing-ingested-through`, every billing query (watermark, daily cost, features, attribution) only reads records ingested on or before that date.
 
 #### `EPOCH_BILLING_ATTRIBUTION_SQL`
 

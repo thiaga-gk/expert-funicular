@@ -94,7 +94,7 @@ To reproduce an earlier collection despite later billing corrections, add `--bil
 ## Source policy
 
 - `system.compute.warehouses` — configuration snapshots/epochs (an epoch is a period of unchanged type, channel, size, min/max clusters and auto-stop; name/tag-only snapshots do not start one).
-- `system.compute.warehouse_events` — scaling/resource-state evidence, including a daily resource series for the current epoch (last 86 UTC days) that drives the AWS baseline and recent time at min/max.
+- `system.compute.warehouse_events` — scaling/resource-state evidence, including a daily resource series for the current epoch (last 120 UTC days) that drives the AWS baseline and recent time at min/max.
 - `system.query.history` — latency, queueing, spill, workload source/client evidence.
 - `system.billing.usage` — DBU usage/cost, Photon observation, owner attribution.
 - `system.billing.list_prices` — Databricks list pricing.

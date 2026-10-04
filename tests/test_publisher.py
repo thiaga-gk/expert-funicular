@@ -1053,6 +1053,9 @@ class PublisherV27Tests(unittest.TestCase):
                 if label == "billing_daily_cost":
                     return [dict(r, workspace_id=ws, warehouse_id="w", epoch_start="2026-09-01T00:00:00+00:00")
                             for ws in ("ws-fresh", "ws-lagging") for r in test._daily()]
+                if label == "resource_daily":  # both warehouses kept running: missing billing is lag, not idleness
+                    return [{"workspace_id": ws, "warehouse_id": "w", "epoch_start": "2026-09-01T00:00:00+00:00", "usage_day": r["usage_date"],
+                             "uptime_minutes": 60.0, "cluster_minutes": 60.0} for ws in ("ws-fresh", "ws-lagging") for r in test._daily("2026-10-02")]
                 return []
         return Client()
 
@@ -1065,6 +1068,45 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(ev["ws-lagging"].forecast_metadata["billing_ingested_through"], "2026-09-25")
         self.assertIn("GROUP BY workspace_id", seen["billing_watermark"])
         self.assertIn("MAX(ingestion_date)", seen["billing_watermark"])
+
+    def _idle_workspace_evidence(self, running_after_last_usage):
+        import datetime as dt
+        def epoch(ws):
+            return {"workspace_id": ws, "warehouse_id": "w-" + ws, "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                    "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                    "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}
+        days = [(dt.date(2026, 9, 1) + dt.timedelta(days=i)).isoformat() for i in range(33)]
+        resource = [{"workspace_id": "quiet", "warehouse_id": "w-quiet", "epoch_start": "2026-09-01T00:00:00+00:00", "usage_day": d,
+                     "uptime_minutes": 60.0 if (d <= "2026-09-20" or running_after_last_usage) else 0.0, "cluster_minutes": 60.0 if (d <= "2026-09-20" or running_after_last_usage) else 0.0,
+                     "minutes_at_min": 0.0, "minutes_at_max": 0.0, "recycle_minutes": 0.0, "max_cluster_count": 1, "starts": 0} for d in days]
+        cost = [{"workspace_id": "quiet", "warehouse_id": "w-quiet", "epoch_start": "2026-09-01T00:00:00+00:00", "usage_date": d,
+                 "currency_code": "USD", "list_cost": 100.0, "dbu_quantity": 125.0, "unpriced_dbu_quantity": 0.0} for d in days if d <= "2026-09-20"]
+
+        class Client:
+            def query(self_inner, statement, *, label="collector_sql"):
+                if label == "config_epochs":
+                    return [epoch("quiet"), epoch("busy")]
+                if label == "billing_watermark":
+                    return [{"workspace_id": "quiet", "billing_watermark": "2026-09-20T18:00:00+00:00", "billing_ingested_through": "2026-09-21"},
+                            {"workspace_id": "busy", "billing_watermark": "2026-10-03T06:00:00+00:00", "billing_ingested_through": "2026-10-03"}]
+                return {"billing_daily_cost": cost, "resource_daily": resource}.get(label, [])
+        ev = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-04T12:00:00+00:00")
+        return next(e for e in ev if e.workspace_id == "quiet")
+
+    def test_an_idle_workspace_is_not_mistaken_for_lagging_billing(self):
+        # The warehouse stopped running after 09-20, so its later $0 days are complete, not "not yet ingested".
+        quiet = self._idle_workspace_evidence(running_after_last_usage=False)
+        self.assertEqual(quiet.forecast_metadata["billing_complete_through"], "2026-10-02")
+
+    def test_a_running_warehouse_without_billing_is_lagging(self):
+        lagging = self._idle_workspace_evidence(running_after_last_usage=True)
+        self.assertEqual(lagging.forecast_metadata["billing_complete_through"], "2026-09-19")
+
+    def test_reevaluation_method_names_the_settle_buffer(self):
+        e = copy.deepcopy(self.evidence[0])
+        e.cost_history_days = 3
+        win = p.compute_reevaluation(e, self.t, start_time="2026-09-29T00:00:00Z", epoch_age=2)
+        self.assertIn("24-hour billing settle buffer", win.method)
 
     def test_ingestion_cutoff_pins_every_billing_query(self):
         billing = ("billing_daily_cost", "billing_watermark", "billing_features", "billing_attribution_photon_owner")

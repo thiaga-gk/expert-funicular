@@ -795,14 +795,16 @@ SELECT workspace_id, warehouse_id, epoch_start,
 FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
 """
 
-# Daily resource time for the current epoch over the last 86 UTC days (Python trims to the billing basis). Warehouse-event
+RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic billing lag; Python clips to what was collected
+
+# Daily resource time for the current epoch over the last 120 UTC days (Python trims to the billing basis). Warehouse-event
 # segments are split at midnight so every minute lands on its own UTC day; the peak excludes cluster-recycling transients
 # (cluster_count above max_clusters), which are counted separately.
 RESOURCE_DAILY_SQL = r"""
 WITH __CONFIG_EPOCHS__,
 cur AS (
   SELECT workspace_id, warehouse_id, epoch_start, min_clusters, max_clusters,
-    GREATEST(epoch_start, CAST(DATE_SUB(CURRENT_DATE(), 86) AS TIMESTAMP)) AS w_start,
+    GREATEST(epoch_start, CAST(DATE_SUB(CURRENT_DATE(), 120) AS TIMESTAMP)) AS w_start,
     CAST(CURRENT_DATE() AS TIMESTAMP) AS w_end
   FROM config_epochs
   WHERE epoch_end IS NULL AND epoch_start < CAST(CURRENT_DATE() AS TIMESTAMP)
@@ -825,7 +827,7 @@ cur AS (
     DATE(d.day_start) AS usage_day,
     GREATEST(0, TIMESTAMPDIFF(SECOND, GREATEST(s.seg_start, d.day_start), LEAST(s.seg_end, d.day_end))) / 60.0 AS m
   FROM days d JOIN seg s ON s.workspace_id = d.workspace_id AND s.warehouse_id = d.warehouse_id
-    AND s.seg_start < d.day_end AND s.seg_end > d.day_start
+    AND s.seg_start < d.day_end AND s.seg_end > d.day_start AND s.seg_end > s.seg_start
 ), starts AS (
   SELECT v.workspace_id, v.warehouse_id, DATE(v.event_time) AS usage_day, COUNT(*) AS starts
   FROM ev v JOIN cur c ON v.workspace_id = c.workspace_id AND v.warehouse_id = c.warehouse_id
@@ -1758,6 +1760,10 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
         return None
     end_day = end.date()
     start_day = max(start_dt.astimezone(dt.timezone.utc).date(), end_day - dt.timedelta(days=t.forecast_long_days - 1))
+    collected_from = parse_datetime(epoch.events.get("resource_daily_from"))
+    if collected_from is not None:
+        # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
+        start_day = max(start_day, collected_from.date())
     if start_day > end_day:
         return None
     by_day = {str(r.get("usage_day"))[:10]: r for r in epoch.resource_daily}
@@ -1788,16 +1794,24 @@ def blended_daily_rate(values: Sequence[float], t: Thresholds) -> float:
 def recent_capacity_facts(window: Optional[Mapping[str, Any]], t: Thresholds) -> Dict[str, Optional[float]]:
     """Time at min/max and the observed peak over the last pressure_window_days of the resource window."""
     if window is None:
-        return {"at_min_pct": None, "at_max_pct": None, "max_observed": None, "window_days": None}
+        return {"state": "MISSING", "at_min_pct": None, "at_max_pct": None, "max_observed": None, "window_days": None,
+                "minutes_at_max": None, "cluster_minutes": None}
     n = t.pressure_window_days
     uptime = sum(window["uptime_minutes"][-n:])
     peak = max(window["max_cluster_count"][-n:], default=0.0)
     return {
+        # IDLE: collected, but the warehouse did not run in the window, so time-at-level shares are undefined.
+        "state": "OK" if uptime > 0 else "IDLE",
         "at_min_pct": None if uptime <= 0 else round(100.0 * sum(window["minutes_at_min"][-n:]) / uptime, 4),
         "at_max_pct": None if uptime <= 0 else round(100.0 * sum(window["minutes_at_max"][-n:]) / uptime, 4),
         "max_observed": int(peak),
         "window_days": min(n, window["days"]),
+        "minutes_at_max": round(sum(window["minutes_at_max"][-n:]), 6),
+        "cluster_minutes": round(sum(window["cluster_minutes"][-n:]), 6),
     }
+
+
+RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
 def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None) -> Tuple[Optional[float], Dict[str, Any]]:
@@ -1831,6 +1845,27 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     }
 
 
+def effective_billing_watermark(workspace_watermark: Any, account_watermark: Optional[str], resource_daily: Optional[Sequence[Mapping[str, Any]]]) -> Tuple[Optional[str], str]:
+    """The workspace's own billing watermark, unless the warehouse simply stopped running.
+
+    A workspace whose SQL warehouses go idle stops producing usage, so its watermark stalls at the last usage even though
+    billing is complete. Warehouse events come from a separate pipeline: if the warehouse did not run after the
+    workspace watermark, its later days are complete $0 days and the account-wide watermark applies. If it did run, the
+    missing billing is real ingestion lag and the workspace watermark stands. Without the daily series it cannot tell,
+    so the workspace watermark stands (fail closed)."""
+    ws = parse_datetime(workspace_watermark) if workspace_watermark is not None else None
+    acct = parse_datetime(account_watermark) if account_watermark else None
+    if acct is None or (ws is not None and ws >= acct):
+        return (iso(workspace_watermark) if ws is not None else account_watermark), "WORKSPACE" if ws is not None else "ACCOUNT"
+    if resource_daily is None:
+        return (iso(workspace_watermark) if ws is not None else None), "WORKSPACE_UNVERIFIED_IDLE"
+    after = ws.astimezone(dt.timezone.utc).date().isoformat() if ws is not None else ""
+    ran_since = any(str(r.get("usage_day"))[:10] > after and safe_float(r.get("uptime_minutes")) > 0 for r in resource_daily)
+    if ran_since:
+        return (iso(workspace_watermark) if ws is not None else None), "WORKSPACE_LAGGING"
+    return account_watermark, "ACCOUNT_IDLE_WAREHOUSE"
+
+
 def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
     """Pin a billing query to records ingested on or before `cutoff` (YYYY-MM-DD), so a re-collection reproduces an
     earlier run after late corrections; without a cutoff the predicate is a no-op."""
@@ -1859,6 +1894,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     cost_rows = client.query(with_ingestion_cutoff(EPOCH_DAILY_COST_SQL, ingestion_cutoff),label="billing_daily_cost")
     # Billing completeness is judged per workspace: one workspace's lagging ingestion must not be hidden by another's.
     watermark_by_ws = {str(r.get("workspace_id") or ""): r for r in client.query(with_ingestion_cutoff(BILLING_WATERMARK_SQL, ingestion_cutoff),label="billing_watermark")}
+    account_watermark = max((iso(r.get("billing_watermark")) for r in watermark_by_ws.values() if r.get("billing_watermark") is not None), default=None, key=lambda v: parse_datetime(v))
     feature_rows = {_warehouse_key(r): r for r in client.query(with_ingestion_cutoff(BILLING_FEATURE_SQL, ingestion_cutoff),label="billing_features") if r.get("warehouse_id") is not None}
     attribution_idx = _index_epoch_rows(client.query(with_ingestion_cutoff(EPOCH_BILLING_ATTRIBUTION_SQL, ingestion_cutoff),label="billing_attribution_photon_owner"))
     sku_price_rows = client.query(SQL_SKU_PRICE_SQL,label="sql_sku_prices")
@@ -1943,8 +1979,11 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if len(currents) != 1:
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
+        current.events["resource_daily_from"] = (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
         ws_watermark = watermark_by_ws.get(workspace_id, {})
-        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=iso(ws_watermark.get("billing_watermark")))
+        effective_watermark, watermark_source = effective_billing_watermark(ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily)
+        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=effective_watermark)
+        model["billing_watermark_source"] = watermark_source
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
@@ -2074,7 +2113,9 @@ class Analyzer:
             self._f(e,"max_clusters","queued_queries_30",queue_n,unit="queries",threshold=self.t.severity_min_affected_queries,comparator=">= evidence minimum for increase",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queries that queued at capacity; the wait percentile is computed over these queries only."),
             self._f(e,"max_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_increase_max,comparator=">= increase signal",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Severity of capacity queueing at p95 among queued queries."),
         ]
-        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"minutes_at_max":safe_float(ev.get("minutes_at_max")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
+        out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"at_max_pct":at_max,"resource_window_state":recent["state"],
+            # The increase is priced on the same recent window it is decided on.
+            "minutes_at_max":safe_float(recent["minutes_at_max"]),"cluster_minutes":safe_float(recent["cluster_minutes"])})
 
         # Min clusters
         at_min = recent["at_min_pct"]
@@ -2086,7 +2127,9 @@ class Analyzer:
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round_or_none(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window=recent_label,interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
-        out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
+        out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
+            # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
+            "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
         # Auto stop
         target = (
@@ -2238,11 +2281,13 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters+1},[],["warehouse_size"],["min_clusters"],["min_clusters"],
                     "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
-        elif not window_known and cfg.max_clusters > cfg.min_clusters:
-            # Without the recent resource window neither saturation nor the unused ceiling can be judged.
+        elif not window_known:
+            # Without recent resource time neither saturation nor the unused ceiling can be judged.
+            missing = f["resource_window_state"] == "MISSING"
             out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["RECENT_RESOURCE_WINDOW_UNAVAILABLE"],["warehouse_size"],[],[],
-                "The recent resource window was not collected, so the ceiling is not changed."))
+                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},[RESOURCE_WINDOW_BLOCKERS[f["resource_window_state"]]],["warehouse_size"],[],[],
+                "The recent resource window was not collected (or has no settled day yet), so the ceiling is not changed." if missing else
+                "The warehouse did not run in the recent window, so the ceiling is not changed."))
         else:
             peak = safe_int(f["max_observed"])
             headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * peak))
@@ -2286,7 +2331,7 @@ class Optimizer:
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
             elif f["queue_pct"] > self.t.queue_query_pct_safe or (f["wait_capacity"] is not None and f["wait_capacity"] > self.t.queue_wait_p95_ms_safe): blockers.append("QUEUE_PRESSURE_PRESENT")
             if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
-            if f["at_max_pct"] is None or f["at_min_pct"] is None: blockers.append("RECENT_RESOURCE_WINDOW_UNAVAILABLE")
+            if f["at_max_pct"] is None or f["at_min_pct"] is None: blockers.append(RESOURCE_WINDOW_BLOCKERS.get(f["resource_window_state"], "RECENT_RESOURCE_WINDOW_UNAVAILABLE"))
             else:
                 if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
                 if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
@@ -3889,7 +3934,7 @@ def compute_reevaluation(e: WarehouseEvidence, thresholds: Thresholds, *, start_
         method=(
             f"Later of the active gates: epoch start + {rc.REEVALUATION_EPOCH_MATURITY_DAYS} days (config-epoch maturity) and "
             f"00:00Z of epoch start date + {rc.REEVALUATION_COST_HISTORY_DAYS} days (cost-history floor). "
-            "Earliest only: billing ingestion lag and query-sample gates can delay it."
+            "Earliest only: the 24-hour billing settle buffer, billing ingestion lag and query-sample gates can delay it."
         ),
     )
 
@@ -4294,7 +4339,7 @@ def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, ware
 
 def synthesize_resource_daily(epoch: EpochEvidence, analysis_time: str) -> List[Dict[str, Any]]:
     """Synthetic/fixture daily resource series: the epoch's whole-period event totals spread evenly over its observed
-    days, covering what the collector query returns (the last 86 UTC days before the analysis date). For demo and test
+    days, covering what the collector query returns (the last RESOURCE_DAILY_COLLECT_DAYS UTC days before the analysis date). For demo and test
     fixtures only; real runs collect the series."""
     ev = epoch.events
     days_observed = observed_epoch_calendar_days(epoch.epoch_start, epoch.epoch_end, analysis_time)
@@ -4302,7 +4347,7 @@ def synthesize_resource_daily(epoch: EpochEvidence, analysis_time: str) -> List[
     if days_observed <= 0 or start is None or analysis is None:
         return []
     analysis_day = analysis.astimezone(dt.timezone.utc).date()
-    first = max(start.astimezone(dt.timezone.utc).date(), analysis_day - dt.timedelta(days=86))
+    first = max(start.astimezone(dt.timezone.utc).date(), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
     uptime = safe_float(ev.get("uptime_minutes"))
     at_min = safe_float(ev.get("minutes_at_min"), uptime * safe_float(ev.get("time_at_min_pct")) / 100.0)
     at_max = safe_float(ev.get("minutes_at_max"), uptime * safe_float(ev.get("time_at_max_pct")) / 100.0)
