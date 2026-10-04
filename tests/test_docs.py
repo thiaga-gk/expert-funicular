@@ -1,6 +1,6 @@
 """Documentation guards: links resolve, contract versions match the code, cited headings exist.
 
-Scope is the four design documents, docs/README.md, README.md, docs/contracts/ and docs/reference/. It never globs `**`,
+Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, contracts/README.md, docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
 import ast
@@ -25,7 +25,7 @@ CORE = {
 }
 SCOPE = (
     list(CORE.values())
-    + [ROOT / "docs/README.md", ROOT / "README.md"]
+    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md", ROOT / "contracts/README.md"]
     + sorted((ROOT / "docs/contracts").glob("*.md"))
     + sorted((ROOT / "docs/reference").glob("*.md"))
 )
@@ -34,6 +34,7 @@ LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
 REPO_PATH = re.compile(r"^(docs|contracts|reporters|schema|tests|tools|pricing|examples)/[\w./-]+$")
 REPORTER_VERSION = re.compile(r"(?<!Workbook )Reporter(?: JSON)?\s+[Cc]ontract\W{0,6}v?(\d+\.\d+\.\d+)")
+PUBLISHER_VERSION = re.compile(r"(?<![\w-])[Pp]ublisher v(\d+\.\d+\.\d+)")
 WORKBOOK_VERSION = re.compile(r"Workbook(?: Reporter)?\s+[Cc]ontract\W{0,6}v?(\d+\.\d+\.\d+)")
 
 # Sections other files cite by number; they must keep their headings.
@@ -83,6 +84,9 @@ class DocsGuardTests(unittest.TestCase):
             for version in REPORTER_VERSION.findall(text):
                 if version != rc.CONTRACT_VERSION:
                     wrong.append(f"{path.relative_to(ROOT)}: Reporter contract {version} != {rc.CONTRACT_VERSION}")
+            for version in PUBLISHER_VERSION.findall(text):
+                if version != publisher.PUBLISHER_VERSION:
+                    wrong.append(f"{path.relative_to(ROOT)}: publisher {version} != {publisher.PUBLISHER_VERSION}")
             for version in WORKBOOK_VERSION.findall(text):
                 if version != wc.WORKBOOK_CONTRACT_VERSION:
                     wrong.append(f"{path.relative_to(ROOT)}: Workbook contract {version} != {wc.WORKBOOK_CONTRACT_VERSION}")

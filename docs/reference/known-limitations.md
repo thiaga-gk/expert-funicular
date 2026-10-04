@@ -1,6 +1,6 @@
 # Known Limitations
 
-This file records limitations that remain true in the sealed testing baseline. Resolved implementation gaps are intentionally not retained here.
+This file records limitations that remain true in the current release. Resolved implementation gaps are intentionally not retained here.
 
 1. **Advisory/read-only:** the publisher does not apply SQL warehouse configuration changes. HITL execution remains external.
 2. **Realization ingestion:** the public JSON contract supports realization, but Phase 1 emits `NOT_APPLIED`; automated post-change measurement ingestion is not implemented. A future release must define the authoritative post-change measurement source, the attribution windows, the rollback semantics and the validation rules before realization becomes writable.
