@@ -1,0 +1,186 @@
+# Blocker and unavailability codes
+
+This is the single reference for every blocker and unavailability code the publisher can emit. Other documents link here instead of restating a code.
+
+**Definition.** A *blocker code* is either
+
+1. a string placed in a candidate's `blockers` list (public package field `candidates[].blockers`, also shown in the workbook), or
+2. a reason code that makes an economics or evidence value unavailable or withheld and is emitted by the publisher: a package field (`recommended_plan.reevaluation.blocking_codes`, `recommended_plan.selection_reason_code`, `package_economics.excluded_scenarios[].reason_code`, the details of a compatibility check), the run manifest (`excluded_warehouses`), or the internal reason recorded next to a null value (candidate `metadata.estimate_blocker`, the `blocker` key of the AWS and migration cost models, `dbu_forecast_status` in forecast metadata).
+
+The Reporter contract types `blockers` as free uppercase strings; there is no enum. The code does not keep a central list either, so this file is the list. It was built two ways and reconciled: by reading `publisher.py` (every `blockers.append`, `blockers=[...]`, `RESOURCE_WINDOW_BLOCKERS`, `failure_blockers`, `dbu_baseline_blocker`, the AWS/target-price `blocker` keys and the exclusion reason strings) and by running every golden fixture, the 15-warehouse demo and the synthetic fleet through the package builder and collecting the emitted blockers. `tests/test_docs.py` enforces both directions: every code in the first column must still exist in `publisher.py`, and every candidate blocker the fixtures emit must be listed here. Keep the first column to codes only.
+
+**How to read the tables.**
+
+- *Fires when* names the function and the exact condition. The size, max-cluster, min-cluster, auto-stop, channel and migration rules all live in `Optimizer.optimize`; there is no per-knob method.
+- *Gating parameter(s)* are `Thresholds` fields; see [thresholds.md](thresholds.md) for defaults. "none" means the condition is not threshold-driven.
+- *Resulting status* is what the code sets. Candidate statuses are the Reporter contract recommendation statuses. Codes recorded only in internal metadata leave the candidate's decision status unchanged and make its economics null (`estimation_status = UNAVAILABLE` in the package).
+- *Used by* links the parent documents that mention the code, or (marked "rule") the section that states the rule without naming the code. "code only" means no document mentions the code or its rule.
+- A candidate can carry several blockers at once; the list is in code order, not priority order.
+- Codes that are not blockers are listed in the last section so they are not added here again.
+
+### Evidence sufficiency and sample size
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `CURRENT_CONFIG_EPOCH_TOO_NEW` | The current configuration epoch is too young to trust the evidence. | `Optimizer.optimize` when `epoch_age_days` < the stability gate, for size upsize, size downsize, max-clusters increase, min clusters and auto-stop (max-clusters reduction applies the same test inside its eligibility check but emits no code). Also `compute_reevaluation` adds it to `reevaluation.blocking_codes` when the epoch age is below the gate. | [`current_config_stability_days`](thresholds.md) | `INSUFFICIENT_EVIDENCE` (size upsize, max-clusters increase); `NO_CHANGE` (size downsize, min clusters); `BLOCKED` (auto-stop); re-evaluation window `WAITING_FOR_EVIDENCE` | [LLD §15.4](../architecture/lld.md), [Reporter contract §14.1](../contracts/reporter-json-contract.md); rule: [PRD FR-OPT-003, FR-OPT-007](../product/prd.md), [LLD §15.6](../architecture/lld.md) |
+| `INSUFFICIENT_QUERY_SAMPLE` | The 30-day query sample is below the minimum for a change. | `Optimizer.optimize` when `queries_30` < `min_query_sample_size`, for size upsize, max-clusters increase, min clusters and auto-stop (max-clusters reduction applies it inside eligibility without a code). | [`min_query_sample_size`](thresholds.md) | `INSUFFICIENT_EVIDENCE` (size upsize, max-clusters increase); `NO_CHANGE` (min clusters); `BLOCKED` (auto-stop) | [LLD §15.4](../architecture/lld.md), [Context §13.2](../architecture/context.md) |
+| `INSUFFICIENT_STRONG_QUERY_SAMPLE` | The 30-day query sample is below the stronger minimum required to propose a size downsize. | `Optimizer.optimize` (size downsize branch) when `queries_30` < `strong_query_sample_size`. | [`strong_query_sample_size`](thresholds.md) | `NO_CHANGE` with the blocker kept | rule: [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md) |
+| `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` | Too few affected queries (spilled or queued) to trust a p95 severity. | `Optimizer.optimize`: size upsize when the spilled-query count `spill_n` < `severity_min_affected_queries`; max-clusters increase when the queued-query count `queue_n` < `severity_min_affected_queries`. | [`severity_min_affected_queries`](thresholds.md) | `INSUFFICIENT_EVIDENCE` | [LLD §15.4](../architecture/lld.md) |
+| `INSUFFICIENT_IDLE_GAP_SAMPLE` | Too few idle gaps to support an auto-stop counterfactual. | `Optimizer.optimize` (auto-stop) when `gap_count` < `min_idle_gap_sample_size`. | [`min_idle_gap_sample_size`](thresholds.md) | `BLOCKED` | rule: [LLD §15.6](../architecture/lld.md) |
+| `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE` | Observed epoch cluster-minutes are too small to price an auto-stop change. | `Optimizer.optimize` (auto-stop) when epoch `cluster_minutes` < `min_cluster_minutes_for_cost_model`. | [`min_cluster_minutes_for_cost_model`](thresholds.md) | `BLOCKED` | rule: [LLD §15.6](../architecture/lld.md) |
+
+### Shared guardrails: failure, queue and missing pressure evidence
+
+These guard several areas at once. Missing evidence is never read as zero: an unreported value holds the change with an `*_UNAVAILABLE` code.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE` | The failed/cancelled query share was not reported, so a capacity cut is held. | `failure_blockers` returns it when `failure_cancel_pct_30` is unknown. Called for every capacity cut: size downsize, max-clusters reduction (only when the cut is otherwise eligible and the queue share is known and within the safe level), min clusters, auto-stop. | none (unknown evidence) | `NO_CHANGE` (size, max, min); `BLOCKED` (auto-stop) | [LLD §15](../architecture/lld.md), [Thresholds posture](thresholds.md) |
+| `FAILURE_CANCEL_RATE_HIGH` | The failed/cancelled query share is above the safe level, so a capacity cut is held. | `failure_blockers` returns it when `failure_cancel_pct_30` > `failure_cancel_pct_downsize_safe`; same call sites as above. Increases are not held by it. | [`failure_cancel_pct_downsize_safe`](thresholds.md) | `NO_CHANGE` (size, max, min); `BLOCKED` (auto-stop) | [LLD §15](../architecture/lld.md), [Thresholds posture](thresholds.md) |
+| `QUEUE_EVIDENCE_UNAVAILABLE` | The queued-query share was not reported. | `Optimizer.optimize`: size downsize when `queue_pct` is None; max-clusters reduction when the cut is otherwise eligible and `queue_pct` is None; min clusters when `queue_pct` is None. | none (unknown evidence) | `NO_CHANGE` | [PRD FR-OPT-003, FR-OPT-006, FR-OPT-007](../product/prd.md), [LLD §15.3, §15.4, §15.5](../architecture/lld.md), [Thresholds, Missing pressure evidence fails closed](thresholds.md) |
+| `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` | Queries queued but their capacity-wait severity was not reported. | `Optimizer.optimize`: max-clusters increase when `queue_pct` >= `queue_query_pct_increase_max`, the capacity wait is None and the warehouse is saturated (`time_at_max_pct` >= `time_at_max_pct_saturated`); max-clusters reduction when otherwise eligible, `0 < queue_pct <= queue_query_pct_safe` and the wait is None; min clusters when the wait is None. | [`queue_query_pct_increase_max`](thresholds.md), [`time_at_max_pct_saturated`](thresholds.md), [`queue_query_pct_safe`](thresholds.md) | `INSUFFICIENT_EVIDENCE` (max-clusters increase); `NO_CHANGE` (max-clusters reduction, min clusters) | [PRD FR-OPT-006, FR-OPT-007](../product/prd.md), [LLD §15.4, §15.5](../architecture/lld.md), [Thresholds, Severity is measured among affected queries](thresholds.md) |
+| `QUEUE_PRESSURE_PRESENT` | Concurrency pressure is too high to remove capacity. | `Optimizer.optimize`: size downsize when `queue_pct` > `queue_query_pct_safe`; min clusters when `queue_pct` > `queue_query_pct_safe` or the known capacity wait > `queue_wait_p95_ms_safe`. | [`queue_query_pct_safe`](thresholds.md), [`queue_wait_p95_ms_safe`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-003, FR-OPT-007](../product/prd.md), [LLD §15.3, §15.5](../architecture/lld.md) |
+
+### Size
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `UNKNOWN_WAREHOUSE_SIZE` | The size is outside the known deterministic size ordering. | `Optimizer.optimize` when `cfg.warehouse_size` is not in `SIZE_ORDER`. | none | `BLOCKED` | code only |
+| `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE` | Spill frequency crosses the upsize threshold but spill severity was not reported. | `Optimizer.optimize` when `spill_pct` >= `spill_query_pct_upsize` and `spill_p95` is None. | [`spill_query_pct_upsize`](thresholds.md) | `INSUFFICIENT_EVIDENCE` | [Thresholds, Severity is measured among affected queries](thresholds.md) |
+| `ALREADY_AT_MAX_KNOWN_SIZE` | The upsize thresholds are crossed but there is no larger known size. | `Optimizer.optimize` (upsize branch: `spill_pct` >= `spill_query_pct_upsize` and `spill_p95` >= `spill_p95_bytes_upsize`) when `next_size` returns None. | [`spill_query_pct_upsize`](thresholds.md), [`spill_p95_bytes_upsize`](thresholds.md) | `BLOCKED` | rule: [LLD §15.3](../architecture/lld.md) |
+| `SPILL_EVIDENCE_UNAVAILABLE` | The spilled-query share was not reported. | `Optimizer.optimize` (size downsize branch) when `spill_pct` is None. | none (unknown evidence) | `NO_CHANGE` | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md), [Thresholds, Missing pressure evidence fails closed](thresholds.md) |
+| `SPILL_PRESENT` | Spill is present, so a downsize is unsafe. | `Optimizer.optimize` (size downsize branch) when `spill_pct` > `spill_query_pct_downsize_safe`. | [`spill_query_pct_downsize_safe`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md) |
+| `LATENCY_EVIDENCE_UNAVAILABLE` | The p95 or p99 execution latency was not reported. | `Optimizer.optimize` (size downsize branch) when `p95_exec` or `p99_exec` is None. | none (unknown evidence) | `NO_CHANGE` | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md), [Thresholds, Missing pressure evidence fails closed](thresholds.md) |
+| `P95_LATENCY_TOO_HIGH` | p95 execution latency is too high to downsize. | `Optimizer.optimize` (size downsize branch) when `p95_exec` > `p95_execution_ms_downsize_safe`. | [`p95_execution_ms_downsize_safe`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md) |
+| `P99_LATENCY_TOO_HIGH` | p99 execution latency is too high to downsize. | `Optimizer.optimize` (size downsize branch) when `p99_exec` > `p99_execution_ms_downsize_safe`. | [`p99_execution_ms_downsize_safe`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md) |
+
+The downsize branch is every case that is not an upsize, so it also runs when the spill share is unknown. Its blockers are kept on a `NO_CHANGE` candidate. It becomes `TEST_REQUIRED` (with `A_B_PERFORMANCE_VALIDATION_REQUIRED`) only when it has none.
+
+### Max clusters
+
+Max-clusters decisions also use the shared codes above (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`, `FAILURE_*`, the sample codes) and the resource-window codes below.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `MAX_CLUSTER_LIMIT_REACHED` | The increase signal is present but max clusters is already at the supported limit. | `Optimizer.optimize` (max-clusters increase branch: `queue_pct` >= `queue_query_pct_increase_max`, wait >= `queue_wait_p95_ms_increase_max`, saturated) when `cfg.max_clusters` >= `max_clusters_supported_limit`. | [`max_clusters_supported_limit`](thresholds.md), [`queue_query_pct_increase_max`](thresholds.md), [`queue_wait_p95_ms_increase_max`](thresholds.md) | `BLOCKED` | rule: [PRD FR-OPT-005](../product/prd.md), [LLD §15.4](../architecture/lld.md) |
+
+### Min clusters
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `SUSTAINED_SCALE_PRESSURE` | The warehouse spends too much time at its maximum to remove baseline capacity. | `Optimizer.optimize` (min clusters, resource window known) when `at_max_pct` >= `time_at_max_pct_block_min_reduce`. | [`time_at_max_pct_block_min_reduce`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-007](../product/prd.md), [LLD §15.5](../architecture/lld.md) |
+| `WAREHOUSE_RARELY_AT_MINIMUM` | The warehouse rarely sits at its minimum, so there is no spare floor to remove. | `Optimizer.optimize` (min clusters, resource window known) when `at_min_pct` < `time_at_min_pct_reduce`. | [`time_at_min_pct_reduce`](thresholds.md) | `NO_CHANGE` | rule: [PRD FR-OPT-007](../product/prd.md), [LLD §15.5](../architecture/lld.md) |
+| `SPARE_FLOOR_CAPACITY_UNPROVEN` | Time at the floor does not prove a floor cluster was spare, so the reduction is only a canary candidate. | `Optimizer.optimize` (min clusters) attaches it, together with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, when the minimum-cluster reduction has no other blocker. | none | `TEST_REQUIRED` | [LLD §15.5](../architecture/lld.md) |
+
+### Auto-stop
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `COLD_START_EVIDENCE_UNAVAILABLE` | The compute-wait severity was not reported, so cold-start sensitivity cannot be judged. | `Optimizer.optimize` (auto-stop) when `wait_compute` (p95 wait for compute among queries that waited) is None. | none (unknown evidence) | `BLOCKED` | [Thresholds, Severity is measured among affected queries](thresholds.md) |
+| `COLD_START_SENSITIVE` | A lower auto-stop would cause frequent, long cold starts. | `Optimizer.optimize` (auto-stop) when `wait_compute` >= `cold_start_p95_ms_block` and `starts_per_day` >= `cold_starts_per_active_day_block`. | [`cold_start_p95_ms_block`](thresholds.md), [`cold_starts_per_active_day_block`](thresholds.md) | `BLOCKED` | [LLD §15.6](../architecture/lld.md), [Context §13.2](../architecture/context.md) |
+
+Auto-stop is the only knob whose guardrail result is `BLOCKED` rather than `NO_CHANGE`. It is evaluated unless the current non-zero auto-stop is already at or below the deterministic target (an auto-stop of 0 is evaluated).
+
+### Channel
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN` | The warehouse is on the `PREVIEW` channel and Preview-only dependencies are unknown. | `Optimizer.optimize` (channel) when `cfg.warehouse_channel` is `PREVIEW`; proposes `CURRENT`. | none | `REVIEW` | [PRD FR-OPT-001](../product/prd.md), [LLD §15.1](../architecture/lld.md) |
+
+### Canary validation markers
+
+These are blockers by construction: they travel with a `TEST_REQUIRED` candidate and name the canary that must pass first.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `A_B_PERFORMANCE_VALIDATION_REQUIRED` | The change needs an A/B performance canary before it is applied. | `Optimizer.optimize` on a size downsize with no other blocker, and on a min-cluster reduction with no other blocker. | none | `TEST_REQUIRED` | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3, §15.5](../architecture/lld.md) |
+| `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED` | The migration needs an A/B cost and performance canary before it is applied. | `Optimizer.optimize` (warehouse type) when the migration candidate is built after the baseline-cost check passes, in both directions. | none | `TEST_REQUIRED` | [PRD FR-OPT-009](../product/prd.md), [LLD §15.7](../architecture/lld.md) |
+
+### Supported-type gate
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `UNSUPPORTED_WAREHOUSE_TYPE` | The current warehouse type is not `CLASSIC`, `PRO` or `SERVERLESS`, so the warehouse fails closed. | `unsupported_warehouse_exclusions` (called by `evaluate_warehouses` and the manifest writer) when `current_epoch.config.warehouse_type` is not in `SUPPORTED_WAREHOUSE_TYPES`. | none | Warehouse excluded: no package, listed in the manifest `excluded_warehouses` as `reason_code` | [LLD §28.2](../architecture/lld.md), rule: [LLD §10.3](../architecture/lld.md) |
+
+### Warehouse type and migration
+
+A migration whose baseline cost is unknown is `INSUFFICIENT_EVIDENCE` with one of the DBU baseline codes in the next group instead of the codes below.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES` | A Serverless to Pro experiment, but the workspace has no observed Pro/Classic warehouse in the system tables. | `Optimizer.optimize` (warehouse type, current type `SERVERLESS`) when `pro_classic_observed` is false. Added next to `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. | none | `TEST_REQUIRED` (branch kept, compatibility stays a human check) | rule: [LLD §15.7](../architecture/lld.md) |
+| `SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES` | A Pro/Classic to Serverless experiment, but the workspace has no observed Serverless usage or warehouse in the system tables. | `Optimizer.optimize` (warehouse type, current type `CLASSIC` or `PRO`) when `serverless_observed` is false. Added next to `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. | none | `TEST_REQUIRED` (branch kept, compatibility stays a human check) | rule: [LLD §15.7](../architecture/lld.md) |
+
+### Compatibility evidence availability
+
+These are the `status` of the optional read-only compatibility evidence when it is not `AVAILABLE`. They are not candidate blockers; they appear as JSON in the details of the Serverless-target `workspace_serverless_enablement` compatibility check.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `API_DISABLED` | The compatibility API was switched off for the run. | `collect_workspace_compatibility_evidence` when `mode == "off"` (CLI `--compatibility-api-mode off`); evidence mode `A_HITL_ONLY`. | none (CLI option) | Compatibility checks fall back to human validation (`REQUIRES_VALIDATION`) | rule: [LLD §8.3](../architecture/lld.md) |
+| `WORKSPACE_ID_UNAVAILABLE` | The workspace ID could not be resolved, so the API was not queried. | `collect_workspace_compatibility_evidence` when neither the auth context nor the current-workspace lookup returns an ID; evidence mode `A_HITL_FALLBACK`. | none | Compatibility checks fall back to human validation (`REQUIRES_VALIDATION`) | rule: [LLD §8.3](../architecture/lld.md) |
+| `READ_ONLY_API_UNAVAILABLE` | The read-only SQL config call failed or was denied. | `collect_workspace_compatibility_evidence` when `GET /api/2.0/sql/config/warehouses` raises; evidence mode `A_HITL_FALLBACK`. | none | Compatibility checks fall back to human validation (`REQUIRES_VALIDATION`) | rule: [LLD §8.3](../architecture/lld.md) |
+| `OTHER_WORKSPACE_API_NOT_QUERIED` | The compatibility evidence was collected for a different workspace than this warehouse's. | `extract_evidence` when the supplied evidence's `workspace_id` differs from the warehouse's `workspace_id` (including when no compatibility evidence was supplied); evidence mode `A_HITL_FALLBACK`. | none | Compatibility checks fall back to human validation (`REQUIRES_VALIDATION`) | code only |
+
+### DBU and AWS cost availability
+
+`dbu_baseline_blocker` chooses one of the first three codes for every consumer of a null or too-young forward DBU baseline: the migration decision in `Optimizer.optimize`, `Estimator._factors` (every candidate that needs a priced counterfactual) and `StatefulBundleEstimator.estimate`. The other DBU codes are `dbu_forecast_status` values written by `Modeler.forecast_from_daily_cost`.
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `COST_HISTORY_INSUFFICIENT` | The current epoch has too few cost-history days to forecast the forward DBU cost; it clears with time. | `dbu_baseline_blocker` when `cost_history_days` < `min_economics_cost_history_days`. Also `compute_reevaluation` adds it to `reevaluation.blocking_codes` under the same test. | [`min_economics_cost_history_days`](thresholds.md) | Migration candidate `INSUFFICIENT_EVIDENCE`; other priced candidates keep their status with null economics and `metadata.estimate_blocker`; withheld scenario estimate `REQUIRES_COST_HISTORY` (package `UNAVAILABLE`); re-evaluation window `WAITING_FOR_EVIDENCE` | [HLD §10.2](../architecture/hld.md), [LLD §11.4](../architecture/lld.md), [Thresholds posture](thresholds.md), [Reporter contract §14.1](../contracts/reporter-json-contract.md) |
+| `BILLED_COST_DAYS_INSUFFICIENT` | A mature epoch was billed on too few days to forecast the forward DBU cost; it is not time-boxed. | `dbu_baseline_blocker` when cost history is sufficient and forecast metadata `dbu_forecast_status` is `INSUFFICIENT_ACTIVE_COST_DAYS`. | [`min_economics_cost_history_days`](thresholds.md) | Migration candidate `INSUFFICIENT_EVIDENCE`; other priced candidates keep their status with null economics; withheld scenario estimate `UNAVAILABLE` | [HLD §10.2](../architecture/hld.md), [LLD §11.4](../architecture/lld.md), [Thresholds posture](thresholds.md) |
+| `DBU_COST_UNAVAILABLE` | The forward DBU cost cannot be priced (unpriced usage or a non-positive run rate). | `dbu_baseline_blocker` when cost history is sufficient and `dbu_forecast_status` is anything other than `INSUFFICIENT_ACTIVE_COST_DAYS`. | none | Migration candidate `INSUFFICIENT_EVIDENCE`; other priced candidates keep their status with null economics; withheld scenario estimate `UNAVAILABLE` | [HLD §10.2](../architecture/hld.md), [LLD §11.4](../architecture/lld.md), [Thresholds posture](thresholds.md) |
+| `UNPRICED_USAGE` | Billed DBU in the forecast basis has no list price, so its cost is unknown. | `Modeler.forecast_from_daily_cost` sets `dbu_forecast_status` when unpriced DBU quantity inside the basis is > 0 (also the dbu_pricing_status when unpriced DBU exists in the trailing 365 days). | none | Forward DBU cost null; surfaces as `DBU_COST_UNAVAILABLE` | [HLD §10.2](../architecture/hld.md), [LLD §11.2, §11.4](../architecture/lld.md) |
+| `INSUFFICIENT_ACTIVE_COST_DAYS` | Fewer billed days than the economics floor, or no basis day at all. | `Modeler.forecast_from_daily_cost` sets `dbu_forecast_status` when the basis is empty (and nothing is unpriced), or the billed days of the whole-week rate window < `min_economics_cost_history_days`. | [`min_economics_cost_history_days`](thresholds.md) | Forward DBU cost null; surfaces as `BILLED_COST_DAYS_INSUFFICIENT` | [HLD §10.2](../architecture/hld.md), [LLD §11.2](../architecture/lld.md) |
+| `NON_POSITIVE_RUN_RATE` | Net billing corrections leave a run rate at or below zero. | `Modeler.forecast_from_daily_cost` sets `dbu_forecast_status` when nothing is unpriced, enough days are billed and the blended `daily` rate <= 0. | none | Forward DBU cost null; surfaces as `DBU_COST_UNAVAILABLE` | [HLD §10.2](../architecture/hld.md), [LLD §11.2](../architecture/lld.md) |
+| `WAREHOUSE_SIZE_NOT_IN_AWS_TOPOLOGY` | The warehouse size has no documented driver/worker topology to price. | `aws_cluster_hourly_price` when the size is not in `AWS_SQL_WAREHOUSE_TOPOLOGY`. | none | AWS baseline null (`aws_cost_model` status `UNAVAILABLE`); forward cost availability `PARTIAL` | code only |
+| `AWS_PRICE_REGION_NOT_IN_REGISTRY` | The AWS price registry has no prices for the warehouse's region (there is no default-region fallback). | `aws_cluster_hourly_price` when `registry.regions[region]` is missing or not a mapping. | none | AWS baseline null (`aws_cost_model` status `UNAVAILABLE`); forward cost availability `PARTIAL` | [AWS cost model, Regional registry](aws-cost-model.md), [PRD FR-SRC-006](../product/prd.md) |
+| `AWS_INSTANCE_PRICE_MISSING` | The registry region lacks the driver or the `i3.2xlarge` worker price. | `aws_cluster_hourly_price` (AWS baseline) and `aws_cluster_hourly_from_evidence` (migration estimate) when the driver or worker instance price is absent. | none | AWS baseline null; or migration estimate withheld with `metadata.estimate_blocker` | code only |
+| `AWS_PRICE_EVIDENCE_NOT_AVAILABLE` | The replayed evidence carries no regional instance prices (or the size has no topology) for the migration AWS estimate. | `aws_cluster_hourly_from_evidence` when the size has no topology or `aws_cost_model.region_instance_prices` is not a mapping; reaches `Estimator._migration_costs` for a Pro/Classic target. | none | Migration estimate withheld with `metadata.estimate_blocker`; the migration candidate keeps `TEST_REQUIRED` with null economics | code only |
+
+### Resource window and billing settlement
+
+The resource window is the current epoch's daily resource series on the DBU forecast's calendar. The settle buffer only moves the window's last day; it has no code of its own (see the labels in "Not blockers").
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `RECENT_RESOURCE_WINDOW_UNAVAILABLE` | The daily resource series was not collected, or no complete basis day exists, so capacity facts and resource-time costs are unknown. | `resource_window_from` returns None (no `resource_daily`, no basis end, or the window starts after it ends). Consumers: `Optimizer.optimize` (max clusters when the recent state is `MISSING`; min clusters), `model_aws_baseline_cost` (AWS baseline) and `Estimator._annualized_resource_bounds` (migration bounds). | [`forecast_long_days`](thresholds.md), [`billing_settle_hours`](thresholds.md) | `NO_CHANGE` (max clusters, min clusters); AWS baseline null; migration estimate withheld with `metadata.estimate_blocker` | [LLD §15.4, §15.5, §12.2, §17.7](../architecture/lld.md), [AWS cost model, Formula](aws-cost-model.md), [Thresholds posture](thresholds.md) |
+| `NO_RECENT_RUNNING_TIME` | The series was collected but the warehouse did not run in the recent window, so time-at-level shares are undefined. | `recent_capacity_facts` state `IDLE` (running minutes over the last `pressure_window_days` are 0) via `RESOURCE_WINDOW_BLOCKERS`, in `Optimizer.optimize` (max clusters; min clusters). | [`pressure_window_days`](thresholds.md) | `NO_CHANGE` | [LLD §7.2](../architecture/lld.md) |
+| `INSUFFICIENT_WAREHOUSE_EVENT_CLUSTER_MINUTES` | The AWS baseline window has no cluster-minutes to annualize. | `model_aws_baseline_cost` (Pro/Classic) when the window's total cluster-minutes <= 0. | none | AWS baseline null | code only |
+| `INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE` | The migration estimate window has no cluster-minutes or no uptime. | `Estimator._annualized_resource_bounds` when the window's cluster-minutes <= 0 or uptime <= 0. | none | Migration estimate withheld with `metadata.estimate_blocker` | code only |
+
+### Target pricing and capability
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `TARGET_DBU_PER_CLUSTER_HOUR_NOT_AVAILABLE` | There is no DBU-per-cluster-hour rate for the warehouse size on the migration target. | `Estimator._migration_costs` when the size has no published Serverless rate (target `SERVERLESS`) or no observed same-workspace Pro/Classic rate (other targets). | none | Migration estimate withheld with `metadata.estimate_blocker`; candidate keeps `TEST_REQUIRED` with null economics | rule: [LLD §17.7](../architecture/lld.md) |
+| `TARGET_SQL_SKU_PRICE_NOT_FOUND` | No list price exists for the target SQL SKU class. | `resolve_target_sku_price` when no SQL SKU price classifies as the target type. | none | Migration estimate withheld with `metadata.estimate_blocker` | rule: [LLD §17.7](../architecture/lld.md) |
+| `AMBIGUOUS_TARGET_SQL_SKU_PRICE` | Several different list prices match the target SQL SKU class. | `resolve_target_sku_price` when the matching SKUs have more than one distinct price. | none | Migration estimate withheld with `metadata.estimate_blocker` | rule: [LLD §17.7](../architecture/lld.md) |
+| `UNSUPPORTED_TARGET_WAREHOUSE_TYPE` | The migration target is not Serverless, Pro or Classic. | `Estimator._migration_costs`, after resource bounds, DBU rate and SKU price resolve, when the target is not `SERVERLESS`, `PRO` or `CLASSIC`. | none | Migration estimate withheld with `metadata.estimate_blocker` | code only |
+| `SERVERLESS_DBU_RATE_NOT_PUBLISHED` | A Serverless size change cannot be priced because Databricks publishes no DBU/hour for one of the sizes. | `Estimator._factors` (size knob, current type `SERVERLESS`) when the current or target size has no entry in `SQL_DBU_PER_CLUSTER_HOUR`. | none | Candidate keeps its decision status with null economics and `metadata.estimate_blocker`; any plan containing it is withheld as `REQUIRES_CANARY` (package `UNAVAILABLE`) | code only |
+
+### Scenario and planner
+
+| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
+|---|---|---|---|---|---|
+| `SCENARIO_ECONOMICS_UNAVAILABLE` | The scenario has no authoritative total price, so it is excluded from package economics. | `_package_economics` (`exclusion_reason`) when the scenario status is `BLOCKED` or `INSUFFICIENT_EVIDENCE`, or its total 365-day savings is null. | none | Scenario listed in `package_economics.excluded_scenarios` | [Reporter contract §1 (Economic semantics) and §15](../contracts/reporter-json-contract.md) |
+| `RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE` | The scenario is priced, but the recommended scenario is not, so the envelope has no base and nothing is summarized. | `_package_economics` (`exclusion_reason`) for a priced scenario that is not included while a recommended scenario id exists. | none | Scenario listed in `package_economics.excluded_scenarios`; package envelope null | [Reporter contract §1 (Economic semantics)](../contracts/reporter-json-contract.md) |
+| `NO_RECOMMENDED_SCENARIO` | No scenario is recommended. | `_package_economics` (`exclusion_reason`) for a priced scenario that is not included when there is no recommended scenario id; also `_recommended_plan` sets it as `selection_reason_code` (next action `REVIEW_EVIDENCE`) when no scenario has status `RECOMMENDED`. | none | Scenario excluded from package economics; recommended plan has no scenario | [Reporter contract §1 (Economic semantics)](../contracts/reporter-json-contract.md) |
+| `CURRENT_EPOCH_IMMATURE` | The recommended scenario has no step ready because the current epoch is too young. | `_recommended_plan` when `reevaluation` is set, no step is `READY` or `READY_FOR_CANARY`, and `CURRENT_CONFIG_EPOCH_TOO_NEW` is in the blocking codes. | [`current_config_stability_days`](thresholds.md) | `selection_reason_code`; next action `WAIT_FOR_REEVALUATION` | [Reporter contract §14.1](../contracts/reporter-json-contract.md) |
+| `BILLING_HISTORY_ACCRUING` | The recommended scenario has no step ready because billing history is still short on a mature epoch. | `_recommended_plan` under the same conditions as above when only `COST_HISTORY_INSUFFICIENT` is active. | [`min_economics_cost_history_days`](thresholds.md) | `selection_reason_code`; next action `WAIT_FOR_REEVALUATION` | [Reporter contract §14.1](../contracts/reporter-json-contract.md) |
+
+### Not blockers
+
+These strings look like blockers but are not. Do not add them to the tables.
+
+- Candidate and assessment statuses: `INSUFFICIENT_EVIDENCE`, `TEST_REQUIRED`, `REVIEW`, `REVIEW_REQUIRED`, `BLOCKED`, `NO_CHANGE`, `ACTIONABLE`, `NOT_APPLICABLE`. These are recommendation, assessment and compatibility statuses that blockers explain.
+- Estimate and cost statuses: `UNAVAILABLE`, `MODELED_RANGE`, `PROVISIONAL_MODELED_RANGE`, `PRE_CANARY_MODELED_RANGE`, `NOT_CUSTOMER_BILLED` (Serverless has no separate customer EC2 line: a known zero basis, not a missing cost), `COMPLETE`.
+- Internal withheld-estimate statuses `REQUIRES_COST_HISTORY`, `REQUIRES_COST_MODEL`, `REQUIRES_CANARY`: the bundle estimator's status for a plan it cannot price. The package maps them to `UNAVAILABLE`; the codes that explain them are above. `REQUIRES_COST_HISTORY` follows `COST_HISTORY_INSUFFICIENT`; `REQUIRES_COST_MODEL` is a migration step with no DBU counterfactual; `REQUIRES_CANARY` follows `SERVERLESS_DBU_RATE_NOT_PUBLISHED`.
+- HITL and plan step names and gates: `REVIEW_AND_EXECUTE_FIRST_READY_STEP`, `WAIT_FOR_REEVALUATION`, `REVIEW_EVIDENCE`, `REVIEW_SCENARIO`, `VALIDATE_COMPATIBILITY`, `VALIDATE_WAREHOUSE_TYPE_COMPATIBILITY`, `RUN_CANARY`, `RE_ANALYZE`, `RE_ANALYZE_AFTER_UPSTREAM_CANARY`, `REGENERATE_RECOMMENDATIONS`, `REMEASURE_AND_REGENERATE`, `HITL_CONFIRM_PREVIEW_DEPENDENCIES`, `HITL_APPROVAL_AND_POST_CHANGE_VALIDATION`, `A_B_CANARY_LATENCY_COST_ERROR`, `A_B_CANARY_QUEUE_LATENCY_COST`, `A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY`, `CONTINUE_IF_PASS`.
+- Execution and pricing states: `READY_FOR_CANARY`, `READY_FOR_HITL`, `PENDING_REEVALUATION`, `CONTINGENT_PENDING_REEVALUATION` (pricing basis of a step whose evidence an upstream change invalidated).
+- Selection reasons that are positive: `CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE`, `MIGRATION_SCENARIO_SELECTED_BY_POLICY`.
+- Billing settlement labels: `COVERED_BY_WATERMARK` and `UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY` (`billing_completeness`); `WORKSPACE_UNVERIFIED_IDLE`, `WORKSPACE_LAGGING` and `ACCOUNT_IDLE_WAREHOUSE` (billing watermark source). They describe how complete the billing window is; they do not hold a decision.
+- Compatibility evidence modes and check results: `A_HITL_FALLBACK`, `A_HITL_ONLY`, `B_READ_ONLY_API`, `SYSTEM_TABLE_ONLY`, `PASS_WITH_LIMITATION`, `PASS_WITH_LIMITATIONS`, `PASS_BY_EXISTING_SERVERLESS`, `CURRENT_TYPE`, and the S3 access policy note `UNKNOWN_NOT_EXPOSED_BY_VERIFIED_WORKSPACE_SQL_CONFIG_API`.
+- Capacity and rate source labels recorded as estimate provenance: `NOMINAL_SIZE_CAPACITY_RATIO`, `DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR`, `DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO`, `WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR`, `WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO`.
+- Plain notes and names: warehouse sizes (`X_SMALL`, `X_LARGE`), SQL SKU names (`PREMIUM_SQL_PRO_COMPUTE`, `PREMIUM_SQL_SERVERLESS_COMPUTE`), query-source categories (`POWER_BI`, `SQL_EDITOR`), the package economics semantics literal (`SCENARIO_ENVELOPE`), and environment variable names (`DATABRICKS_*`, `WAREHOUSE_BATCH_SIZE`, `PUBLISHER_LOG_LEVEL`).
