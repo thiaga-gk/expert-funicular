@@ -550,6 +550,8 @@ Scenarios are mutually exclusive/alternative execution strategies, not candidate
 
 Check status: `PASS | FAIL | UNKNOWN | NOT_APPLICABLE`.
 
+The recommended (current-type) scenario is `COMPATIBLE`. A migration scenario is `INCOMPATIBLE` when any check fails; its migration step is then `BLOCKED`. Otherwise it is `REQUIRES_VALIDATION`, even when every check passes, and its plan opens with a compatibility-validation step.
+
 ### Scenario economics
 
 Same DBU/AWS/total `ComponentRanges` structure as candidate economics, but produced by the **stateful bundle estimator**.

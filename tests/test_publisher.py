@@ -2060,6 +2060,8 @@ class OverallStatusTests(unittest.TestCase):
         pkg = p.build_recommendation_packages([e], self.t)[0]
         plan_b = next(s for s in pkg.scenarios if s.status == p.rc.ScenarioStatus.ALTERNATIVE)
         self.assertEqual(plan_b.compatibility.status, p.rc.CompatibilityStatus.INCOMPATIBLE)
+        migration = [x for x in plan_b.execution_plan if x.candidate_id]
+        self.assertEqual([x.execution_state for x in migration], [p.rc.ExecutionState.BLOCKED])
         scenarios = [dataclasses.replace(s, execution_plan=[]) if s.status == p.rc.ScenarioStatus.RECOMMENDED else s for s in pkg.scenarios]
         self.assertGreater(plan_b.portfolio_economics.savings_365d.total.base, 0)
         self.assertNotEqual(p._overall_status(pkg.candidates, scenarios), p.rc.AssessmentStatus.REVIEW_REQUIRED)

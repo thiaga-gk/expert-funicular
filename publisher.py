@@ -3996,6 +3996,8 @@ def _scenario_contracts(
                 state = _CONTRACT_EXECUTION_STATE[st.execution_state]
             except KeyError:
                 raise ValueError(f"Planner execution state {st.execution_state!r} has no locked-contract mapping") from None
+            if compatibility.status == rc.CompatibilityStatus.INCOMPATIBLE:
+                state = rc.ExecutionState.BLOCKED  # a failed compatibility check: no canary until it is resolved
             plan_steps.append(rc.PlanStep(
                 step=next_step,
                 step_type=rc.PlanStepType.CANDIDATE,
