@@ -305,7 +305,7 @@ Reads a daily resource series for the current epoch over the last 120 UTC days: 
 
 #### `EPOCH_DAILY_COST_SQL`
 
-Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Signed usage quantities are preserved so billing corrections flow into the run-rate model.
+Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Signed usage quantities are preserved so billing corrections flow into the run-rate model. Each daily row also carries `retracted_dbu_quantity` (the magnitude of RETRACTION records, positive) and `restated_dbu_quantity` (RESTATEMENT records); `record_type` only labels these two quantities and never filters rows, so every record type stays in the signed cost sums.
 
 #### `BILLING_WATERMARK_SQL`
 
@@ -482,7 +482,8 @@ Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/fut
 - basis begins at the later of current epoch start or 365 days before analysis,
 - missing calendar days are filled with zero (a day with no billing is a $0 day, but the forecast is published only when the epoch has enough billed days; see 11.2),
 - mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency),
-- forecast metadata records `billing_settle_hours`, `billing_watermark`, `billing_complete_through`, `billing_ingested_through` (`MAX(ingestion_date)` per workspace) and `billing_ingestion_cutoff` (the `--billing-ingested-through` pin, if any).
+- forecast metadata records `billing_settle_hours`, `billing_watermark`, `billing_complete_through`, `billing_ingested_through` (`MAX(ingestion_date)` per workspace) and `billing_ingestion_cutoff` (the `--billing-ingested-through` pin, if any),
+- over the same settled trailing window as the trailing-365-day actual cost (window start to `billing_complete_through`), forecast metadata also records `billing_retracted_dbu_quantity_365`, `billing_restated_dbu_quantity_365` and `billing_correction_dbu_share_365` (retracted DBU / originally billed DBU, where originally billed = net DBU + retracted - restated, rounded to 6 places). All three are null when any day in the window lacks the collected quantities (for example evidence collected before they existed); the share is also null when nothing was originally billed. This is a cost-basis quality signal only: no decision, confidence or economics reads it.
 
 ### 11.2 Daily run rate
 
@@ -1291,6 +1292,8 @@ An `EvidenceRecord` includes:
 - interpretation.
 
 Interpretation prose is excluded from the evidence fingerprint; decision-relevant values and source semantics are included.
+
+Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package. It also includes `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`), the share of originally billed DBU that billing later retracted. It is referenced like the other shared cost evidence and read by no decision, confidence or economics.
 
 The package validator recomputes the evidence fingerprint before accepting the package.
 
