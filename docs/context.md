@@ -210,9 +210,9 @@ This distinction is foundational:
 
 ## 7. Configuration epoch
 
-A configuration epoch is a continuous period during which the authoritative warehouse configuration is unchanged for the fields that define the epoch.
+A configuration epoch is a continuous period during which the authoritative warehouse configuration is unchanged for the fields that define the epoch: warehouse type, channel, size, min clusters, max clusters and auto-stop minutes.
 
-The epoch is derived from snapshots in `system.compute.warehouses`. Databricks describes each row as a snapshot of warehouse properties, with a new snapshot created when properties change.
+The epoch is derived from snapshots in `system.compute.warehouses`. Databricks describes each row as a snapshot of warehouse properties, with a new snapshot created when any property changes, including the name and tags. Snapshots that change only cosmetic properties (name, tags) are folded into the surrounding epoch, so a rename or tag edit does not start a new epoch or reset epoch maturity, cost history or the forecast basis.
 
 ### 7.1 Why epochs matter
 
@@ -1286,7 +1286,7 @@ These are non-negotiable unless the PRD/contract is explicitly revised.
 
 ### 38.10 “A fresh package can stay valid after a config change”
 
-**Wrong.** A config change creates a new epoch and requires re-evaluation.
+**Wrong.** A change to a decision field (type, channel, size, min/max clusters, auto-stop) creates a new epoch and requires re-evaluation.
 
 ---
 
@@ -1432,7 +1432,7 @@ May change Workbook Contract patch version if semantics are unchanged. Must not 
 | Blocker | Known condition preventing or pausing a recommendation/action |
 | Candidate | One atomic per-technique recommendation instance for a warehouse/epoch |
 | Canary | Controlled validation of a behavior-affecting recommendation before broad application |
-| Config epoch | Continuous interval under one authoritative warehouse configuration |
+| Config epoch | Continuous interval during which the decision fields of the authoritative warehouse configuration are unchanged |
 | Counterfactual | Modeled outcome under a hypothetical configuration change |
 | DBU | Databricks Unit used in platform billing |
 | Evidence | Normalized factual observation with source/provenance |
