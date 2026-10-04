@@ -33,7 +33,7 @@
   "candidates": [
     {
       "blockers": [],
-      "candidate_id": "CAND-2DC77701D9463A039A4A3430",
+      "candidate_id": "CAND-929130F9E5FA096DA16E91BA",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -115,7 +115,7 @@
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-BA05FACF1A2AF701F6188BBC",
+      "candidate_id": "CAND-74E200829C0505B3FB7798E0",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -213,7 +213,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-4701F5AB0B552D8BE3E4E34C",
+      "candidate_id": "CAND-D5AE7037FBFCB90235D3B4FB",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -306,7 +306,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-27600366920A82E7674E3D7A",
+      "candidate_id": "CAND-EE5EC39177A7349BB61508AE",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -401,7 +401,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-8B9D97017D3CAA5DA66961BB",
+      "candidate_id": "CAND-7D61A0CCDBD6952033AE5F46",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -496,7 +496,7 @@
       "blockers": [
         "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-2F116D492B169CDC7BFE4A4F",
+      "candidate_id": "CAND-A838841E70FE3D33BD0638B1",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -1386,8 +1386,8 @@
     },
     "excluded_scenarios": [],
     "included_scenario_ids": [
-      "SCN-434C077126B079E5142CDF8C",
-      "SCN-46131C6A05E4B40940D8714B"
+      "SCN-3A325CA4474D35EB0320C0A0",
+      "SCN-294A5A1E833C68ECCF1C1D04"
     ],
     "scenario_envelope": {
       "maximum_savings": {
@@ -1402,7 +1402,7 @@
           "dbu": 9553.72,
           "total": 15200.66
         },
-        "scenario_id": "SCN-46131C6A05E4B40940D8714B"
+        "scenario_id": "SCN-294A5A1E833C68ECCF1C1D04"
       },
       "minimum_savings": {
         "bound": "LOW",
@@ -1416,7 +1416,7 @@
           "dbu": -600.0,
           "total": 670.56
         },
-        "scenario_id": "SCN-434C077126B079E5142CDF8C"
+        "scenario_id": "SCN-3A325CA4474D35EB0320C0A0"
       },
       "recommended_base": {
         "bound": "BASE",
@@ -1430,7 +1430,7 @@
           "dbu": 2400.0,
           "total": 4376.43
         },
-        "scenario_id": "SCN-434C077126B079E5142CDF8C"
+        "scenario_id": "SCN-3A325CA4474D35EB0320C0A0"
       }
     },
     "semantics": {
@@ -1440,7 +1440,7 @@
     }
   },
   "provenance": {
-    "analyzer_version": "sql-warehouse-analyzer-v2.9.0",
+    "analyzer_version": "sql-warehouse-analyzer-v2.10.0",
     "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
     "contract_version": "1.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.9.0",
@@ -1449,7 +1449,7 @@
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.10.0",
-    "package_hash_full_sha256": "6F21DD7A7F1C6FC940C8FC388B2D15E925E46EE1B9673F39B4D1C495B46D926A",
+    "package_hash_full_sha256": "959F171418188DB934C2B37D1C96A51CB99C004761920BDA06B1878F69F6A283",
     "policy_version": "sql-warehouse-policy-v2.9.0",
     "reviewer_version": "recommendation-reviewer-v2.9.0",
     "source_regions": [
@@ -1476,20 +1476,20 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-6F21DD7A7F1C6FC940C8FC38",
+  "recommendation_package_id": "PKG-959F171418188DB934C2B37D",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
     "next_action": "RUN_WAREHOUSE_SIZE_CANARY",
     "reevaluation": null,
     "requires_hitl": true,
-    "scenario_id": "SCN-434C077126B079E5142CDF8C",
+    "scenario_id": "SCN-3A325CA4474D35EB0320C0A0",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-BA05FACF1A2AF701F6188BBC",
-        "CAND-4701F5AB0B552D8BE3E4E34C"
+        "CAND-74E200829C0505B3FB7798E0",
+        "CAND-D5AE7037FBFCB90235D3B4FB"
       ],
       "compatibility": {
         "checks": [],
@@ -1526,7 +1526,7 @@
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-BA05FACF1A2AF701F6188BBC",
+          "candidate_id": "CAND-74E200829C0505B3FB7798E0",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1594,7 +1594,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-4701F5AB0B552D8BE3E4E34C",
+          "candidate_id": "CAND-D5AE7037FBFCB90235D3B4FB",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1768,14 +1768,14 @@
           }
         }
       },
-      "scenario_id": "SCN-434C077126B079E5142CDF8C",
+      "scenario_id": "SCN-3A325CA4474D35EB0320C0A0",
       "scenario_name": "Plan A \u2014 Optimize current warehouse type",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
     },
     {
       "candidate_refs": [
-        "CAND-2F116D492B169CDC7BFE4A4F"
+        "CAND-A838841E70FE3D33BD0638B1"
       ],
       "compatibility": {
         "checks": [
@@ -1897,7 +1897,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-2F116D492B169CDC7BFE4A4F",
+          "candidate_id": "CAND-A838841E70FE3D33BD0638B1",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -2036,7 +2036,7 @@
           }
         }
       },
-      "scenario_id": "SCN-46131C6A05E4B40940D8714B",
+      "scenario_id": "SCN-294A5A1E833C68ECCF1C1D04",
       "scenario_name": "Plan B \u2014 Serverless migration experiment",
       "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
       "status": "ALTERNATIVE"

@@ -33,7 +33,7 @@
   "candidates": [
     {
       "blockers": [],
-      "candidate_id": "CAND-2AB73E156C1AAF3CDDA0CA86",
+      "candidate_id": "CAND-855F5E0703EB4EB53C318185",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -115,7 +115,7 @@
       "blockers": [
         "CURRENT_CONFIG_EPOCH_TOO_NEW"
       ],
-      "candidate_id": "CAND-332EED83B1AA249101A44265",
+      "candidate_id": "CAND-ECBB264C9ED8EAB12F5B9121",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -193,7 +193,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-75CB5E15D22B4E0E72A3CCBC",
+      "candidate_id": "CAND-2984D4BC2F7EE3852163E1CD",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -284,7 +284,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-2A0FC9335E57A3C9B7F9C7B8",
+      "candidate_id": "CAND-ED04A5AD4FBC2F4E2823AEDD",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -381,7 +381,7 @@
       "blockers": [
         "CURRENT_CONFIG_EPOCH_TOO_NEW"
       ],
-      "candidate_id": "CAND-9E9049ADCEEB150F7DAC6289",
+      "candidate_id": "CAND-D783EBE3D7F08F6A12F7559F",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -452,7 +452,7 @@
       "blockers": [
         "COST_HISTORY_INSUFFICIENT"
       ],
-      "candidate_id": "CAND-7E49B030E1FF3BD2B17E40BF",
+      "candidate_id": "CAND-B41115AFC839F930DF3E4708",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -1310,7 +1310,7 @@
     }
   },
   "provenance": {
-    "analyzer_version": "sql-warehouse-analyzer-v2.9.0",
+    "analyzer_version": "sql-warehouse-analyzer-v2.10.0",
     "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
     "contract_version": "1.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.9.0",
@@ -1319,7 +1319,7 @@
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.10.0",
-    "package_hash_full_sha256": "96324620A070F31DA32A2F41F932718337DC7035FDF8EE13D1D1434A43FE1DD9",
+    "package_hash_full_sha256": "E50214E590A9998433A2D6CCCB55C638648A03FDB1FEBABFB8916B9F668E0D3F",
     "policy_version": "sql-warehouse-policy-v2.9.0",
     "reviewer_version": "recommendation-reviewer-v2.9.0",
     "source_regions": [
@@ -1346,7 +1346,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-96324620A070F31DA32A2F41",
+  "recommendation_package_id": "PKG-E50214E590A9998433A2D6CC",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type has no step ready yet: the current epoch is too new for a trustworthy decision. Earliest re-evaluation is 2026-10-05T00:00:00Z (gates: COST_HISTORY_INSUFFICIENT, CURRENT_CONFIG_EPOCH_TOO_NEW).",
     "next_action": "WAIT_FOR_REEVALUATION",

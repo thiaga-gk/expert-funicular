@@ -13,6 +13,15 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 | Auto-stop | 15/30/45 min by activity; Serverless 10 min target; >=30 gaps; cold-start-sensitive workloads blocked | Balanced; most aggressive cost rule | Uses measured idle gaps, but guards against cold-start latency. |
 | Type migration | compatibility gate + pre-canary modeled range + canary | Conservative | IWM/runtime response is not assumed. |
 
+## Missing pressure evidence fails closed
+
+Spill frequency, queue frequency and p95/p99 execution latency stay null when the collector did not report them; they are never read as 0 ("no pressure"), and findings report them as null.
+
+- Size down is held (`NO_CHANGE`) with `SPILL_EVIDENCE_UNAVAILABLE`, `QUEUE_EVIDENCE_UNAVAILABLE` or `LATENCY_EVIDENCE_UNAVAILABLE`.
+- Max-cluster reduction is held with `QUEUE_EVIDENCE_UNAVAILABLE`, or `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` when queries queued but their capacity-wait percentile is missing.
+- Min-cluster reduction is held with `QUEUE_EVIDENCE_UNAVAILABLE`.
+- Size up and max-cluster increase need known spill / queue evidence.
+
 ## Severity is measured among affected queries
 
 Spill, capacity-wait and compute-wait severity percentiles are computed **only over the queries that were affected** (`spilled_local_bytes > 0`, `waiting_at_capacity_duration_ms > 0`, `waiting_for_compute_duration_ms > 0`), and the affected-query counts (`spill_queries_30`, `queued_queries_30`, `compute_wait_queries_30`) are collected beside them. A percentile over all queries hides rare-but-severe events behind the unaffected majority.

@@ -376,6 +376,8 @@ A one-size down canary may be proposed only when all configured safety condition
 - p95 execution ≤ 5 seconds,
 - p99 execution ≤ 30 seconds.
 
+Spill frequency, queue frequency and p95/p99 execution latency must be known; evidence the collector did not report is null (never treated as zero pressure) and holds the downsize with `SPILL_EVIDENCE_UNAVAILABLE`, `QUEUE_EVIDENCE_UNAVAILABLE` or `LATENCY_EVIDENCE_UNAVAILABLE`.
+
 Downsize status shall be `TEST_REQUIRED`, not auto-actionable.
 
 ### FR-OPT-004 — Size up
@@ -387,6 +389,8 @@ Current defaults:
 - spill query percentage ≥ 2%,
 - p95 spill ≥ 1 GiB.
 
+Unknown spill evidence is never treated as zero.
+
 ### FR-OPT-005 — Max clusters increase
 
 An increase may be proposed only when all configured concurrency-pressure signals are present, including by default:
@@ -395,9 +399,11 @@ An increase may be proposed only when all configured concurrency-pressure signal
 - p95 capacity wait ≥ 30 seconds,
 - observed scale reaches the configured maximum.
 
+Unknown queue evidence is never treated as zero.
+
 ### FR-OPT-006 — Max clusters reduction
 
-A reduction may be proposed when the configured maximum is demonstrably unused and queue pressure is low.
+A reduction may be proposed when the configured maximum is demonstrably unused and queue pressure is known to be low. Unreported queue frequency holds the reduction (`QUEUE_EVIDENCE_UNAVAILABLE`); queries that queued with an unreported capacity wait hold it too (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`).
 
 This candidate is primarily a cost/operational guardrail; the system shall not fabricate direct savings if observed resource consumption would not change.
 
@@ -413,6 +419,8 @@ Current default policy includes:
 - p95 capacity wait ≤ 5 seconds,
 - time at maximum < 20%,
 - epoch age ≥ 7 days.
+
+Unreported queue frequency or capacity wait holds the reduction (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`).
 
 ### FR-OPT-008 — Auto-stop
 
