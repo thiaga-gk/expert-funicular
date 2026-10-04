@@ -4424,7 +4424,7 @@
   ],
   "expect": {
     "candidate_status": {
-      "warehouse_size": "ACTIONABLE"
+      "warehouse_size": "TEST_REQUIRED"
     },
     "warehouse": "wh-demo-001",
     "warehouse_size_target": "X_LARGE"

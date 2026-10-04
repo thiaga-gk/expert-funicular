@@ -781,6 +781,7 @@ def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
         f"SUM(GREATEST(LEAST(gap_minutes,CASE WHEN auto_stop_minutes=0 THEN gap_minutes ELSE auto_stop_minutes END)-{target},0)) AS saved_idle_minutes_if_{target}"
         for target in targets
     )
+    saved_cols = ", ".join(f"g.saved_idle_minutes_if_{target}" for target in targets)
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
@@ -807,16 +808,28 @@ ordered AS (
   JOIN retained r ON r.workspace_id=x.workspace_id AND r.warehouse_id=x.compute.warehouse_id
     AND x.start_time >= r.first_event_time
   WHERE x.compute.type='WAREHOUSE' AND x.start_time>=CURRENT_TIMESTAMP()-INTERVAL 365 DAYS
+), busy AS (
+  -- Wall-clock minutes with at least one query running (length of the union of query intervals), over the same
+  -- period as the gaps: each query adds only the part that extends past every earlier-starting query.
+  SELECT workspace_id, warehouse_id, epoch_start,
+    SUM(GREATEST(0.0,TIMESTAMPDIFF(SECOND,GREATEST(start_time,COALESCE(previous_busy_end_time,start_time)),COALESCE(end_time,start_time))/60.0)) AS busy_minutes
+  FROM ordered GROUP BY workspace_id,warehouse_id,epoch_start
 ), gaps AS (
   SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
   FROM ordered WHERE previous_busy_end_time IS NOT NULL AND start_time>previous_busy_end_time
-)
-SELECT workspace_id, warehouse_id, epoch_start,
+), gap_stats AS (
+  SELECT workspace_id, warehouse_id, epoch_start,
   COUNT(*) AS gap_count,
   PERCENTILE_APPROX(gap_minutes,0.50) AS p50_gap_minutes,
   PERCENTILE_APPROX(gap_minutes,0.90) AS p90_gap_minutes,
   {saved}
-FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
+  FROM gaps GROUP BY workspace_id,warehouse_id,epoch_start
+)
+SELECT b.workspace_id, b.warehouse_id, b.epoch_start, b.busy_minutes,
+  COALESCE(g.gap_count,0) AS gap_count, g.p50_gap_minutes, g.p90_gap_minutes,
+  {saved_cols}
+FROM busy b LEFT JOIN gap_stats g
+  ON g.workspace_id=b.workspace_id AND g.warehouse_id=b.warehouse_id AND g.epoch_start=b.epoch_start
 """
 
 RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic billing lag; Python clips to what was collected
@@ -1918,6 +1931,20 @@ def recent_capacity_facts(window: Optional[Mapping[str, Any]], t: Thresholds) ->
     }
 
 
+def size_busy_share(busy_minutes: Any, uptime_minutes: Any, cluster_minutes: Any, min_clusters: Any) -> Optional[float]:
+    """Share of running cluster-minutes spent with queries running; None when unknown.
+
+    Idle running time is assumed to hold the minimum cluster count (Classic/Pro scale down only after sustained low
+    load), so idle cluster-minutes = (running minutes - busy minutes) x min clusters. Busy time above running time
+    (sources disagree) counts as all busy.
+    """
+    busy = optional_float(busy_minutes); uptime = optional_float(uptime_minutes); cluster = optional_float(cluster_minutes)
+    if busy is None or uptime is None or cluster is None or uptime <= 0 or cluster <= 0:
+        return None
+    idle_cluster_minutes = max(0.0, uptime - busy) * max(1, safe_int(min_clusters, 1))
+    return round(clamp(1.0 - idle_cluster_minutes / cluster, 0.0, 1.0), 6)
+
+
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
@@ -2279,7 +2306,11 @@ class Analyzer:
             self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
         ])
         fs.append(utilization_finding("warehouse_size"))
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99})
+        # Busy share of running cluster time (whole epoch, same period as the event totals): a size change speeds up or
+        # slows down query execution, not the idle running time around it.
+        busy_share = size_busy_share(gaps.get("busy_minutes"), ev.get("uptime_minutes"), ev.get("cluster_minutes"), cfg.min_clusters)
+        fs.append(self._f(e,"warehouse_size","busy_cluster_time_share",busy_share,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window="current epoch",interpretation="Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy)."))
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
         # Max clusters
         # Capacity facts come from the recent resource window (last pressure_window_days of the DBU forecast's calendar),
@@ -2410,10 +2441,11 @@ class Optimizer:
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,["warehouse_channel"],[],[],
                     "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
             elif target:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","ACTIONABLE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},[],["warehouse_channel"],
+                # The speed-up and its cost are modeled, not observed: one size up is a latency/cost canary.
+                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","TEST_REQUIRED",
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],["warehouse_channel"],
                     ["max_clusters","min_clusters","auto_stop_minutes"],["max_clusters","min_clusters","auto_stop_minutes"],
-                    "Spill frequency and severity both cross the deterministic upsize thresholds."))
+                    "Spill frequency and severity both cross the deterministic upsize thresholds; one size up as a canary validates the speed-up and its cost."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
@@ -2704,9 +2736,14 @@ class Estimator:
                 capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
             # Speed-up multipliers follow the decided direction, never the price ratio.
             if SIZE_ORDER.index(target)<SIZE_ORDER.index(cur):
-                runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
+                busy_runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
             else:
-                runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
+                busy_runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
+            # The multiplier changes query execution time only; idle running time is unchanged. Unknown busy share:
+            # all running time is treated as busy.
+            busy_share=a.facts.get("busy_share")
+            share=1.0 if busy_share is None else float(busy_share)
+            runtime=Range3(*(round(share*x+(1.0-share),6) for x in (busy_runtime.low,busy_runtime.base,busy_runtime.high)))
             factors=Range3(capacity*runtime.low,capacity*runtime.base,capacity*runtime.high)
             vals=sorted([
                 clamp(factors.low,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
@@ -2715,9 +2752,11 @@ class Estimator:
             ])
             factors=Range3(vals[0],vals[1],vals[2])
             return factors,{
-                "method":"capacity ratio × runtime elasticity",
+                "method":"capacity ratio × runtime elasticity on busy running time",
                 "capacity_ratio":capacity,
                 "capacity_ratio_source":capacity_source,
+                "busy_share":busy_share,
+                "busy_runtime_multiplier_range":as_serializable(busy_runtime),
                 "runtime_multiplier_range":as_serializable(runtime),
                 "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(runtime)},
                 **meta,
@@ -5124,17 +5163,22 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         gap_lo = lo_t if coverage is None else max(lo_t, coverage)
         gaps = [] if coverage is None else [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1)
                                             if ep_runs[i][0] >= gap_lo and ep_runs[i + 1][0] > ep_runs[i][1]]
-        if gaps:
-            ordered = sorted(gaps)
-            def pct(q: float) -> float:
-                return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
-            auto = cfg["auto_stop_minutes"]
-            gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "gap_count": len(gaps), "p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)}
+        # Busy wall-clock minutes (union of query runs) over the same period: every epoch with queries gets a row.
+        busy_runs = [] if coverage is None else [(a, b) for a, b, _ in ep_runs if a >= gap_lo]
+        if busy_runs:
             th = Thresholds()
             targets = sorted({th.serverless_auto_stop_target_minutes, th.low_activity_auto_stop_target_minutes, th.medium_activity_auto_stop_target_minutes, th.high_activity_auto_stop_target_minutes})
-            kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
-            for target in targets:
-                gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
+            gap_row = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "busy_minutes": round(sum(b - a for a, b in busy_runs), 3),
+                       "gap_count": len(gaps), "p50_gap_minutes": None, "p90_gap_minutes": None, **{f"saved_idle_minutes_if_{t}": None for t in targets}}
+            if gaps:
+                ordered = sorted(gaps)
+                def pct(q: float) -> float:
+                    return round(ordered[min(len(ordered) - 1, int(math.ceil(q * len(ordered))) - 1)], 4)
+                auto = cfg["auto_stop_minutes"]
+                gap_row.update({"p50_gap_minutes": pct(0.5), "p90_gap_minutes": pct(0.9)})
+                kept = [g if auto == 0 else min(g, float(auto)) for g in gaps if g > targets[0]]  # idle running time each gap keeps today
+                for target in targets:
+                    gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
             rows["idle_gaps"].append(gap_row)
         # Daily resource series for the current epoch (last 120 days before the analysis date).
         if ep_end is None and coverage is not None:

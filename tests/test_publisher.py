@@ -1606,7 +1606,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_spill_constrained(self):
         _,r=self.load("spill-constrained"); c=next(c for c in r[0].candidates if c.knob=="warehouse_size")
-        self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
+        self.assertEqual(c.status,"TEST_REQUIRED"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
 
     def spill_evidence(self, *, queries_30=12000, epoch_start=None):
         """Spill-constrained golden fixture with the sample size / epoch age overridden (audit H2)."""
@@ -1644,10 +1644,10 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertEqual(set(c.blockers), {"INSUFFICIENT_QUERY_SAMPLE", "CURRENT_CONFIG_EPOCH_TOO_NEW"})
 
-    def test_upsize_actionable_exactly_at_evidence_boundaries(self):
+    def test_upsize_canary_exactly_at_evidence_boundaries(self):
         # 100 queries and exactly 7 days of epoch age are sufficient.
         _, c = self.size_candidate(self.spill_evidence(queries_30=100, epoch_start="2026-09-24T12:00:00+00:00"))
-        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.status, "TEST_REQUIRED")
         self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
         _, below = self.size_candidate(self.spill_evidence(queries_30=99))
         self.assertEqual(below.status, "INSUFFICIENT_EVIDENCE")
@@ -1692,7 +1692,7 @@ class GoldenScenarioTests(unittest.TestCase):
         ev = self.severity_evidence("spill-constrained", spill_query_pct_30=3.0, spill_queries_30=360,
                                     p95_spill_bytes_when_spilled_30=self.GIB10)
         c = self.candidate(ev, "warehouse_size")
-        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.status, "TEST_REQUIRED")
         self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")
 
     def test_spill_severity_is_judged_among_spilled_queries(self):
