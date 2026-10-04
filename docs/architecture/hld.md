@@ -321,7 +321,6 @@ flowchart TD
     MX --> MN[min_clusters]
     MN --> AS[auto_stop_minutes]
 
-    PH -. may invalidate downstream evidence .-> SZ
     SZ -. invalidates downstream capacity evidence .-> MX
     SZ -. invalidates downstream capacity evidence .-> MN
     SZ -. may invalidate idle/cost assumptions .-> AS

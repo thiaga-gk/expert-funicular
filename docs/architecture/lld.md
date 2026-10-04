@@ -790,21 +790,15 @@ Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observ
 
 ```mermaid
 flowchart LR
-    CH[Channel] --> PH[Photon]
-    PH --> SZ[Size]
+    CH[Channel] --> SZ[Size]
     SZ --> MX[Max clusters]
     MX --> MN[Min clusters]
     MN --> AS[Auto-stop]
 
-    CH -. invalidates .-> PH
     CH -. invalidates .-> SZ
     CH -. invalidates .-> MX
     CH -. invalidates .-> MN
     CH -. invalidates .-> AS
-    PH -. invalidates .-> SZ
-    PH -. invalidates .-> MX
-    PH -. invalidates .-> MN
-    PH -. invalidates .-> AS
     SZ -. invalidates .-> MX
     SZ -. invalidates .-> MN
     SZ -. invalidates .-> AS

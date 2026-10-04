@@ -962,7 +962,7 @@ The current product increment is accepted when all of the following remain true:
 
 1. Classic, Pro, and standard Serverless evidence can traverse the canonical pipeline.
 2. Current config epochs are reconstructed from authoritative source evidence.
-3. Seven active candidate domains are emitted per supported warehouse.
+3. Six active candidate domains (channel, size, max clusters, min clusters, auto-stop, warehouse-type migration) are emitted per supported warehouse.
 4. Candidate and scenario reviewer gates pass before publication.
 5. Candidate economics remain non-additive.
 6. Scenario economics are stateful.
