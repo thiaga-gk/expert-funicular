@@ -192,6 +192,8 @@ It must:
 - preserve workspace/warehouse identity,
 - preserve regional source context,
 - preserve signed billing corrections,
+- run in a UTC-pinned SQL session, verified at connect (fails closed otherwise), so date logic matches UTC billing dates,
+- order window functions with deterministic tie-breakers,
 - avoid exporting raw SQL text,
 - retain enough source metadata for audit and replay.
 
@@ -862,6 +864,8 @@ Collector SQL can be executed through:
 - a validated all-purpose cluster capable of SQL connector execution.
 
 Jobs compute is rejected as an execution target.
+
+The collector session time zone is pinned to UTC and verified before any query runs.
 
 The execution target runs collector SQL only; it is not the set of warehouses being optimized. The collector analyzes all visible in-scope SQL warehouses available through the source tables for the selected regional context.
 

@@ -205,7 +205,7 @@ sequenceDiagram
     participant OUT as Output Directory
 
     CLI->>AUTH: resolve execution target + U2M token
-    AUTH->>SQL: SQL Connector session
+    AUTH->>SQL: SQL Connector session (UTC-pinned, verified)
     SQL->>COL: set-based system table aggregates
     COL->>MOD: daily DBU cost + current epoch
     MOD-->>COL: forward baseline forecast
@@ -261,6 +261,8 @@ Produces one row per configuration snapshot for active warehouses, with:
 
 The query retains epochs overlapping the last 365 days plus the current epoch.
 
+All collector SQL runs in a session pinned to UTC (`TIMEZONE=UTC`), so `DATE()`, `CURRENT_DATE()` and `CURRENT_TIMESTAMP()` align with UTC billing `usage_date`. The collector reads `current_timezone()` immediately after connecting and exits with an error if the session is not UTC.
+
 #### `EPOCH_QUERY_METRICS_SQL`
 
 Aggregates query history into each warehouse epoch. Important 30-day/current-epoch metrics include:
@@ -283,7 +285,7 @@ Raw query rows are not loaded into the optimizer.
 
 #### `EPOCH_EVENT_METRICS_SQL`
 
-Reconstructs event segments and aggregates:
+Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_type`, `cluster_count`, so events with equal timestamps segment deterministically) and aggregates:
 
 - uptime minutes,
 - cluster-minutes,
@@ -296,7 +298,7 @@ Reconstructs event segments and aggregates:
 
 #### Idle-gap SQL
 
-`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets.
+`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps.
 
 #### `EPOCH_DAILY_COST_SQL`
 
