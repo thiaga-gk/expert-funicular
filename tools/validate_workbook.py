@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a generated ``workbook.xlsx`` against Workbook Contract v1.2.0.
+"""Validate a generated ``workbook.xlsx`` against Workbook Contract v1.3.0.
 
 Checks (CLAUDE.md change-loop step 6): exactly four visible sheets in contract order; detailed-sheet headers
 equal the declared contract columns in order; row grains match the package JSON; no formulas in any cell;

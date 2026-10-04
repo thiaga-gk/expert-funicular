@@ -1,6 +1,8 @@
-# Reporter JSON Contract v1.1.0 — Locked
+# Reporter JSON Contract v1.2.0 — Locked
 
-**Version history:** 1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
+**Version history:** 1.2.0 (M9 Stage 1) adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
+
+**Earlier history:** 1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
 
 **Status:** LOCKED for implementation  
 **Scope:** one immutable recommendation package per Databricks SQL warehouse / current configuration epoch  
@@ -29,6 +31,8 @@ recommended_plan
 package_economics
 realization
 provenance
+observed_change
+carried_forward_plan
 ```
 
 ### Economic semantics
@@ -189,6 +193,9 @@ decision_graph_version
 technique_catalog_version
 ordered candidate_ids
 ordered scenario_ids
+reevaluation (status, earliest_reevaluation_time, blocking_codes; null when absent; method prose excluded)
+observed_change_fingerprint (SHA256 of the canonical observed_change; null when absent)
+carried_forward_fingerprint (replay_fingerprint; null when absent)
 ```
 
 ### Realization hash inputs
@@ -255,7 +262,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `1.0.0` |
+| `contract_version` | string | Yes | No | Constant `1.2.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
@@ -268,6 +275,8 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | `package_economics` | `PackageEconomics` | Yes | No | Executive opportunity envelope across assessable scenarios |
 | `realization` | `Realization` | Yes | No | Present from day one; initially `NOT_APPLIED` with zero records |
 | `provenance` | `Provenance` | Yes | No | Reproducibility/version/source metadata |
+| `observed_change` | `ObservedConfigChange` | Yes | **Yes** | Observed config diff at the start of the current epoch; null for a first epoch or an empty diff (section 14.2) |
+| `carried_forward_plan` | `CarriedForwardPlan` | Yes | **Yes** | Reserved for Stage 2; always null in 1.2.0 producers (section 14.3) |
 
 ---
 
@@ -595,8 +604,48 @@ Validation type:
 | `next_action` | string | Yes | No | Next HITL/workflow action |
 | `requires_hitl` | bool | Yes | No | Explicit approval/validation flag |
 | `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity |
+| `reevaluation` | `ReevaluationWindow` | Yes | **Yes** | Time-clearable gates that currently hide the next step; null once both are clear |
 
 If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it must match this ID.
+
+## 14.1 `reevaluation` (new in 1.2.0)
+
+| Field | Type | Nullable | Semantics |
+|---|---|---:|---|
+| `status` | enum | No | `WAITING_FOR_EVIDENCE` (the only value) |
+| `earliest_reevaluation_time` | ISO-8601 UTC | No | Later of the active gates. **Earliest only**: billing ingestion lag and query-sample gates can delay it |
+| `blocking_codes` | string[] | No | Non-empty, sorted, unique subset of `COST_HISTORY_INSUFFICIENT`, `CURRENT_CONFIG_EPOCH_TOO_NEW` |
+| `method` | string | No | Prose; excluded from identity |
+
+Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while `warehouse.current_epoch.age_days < 7`; `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
+
+```text
+t_maturity = epoch start + 7 days
+t_cost     = 00:00Z of (epoch start date + 7 days)
+earliest_reevaluation_time = max(t_x for each active gate)
+```
+
+Example: epoch start `2026-10-01T15:00:00Z` with both gates active gives `2026-10-08T15:00:00Z`.
+
+`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE`) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the 7-day gate lengths in the publisher policy requires a contract version bump.
+
+## 14.2 `observed_change` (new in 1.2.0)
+
+A record that the authoritative configuration (`system.compute.warehouses`) changed at the start of the current epoch. It is **not** a realization record and has no cost or savings fields; `realization.status` stays `NOT_APPLIED`.
+
+| Field | Type | Nullable | Semantics |
+|---|---|---:|---|
+| `previous_epoch_id` | `EPOCH-*` | No | The immediately preceding epoch of the same `(workspace_id, warehouse_id)` |
+| `previous_epoch_start` | ISO-8601 | No | Start of that epoch |
+| `changed_at` | ISO-8601 | No | Must equal `warehouse.current_epoch.start_time` |
+| `changes[]` | `{knob, previous_value, current_value}` | No | Non-empty, sorted and unique by `knob`; values differ |
+| `measurement_status` | enum | No | `NOT_MEASURED` (the only value) |
+
+Null when the current epoch is the first in the retained history window or the config is identical. The change can be months old; consumers should read `changed_at`.
+
+## 14.3 `carried_forward_plan` (reserved; always null in 1.2.0 producers)
+
+A contingent replay of the preceding epoch's plan, planned for Stage 2. Its structure and invariants are defined and validated now so the contract does not change again when it ships. It never feeds candidate, scenario or package economics (pricing basis `CONTINGENT_CARRIED_FORWARD`, which plan steps may not use). Fields: `source_epoch_id`, `as_of`, `match_policy` (`EXACT_SINGLE_KNOB`), `match_outcome` (`MATCHED` | `MISMATCH` | `NOT_REPLAYABLE`), `match_reason_code`, `replay_fingerprint`, `steps[]` (`order`, `knob`, `technique_id`, `previous_value`, `recommended_value`, `disposition` of `COMPLETED` | `PENDING_REEVALUATION` | `INVALIDATED`, `reason_code`, `rebased_running_savings_365d`), `remaining_upside_365d`, `pricing_basis`. Savings are **rebased**: running savings after the last `COMPLETED` step are subtracted track by track, so an applied step is not counted again as upside. A non-null block requires `observed_change` and a non-null `reevaluation`, and `source_epoch_id` must equal `observed_change.previous_epoch_id`.
 
 ---
 
@@ -757,7 +806,12 @@ JSON Schema enforces shape, types, enums, nullability, patterns, and basic numer
 19. package future-cost envelope is recomputed from baseline and savings;
 20. package low/base/high envelope source scenarios are verified;
 21. currency mixing is rejected;
-22. `NOT_APPLIED` realization cannot carry measurement records.
+22. `NOT_APPLIED` realization cannot carry measurement records;
+23. `reevaluation` is non-null exactly when a gate is active, `blocking_codes` equals the active gates, and `earliest_reevaluation_time` recomputes from the epoch start and gates (never before the epoch start);
+24. `next_action = WAIT_FOR_REEVALUATION` requires a `reevaluation` window and no `READY`/`READY_FOR_CANARY` step in the recommended scenario;
+25. `observed_change.changed_at` equals the current epoch start, its `previous_epoch_id` differs from the current epoch, and its entries are sorted, unique and differ;
+26. `carried_forward_plan` (when present) satisfies the structural rules in section 14.3 and the cross-references to `observed_change` and `reevaluation`;
+27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis.
 
 ---
 
@@ -773,15 +827,17 @@ Because the v1 schema is deliberately strict (`additionalProperties: false`), im
 
 Any change to deterministic hash inputs is a **major contract change** unless a new hash-version field is introduced and both schemes coexist.
 
+**Amendment (1.2.0):** MINOR also covers adding required-but-nullable keys that are null for existing semantics, including new keys in the package hash payload, provided `contract_version` is part of every hash (so old and new IDs can never collide) and the schema is regenerated. Consumers must still upgrade before reading the new keys because `additionalProperties` is `false`. Contract 1.1.0 already followed this reading.
+
 ---
 
 # 20. Source-of-truth artifacts
 
-1. **Semantic contract:** `docs/reporter-json-contract-v1.1.0.md`
+1. **Semantic contract:** `docs/reporter-json-contract-v1.2.0.md`
 2. **Python executable contract:** `contracts/reporter_contract.py`
 3. **Schema builder:** `contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/contracts/test_reporter_contract.py`
 
-The workbook is intentionally not part of Reporter Contract v1.1.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.
+The workbook is intentionally not part of Reporter Contract v1.2.0. It will be designed only after the publisher emits this JSON contract without adapter-specific semantic loss.

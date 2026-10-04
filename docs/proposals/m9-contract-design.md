@@ -1,6 +1,6 @@
 # M9 contract design: show the next step after an applied change
 
-Status: **DESIGN SIGNED OFF on 2026-10-03 (decisions D1 to D7 as recommended in section 13). No contract, schema, workbook or publisher code has been written yet.** Implementation of Stage 1 is the next step; Stage 2 ships after M2. The CLAUDE.md exception in section 9 is **not** applied and will be shown again when Stage 2 is built. Method: `databricks-contract-designer` skill, applied to an existing locked contract, which "evolves deliberately by version" rather than being rebuilt in the generic form.
+Status: **DESIGN SIGNED OFF on 2026-10-03 (decisions D1 to D7 as recommended in section 13). No contract, schema, workbook or publisher code has been written yet.** **Stage 1 is implemented** (Reporter contract 1.2.0, Workbook contract 1.3.0, publisher 2.9.0; see tests/test_m9_stage1.py). Stage 2 ships after M2. The CLAUDE.md exception in section 9 is **not** applied and will be shown again when Stage 2 is built. Method: `databricks-contract-designer` skill, applied to an existing locked contract, which "evolves deliberately by version" rather than being rebuilt in the generic form.
 
 Inputs: `docs/proposals/audit-m-group-b.md` section M9 (options A/B/C and the ExecutionState taxonomy), `contracts/reporter_contract.py` (1.1.0), `contracts/reporter_schema.py`, `contracts/workbook_contract.py`, `docs/reporter-json-contract-v1.1.0.md`, `docs/workbook-contract-v1.2.0.md`.
 

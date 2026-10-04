@@ -1,6 +1,6 @@
-# Databricks SQL Warehouse Optimizer — v2.8.0
+# Databricks SQL Warehouse Optimizer — v2.9.0
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.1.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.2.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
 
 ## Canonical flow
 
@@ -14,9 +14,9 @@ flowchart LR
     A --> R1[Reviewer gate 1]
     R1 --> S[Scenario planner + stateful bundle estimator]
     S --> R2[Reviewer gate 2]
-    R2 --> P[RecommendationPackage v1.1.0]
+    R2 --> P[RecommendationPackage v1.2.0]
     P --> J[packages/*.json]
-    P --> W[Workbook Contract v1.2.0]
+    P --> W[Workbook Contract v1.3.0]
     W --> X1[workbook.xlsx]
 ```
 
@@ -53,7 +53,7 @@ The workbook contains exactly four sheets:
 
 Economic cells are numeric whenever available. Positive annual impact means savings; negative annual impact means cost increase and uses accounting-style parentheses/red formatting. Separate `Currency` and `Impact Type` columns make the meaning explicit. Unavailable economics are never coerced to zero.
 
-See [`docs/workbook-contract-v1.2.0.md`](docs/workbook-contract-v1.2.0.md).
+See [`docs/workbook-contract-v1.3.0.md`](docs/workbook-contract-v1.3.0.md).
 
 ## Synthetic 15-warehouse end-to-end test
 
@@ -97,8 +97,8 @@ Canonical approved documents:
 - [`docs/hld.md`](docs/hld.md) — high-level architecture.
 - [`docs/lld.md`](docs/lld.md) — implementation/contract design.
 - [`docs/context.md`](docs/context.md) — domain language and invariants.
-- [`docs/reporter-json-contract-v1.1.0.md`](docs/reporter-json-contract-v1.1.0.md) — machine contract.
-- [`docs/workbook-contract-v1.2.0.md`](docs/workbook-contract-v1.2.0.md) — workbook contract.
+- [`docs/reporter-json-contract-v1.2.0.md`](docs/reporter-json-contract-v1.2.0.md) — machine contract.
+- [`docs/workbook-contract-v1.3.0.md`](docs/workbook-contract-v1.3.0.md) — workbook contract.
 
 Supporting current references: `source-mapping.md`, `technique-catalog.md`, `thresholds.md`, `aws-cost-model.md`, `known-limitations.md`.
 

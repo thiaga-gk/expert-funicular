@@ -1,6 +1,6 @@
-"""Workbook Reporter Contract v1.1.0.
+"""Workbook Reporter Contract v1.3.0.
 
-A compact, human-facing projection of locked Reporter JSON Contract v1.1.0.
+A compact, human-facing projection of locked Reporter JSON Contract v1.2.0.
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from . import reporter_contract as rc
 
-WORKBOOK_CONTRACT_VERSION = "1.2.0"
+WORKBOOK_CONTRACT_VERSION = "1.3.0"
 SHEET_EXECUTIVE = "Executive Summary"
 SHEET_PORTFOLIO = "Warehouse Portfolio"
 SHEET_SCENARIOS = "Scenario Plans"
@@ -97,6 +97,9 @@ PORTFOLIO_COLUMNS = (
     ColumnSpec("scenario_confidence_score", "Conf. score", 11, "0.00"),
     ColumnSpec("next_action", "Next action", 24),
     ColumnSpec("requires_hitl", "HITL?", 9),
+    ColumnSpec("earliest_reevaluation_time", "Earliest re-evaluation (UTC)", 24, "@"),
+    ColumnSpec("reevaluation_blockers", "Re-evaluation blockers", 30, wrap=True),
+    ColumnSpec("observed_change", "Observed config change", 38, wrap=True),
     ColumnSpec("overall_status", "Overall status", 22),
     ColumnSpec("evidence_quality_status", "Evidence quality", 17),
     ColumnSpec("evidence_confidence_level", "Evidence conf.", 13),
@@ -122,7 +125,7 @@ PORTFOLIO_GROUPS = (
     ColumnGroup("Current configuration", "warehouse_type", "photon_status"),
     ColumnGroup("Cost baseline", "currency", "forward_total_cost_365d"),
     ColumnGroup("Package opportunity", "package_base_impact_type", "impact_pct"),
-    ColumnGroup("Recommended plan", "recommended_scenario_id", "requires_hitl"),
+    ColumnGroup("Recommended plan", "recommended_scenario_id", "observed_change"),
     ColumnGroup("Assessment", "overall_status", "insufficient_evidence_count"),
     ColumnGroup("Decision view", "candidate_view", "recommended_execution_plan"),
     ColumnGroup("Audit / traceability", "query_source_profile_json", "evidence_summary_json"),
@@ -488,6 +491,15 @@ def _candidate_realization_fields(package: rc.RecommendationPackage, candidate_i
         "rollback_required": last.outcome.rollback_required, "realization_records_json": _json(records),
     }
 
+def observed_change_text(package: rc.RecommendationPackage) -> str:
+    """Text projection of the observed config change, dated so an old change is not read as a fresh one."""
+    change = package.observed_change
+    if change is None:
+        return DISPLAY_NA
+    parts = [f"{_enum(c.knob)} {_candidate_scalar(c.previous_value)}→{_candidate_scalar(c.current_value)}" for c in change.changes]
+    return f"{'; '.join(parts)} ({change.changed_at[:10]})"
+
+
 def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, Any]:
     b, pe = package.cost_baseline, package.package_economics
     recommended = next((s for s in package.scenarios if s.scenario_id == package.recommended_plan.scenario_id), None)
@@ -521,6 +533,9 @@ def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, 
         "scenario_confidence_level": _display(None if recommended is None else _enum(recommended.confidence.level), missing="UNKNOWN"),
         "scenario_confidence_score": _display(None if recommended is None else recommended.confidence.score, missing="UNKNOWN"),
         "next_action": _display(package.recommended_plan.next_action), "requires_hitl": package.recommended_plan.requires_hitl,
+        "earliest_reevaluation_time": _display(None if package.recommended_plan.reevaluation is None else package.recommended_plan.reevaluation.earliest_reevaluation_time),
+        "reevaluation_blockers": _display(None if package.recommended_plan.reevaluation is None else "; ".join(package.recommended_plan.reevaluation.blocking_codes)),
+        "observed_change": observed_change_text(package),
         "overall_status": _enum(package.assessment.overall_status), "evidence_quality_status": _enum(package.assessment.evidence_quality.status),
         "evidence_confidence_level": _enum(package.assessment.evidence_quality.confidence.level),
         "candidate_count": summary.candidate_count, "actionable_count": summary.actionable_count, "test_required_count": summary.test_required_count,

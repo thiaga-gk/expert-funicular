@@ -42,16 +42,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from contracts import reporter_contract as rc
 
-PUBLISHER_VERSION = "2.8.0"
+PUBLISHER_VERSION = "2.9.0"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.8.0"
-ANALYZER_VERSION = "sql-warehouse-analyzer-v2.8.0"
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.8.0"
+POLICY_VERSION = "sql-warehouse-policy-v2.9.0"
+ANALYZER_VERSION = "sql-warehouse-analyzer-v2.9.0"
+OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.9.0"
 MODEL_VERSION = "epoch-runrate-v2.7"
-ESTIMATOR_VERSION = "counterfactual-v2.8.0"
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.8.0"
-REVIEWER_VERSION = "recommendation-reviewer-v2.8.0"
-DECISION_VERSION = "warehouse-decision-graph-v2.8.0"
+ESTIMATOR_VERSION = "counterfactual-v2.9.0"
+BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.9.0"
+REVIEWER_VERSION = "recommendation-reviewer-v2.9.0"
+DECISION_VERSION = "warehouse-decision-graph-v2.9.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
@@ -2724,7 +2724,7 @@ class ScenarioPlanner:
 
 
 # ---------------------------------------------------------------------------
-# Locked Reporter JSON Contract v1.1.0 adapter / canonical JSON packaging
+# Locked Reporter JSON Contract v1.2.0 adapter / canonical JSON packaging
 # ---------------------------------------------------------------------------
 
 
@@ -3560,13 +3560,83 @@ def _package_economics(
     )
 
 
+def compute_reevaluation(e: WarehouseEvidence, thresholds: Thresholds, *, start_time: str, epoch_age: int) -> Optional[rc.ReevaluationWindow]:
+    """Time-clearable gates that currently hide the next step; None once both are clear (contract 1.2.0).
+
+    Pure function of the epoch start, the epoch age and the cost-history days. The contract validator embeds the same
+    gate lengths, so a policy change to them must travel with a contract version bump.
+    """
+    if (thresholds.current_config_stability_days, thresholds.min_economics_cost_history_days) != (
+        rc.REEVALUATION_EPOCH_MATURITY_DAYS, rc.REEVALUATION_COST_HISTORY_DAYS
+    ):
+        raise ValueError("Re-evaluation gate thresholds differ from the locked contract constants; bump the contract version")
+    codes = []
+    if e.cost_history_days < thresholds.min_economics_cost_history_days:
+        codes.append("COST_HISTORY_INSUFFICIENT")
+    if epoch_age < thresholds.current_config_stability_days:
+        codes.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+    if not codes:
+        return None
+    return rc.ReevaluationWindow(
+        status=rc.ReevaluationStatus.WAITING_FOR_EVIDENCE,
+        earliest_reevaluation_time=rc.expected_earliest_reevaluation_time(start_time, sorted(codes)),
+        blocking_codes=sorted(codes),
+        method=(
+            f"Later of the active gates: epoch start + {rc.REEVALUATION_EPOCH_MATURITY_DAYS} days (config-epoch maturity) and "
+            f"00:00Z of epoch start date + {rc.REEVALUATION_COST_HISTORY_DAYS} days (cost-history floor). "
+            "Earliest only: billing ingestion lag and query-sample gates can delay it."
+        ),
+    )
+
+
+def derive_observed_change(e: WarehouseEvidence) -> Optional[rc.ObservedConfigChange]:
+    """Config diff between the immediately preceding epoch and the current one (authoritative, unmeasured; contract 1.2.0)."""
+    cur = e.current_epoch
+    cur_start = parse_datetime(cur.epoch_start)
+    prior = [x for x in e.epochs if not x.is_current and (parse_datetime(x.epoch_start) or cur_start) < cur_start]
+    if not prior:
+        return None
+    prev = max(prior, key=lambda x: parse_datetime(x.epoch_start))
+    changes = [
+        rc.ConfigChange(rc.TunableKnob(knob), getattr(prev.config, knob), getattr(cur.config, knob))
+        for knob in sorted(("warehouse_type", "warehouse_channel", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes"))
+        if getattr(prev.config, knob) != getattr(cur.config, knob)
+    ]
+    if not changes:
+        return None
+    pc = prev.config
+    previous_epoch_id = rc.make_epoch_id(
+        workspace_id=e.workspace_id, warehouse_id=e.warehouse_id, start_time=_iso_z(prev.epoch_start),
+        warehouse_type=pc.warehouse_type, warehouse_size=pc.warehouse_size, min_clusters=pc.min_clusters,
+        max_clusters=pc.max_clusters, auto_stop_minutes=pc.auto_stop_minutes, warehouse_channel=pc.warehouse_channel,
+    )
+    return rc.ObservedConfigChange(
+        previous_epoch_id=previous_epoch_id, previous_epoch_start=_iso_z(prev.epoch_start), changed_at=_iso_z(cur.epoch_start),
+        changes=sorted(changes, key=lambda c: c.knob.value), measurement_status=rc.MeasurementStatus.NOT_MEASURED,
+    )
+
+
 def _recommended_plan(
     scenarios: Sequence[rc.Scenario],
+    reevaluation: Optional[rc.ReevaluationWindow] = None,
 ) -> rc.RecommendedPlan:
     recommended = next((s for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED), None)
     if recommended is None:
-        return rc.RecommendedPlan(None, "NO_RECOMMENDED_SCENARIO", "REVIEW_EVIDENCE", True, "No scenario currently satisfies the deterministic selection policy.")
+        return rc.RecommendedPlan(None, "NO_RECOMMENDED_SCENARIO", "REVIEW_EVIDENCE", True, "No scenario currently satisfies the deterministic selection policy.", reevaluation)
     first = recommended.execution_plan[0] if recommended.execution_plan else None
+    ready = any(x.execution_state in (rc.ExecutionState.READY, rc.ExecutionState.READY_FOR_CANARY) for x in recommended.execution_plan)
+    if reevaluation is not None and not ready:
+        return rc.RecommendedPlan(
+            scenario_id=recommended.scenario_id,
+            selection_reason_code="CURRENT_EPOCH_IMMATURE",
+            next_action="WAIT_FOR_REEVALUATION",
+            requires_hitl=True,
+            decision_summary=(
+                f"{recommended.scenario_name} has no step ready yet: the current epoch is too new for a trustworthy decision. "
+                f"Earliest re-evaluation is {reevaluation.earliest_reevaluation_time} (gates: {', '.join(reevaluation.blocking_codes)})."
+            ),
+            reevaluation=reevaluation,
+        )
     if first is None:
         next_action = "REVIEW_SCENARIO"
     elif first.step_type == rc.PlanStepType.COMPATIBILITY_VALIDATION:
@@ -3582,6 +3652,7 @@ def _recommended_plan(
         next_action=next_action,
         requires_hitl=True,
         decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
+        reevaluation=reevaluation,
     )
 
 
@@ -3591,7 +3662,7 @@ def _build_locked_recommendation_package(
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
 ) -> rc.RecommendationPackage:
-    """Build one immutable Reporter JSON Contract v1.1.0 package from reviewed decisions."""
+    """Build one immutable Reporter JSON Contract v1.2.0 package from reviewed decisions."""
     ep = e.current_epoch
     start_time = _iso_z(ep.epoch_start)
     contract_epoch_id = rc.make_epoch_id(
@@ -3609,7 +3680,8 @@ def _build_locked_recommendation_package(
     scenario_contracts, _ = _scenario_contracts(
         e, scenarios, contract_epoch_id, candidates_by_internal_id, candidate_contracts, compatibility_map
     )
-    recommended = _recommended_plan(scenario_contracts)
+    reevaluation = compute_reevaluation(e, thresholds, start_time=start_time, epoch_age=epoch_age_days(ep, e.analysis_time))
+    recommended = _recommended_plan(scenario_contracts, reevaluation)
     package_economics = _package_economics(e, scenario_contracts, recommended.scenario_id)
     evidence_fingerprint = rc.make_evidence_fingerprint(
         workspace_id=e.workspace_id, warehouse_id=e.warehouse_id, epoch_id=contract_epoch_id,
@@ -3663,6 +3735,8 @@ def _build_locked_recommendation_package(
             aggregate=rc.RealizationAggregate(0, 0, 0, e.currency, 0.0, 0.0),
         ),
         provenance=provenance,
+        observed_change=derive_observed_change(e),
+        carried_forward_plan=None,  # Stage 2 (carried-forward preview) is reserved and not produced yet
     )
     package = dataclasses.replace(package, recommendation_package_id=package.expected_package_id())
     package = dataclasses.replace(
@@ -3783,7 +3857,7 @@ def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
     try:
         import jsonschema  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.1.0 output") from exc
+        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.2.0 output") from exc
     schema = json.loads(_CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator(schema).validate(dict(payload))
 
@@ -3800,7 +3874,7 @@ def package_locked_contract(
     *,
     generate_workbook: bool = True,
 ) -> Dict[str, str]:
-    """Write locked JSON packages plus the Workbook Contract v1.2.0 projection.
+    """Write locked JSON packages plus the Workbook Contract v1.3.0 projection.
 
     Every packages/*.json file remains the source of truth. workbook.xlsx is a
     presentation-only projection and is never read back into the decision engine.
@@ -3848,7 +3922,7 @@ def package_locked_contract(
         "generated_at": max((p.provenance.generated_at for p in packages), default=dt.datetime.now(dt.timezone.utc).isoformat()),
         "package_count": len(packages),
         "packages": entries,
-        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.1.0 RecommendationPackage.",
+        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.2.0 RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
         "workbook_file": None if workbook_path is None else workbook_path.name,
@@ -4208,7 +4282,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.8.0 (Reporter Contract v1.1.0 + Workbook Contract v1.2.0)")
+    p=argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse optimizer v2.9.0 (Reporter Contract v1.2.0 + Workbook Contract v1.3.0)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])
@@ -4274,7 +4348,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.1.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
+        print(f"Analyzed {len(evidence)} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios.")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0

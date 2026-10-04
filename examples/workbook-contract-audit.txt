@@ -1,8 +1,8 @@
-Workbook Contract v1.2.0 — Contract Audit
+Workbook Contract v1.3.0 — Contract Audit
 =========================================
-Publisher: 2.8.0
-Reporter JSON Contract: 1.1.0
-Workbook Contract: 1.2.0
+Publisher: 2.9.0
+Reporter JSON Contract: 1.2.0
+Workbook Contract: 1.3.0
 
 Locked visible sheets
 - Executive Summary
@@ -16,7 +16,7 @@ Locked grains from the 15-warehouse synthetic run
 - Recommendation Registry: 90 candidate rows
 
 Exact detailed-sheet column contracts
-- Warehouse Portfolio: 58 columns (PORTFOLIO_COLUMNS)
+- Warehouse Portfolio: 61 columns (PORTFOLIO_COLUMNS; includes the 3 re-evaluation / observed-change columns added in 1.3.0)
 - Scenario Plans: 45 columns (SCENARIO_COLUMNS; includes the 3 contingent-upside columns added in 1.2.0)
 - Recommendation Registry: 53 columns (REGISTRY_COLUMNS)
 
