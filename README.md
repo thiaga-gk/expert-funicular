@@ -1,6 +1,6 @@
 # Databricks SQL Warehouse Optimizer
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v1.2.0** as the machine source of truth and **Workbook Reporter Contract v1.3.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v1.3.0** as the machine source of truth and **Workbook Reporter Contract v1.4.0** as the professional human projection.
 
 ## Install
 
@@ -23,9 +23,9 @@ flowchart LR
     A --> R1[Reviewer gate 1]
     R1 --> S[Scenario planner + stateful bundle estimator]
     S --> R2[Reviewer gate 2]
-    R2 --> P[RecommendationPackage v1.2.0]
+    R2 --> P[RecommendationPackage v1.3.0]
     P --> J[packages/*.json]
-    P --> W[Workbook Contract v1.3.0]
+    P --> W[Workbook Contract v1.4.0]
     W --> X1[workbook.xlsx]
 ```
 
@@ -35,7 +35,7 @@ The workbook never recalculates recommendations, confidence, IDs, or scenario ec
 
 Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unknown warehouse type fails closed before optimization. Lakehouse Real-Time is not modeled by this release.
 
-Active candidate domains (one candidate per domain/warehouse): warehouse channel guardrail, warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Photon is observed from billing but left at its default (never recommended). Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
+Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
 ## Output directory
 

@@ -1,6 +1,6 @@
-"""Workbook Reporter Contract v1.3.0.
+"""Workbook Reporter Contract v1.4.0.
 
-A compact, human-facing projection of locked Reporter JSON Contract v1.2.0.
+A compact, human-facing projection of locked Reporter JSON Contract v1.3.0.
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from . import reporter_contract as rc
 
-WORKBOOK_CONTRACT_VERSION = "1.3.0"
+WORKBOOK_CONTRACT_VERSION = "1.4.0"
 SHEET_EXECUTIVE = "Executive Summary"
 SHEET_PORTFOLIO = "Warehouse Portfolio"
 SHEET_SCENARIOS = "Scenario Plans"
@@ -229,6 +229,9 @@ REGISTRY_COLUMNS = (
     ColumnSpec("estimated_total_cost_base", "Est. cost base", 14, MONEY_FORMAT),
     ColumnSpec("estimated_total_cost_high", "Est. cost high", 14, MONEY_FORMAT),
     ColumnSpec("is_additive", "Additive?", 10),
+    ColumnSpec("plan_step", "Plan step", 9, "#,##0"),
+    ColumnSpec("plan_step_savings_base_365d", "Step savings (base)", 15, MONEY_FORMAT),
+    ColumnSpec("plan_step_pricing_basis", "Step pricing", 16),
     ColumnSpec("realization_status", "Realization", 14),
     ColumnSpec("applied_at", "Applied at", 20),
     ColumnSpec("validation_status", "Validation", 15),
@@ -253,6 +256,7 @@ REGISTRY_GROUPS = (
     ColumnGroup("Decision", "knob", "rationale"),
     ColumnGroup("Confidence", "confidence_score", "confidence_level"),
     ColumnGroup("Independent economics", "economics_available", "is_additive"),
+    ColumnGroup("Recommended plan step", "plan_step", "plan_step_pricing_basis"),
     ColumnGroup("Realization", "realization_status", "rollback_required"),
     ColumnGroup("Evidence / audit", "decision_rule", "realization_records_json"),
 )
@@ -407,6 +411,22 @@ def _pricing_tag(step: rc.PlanStep) -> str:
     return "; priced " + ("CONTINGENT" if contingent else "AUTHORITATIVE")
 
 
+def _step_savings_text(step: rc.PlanStep) -> str:
+    """'; step saves N/yr (base)' from the step's own total savings (contract 1.3.0); negative reads as a cost increase."""
+    pe = step.projected_economics
+    total = None if pe is None or pe.step_savings_365d is None else pe.step_savings_365d.total
+    if total is None:
+        return ""
+    base = round(float(total.base))
+    return f"; step saves {base:,}/yr (base)" if base >= 0 else f"; step costs {-base:,}/yr more (base)"
+
+
+def _recommended_step(package: rc.RecommendationPackage, candidate_id: str) -> Optional[rc.PlanStep]:
+    sid = package.recommended_plan.scenario_id
+    scenario = next((s for s in package.scenarios if s.scenario_id == sid), None)
+    return None if scenario is None else next((x for x in scenario.execution_plan if x.candidate_id == candidate_id), None)
+
+
 def execution_plan_text(package: rc.RecommendationPackage) -> str:
     sid = package.recommended_plan.scenario_id
     scenario = next((s for s in package.scenarios if s.scenario_id == sid), None)
@@ -420,7 +440,7 @@ def execution_plan_text(package: rc.RecommendationPackage) -> str:
             action = f"{_enum(step.knob)} {cur}→{rec}"
         else:
             action = step.action or _enum(step.step_type)
-        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}"
+        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}{_step_savings_text(step)}"
         if step.validation.remeasure_days:
             text += f"; remeasure {step.validation.remeasure_days}d"
         parts.append(text)
@@ -436,7 +456,7 @@ def execution_plan_text_for_scenario(s: rc.Scenario) -> str:
             action = f"{_enum(step.knob)} {cur}→{rec}"
         else:
             action = step.action or _enum(step.step_type)
-        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}"
+        text = f"{step.step}. {action} [{_enum(step.execution_state)}]{_pricing_tag(step)}{_step_savings_text(step)}"
         if step.validation.remeasure_days:
             text += f"; remeasure {step.validation.remeasure_days}d"
         parts.append(text)
@@ -587,6 +607,9 @@ def project_scenario(package: rc.RecommendationPackage, s: rc.Scenario) -> Dict[
 def project_candidate(package: rc.RecommendationPackage, c: rc.CandidateRecommendation) -> Dict[str, Any]:
     e, evidence, thresholds = c.independent_economics, _candidate_evidence(package, c), _candidate_thresholds(package, c)
     realization = _candidate_realization_fields(package, c.candidate_id)
+    plan_step = _recommended_step(package, c.candidate_id)
+    step_pe = None if plan_step is None else plan_step.projected_economics
+    step_total = None if step_pe is None or step_pe.step_savings_365d is None else step_pe.step_savings_365d.total
     row = {
         "recommendation_package_id": package.recommendation_package_id, "candidate_id": c.candidate_id, "technique_id": c.technique_id,
         "workspace_id": package.warehouse.workspace_id, "warehouse_id": package.warehouse.warehouse_id, "warehouse_name": package.warehouse.warehouse_name,
@@ -607,11 +630,18 @@ def project_candidate(package: rc.RecommendationPackage, c: rc.CandidateRecommen
         "total_high_impact": _signed_amount(_range_component(e.savings_365d.total, "high")),
         "estimated_total_cost_low": _range_bound_or_unavailable(e.estimated_cost_365d.total, "low"), "estimated_total_cost_base": _range_bound_or_unavailable(e.estimated_cost_365d.total, "base"),
         "estimated_total_cost_high": _range_bound_or_unavailable(e.estimated_cost_365d.total, "high"), "is_additive": e.is_additive,
+        "plan_step": DISPLAY_NA if plan_step is None else plan_step.step,
+        "plan_step_savings_base_365d": DISPLAY_NA if plan_step is None else _signed_amount(None if step_total is None else step_total.base),
+        "plan_step_pricing_basis": DISPLAY_NA if plan_step is None else (DISPLAY_UNAVAILABLE if step_pe is None else _enum(step_pe.pricing_basis)),
         "scenario_membership_json": _json(_scenario_membership(package, c.candidate_id)), **realization,
     }
     return _sanitize_row(row)
 
-def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_rows: Sequence[Mapping[str, Any]]) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def project_executive(
+    packages: Sequence[rc.RecommendationPackage],
+    portfolio_rows: Sequence[Mapping[str, Any]],
+    excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     currencies = sorted({p.cost_baseline.currency for p in packages})
     same_currency = len(currencies) == 1
     currency = currencies[0] if same_currency else "MIXED"
@@ -637,6 +667,21 @@ def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_ro
     recommended_cost_increase = round(sum(max(-v, 0.0) for v in bases), 2) if same_currency else None
     net = None if recommended_savings is None else round(recommended_savings - (recommended_cost_increase or 0.0), 2)
 
+    # Workbook 1.4.0: the recommended plan's own low/base/high, separate from the experiment (alternative) upside.
+    def _scenario_total(p: rc.RecommendationPackage, recommended: bool) -> List[rc.Range3]:
+        return [s.portfolio_economics.savings_365d.total for s in p.scenarios
+                if (s.scenario_id == p.recommended_plan.scenario_id) == recommended
+                and (recommended or s.scenario_type == rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION)
+                and s.status not in (rc.ScenarioStatus.BLOCKED, rc.ScenarioStatus.INSUFFICIENT_EVIDENCE)
+                and (recommended or s.compatibility.status != rc.CompatibilityStatus.INCOMPATIBLE)  # a failed check is not upside
+                and s.portfolio_economics.savings_365d.total is not None]
+    plan_ranges = [r for p in packages for r in _scenario_total(p, True)]
+    experiment_highs = [max(r.high for r in rs) for rs in (_scenario_total(p, False) for p in packages) if rs]
+    plan_sum = {b: (round(sum(float(getattr(r, b)) for r in plan_ranges), 2) if same_currency else None) for b in ("low", "base", "high")}
+    experiment_upside = round(sum(max(float(h), 0.0) for h in experiment_highs), 2) if same_currency else None
+    plan_note = f"{len(plan_ranges)} of {len(packages)} recommended plans priced; unpriced plans are excluded, not zero"
+    exclusion_types = sorted({str(x.get("warehouse_type")) for x in excluded_warehouses or ()})
+
 
     metrics = [
         {"section":"Coverage","metric":"Workbook contract","value":WORKBOOK_CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Compact projection of the Reporter JSON Contract"},
@@ -644,14 +689,19 @@ def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_ro
         {"section":"Coverage","metric":"Warehouses assessed","value":len(packages),"currency":DISPLAY_NA,"notes":"One immutable package per warehouse/current epoch"},
         {"section":"Coverage","metric":"Workspaces","value":len({p.warehouse.workspace_id for p in packages}),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Coverage","metric":"Regions","value":len({p.warehouse.region for p in packages}),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
-        {"section":"Coverage","metric":"Economically assessable","value":len(assessable),"currency":DISPLAY_NA,"notes":f"Excluded: {len(packages)-len(assessable)}"},
+        {"section":"Coverage","metric":"Excluded (unsupported type)","value":DISPLAY_UNAVAILABLE if excluded_warehouses is None else len(excluded_warehouses),"currency":DISPLAY_NA,"notes":DISPLAY_NA if not exclusion_types else "Types: " + ", ".join(exclusion_types) + "; see manifest.json excluded_warehouses"},
+        {"section":"Coverage","metric":"Economically assessable","value":len(assessable),"currency":DISPLAY_NA,"notes":f"Not priced: {len(packages)-len(assessable)}"},
         {"section":"Cost","metric":"Actual trailing 365d","value":_money_or_unavailable(actual_total),"currency":currency,"notes":"UNAVAILABLE when any package lacks historical AWS total"},
         {"section":"Cost","metric":"Forward 365d baseline","value":_money_or_unavailable(forward_total),"currency":currency,"notes":"No-change forecast"},
         {"section":"Economic impact","metric":"Recommended annual savings","value":_money_or_unavailable(recommended_savings),"currency":currency,"notes":"Sum of positive recommended-scenario base impacts"},
         {"section":"Economic impact","metric":"Recommended annual cost increase","value":_money_or_unavailable(recommended_cost_increase),"currency":currency,"notes":"Absolute sum of negative recommended-scenario base impacts"},
         {"section":"Economic impact","metric":"Recommended net annual impact","value":_money_or_unavailable(net),"currency":currency,"notes":"Positive = net savings; negative = net cost increase"},
-        {"section":"Economic impact","metric":"Scenario envelope low","value":_money_or_unavailable(downside),"currency":currency,"notes":"Lowest package-level modeled impact across the portfolio"},
-        {"section":"Economic impact","metric":"Scenario envelope high","value":_money_or_unavailable(upside),"currency":currency,"notes":"Highest package-level modeled impact across the portfolio"},
+        {"section":"Recommended plan savings","metric":"Plan savings low","value":_money_or_unavailable(plan_sum["low"]),"currency":currency,"notes":plan_note},
+        {"section":"Recommended plan savings","metric":"Plan savings base","value":_money_or_unavailable(plan_sum["base"]),"currency":currency,"notes":plan_note},
+        {"section":"Recommended plan savings","metric":"Plan savings high","value":_money_or_unavailable(plan_sum["high"]),"currency":currency,"notes":plan_note},
+        {"section":"Experiment upside","metric":"Migration experiment high","value":_money_or_unavailable(experiment_upside),"currency":currency,"notes":f"Sum of positive migration-experiment high bounds ({sum(1 for h in experiment_highs if h > 0)} warehouses); an alternative to the recommended plan, not additive, unvalidated until canary"},
+        {"section":"Economic impact","metric":"Scenario envelope low","value":_money_or_unavailable(downside),"currency":currency,"notes":"Sum of package lows across all scenarios, including experiments; not a plan total"},
+        {"section":"Economic impact","metric":"Scenario envelope high","value":_money_or_unavailable(upside),"currency":currency,"notes":"Sum of package highs across all scenarios, including experiments; not a plan total"},
         {"section":"Confidence","metric":"HIGH recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="HIGH"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Confidence","metric":"MEDIUM recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="MEDIUM"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Confidence","metric":"LOW recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="LOW"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
@@ -678,11 +728,13 @@ def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_ro
     return [_sanitize_row(x) for x in metrics], [_sanitize_row(x) for x in opportunities]
 
 
-def project_workbook(packages: Sequence[rc.RecommendationPackage]) -> WorkbookProjection:
+def project_workbook(
+    packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
+) -> WorkbookProjection:
     portfolio = [project_warehouse_portfolio(p) for p in packages]
     scenarios = [project_scenario(p, s) for p in packages for s in p.scenarios]
     registry = [project_candidate(p, c) for p in packages for c in p.candidates]
-    metrics, opportunities = project_executive(packages, portfolio)
+    metrics, opportunities = project_executive(packages, portfolio, excluded_warehouses)
     result = WorkbookProjection(metrics, opportunities, portfolio, scenarios, registry)
     result.validate(packages)
     return result

@@ -1,7 +1,7 @@
-"""Excel workbook reporter for Workbook Contract v1.3.0.
+"""Excel workbook reporter for Workbook Contract v1.4.0.
 
 The workbook is a presentation-only projection of locked Reporter JSON Contract
-v1.2.0.  Exact detailed-sheet columns and section groups are owned by
+v1.3.0.  Exact detailed-sheet columns and section groups are owned by
 ``contracts.workbook_contract``; this renderer cannot silently drop fields.
 
 Rendered with ``openpyxl`` (pip-installable); no proprietary runtime is required.
@@ -264,7 +264,7 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
     _sheet_title(
         sheet,
         "SQL Warehouse Optimization — Executive Summary",
-        "Decision-ready portfolio view from Reporter JSON Contract v1.2.0. Financial cells are numeric; impact direction is explicit and sortable.",
+        f"Decision-ready portfolio view from Reporter JSON Contract v{rc.CONTRACT_VERSION}. Financial cells are numeric; impact direction is explicit and sortable.",
         20,
     )
     # Section labels make the side-by-side layout obvious.
@@ -304,7 +304,7 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
         ("warehouse_name", "Warehouse"), ("owner", "Owner"), ("currency", "Currency"),
         ("forward_total_cost_365d", "Forward baseline"), ("recommended_impact_type", "Impact type"),
         ("recommended_annual_impact", "Recommended annual impact"), ("scenario_low_impact", "Scenario low"),
-        ("scenario_high_impact", "Scenario high"), ("impact_pct", "Impact %"),
+        ("scenario_high_impact", "Envelope high (any scenario)"), ("impact_pct", "Impact %"),
         ("recommended_scenario_name", "Recommended plan"), ("scenario_confidence_level", "Confidence"),
         ("next_action", "Next action"), ("savings_amount", "Savings"), ("cost_increase_amount", "Cost increase"),
     ]
@@ -366,7 +366,7 @@ def _build_scenarios(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
     sheet = wb.create_sheet(wc.SHEET_REGISTRY)
-    _sheet_title(sheet, "Recommendation Registry", "One row per candidate. Decision, economics, realization and audit evidence align to Workbook Contract v1.3.0.", len(wc.REGISTRY_COLUMNS))
+    _sheet_title(sheet, "Recommendation Registry", f"One row per candidate. Decision, economics, realization and audit evidence align to Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION}.", len(wc.REGISTRY_COLUMNS))
     _write_contract_table(
         sheet, columns=wc.REGISTRY_COLUMNS, groups=wc.REGISTRY_GROUPS, rows=projection.recommendation_registry,
         table_name="RecommendationRegistry", freeze_columns=6, row_height=32,
@@ -375,11 +375,13 @@ def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
     )
 
 
-def write_workbook(path: str | Path, packages: Sequence[rc.RecommendationPackage]) -> Path:
+def write_workbook(
+    path: str | Path, packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
+) -> Path:
     """Generate the locked four-sheet workbook projection and save it to *path*."""
     for package in packages:
         package.validate()
-    projection = wc.project_workbook(packages)
+    projection = wc.project_workbook(packages, excluded_warehouses)
     wb = Workbook()
     wb.remove(wb.active)  # drop the default empty sheet: the contract has exactly four visible sheets
     _build_executive(wb, projection)

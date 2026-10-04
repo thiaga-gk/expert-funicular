@@ -1,5 +1,5 @@
 {
-  "description": "C37 Month/quarter-end seasonality: Pro MEDIUM 1/8, weekday BI plus a half-year-end close at 6 or more clusters. The last 30 days peak at 2 clusters; the current epoch (events retained 365 days) peaked at 8. The ceiling is not cut below the epoch's peak, so 8 -> 3 is held. Evidence is the demo fleet's simulated warehouse.",
+  "description": "C37 Month/quarter-end seasonality: Pro MEDIUM 1/8, weekday BI plus a half-year-end close at 6 or more clusters. The last 30 days peak at 2 clusters; the current epoch (events retained 365 days) peaked at 8. The ceiling is not cut below the epoch's peak, so 8 -> 3 is held, and the MEDIUM -> SMALL downsize waits for the same peak. Evidence is the demo fleet's simulated warehouse.",
   "evidence": [
     {
       "account_id": "acct-demo",
@@ -3336,6 +3336,14 @@
             "p99_execution_ms_30": 9000,
             "power_bi_queries_30": 0,
             "queries_30": 394682,
+            "queries_week_1": 90697,
+            "queries_week_2": 85272,
+            "queries_week_3": 93718,
+            "queries_week_4": 91355,
+            "queries_week_5": 86003,
+            "queries_week_6": 89922,
+            "queries_week_7": 89750,
+            "queries_week_8": 91051,
             "queued_queries_30": 1096,
             "queued_query_pct_30": 0.2777,
             "result_cache_pct_30": 10.0,
@@ -4660,6 +4668,16 @@
       {
         "equals": 8,
         "path": "evidence[metric=epoch_max_observed_clusters].value"
+      },
+      {
+        "equals": "NO_CHANGE",
+        "path": "candidates[knob=warehouse_size].status"
+      },
+      {
+        "includes": [
+          "PEAK_OUTSIDE_RECENT_WINDOW"
+        ],
+        "path": "candidates[knob=warehouse_size].blockers"
       }
     ],
     "scenario": "C37",

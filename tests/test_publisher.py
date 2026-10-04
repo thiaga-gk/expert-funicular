@@ -21,9 +21,10 @@ class PublisherV27Tests(unittest.TestCase):
         self.by_knob = {c.knob: c for c in self.w.candidates}
         self.packages = p.build_recommendation_packages(self.evidence, self.t)
 
-    def test_six_deterministic_candidates_and_no_photon_recommendation(self):
+    def test_five_deterministic_candidates_and_no_photon_or_channel_recommendation(self):
         self.assertEqual(set(self.by_knob), set(p.ACTIVE_KNOBS))
-        self.assertEqual(len(self.w.candidates), 6)
+        self.assertEqual(len(self.w.candidates), 5)
+        self.assertNotIn("warehouse_channel", self.by_knob)
         self.assertNotIn("enable_photon", self.by_knob)
 
     def test_expected_demo_decisions(self):
@@ -120,20 +121,22 @@ class PublisherV27Tests(unittest.TestCase):
     def test_plan_a_authoritative_savings_stop_at_the_first_invalidating_step(self):
         plan = self.plan_a()
         states = {x.knob: x.execution_state for x in plan.steps}
+        self.assertEqual(states["auto_stop_minutes"], "READY_FOR_HITL")  # independent of size: never held
         self.assertEqual(states["warehouse_size"], "READY_FOR_CANARY")
-        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+        for knob in ("max_clusters", "min_clusters"):
             self.assertEqual(states[knob], "PENDING_REEVALUATION")
         size = next(x for x in plan.steps if x.knob == "warehouse_size")
         auth = plan.portfolio_estimate.estimated_savings_range_365
-        # The authoritative scenario figure is exactly the size step; pending steps add nothing to it.
+        # The authoritative figure is the running total through the size step; pending steps add nothing to it.
         self.assertAlmostEqual(auth.base, size.running_estimated_savings_range_365.base, places=2)
         self.assertAlmostEqual(auth.high, size.running_estimated_savings_range_365.high, places=2)
 
     def test_pending_steps_are_priced_as_a_labeled_contingent_upside(self):
         plan = self.plan_a()
         basis = {x.knob: x.pricing_basis for x in plan.steps}
-        self.assertEqual(basis["warehouse_size"], "AUTHORITATIVE")
-        for knob in ("max_clusters", "min_clusters", "auto_stop_minutes"):
+        for knob in ("auto_stop_minutes", "warehouse_size"):
+            self.assertEqual(basis[knob], "AUTHORITATIVE")
+        for knob in ("max_clusters", "min_clusters"):
             self.assertEqual(basis[knob], "CONTINGENT_PENDING_REEVALUATION")
         contingent = plan.portfolio_estimate.contingent
         self.assertIsNotNone(contingent)
@@ -210,7 +213,7 @@ class PublisherV27Tests(unittest.TestCase):
         plan_a = next(s for s in self.w.scenarios if s.name.startswith("Plan A"))
         plan_b = next(s for s in self.w.scenarios if s.name.startswith("Plan B"))
         self.assertTrue(plan_a.recommended)
-        self.assertEqual([x.knob for x in plan_a.steps], ["warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"])
+        self.assertEqual([x.knob for x in plan_a.steps], ["auto_stop_minutes", "warehouse_size", "min_clusters", "max_clusters"])
         self.assertEqual(plan_b.portfolio_estimate.estimate_status, "PRE_CANARY_MODELED_RANGE")
         self.assertIsNotNone(plan_b.portfolio_estimate.dbu_365d_savings_range)
         self.assertIsNotNone(plan_b.portfolio_estimate.aws_365d_savings_range)
@@ -231,7 +234,7 @@ class PublisherV27Tests(unittest.TestCase):
             payload = json.loads(Path(files[f"package:{self.evidence[0].workspace_id}:{self.evidence[0].warehouse_id}"]).read_text())
             for field in ("candidates", "scenarios", "recommended_plan", "package_economics", "evidence", "workload_profile", "realization"):
                 self.assertIn(field, payload)
-            self.assertEqual(len(payload["candidates"]), 6)
+            self.assertEqual(len(payload["candidates"]), 5)
             self.assertGreater(len(payload["evidence"]), 0)
             wb = load_workbook(files["workbook"])
             self.assertEqual(wb.sheetnames, ["Executive Summary", "Warehouse Portfolio", "Scenario Plans", "Recommendation Registry"])
@@ -1534,8 +1537,8 @@ class PublisherV27Tests(unittest.TestCase):
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
             self.assertEqual(manifest["publisher_version"], p.PUBLISHER_VERSION)
-            self.assertEqual(manifest["reporter_contract_version"], "1.2.0")
-            self.assertEqual(manifest["workbook_contract_version"], "1.3.0")
+            self.assertEqual(manifest["reporter_contract_version"], "1.3.0")
+            self.assertEqual(manifest["workbook_contract_version"], "1.4.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertEqual(manifest["package_count"], 1)
             self.assertEqual(manifest["workbook_file"], "workbook.xlsx")
@@ -1874,8 +1877,9 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_no_change_candidate_keeps_a_known_zero(self):
         pkg = self.golden_package("cold-start-sensitive")
-        channel = next(c for c in pkg["candidates"] if c["knob"] == "warehouse_channel")
-        econ = channel["independent_economics"]
+        # A no-change candidate (or the unpriced ceiling guardrail) is a known zero, not unknown.
+        unchanged = next(c for c in pkg["candidates"] if c["status"] == "NO_CHANGE" or c["knob"] == "max_clusters")
+        econ = unchanged["independent_economics"]
         self.assertEqual(econ["estimation_status"], "NO_DELTA_MODELED")
         self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
 
@@ -1928,7 +1932,7 @@ class GoldenScenarioTests(unittest.TestCase):
         pkg=self.golden_package("photon-disabled")
         self.assertEqual(pkg["current_config"]["photon"]["status"],"DISABLED")
         self.assertNotIn("enable_photon",[c["knob"] for c in pkg["candidates"]])
-        self.assertEqual(len(pkg["candidates"]),6)
+        self.assertEqual(len(pkg["candidates"]),5)
         plan_a=next(x for x in pkg["scenarios"] if x["scenario_name"].startswith("Plan A"))
         self.assertNotEqual(plan_a["portfolio_economics"]["estimation_status"],"UNAVAILABLE")  # no longer blocked by Photon
         self.assertIsNotNone(plan_a["portfolio_economics"]["savings_365d"]["total"])
@@ -2126,6 +2130,155 @@ class SeasonalCeilingTests(unittest.TestCase):
     def test_unknown_epoch_peak_uses_the_recent_window(self):
         c = self.max_candidate(None)
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
+
+
+
+class ChannelObservedOnlyTests(unittest.TestCase):
+    """The warehouse channel is reported, never recommended: no candidate, plan step or invalidation."""
+
+    def preview(self):
+        e = p.demo_evidence()[0]
+        for ep in e.epochs:
+            ep.config = dataclasses.replace(ep.config, warehouse_channel="PREVIEW")
+        return e
+
+    def test_five_candidates_and_no_channel_knob(self):
+        self.assertNotIn("warehouse_channel", p.ACTIVE_KNOBS)
+        w = p.evaluate_warehouses([self.preview()], p.Thresholds())[0]
+        self.assertEqual(len(w.candidates), 5)
+        self.assertNotIn("warehouse_channel", {c.knob for c in w.candidates})
+        for c in w.candidates:
+            self.assertNotIn("warehouse_channel", c.dependencies)
+
+    def test_preview_channel_blocks_nothing_and_is_reported(self):
+        pkg = p.build_recommendation_packages([self.preview()], p.Thresholds())[0].to_dict()
+        self.assertEqual(pkg["current_config"]["warehouse_channel"], "PREVIEW")
+        plan_a = next(s for s in pkg["scenarios"] if s["status"] == "RECOMMENDED")
+        self.assertNotIn("warehouse_channel", [s["knob"] for s in plan_a["execution_plan"]])
+        size = next(s for s in plan_a["execution_plan"] if s["knob"] == "warehouse_size")
+        self.assertNotEqual(size["execution_state"], "PENDING_REEVALUATION")
+        evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
+        note = [x for x in evidence if x["metric"] == "warehouse_channel"]
+        self.assertEqual(len(note), 1)
+        self.assertEqual(note[0]["value"], "PREVIEW")
+
+    def test_current_channel_has_no_note(self):
+        pkg = p.build_recommendation_packages(p.demo_evidence(), p.Thresholds())[0].to_dict()
+        evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
+        self.assertFalse([x for x in evidence if x["metric"] == "warehouse_channel"])
+
+
+
+class PlanOrderAndInvalidationTests(unittest.TestCase):
+    """Only true invalidations hold a step; steps run in order of value, never before their invalidator."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def plan(self, evidence):
+        w = p.evaluate_warehouses(evidence, self.t)[0]
+        plan_a = next(s for s in w.scenarios if s.recommended)
+        return w, plan_a
+
+    def test_only_true_invalidations_remain(self):
+        w, _ = self.plan(p.demo_evidence())
+        by = {c.knob: c for c in w.candidates}
+        self.assertEqual(sorted(by["warehouse_size"].invalidates), ["max_clusters", "min_clusters"])
+        self.assertEqual(by["max_clusters"].invalidates, [])  # a ceiling cut above the peak changes nothing observed
+        self.assertEqual(by["min_clusters"].invalidates, [])
+        self.assertEqual(by["auto_stop_minutes"].dependencies, [])
+
+    def test_plan_runs_by_value_and_respects_invalidations(self):
+        # BI - Sales: auto-stop 10,933 x 0.93 / 1 ranks first; min (6,074 x 0.78 / 2) outranks size (5,345 x 0.78 / 2)
+        # but size invalidates it, so size comes first; the zero-value ceiling cut comes last.
+        _, plan_a = self.plan(p.demo_evidence())
+        self.assertEqual([s.knob for s in plan_a.steps], ["auto_stop_minutes", "warehouse_size", "min_clusters", "max_clusters"])
+        self.assertEqual([s.execution_state for s in plan_a.steps], ["READY_FOR_HITL", "READY_FOR_CANARY", "PENDING_REEVALUATION", "PENDING_REEVALUATION"])
+        pe = plan_a.portfolio_estimate
+        self.assertGreater(pe.total_365d_savings_range.base, 13000)  # auto-stop + size are both authoritative now
+
+    def test_auto_stop_then_min_never_removes_more_than_recorded(self):
+        e = p.demo_evidence()[0]
+        _, plan_a = self.plan([e])
+        contingent = plan_a.portfolio_estimate.contingent
+        self.assertIsNotNone(contingent)
+        recorded = p.safe_float(e.current_epoch.events.get("cluster_minutes"))
+        # With the overlap rule the floor cluster's idle minutes that auto-stop already removed are not removed again.
+        self.assertLess(contingent.estimated_savings_range_365.base, 17000)
+
+    def test_reviewer_rejects_a_step_before_its_invalidator(self):
+        w, plan_a = self.plan(p.demo_evidence())
+        steps = list(plan_a.steps)
+        size = next(i for i, s in enumerate(steps) if s.knob == "warehouse_size")
+        mn = next(i for i, s in enumerate(steps) if s.knob == "min_clusters")
+        steps[size], steps[mn] = steps[mn], steps[size]
+        broken = dataclasses.replace(plan_a, steps=steps)
+        others = [s for s in w.scenarios if not s.recommended]
+        with self.assertRaises(ValueError):
+            p.Reviewer(self.t).review_scenarios(p.demo_evidence()[0], w.candidates, [broken] + others, broken.scenario_id)
+
+    def test_risk_thresholds_default(self):
+        self.assertEqual((self.t.plan_risk_hitl_change, self.t.plan_risk_canary_change), (1.0, 2.0))
+
+
+
+class GrowthAndSeasonalHoldTests(unittest.TestCase):
+    """Capacity cuts are held while query volume grows week over week, and a downsize is held for a seasonal peak."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def evidence(self, weeks, max_clusters=None, epoch_peak=None):
+        e = p.demo_evidence()[0]
+        if max_clusters is not None:
+            for ep in e.epochs:
+                ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
+        for k in range(1, 9):
+            e.current_epoch.query.pop(f"queries_week_{k}", None)
+        if weeks is not None:
+            for k, n in enumerate(weeks, start=1):  # week 1 = the most recent complete week
+                e.current_epoch.query[f"queries_week_{k}"] = n
+        if epoch_peak is not None:
+            e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
+        return e
+
+    def candidates(self, e):
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_weekly_counts_are_collected_for_complete_weeks_in_the_epoch(self):
+        sql = p.EPOCH_QUERY_METRICS_SQL
+        for k in range(1, 9):
+            self.assertIn(f"AS queries_week_{k}", sql)
+        self.assertIn("WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS", sql)
+
+    def test_growth_ratio(self):
+        self.assertAlmostEqual(p.query_volume_growth_ratio([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]), 1.2)
+        self.assertIsNone(p.query_volume_growth_ratio([1200, None, 1250, 1400, 1000, 950, 1050, 1000]))
+        self.assertIsNone(p.query_volume_growth_ratio([5, 5, 5, 5, 0, 0, 0, 0]))  # no prior volume: unknown
+
+    def test_growing_volume_holds_every_capacity_cut(self):
+        # Every one of the last 4 weeks >= 1.10 x the prior 4-week median (1,000): the downsize and the ceiling cut wait.
+        c = self.candidates(self.evidence([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]))
+        for knob in ("warehouse_size", "max_clusters", "min_clusters"):
+            self.assertIn("QUERY_VOLUME_GROWING", c[knob].blockers, knob)
+            self.assertEqual(c[knob].status, "NO_CHANGE", knob)
+        self.assertEqual(c["auto_stop_minutes"].status, "ACTIONABLE")  # not a capacity cut
+
+    def test_one_burst_week_or_unknown_weeks_hold_nothing(self):
+        for weeks in ([1000, 3000, 1000, 1000, 1000, 1000, 1000, 1000], None):
+            c = self.candidates(self.evidence(weeks))
+            self.assertEqual(c["warehouse_size"].status, "TEST_REQUIRED", weeks)
+            self.assertNotIn("QUERY_VOLUME_GROWING", c["max_clusters"].blockers)
+
+    def test_downsize_is_held_for_a_peak_outside_the_recent_window(self):
+        c = self.candidates(self.evidence(None, max_clusters=8, epoch_peak=8))
+        self.assertEqual(c["warehouse_size"].status, "NO_CHANGE")
+        self.assertIn("PEAK_OUTSIDE_RECENT_WINDOW", c["warehouse_size"].blockers)
+        c = self.candidates(self.evidence(None, max_clusters=8, epoch_peak=3))  # within the recent ceiling (2 + 1)
+        self.assertEqual(c["warehouse_size"].status, "TEST_REQUIRED")
+
+    def test_growth_threshold_default(self):
+        self.assertEqual(self.t.growth_hold_weekly_ratio, 1.10)
 
 
 if __name__ == "__main__":

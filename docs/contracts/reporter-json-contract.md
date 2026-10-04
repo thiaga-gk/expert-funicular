@@ -1,8 +1,10 @@
-# Reporter JSON Contract v1.2.0 — Locked
+# Reporter JSON Contract v1.3.0 — Locked
 
-**Version history:** 1.2.0 adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
+**Version history:** 1.3.0 adds the required, nullable `StepProjection.step_savings_365d`: each plan step's own savings on its pricing chain (section 13). No existing field or value changes. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.2.0 packages.
 
-**Earlier history:** 1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
+**Earlier history:** 1.2.0 adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
+
+1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
 
 **Status:** LOCKED for implementation  
 **Scope:** one immutable recommendation package per Databricks SQL warehouse / current configuration epoch  
@@ -234,7 +236,7 @@ canonical applied_config
 
 `warehouse_type | warehouse_size | min_clusters | max_clusters | auto_stop_minutes | warehouse_channel | enable_photon`
 
-`enable_photon` is **reserved**: it stays in the enum so 1.0.0 packages remain valid, but the publisher no longer emits a Photon candidate. The billing-observed Photon state remains in `current_config.photon`.
+`enable_photon` and `warehouse_channel` are **reserved for candidates**: they stay in the enum so earlier packages remain valid, but the publisher emits no Photon or channel candidate. The billing-observed Photon state remains in `current_config.photon` and the channel in `current_config.warehouse_channel`; `warehouse_channel` is still used in observed configuration changes.
 
 ### Confidence
 
@@ -262,7 +264,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `1.2.0` |
+| `contract_version` | string | Yes | No | Constant `1.3.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
@@ -579,15 +581,18 @@ Same DBU/AWS/total `ComponentRanges` structure as candidate economics, but produ
 | `validation` | ValidationGate | Yes | No | Canary/HITL/remeasure requirements |
 | `dependencies` | DependencyRef[] | Yes | No | Explicit prerequisites |
 | `invalidates` | knob[] | Yes | No | Downstream knobs invalidated if step is applied |
-| `projected_economics` | StepProjection | Yes | Yes | 1.1.0. Cumulative stateful savings after this step and its pricing basis; null when the chain could not price the step |
+| `projected_economics` | StepProjection | Yes | Yes | 1.1.0. Stateful savings for this step (cumulative and, from 1.3.0, the step's own) and its pricing basis; null when the chain could not price the step |
 
-`StepProjection`: `pricing_basis` (`AUTHORITATIVE | CONTINGENT_PENDING_REEVALUATION`) and `running_savings_365d` (`ComponentRanges`, signed, cumulative: the savings of the plan up to and including this step). Cumulative ranges are published rather than per-step increments because the difference of low/base/high ranges is not itself a low/base/high range.
+`StepProjection`: `pricing_basis` (`AUTHORITATIVE | CONTINGENT_PENDING_REEVALUATION`), `running_savings_365d` (`ComponentRanges`, signed, cumulative: the savings of the plan up to and including this step) and `step_savings_365d` (1.3.0; `ComponentRanges`, signed, required and nullable: this step's own savings). The bundle estimator prices each chain on three realization tracks. For each track, the step's own savings are the cost before the step minus the cost after it, on the step's own chain (authoritative for an `AUTHORITATIVE` step, contingent for a `CONTINGENT_PENDING_REEVALUATION` step). `low` and `high` are the smallest and largest track change, and `base` is the base track's change, so `low <= base <= high` always holds. Subtracting consecutive published ranges bound by bound is not used: tracks can change position between steps (giving `base > high`), and consecutive steps can sit on different chains. Along one chain, step bases add up to the running base while the tracks keep their cost order; step lows and highs are bounds, not amounts to add. A zero range is a priced step with no cost effect.
 
 Invariants (semantic validators):
 
 - A `PENDING_REEVALUATION` step is priced `CONTINGENT_PENDING_REEVALUATION`; every other priced step is `AUTHORITATIVE`.
 - Scenario `savings_365d` equals the `running_savings_365d` of the last `AUTHORITATIVE` step (within 0.03).
 - `contingent_savings_365d` is present only if at least one step is `PENDING_REEVALUATION`, and equals the `running_savings_365d` of the last contingent step.
+- `step_savings_365d` components are null exactly where `running_savings_365d` components are null; each range is ordered and `total = dbu + aws` (within 0.03).
+- The first `AUTHORITATIVE` step's `step_savings_365d` equals its `running_savings_365d` (within 0.03).
+- On the authoritative chain, the sum of step `low` is at most the last authoritative running `low`, and the sum of step `high` is at least its running `high` (tolerance 0.03 per step).
 
 Re-validation on application: Phase 1 has no apply API. Contingent figures are a big-picture view only; after an upstream step is applied and remeasured, the next publisher run produces a new package whose authoritative economics include the next knob.
 
@@ -775,7 +780,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal the contract version of this document (`1.2.0`) |
+| `contract_version` | Must equal the contract version of this document (`1.3.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -823,7 +828,8 @@ JSON Schema enforces shape, types, enums, nullability, patterns, and basic numer
 24. `next_action = WAIT_FOR_REEVALUATION` requires a `reevaluation` window and no `READY`/`READY_FOR_CANARY` step in the recommended scenario;
 25. `observed_change.changed_at` equals the current epoch start, its `previous_epoch_id` differs from the current epoch, and its entries are sorted, unique and differ;
 26. `carried_forward_plan` (when present) satisfies the structural rules in section 14.3 and the cross-references to `observed_change` and `reevaluation`;
-27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis.
+27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis;
+28. `step_savings_365d` null parity, first-step equality and authoritative-chain bracketing (section 13).
 
 ---
 
@@ -843,6 +849,8 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 
 **Amendment (1.2.0):** MINOR also covers adding required-but-nullable keys that are null for existing semantics, including new keys in the package hash payload, provided `contract_version` is part of every hash (so old and new IDs can never collide) and the schema is regenerated. Consumers must still upgrade before reading the new keys because `additionalProperties` is `false`. Contract 1.1.0 already followed this reading.
 
+**Amendment (1.3.0):** MINOR also covers a required, nullable key whose value is derived only from state the package already publishes, when no existing value or meaning changes.
+
 ---
 
 # 20. Source-of-truth artifacts
@@ -854,4 +862,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/test_reporter_contract.py`
 
-The workbook is not part of Reporter Contract v1.2.0. It is specified separately in `workbook-contract.md` as a projection of these packages.
+The workbook is not part of Reporter Contract v1.3.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

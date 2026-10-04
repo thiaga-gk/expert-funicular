@@ -28,7 +28,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C15 | Pro/Classic → Serverless, intermittent use | Billed hours ≫ busy hours on Pro/Classic | Plan B experiment priced at Serverless's own best auto-stop and concurrency, scaled to actual billing, using the billed SKU's tier and region and a verified region; a real range, never a collapsed point. Plan A stays recommended. | yes | covered | fail | K5, G36, G20, G5, S3, G41 |
 | C16 | Serverless → Pro, steady 24/7 load | Continuous high utilization on Serverless | Pro priced at its own best auto-stop (10-minute floor, 4-minute starts) and concurrency, scaled to billing. | yes | covered | fail | K5, G20 |
 | C17 | Classic → Pro | Classic, point-lookup / MERGE heavy | Not optimized; flagged as a performance option. | no | not covered | fail | OOS |
-| C18 | Preview channel | `warehouse_channel = PREVIEW` | Observe only: no recommendation, plan step or invalidation; reported in the current configuration with an informational note. Constructed run: a pending size change must not be blocked by the channel. | no | covered | fail | G42 |
+| C18 | Preview channel | `warehouse_channel = PREVIEW` | Observe only: no recommendation, plan step or invalidation; reported in the current configuration with an informational note. Constructed run: a pending size change must not be blocked by the channel. | no | covered | pass | G42 |
 | C19 | Newly changed config | Recent `change_time` | Wait for the configuration to mature; show the earliest re-evaluation time. | yes | covered | pass | — |
 | C20 | Sparse / new warehouse | Few billing days or queries | Abstain; unknown cost stays unknown, never $0. | yes | covered | pass | G18 |
 | C21 | Result-cache-heavy BI | `from_result_cache` high | Cache hits excluded from latency checks; Pro/Classic restart cost includes cache warm-up. | yes | covered | fail | G9, S4, K1 |
@@ -48,7 +48,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C35 | Spot policy | REST `spot_instance_policy` | Not modeled; AWS cost labeled as an on-demand upper bound. | no | covered | pass | S6 |
 | C36 | Tag / rename churn | Snapshot rows with only `tags` or name changed | No new configuration period, no reset of maturity gates or cost history. | yes | covered | pass | G3 |
 | C37 | Month / quarter-end seasonality | Peaks outside the 30-day window | Capacity cuts held when longer-window or prior-period pressure shows a peak. Constructed run: max 8 → 3 proposed weeks before a known quarter-end peak. | yes | covered | fail | G33 |
-| C38 | Growth trend | Rising query volume | Downsizes and ceiling cuts held while volume is growing. Constructed run: doubling monthly volume still gets a downsize canary. | yes | not covered | fail | G33 |
+| C38 | Growth trend | Rising query volume | Downsizes and ceiling cuts held while volume is growing. Constructed run: doubling monthly volume still gets a downsize canary. | yes | covered | fail | G33 |
 | C39 | Dev / test warehouses | Tags or owner mark nonprod | Versioned tag-based policy profile (for example a relaxed cold-start budget). | yes | not covered | fail | G38 |
 | C40 | Serverless budget / usage policies | `usage_policy_id` | Attribution only; not evaluated. | no | not covered | pass | — |
 | C41 | Genie / AI-BI dashboards | `query_source.genie_space_id`, dashboard ids | Never propose a type Genie cannot use (only Pro or Serverless targets). | yes | covered | pass | — |

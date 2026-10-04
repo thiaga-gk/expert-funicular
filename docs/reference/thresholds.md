@@ -14,7 +14,9 @@ The defaults are **balanced-to-conservative overall**. They are policy defaults,
 | Type migration | compatibility gate + pre-canary modeled range + canary | Conservative | IWM/runtime response is not assumed. |
 | Failure guard on capacity cuts | failed/cancelled share above `failure_cancel_pct_downsize_safe`, or unreported, holds every capacity cut (size down, max/min clusters down, lower auto-stop) | Conservative | A cut on a warehouse that is already failing queries would add risk where the evidence is least trustworthy. Blockers `FAILURE_CANCEL_RATE_HIGH` / `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. |
 | Forward DBU forecast | published only when every basis day is priced, the current epoch has at least `min_economics_cost_history_days` billed (positive-cost) days and the run rate is positive; otherwise null (never $0), and savings estimates and type migration are withheld | Conservative | A run rate from a few days, or a floor at zero, would guess the baseline every savings figure scales. Blocker `COST_HISTORY_INSUFFICIENT` (fewer settled billed days in the forecast basis than `min_economics_cost_history_days`), `BILLED_COST_DAYS_INSUFFICIENT` (mature epoch with too few billed days) or `DBU_COST_UNAVAILABLE`. |
+| Growth guard on capacity cuts | the size downsize, max-cluster cut and min-cluster cut wait while the smallest of the last 4 complete weekly query counts is at least `growth_hold_weekly_ratio` times the median of the 4 weeks before; unknown with fewer than 8 complete weeks (nothing held) | Conservative | A cut sized on the recent past would soon be too small for a growing workload; using every recent week keeps one burst week from looking like growth. Blocker `QUERY_VOLUME_GROWING`. |
 | Billing settle | a UTC day enters the cost basis `billing_settle_hours` after it ends and once its workspace's billing watermark has passed it | Conservative | Original billing records are typically available within 12 hours; the buffer keeps a still-arriving day out of the run rate. |
+| Plan step order | base savings × confidence ÷ risk, a canary step weighted `plan_risk_canary_change` and a human-approval step `plan_risk_hitl_change`; a step never precedes its invalidator | Balanced | The largest, best-evidenced and least disruptive saving goes first; a canary costs a measurement cycle. |
 | Pressure window | `pressure_window_days`: time at min, time at max and observed peak come from the last `pressure_window_days` days of the daily resource window | Balanced | Capacity facts describe recent behavior on the same calendar as the DBU forecast rather than the whole epoch. Without the series, max/min-cluster changes are held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected, but the warehouse did not run in the window). |
 
 ## Missing pressure evidence fails closed
@@ -210,8 +212,11 @@ Clamps on the size cost factor, the check that a workspace's billed rates can pr
 
 ### Planner
 
-Scenario-planner timing.
+Scenario-planner timing and step order.
 
 | Parameter | Default | Description | Used by |
 |---|---|---|---|
 | `remeasure_days_after_invalidating_change` | `7` | Days a plan step waits for fresh evidence after an upstream change invalidates it. | [PRD FR-PLAN-003](../product/prd.md), [LLD §19.3 Step state machine](../architecture/lld.md) |
+| `growth_hold_weekly_ratio` | `1.10` | Capacity cuts (downsize, max-cluster cut, min-cluster cut) wait while every one of the last 4 complete weeks has at least this many times the median weekly query count of the 4 weeks before; unknown (not held) when the epoch has fewer than 8 complete weeks. | [PRD FR-OPT-003](../product/prd.md), [LLD §15 Optimizer decision algorithms](../architecture/lld.md), Gates [`QUERY_VOLUME_GROWING`](blocker-codes.md) |
+| `plan_risk_hitl_change` | `1.0` | Risk divisor for an `ACTIONABLE` (human-approved) step when plan steps are ordered by base savings × confidence / risk. | [PRD FR-PLAN-001](../product/prd.md), [LLD §19.1 Plan A](../architecture/lld.md) |
+| `plan_risk_canary_change` | `2.0` | Risk divisor for a `TEST_REQUIRED` (canary) step in the same plan ordering; a canary costs a measurement cycle and a rollback path. | [PRD FR-PLAN-001](../product/prd.md), [LLD §19.1 Plan A](../architecture/lld.md) |

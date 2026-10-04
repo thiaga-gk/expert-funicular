@@ -1,11 +1,13 @@
-# Workbook Reporter Contract v1.3.0
+# Workbook Reporter Contract v1.4.0
 
-**Version history:** 1.3.0 adds three text columns to *Warehouse Portfolio* (`earliest_reevaluation_time`, `reevaluation_blockers`, `observed_change`, in the *Recommended plan* group) projecting the Reporter contract 1.2.0 `recommended_plan.reevaluation` and `observed_change`. Null values render as the explicit `—` state, never blank. `observed_change` text includes the change date, for example `warehouse_size MEDIUM→LARGE (2026-09-29)`. Sheets, grains and all other columns are unchanged.
+**Version history:** 1.4.0 projects Reporter 1.3.0 per-step savings and separates plan savings from experiment upside. Execution-plan text (Warehouse Portfolio and Scenario Plans) appends `; step saves N/yr (base)` (or `; step costs N/yr more (base)`) to each priced step. *Recommendation Registry* adds `plan_step`, `plan_step_savings_base_365d` and `plan_step_pricing_basis` (group *Recommended plan step*) for candidates in the recommended scenario, and `—` for other candidates. *Executive Summary* adds the rows *Excluded (unsupported type)*, *Plan savings low/base/high* (section *Recommended plan savings*) and *Migration experiment high* (section *Experiment upside*). Sheets, grains and all other columns are unchanged.
 
-**Earlier history:** 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
+**Earlier history:** 1.3.0 adds three text columns to *Warehouse Portfolio* (`earliest_reevaluation_time`, `reevaluation_blockers`, `observed_change`, in the *Recommended plan* group) projecting the Reporter 1.2.0 `recommended_plan.reevaluation` and `observed_change`. Null values render as the explicit `—` state, never blank. `observed_change` text includes the change date, for example `warehouse_size MEDIUM→LARGE (2026-09-29)`. Sheets, grains and all other columns are unchanged.
+
+1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
 
 **Status:** Locked  
-**Source of truth:** validated Reporter JSON Contract v1.2.0 packages  
+**Source of truth:** validated Reporter JSON Contract v1.3.0 packages  
 **Implementation:** `contracts/workbook_contract.py` + `reporters/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.
@@ -29,7 +31,12 @@ The workbook is a human decision/reporting projection of immutable `Recommendati
 **Persona:** executive/product sponsor, FinOps lead, platform owner.  
 **Grain:** run/portfolio aggregation over the supplied packages.
 
-Presents coverage, actual/forward baseline, recommended annual savings, recommended annual cost increase, signed net annual impact, scenario low/high envelope, confidence posture, exclusions, and up to 15 highest-impact warehouses. Financial cells are numeric and chartable.
+Presents coverage, including the count of warehouses excluded by the supported-type gate. That count comes from the run manifest's `excluded_warehouses` and is `UNAVAILABLE` when the caller passes no exclusion list. It also shows the actual/forward baseline, recommended annual savings, recommended annual cost increase and signed net annual impact, followed by two separate blocks:
+
+- **Recommended plan savings:** sums of the recommended scenario's total low, base and high over warehouses whose recommended scenario is priced. The note states how many are priced; unpriced plans are excluded, never counted as zero. The base equals the net annual impact.
+- **Experiment upside:** the sum of the positive total `high` of each package's priced, non-blocked migration-experiment scenario. It is an alternative to the recommended plan, not added to it, and unvalidated until the canary.
+
+The package scenario envelope (which an experiment can set), confidence posture and up to 15 highest-impact warehouses follow. Financial cells are numeric and chartable.
 
 ## 2. Warehouse Portfolio
 
@@ -51,9 +58,9 @@ The exact ordered set is `SCENARIO_COLUMNS` (**45 columns**) and is regression-t
 
 **Grain:** one row per `candidate_id`.
 
-Groups: package/candidate/technique identity; decision/current/recommended value; confidence; currency and independent counterfactual economics; realization summary; decision rule; candidate-specific evidence, thresholds, dependencies, invalidations, blockers, scenario membership and realization audit JSON.
+Groups: package/candidate/technique identity; decision/current/recommended value; confidence; currency and independent counterfactual economics; realization summary; decision rule; candidate-specific evidence, thresholds, dependencies, invalidations, blockers, scenario membership and realization audit JSON. The *Recommended plan step* group (after independent economics) shows the candidate's step number, its own base savings and its pricing basis in the recommended scenario: `—` when the candidate is not in that scenario, `UNAVAILABLE` when the step is unpriced.
 
-The exact ordered set is `REGISTRY_COLUMNS` (**53 columns**) and is regression-tested.
+The exact ordered set is `REGISTRY_COLUMNS` (**56 columns**) and is regression-tested.
 
 ## Excel presentation contract
 

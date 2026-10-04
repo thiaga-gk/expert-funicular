@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.2.0 (locked)  
-**Workbook Contract:** v1.3.0 (locked)
+**Reporter JSON Contract:** v1.3.0 (locked)  
+**Workbook Contract:** v1.4.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
 
@@ -73,16 +73,15 @@ An unsupported type must never be silently processed using Pro/Classic assumptio
 
 ### 3.3 Active candidate domains
 
-Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but is not a candidate domain):
+Each supported warehouse/current epoch is assessed across five candidate domains (Photon and the warehouse channel are observed but are not candidate domains):
 
-1. `warehouse_channel`
-2. `warehouse_size`
-3. `max_clusters`
-4. `min_clusters`
-5. `auto_stop_minutes`
-6. `warehouse_type`
+1. `warehouse_size`
+2. `max_clusters`
+3. `min_clusters`
+4. `auto_stop_minutes`
+5. `warehouse_type`
 
-`warehouse_channel` is a governance/stability guardrail. The remaining domains are cost, performance, compatibility, or mixed optimization techniques.
+The domains are cost, performance, compatibility, or mixed optimization techniques.
 
 ---
 
@@ -303,21 +302,17 @@ Phase-1 scenario policy:
 
 For a current Serverless warehouse, the migration alternative targets Pro. For current Classic/Pro, the migration alternative targets Serverless.
 
-Plan A follows the deterministic order:
+Plan A orders its steps by expected value (base savings × confidence ÷ risk) and never places a step before the step that invalidates it (formula: LLD §19.1):
 
 ```mermaid
 flowchart TD
-    CH[warehouse_channel] --> SZ[warehouse_size]
-    SZ --> MX[max_clusters]
-    MX --> MN[min_clusters]
-    MN --> AS[auto_stop_minutes]
-
-    SZ -. invalidates downstream capacity evidence .-> MX
-    SZ -. invalidates downstream capacity evidence .-> MN
-    SZ -. may invalidate idle/cost assumptions .-> AS
+    SZ[warehouse_size] -. invalidates capacity evidence .-> MX[max_clusters]
+    SZ -. invalidates capacity evidence .-> MN[min_clusters]
+    MX -. increase invalidates floor evidence .-> MN
+    AS[auto_stop_minutes]
 ```
 
-Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
+Auto-stop and a max-cluster ceiling cut have no upstream invalidator. Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
 
 ### 6.9 Stateful bundle estimator
 
@@ -357,7 +352,7 @@ It verifies, at minimum:
 
 ### 6.11 Public contract adapter
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.2.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.3.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
@@ -634,7 +629,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v1.2.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v1.3.0:
 
 - Python dataclasses: `contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
@@ -642,7 +637,7 @@ The only authoritative recommendation serialization is Reporter JSON Contract v1
 
 ### 12.2 Workbook contract
 
-Workbook Contract v1.3.0 is an independently versioned presentation contract:
+Workbook Contract v1.4.0 is an independently versioned presentation contract:
 
 - projection: `contracts/workbook_contract.py`
 - renderer: `reporters/workbook_reporter.py`

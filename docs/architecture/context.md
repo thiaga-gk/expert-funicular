@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.2.0  
-**Workbook Contract:** v1.3.0
+**Reporter JSON Contract:** v1.3.0  
+**Workbook Contract:** v1.4.0
 
 Role: domain language, semantics and invariants.
 
@@ -449,24 +449,23 @@ flowchart LR
 
 ## 14. Candidate domains
 
-Every supported warehouse is evaluated across the same six candidate domains. The result may be a change, no-change, review, blocker, not-applicable, or insufficient-evidence decision.
+Every supported warehouse is evaluated across the same five candidate domains. The result may be a change, no-change, blocker, not-applicable, or insufficient-evidence decision.
 
 | Domain | Domain intent | Typical nature |
 |---|---|---|
-| Warehouse channel | Stability/governance posture | Guardrail, not primarily savings |
 | Warehouse size | Right-size vertical capacity | Cost/performance |
 | Max clusters | Right-size concurrency ceiling | Performance/cost guardrail |
 | Min clusters | Remove unnecessary baseline capacity | Cost/performance |
 | Auto-stop | Reduce avoidable idle running | Cost |
 | Warehouse type | Evaluate Pro/Classic ↔ standard Serverless migration | Alternative scenario / architecture |
 
-Photon is not a candidate domain: it is observed and reported (section 11) but never recommended.
+Photon and the warehouse channel are not candidate domains: they are observed and reported (section 11, 14.1) but never recommended.
 
 Stable technique IDs live in `docs/reference/technique-catalog.md`.
 
-### 14.1 Channel is intentionally different
+### 14.1 Channel is observed, not recommended
 
-`warehouse_channel` is retained in the six-candidate model because it can affect recommendation stability and dependency risk, but it should be understood as a **governance/safety candidate**, not a direct savings technique.
+`warehouse_channel` is reported in the current configuration and remains an epoch field: changing it starts a new epoch. It produces no candidate, plan step or invalidation, because a channel move has no priced effect and Preview-only dependencies are not visible in system tables. A warehouse on `PREVIEW` carries an informational evidence note.
 
 ---
 
@@ -686,15 +685,14 @@ A scenario is a **mutually exclusive execution path**, not a list of all candida
 
 Current Phase-1 policy constructs an in-place optimization path and treats it as the recommended scenario when valid.
 
-Typical order:
+Steps run in order of expected value (base savings × confidence ÷ risk); a step never precedes the step that invalidates it. Typical result for an idle, over-sized warehouse:
 
 ```mermaid
 flowchart LR
-    CH[Channel] --> SZ[Size]
-    SZ --> MX[Max clusters]
-    MX --> MN[Min clusters]
-    MN --> AS[Auto-stop]
-    AS --> RM[Re-measure / regenerate]
+    AS[Auto-stop] --> SZ[Size canary]
+    SZ --> MN[Min clusters]
+    MN --> MX[Max ceiling cut]
+    MX --> RM[Re-measure / regenerate]
 ```
 
 The exact inclusion/order is policy-driven and only relevant candidates enter the plan.
@@ -722,17 +720,15 @@ This is a product-policy choice, not a mathematical limitation. Future auto-sele
 
 A recommendation can make downstream evidence stale.
 
-Example: changing warehouse size can alter queueing, cluster utilization, and idle behavior. Therefore recommendations that were safe under the old size may no longer be valid after the size change.
+Example: changing warehouse size can alter queueing and cluster utilization. Therefore max- and min-cluster recommendations that were safe under the old size may no longer be valid after the size change. Auto-stop is evaluated independently and is not held.
 
 ```mermaid
 flowchart TD
     SZ[Apply size change] --> INV[Invalidate downstream assumptions]
     INV --> MX[Max clusters\nPENDING_REEVALUATION]
     INV --> MN[Min clusters\nPENDING_REEVALUATION]
-    INV --> AS[Auto-stop\nPENDING_REEVALUATION]
     MX --> RM[Measure new state]
     MN --> RM
-    AS --> RM
     RM --> REGEN[Regenerate recommendation package]
 ```
 
@@ -1237,7 +1233,9 @@ sequenceDiagram
     participant W as Warehouse
     participant M as Measurement
 
-    O->>H: Plan A: size canary first
+    O->>H: Plan A: auto-stop 120 -> 30 first (ready, highest value)
+    H->>W: approve auto-stop change
+    O->>H: then size canary
     H->>W: Test LARGE -> MEDIUM
     W->>M: Run representative workload
     M-->>H: latency/queue/failure/cost evidence
@@ -1252,7 +1250,7 @@ sequenceDiagram
     end
 ```
 
-The existing max/min/auto-stop candidates are explainable opportunities, but their scenario execution state becomes `PENDING_REEVALUATION` after an upstream size change invalidates the evidence assumptions.
+Auto-stop is ready immediately because no other change invalidates it. The max- and min-cluster candidates are explainable opportunities, but their scenario execution state becomes `PENDING_REEVALUATION` because the size change invalidates their capacity evidence.
 
 ---
 
