@@ -18,6 +18,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
 4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
 5. A decision-affecting change bumps the affected component versions in `publisher.py` and regenerates goldens and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
+6. A new `Thresholds` field needs a row in `docs/reference/thresholds.md`, and a new blocker code a row in `docs/reference/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
 
 ## Invariants
 - IMPORTANT: `RecommendationPackage` (Reporter JSON Contract) is the public machine source of truth. The workbook is projection-only: never put optimization, estimation, confidence, ID/hash or selection logic in Excel.
