@@ -729,8 +729,7 @@ Typical order:
 
 ```mermaid
 flowchart LR
-    CH[Channel] --> PH[Photon]
-    PH --> SZ[Size]
+    CH[Channel] --> SZ[Size]
     SZ --> MX[Max clusters]
     MX --> MN[Min clusters]
     MN --> AS[Auto-stop]
