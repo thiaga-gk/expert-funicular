@@ -48,6 +48,34 @@ class ReporterContractTests(unittest.TestCase):
         committed = json.loads((ROOT / "schema/recommendation-package.schema.json").read_text())
         self.assertEqual(build_schema(), committed)
 
+    def test_cluster_limits_match_databricks_and_the_publisher(self) -> None:
+        # Databricks: max_num_clusters <= 40 and min_num_clusters <= min(max_num_clusters, 30).
+        props = build_schema()["$defs"]["CurrentConfig"]["properties"]
+        self.assertEqual((props["min_clusters"]["minimum"], props["min_clusters"]["maximum"]), (1, 30))
+        self.assertEqual((props["max_clusters"]["minimum"], props["max_clusters"]["maximum"]), (1, 40))
+        import publisher
+        limits = publisher.Thresholds()
+        self.assertEqual(limits.min_clusters_supported_limit, props["min_clusters"]["maximum"])
+        self.assertEqual(limits.max_clusters_supported_limit, props["max_clusters"]["maximum"])
+
+    def test_min_clusters_above_thirty_is_rejected_by_schema_and_validator(self) -> None:
+        schema = json.loads((ROOT / "schema/recommendation-package.schema.json").read_text())
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+        data = json.loads((ROOT / "examples/recommendation-package.example.json").read_text())
+        config = build_package().current_config
+        for minimum, ok in ((30, True), (31, False)):
+            with self.subTest(min_clusters=minimum):
+                data["current_config"]["min_clusters"] = minimum
+                data["current_config"]["max_clusters"] = 40
+                schema_errors = [e for e in validator.iter_errors(data) if list(e.path)[:2] == ["current_config", "min_clusters"]]
+                self.assertEqual(not schema_errors, ok)
+                candidate = dataclasses.replace(config, min_clusters=minimum, max_clusters=40)
+                if ok:
+                    candidate.validate()
+                else:
+                    with self.assertRaises(ValueError):
+                        candidate.validate()
+
     def test_ids_are_deterministic(self) -> None:
         a = build_package()
         b = build_package()

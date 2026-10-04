@@ -308,7 +308,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 |---|---|---:|---:|---|
 | `warehouse_type` | string | Yes | No | System-table authoritative |
 | `warehouse_size` | string | Yes | No | System-table authoritative |
-| `min_clusters` | integer | Yes | No | `1..40` |
+| `min_clusters` | integer | Yes | No | `1..30` (Databricks: at most `min(max_clusters, 30)`) |
 | `max_clusters` | integer | Yes | No | `min_clusters..40` |
 | `auto_stop_minutes` | integer | Yes | No | `>= 0` |
 | `warehouse_channel` | string | Yes | No | System-table authoritative |
@@ -838,6 +838,8 @@ Reporter contract versions follow semantic versioning:
 Because the v1 schema is deliberately strict (`additionalProperties: false`), implementation must explicitly upgrade contract support before emitting a new field.
 
 Any change to deterministic hash inputs is a **major contract change** unless a new hash-version field is introduced and both schemes coexist.
+
+**Clarification (1.2.0):** `min_clusters` was documented as `1..40`. Databricks limits the minimum to `min(max_clusters, 30)` and the maximum to 40, so the schema, the validator and this document now say `1..30` for the minimum. Only values that no warehouse can have are excluded, no emitted package is affected and no hash input changes, so the contract version is unchanged.
 
 **Amendment (1.2.0):** MINOR also covers adding required-but-nullable keys that are null for existing semantics, including new keys in the package hash payload, provided `contract_version` is part of every hash (so old and new IDs can never collide) and the schema is regenerated. Consumers must still upgrade before reading the new keys because `additionalProperties` is `false`. Contract 1.1.0 already followed this reading.
 
