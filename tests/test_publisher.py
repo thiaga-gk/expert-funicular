@@ -1526,6 +1526,12 @@ class GoldenScenarioTests(unittest.TestCase):
         if max_clusters is not None:
             ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
         ep.events.update(events)
+        uptime = p.safe_float(ep.events.get("uptime_minutes"))
+        for pct, minutes in (("time_at_max_pct", "minutes_at_max"), ("time_at_min_pct", "minutes_at_min")):
+            if pct in events and minutes not in events:
+                ep.events[minutes] = uptime * events[pct] / 100.0
+        # Capacity rules read the recent daily resource window: rebuild it from the overridden totals.
+        ep.resource_daily = p.synthesize_resource_daily(ep, ev[0].analysis_time)
         return ev
 
     def queued(self, **overrides):

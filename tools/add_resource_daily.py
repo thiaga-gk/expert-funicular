@@ -1,6 +1,6 @@
 """Backfill a synthetic daily resource series into evidence fixtures that predate it (fixtures only).
 
-Usage: python tools/add_resource_daily.py tests/golden/*.json examples/synthetic_collector_15.json
+Usage: python tools/add_resource_daily.py tests/golden/*.json
 
 Each current epoch without `resource_daily` gets publisher.synthesize_resource_daily (its event totals spread evenly over
 its observed days), so recent-window capacity facts and AWS run rates equal the old whole-epoch values. Real evidence
