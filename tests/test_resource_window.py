@@ -91,8 +91,13 @@ class ResourceWindowTests(unittest.TestCase):
         rows["resource_daily"] = [r for r in rows["resource_daily"] if r["usage_day"] >= "2026-08-11"]
         rows["billing_daily_cost"] = [r for r in rows["billing_daily_cost"] if r["usage_date"] >= "2026-08-11"]
         e = self.collect(rows)
-        self.assertNotIn("resource_coverage_from", e.current_epoch.events)
+        self.assertIsNone(e.current_epoch.events["resource_coverage_from"])
         self.assertEqual(p.resource_window(e, self.t)["start"], "2026-07-08")
+
+    def test_evidence_without_the_coverage_marker_fails_closed(self):
+        # Collected before the marker existed: a billed lead-in cannot be told from idle days, so no window.
+        self.e.current_epoch.events.pop("resource_coverage_from", None)
+        self.assertIsNone(p.resource_window(self.e, self.t))
 
     def test_series_starting_at_the_collected_range_is_not_clipped(self):
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"

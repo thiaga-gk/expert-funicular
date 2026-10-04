@@ -1335,6 +1335,22 @@ def infer_photon_observation(row: Mapping[str, Any], analysis_time: str, thresho
     )
 
 
+def as_string_list(value: Any) -> Optional[List[str]]:
+    """A collector array column as sorted distinct strings: a list, a JSON array string, or a Spark array rendered as
+    text ("[a, b]"). None stays None (not collected)."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            text = value.strip()
+            value = [v.strip().strip('"') for v in text[1:-1].split(",")] if text.startswith("[") and text.endswith("]") else [text]
+        if not isinstance(value, list):
+            value = [value]
+    return sorted({str(x) for x in value if x not in (None, "")})
+
+
 def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
     """Create a deterministic multi-label source profile from query history aggregates."""
     categories = {
@@ -1352,13 +1368,7 @@ def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
     percentages = {k: round(100.0 * v / q30, 3) if q30 else 0.0 for k, v in categories.items()}
     ranked = sorted(categories.items(), key=lambda kv: (-kv[1], kv[0]))
     primary = ranked[0][0] if ranked and ranked[0][1] > 0 else "UNATTRIBUTED"
-    apps = query.get("client_applications_30") or []
-    if isinstance(apps, str):
-        try:
-            parsed = json.loads(apps)
-            apps = parsed if isinstance(parsed, list) else [apps]
-        except Exception:
-            apps = [apps]
+    apps = as_string_list(query.get("client_applications_30")) or []
     return QuerySourceProfile(
         categories=categories, percentages=percentages, primary_category=primary,
         client_applications=sorted({str(x) for x in apps if x is not None}), multi_label=True,
@@ -1847,6 +1857,8 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
         start_day = max(start_day, collected_from.date())
+    if epoch.resource_daily and "resource_coverage_from" not in epoch.events:
+        return None  # collected before the coverage marker existed: billed lead-in days cannot be told from idle ones
     coverage_from = parse_datetime(epoch.events.get("resource_coverage_from"))
     if coverage_from is not None:
         # Billed days before the first retained warehouse event have unknown running time (never idle): the collector
@@ -2122,6 +2134,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         current.events["resource_daily_from"] = resource_collected_from or (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
         rows_days = sorted(str(r.get("usage_day"))[:10] for r in (current.resource_daily or []))
         lead_from = max(current.events["resource_daily_from"], current.epoch_start[:10])
+        current.events["resource_coverage_from"] = None  # no billed day before the first retained event
         if rows_days and rows_days[0] > lead_from and any(
                 lead_from <= str(x.get("usage_date"))[:10] < rows_days[0] and safe_float(x.get("dbu_quantity")) > 0
                 for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
@@ -2145,28 +2158,12 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         model["billing_ingestion_cutoff"] = ingestion_cutoff
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})
-        def as_list(value: Any) -> Optional[List[str]]:
-            if value is None:
-                return None
-            if isinstance(value, str):
-                try:
-                    value = json.loads(value)
-                except Exception:
-                    text = value.strip()
-                    value = [v.strip().strip('"') for v in text[1:-1].split(",")] if text.startswith("[") and text.endswith("]") else [text]
-            return sorted({str(x) for x in value if x not in (None, "")})
-        node_types = as_list(attribution_row.get("observed_node_types"))
-        sql_tiers = as_list(attribution_row.get("observed_sql_tiers"))
+        node_types = as_string_list(attribution_row.get("observed_node_types"))
+        sql_tiers = as_string_list(attribution_row.get("observed_sql_tiers"))
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
         photon_observation = infer_photon_observation(attribution_row, analysis_time, thresholds)
         query_source = derive_query_source_profile(current.query)
-        owners = attribution_row.get("observed_owners") or []
-        if isinstance(owners, str):
-            try:
-                parsed = json.loads(owners)
-                owners = parsed if isinstance(parsed, list) else [owners]
-            except Exception:
-                owners = [owners]
+        owners = as_string_list(attribution_row.get("observed_owners")) or []
         attribution = WarehouseAttribution(
             owner=(str(attribution_row.get("latest_owner")) if attribution_row.get("latest_owner") else None),
             observed_owners=sorted({str(x) for x in owners if x is not None}),
@@ -2277,7 +2274,7 @@ class Analyzer:
         ]
         decision_queries = optional_float(q.get("decision_queries_30"))
         fs.extend([
-            self._f(e,"warehouse_size","decision_queries_30",round_or_none(decision_queries),unit="queries",threshold=self.t.strong_query_sample_size,comparator=">= downsize sample",table="system.query.history",field="execution_status/from_result_cache",window="last 30 days within current epoch",interpretation="Queries not served from the result cache: the population latency and spill are measured on."),
+            self._f(e,"warehouse_size","decision_queries_30",round_or_none(decision_queries),unit="queries",threshold=self.t.strong_query_sample_size,comparator=">= downsize sample",table="system.query.history",field="from_result_cache",window="last 30 days within current epoch",interpretation="Queries not served from the result cache: the population latency and spill are measured on."),
             self._f(e,"warehouse_size","p95_compilation_ms_30",round_or_none(optional_float(q.get("p95_compilation_ms_30"))),unit="ms",table="system.query.history",field="compilation_duration_ms",window="last 30 days within current epoch",interpretation="Metadata loading and optimization time; a size change does not shorten it (evidence only)."),
             self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
         ])
@@ -4684,7 +4681,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 80.0, "time_at_max_pct": 0.0,
             "max_observed_clusters": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
-            "event_coverage_start": cur_start,
+            "event_coverage_start": cur_start, "resource_coverage_from": None,
         },
         gaps={
             "gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0,

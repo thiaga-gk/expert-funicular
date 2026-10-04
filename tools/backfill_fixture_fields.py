@@ -7,6 +7,8 @@ Usage: python tools/backfill_fixture_fields.py tests/golden/*.json
   its start, as synthetic fixtures are; workspace DBU-per-cluster-hour rates then equal the old epoch totals.
 - Each current epoch without `query.decision_queries_30` gets the non-result-cache share of its 30-day queries
   (queries_30 x (1 - result-cache %)).
+- Each current epoch with a daily resource series and no `events.resource_coverage_from` gets it as null (synthetic
+  fixtures have no billed days before their first event).
 Real evidence is never backfilled: missing fields fail closed.
 """
 import json
@@ -27,11 +29,14 @@ def backfill(evidence):
             if cost.get("list_cost") and cost.get("dbu_quantity"):
                 ratio[ep["epoch_start"]] = cost["dbu_quantity"] / cost["list_cost"]
             events = ep.setdefault("events", {})
+            if ep.get("is_current") and ep.get("resource_daily") and "resource_coverage_from" not in events:
+                events["resource_coverage_from"] = None
+                changed += 1
             if events and "event_coverage_start" not in events:
                 events["event_coverage_start"] = ep["epoch_start"]
                 changed += 1
             query = ep.get("query") or {}
-            if ep.get("is_current") and "queries_30" in query and query.get("decision_queries_30") != _decision(query):
+            if ep.get("is_current") and "queries_30" in query and "decision_queries_30" not in query:
                 query["decision_queries_30"] = _decision(query)
                 changed += 1
         for row in x.get("daily_cost_365") or []:
