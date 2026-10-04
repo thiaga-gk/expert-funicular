@@ -105,6 +105,7 @@ G31 proposal: Reporter 1.2.0 → 1.3.0 additive required-nullable `StepProjectio
 | G40 | P2 | Non-work activity (BI polling, keep-alive and metadata queries, open sessions, result fetching, dashboard refresh) keeps warehouses running and is not flagged. | C03, C04, C44, A10 |
 | G41 | P2 | Serverless region availability check passes on any region label (no verified list). | C15, A05 |
 | OOS | — | Classic→Pro, workload isolation, consolidation, statement timeout, networking, budget policies: flag only. | C17, C23, C24, C27, C40, C43 |
+| G43 | P1 | The forecast window (last 84 days, recent-weighted) with the 7-billed-day floor is blind to low-frequency workloads: bi-weekly and monthly jobs never get a forward cost (true 2,600 and 1,200/yr), semi-yearly and yearly runs fall outside the window, month-end close reads ~9% high. Proposal: detect the billing cadence, window = max(84 days, N cycles) up to the 365 days collected, require at least K cycles. N, K and irregular/seasonal handling are open (overlaps G33). | C52 |
 
 Notes folded into existing items: K1 never targets below 10 min on Pro/Classic and evaluates raising auto-stop (C49); K3 must derive the floor from concurrency because steady warehouses show 100% time at min (C45); K4 adds a spill-concentration check (known limitation 12, C22). Negative billing corrections (C30) carry the original usage date and net out on that day, so they are covered by G18/G21.
 
