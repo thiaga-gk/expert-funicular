@@ -14,7 +14,7 @@
 - workbook projection-only
 
 ## Docs
-- PRD/HLD/LLD/context current and status explicit
+- Design docs current: each topic stated once in its home, no contradiction with code or contracts
 - source/technique/threshold/economics references current
 - README/CLAUDE version and execution rules current
 - known limitations contain only unresolved truths
