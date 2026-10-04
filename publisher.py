@@ -4750,8 +4750,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 "min_clusters": spec["min"], "max_clusters": spec["max"], "auto_stop_minutes": spec["auto_stop"]}
     created = dt.date.fromisoformat(spec.get("created") or (spec["prior"][0]["start"] if spec.get("prior") else spec.get("epoch_start") or "2025-07-01"))
     current_start = dt.date.fromisoformat(spec.get("epoch_start") or created.isoformat())
-    epoch_defs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**base_cfg, **{k: v for k, v in p.items() if k != "start"}}) for p in spec.get("prior", [])]
-    epoch_defs = [(d, {**c, "warehouse_size": c.pop("size", c["warehouse_size"])}) for d, c in epoch_defs]
+    prior_keys = {"size": "warehouse_size", "min": "min_clusters", "max": "max_clusters", "auto_stop": "auto_stop_minutes", "type": "warehouse_type"}
+    epoch_defs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**base_cfg, **{prior_keys[k]: v for k, v in p.items() if k != "start"}}) for p in spec.get("prior", [])]
     epoch_defs.append((current_start, base_cfg))
     epochs: List[Tuple[float, Optional[float], Dict[str, Any]]] = []
     for i, (d, cfg) in enumerate(epoch_defs):
@@ -4839,7 +4839,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     clusters = 0
     for i, (a, b, conc) in enumerate(runs):
         cfg = _demo_config_at(spec, epochs, a)
-        lo, hi, auto = cfg["min_clusters"], cfg["max_clusters"], cfg["auto_stop_minutes"]
+        lo, hi = cfg["min_clusters"], cfg["max_clusters"]
         if i == 0 or clusters == 0:
             starts.append(a); clusters = lo
         need = min(max(lo, int(math.ceil(conc / 10.0 - 1e-9))), hi)
@@ -4881,13 +4881,6 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
 
-    def epoch_of(t: float) -> Tuple[float, Optional[float], Dict[str, Any]]:
-        for ep in epochs:
-            if ep[0] <= t and (ep[1] is None or t < ep[1]):
-                return ep
-        return epochs[0]
-
-    q_avg = {}
     rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
     tags = {"environment": spec.get("env", "production"), "team": spec["name"].lower().replace(" ", "-"), "golden_scenario": spec["scenario"]}
     dbu_rate = SQL_DBU_PER_CLUSTER_HOUR[spec["size"]]
