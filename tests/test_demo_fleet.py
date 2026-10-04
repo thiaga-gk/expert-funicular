@@ -204,6 +204,9 @@ class DemoFleetTests(unittest.TestCase):
     def test_c37_ceiling_is_kept_for_the_half_year_peak(self):
         c = self.candidate("C37", "max_clusters")
         self.assertEqual((c["status"], c["recommended_value"], c["blockers"]), ("NO_CHANGE", 8, ["PEAK_OUTSIDE_RECENT_WINDOW"]))
+        size = self.candidate("C37", "warehouse_size")
+        self.assertEqual(size["status"], "NO_CHANGE")
+        self.assertIn("PEAK_OUTSIDE_RECENT_WINDOW", size["blockers"])
 
     def test_c18_preview_channel_is_observed_only(self):
         e, pkg = self.by_scenario["C18"]
@@ -213,6 +216,12 @@ class DemoFleetTests(unittest.TestCase):
         self.assertNotIn("warehouse_channel", [s["knob"] for s in steps])
         evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
         self.assertEqual([x["value"] for x in evidence if x["metric"] == "warehouse_channel"], ["PREVIEW"])
+
+    def test_c38_capacity_cuts_wait_while_volume_grows(self):
+        for knob in ("warehouse_size", "max_clusters"):
+            c = self.candidate("C38", knob)
+            self.assertEqual(c["status"], "NO_CHANGE", knob)
+            self.assertIn("QUERY_VOLUME_GROWING", c["blockers"], knob)
 
     def test_c41_genie_warehouse_is_never_moved_to_classic(self):
         self.assertNotEqual(self.candidate("C41", "warehouse_type")["recommended_value"], "CLASSIC")

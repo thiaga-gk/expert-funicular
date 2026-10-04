@@ -215,5 +215,6 @@ Scenario-planner timing.
 | Parameter | Default | Description | Used by |
 |---|---|---|---|
 | `remeasure_days_after_invalidating_change` | `7` | Days a plan step waits for fresh evidence after an upstream change invalidates it. | [PRD FR-PLAN-003](../product/prd.md), [LLD §19.3 Step state machine](../architecture/lld.md) |
+| `growth_hold_weekly_ratio` | `1.10` | Capacity cuts (downsize, max-cluster cut, min-cluster cut) wait while every one of the last 4 complete weeks has at least this many times the median weekly query count of the 4 weeks before; unknown (not held) when the epoch has fewer than 8 complete weeks. | [Blocker codes](blocker-codes.md) |
 | `plan_risk_hitl_change` | `1.0` | Risk divisor for an `ACTIONABLE` (human-approved) step when plan steps are ordered by base savings × confidence / risk. | [PRD FR-PLAN-001](../product/prd.md) |
 | `plan_risk_canary_change` | `2.0` | Risk divisor for a `TEST_REQUIRED` (canary) step in the same plan ordering; a canary costs a measurement cycle and a rollback path. | [PRD FR-PLAN-001](../product/prd.md) |

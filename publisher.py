@@ -218,6 +218,7 @@ class Thresholds:
     confidence_cap_actionable: float = 0.93
     confidence_cap_default: float = 0.80
     remeasure_days_after_invalidating_change: int = 7
+    growth_hold_weekly_ratio: float = 1.10  # capacity cuts wait while every one of the last 4 weeks has >= this x the prior 4-week median of queries
     plan_risk_hitl_change: float = 1.0  # plan order divides base savings x confidence by this for an ACTIONABLE step
     plan_risk_canary_change: float = 2.0  # ... and by this for a TEST_REQUIRED step (a canary costs a measurement cycle)
 
@@ -703,7 +704,17 @@ SELECT
   PERCENTILE_APPROX(execution_duration_ms,0.95) AS epoch_p95_execution_ms,
   100.0 * COUNT_IF(COALESCE(waiting_at_capacity_duration_ms,0) > 0)/NULLIF(COUNT(*),0) AS epoch_queued_query_pct,
   100.0 * COUNT_IF(COALESCE(spilled_local_bytes,0) > 0)/NULLIF(COUNT(*),0) AS epoch_spill_query_pct,
-  SUM(total_task_duration_ms) AS epoch_task_duration_ms
+  SUM(total_task_duration_ms) AS epoch_task_duration_ms,
+  -- Queries per complete UTC week (week 1 = the 7 days before today), null for a week not wholly inside the epoch:
+  -- the growth guard compares the last 4 weeks with the 4 before.
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 7 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 7 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 0 DAYS) END AS queries_week_1,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 14 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 14 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 7 DAYS) END AS queries_week_2,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 21 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 21 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 14 DAYS) END AS queries_week_3,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 28 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 28 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 21 DAYS) END AS queries_week_4,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 35 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 35 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 28 DAYS) END AS queries_week_5,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 42 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 42 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 35 DAYS) END AS queries_week_6,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 49 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 49 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 42 DAYS) END AS queries_week_7,
+  CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 49 DAYS) END AS queries_week_8
 FROM q
 GROUP BY workspace_id, warehouse_id, epoch_start
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
@@ -1949,6 +1960,21 @@ def size_busy_share(busy_minutes: Any, uptime_minutes: Any, cluster_minutes: Any
     return round(clamp(max(1.0 - idle_cluster_minutes / cluster, busy / cluster), 0.0, 1.0), 6)
 
 
+def query_volume_growth_ratio(weeks: Sequence[Any]) -> Optional[float]:
+    """Smallest of the last 4 weekly query counts over the median of the 4 weeks before; None when unknown.
+
+    Using every recent week (not a total) keeps a single month-, quarter- or year-end burst week from looking like
+    growth, and the median keeps one quiet or burst week in the earlier period from moving the base.
+    """
+    vals = [optional_float(x) for x in list(weeks)[:8]]
+    if len(vals) < 8 or any(v is None for v in vals):
+        return None
+    prior = statistics.median(vals[4:8])
+    if prior <= 0:
+        return None
+    return round(min(vals[0:4]) / prior, 6)
+
+
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
@@ -2287,6 +2313,12 @@ class Analyzer:
         spill_pct = optional_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         failure_pct = optional_float(q.get("failure_cancel_pct_30"))
         common["failure_pct"] = failure_pct  # reliability guard shared by every capacity cut
+        growth_ratio = query_volume_growth_ratio([q.get(f"queries_week_{k}") for k in range(1, 9)])
+        common["growth_ratio"] = growth_ratio  # growth guard shared by every capacity cut
+
+        def growth_finding(knob: str) -> Finding:
+            return self._f(e,knob,"query_volume_growth_ratio",growth_ratio,unit="ratio",threshold=self.t.growth_hold_weekly_ratio,comparator=">= capacity-cut hold",table="system.query.history",field="start_time",
+                window="last 8 complete weeks within current epoch",interpretation="Smallest of the last 4 weekly query counts over the median of the 4 weeks before; at or above the threshold, capacity cuts wait (unknown when the epoch has fewer than 8 complete weeks).")
         queue_pct = optional_float(q.get("queued_query_pct_30")); p95 = optional_float(q.get("p95_execution_ms_30")); p99 = optional_float(q.get("p99_execution_ms_30"))
         fs = [
             self._f(e,"warehouse_size","warehouse_size",cfg.warehouse_size,table="system.compute.warehouses",field="warehouse_size",window="current epoch",interpretation="Current warehouse size."),
@@ -2305,7 +2337,7 @@ class Analyzer:
             self._f(e,"warehouse_size","p95_compilation_ms_30",round_or_none(optional_float(q.get("p95_compilation_ms_30"))),unit="ms",table="system.query.history",field="compilation_duration_ms",window="last 30 days within current epoch",interpretation="Metadata loading and optimization time; a size change does not shorten it (evidence only)."),
             self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
         ])
-        fs.append(utilization_finding("warehouse_size"))
+        fs.append(utilization_finding("warehouse_size")); fs.append(growth_finding("warehouse_size"))
         # Busy share of running cluster time (whole epoch, same period as the event totals): a size change speeds up or
         # slows down query execution, not the idle running time around it.
         busy_share = size_busy_share(gaps.get("busy_minutes"), ev.get("uptime_minutes"), ev.get("cluster_minutes"), cfg.min_clusters)
@@ -2332,6 +2364,7 @@ class Analyzer:
         # evidence collected without it.
         epoch_peak_raw = optional_float(ev.get("max_observed_clusters_within_ceiling"))
         epoch_peak = None if epoch_peak_raw is None else int(epoch_peak_raw)
+        fs.append(growth_finding("max_clusters"))
         fs.append(self._f(e,"max_clusters","epoch_max_observed_clusters",epoch_peak,unit="clusters",table="system.compute.warehouse_events",field="cluster_count",window="current epoch (events retained 365 days)",interpretation="Highest scale level the current configuration has run at, excluding cluster-recycling transients above the ceiling; the ceiling is never cut below it."))
         out["max_clusters"] = AnalysisResult(e.warehouse_id,"max_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"queue_n":queue_n,"wait_capacity":wait,"max_observed":max_obs,"epoch_max_observed":epoch_peak,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # The increase is priced on the same recent window it is decided on.
@@ -2347,7 +2380,7 @@ class Analyzer:
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round_or_none(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window=recent_label,interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
-        fs.append(utilization_finding("min_clusters"))
+        fs.append(utilization_finding("min_clusters")); fs.append(growth_finding("min_clusters"))
         out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
             # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
             "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
@@ -2405,6 +2438,15 @@ class Optimizer:
     def __init__(self, thresholds: Thresholds):
         self.t = thresholds
 
+    def _ceiling_for(self, level: int, min_clusters: int) -> int:
+        """Ceiling for an observed peak: the peak plus headroom, never below the minimum."""
+        headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
+        return max(min_clusters, level + headroom)
+
+    def _growing(self, facts: Mapping[str, Any]) -> bool:
+        ratio = facts.get("growth_ratio")
+        return ratio is not None and ratio >= self.t.growth_hold_weekly_ratio
+
     def optimize(self, e: WarehouseEvidence, analyses: Dict[str, AnalysisResult]) -> List[OptimizationDecision]:
         cfg = e.current_epoch.config
         age = epoch_age_days(e.current_epoch, e.analysis_time)
@@ -2456,6 +2498,12 @@ class Optimizer:
             if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
             if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
             if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
+            # Seasonality: the canary's 30-day evidence cannot see a peak the epoch reached beyond the recent ceiling.
+            mf = analyses["max_clusters"].facts
+            if mf.get("max_observed") is not None and mf.get("epoch_max_observed") is not None \
+                    and safe_int(mf["epoch_max_observed"]) > self._ceiling_for(safe_int(mf["max_observed"]), cfg.min_clusters):
+                blockers.append("PEAK_OUTSIDE_RECENT_WINDOW")
+            if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
             if target and not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
@@ -2505,8 +2553,7 @@ class Optimizer:
             peak = safe_int(f["max_observed"])
 
             def ceiling_for(level: int) -> int:
-                headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
-                return max(cfg.min_clusters, level + headroom)
+                return self._ceiling_for(level, cfg.min_clusters)
 
             # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent window,
             # so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
@@ -2530,6 +2577,8 @@ class Optimizer:
                 evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
             if considered and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
                 evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
+            if considered and self._growing(f):
+                evidence_blockers = evidence_blockers + ["QUERY_VOLUME_GROWING"]
             reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
             if reduce_ok:
                 target=reduced_max
@@ -2543,7 +2592,7 @@ class Optimizer:
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
-                    "Queue or failure evidence holds the ceiling cut." if evidence_blockers else
+                    "Queue, failure or growth evidence holds the ceiling cut." if evidence_blockers else
                     "No sustained saturation requiring an increase and no strong evidence for a lower ceiling."))
 
         # Min clusters
@@ -2563,6 +2612,7 @@ class Optimizer:
                 if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce: blockers.append("SUSTAINED_SCALE_PRESSURE")
                 if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
             blockers.extend(failure_blockers(f["failure_pct"], self.t))
+            if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
             if not blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
                     {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters-1},
@@ -5057,6 +5107,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     point_times = [x[0] for x in points]
     spans = sorted((max(a, sim_start), min(b, now_t), r, k) for a, b, r, k in spans if b > sim_start and a < now_t)
 
+    day0 = 366 * 1440.0  # the analysis day's 00:00 UTC, in simulation minutes
+
     def queries_between(lo: float, hi: float) -> Tuple[float, Dict[str, float], set]:
         """Queries whose start time is in [lo, hi): total, by source key, and the UTC days they start on."""
         total, by_src, days = 0.0, {}, set()
@@ -5213,6 +5265,9 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "epoch_p95_execution_ms": p95 if epoch_q else None, "epoch_queued_query_pct": round(100.0 * queued_epoch / epoch_q, 4) if epoch_q else None,
             "epoch_spill_query_pct": spill_pct if epoch_q else None,
             "epoch_task_duration_ms": round(busy_conc_minutes * 60000.0 * spec.get("task_parallelism", 4), 1) if epoch_q else None,
+            # Queries per complete UTC week before the analysis day; null for a week not wholly inside the epoch.
+            **{f"queries_week_{k}": (int(round(queries_between(max(day0 - 7 * k * 1440.0, ep_start), day0 - 7 * (k - 1) * 1440.0 if ep_end is None else min(day0 - 7 * (k - 1) * 1440.0, ep_end))[0]))
+                                     if ep_start <= day0 - 7 * k * 1440.0 else None) for k in range(1, 9)},
         })
         # Warehouse events: no row when no retained event covers the epoch; otherwise from the coverage start.
         cov = None if coverage is None or coverage >= hi_t else max(lo_t, coverage)

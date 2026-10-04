@@ -2221,5 +2221,65 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
         self.assertEqual((self.t.plan_risk_hitl_change, self.t.plan_risk_canary_change), (1.0, 2.0))
 
 
+
+class GrowthAndSeasonalHoldTests(unittest.TestCase):
+    """Capacity cuts are held while query volume grows week over week, and a downsize is held for a seasonal peak."""
+
+    def setUp(self):
+        self.t = p.Thresholds()
+
+    def evidence(self, weeks, max_clusters=None, epoch_peak=None):
+        e = p.demo_evidence()[0]
+        if max_clusters is not None:
+            for ep in e.epochs:
+                ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
+        for k in range(1, 9):
+            e.current_epoch.query.pop(f"queries_week_{k}", None)
+        if weeks is not None:
+            for k, n in enumerate(weeks, start=1):  # week 1 = the most recent complete week
+                e.current_epoch.query[f"queries_week_{k}"] = n
+        if epoch_peak is not None:
+            e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
+        return e
+
+    def candidates(self, e):
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_weekly_counts_are_collected_for_complete_weeks_in_the_epoch(self):
+        sql = p.EPOCH_QUERY_METRICS_SQL
+        for k in range(1, 9):
+            self.assertIn(f"AS queries_week_{k}", sql)
+        self.assertIn("WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS", sql)
+
+    def test_growth_ratio(self):
+        self.assertAlmostEqual(p.query_volume_growth_ratio([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]), 1.2)
+        self.assertIsNone(p.query_volume_growth_ratio([1200, None, 1250, 1400, 1000, 950, 1050, 1000]))
+        self.assertIsNone(p.query_volume_growth_ratio([5, 5, 5, 5, 0, 0, 0, 0]))  # no prior volume: unknown
+
+    def test_growing_volume_holds_every_capacity_cut(self):
+        # Every one of the last 4 weeks >= 1.10 x the prior 4-week median (1,000): the downsize and the ceiling cut wait.
+        c = self.candidates(self.evidence([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]))
+        for knob in ("warehouse_size", "max_clusters", "min_clusters"):
+            self.assertIn("QUERY_VOLUME_GROWING", c[knob].blockers, knob)
+            self.assertEqual(c[knob].status, "NO_CHANGE", knob)
+        self.assertEqual(c["auto_stop_minutes"].status, "ACTIONABLE")  # not a capacity cut
+
+    def test_one_burst_week_or_unknown_weeks_hold_nothing(self):
+        for weeks in ([1000, 3000, 1000, 1000, 1000, 1000, 1000, 1000], None):
+            c = self.candidates(self.evidence(weeks))
+            self.assertEqual(c["warehouse_size"].status, "TEST_REQUIRED", weeks)
+            self.assertNotIn("QUERY_VOLUME_GROWING", c["max_clusters"].blockers)
+
+    def test_downsize_is_held_for_a_peak_outside_the_recent_window(self):
+        c = self.candidates(self.evidence(None, max_clusters=8, epoch_peak=8))
+        self.assertEqual(c["warehouse_size"].status, "NO_CHANGE")
+        self.assertIn("PEAK_OUTSIDE_RECENT_WINDOW", c["warehouse_size"].blockers)
+        c = self.candidates(self.evidence(None, max_clusters=8, epoch_peak=3))  # within the recent ceiling (2 + 1)
+        self.assertEqual(c["warehouse_size"].status, "TEST_REQUIRED")
+
+    def test_growth_threshold_default(self):
+        self.assertEqual(self.t.growth_hold_weekly_ratio, 1.10)
+
+
 if __name__ == "__main__":
     unittest.main()
