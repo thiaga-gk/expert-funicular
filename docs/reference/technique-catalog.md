@@ -4,7 +4,7 @@ Stable `technique_id` values are catalog identities. They do not change across w
 
 | Knob | Stable technique IDs | Algorithm | Primary blocker / validation |
 |---|---|---|---|
-| channel | `WH-CHANNEL-CURRENT-001`, `WH-CHANNEL-STABILITY-001` | release-channel stability review | preview dependency unknown |
+| ~~channel~~ (retired) | ~~`WH-CHANNEL-CURRENT-001`~~, ~~`WH-CHANNEL-STABILITY-001`~~ reserved, not emitted | observation only: the channel is reported in `current_config.warehouse_channel` and a `PREVIEW` warehouse carries an informational evidence note; no recommendation, because a channel move has no priced effect and Preview-only dependencies are not visible in system tables | n/a |
 | ~~Photon~~ (retired in v2.7.1) | ~~`WH-PHOTON-ENABLE-001`~~ reserved, not emitted | observation only: ENABLED/DISABLED/MIXED/UNKNOWN is still inferred from current-epoch signed DBUs and reported in `current_config.photon`; no recommendation is made because Databricks publishes no Photon on/off price for SQL warehouses | n/a |
 | size | `WH-SIZE-DOWNSIZE-001`, `WH-SIZE-UPSIZE-001`, `WH-SIZE-RIGHTSIZE-001` | spill/latency/queue right-sizing; type-correct DBU/AWS model | A/B performance validation for downsize and upsize |
 | max clusters | `WH-MAX-CLUSTER-REDUCE-001`, `WH-MAX-CLUSTER-INCREASE-001`, `WH-MAX-CLUSTER-ASSESS-001` | concurrency ceiling tuning | max limit / insufficient pressure |

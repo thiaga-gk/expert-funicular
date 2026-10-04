@@ -236,7 +236,7 @@ canonical applied_config
 
 `warehouse_type | warehouse_size | min_clusters | max_clusters | auto_stop_minutes | warehouse_channel | enable_photon`
 
-`enable_photon` is **reserved**: it stays in the enum so 1.0.0 packages remain valid, but the publisher no longer emits a Photon candidate. The billing-observed Photon state remains in `current_config.photon`.
+`enable_photon` and `warehouse_channel` are **reserved for candidates**: they stay in the enum so earlier packages remain valid, but the publisher emits no Photon or channel candidate. The billing-observed Photon state remains in `current_config.photon` and the channel in `current_config.warehouse_channel`; `warehouse_channel` is still used in observed configuration changes.
 
 ### Confidence
 

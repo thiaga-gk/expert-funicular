@@ -25,7 +25,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - IMPORTANT: `RecommendationPackage` (Reporter JSON Contract) is the public machine source of truth. The workbook is projection-only: never put optimization, estimation, confidence, ID/hash or selection logic in Excel.
 - IMPORTANT: identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
 - `SUPPORTED_WAREHOUSE_TYPES` (`CLASSIC`, `PRO`, standard `SERVERLESS`) is fail-closed: never route unknown or future types into existing algorithms.
-- One candidate per active domain: channel guardrail, size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon is observation-only and never recommended (no Databricks on/off price exists, so savings would be guessed). Query rewrite, storage, schedule, Spot and statement-timeout tuning are out of scope.
+- One candidate per active domain: size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon and the warehouse channel are observation-only and never recommended (Photon has no Databricks on/off price, so savings would be guessed; a channel move has no priced effect). Query rewrite, storage, schedule, Spot and statement-timeout tuning are out of scope.
 - Read-only: OAuth profiles only (reject static PATs), no mutation/apply API, and never log credentials, tokens, raw SQL text or unnecessary config values.
 
 ## Source authority

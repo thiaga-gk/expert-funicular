@@ -168,14 +168,13 @@ Each supported warehouse must produce exactly one candidate decision for each ac
 
 | Candidate domain | Purpose | Product classification |
 |---|---|---|
-| `warehouse_channel` | identify Preview→Current stability review | governance/safety guardrail |
 | `warehouse_size` | downsize/upsize/right-size | cost/performance |
 | `max_clusters` | reduce unused ceiling or increase constrained concurrency | performance/guardrail |
 | `min_clusters` | reduce unnecessary baseline capacity | cost |
 | `auto_stop_minutes` | reduce avoidable idle runtime | cost |
 | `warehouse_type` | evaluate Pro/Classic↔Serverless migration experiment | cost/performance/compatibility |
 
-`warehouse_channel` is intentionally retained as a candidate because a Preview dependency can invalidate other tuning assumptions; it is **not** counted as a direct savings technique unless economics are explicitly available.
+The warehouse channel is observed, not recommended: a Preview→Current move has no priced effect, and Preview-only dependencies cannot be detected from system tables. It is reported in the current configuration and stays part of the configuration epoch; a `PREVIEW` warehouse carries an informational evidence note (FR-OPT-001).
 
 Photon is observed and never recommended; it is not a candidate domain (rationale: `docs/reference/known-limitations.md`).
 
@@ -342,11 +341,11 @@ Analyzer evidence shall support explicit sufficiency and blocker evaluation rath
 
 Every parameter named below is a `Thresholds` field. Defaults: `docs/reference/thresholds.md`. Meaning, firing condition and resulting status of each blocker code: `docs/reference/blocker-codes.md`. Missing evidence is never read as zero: an unreported value holds the change.
 
-### FR-OPT-001 — Channel
+### FR-OPT-001 — Channel observation
 
-If a warehouse uses `PREVIEW`, the optimizer shall emit a `REVIEW` candidate for `CURRENT` and require validation of Preview-only dependencies before change.
+The warehouse channel shall be reported from the current configuration epoch and never produce a candidate, plan step or invalidation. A warehouse on `PREVIEW` shall carry an informational evidence note that Preview-only dependencies should be confirmed before any move to `CURRENT`.
 
-A channel change shall invalidate downstream performance/cost tuning assumptions.
+A channel change still starts a new configuration epoch.
 
 ### FR-OPT-002 — Photon observation
 
@@ -368,9 +367,11 @@ A one-size down canary may be proposed only when all of the following hold:
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
 - p95 and p99 execution latency are known and not above the downsize-safe levels (`p95_execution_ms_downsize_safe`, `p99_execution_ms_downsize_safe`);
+- query volume is not growing: the smallest of the last four complete weekly query counts is below `growth_hold_weekly_ratio` times the median of the four weeks before (unknown when the epoch has fewer than eight complete weeks, which holds nothing);
+- the whole current epoch's peak cluster count is not above the recent window's ceiling (recent peak plus headroom), so a seasonal peak the 30-day evidence cannot see is not downsized into;
 - the warehouse size is known and a smaller size exists.
 
-Evidence the collector did not report is null (never treated as zero pressure) and holds the downsize.
+Evidence the collector did not report is null (never treated as zero pressure) and holds the downsize. Growing volume or a peak outside the recent window holds it as `NO_CHANGE` with `QUERY_VOLUME_GROWING` or `PEAK_OUTSIDE_RECENT_WINDOW`; an auto-stop reduction is not held by growth.
 
 Downsize status shall be `TEST_REQUIRED`, not auto-actionable. When any condition fails the candidate is `NO_CHANGE` and carries the blockers that explain why (`docs/reference/blocker-codes.md`).
 
@@ -408,6 +409,7 @@ A reduction may be proposed only when the configured maximum is demonstrably unu
 - time at the configured maximum is low (`time_at_max_pct_safe_reduce`);
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
+- query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003);
 - the new maximum is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), and it is below the current maximum; the peak is the larger of the recent-window peak and the whole current epoch's peak, so a seasonal peak outside the recent window is never cut away.
 
 Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/blocker-codes.md`).
@@ -421,7 +423,8 @@ A reduction of one cluster may be proposed only when current-epoch evidence demo
 - the configured minimum is above 1, the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
 - time at the configured minimum is high enough (`time_at_min_pct_reduce`) and time at the configured maximum is below the blocking level (`time_at_max_pct_block_min_reduce`), both over the recent resource window;
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`), and p95 capacity wait among queued queries is known and not above the safe level (`queue_wait_p95_ms_safe`);
-- the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`).
+- the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
+- query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003).
 
 Unreported queue frequency or capacity wait holds the reduction (`docs/reference/blocker-codes.md`).
 
@@ -451,7 +454,7 @@ Migration shall be `TEST_REQUIRED` and compatibility-gated when the forward DBU 
 
 ### FR-OPT-010 — Candidate completeness
 
-Every supported warehouse shall emit exactly one candidate state for every active candidate domain, including `NO_CHANGE`, `BLOCKED`, `REVIEW`, or `TEST_REQUIRED` outcomes.
+Every supported warehouse shall emit exactly one candidate state for every active candidate domain, including `NO_CHANGE`, `BLOCKED`, `INSUFFICIENT_EVIDENCE`, or `TEST_REQUIRED` outcomes.
 
 ---
 
@@ -469,9 +472,9 @@ For example, an `ACTIONABLE` candidate may be `PENDING_REEVALUATION` in a scenar
 
 ### FR-PLAN-001
 
-Plan A ordering shall follow:
+Plan A shall order its steps by expected value: base annual savings × confidence ÷ risk, highest first, where a change that needs a canary carries more risk than one that needs human approval only (`plan_risk_canary_change`, `plan_risk_hitl_change`). Priced changes with positive savings come first, then changes that need a canary to be priced, then changes with no priced saving (guardrails and performance fixes). A step never precedes a step that invalidates its evidence.
 
-`warehouse_channel → warehouse_size → max_clusters → min_clusters → auto_stop_minutes`.
+Only true invalidations hold a step: a size change invalidates max- and min-cluster evidence, and a max-cluster increase invalidates min-cluster evidence. A max-cluster ceiling cut above the observed peak, a min-cluster change and an auto-stop change invalidate nothing; auto-stop is evaluated independently of size and min clusters.
 
 ### FR-PLAN-002
 
@@ -881,7 +884,7 @@ The current product increment is accepted when all of the following remain true:
 
 1. Classic, Pro, and standard Serverless evidence can traverse the canonical pipeline.
 2. Current config epochs are reconstructed from authoritative source evidence.
-3. Six active candidate domains (channel, size, max clusters, min clusters, auto-stop, warehouse-type migration) are emitted per supported warehouse.
+3. Five active candidate domains (size, max clusters, min clusters, auto-stop, warehouse-type migration) are emitted per supported warehouse; Photon and the channel are observed only.
 4. Candidate and scenario reviewer gates pass before publication.
 5. Candidate economics remain non-additive.
 6. Scenario economics are stateful.
@@ -985,7 +988,7 @@ Current product support remains intentionally narrower than every newly availabl
 6. HITL is mandatory and canaries are mandatory where explicitly required.
 7. Classic, Pro, and standard Serverless are the Phase-1 supported warehouse types.
 8. Lakehouse Real-Time Beta is excluded until a dedicated design is built.
-9. `warehouse_channel` is retained as a governance/safety guardrail candidate.
+9. `warehouse_channel` is observed and reported, never recommended.
 10. Plan A current-type optimization is the Phase-1 recommended path; migration remains alternative/experimental.
 
 ### Future decision requiring explicit product approval

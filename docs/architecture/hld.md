@@ -73,16 +73,15 @@ An unsupported type must never be silently processed using Pro/Classic assumptio
 
 ### 3.3 Active candidate domains
 
-Each supported warehouse/current epoch is assessed across six candidate domains (Photon is observed but is not a candidate domain):
+Each supported warehouse/current epoch is assessed across five candidate domains (Photon and the warehouse channel are observed but are not candidate domains):
 
-1. `warehouse_channel`
-2. `warehouse_size`
-3. `max_clusters`
-4. `min_clusters`
-5. `auto_stop_minutes`
-6. `warehouse_type`
+1. `warehouse_size`
+2. `max_clusters`
+3. `min_clusters`
+4. `auto_stop_minutes`
+5. `warehouse_type`
 
-`warehouse_channel` is a governance/stability guardrail. The remaining domains are cost, performance, compatibility, or mixed optimization techniques.
+The domains are cost, performance, compatibility, or mixed optimization techniques.
 
 ---
 
@@ -303,21 +302,17 @@ Phase-1 scenario policy:
 
 For a current Serverless warehouse, the migration alternative targets Pro. For current Classic/Pro, the migration alternative targets Serverless.
 
-Plan A follows the deterministic order:
+Plan A orders its steps by expected value (base savings × confidence ÷ risk) and never places a step before the step that invalidates it (formula: LLD §19.1):
 
 ```mermaid
 flowchart TD
-    CH[warehouse_channel] --> SZ[warehouse_size]
-    SZ --> MX[max_clusters]
-    MX --> MN[min_clusters]
-    MN --> AS[auto_stop_minutes]
-
-    SZ -. invalidates downstream capacity evidence .-> MX
-    SZ -. invalidates downstream capacity evidence .-> MN
-    SZ -. may invalidate idle/cost assumptions .-> AS
+    SZ[warehouse_size] -. invalidates capacity evidence .-> MX[max_clusters]
+    SZ -. invalidates capacity evidence .-> MN[min_clusters]
+    MX -. increase invalidates floor evidence .-> MN
+    AS[auto_stop_minutes]
 ```
 
-Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
+Auto-stop and a max-cluster ceiling cut have no upstream invalidator. Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
 
 ### 6.9 Stateful bundle estimator
 

@@ -261,6 +261,7 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - statement-text visibility and legacy Hive metastore reference count,
 - epoch-level p95 execution, queue and spill percentages,
 - epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`),
+- queries per complete UTC week (`queries_week_1` to `queries_week_8`; week 1 is the seven days before the analysis day), null for a week not wholly inside the current epoch, which feed the growth guard (15.3),
 - the decision population count (`decision_queries_30`) and p95 compilation and result-fetch time (evidence only).
 
 Latency (p95/p99/max execution) and spill (share, count, p95 bytes) are measured on the decision population: queries not served from the result cache, because cache hits take about 0 ms and would loosen the latency gates; failed and cancelled queries stay in, since a statement timeout is latency. `decision_queries_30` counts that population and is the sample size the size gates use; when it is missing the size change is held with `DECISION_QUERY_EVIDENCE_UNAVAILABLE`. Queue and failure shares, and the other metrics, still use all queries.
@@ -600,11 +601,10 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 
 | Candidate | Principal analyzer evidence |
 |---|---|
-| `warehouse_channel` | current channel |
 | ~~`enable_photon`~~ | retired; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
-| `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization |
-| `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
-| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization |
+| `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization, query-volume growth ratio |
+| `max_clusters` | max config, observed max clusters, whole-epoch peak, queue %, queued-query count, p95 capacity wait among queued queries, time at max, query-volume growth ratio |
+| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization, query-volume growth ratio |
 | `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), source/compatibility evidence |
 
@@ -622,15 +622,13 @@ Rules shared by several knobs:
 
 - **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW` (max-cluster reduction applies the same test without a code).
 - **Reliability guard** for every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above `failure_cancel_pct_downsize_safe` holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
+- **Growth guard** for the size downsize, the max-cluster reduction and the min-cluster reduction: the query-volume growth ratio is the smallest of the last four complete weekly query counts divided by the median of the four weeks before. At or above `growth_hold_weekly_ratio` the cut is `NO_CHANGE` with `QUERY_VOLUME_GROWING`. Using every recent week keeps one month-, quarter- or year-end burst week from looking like growth. The ratio is unknown, and holds nothing, when the epoch has fewer than eight complete weeks or the earlier median is zero. Auto-stop and increases are not held by it.
 - **Missing evidence is never read as zero.** An unreported spill, queue, latency or severity value holds the change with an `*_EVIDENCE_UNAVAILABLE` code.
 - **Recent capacity facts** (time at max, time at min, observed peak) come from the last `pressure_window_days` of the daily resource window, not the whole epoch. When the series was not collected the max/min-cluster change is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`; when it was collected but the warehouse did not run in the window, it is held with `NO_RECENT_RUNNING_TIME`.
 
 ### 15.1 Channel
 
-| Current state | Decision |
-|---|---|
-| `PREVIEW` | `REVIEW`: propose `CURRENT`, blocker `PREVIEW_FEATURE_DEPENDENCY_UNKNOWN`; invalidate size/max/min/auto-stop |
-| otherwise | `NO_CHANGE` |
+No channel decision is made. The channel is reported in `current_config.warehouse_channel` and stays an epoch field; it never creates a candidate, plan step or invalidation. When it is `PREVIEW` the package carries a `warehouse_channel` evidence record with an informational note (section 23). The `warehouse_channel` knob value and the `WH-CHANNEL-*` techniques are reserved and not emitted.
 
 ### 15.2 Photon
 
@@ -646,7 +644,7 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
 - both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
-- both signals reached, a larger size exists and no gate holds: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max/min/auto-stop;
+- both signals reached, a larger size exists and no gate holds: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max and min clusters;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
 
 #### Downsize
@@ -658,11 +656,13 @@ Every case that is not an upsize is evaluated for a downsize of exactly one size
 - spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
+- the growth guard (`QUERY_VOLUME_GROWING`);
+- the whole current epoch's peak cluster count above the recent window's ceiling (recent peak plus headroom, 15.4), so the 30-day canary evidence cannot see a seasonal peak the epoch reached (`PEAK_OUTSIDE_RECENT_WINDOW`; skipped when either peak is unknown);
 - p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
 The decision population is the non-result-cache queries (7.2), so latency and spill are not loosened by cache hits; failed and cancelled queries (timeouts included) stay in the tail. Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
 
-With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
+With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max and min clusters.
 
 Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
@@ -706,9 +706,9 @@ target   = max(min_clusters, peak + headroom)
 
 `recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum (as the recent window does), so a seasonal peak outside the recent window is not cut away. When the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
-The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard applies. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported) or the `FAILURE_CANCEL_*` codes. An ineligible ceiling is `NO_CHANGE` without a code.
+The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard and the growth guard apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes or `QUERY_VOLUME_GROWING`. An ineligible ceiling is `NO_CHANGE` without a code.
 
-An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates min clusters.
+An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates nothing: the new ceiling stays above the observed peak, so no other knob's evidence changes.
 
 ### 15.5 Min clusters
 
@@ -722,11 +722,12 @@ Otherwise reduce by exactly one cluster only when none of these blockers applies
 - recent resource window unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`) or idle (`NO_RECENT_RUNNING_TIME`);
 - time at the configured maximum at or above `time_at_max_pct_block_min_reduce` (`SUSTAINED_SCALE_PRESSURE`);
 - time at the configured minimum below `time_at_min_pct_reduce` (`WAREHOUSE_RARELY_AT_MINIMUM`);
-- the reliability guard.
+- the reliability guard;
+- the growth guard (`QUERY_VOLUME_GROWING`).
 
 `time_at_min` and `time_at_max` are measured over the last `pressure_window_days` of the daily resource window. An unreported value is held as a blocker, never read as 0.
 
-With no blocker the status is `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates auto-stop because baseline capacity changed. Otherwise the result is `NO_CHANGE` with the blockers preserved.
+With no blocker the status is `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates nothing: auto-stop is evaluated independently of the floor, and the bundle estimator keeps the two from claiming the same cluster-minute (20.3). Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
 ### 15.6 Auto-stop
 
@@ -751,7 +752,7 @@ Otherwise the recommendation is `BLOCKED` when any of these hold, each with its 
 - p95 compute wait among queries that waited at or above `cold_start_p95_ms_block` and starts per active day at or above `cold_starts_per_active_day_block` (`COLD_START_SENSITIVE`);
 - the reliability guard.
 
-With none of them the status is `ACTIONABLE`.
+With none of them the status is `ACTIONABLE`. Auto-stop is evaluated independently of size and min clusters: no other change invalidates it.
 
 Before that, when the idle time a lower auto-stop would remove (saved idle minutes times the current minimum clusters) exceeds the running cluster-minutes the events recorded (both above 0), the two sources contradict each other: the decision is `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price, instead of clamping to `auto_stop_savings_cap`.
 
@@ -774,20 +775,13 @@ Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observ
 
 ```mermaid
 flowchart LR
-    CH[Channel] --> SZ[Size]
-    SZ --> MX[Max clusters]
-    MX --> MN[Min clusters]
-    MN --> AS[Auto-stop]
-
-    CH -. invalidates .-> SZ
-    CH -. invalidates .-> MX
-    CH -. invalidates .-> MN
-    CH -. invalidates .-> AS
-    SZ -. invalidates .-> MX
-    SZ -. invalidates .-> MN
-    SZ -. invalidates .-> AS
-    MN -. invalidates .-> AS
+    SZ[Size] -. invalidates .-> MX[Max clusters]
+    SZ -. invalidates .-> MN[Min clusters]
+    MX -. increase invalidates .-> MN
+    AS[Auto-stop]
 ```
+
+A max-cluster ceiling cut, a min-cluster change and an auto-stop change invalidate nothing. Plan order is by value within these edges (19.1).
 
 ---
 
@@ -833,7 +827,7 @@ Value gate: a change whose objective is cost (a size reduction, a lower minimum 
 
 ### 17.2 No-change/guardrail candidates
 
-- `NO_CHANGE` candidates use factor `1.0` (a known no-change), as do channel stability and max-cluster ceiling reduction, which receive **no direct savings**.
+- `NO_CHANGE` candidates use factor `1.0` (a known no-change), as does a max-cluster ceiling reduction, which receives **no direct savings**.
 - `BLOCKED` and `INSUFFICIENT_EVIDENCE` candidates are not priced: no counterfactual is attempted and their economics are null, never zero.
 - With a null forward DBU baseline (11.4) every other candidate that needs a priced counterfactual is withheld the same way, and `estimate_blocker` names the reason.
 
@@ -942,7 +936,7 @@ Missing resource bounds, target DBU rate, list price, or AWS registry evidence m
 
 It validates:
 
-- exactly one candidate for each of six active knobs,
+- exactly one candidate for each of five active knobs,
 - candidate workspace/warehouse identity,
 - unique internal recommendation IDs,
 - nonnegative actual/forward baseline cost,
@@ -960,7 +954,7 @@ It validates:
 
 ```mermaid
 flowchart LR
-    C[6 candidates] --> R{Reviewer Gate 1}
+    C[5 candidates] --> R{Reviewer Gate 1}
     R -->|all invariants pass| S[Scenario Planner]
     R -->|any invariant fails| F[Fail closed<br/>No public package]
 ```
@@ -971,17 +965,20 @@ flowchart LR
 
 ### 19.1 Plan A
 
-Plan A is the Phase-1 recommended scenario and processes candidates in this order:
+Plan A is the Phase-1 recommended scenario. Size, max-cluster, min-cluster and auto-stop candidates with status `ACTIONABLE` or `TEST_REQUIRED` become plan steps, ordered by:
 
 ```text
-warehouse_channel
-→ warehouse_size
-→ max_clusters
-→ min_clusters
-→ auto_stop_minutes
+priority = base_savings_365 * confidence_score / risk
+risk     = plan_risk_hitl_change     (ACTIONABLE: human approval)
+         | plan_risk_canary_change   (TEST_REQUIRED: A/B canary)
+key      = (group, -round(priority, 2), knob_rank)
+group    = 0 if base_savings_365 > 0
+           1 if base_savings_365 is unavailable (a canary prices it)
+           2 if base_savings_365 <= 0 (guardrail or performance fix)
+knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 ```
 
-Only statuses `ACTIONABLE`, `TEST_REQUIRED`, and `REVIEW` become plan steps.
+`base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed.
 
 ### 19.2 Invalidation behavior
 
@@ -1077,14 +1074,14 @@ Each track carries:
 
 ```mermaid
 flowchart LR
-    BASE[Baseline cluster-minutes] --> MIN[Min-cluster reduction]
+    BASE[Baseline cluster-minutes] --> MIN[Floor or idle reduction, in plan order]
     MIN --> REM1[Remaining cluster-minutes]
-    REM1 --> IDLE[Auto-stop idle reduction]
+    REM1 --> IDLE[Floor or idle reduction, in plan order]
     IDLE --> REM2[Remaining cluster-minutes]
     REM2 --> COST[Scenario DBU/AWS costs]
 ```
 
-Min-cluster and auto-stop do not both claim the same original capacity minute.
+Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. When auto-stop is applied first, the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (current_min − target_min))`: a stopped warehouse has no floor cluster to remove.
 
 ### 20.4 Scenario estimate statuses
 
@@ -1118,6 +1115,7 @@ The codes that explain each withheld status: [`docs/reference/blocker-codes.md`]
 - step knob/current/recommended config exactly equal candidate contract,
 - step confidence exactly equals candidate confidence,
 - invalidated downstream steps are `PENDING_REEVALUATION`,
+- no step precedes a step that invalidates it,
 - a step's pricing basis matches its execution state (`PENDING_REEVALUATION` ⇔ contingent),
 - authoritative scenario savings equal the last authoritative step's running savings, and contingent savings equal the last pending step's,
 - every scenario range is ordered,
@@ -1218,7 +1216,7 @@ An `EvidenceRecord` includes:
 
 Interpretation prose is excluded from the evidence fingerprint; decision-relevant values and source semantics are included.
 
-Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package and referenced by every candidate. The package also carries `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`): retracted DBU per originally billed DBU. It is package evidence only: no candidate references it, so it does not enter candidate IDs, and no decision, confidence or economics reads it.
+Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package and referenced by every candidate. The package also carries `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`): retracted DBU per originally billed DBU. It is package evidence only: no candidate references it, so it does not enter candidate IDs, and no decision, confidence or economics reads it. When the current channel is `PREVIEW` the package also carries a `warehouse_channel` record (unit `state`, source `system.compute.warehouses`, window `current_epoch`) whose interpretation is the informational Preview note; it is package evidence only, like the billing-correction share.
 
 Candidate findings become evidence records, including evidence-only findings that no decision reads: on the size candidate `decision_queries_30` (the sample the size gates use), `p95_compilation_ms_30` and `p95_result_fetch_ms_30`; on the warehouse-type candidate `billed_sql_tiers`.
 
@@ -1501,11 +1499,11 @@ Thresholds are conservative policy defaults ([`docs/reference/thresholds.md`](..
 The LLD is satisfied by an implementation when all of the following hold:
 
 1. Only supported warehouse types can enter active optimization logic.
-2. Exactly six candidate decisions are produced for every supported warehouse package.
+2. Exactly five candidate decisions are produced for every supported warehouse package.
 3. All active recommendation evidence is current-epoch scoped.
 4. Analyzer, optimizer, candidate estimator, bundle estimator, and reviewer responsibilities remain separated.
 5. Candidate savings cannot be added to form scenario or package savings.
-6. Plan A dependency/invalidation order is deterministic.
+6. Plan A order (value key, then invalidation precedence) is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
 9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.3.0.

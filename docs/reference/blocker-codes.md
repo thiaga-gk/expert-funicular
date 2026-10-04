@@ -11,7 +11,7 @@ The Reporter contract types `blockers` as free uppercase strings; there is no en
 
 **How to read the tables.**
 
-- *Fires when* names the function and the exact condition. The size, max-cluster, min-cluster, auto-stop, channel and migration rules all live in `Optimizer.optimize`; there is no per-knob method.
+- *Fires when* names the function and the exact condition. The size, max-cluster, min-cluster, auto-stop and migration rules all live in `Optimizer.optimize`; there is no per-knob method.
 - *Gating parameter(s)* are `Thresholds` fields; see [thresholds.md](thresholds.md) for defaults. "none" means the condition is not threshold-driven.
 - *Resulting status* is what the code sets. Candidate statuses are the Reporter contract recommendation statuses. Codes recorded only in internal metadata leave the candidate's decision status unchanged and make its economics null (`estimation_status = UNAVAILABLE` in the package).
 - *Used by* links the parent documents that mention the code, or (marked "rule") the section that states the rule without naming the code. "code only" means no document mentions the code or its rule.
@@ -63,7 +63,7 @@ Max-clusters decisions also use the shared codes above (`QUEUE_EVIDENCE_UNAVAILA
 
 | Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
 |---|---|---|---|---|---|
-| `QUERY_VOLUME_GROWING` | Query volume is rising week over week, so a capacity cut measured on the recent past would soon be too small. | `Optimizer.optimize` (size downsize, max-clusters reduction, min-clusters reduction) when `query_volume_growth_ratio` (smallest of the last 4 weekly query counts over the median of the 4 weeks before) >= `growth_hold_weekly_ratio`. | [`growth_hold_weekly_ratio`](thresholds.md) | `NO_CHANGE` | code only |
+| `QUERY_VOLUME_GROWING` | Query volume is rising week over week, so a capacity cut measured on the recent past would soon be too small. | `Optimizer.optimize` (size downsize, max-clusters reduction, min-clusters reduction) when `query_volume_growth_ratio` (smallest of the last 4 weekly query counts over the median of the 4 weeks before) >= `growth_hold_weekly_ratio`. | [`growth_hold_weekly_ratio`](thresholds.md) | `NO_CHANGE` | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3](../architecture/lld.md) |
 | `PEAK_OUTSIDE_RECENT_WINDOW` | The current configuration has run at a higher cluster count earlier (for example a quarter- or half-year-end peak) than the recent window shows, so the ceiling is kept and a downsize waits. | `Optimizer.optimize` (max-clusters reduction) when the recent window's peak would allow a cut (window known, max above min, mature epoch, query sample, low time at max), but the ceiling for the whole current epoch's peak (`epoch_max_observed_clusters`, excluding transients above the configured maximum) is not below the configured maximum. Queue and failure evidence codes for the same cut are listed before it. Also the size downsize branch when that epoch peak is above the recent window's ceiling (recent peak plus headroom). | [`pressure_window_days`](thresholds.md), [`max_cluster_headroom_clusters`](thresholds.md), [`max_cluster_headroom_pct`](thresholds.md) | `NO_CHANGE` | [PRD FR-OPT-006](../product/prd.md), [LLD §15.4](../architecture/lld.md) |
 | `MAX_CLUSTER_LIMIT_REACHED` | The increase signal is present but max clusters is already at the supported limit. | `Optimizer.optimize` (max-clusters increase branch: `queue_pct` >= `queue_query_pct_increase_max`, wait >= `queue_wait_p95_ms_increase_max`, saturated) when `cfg.max_clusters` >= `max_clusters_supported_limit`. | [`max_clusters_supported_limit`](thresholds.md), [`queue_query_pct_increase_max`](thresholds.md), [`queue_wait_p95_ms_increase_max`](thresholds.md) | `BLOCKED` | rule: [PRD FR-OPT-005](../product/prd.md), [LLD §15.4](../architecture/lld.md) |
 
@@ -93,11 +93,6 @@ A change made to save money (objective `COST`: a size reduction, a lower minimum
 |---|---|---|---|---|---|
 | `COST_CHANGE_NOT_COST_EFFECTIVE` | The change was proposed to save money, but its own modeled base savings are not positive. | `Estimator._value_gate` when the base savings are <= 0. | none | `NO_CHANGE` | [LLD §17.1](../architecture/lld.md) |
 | `COST_SAVINGS_BELOW_MATERIALITY` | The modeled base savings are positive but below the annual materiality floor. | `Estimator._value_gate` when 0 < base savings < `cost_change_min_annual_savings`. | [`cost_change_min_annual_savings`](thresholds.md) | `NO_CHANGE` | [LLD §17.1](../architecture/lld.md) |
-
-### Channel
-
-| Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
-|---|---|---|---|---|---|
 
 ### Canary validation markers
 
