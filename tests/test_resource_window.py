@@ -27,6 +27,19 @@ def day_rows(start, days, cluster_minutes, *, at_min=0.0, at_max=0.0, recycle=0.
     } for i in range(days)]
 
 
+def demo_rows_without_events():
+    """The always-on demo warehouse (golden C01) as the real collector sees it after a year without a restart."""
+    rows = p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME)
+    rows = dict(rows, warehouse_events=[], resource_daily=[], idle_gaps=[])
+
+    class Client:
+        def query(self, statement, *, label="collector_sql"):
+            return [dict(r) for r in rows.get(label, [])]
+
+    registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
+    return {"evidence": p.extract_evidence(Client(), p.Thresholds(), "us-east-1", registry, analysis_time=p.DEMO_ANALYSIS_TIME)[0]}
+
+
 class ResourceWindowTests(unittest.TestCase):
     def setUp(self):
         self.t = p.Thresholds()
@@ -38,11 +51,48 @@ class ResourceWindowTests(unittest.TestCase):
         return day_rows("2025-12-04", 216, 600.0) + day_rows("2026-07-08", 84, 150.0)
 
     def test_window_is_the_last_84_basis_days_zero_filled(self):
-        self.e.current_epoch.resource_daily = day_rows("2026-09-01", 29, 100.0)[::2]  # every other day only
+        self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
+        self.e.current_epoch.resource_daily = day_rows("2026-06-03", 119, 100.0)[::2]  # every other day of the collected range
         w = p.resource_window(self.e, self.t)
         self.assertEqual((w["start"], w["end"], w["days"]), ("2026-07-08", "2026-09-29", 84))
         self.assertEqual(len(w["cluster_minutes"]), 84)
-        self.assertEqual(sum(1 for x in w["cluster_minutes"] if x == 0), 84 - 15)
+        self.assertEqual(sum(1 for x in w["cluster_minutes"] if x == 0), 42)
+
+    # --- Event history starts inside the window (365-day retention) ---------------------------------------------
+    def test_days_before_the_first_retained_event_are_unknown_not_zero(self):
+        # Always on, but the first event the 365-day retention still holds is a restart 50 days ago (08-11): the 34
+        # window days before it have no event rows and are unknown, not idle. Its partial first day is skipped too.
+        self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
+        self.e.current_epoch.resource_daily = day_rows("2026-08-11", 50, 1440.0)
+        w = p.resource_window(self.e, self.t)
+        self.assertEqual((w["start"], w["days"]), ("2026-08-12", 49))
+        self.assertNotIn(0.0, w["cluster_minutes"])
+        registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
+        cost, meta = p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
+        self.assertAlmostEqual(meta["annualized_cluster_minutes"], 1440.0 * 365, places=3)  # full uptime, not 49/84 of it
+
+    def test_series_starting_at_the_collected_range_is_not_clipped(self):
+        self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
+        self.e.current_epoch.resource_daily = day_rows("2026-06-03", 119, 100.0)
+        self.assertEqual(p.resource_window(self.e, self.t)["start"], "2026-07-08")
+
+    def test_billed_warehouse_without_retained_events_is_unavailable_not_idle(self):
+        # Always on for over a year: no event in retention, no daily rows, but billed every day.
+        rows = demo_rows_without_events()
+        e = rows["evidence"]
+        self.assertIsNone(e.current_epoch.resource_daily)
+        self.assertIsNone(e.aws_baseline_cost_365)
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertIn("RECENT_RESOURCE_WINDOW_UNAVAILABLE", by["max_clusters"].blockers)
+        self.assertNotIn("NO_RECENT_RUNNING_TIME", by["max_clusters"].blockers)
+
+    def test_gap_sample_covers_the_same_period_as_the_event_totals(self):
+        # Idle gaps are counted only after the warehouse's first retained event, the period event totals cover, so
+        # the auto-stop savings ratio (idle minutes / cluster-minutes) compares like with like.
+        sql = p.build_epoch_gap_metrics_sql(self.t)
+        self.assertIn("MIN(event_time) AS first_event_time", sql)
+        self.assertIn("x.start_time >= r.first_event_time", sql)
+        self.assertIn("MIN(segment_start) AS event_coverage_start", p.EPOCH_EVENT_METRICS_SQL)
 
     def test_window_is_clipped_to_the_epoch_start(self):
         self.e.current_epoch.epoch_start = "2026-09-10T00:00:00+00:00"

@@ -751,6 +751,7 @@ SELECT
   100.0*SUM(CASE WHEN cluster_count=max_clusters AND cluster_count>0 THEN duration_minutes ELSE 0 END)
     /NULLIF(SUM(CASE WHEN cluster_count>0 THEN duration_minutes ELSE 0 END),0) AS time_at_max_pct,
   MAX(cluster_count) AS max_observed_clusters,
+  MIN(segment_start) AS event_coverage_start,
   COUNT_IF(event_type='STARTING' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS starts_30,
   COUNT_IF(event_type='SCALED_UP' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_ups_30,
   COUNT_IF(event_type='SCALED_DOWN' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_downs_30
@@ -773,6 +774,14 @@ def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
+retained AS (
+  -- warehouse_events keeps 365 days: running time is only known after a warehouse's first retained event, so the
+  -- gap sample covers the same period as the event totals it is divided by.
+  SELECT workspace_id, warehouse_id, MIN(event_time) AS first_event_time
+  FROM system.compute.warehouse_events
+  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+  GROUP BY workspace_id, warehouse_id
+),
 ordered AS (
   SELECT x.workspace_id, x.compute.warehouse_id AS warehouse_id, p.epoch_start, p.auto_stop_minutes,
     x.start_time, x.end_time,
@@ -785,6 +794,8 @@ ordered AS (
   JOIN epochs p ON x.workspace_id=p.workspace_id
     AND x.compute.warehouse_id=p.warehouse_id
     AND x.start_time>=p.epoch_start AND (p.epoch_end IS NULL OR x.start_time<p.epoch_end)
+  JOIN retained r ON r.workspace_id=x.workspace_id AND r.warehouse_id=x.compute.warehouse_id
+    AND x.start_time >= r.first_event_time
   WHERE x.compute.type='WAREHOUSE' AND x.start_time>=CURRENT_TIMESTAMP()-INTERVAL 365 DAYS
 ), gaps AS (
   SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
@@ -1808,6 +1819,14 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
         start_day = max(start_day, collected_from.date())
+    days_with_rows = sorted(str(r.get("usage_day"))[:10] for r in epoch.resource_daily)
+    if days_with_rows:
+        # warehouse_events keeps 365 days, so a warehouse running since before its first retained event has no rows
+        # until that event: those days are unknown, never idle, and the first row's day is only partly covered.
+        first_row = dt.date.fromisoformat(days_with_rows[0])
+        epoch_day = start_dt.astimezone(dt.timezone.utc).date()
+        if first_row > max(epoch_day, collected_from.date() if collected_from is not None else epoch_day):
+            start_day = max(start_day, first_row + dt.timedelta(days=1))
     if start_day > end_day:
         return None
     by_day = {str(r.get("usage_day"))[:10]: r for r in epoch.resource_daily}
@@ -2070,6 +2089,13 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
         current.events["resource_daily_from"] = resource_collected_from or (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
+        if current.resource_daily == [] and any(
+                str(x.get("usage_date"))[:10] >= current.events["resource_daily_from"] and safe_float(x.get("dbu_quantity")) > 0
+                for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
+            # Billed but no warehouse event in the retained history (running since before it): running time is
+            # unknown, not idle.
+            current.resource_daily = None
+            current.events["resource_daily_status"] = "UNAVAILABLE_BILLED_WITHOUT_RETAINED_EVENTS"
         ws_watermark = watermark_by_ws.get(workspace_id, {})
         effective_watermark, watermark_source = effective_billing_watermark(
             ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,
@@ -4595,16 +4621,17 @@ DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 #   days: weekdays | all | month_end (last business day) | half_year_end (last 5 business days of June and December)
 #   start/end: "HH:MM" window; conc: concurrent queries; every/dur: periodic queries (minutes) instead of steady load;
 #   q_min: average query minutes for steady load; src: query source; client: client application.
-# Warehouse options: keepalive (an open session keeps it running with no queries), growth (volume doubles every 30
+# Warehouse options: keepalive (an open session keeps it running with no queries), restart_every_days (restarts with no
+# downtime; an always-on warehouse that never restarts has no retained warehouse event), growth (volume doubles every 30
 # days), prior (earlier configuration epochs), epoch_start/created, unpriced_from (promotional SKU without a list
 # price), correction (a RETRACTION/RESTATEMENT day), and query-quality parameters (p95/p99, spill, failures, cache).
 DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
-    {"scenario": "C01", "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
+    {"scenario": "C01", "restart_every_days": 30, "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 6, "dur": 1.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C02", "name": "Marketing Dashboards", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "weekdays", "start": s, "end": e, "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"} for s, e in (("09:00", "09:30"), ("13:00", "13:20"), ("16:00", "16:30"))]},
     {"scenario": "C03", "name": "Legacy Reporting", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 30, "keepalive": True, "work": []},
-    {"scenario": "C04", "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
+    {"scenario": "C04", "restart_every_days": 30, "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "every": 5, "dur": 0.05, "conc": 1, "src": "SQL", "client": "Tableau"},
               {"days": "weekdays", "start": "09:00", "end": "17:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD", "client": "Tableau"}]},
     {"scenario": "C05", "name": "Nightly ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 45,
@@ -4631,7 +4658,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 45, "dur": 3.0, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
     {"scenario": "C14", "name": "Serverless BI", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 4, "auto_stop": 20,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
-    {"scenario": "C16", "name": "Serverless 24x7 Feed", "ws": 1, "type": "SERVERLESS", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 10,
+    {"scenario": "C16", "restart_every_days": 30, "name": "Serverless 24x7 Feed", "ws": 1, "type": "SERVERLESS", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 10,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 8, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C18", "name": "Preview Channel", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 20, "channel": "PREVIEW",
      "work": [{"days": "weekdays", "start": "09:00", "end": "17:00", "every": 5, "dur": 0.5, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
@@ -4645,7 +4672,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C22", "name": "Few Heavy Queries", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20,
      "spill_pct": 3.0, "spill_p95_bytes": 5 * GIB,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
-    {"scenario": "C25", "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
+    {"scenario": "C25", "restart_every_days": 30, "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "07:00", "end": "19:00", "every": 3, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C26", "name": "Flaky ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 3, "auto_stop": 20, "failure_pct": 12.0,
      "p95": 300000, "p99": 900000, "task_parallelism": 24,
@@ -4668,7 +4695,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C42", "name": "Queue Flood", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 600000,
      "work": [{"days": "weekdays", "start": "09:00", "end": "09:15", "conc": 1000, "q_min": 0.2, "src": "JOB"},
               {"days": "weekdays", "start": "10:00", "end": "17:00", "conc": 12, "q_min": 0.5, "src": "DASHBOARD"}]},
-    {"scenario": "C45", "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
+    {"scenario": "C45", "restart_every_days": 30, "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 16, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C46", "name": "Hourly Burst", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 15, "queue_wait_ms": 180000,
      "work": [{"days": "weekdays", "start": f"{h:02d}:00", "end": f"{h:02d}:08", "conc": 60, "q_min": 0.3, "src": "DASHBOARD"} for h in range(8, 18)]
@@ -4828,6 +4855,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     lag = DEMO_SCALE_UP_LAG_MINUTES[typ]
     pieces: List[Tuple[float, float, int, float, float]] = []
     starts: List[float] = []
+    stops: List[float] = []
     scale_events: List[Tuple[float, int]] = []  # (time, +1 up / -1 down)
     if spec.get("keepalive"):
         starts.append(sim_start)
@@ -4864,6 +4892,16 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         pieces.append((b, b + keep, clusters, 0.0, 0.0))
         if keep < gap:
             clusters = 0
+            stops.append(b + keep)
+    # Restarts with no downtime (e.g. an always-on warehouse restarted for maintenance) are STARTING events only.
+    if spec.get("restart_every_days"):
+        t_restart = sim_start + 180.0
+        while t_restart < now_t:
+            starts.append(t_restart); t_restart += spec["restart_every_days"] * 1440.0
+        starts.sort()
+    # warehouse_events keeps 365 days: running time is visible only from the first event inside that window.
+    event_times = sorted([x for x in starts + stops + [t for t, _ in scale_events] if x >= window_365])
+    coverage = event_times[0] if event_times else None
 
     # Split pieces at midnight so daily series and billing land on their UTC day.
     def split_daily(items: Iterable[Tuple[float, float, int, float, float]]) -> List[Tuple[float, float, int, float, float]]:
@@ -4935,24 +4973,28 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "epoch_spill_query_pct": spill_pct if epoch_q else None,
             "epoch_task_duration_ms": round(busy_conc_minutes * 60000.0 * spec.get("task_parallelism", 4), 1) if epoch_q else None,
         })
-        # Warehouse events.
-        live = [(max(a, lo_t), b, cl, c, qc) for a, b, cl, c, qc in ep_pieces if b > lo_t]  # clipped at the window start
+        # Warehouse events: no row when no retained event covers the epoch; otherwise from the coverage start.
+        cov = None if coverage is None or coverage >= hi_t else max(lo_t, coverage)
+        live = [] if cov is None else [(max(a, cov), b, cl, c, qc) for a, b, cl, c, qc in ep_pieces if b > cov]
         uptime = sum(b - a for a, b, cl, _, _ in live if cl > 0)
         cluster_minutes = sum((b - a) * cl for a, b, cl, _, _ in live)
         at_min = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["min_clusters"])
         at_max = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["max_clusters"])
         lo30 = max(ep_start, window_30)
-        rows["warehouse_events"].append({
-            "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
-            "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
-            "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
-            "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
-            "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
-            "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
-            "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
-        })
-        # Idle gaps between busy runs (query-level gaps), saved idle at each policy target.
-        gaps = [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1) if ep_runs[i + 1][0] >= lo_t and ep_runs[i + 1][0] > ep_runs[i][1]]
+        if cov is not None:
+            rows["warehouse_events"].append({
+                "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "event_coverage_start": stamp(cov),
+                "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
+                "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
+                "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
+                "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
+                "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+                "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+            })
+        # Idle gaps between busy runs (query-level gaps) after the first retained event, saved idle at each target.
+        gap_lo = lo_t if coverage is None else max(lo_t, coverage)
+        gaps = [] if coverage is None else [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1)
+                                            if ep_runs[i][0] >= gap_lo and ep_runs[i + 1][0] > ep_runs[i][1]]
         if gaps:
             ordered = sorted(gaps)
             def pct(q: float) -> float:
@@ -4966,13 +5008,12 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
             rows["idle_gaps"].append(gap_row)
         # Daily resource series for the current epoch (last 120 days before the analysis date).
-        if ep_end is None:
-            first_event = min([x for x in starts if x >= ep_start] or [max(ep_start, sim_start)])
-            first = max(dt.date.fromisoformat(stamp(max(ep_start, first_event))[:10]), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
-            d = first
+        if ep_end is None and coverage is not None:
+            series_from = max(ep_start, coverage, at(analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)))
+            d = dt.date.fromisoformat(stamp(series_from)[:10])
             while d < analysis_day:
                 lo_d = at(d)
-                dp = [p for p in pieces_by_day.get(int(lo_d // 1440.0), []) if p[0] >= ep_start]
+                dp = [(max(a, series_from), b, cl, c, qc) for a, b, cl, c, qc in pieces_by_day.get(int(lo_d // 1440.0), []) if b > series_from]
                 rows["resource_daily"].append({
                     "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "usage_day": d.isoformat(),
                     "uptime_minutes": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0), 3),
