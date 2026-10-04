@@ -167,6 +167,7 @@ class Thresholds:
     # Forecast
     forecast_recent_days: int = 28
     forecast_long_days: int = 84
+    billing_settle_hours: int = 24  # a UTC day's billing counts only this long after the day ends
     forecast_cv_min_days: int = 7
     forecast_weight_28_long: float = 0.65
     forecast_weight_28_mid: float = 0.75
@@ -816,6 +817,7 @@ cost AS (
   WHERE u.usage_metadata.warehouse_id IS NOT NULL
     AND u.billing_origin_product='SQL'
     AND u.usage_date>=DATE_SUB(CURRENT_DATE(),365) AND u.usage_date<CURRENT_DATE()
+    AND (__INGESTION_CUTOFF__ IS NULL OR u.ingestion_date <= __INGESTION_CUTOFF__)
   QUALIFY ROW_NUMBER() OVER (PARTITION BY u.record_id ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code, p.price_end_time) = 1
 )
 SELECT c.workspace_id,c.warehouse_id,e.epoch_start,c.usage_date,c.currency_code,
@@ -839,6 +841,7 @@ SELECT
 FROM system.billing.usage
 WHERE usage_metadata.warehouse_id IS NOT NULL AND billing_origin_product='SQL'
   AND usage_date>=DATE_SUB(CURRENT_DATE(),365) AND usage_date<CURRENT_DATE()
+  AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
 GROUP BY workspace_id, usage_metadata.warehouse_id
 """
 
@@ -847,9 +850,11 @@ GROUP BY workspace_id, usage_metadata.warehouse_id
 # RETRACTION/RESTATEMENT corrections, so a calendar day is treated as covered only once the watermark has passed its
 # end. That is ingestion progress, not finality: corrections can still revise a covered day. Timestamps are UTC.
 BILLING_WATERMARK_SQL = r"""
-SELECT MAX(usage_end_time) AS billing_watermark
+SELECT workspace_id, MAX(usage_end_time) AS billing_watermark, MAX(ingestion_date) AS billing_ingested_through
 FROM system.billing.usage
 WHERE usage_date>=DATE_SUB(CURRENT_DATE(),30) AND billing_origin_product='SQL'
+  AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
+GROUP BY workspace_id
 """
 
 EPOCH_BILLING_ATTRIBUTION_SQL = r"""
@@ -868,6 +873,7 @@ usage AS (
     AND billing_origin_product='SQL'
     AND usage_unit='DBU'
     AND usage_date>=DATE_SUB(CURRENT_DATE(),365) AND usage_date<CURRENT_DATE()
+    AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
 )
 SELECT
   u.workspace_id,
@@ -1562,7 +1568,10 @@ class Modeler:
         # Half-open window [analysis_date-365, last complete day]. Today is incomplete; yesterday is complete only once
         # the billing watermark has passed its end (records are typically available within 12h, not guaranteed).
         window_start = analysis_date - dt.timedelta(days=365)
-        basis_end = analysis_date - dt.timedelta(days=1)
+        # A day is complete once it has settled (billing_settle_hours after it ends) and, when known, the workspace's
+        # billing watermark has passed it. Records arrive "typically within 12 hours"; the buffer covers that latency.
+        settled_through = (analysis_dt - dt.timedelta(hours=self.t.billing_settle_hours)).astimezone(dt.timezone.utc).date() - dt.timedelta(days=1)
+        basis_end = min(analysis_date - dt.timedelta(days=1), settled_through)
         watermark_dt = parse_datetime(billing_watermark) if billing_watermark else None
         if watermark_dt is not None:
             complete_through = watermark_dt.astimezone(dt.timezone.utc).date() - dt.timedelta(days=1)
@@ -1582,6 +1591,7 @@ class Modeler:
             "billing_completeness": completeness,
             "billing_complete_through": basis_end.isoformat(),
             "excluded_incomplete_days": excluded_incomplete_days,
+            "billing_settle_hours": self.t.billing_settle_hours,
             "unpriced_dbu_quantity_365": unpriced_365,
             "unpriced_dbu_quantity_in_basis": unpriced_in_basis,
             "dbu_pricing_status": "UNPRICED_USAGE" if unpriced_365 > 0 else "COMPLETE",
@@ -1707,19 +1717,32 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     }
 
 
-def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None) -> List[WarehouseEvidence]:
-    analysis_time = dt.datetime.now(dt.timezone.utc).isoformat()
+def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
+    """Pin a billing query to records ingested on or before `cutoff` (YYYY-MM-DD), so a re-collection reproduces an
+    earlier run after late corrections; without a cutoff the predicate is a no-op."""
+    if cutoff is None:
+        return statement.replace("__INGESTION_CUTOFF__", "CAST(NULL AS DATE)")
+    try:
+        day = dt.date.fromisoformat(str(cutoff))
+    except ValueError as exc:
+        raise SystemExit(f"--billing-ingested-through must be a YYYY-MM-DD date, got {cutoff!r}") from exc
+    return statement.replace("__INGESTION_CUTOFF__", f"DATE'{day.isoformat()}'")
+
+
+def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None, *, ingestion_cutoff: Optional[str] = None, analysis_time: Optional[str] = None) -> List[WarehouseEvidence]:
+    analysis_time = analysis_time or dt.datetime.now(dt.timezone.utc).isoformat()
+    with_ingestion_cutoff("", ingestion_cutoff)  # validate the cutoff before any query runs
     LOGGER.info("collector.start source_region=%s", source_region)
     epoch_rows = client.query(CONFIG_EPOCHS_SQL,label="config_epochs")
     LOGGER.info("collector.discovery current_warehouses=%d epoch_rows=%d", sum(1 for r in epoch_rows if bool(r.get("is_current"))), len(epoch_rows))
     query_idx = _index_epoch_rows(client.query(EPOCH_QUERY_METRICS_SQL,label="query_metrics"))
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
-    cost_rows = client.query(EPOCH_DAILY_COST_SQL,label="billing_daily_cost")
-    watermark_rows = client.query(BILLING_WATERMARK_SQL,label="billing_watermark")
-    billing_watermark = iso(watermark_rows[0].get("billing_watermark")) if watermark_rows else None
-    feature_rows = {_warehouse_key(r): r for r in client.query(BILLING_FEATURE_SQL,label="billing_features") if r.get("warehouse_id") is not None}
-    attribution_idx = _index_epoch_rows(client.query(EPOCH_BILLING_ATTRIBUTION_SQL,label="billing_attribution_photon_owner"))
+    cost_rows = client.query(with_ingestion_cutoff(EPOCH_DAILY_COST_SQL, ingestion_cutoff),label="billing_daily_cost")
+    # Billing completeness is judged per workspace: one workspace's lagging ingestion must not be hidden by another's.
+    watermark_by_ws = {str(r.get("workspace_id") or ""): r for r in client.query(with_ingestion_cutoff(BILLING_WATERMARK_SQL, ingestion_cutoff),label="billing_watermark")}
+    feature_rows = {_warehouse_key(r): r for r in client.query(with_ingestion_cutoff(BILLING_FEATURE_SQL, ingestion_cutoff),label="billing_features") if r.get("warehouse_id") is not None}
+    attribution_idx = _index_epoch_rows(client.query(with_ingestion_cutoff(EPOCH_BILLING_ATTRIBUTION_SQL, ingestion_cutoff),label="billing_attribution_photon_owner"))
     sku_price_rows = client.query(SQL_SKU_PRICE_SQL,label="sql_sku_prices")
     sku_prices_by_account: Dict[str, Dict[str, Any]] = {}
     for r in sku_price_rows:
@@ -1800,7 +1823,10 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if len(currents) != 1:
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
-        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=billing_watermark)
+        ws_watermark = watermark_by_ws.get(workspace_id, {})
+        model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=iso(ws_watermark.get("billing_watermark")))
+        model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
+        model["billing_ingestion_cutoff"] = ingestion_cutoff
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {})
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})
@@ -4490,6 +4516,7 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--workspace-id",default=os.getenv("DATABRICKS_WORKSPACE_ID"),help="Workspace/org ID; optional for warehouse, used to construct all-purpose cluster HTTP path")
     p.add_argument("--config-file",default=os.getenv("DATABRICKS_CONFIG_FILE"))
     p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"))
+    p.add_argument("--billing-ingested-through",default=None,help="YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)")
     default_registry=str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json")
     p.add_argument("--aws-price-registry",default=os.getenv("AWS_PRICE_REGISTRY",default_registry))
     p.add_argument("--batch-size",type=int,default=int(os.getenv("WAREHOUSE_BATCH_SIZE","100")),help="Downstream analysis/report batch size; collector SQL is set-based and aggregated in Databricks")
@@ -4532,7 +4559,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
         LOGGER.info("compatibility.mode=%s status=%s workspace_id=%s",compat.get("mode"),compat.get("status"),compat.get("workspace_id"))
         registry=load_aws_price_registry(args.aws_price_registry)
         with SqlClient(auth) as client:
-            evidence=extract_evidence(client,t,args.source_region,registry,compat)
+            evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
     packages=build_recommendation_packages(evidence,t,args.batch_size)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)

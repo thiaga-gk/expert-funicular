@@ -445,7 +445,7 @@ class PublisherV27Tests(unittest.TestCase):
             model.forecast_from_daily_cost(rows, "2025-01-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
 
     def test_forecast_zero_fills_calendar_days(self):
-        model = p.Modeler(self.t)
+        model = p.Modeler(self.unsettled())
         # 10-day epoch billed on 8 days (enough billed days to forecast): the 2 idle days count as $0 days.
         rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100, "currency_code": "USD"} for d in (21, 22, 23, 24, 26, 27, 29, 30)]
         out = model.forecast_from_daily_cost(rows, "2026-09-21T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
@@ -476,7 +476,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIsNone(out["cost_cv_84"])
 
     def test_cv_is_computed_when_history_is_sufficient(self):
-        model = p.Modeler(self.t)
+        model = p.Modeler(self.unsettled())
         out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 50.0 if i % 2 else 150.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
         self.assertAlmostEqual(out["cost_cv_84"], 0.5, places=3)
 
@@ -656,8 +656,13 @@ class PublisherV27Tests(unittest.TestCase):
     ANALYSIS = "2026-10-01T12:00:00+00:00"
 
     def forecast(self, rows, watermark="UNSET", start="2026-09-01T00:00:00+00:00"):
+        # Window/watermark semantics are tested without the settle buffer; the buffer has its own tests.
         kwargs = {} if watermark == "UNSET" else {"billing_watermark": watermark}
-        return p.Modeler(self.t).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
+        return p.Modeler(self.unsettled()).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
+
+    def unsettled(self):
+        import dataclasses
+        return dataclasses.replace(self.t, billing_settle_hours=0)
 
     def test_billing_sql_uses_an_exact_half_open_window_that_excludes_today(self):
         for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
@@ -1011,6 +1016,69 @@ class PublisherV27Tests(unittest.TestCase):
         x = copy.deepcopy(base)  # a regular legacy forecast is kept
         self.assertEqual(p.evidence_from_dict(x).baseline_forecast_cost_365, self.evidence[0].baseline_forecast_cost_365)
 
+    # --- Billing settlement: settle buffer, per-workspace watermark, ingestion cut-off ----------------------------
+    def _daily(self, last_day="2026-09-30"):
+        import datetime as dt
+        end = dt.date.fromisoformat(last_day)
+        return [{"usage_date": (dt.date(2026, 9, 1) + dt.timedelta(days=i)).isoformat(), "list_cost": 100.0, "currency_code": "USD"}
+                for i in range((end - dt.date(2026, 9, 1)).days + 1)]
+
+    def test_a_day_counts_only_after_the_settle_buffer(self):
+        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-01T12:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-29")  # 09-30 ends 10-01 00:00; settles 10-02 00:00
+        self.assertEqual(out["billing_settle_hours"], 24)
+        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-02T00:30:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-30")
+
+    def test_watermark_still_limits_settled_days(self):
+        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-03T12:00:00+00:00",
+                                                         billing_watermark="2026-09-28T06:00:00+00:00")
+        self.assertEqual(out["billing_complete_through"], "2026-09-27")
+
+    def _two_workspace_client(self, seen):
+        def epoch(ws):
+            return {"workspace_id": ws, "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
+                    "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
+                    "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}
+        test = self
+
+        class Client:
+            def query(self_inner, statement, *, label="collector_sql"):
+                seen[label] = statement
+                if label == "config_epochs":
+                    return [epoch("ws-fresh"), epoch("ws-lagging")]
+                if label == "billing_watermark":
+                    return [{"workspace_id": "ws-fresh", "billing_watermark": "2026-10-03T06:00:00+00:00", "billing_ingested_through": "2026-10-03"},
+                            {"workspace_id": "ws-lagging", "billing_watermark": "2026-09-25T06:00:00+00:00", "billing_ingested_through": "2026-09-25"}]
+                if label == "billing_daily_cost":
+                    return [dict(r, workspace_id=ws, warehouse_id="w", epoch_start="2026-09-01T00:00:00+00:00")
+                            for ws in ("ws-fresh", "ws-lagging") for r in test._daily()]
+                return []
+        return Client()
+
+    def test_billing_completeness_is_judged_per_workspace(self):
+        seen = {}
+        ev = {e.workspace_id: e for e in p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1",
+                                                            analysis_time="2026-10-03T12:00:00+00:00")}
+        self.assertEqual(ev["ws-fresh"].forecast_metadata["billing_complete_through"], "2026-10-01")
+        self.assertEqual(ev["ws-lagging"].forecast_metadata["billing_complete_through"], "2026-09-24")
+        self.assertEqual(ev["ws-lagging"].forecast_metadata["billing_ingested_through"], "2026-09-25")
+        self.assertIn("GROUP BY workspace_id", seen["billing_watermark"])
+        self.assertIn("MAX(ingestion_date)", seen["billing_watermark"])
+
+    def test_ingestion_cutoff_pins_every_billing_query(self):
+        billing = ("billing_daily_cost", "billing_watermark", "billing_features", "billing_attribution_photon_owner")
+        seen = {}
+        p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1", ingestion_cutoff="2026-09-30")
+        for label in billing:
+            self.assertIn("ingestion_date <= DATE'2026-09-30'", seen[label], label)
+        seen = {}
+        p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1")
+        for label in billing:
+            self.assertIn("CAST(NULL AS DATE)", seen[label], label)
+        with self.assertRaises(SystemExit):
+            p.extract_evidence(self._two_workspace_client({}), self.t, "us-east-1", ingestion_cutoff="30/09/2026")
+
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
         seen = {}
         real = p.Modeler.forecast_from_daily_cost
@@ -1020,7 +1088,7 @@ class PublisherV27Tests(unittest.TestCase):
         class Client:
             def query(self_inner, statement, *, label="collector_sql"):
                 if label == "billing_watermark":
-                    return [{"billing_watermark": "2026-09-30T20:00:00+00:00"}]
+                    return [{"workspace_id": "1", "billing_watermark": "2026-09-30T20:00:00+00:00"}]
                 if label == "config_epochs":
                     return [{"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
                              "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
