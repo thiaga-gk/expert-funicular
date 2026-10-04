@@ -209,6 +209,13 @@ class DemoFleetTests(unittest.TestCase):
         self.assertLess(e.current_epoch.epoch_start, "2025-01-01")
         self.assertEqual(len(pkg["candidates"]), 6)
 
+    def test_c50_single_cluster_increase_shows_about_double_the_cost_as_worst_case(self):
+        e, pkg = self.by_scenario["C50"]
+        c = self.candidate("C50", "max_clusters")
+        self.assertEqual((c["current_value"], c["recommended_value"]), (1, 2))
+        worst = c["independent_economics"]["savings_365d"]["total"]["low"]
+        self.assertLess(abs(-worst / pkg["cost_baseline"]["forward_365d"]["total_cost"] - 1.0), 0.03)
+
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
         self.assertEqual((c["current_value"], c["status"]), (1, "NO_CHANGE"))
