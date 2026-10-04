@@ -779,6 +779,7 @@ class CurrentConfig:
         _require(bool(self.warehouse_type), "warehouse_type is required")
         _require(bool(self.warehouse_size), "warehouse_size is required")
         _require(self.min_clusters >= 1, "min_clusters must be >= 1")
+        _require(self.min_clusters <= 30, "min_clusters must be <= 30")
         _require(self.max_clusters >= self.min_clusters, "max_clusters must be >= min_clusters")
         _require(self.max_clusters <= 40, "max_clusters must be <= 40")
         _require(self.auto_stop_minutes >= 0, "auto_stop_minutes must be >= 0")
