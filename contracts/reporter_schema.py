@@ -159,7 +159,7 @@ def build_schema() -> Dict[str, Any]:
     defs["CurrentConfig"] = obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
-        "min_clusters": {"type": "integer", "minimum": 1, "maximum": 40},
+        "min_clusters": {"type": "integer", "minimum": 1, "maximum": 30},
         "max_clusters": {"type": "integer", "minimum": 1, "maximum": 40},
         "auto_stop_minutes": {"type": "integer", "minimum": 0},
         "warehouse_channel": {"type": "string", "minLength": 1},
