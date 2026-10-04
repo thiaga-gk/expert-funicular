@@ -45,14 +45,14 @@ from contracts import reporter_contract as rc
 
 PUBLISHER_VERSION = "2.10.0"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.9.0"
+POLICY_VERSION = "sql-warehouse-policy-v2.10.0"
 ANALYZER_VERSION = "sql-warehouse-analyzer-v2.10.0"
 OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.10.0"
 MODEL_VERSION = "epoch-runrate-v2.10.0"
 ESTIMATOR_VERSION = "counterfactual-v2.10.0"
 BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
 REVIEWER_VERSION = "recommendation-reviewer-v2.9.0"
-DECISION_VERSION = "warehouse-decision-graph-v2.9.0"
+DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
@@ -61,7 +61,6 @@ SIZE_ORDER = [
     "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",
     "2X_LARGE", "3X_LARGE", "4X_LARGE", "5X_LARGE",
 ]
-SIZE_UNITS = {name: 2 ** idx for idx, name in enumerate(SIZE_ORDER)}
 
 # Published SQL Serverless DBU/hour schedule by nominal warehouse size. The
 # production cost model uses account pricing from system.billing.list_prices;
@@ -111,8 +110,6 @@ class Thresholds:
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
     strong_cost_history_days: int = 60
-    min_epoch_calibration_days: int = 14
-    min_epoch_calibration_queries: int = 100
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
@@ -188,7 +185,6 @@ class Thresholds:
     min_cluster_realization_optimistic: float = 1.00
     min_cluster_realization_base: float = 0.50
     min_cluster_realization_conservative: float = 0.00
-    max_cluster_uplift_fraction_cap: float = 0.50
     max_cluster_base_uplift_weight: float = 0.50
     downsize_runtime_multiplier_conservative: float = 1.55
     downsize_runtime_multiplier_base: float = 1.30
@@ -196,12 +192,18 @@ class Thresholds:
     upsize_runtime_multiplier_conservative: float = 1.00
     upsize_runtime_multiplier_base: float = 0.70
     upsize_runtime_multiplier_optimistic: float = 0.50
-    epoch_calibration_weight: float = 0.50
-    epoch_factor_floor: float = 0.40
-    epoch_factor_ceiling: float = 1.60
+    # Pro/Classic DBU per cluster-hour by size is not documented first-party: a workspace's billed rates price a size
+    # change only when they rise with size and the pair ratio is within this band of the published size ratio.
+    size_rate_published_band: float = 0.25
+    # A change made to save money ships only when its own base modeled savings are positive and at least this much a
+    # year (warehouse currency).
+    cost_change_min_annual_savings: float = 500.0
+    # Migration is priced relative to billing: the same cost model applied to the current warehouse must land within
+    # this band of its billed DBU forecast, or the migration estimate is withheld.
+    migration_reconciliation_min: float = 0.70
+    migration_reconciliation_max: float = 1.30
     cost_factor_floor: float = 0.05
     cost_factor_ceiling: float = 3.00
-    cost_normalization_query_count: float = 1000.0
     confidence_coverage_days: float = 90.0
     confidence_epoch_maturity_days: float = 30.0
     confidence_base_weight: float = 0.10
@@ -632,6 +634,11 @@ q AS (
     x.read_io_cache_percent,
     x.execution_status,
     x.from_result_cache,
+    x.compilation_duration_ms,
+    x.result_fetch_duration_ms,
+    -- Decision population for latency and spill: queries not served from the result cache (cache hits take about
+    -- 0 ms and would loosen the latency gates). Failed and cancelled queries stay in: a statement timeout is latency.
+    COALESCE(x.from_result_cache, FALSE) = FALSE AS in_decision_population,
     x.query_tags,
     x.query_source,
     x.client_application,
@@ -658,15 +665,18 @@ SELECT
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_for_compute_duration_ms > 0 THEN waiting_for_compute_duration_ms END, 0.95) AS p95_wait_compute_ms_when_waited_30,
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_at_capacity_duration_ms,0) > 0) AS queued_queries_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND waiting_at_capacity_duration_ms > 0 THEN waiting_at_capacity_duration_ms END, 0.95) AS p95_wait_capacity_ms_when_queued_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.95) AS p95_execution_ms_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END, 0.99) AS p99_execution_ms_30,
-  MAX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN execution_duration_ms END) AS max_execution_ms_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population) AS decision_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population THEN execution_duration_ms END, 0.95) AS p95_execution_ms_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population THEN execution_duration_ms END, 0.99) AS p99_execution_ms_30,
+  MAX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population THEN execution_duration_ms END) AS max_execution_ms_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population THEN compilation_duration_ms END, 0.95) AS p95_compilation_ms_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population THEN result_fetch_duration_ms END, 0.95) AS p95_result_fetch_ms_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(waiting_at_capacity_duration_ms,0) > 0)
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS queued_query_pct_30,
-  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0)
-    / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS spill_query_pct_30,
-  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND COALESCE(spilled_local_bytes,0) > 0) AS spill_queries_30,
-  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
+  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population AND COALESCE(spilled_local_bytes,0) > 0)
+    / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population),0) AS spill_query_pct_30,
+  COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population AND COALESCE(spilled_local_bytes,0) > 0) AS spill_queries_30,
+  PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
   SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) ELSE 0 END)/POW(1024,3) AS total_spill_gib_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(read_bytes,0) END,0.95) AS p95_read_bytes_30,
   AVG(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN read_io_cache_percent END) AS avg_read_io_cache_percent_30,
@@ -751,6 +761,7 @@ SELECT
   100.0*SUM(CASE WHEN cluster_count=max_clusters AND cluster_count>0 THEN duration_minutes ELSE 0 END)
     /NULLIF(SUM(CASE WHEN cluster_count>0 THEN duration_minutes ELSE 0 END),0) AS time_at_max_pct,
   MAX(cluster_count) AS max_observed_clusters,
+  MIN(segment_start) AS event_coverage_start,
   COUNT_IF(event_type='STARTING' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS starts_30,
   COUNT_IF(event_type='SCALED_UP' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_ups_30,
   COUNT_IF(event_type='SCALED_DOWN' AND event_time >= GREATEST(epoch_start,CURRENT_TIMESTAMP()-INTERVAL 30 DAYS)) AS scale_downs_30
@@ -773,6 +784,14 @@ def build_epoch_gap_metrics_sql(t: Thresholds) -> str:
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
 epochs AS (SELECT workspace_id, warehouse_id, auto_stop_minutes, epoch_start, epoch_end FROM config_epochs),
+retained AS (
+  -- warehouse_events keeps 365 days: running time is only known after a warehouse's first retained event, so the
+  -- gap sample covers the same period as the event totals it is divided by.
+  SELECT workspace_id, warehouse_id, MIN(event_time) AS first_event_time
+  FROM system.compute.warehouse_events
+  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+  GROUP BY workspace_id, warehouse_id
+),
 ordered AS (
   SELECT x.workspace_id, x.compute.warehouse_id AS warehouse_id, p.epoch_start, p.auto_stop_minutes,
     x.start_time, x.end_time,
@@ -785,6 +804,8 @@ ordered AS (
   JOIN epochs p ON x.workspace_id=p.workspace_id
     AND x.compute.warehouse_id=p.warehouse_id
     AND x.start_time>=p.epoch_start AND (p.epoch_end IS NULL OR x.start_time<p.epoch_end)
+  JOIN retained r ON r.workspace_id=x.workspace_id AND r.warehouse_id=x.compute.warehouse_id
+    AND x.start_time >= r.first_event_time
   WHERE x.compute.type='WAREHOUSE' AND x.start_time>=CURRENT_TIMESTAMP()-INTERVAL 365 DAYS
 ), gaps AS (
   SELECT *, GREATEST(0.0,TIMESTAMPDIFF(SECOND,previous_busy_end_time,start_time)/60.0) AS gap_minutes
@@ -933,7 +954,9 @@ usage AS (
     usage_end_time,
     CAST(usage_quantity AS DOUBLE) AS dbu_quantity,
     product_features.is_photon AS is_photon,
-    identity_metadata.owned_by AS owned_by
+    identity_metadata.owned_by AS owned_by,
+    usage_metadata.node_type AS node_type,
+    product_features.sql_tier AS sql_tier
   FROM system.billing.usage
   WHERE usage_metadata.warehouse_id IS NOT NULL
     AND billing_origin_product='SQL'
@@ -950,7 +973,9 @@ SELECT
   SUM(CASE WHEN u.is_photon IS NULL THEN u.dbu_quantity ELSE 0 END) AS photon_null_dbu,
   MAX(u.usage_end_time) AS latest_usage_time,
   MAX_BY(u.owned_by, CASE WHEN u.owned_by IS NOT NULL THEN u.usage_end_time END) AS latest_owner,
-  ARRAY_SORT(COLLECT_SET(u.owned_by)) AS observed_owners
+  ARRAY_SORT(COLLECT_SET(u.owned_by)) AS observed_owners,
+  ARRAY_SORT(COLLECT_SET(u.node_type)) AS observed_node_types,
+  ARRAY_SORT(COLLECT_SET(u.sql_tier)) AS observed_sql_tiers
 FROM usage u
 JOIN epochs e
   ON u.workspace_id=e.workspace_id
@@ -1310,6 +1335,22 @@ def infer_photon_observation(row: Mapping[str, Any], analysis_time: str, thresho
     )
 
 
+def as_string_list(value: Any) -> Optional[List[str]]:
+    """A collector array column as sorted distinct strings: a list, a JSON array string, or a Spark array rendered as
+    text ("[a, b]"). None stays None (not collected)."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            text = value.strip()
+            value = [v.strip().strip('"') for v in text[1:-1].split(",")] if text.startswith("[") and text.endswith("]") else [text]
+        if not isinstance(value, list):
+            value = [value]
+    return sorted({str(x) for x in value if x not in (None, "")})
+
+
 def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
     """Create a deterministic multi-label source profile from query history aggregates."""
     categories = {
@@ -1327,13 +1368,7 @@ def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
     percentages = {k: round(100.0 * v / q30, 3) if q30 else 0.0 for k, v in categories.items()}
     ranked = sorted(categories.items(), key=lambda kv: (-kv[1], kv[0]))
     primary = ranked[0][0] if ranked and ranked[0][1] > 0 else "UNATTRIBUTED"
-    apps = query.get("client_applications_30") or []
-    if isinstance(apps, str):
-        try:
-            parsed = json.loads(apps)
-            apps = parsed if isinstance(parsed, list) else [apps]
-        except Exception:
-            apps = [apps]
+    apps = as_string_list(query.get("client_applications_30")) or []
     return QuerySourceProfile(
         categories=categories, percentages=percentages, primary_category=primary,
         client_applications=sorted({str(x) for x in apps if x is not None}), multi_label=True,
@@ -1354,10 +1389,24 @@ def next_size(size: str) -> Optional[str]:
     return SIZE_ORDER[i + 1] if i < len(SIZE_ORDER) - 1 else None
 
 
-def size_ratio(current: str, target: str) -> float:
-    if current not in SIZE_UNITS or target not in SIZE_UNITS:
-        return 1.0
-    return SIZE_UNITS[target] / SIZE_UNITS[current]
+def validated_size_rate_ratio(rates: Mapping[str, float], current: str, target: str, band: float) -> Tuple[Optional[float], str]:
+    """Target/current DBU-per-cluster-hour ratio from a workspace's billed rates, or None with the reason it is unusable.
+
+    Usable only when the observed rates rise with size and the pair ratio is within `band` of the published size
+    ratio; otherwise a guessed ratio could price a downsize as an upsize.
+    """
+    observed = sorted((SIZE_ORDER.index(s), safe_float(r)) for s, r in rates.items() if s in SIZE_ORDER and safe_float(r) > 0)
+    if any(later <= earlier for (_, earlier), (_, later) in zip(observed, observed[1:])):
+        return None, "RATES_NOT_RISING_WITH_SIZE"
+    if safe_float(rates.get(current)) <= 0 or safe_float(rates.get(target)) <= 0:
+        return None, "SIZE_RATE_NOT_OBSERVED"
+    published_cur, published_target = SQL_DBU_PER_CLUSTER_HOUR.get(current), SQL_DBU_PER_CLUSTER_HOUR.get(target)
+    if not (published_cur and published_target):
+        return None, "NO_PUBLISHED_SIZE_RATE"
+    ratio = safe_float(rates[target]) / safe_float(rates[current])
+    if abs(ratio / (published_target / published_cur) - 1.0) > band:
+        return None, "OUTSIDE_PUBLISHED_RATIO_BAND"
+    return ratio, "VALIDATED"
 
 
 @dataclass(frozen=True)
@@ -1808,6 +1857,13 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
         start_day = max(start_day, collected_from.date())
+    if epoch.resource_daily and "resource_coverage_from" not in epoch.events:
+        return None  # collected before the coverage marker existed: billed lead-in days cannot be told from idle ones
+    coverage_from = parse_datetime(epoch.events.get("resource_coverage_from"))
+    if coverage_from is not None:
+        # Billed days before the first retained warehouse event have unknown running time (never idle): the collector
+        # marks the first fully covered day. Unbilled lead-in days (not yet created, dormant) stay known zeros.
+        start_day = max(start_day, coverage_from.date())
     if start_day > end_day:
         return None
     by_day = {str(r.get("usage_day"))[:10]: r for r in epoch.resource_daily}
@@ -1865,7 +1921,7 @@ def recent_capacity_facts(window: Optional[Mapping[str, Any]], t: Thresholds) ->
 RESOURCE_WINDOW_BLOCKERS = {"MISSING": "RECENT_RESOURCE_WINDOW_UNAVAILABLE", "IDLE": "NO_RECENT_RUNNING_TIME"}
 
 
-def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None) -> Tuple[Optional[float], Dict[str, Any]]:
+def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None, *, observed_node_types: Optional[Sequence[str]] = None) -> Tuple[Optional[float], Dict[str, Any]]:
     if current.config.warehouse_type == "SERVERLESS":
         region_prices = dict((aws_registry.get("regions") or {}).get(source_region) or {})
         return 0.0, {
@@ -1878,6 +1934,12 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
     hourly, topo = aws_cluster_hourly_price(current.config.warehouse_size, source_region, aws_registry)
     if hourly is None:
         return None, topo
+    # Billed node types (driver and workers are not distinguished) must belong to the modeled topology for this size.
+    billed_nodes = sorted({str(x) for x in (observed_node_types or []) if x})
+    if billed_nodes and not set(billed_nodes) <= {topo["driver_instance"], topo["worker_instance"]}:
+        return None, {**topo, "status": "UNAVAILABLE", "blocker": "AWS_NODE_TYPE_MISMATCH", "observed_node_types": billed_nodes,
+                      "expected_node_types": sorted({topo["driver_instance"], topo["worker_instance"]})}
+    topo = {**topo, "node_type_check": "VERIFIED" if billed_nodes else "UNVERIFIED", "observed_node_types": billed_nodes}
     t = thresholds or Thresholds()
     window = resource_window_from(current, forecast_metadata.get("forecast_basis_end") or forecast_metadata.get("billing_complete_through"), t)
     if window is None:
@@ -2070,6 +2132,22 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             raise ValueError(f"Expected one current epoch for {workspace_id}/{wh}, found {len(currents)}")
         current = currents[0]
         current.events["resource_daily_from"] = resource_collected_from or (parse_datetime(analysis_time).astimezone(dt.timezone.utc).date() - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat()
+        rows_days = sorted(str(r.get("usage_day"))[:10] for r in (current.resource_daily or []))
+        lead_from = max(current.events["resource_daily_from"], current.epoch_start[:10])
+        current.events["resource_coverage_from"] = None  # no billed day before the first retained event
+        if rows_days and rows_days[0] > lead_from and any(
+                lead_from <= str(x.get("usage_date"))[:10] < rows_days[0] and safe_float(x.get("dbu_quantity")) > 0
+                for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
+            # Billed before the warehouse's first retained event: running time is unknown until the first full day
+            # the event history covers.
+            current.events["resource_coverage_from"] = (dt.date.fromisoformat(rows_days[0]) + dt.timedelta(days=1)).isoformat()
+        if current.resource_daily == [] and any(
+                str(x.get("usage_date"))[:10] >= current.events["resource_daily_from"] and safe_float(x.get("dbu_quantity")) > 0
+                for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
+            # Billed but no warehouse event in the retained history (running since before it): running time is
+            # unknown, not idle.
+            current.resource_daily = None
+            current.events["resource_daily_status"] = "UNAVAILABLE_BILLED_WITHOUT_RETAINED_EVENTS"
         ws_watermark = watermark_by_ws.get(workspace_id, {})
         effective_watermark, watermark_source = effective_billing_watermark(
             ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,
@@ -2079,17 +2157,13 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
-        aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds)
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})
+        node_types = as_string_list(attribution_row.get("observed_node_types"))
+        sql_tiers = as_string_list(attribution_row.get("observed_sql_tiers"))
+        aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
         photon_observation = infer_photon_observation(attribution_row, analysis_time, thresholds)
         query_source = derive_query_source_profile(current.query)
-        owners = attribution_row.get("observed_owners") or []
-        if isinstance(owners, str):
-            try:
-                parsed = json.loads(owners)
-                owners = parsed if isinstance(parsed, list) else [owners]
-            except Exception:
-                owners = [owners]
+        owners = as_string_list(attribution_row.get("observed_owners")) or []
         attribution = WarehouseAttribution(
             owner=(str(attribution_row.get("latest_owner")) if attribution_row.get("latest_owner") else None),
             observed_owners=sorted({str(x) for x in owners if x is not None}),
@@ -2117,7 +2191,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             cost_cv_84=model["cost_cv_84"],
             forecast_metadata={k:v for k,v in model.items() if k not in {"current_cost_365","forecast_cost_365","currency"}},
             daily_cost_365=daily_by_wh.get(wk, []),
-            billing_features=feature_rows.get(wk, {}),
+            billing_features={**feature_rows.get(wk, {}), **({} if sql_tiers is None else {"current_epoch_sql_tiers": sql_tiers}),
+                              **({} if node_types is None else {"current_epoch_node_types": node_types})},
             aws_baseline_cost_365=aws_cost,
             aws_cost_model=aws_model,
             sql_sku_prices=account_sku_prices,
@@ -2197,8 +2272,14 @@ class Analyzer:
             self._f(e,"warehouse_size","p99_execution_ms_30",round_or_none(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
             self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
         ]
+        decision_queries = optional_float(q.get("decision_queries_30"))
+        fs.extend([
+            self._f(e,"warehouse_size","decision_queries_30",round_or_none(decision_queries),unit="queries",threshold=self.t.strong_query_sample_size,comparator=">= downsize sample",table="system.query.history",field="from_result_cache",window="last 30 days within current epoch",interpretation="Queries not served from the result cache: the population latency and spill are measured on."),
+            self._f(e,"warehouse_size","p95_compilation_ms_30",round_or_none(optional_float(q.get("p95_compilation_ms_30"))),unit="ms",table="system.query.history",field="compilation_duration_ms",window="last 30 days within current epoch",interpretation="Metadata loading and optimization time; a size change does not shorten it (evidence only)."),
+            self._f(e,"warehouse_size","p95_result_fetch_ms_30",round_or_none(optional_float(q.get("p95_result_fetch_ms_30"))),unit="ms",table="system.query.history",field="result_fetch_duration_ms",window="last 30 days within current epoch",interpretation="Time clients spend fetching results after execution; a size change does not shorten it (evidence only)."),
+        ])
         fs.append(utilization_finding("warehouse_size"))
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99})
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99})
 
         # Max clusters
         # Capacity facts come from the recent resource window (last pressure_window_days of the DBU forecast's calendar),
@@ -2261,6 +2342,7 @@ class Analyzer:
         pro_classic_observed = bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))
         fs = [
             self._f(e,"warehouse_type","warehouse_type",cfg.warehouse_type,table="system.compute.warehouses",field="warehouse_type",window="current epoch",interpretation="Current warehouse type."),
+            self._f(e,"warehouse_type","billed_sql_tiers",e.billing_features.get("current_epoch_sql_tiers"),unit="state",table="system.billing.usage",field="product_features.sql_tier",window="current epoch",interpretation="Billed SQL tier beside the configured type (evidence only; not used in decisions)."),
             self._f(e,"warehouse_type","serverless_usage_pct_365",round(safe_float(e.billing_features.get("serverless_usage_pct_365")),4),unit="%",table="system.billing.usage",field="product_features.is_serverless",window="trailing 365 days",interpretation="Observed billing evidence; not used as current configuration source."),
             self._f(e,"warehouse_type","tagged_query_pct_30",round(safe_float(q.get("tagged_query_pct_30")),4),unit="%",table="system.query.history",field="query_tags",window="last 30 days within current epoch",interpretation="Query-tag coverage supplied to HITL for workload attribution and migration validation."),
             self._f(e,"warehouse_type","dashboard_queries_30",safe_int(q.get("dashboard_queries_30")),unit="queries",table="system.query.history",field="query_source.dashboard_id",window="last 30 days within current epoch",interpretation="Dashboard workload mix context."),
@@ -2319,7 +2401,9 @@ class Optimizer:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
+            # Spill and latency are measured on executed queries (not result-cache hits); so is the sample.
+            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
+            elif f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
             if target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
@@ -2337,7 +2421,8 @@ class Optimizer:
         else:
             target = previous_size(cfg.warehouse_size)
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["queries_30"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
+            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
+            elif f["decision_queries"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
             if f["spill_pct"] is None: blockers.append("SPILL_EVIDENCE_UNAVAILABLE")
             elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
@@ -2466,10 +2551,18 @@ class Optimizer:
             elif f["wait_compute"] >= self.t.cold_start_p95_ms_block and f["starts_per_day"] >= self.t.cold_starts_per_active_day_block:
                 blockers.append("COLD_START_SENSITIVE")
             blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            status="ACTIONABLE" if not blockers else "BLOCKED"
-            out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
-                {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
-                "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
+            # Idle time a lower auto-stop removes (gap minutes at the minimum cluster count) cannot exceed the running
+            # cluster-minutes the events recorded; if it does, one source is wrong and nothing can be priced.
+            cluster_minutes=safe_float(f.get("cluster_minutes"))
+            if cluster_minutes>0 and safe_float(f.get("saved_idle"))*max(1,safe_int(f.get("current_min_clusters"),1))>cluster_minutes:
+                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST","INSUFFICIENT_EVIDENCE",
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":cfg.auto_stop_minutes},["IDLE_EVIDENCE_EXCEEDS_RUNTIME"]+blockers,["min_clusters"],[],[],
+                    "Idle time from query gaps exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced."))
+            else:
+                status="ACTIONABLE" if not blockers else "BLOCKED"
+                out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
+                    {"auto_stop_minutes":cfg.auto_stop_minutes},{"auto_stop_minutes":target},blockers,["min_clusters"],[],[],
+                    "Idle-gap evidence supports a lower auto-stop target." if not blockers else "A lower target exists but guardrails block automatic recommendation."))
 
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
@@ -2519,26 +2612,6 @@ class Estimator:
             0,cap)
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW",
                 "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":None if stability is None else round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
-
-    def _matched_epoch_factor(self,e:WarehouseEvidence,knob:str,target:Any)->Optional[Dict[str,Any]]:
-        cur=e.current_epoch; cur_cfg=cur.config.as_dict(); cur_queries=max(1.0,safe_float(cur.query.get("epoch_queries")))
-        cur_cost=safe_float(cur.cost.get("list_cost")); cur_cpk=cur_cost/cur_queries*self.t.cost_normalization_query_count if cur_cost>0 else 0
-        if cur_cpk<=0: return None
-        matches=[]
-        for ep in e.epochs:
-            if ep.is_current: continue
-            if safe_int(ep.cost.get("cost_days"))<self.t.min_epoch_calibration_days: continue
-            q=safe_float(ep.query.get("epoch_queries")); c=safe_float(ep.cost.get("list_cost"))
-            if q<self.t.min_epoch_calibration_queries or c<=0: continue
-            cfg=ep.config.as_dict()
-            if cfg.get(knob)!=target: continue
-            if any(cfg.get(k)!=cur_cfg.get(k) for k in ACTIVE_KNOBS if k!=knob): continue
-            factor=(c/q*self.t.cost_normalization_query_count)/cur_cpk
-            factor=clamp(factor,self.t.epoch_factor_floor,self.t.epoch_factor_ceiling)
-            matches.append((safe_int(ep.cost.get("cost_days")),q,factor,ep.epoch_id))
-        if not matches: return None
-        matches.sort(key=lambda x:(x[1],x[0]),reverse=True); days,q,factor,eid=matches[0]
-        return {"factor":factor,"epoch_id":eid,"queries":q,"days":days,"method":"matched historical config epoch normalized by cost per 1,000 queries"}
 
     def _range_from_factor(self,baseline:float,factors:Range3)->Tuple[Range3,Range3]:
         costs=Range3(baseline*factors.low,baseline*factors.base,baseline*factors.high).rounded()
@@ -2603,8 +2676,6 @@ class Estimator:
         if knob=="warehouse_size":
             cur=str(d.current_config.get("warehouse_size")); target=str(d.recommended_config.get("warehouse_size"))
             warehouse_type=str(e.current_epoch.config.warehouse_type or "").upper()
-            capacity_source="NOMINAL_SIZE_CAPACITY_RATIO"
-            capacity=size_ratio(cur,target)
             if warehouse_type=="SERVERLESS":
                 cur_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(cur); target_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(target)
                 if not (cur_dbu and target_dbu):
@@ -2619,27 +2690,24 @@ class Estimator:
                 capacity=target_dbu/cur_dbu
                 capacity_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO"
             else:
+                # Pro/Classic DBU per size is not documented first-party: price only on the workspace's billed rates
+                # when they are consistent with the published size table; otherwise withhold (never a guessed ratio).
                 empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-                if isinstance(empirical,Mapping):
-                    cur_rate=safe_float(empirical.get(cur),0.0)
-                    target_rate=safe_float(empirical.get(target),0.0)
-                    if cur_rate>0 and target_rate>0:
-                        capacity=target_rate/cur_rate
-                        capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
-            if capacity<1:
+                ratio,check=validated_size_rate_ratio(empirical if isinstance(empirical,Mapping) else {},cur,target,self.t.size_rate_published_band)
+                if ratio is None:
+                    return None,{
+                        "method":"estimate withheld: the workspace's billed DBU per cluster-hour by size does not validate this size change",
+                        "estimate_blocker":"PRO_CLASSIC_SIZE_RATE_UNVERIFIED","size_rate_check":check,
+                        "bundle_effect":{"type":"requires_canary"},**meta,
+                    }
+                capacity=ratio
+                capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
+            # Speed-up multipliers follow the decided direction, never the price ratio.
+            if SIZE_ORDER.index(target)<SIZE_ORDER.index(cur):
                 runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
             else:
                 runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
             factors=Range3(capacity*runtime.low,capacity*runtime.base,capacity*runtime.high)
-            calib=self._matched_epoch_factor(e,"warehouse_size",target)
-            if calib:
-                f=calib["factor"]
-                factors=Range3(
-                    (1-self.t.epoch_calibration_weight)*factors.low+self.t.epoch_calibration_weight*f,
-                    (1-self.t.epoch_calibration_weight)*factors.base+self.t.epoch_calibration_weight*f,
-                    (1-self.t.epoch_calibration_weight)*factors.high+self.t.epoch_calibration_weight*f,
-                )
-                meta["historical_epoch_calibration"]=calib
             vals=sorted([
                 clamp(factors.low,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
                 clamp(factors.base,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
@@ -2647,7 +2715,7 @@ class Estimator:
             ])
             factors=Range3(vals[0],vals[1],vals[2])
             return factors,{
-                "method":"capacity ratio × runtime elasticity, optionally blended with matched config epoch",
+                "method":"capacity ratio × runtime elasticity",
                 "capacity_ratio":capacity,
                 "capacity_ratio_source":capacity_source,
                 "runtime_multiplier_range":as_serializable(runtime),
@@ -2659,7 +2727,9 @@ class Estimator:
             at=safe_float(a.facts.get("minutes_at_max")); cluster=safe_float(a.facts.get("cluster_minutes"))
             current=safe_int(d.current_config.get("max_clusters"),1); target=safe_int(d.recommended_config.get("max_clusters"),current)
             delta=max(0,target-current)
-            raw=clamp((at*delta)/cluster,0,self.t.max_cluster_uplift_fraction_cap) if cluster>0 else 0
+            # Worst case: the added clusters run whenever the warehouse sat at its ceiling. No cap: a single-cluster
+            # warehouse at its ceiling all the time doubles its cost with a second cluster.
+            raw=max(0.0,(at*delta)/cluster) if cluster>0 else 0
             factors=Range3(1.0,1+raw*self.t.max_cluster_base_uplift_weight,1+raw)
             return factors,{
                 "method":"upper-bound cost uplift from additional clusters during observed saturation",
@@ -2707,6 +2777,26 @@ class Estimator:
         vals=sorted([low,base,high])
         return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and blend, annualized forward","resource_window_start":window["start"],"resource_window_end":window["end"],"resource_window_days":window["days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
 
+    def _current_model_reconciliation(self,e:WarehouseEvidence,resources:Range3)->Dict[str,Any]:
+        """Modeled current DBU cost (running cluster-hours x current DBU/hour x current price) over the billed forecast."""
+        cfg=e.current_epoch.config
+        if cfg.warehouse_type=="SERVERLESS":
+            rate=SQL_DBU_PER_CLUSTER_HOUR.get(cfg.warehouse_size)
+        else:
+            empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
+            rate=(safe_float(empirical.get(cfg.warehouse_size),0.0) if isinstance(empirical,Mapping) else 0.0) or None
+        price,_=resolve_target_sku_price(e.sql_sku_prices,cfg.warehouse_type)
+        billed=e.baseline_forecast_cost_365
+        if not rate or price is None or not billed:
+            return {"blocker":"MIGRATION_MODEL_NOT_RECONCILED","reason":"CURRENT_RATE_OR_PRICE_UNAVAILABLE","ratio":None}
+        modeled=resources.base/60.0*rate*price
+        ratio=round(modeled/billed,6)
+        out={"ratio":ratio,"modeled_current_dbu_cost_365":round(modeled,2),"billed_dbu_forecast_365":round(billed,2),"current_dbu_per_cluster_hour":rate,"current_unit_price":price,
+             "band":[self.t.migration_reconciliation_min,self.t.migration_reconciliation_max]}
+        if not self.t.migration_reconciliation_min<=ratio<=self.t.migration_reconciliation_max:
+            out["blocker"]="MIGRATION_MODEL_NOT_RECONCILED"
+        return out
+
     def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision)->Dict[str,Any]:
         target=str(d.recommended_config.get("warehouse_type") or "").upper()
         size=e.current_epoch.config.warehouse_size
@@ -2726,7 +2816,13 @@ class Estimator:
         unit_price,price_meta=resolve_target_sku_price(e.sql_sku_prices,target)
         if unit_price is None:
             return {"available":False,"blocker":price_meta.get("blocker"),"sku_price_model":price_meta,"resource_model":resource_meta}
-        dbu_cost=Range3(*(round(x/60.0*dbu_per_hour*unit_price,2) for x in (resources.low,resources.base,resources.high)))
+        # Reconcile: the same formula on the current warehouse must reproduce its billed DBU forecast; the target is then
+        # priced relative to billing (scaled by billed / modeled), so systematic model error cancels out.
+        reconciliation=self._current_model_reconciliation(e,resources)
+        if reconciliation.get("blocker"):
+            return {"available":False,"blocker":reconciliation["blocker"],"reconciliation_ratio":reconciliation.get("ratio"),"reconciliation":reconciliation,"resource_model":resource_meta,"sku_price_model":price_meta}
+        scale=1.0/reconciliation["ratio"]
+        dbu_cost=Range3(*(round(x/60.0*dbu_per_hour*unit_price*scale,2) for x in (resources.low,resources.base,resources.high)))
         if target=="SERVERLESS":
             aws_cost=Range3(0.0,0.0,0.0)
             aws_meta={"status":"NOT_CUSTOMER_BILLED","reason":"Serverless SQL infrastructure is Databricks-managed; no separate customer EC2 line is modeled."}
@@ -2738,66 +2834,93 @@ class Estimator:
         else:
             return {"available":False,"blocker":"UNSUPPORTED_TARGET_WAREHOUSE_TYPE","target_type":target}
         total_cost=Range3(round(dbu_cost.low+aws_cost.low,2),round(dbu_cost.base+aws_cost.base,2),round(dbu_cost.high+aws_cost.high,2))
-        return {"available":True,"target_type":target,"warehouse_size":size,"dbu_cost_range":dbu_cost,"aws_cost_range":aws_cost,"total_cost_range":total_cost,"dbu_per_cluster_hour":dbu_per_hour,"dbu_rate_source":rate_source,"unit_price_per_dbu":unit_price,"resource_model":resource_meta,"sku_price_model":price_meta,"aws_model":aws_meta,"estimate_status":"PRE_CANARY_MODELED_RANGE"}
+        return {"available":True,"target_type":target,"warehouse_size":size,"reconciliation_ratio":reconciliation["ratio"],"reconciliation":reconciliation,"dbu_cost_range":dbu_cost,"aws_cost_range":aws_cost,"total_cost_range":total_cost,"dbu_per_cluster_hour":dbu_per_hour,"dbu_rate_source":rate_source,"unit_price_per_dbu":unit_price,"resource_model":resource_meta,"sku_price_model":price_meta,"aws_model":aws_meta,"estimate_status":"PRE_CANARY_MODELED_RANGE"}
 
     def candidates(self,e:WarehouseEvidence,analyses:Dict[str,AnalysisResult],decisions:Sequence[OptimizationDecision])->List[CandidateRecommendation]:
         out=[]; ep=e.current_epoch
         dbu_baseline=round_or_none(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
         total_baseline=None if aws_baseline is None or dbu_baseline is None else round(dbu_baseline+aws_baseline,2)
         for d in decisions:
-            a=analyses[d.knob]; factors,meta=self._factors(e,d,a)
-            dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
-            est=save=None
-            if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
-                migration=self._migration_costs(e,d); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
-                if migration.get("available"):
-                    dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
-                    dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-                    if aws_baseline is not None:
-                        aws_savings=self._delta_range(aws_baseline,aws_costs)
-                    if total_baseline is not None:
-                        total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
-                else:
-                    meta["estimate_blocker"]=migration.get("blocker")
-            elif factors is not None and dbu_baseline is not None:
-                dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
-                dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-                aws_factors=self._aws_factor_range(e,d,factors,meta)
-                meta={**meta,"aws_cost_factor_range":as_serializable(aws_factors) if aws_factors else None}
-                if aws_baseline is not None and aws_factors is not None:
-                    aws_costs=Range3(round(aws_baseline*aws_factors.low,2),round(aws_baseline*aws_factors.base,2),round(aws_baseline*aws_factors.high,2))
-                    aws_savings=self._delta_range(aws_baseline,aws_costs)
-                    total_costs=Range3(round(dbu_costs.low+aws_costs.low,2),round(dbu_costs.base+aws_costs.base,2),round(dbu_costs.high+aws_costs.high,2))
-                    if total_baseline is not None: total_savings=self._delta_range(total_baseline,total_costs)
-                elif e.current_epoch.config.warehouse_type=="SERVERLESS":
-                    aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
-                est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
-            signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
-            cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
-            confidence=self._confidence(e,a,signal=signal,cap=cap)
-            current=d.current_config; recommended=d.recommended_config
-            rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
-            out.append(CandidateRecommendation(
-                recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
-                current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
-                baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
-                estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
-                confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
-                reanalysis_required=d.reanalysis_required,metadata={
-                    **meta,"cost_factor_range":as_serializable(factors) if factors else None,"estimate_is_independent_scenario":True,
-                    "candidate_savings_must_not_be_summed":True,"current_epoch_id":ep.epoch_id,"currency":e.currency,
-                    "rationale":d.rationale,"policy_version":POLICY_VERSION,"analyzer_version":ANALYZER_VERSION,"optimizer_version":OPTIMIZER_VERSION,
-                    "cost_scope":"DBU at published list price (observed system.billing usage x system.billing.list_prices, not contract-effective) plus modeled customer AWS EC2 at on-demand list price for Pro/Classic (Spot not modeled); Serverless cloud infrastructure is embedded in the Serverless DBU line.",
-                    "aws_cost_model":e.aws_cost_model,
-                },
-                dbu_365d_baseline_cost=dbu_baseline,aws_365d_baseline_cost=aws_baseline,total_365d_baseline_cost=total_baseline,
-                dbu_365d_savings_estimate=(dbu_savings.base if dbu_savings else None),aws_365d_savings_estimate=(aws_savings.base if aws_savings else None),
-                total_365d_savings_estimate=(total_savings.base if total_savings else None),dbu_365d_savings_range=dbu_savings,aws_365d_savings_range=aws_savings,
-                total_365d_savings_range=total_savings,dbu_365d_estimated_cost_range=dbu_costs,aws_365d_estimated_cost_range=aws_costs,total_365d_estimated_cost_range=total_costs,
-            ))
+            a=analyses[d.knob]
+            out.append(self._candidate(e,ep,a,d,dbu_baseline,aws_baseline,total_baseline))
+            gate=self._value_gate(d,out[-1])
+            if gate:
+                # A change made to save money ships only when its own modeled savings clear the floor; the modeled
+                # economics stay on the held candidate so the reason is visible.
+                held=dataclasses.replace(d,status="NO_CHANGE",recommended_config=dict(d.current_config),blockers=sorted(set(d.blockers)|{gate["reason_code"]}),
+                    invalidates=[],reanalysis_required=[],rationale=gate["rationale"])
+                out[-1]=self._candidate(e,ep,a,held,dbu_baseline,aws_baseline,total_baseline)
+                out[-1].metadata["value_gate"]=gate
         return out
 
+    def _value_gate(self,d:OptimizationDecision,c:"CandidateRecommendation")->Optional[Dict[str,Any]]:
+        if d.objective!="COST" or d.status not in {"ACTIONABLE","TEST_REQUIRED"} or d.current_config==d.recommended_config:
+            return None
+        save=c.estimated_savings_365
+        if save is None:
+            return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
+        floor=self.t.cost_change_min_annual_savings
+        if save<=0:
+            code,why="COST_CHANGE_NOT_COST_EFFECTIVE","its own modeled savings are not positive"
+        elif save<floor:
+            code,why="COST_SAVINGS_BELOW_MATERIALITY",f"its own modeled savings are below the {floor:,.0f} a year materiality floor"
+        else:
+            return None
+        return {"reason_code":code,"modeled_savings_365":save,"modeled_savings_range_365":as_serializable(c.estimated_savings_range_365),
+                "floor_365":floor,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
+                "rationale":f"Held: the {d.knob} change was proposed to save money but {why}."}
 
+    def _candidate(self,e:WarehouseEvidence,ep:EpochEvidence,a:AnalysisResult,d:OptimizationDecision,dbu_baseline:Optional[float],aws_baseline:Optional[float],total_baseline:Optional[float])->"CandidateRecommendation":
+        factors,meta=self._factors(e,d,a)
+        dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
+        est=save=None
+        if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
+            migration=self._migration_costs(e,d); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
+            if migration.get("available"):
+                dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
+                dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
+                if aws_baseline is not None:
+                    aws_savings=self._delta_range(aws_baseline,aws_costs)
+                if total_baseline is not None:
+                    total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
+            else:
+                meta["estimate_blocker"]=migration.get("blocker")
+        elif factors is not None and dbu_baseline is not None:
+            dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
+            dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
+            aws_factors=self._aws_factor_range(e,d,factors,meta)
+            meta={**meta,"aws_cost_factor_range":as_serializable(aws_factors) if aws_factors else None}
+            if aws_baseline is not None and aws_factors is not None:
+                aws_costs=Range3(round(aws_baseline*aws_factors.low,2),round(aws_baseline*aws_factors.base,2),round(aws_baseline*aws_factors.high,2))
+                aws_savings=self._delta_range(aws_baseline,aws_costs)
+                total_costs=Range3(round(dbu_costs.low+aws_costs.low,2),round(dbu_costs.base+aws_costs.base,2),round(dbu_costs.high+aws_costs.high,2))
+                if total_baseline is not None: total_savings=self._delta_range(total_baseline,total_costs)
+            elif e.current_epoch.config.warehouse_type=="SERVERLESS":
+                aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
+            est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
+        signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
+        cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
+        confidence=self._confidence(e,a,signal=signal,cap=cap)
+        current=d.current_config; recommended=d.recommended_config
+        rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
+        return CandidateRecommendation(
+            recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
+            current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
+            baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
+            estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
+            confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
+            reanalysis_required=d.reanalysis_required,metadata={
+                **meta,"cost_factor_range":as_serializable(factors) if factors else None,"estimate_is_independent_scenario":True,
+                "candidate_savings_must_not_be_summed":True,"current_epoch_id":ep.epoch_id,"currency":e.currency,
+                "rationale":d.rationale,"policy_version":POLICY_VERSION,"analyzer_version":ANALYZER_VERSION,"optimizer_version":OPTIMIZER_VERSION,
+                "cost_scope":"DBU at published list price (observed system.billing usage x system.billing.list_prices, not contract-effective) plus modeled customer AWS EC2 at on-demand list price for Pro/Classic (Spot not modeled); Serverless cloud infrastructure is embedded in the Serverless DBU line.",
+                "aws_cost_model":e.aws_cost_model,
+            },
+            dbu_365d_baseline_cost=dbu_baseline,aws_365d_baseline_cost=aws_baseline,total_365d_baseline_cost=total_baseline,
+            dbu_365d_savings_estimate=(dbu_savings.base if dbu_savings else None),aws_365d_savings_estimate=(aws_savings.base if aws_savings else None),
+            total_365d_savings_estimate=(total_savings.base if total_savings else None),dbu_365d_savings_range=dbu_savings,aws_365d_savings_range=aws_savings,
+            total_365d_savings_range=total_savings,dbu_365d_estimated_cost_range=dbu_costs,aws_365d_estimated_cost_range=aws_costs,total_365d_estimated_cost_range=total_costs,
+        )
 
 class Reviewer:
     """Fail-fast invariant gate for identity, evidence epoch, config, cost, and confidence contracts."""
@@ -4246,19 +4369,46 @@ def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> L
     ]
 
 
-def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence]) -> None:
+def _billed_dbu_per_cluster_hour(x: WarehouseEvidence, ep: EpochEvidence, t: Thresholds) -> Optional[float]:
+    """Billed DBU per running cluster-hour for one configuration epoch, with billing and running time on the same days.
+
+    The current epoch uses its event-covered resource window; an earlier epoch (calibration evidence only) uses its
+    whole-epoch event totals and the billing days from its event coverage start. Unknown when billed DBU per day or the
+    event coverage start was not collected.
+    """
+    def rows_for(days: Optional[set], from_day: Optional[str]) -> List[Mapping[str, Any]]:
+        return [r for r in x.daily_cost_365 if str(r.get("epoch_start")) == ep.epoch_start
+                and (days is None or str(r.get("usage_date"))[:10] in days) and (from_day is None or str(r.get("usage_date"))[:10] >= from_day)]
+    if ep.is_current:
+        window = resource_window(x, t)
+        if window is None:
+            return None
+        rows = rows_for({(dt.date.fromisoformat(window["start"]) + dt.timedelta(days=i)).isoformat() for i in range(window["days"])}, None)
+        cluster_minutes = sum(window["cluster_minutes"])
+    else:
+        coverage = parse_datetime(ep.events.get("event_coverage_start"))
+        if coverage is None:
+            return None
+        rows = rows_for(None, coverage.astimezone(dt.timezone.utc).date().isoformat())
+        cluster_minutes = safe_float(ep.events.get("cluster_minutes"))
+    if not rows or any(r.get("dbu_quantity") is None for r in rows):
+        return None
+    dbu = sum(safe_float(r.get("dbu_quantity")) for r in rows)
+    return dbu / (cluster_minutes / 60.0) if dbu > 0 and cluster_minutes > 0 else None
+
+
+def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresholds: Optional[Thresholds] = None) -> None:
     """Attach workspace-level capability/calibration observations derived only from collected system-table evidence."""
+    t = thresholds or Thresholds()
     serverless_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type == "SERVERLESS" for ep in x.epochs)}
     pro_classic_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type in {"PRO", "CLASSIC"} for ep in x.epochs)}
     pro_rates: Dict[str, Dict[str, List[float]]] = {}
     for x in evidence:
-        ep = x.current_epoch
-        if ep.config.warehouse_type not in {"PRO", "CLASSIC"}:
-            continue
-        dbu = safe_float(ep.cost.get("dbu_quantity"))
-        cluster_minutes = safe_float(ep.events.get("cluster_minutes"))
-        if dbu > 0 and cluster_minutes > 0:
-            pro_rates.setdefault(x.workspace_id, {}).setdefault(ep.config.warehouse_size, []).append(dbu / (cluster_minutes / 60.0))
+        for ep in x.epochs:
+            if ep.config.warehouse_type in {"PRO", "CLASSIC"}:
+                rate = _billed_dbu_per_cluster_hour(x, ep, t)
+                if rate is not None:
+                    pro_rates.setdefault(x.workspace_id, {}).setdefault(ep.config.warehouse_size, []).append(rate)
     rate_registry = {
         ws: {size: round(statistics.median(values), 6) for size, values in sizes.items() if values}
         for ws, sizes in pro_rates.items()
@@ -4296,7 +4446,7 @@ def evaluate_warehouses(
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
     supported = [e for e in evidence if _is_supported_warehouse(e)]
-    _prepare_workspace_calibration(supported)
+    _prepare_workspace_calibration(supported, thresholds)
     ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
@@ -4432,7 +4582,7 @@ def package_locked_contract(
 # Demo / evidence persistence / merge
 # ---------------------------------------------------------------------------
 
-def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str) -> List[Dict[str, Any]]:
+def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str, dbu_total: float) -> List[Dict[str, Any]]:
     base = total / days
     rows: List[Dict[str, Any]] = []
     for i in range(days):
@@ -4448,6 +4598,7 @@ def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, ware
     scale = total / sum(r["list_cost"] for r in rows)
     for r in rows:
         r["list_cost"] = round(r["list_cost"] * scale, 6)
+        r["dbu_quantity"] = round(r["list_cost"] * dbu_total / total, 6)
     return rows
 
 
@@ -4495,10 +4646,10 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 8000.0, "cluster_minutes": 12000.0, "minutes_at_min": 6000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 75.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2,
+            "max_observed_clusters": 2, "event_coverage_start": old_start,
         },
         gaps={},
-        cost={"list_cost": 3900.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
+        cost={"list_cost": 2640.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
     )
 
     cur = EpochEvidence(
@@ -4524,42 +4675,41 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "client_applications_30": ["Power BI", "Tableau", "Databricks SQL Editor"],
             "statement_text_visible_pct_30": 100.0, "hive_metastore_reference_queries_30": 0,
             "epoch_p95_execution_ms": 2700, "epoch_queued_query_pct": 0.0, "epoch_spill_query_pct": 0.0,
+            "decision_queries_30": 10320, "p95_compilation_ms_30": 420, "p95_result_fetch_ms_30": 900,
         },
         events={
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 80.0, "time_at_max_pct": 0.0,
             "max_observed_clusters": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
+            "event_coverage_start": cur_start, "resource_coverage_from": None,
         },
         gaps={
             "gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0,
             "saved_idle_minutes_if_10": 12500.0, "saved_idle_minutes_if_15": 11500.0,
             "saved_idle_minutes_if_30": 9000.0, "saved_idle_minutes_if_45": 6500.0,
         },
-        cost={"list_cost": 21100.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
+        cost={"list_cost": 11000.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
     )
 
     daily = (
-        _demo_daily(dt.date(2025, 10, 1), 106, 3900.0, workspace, wh, old_start)
-        + _demo_daily(dt.date(2026, 1, 15), 259, 21100.0, workspace, wh, cur_start)
+        # Billed DBU = cluster-hours x published DBU/hour (MEDIUM 24, LARGE 40); cost = DBU x Pro list price 0.55.
+        _demo_daily(dt.date(2025, 10, 1), 106, 2640.0, workspace, wh, old_start, 4800.0)
+        + _demo_daily(dt.date(2026, 1, 15), 259, 11000.0, workspace, wh, cur_start, 20000.0)
     )
-    forecast={
-        "forecast_method": MODEL_VERSION, "active_cost_days": 259, "dbu_forecast_status": "COMPLETE",
-        "forecast_basis_start": "2026-01-15", "forecast_basis_end": "2026-09-30",
-        "run_rate_28": 28000.0, "run_rate_84": 26500.0, "zero_cost_days_in_basis": 0,
-        "trend_ratio": 1.0, "trend_adjustment_factor": 1.0,
-    }
+    model = Modeler(Thresholds()).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
+    forecast = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
     registry=load_aws_price_registry(str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json"))
     cur.resource_daily=synthesize_resource_daily(cur,analysis_time)
     aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry)
     e=WarehouseEvidence(
         warehouse_id=wh, workspace_id=workspace, account_id=cur.account_id, warehouse_name=cur.warehouse_name,
         source_region="us-east-1", analysis_time=analysis_time, current_epoch_id=cur.epoch_id, epochs=[old, cur],
-        current_cost_365=25000.0, baseline_forecast_cost_365=27000.0, currency="USD",
-        cost_history_days=259, cost_cv_84=0.25, forecast_metadata=forecast, daily_cost_365=daily,
+        current_cost_365=model["current_cost_365"], baseline_forecast_cost_365=model["forecast_cost_365"], currency="USD",
+        cost_history_days=model["cost_history_days"], cost_cv_84=model["cost_cv_84"], forecast_metadata=forecast, daily_cost_365=daily,
         billing_features={"photon_usage_pct_365": 100.0, "serverless_usage_pct_365": 0.0, "cloud": "AWS"},
         aws_baseline_cost_365=aws_cost, aws_cost_model=aws_model,
         sql_sku_prices={
-            "PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.22,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},
+            "PREMIUM_SQL_PRO_COMPUTE":{"effective_list_price":0.55,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"PRO"},
             "PREMIUM_SQL_SERVERLESS_COMPUTE":{"effective_list_price":0.70,"currency_code":"USD","cloud":"AWS","usage_unit":"DBU","classification":"SERVERLESS"},
         },
         photon_observation=PhotonObservation(
@@ -4595,16 +4745,17 @@ DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 #   days: weekdays | all | month_end (last business day) | half_year_end (last 5 business days of June and December)
 #   start/end: "HH:MM" window; conc: concurrent queries; every/dur: periodic queries (minutes) instead of steady load;
 #   q_min: average query minutes for steady load; src: query source; client: client application.
-# Warehouse options: keepalive (an open session keeps it running with no queries), growth (volume doubles every 30
+# Warehouse options: keepalive (an open session keeps it running with no queries), restart_every_days (restarts with no
+# downtime; an always-on warehouse that never restarts has no retained warehouse event), growth (volume doubles every 30
 # days), prior (earlier configuration epochs), epoch_start/created, unpriced_from (promotional SKU without a list
 # price), correction (a RETRACTION/RESTATEMENT day), and query-quality parameters (p95/p99, spill, failures, cache).
 DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
-    {"scenario": "C01", "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
+    {"scenario": "C01", "restart_every_days": 30, "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 6, "dur": 1.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C02", "name": "Marketing Dashboards", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "weekdays", "start": s, "end": e, "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"} for s, e in (("09:00", "09:30"), ("13:00", "13:20"), ("16:00", "16:30"))]},
     {"scenario": "C03", "name": "Legacy Reporting", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 30, "keepalive": True, "work": []},
-    {"scenario": "C04", "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
+    {"scenario": "C04", "restart_every_days": 30, "name": "BI Gateway", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "every": 5, "dur": 0.05, "conc": 1, "src": "SQL", "client": "Tableau"},
               {"days": "weekdays", "start": "09:00", "end": "17:00", "every": 4, "dur": 1.0, "conc": 1, "src": "DASHBOARD", "client": "Tableau"}]},
     {"scenario": "C05", "name": "Nightly ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 45,
@@ -4631,7 +4782,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 45, "dur": 3.0, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
     {"scenario": "C14", "name": "Serverless BI", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 4, "auto_stop": 20,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 3, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
-    {"scenario": "C16", "name": "Serverless 24x7 Feed", "ws": 1, "type": "SERVERLESS", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 10,
+    {"scenario": "C16", "restart_every_days": 30, "name": "Serverless 24x7 Feed", "ws": 1, "type": "SERVERLESS", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 10,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 8, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C18", "name": "Preview Channel", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 20, "channel": "PREVIEW",
      "work": [{"days": "weekdays", "start": "09:00", "end": "17:00", "every": 5, "dur": 0.5, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
@@ -4645,7 +4796,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C22", "name": "Few Heavy Queries", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20,
      "spill_pct": 3.0, "spill_p95_bytes": 5 * GIB,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
-    {"scenario": "C25", "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
+    {"scenario": "C25", "restart_every_days": 30, "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "07:00", "end": "19:00", "every": 3, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C26", "name": "Flaky ETL", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 3, "auto_stop": 20, "failure_pct": 12.0,
      "p95": 300000, "p99": 900000, "task_parallelism": 24,
@@ -4668,7 +4819,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C42", "name": "Queue Flood", "ws": 1, "type": "PRO", "size": "LARGE", "min": 1, "max": 2, "auto_stop": 20, "queue_wait_ms": 600000,
      "work": [{"days": "weekdays", "start": "09:00", "end": "09:15", "conc": 1000, "q_min": 0.2, "src": "JOB"},
               {"days": "weekdays", "start": "10:00", "end": "17:00", "conc": 12, "q_min": 0.5, "src": "DASHBOARD"}]},
-    {"scenario": "C45", "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
+    {"scenario": "C45", "restart_every_days": 30, "name": "Steady 24x7 Pro", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 2, "max": 4, "auto_stop": 30, "task_parallelism": 12,
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 16, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C46", "name": "Hourly Burst", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 4, "auto_stop": 15, "queue_wait_ms": 180000,
      "work": [{"days": "weekdays", "start": f"{h:02d}:00", "end": f"{h:02d}:08", "conc": 60, "q_min": 0.3, "src": "DASHBOARD"} for h in range(8, 18)]
@@ -4828,6 +4979,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     lag = DEMO_SCALE_UP_LAG_MINUTES[typ]
     pieces: List[Tuple[float, float, int, float, float]] = []
     starts: List[float] = []
+    stops: List[float] = []
     scale_events: List[Tuple[float, int]] = []  # (time, +1 up / -1 down)
     if spec.get("keepalive"):
         starts.append(sim_start)
@@ -4864,6 +5016,16 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         pieces.append((b, b + keep, clusters, 0.0, 0.0))
         if keep < gap:
             clusters = 0
+            stops.append(b + keep)
+    # Restarts with no downtime (e.g. an always-on warehouse restarted for maintenance) are STARTING events only.
+    if spec.get("restart_every_days"):
+        t_restart = sim_start + 180.0
+        while t_restart < now_t:
+            starts.append(t_restart); t_restart += spec["restart_every_days"] * 1440.0
+        starts.sort()
+    # warehouse_events keeps 365 days: running time is visible only from the first event inside that window.
+    event_times = sorted([x for x in starts + stops + [t for t, _ in scale_events] if x >= window_365])
+    coverage = event_times[0] if event_times else None
 
     # Split pieces at midnight so daily series and billing land on their UTC day.
     def split_daily(items: Iterable[Tuple[float, float, int, float, float]]) -> List[Tuple[float, float, int, float, float]]:
@@ -4911,6 +5073,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             return int(round(sum(v for k, v in src30.items() if (not prefix or k.split("|")[0] == prefix) and (not client or k.split("|")[1] == client))))
         clients = sorted({k.split("|")[1] for k in src30 if k.split("|")[1]})
         n30 = int(round(q30))
+        decision30 = int(round(n30 * max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)))  # not result-cache hits
         p95, p99 = spec.get("p95", 2500), spec.get("p99", 9000)
         rows["query_metrics"].append({
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
@@ -4918,9 +5081,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "p95_total_ms_30": p95 + 500, "compute_wait_queries_30": compute_wait30,
             "p95_wait_compute_ms_when_waited_30": DEMO_START_LATENCY_MS[typ] if compute_wait30 else None,
             "queued_queries_30": int(round(queued30)), "p95_wait_capacity_ms_when_queued_30": spec.get("queue_wait_ms", 120000) if queued30 >= 0.5 else None,
+            "decision_queries_30": decision30,
+            "p95_compilation_ms_30": 400 if n30 else None, "p95_result_fetch_ms_30": 800 if n30 else None,
             "p95_execution_ms_30": p95 if n30 else None, "p99_execution_ms_30": p99 if n30 else None, "max_execution_ms_30": p99 * 2 if n30 else None,
             "queued_query_pct_30": round(100.0 * round(queued30) / n30, 4) if n30 else None,
-            "spill_query_pct_30": spill_pct if n30 else None, "spill_queries_30": int(round(n30 * spill_pct / 100.0)),
+            "spill_query_pct_30": spill_pct if decision30 else None, "spill_queries_30": int(round(decision30 * spill_pct / 100.0)),
             "p95_spill_bytes_when_spilled_30": spec.get("spill_p95_bytes") if spill_pct and n30 else None,
             "total_spill_gib_30": round(n30 * spill_pct / 100.0 * spec.get("spill_p95_bytes", 0) / 2 / GIB, 2),
             "p95_read_bytes_30": 50 * 1024 ** 2, "avg_read_io_cache_percent_30": 35.0 if n30 else None,
@@ -4935,24 +5100,28 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "epoch_spill_query_pct": spill_pct if epoch_q else None,
             "epoch_task_duration_ms": round(busy_conc_minutes * 60000.0 * spec.get("task_parallelism", 4), 1) if epoch_q else None,
         })
-        # Warehouse events.
-        live = [(max(a, lo_t), b, cl, c, qc) for a, b, cl, c, qc in ep_pieces if b > lo_t]  # clipped at the window start
+        # Warehouse events: no row when no retained event covers the epoch; otherwise from the coverage start.
+        cov = None if coverage is None or coverage >= hi_t else max(lo_t, coverage)
+        live = [] if cov is None else [(max(a, cov), b, cl, c, qc) for a, b, cl, c, qc in ep_pieces if b > cov]
         uptime = sum(b - a for a, b, cl, _, _ in live if cl > 0)
         cluster_minutes = sum((b - a) * cl for a, b, cl, _, _ in live)
         at_min = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["min_clusters"])
         at_max = sum(b - a for a, b, cl, _, _ in live if cl > 0 and cl == cfg["max_clusters"])
         lo30 = max(ep_start, window_30)
-        rows["warehouse_events"].append({
-            "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
-            "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
-            "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
-            "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
-            "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
-            "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
-            "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
-        })
-        # Idle gaps between busy runs (query-level gaps), saved idle at each policy target.
-        gaps = [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1) if ep_runs[i + 1][0] >= lo_t and ep_runs[i + 1][0] > ep_runs[i][1]]
+        if cov is not None:
+            rows["warehouse_events"].append({
+                "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "event_coverage_start": stamp(cov),
+                "uptime_minutes": round(uptime, 3), "cluster_minutes": round(cluster_minutes, 3), "minutes_at_min": round(at_min, 3), "minutes_at_max": round(at_max, 3),
+                "time_at_min_pct": round(100.0 * at_min / uptime, 4) if uptime else None, "time_at_max_pct": round(100.0 * at_max / uptime, 4) if uptime else None,
+                "max_observed_clusters": max((cl for _, _, cl, _, _ in live), default=0),
+                "starts_30": len([s for s in starts if s >= lo30 and (ep_end is None or s < ep_end)]),
+                "scale_ups_30": len([t for t, d in scale_events if d > 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+                "scale_downs_30": len([t for t, d in scale_events if d < 0 and t >= lo30 and (ep_end is None or t < ep_end)]),
+            })
+        # Idle gaps between busy runs (query-level gaps) after the first retained event, saved idle at each target.
+        gap_lo = lo_t if coverage is None else max(lo_t, coverage)
+        gaps = [] if coverage is None else [ep_runs[i + 1][0] - ep_runs[i][1] for i in range(len(ep_runs) - 1)
+                                            if ep_runs[i][0] >= gap_lo and ep_runs[i + 1][0] > ep_runs[i][1]]
         if gaps:
             ordered = sorted(gaps)
             def pct(q: float) -> float:
@@ -4966,13 +5135,12 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 gap_row[f"saved_idle_minutes_if_{target}"] = round(sum(k - target for k in kept if k > target), 3)
             rows["idle_gaps"].append(gap_row)
         # Daily resource series for the current epoch (last 120 days before the analysis date).
-        if ep_end is None:
-            first_event = min([x for x in starts if x >= ep_start] or [max(ep_start, sim_start)])
-            first = max(dt.date.fromisoformat(stamp(max(ep_start, first_event))[:10]), analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS))
-            d = first
+        if ep_end is None and coverage is not None:
+            series_from = max(ep_start, coverage, at(analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)))
+            d = dt.date.fromisoformat(stamp(series_from)[:10])
             while d < analysis_day:
                 lo_d = at(d)
-                dp = [p for p in pieces_by_day.get(int(lo_d // 1440.0), []) if p[0] >= ep_start]
+                dp = [(max(a, series_from), b, cl, c, qc) for a, b, cl, c, qc in pieces_by_day.get(int(lo_d // 1440.0), []) if b > series_from]
                 rows["resource_daily"].append({
                     "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "usage_day": d.isoformat(),
                     "uptime_minutes": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0), 3),
@@ -5022,6 +5190,9 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
             "photon_true_dbu": round(photon_true, 6), "photon_false_dbu": round(photon_false, 6), "photon_null_dbu": round(photon_null, 6),
             "latest_usage_time": None if last_bill is None else f"{last_bill}T23:00:00+00:00", "latest_owner": owner, "observed_owners": [owner],
+            # node_type is billed for non-serverless warehouses only; sql_tier is CLASSIC or PRO (null for Serverless).
+            "observed_node_types": [] if cfg["warehouse_type"] == "SERVERLESS" else sorted({AWS_SQL_WAREHOUSE_TOPOLOGY[cfg["warehouse_size"]]["driver"], "i3.2xlarge"}),
+            "observed_sql_tiers": [] if cfg["warehouse_type"] == "SERVERLESS" else [cfg["warehouse_type"]],
         })
     total_dbu = sum(r["dbu_quantity"] for r in rows["billing_daily_cost"])
     photon_dbu = total_dbu if spec.get("photon", "ENABLED") == "ENABLED" else 0.0

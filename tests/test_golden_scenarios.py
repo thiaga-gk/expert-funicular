@@ -13,7 +13,8 @@ Paths address the serialized RecommendationPackage. A collector-level fixture in
 through extract_evidence, and ``evidence_assertions`` address the serialized WarehouseEvidence. Optional
 ``collector_rows`` ({query label: rows}) feed the other collector queries and ``analysis_time`` pins the clock. A segment is a key, ``key[*]`` (every list item) or
 ``key[field=value]`` (list items, or dict values, whose field equals value). Operators: ``equals``, ``includes`` (list contains
-every given value), ``excludes`` (list contains none of them), ``length`` (list length).
+every given value), ``excludes`` (list contains none of them), ``length`` (list length), ``between`` ([low, high],
+inclusive, for numbers).
 
 With ``"recompute_forecast": true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
 rows (as the collector does) before the package is built, so a fixture can exercise the forecast itself. With ``[*]`` or a filter the operator applies
@@ -88,6 +89,10 @@ def check(package, assertion):
             return f"{path}: expected to exclude {assertion['excludes']!r}, got {value!r}"
         if "length" in assertion and len(value) != assertion["length"]:
             return f"{path}: expected length {assertion['length']}, got {len(value)}"
+        if "between" in assertion:
+            low, high = assertion["between"]
+            if not isinstance(value, (int, float)) or not low <= value <= high:
+                return f"{path}: expected between {low} and {high}, got {value!r}"
     return None
 
 
