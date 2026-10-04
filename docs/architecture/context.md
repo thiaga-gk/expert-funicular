@@ -287,6 +287,8 @@ Typical availability differs by source:
 
 The optimizer must therefore distinguish **normal source latency** from true missing/invalid data.
 
+For billing, a UTC day enters the cost basis only after a settle buffer (24 hours) and once its own workspace's billing watermark has passed it; completeness is judged per workspace. A late day is excluded, not read as a zero-cost day.
+
 ---
 
 ## 9. Billing corrections and signed usage
