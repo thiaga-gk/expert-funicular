@@ -1,6 +1,6 @@
 # Reporter JSON Contract v1.2.0 — Locked
 
-**Version history:** 1.2.0 (M9 Stage 1) adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
+**Version history:** 1.2.0 adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
 
 **Earlier history:** 1.1.0 is an additive evolution of 1.0.0 (no field renamed or removed): plan steps may carry `projected_economics` and scenario economics may carry a separate `contingent_*` upside, so steps awaiting re-evaluation never feed authoritative scenario or package economics. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/PKG-` ids differ from 1.0.0 packages.
 
@@ -234,7 +234,7 @@ canonical applied_config
 
 `warehouse_type | warehouse_size | min_clusters | max_clusters | auto_stop_minutes | warehouse_channel | enable_photon`
 
-`enable_photon` is **reserved**: it stays in the enum so 1.0.0 packages remain valid, but the publisher no longer emits a Photon candidate (v2.7.1). The billing-observed Photon state remains in `current_config.photon`.
+`enable_photon` is **reserved**: it stays in the enum so 1.0.0 packages remain valid, but the publisher no longer emits a Photon candidate. The billing-observed Photon state remains in `current_config.photon`.
 
 ### Confidence
 
