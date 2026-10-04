@@ -3042,6 +3042,7 @@
             "epoch_queued_query_pct": 0.1,
             "epoch_spill_query_pct": 0.0
           },
+          "resource_daily": null,
           "tags": {
             "environment": "production"
           },
@@ -3126,6 +3127,28 @@
             "tagged_query_pct_30": 78.0,
             "total_spill_gib_30": 0.0
           },
+          "resource_daily": [
+            {
+              "cluster_minutes": 15000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 8000.0,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 10000.0,
+              "usage_day": "2026-09-29"
+            },
+            {
+              "cluster_minutes": 15000.0,
+              "max_cluster_count": 2,
+              "minutes_at_max": 0.0,
+              "minutes_at_min": 8000.0,
+              "recycle_minutes": 0.0,
+              "starts": 0,
+              "uptime_minutes": 10000.0,
+              "usage_day": "2026-09-30"
+            }
+          ],
           "tags": {
             "environment": "production",
             "team": "sales-analytics"

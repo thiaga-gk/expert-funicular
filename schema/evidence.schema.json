@@ -29,7 +29,7 @@
     "epoch": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["epoch_id", "warehouse_id", "workspace_id", "account_id", "warehouse_name", "epoch_start", "epoch_end", "is_current", "config", "tags", "query", "events", "gaps", "cost"],
+      "required": ["epoch_id", "warehouse_id", "workspace_id", "account_id", "warehouse_name", "epoch_start", "epoch_end", "is_current", "config", "tags", "query", "events", "gaps", "cost", "resource_daily"],
       "properties": {
         "epoch_id": {"type": "string", "minLength": 1},
         "warehouse_id": {"type": "string", "minLength": 1},
@@ -44,7 +44,8 @@
         "query": {"$ref": "#/$defs/freeObject"},
         "events": {"$ref": "#/$defs/freeObject"},
         "gaps": {"$ref": "#/$defs/freeObject"},
-        "cost": {"$ref": "#/$defs/freeObject"}
+        "cost": {"$ref": "#/$defs/freeObject"},
+        "resource_daily": {"type": ["array", "null"], "items": {"$ref": "#/$defs/freeObject"}}
       }
     },
     "photonObservation": {

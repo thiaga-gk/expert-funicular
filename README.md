@@ -89,10 +89,12 @@ python publisher.py \
 
 `--sql-warehouse-id` is also supported. A validated all-purpose cluster may be used with `--all-purpose-cluster-id`; jobs compute is rejected. REST interactions are read-only and limited to execution-target resolution/validation and optional compatibility evidence. Authoritative optimizer configuration and metrics remain system-table driven.
 
+To reproduce an earlier collection despite later billing corrections, add `--billing-ingested-through YYYY-MM-DD`: every billing query then reads only records ingested on or before that date. A UTC day enters the cost basis only 24 hours after it ends and once its workspace's billing watermark has passed it.
+
 ## Source policy
 
 - `system.compute.warehouses` — configuration snapshots/epochs (an epoch is a period of unchanged type, channel, size, min/max clusters and auto-stop; name/tag-only snapshots do not start one).
-- `system.compute.warehouse_events` — scaling/resource-state evidence.
+- `system.compute.warehouse_events` — scaling/resource-state evidence, including a daily resource series for the current epoch (last 120 UTC days) that drives the AWS baseline and recent time at min/max.
 - `system.query.history` — latency, queueing, spill, workload source/client evidence.
 - `system.billing.usage` — DBU usage/cost, Photon observation, owner attribution.
 - `system.billing.list_prices` — Databricks list pricing.

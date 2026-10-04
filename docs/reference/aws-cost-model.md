@@ -6,7 +6,9 @@ Expose customer AWS compute economics separately from Databricks DBU economics f
 ## Formula
 For the current Pro/Classic config epoch:
 
-`annual AWS EC2 = annualized observed cluster-minutes / 60 × modeled cluster $/hour`
+`annual AWS EC2 = annualized recent cluster-minutes / 60 × modeled cluster $/hour`
+
+Cluster-minutes come from the daily resource series for the current epoch, on the same window, calendar and 28/84-day blend as the DBU forecast (so DBU and AWS describe the same period), times the forecast trend adjustment and 365. Without the series the AWS baseline is null (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
 `cluster $/hour = driver instance $/hour + worker_count × i3.2xlarge $/hour`
 

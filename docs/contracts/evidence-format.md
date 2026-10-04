@@ -20,6 +20,7 @@ There is one format version, **1.0.0**, declared in `evidence_format_version`. T
 
 - `publisher_version` records which publisher wrote the file. It is provenance only and does not affect replay.
 - Each entry in `warehouses` has every field of `WarehouseEvidence` (`publisher.py`), each epoch has every field of `EpochEvidence`, and unknown fields are rejected. Free-form sections (`query`, `events`, `gaps`, `cost`, `daily_cost_365`, `billing_features`, `aws_cost_model`, `sql_sku_prices`, `compatibility_evidence`) are objects whose keys are owned by the collector and estimators.
+- `resource_daily` is required on every epoch: the current epoch's daily resource series, and `null` on older epochs. A current epoch without a series is not backfilled for real evidence: the recent resource window is unavailable (`resource_window_from` returns `None`). `tools/add_resource_daily.py` backfills fixtures only.
 - `forecast_metadata.dbu_forecast_status` is required. An unknown forward DBU cost is `null` with a status that says why, never `0`.
 - The file is serialized with sorted keys and two-space indentation, so identical evidence gives identical bytes.
 

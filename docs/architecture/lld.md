@@ -165,6 +165,7 @@ flowchart TD
 | `--source-region` | regional context for source collection and AWS model |
 | `--aws-price-registry` | versioned EC2 registry path |
 | `--batch-size` | downstream Python batch size; collector remains set-based |
+| `--billing-ingested-through` | `YYYY-MM-DD`; pins every billing query to records ingested on or before that date, so a re-collection reproduces an earlier run despite later billing corrections |
 | `--compatibility-api-mode` | `auto` or `off` |
 | `--no-workbook` | suppress workbook while preserving canonical JSON |
 | `--print-json` | print exactly one package to stdout |
@@ -293,6 +294,10 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 - scale-up count,
 - scale-down count.
 
+#### `RESOURCE_DAILY_SQL`
+
+Reads a daily resource series for the current epoch over the last 120 UTC days: uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the last 30 days have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
+
 #### Idle-gap SQL
 
 `build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps.
@@ -300,6 +305,10 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 #### `EPOCH_DAILY_COST_SQL`
 
 Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Signed usage quantities are preserved so billing corrections flow into the run-rate model.
+
+#### `BILLING_WATERMARK_SQL`
+
+Returns, per workspace, `MAX(usage_end_time)` (the billing watermark) and `MAX(ingestion_date)` (billing ingested-through) over recent SQL-product usage. Billing completeness is judged per workspace, so one workspace's lagging ingestion is not hidden by another's. A workspace whose warehouses stopped running also stops producing usage, so its watermark stalls although billing is complete: when the warehouse's daily resource series shows no running time after the workspace watermark (on its own day, only running that provably follows the watermark time counts) through the last day that should already be billed (settled, passed by the account watermark, and before any ingestion cut-off), the account-wide watermark applies (`billing_watermark_source = ACCOUNT_IDLE_WAREHOUSE`); when it did run, the gap is ingestion lag and the workspace watermark stands (`WORKSPACE_LAGGING`). With `--billing-ingested-through`, every billing query (watermark, daily cost, features, attribution) only reads records ingested on or before that date. The settle buffer is then measured from that date's 00:00 UTC (or the analysis time, if earlier), so a later re-collection reproduces the original run's basis end.
 
 #### `EPOCH_BILLING_ATTRIBUTION_SQL`
 
@@ -468,9 +477,11 @@ Publisher v2.10.0 enforces this gate before analyzer invocation; unsupported/fut
 ### 11.1 Basis
 
 - analysis day itself is excluded,
+- a UTC day is complete, and so enters the basis, only `billing_settle_hours` (24) after it ends and once the billing watermark of its own workspace has passed it; the basis ends at the last complete day,
 - basis begins at the later of current epoch start or 365 days before analysis,
 - missing calendar days are filled with zero (a day with no billing is a $0 day, but the forecast is published only when the epoch has enough billed days; see 11.2),
-- mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency).
+- mixed currencies are rejected (unpriced rows carry no currency and are not counted as a currency),
+- forecast metadata records `billing_settle_hours`, `billing_watermark`, `billing_complete_through`, `billing_ingested_through` (`MAX(ingestion_date)` per workspace) and `billing_ingestion_cutoff` (the `--billing-ingested-through` pin, if any).
 
 ### 11.2 Daily run rate
 
@@ -548,8 +559,7 @@ For Pro/Classic:
 
 ```text
 annual_cluster_minutes
-  = observed_current_epoch_cluster_minutes
-    / observed_epoch_calendar_days
+  = blended_daily_cluster_minutes      # 28/84-day blend, as the DBU forecast
     * 365
     * forecast_trend_adjustment
 
@@ -558,9 +568,11 @@ annual_aws_cost
     * modeled_cluster_hourly_price
 ```
 
+`blended_daily_cluster_minutes` is computed from the current epoch's daily resource series on the DBU forecast's window and calendar (the last 84 complete days ending at the billing basis end, clipped to the epoch start, missing days zero-filled) with the same 28/84-day blend, so DBU and AWS describe the same period.
+
 `modeled_cluster_hourly_price` comes from documented warehouse topology encoded against the versioned regional EC2 price registry.
 
-If region pricing or current-epoch event resource evidence is unavailable, AWS baseline is `null`/unavailable rather than zero.
+If region pricing or the daily resource series is unavailable, AWS baseline is `null`/unavailable rather than zero (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
 ---
 
@@ -684,6 +696,8 @@ max_observed_clusters >= current max_clusters
 current max_clusters < 40
 ```
 
+`time_at_max` and `max_observed_clusters` (here and in the rules below) come from the last `pressure_window_days` (30) of the daily resource window, not the whole epoch. When the series was not collected (older evidence) they are unknown and the max/min-cluster changes are held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`.
+
 Unknown queue frequency or capacity wait is never read as 0; an increase needs both known. Like every other change it also needs a mature configuration epoch (at least 7 days), the minimum 30-day query sample and enough queued queries for the wait percentile; otherwise the decision is `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, `INSUFFICIENT_QUERY_SAMPLE` or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE`.
 
 Status: `ACTIONABLE`.
@@ -726,7 +740,7 @@ time_at_max < 20%
 time_at_min >= 25%
 ```
 
-Queue frequency and capacity wait must be known; an unreported value is held as a blocker (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`), never read as 0.
+`time_at_min` and `time_at_max` are measured over the last 30 days of the daily resource window. Queue frequency and capacity wait must be known; an unreported value is held as a blocker (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`), never read as 0. Without the resource series the reduction is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`.
 
 Status: `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates auto-stop because baseline capacity changed.
 
@@ -876,6 +890,8 @@ raw_fraction
   = min(theoretical_removed / current_cluster_minutes, 0.50)
 ```
 
+Both terms use whole-epoch event totals, so the ratio covers one period. The same applies to the auto-stop estimator (17.3) with whole-epoch idle minutes.
+
 The same `0.50 / 0.75 / 1.00` realization tracks are applied.
 
 ### 17.5 Size estimator
@@ -911,11 +927,11 @@ Migration uses a structural annualized resource-time range:
 
 ```text
 low  = annualized uptime minutes
-base = annualized observed cluster-minutes
+base = annualized cluster-minutes
 high = annualized uptime * max_observed_clusters
 ```
 
-All tracks include the baseline forecast trend adjustment.
+Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and 28/84-day blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
 For target Serverless:
 
