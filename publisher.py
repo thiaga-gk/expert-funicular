@@ -904,9 +904,24 @@ ORDER BY account_id, sku_name
 # ---------------------------------------------------------------------------
 
 def dbu_baseline_blocker(e: "WarehouseEvidence") -> str:
-    """Why the forward DBU baseline is unknown: too few billed days (time clears it) or a cost that cannot be priced."""
+    """Why the forward DBU baseline is unknown.
+
+    COST_HISTORY_INSUFFICIENT is the calendar gate (a young epoch; the re-evaluation window says when it clears);
+    BILLED_COST_DAYS_INSUFFICIENT is a mature epoch billed on too few days (not time-boxed); DBU_COST_UNAVAILABLE is a
+    cost that cannot be priced or a non-positive run rate.
+    """
+    if e.cost_history_days < Thresholds().min_economics_cost_history_days:
+        return "COST_HISTORY_INSUFFICIENT"
     status = (e.forecast_metadata or {}).get("dbu_forecast_status")
-    return "COST_HISTORY_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+    return "BILLED_COST_DAYS_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+
+
+DBU_BASELINE_WITHHELD = {
+    # blocker -> (bundle status, reason shown on withheld plan economics)
+    "COST_HISTORY_INSUFFICIENT": ("REQUIRES_COST_HISTORY", "At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues."),
+    "BILLED_COST_DAYS_INSUFFICIENT": ("UNAVAILABLE", "The current epoch has too few billed days to forecast its DBU cost; economics are withheld."),
+    "DBU_COST_UNAVAILABLE": ("UNAVAILABLE", "The forward DBU cost is unavailable (unpriced usage or a non-positive run rate); economics are withheld."),
+}
 
 
 def optional_float(value: Any) -> Optional[float]:
@@ -1602,7 +1617,7 @@ class Modeler:
         trend_adjustment_factor = 1.0 + self.t.trend_adjustment_weight * (ratio - 1.0)
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
-        active_cost_days = sum(1 for x in series if abs(x) > 1e-12)
+        active_cost_days = sum(1 for x in series if x > 1e-12)  # billed days; a correction-only (negative) day is not one
         # The forward DBU cost is published only when it is known: every day priced, enough billed days to estimate a
         # run rate, and a positive run rate. Otherwise it is unknown (null), never $0 or a guess.
         if unpriced_in_basis > 0:
@@ -2128,14 +2143,10 @@ class Optimizer:
         # Warehouse-type migration is always a separate scenario branch.
         a=analyses["warehouse_type"]; f=a.facts
         blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
-        if e.baseline_forecast_cost_365 is None:
+        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
                 {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e)],[],[],[],
-                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unknown (too few billed days, unpriced usage or a non-positive run rate)."))
-        elif e.cost_history_days < self.t.min_economics_cost_history_days:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["COST_HISTORY_INSUFFICIENT"],[],[],[],
-                f"Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than {self.t.min_economics_cost_history_days} days of billing history to price it."))
+                "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unknown: "+DBU_BASELINE_WITHHELD[dbu_baseline_blocker(e)][1]))
         elif cfg.warehouse_type == "SERVERLESS":
             if not f.get("pro_classic_observed"):
                 blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
@@ -2213,25 +2224,14 @@ class Estimator:
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
         if knob in {"warehouse_channel","max_clusters"} and d.objective in {"STABILITY","COST_GUARDRAIL"}:
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
-        if e.baseline_forecast_cost_365 is None:
-            # Every estimate below scales the forward DBU cost, which is unknown: unpriced usage, too few billed days or a
-            # non-positive run rate in the current epoch.
-            blocker=dbu_baseline_blocker(e)
-            if blocker=="COST_HISTORY_INSUFFICIENT":
-                return None,{
-                    "method":f"estimate withheld: fewer than {self.t.min_economics_cost_history_days} billed days in the current epoch to forecast its DBU cost",
-                    "estimate_blocker":blocker,
-                    "bundle_effect":{"type":"estimate_withheld","status":"REQUIRES_COST_HISTORY","reason":"At least one step cannot be priced because the current epoch has too few billed days to forecast its cost; economics are withheld until it accrues."},**meta}
+        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
+            # Every estimate below scales the forward DBU cost, which is unknown (unpriced usage, too few billed days, a
+            # non-positive run rate) or not trustworthy on a young epoch, even when replayed evidence carries a number.
+            blocker=dbu_baseline_blocker(e); status,reason=DBU_BASELINE_WITHHELD[blocker]
             return None,{
-                "method":"estimate withheld: the forward DBU cost is unavailable (unpriced usage or a non-positive run rate)",
+                "method":f"estimate withheld: {reason}",
                 "estimate_blocker":blocker,
-                "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":"The forward DBU cost is unavailable (unpriced usage or a non-positive run rate); economics are withheld."},**meta}
-        if e.cost_history_days < self.t.min_economics_cost_history_days:
-            # Every estimate below scales the forward cost forecast, which is not trustworthy on a very young epoch.
-            return None,{
-                "method":f"estimate withheld: fewer than {self.t.min_economics_cost_history_days} days of current-epoch cost history",
-                "estimate_blocker":"COST_HISTORY_INSUFFICIENT",
-                "bundle_effect":{"type":"estimate_withheld","status":"REQUIRES_COST_HISTORY","reason":"At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues."},**meta}
+                "bundle_effect":{"type":"estimate_withheld","status":status,"reason":reason},**meta}
         if knob=="warehouse_type":
             return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
 
@@ -2722,7 +2722,7 @@ class StatefulBundleEstimator:
         def fresh()->_ChainState:
             st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
             if dbu_base is None:
-                st.halt=("UNAVAILABLE","The forward DBU cost is unavailable (usage billed under an SKU with no list price); plan economics are withheld.")
+                st.halt=DBU_BASELINE_WITHHELD[dbu_baseline_blocker(e)]
             return st
         auth,cont=fresh(),fresh()
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
@@ -4301,6 +4301,20 @@ def _epoch_from_dict(x:Mapping[str,Any])->EpochEvidence:
                          epoch_start=str(x["epoch_start"]),epoch_end=x.get("epoch_end"),is_current=bool(x.get("is_current")),config=WarehouseConfig(**x["config"]),tags=dict(x.get("tags") or {}),query=dict(x.get("query") or {}),events=dict(x.get("events") or {}),gaps=dict(x.get("gaps") or {}),cost=dict(x.get("cost") or {}))
 
 
+def _replayed_dbu_forecast(x: Mapping[str, Any]) -> Optional[float]:
+    """Stored forward DBU cost; evidence written before forecast statuses existed could hold $0 (a floored or empty
+    basis) or a run rate guessed from a few billed days, which replay as unknown, like a fresh run would."""
+    value = x.get("baseline_forecast_cost_365")
+    if value is None:
+        return None
+    meta = x.get("forecast_metadata") or {}
+    if "dbu_forecast_status" not in meta:
+        active = meta.get("active_cost_days")
+        if safe_float(value) <= 0 or (active is not None and safe_int(active) < Thresholds().min_economics_cost_history_days):
+            return None
+    return safe_float(value)
+
+
 def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
     return WarehouseEvidence(
         warehouse_id=str(x["warehouse_id"]),
@@ -4312,7 +4326,7 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         current_epoch_id=str(x["current_epoch_id"]),
         epochs=[_epoch_from_dict(e) for e in x.get("epochs", [])],
         current_cost_365=None if x.get("current_cost_365") is None else safe_float(x.get("current_cost_365")),
-        baseline_forecast_cost_365=None if x.get("baseline_forecast_cost_365") is None else safe_float(x.get("baseline_forecast_cost_365")),
+        baseline_forecast_cost_365=_replayed_dbu_forecast(x),
         currency=str(x.get("currency") or "USD"),
         cost_history_days=safe_int(x.get("cost_history_days")),
         # Evidence written before CV became Optional stored 0.0 for short histories; treat that as unknown.

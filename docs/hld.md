@@ -607,6 +607,8 @@ Historical customer AWS actual cost remains unavailable unless an authoritative 
 
 The forward baseline represents the expected next-365-day cost with no change. It uses current-epoch-aware cost history/forecasting and type-appropriate AWS treatment.
 
+The forward DBU cost is published only when it is known: every basis day priced, at least 7 billed days in the current epoch, and a positive run rate. Otherwise it is null (never $0 or a guessed run rate) and forecast metadata records why (`dbu_forecast_status`: `INSUFFICIENT_ACTIVE_COST_DAYS`, `UNPRICED_USAGE` or `NON_POSITIVE_RUN_RATE`; `COMPLETE` when published). Savings estimates and migration economics are then withheld with blocker `COST_HISTORY_INSUFFICIENT` (epoch younger than 7 calendar days), `BILLED_COST_DAYS_INSUFFICIENT` (mature epoch with too few billed days) or `DBU_COST_UNAVAILABLE`.
+
 ### 10.3 Candidate economics
 
 Each candidate estimates only its isolated change and is explicitly non-additive.

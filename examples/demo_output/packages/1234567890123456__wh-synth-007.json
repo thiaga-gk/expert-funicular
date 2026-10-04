@@ -515,7 +515,7 @@
         "COST_AND_PERFORMANCE",
         "OPERATIONS"
       ],
-      "rationale": "Migration is judged on a pre-canary cost comparison, but the current epoch has fewer than 7 days of billing history to price it.",
+      "rationale": "Migration is judged on a pre-canary cost comparison, but the current DBU cost is unknown: At least one step cannot be priced because the current epoch has too little billing history; economics are withheld until it accrues.",
       "recommended_value": "PRO",
       "status": "INSUFFICIENT_EVIDENCE",
       "technique_id": "WH-WAREHOUSE-TYPE-ASSESS-001"

@@ -279,7 +279,7 @@
       },
       {
         "includes": [
-          "COST_HISTORY_INSUFFICIENT"
+          "BILLED_COST_DAYS_INSUFFICIENT"
         ],
         "path": "candidates[knob=warehouse_type].blockers"
       }
