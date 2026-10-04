@@ -185,7 +185,6 @@ class Thresholds:
     min_cluster_realization_optimistic: float = 1.00
     min_cluster_realization_base: float = 0.50
     min_cluster_realization_conservative: float = 0.00
-    max_cluster_uplift_fraction_cap: float = 0.50
     max_cluster_base_uplift_weight: float = 0.50
     downsize_runtime_multiplier_conservative: float = 1.55
     downsize_runtime_multiplier_base: float = 1.30
@@ -2696,7 +2695,9 @@ class Estimator:
             at=safe_float(a.facts.get("minutes_at_max")); cluster=safe_float(a.facts.get("cluster_minutes"))
             current=safe_int(d.current_config.get("max_clusters"),1); target=safe_int(d.recommended_config.get("max_clusters"),current)
             delta=max(0,target-current)
-            raw=clamp((at*delta)/cluster,0,self.t.max_cluster_uplift_fraction_cap) if cluster>0 else 0
+            # Worst case: the added clusters run whenever the warehouse sat at its ceiling. No cap: a single-cluster
+            # warehouse at its ceiling all the time doubles its cost with a second cluster.
+            raw=max(0.0,(at*delta)/cluster) if cluster>0 else 0
             factors=Range3(1.0,1+raw*self.t.max_cluster_base_uplift_weight,1+raw)
             return factors,{
                 "method":"upper-bound cost uplift from additional clusters during observed saturation",

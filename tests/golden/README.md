@@ -27,6 +27,7 @@ Scenario fixtures (`c*.json` and `a*.json`, run by `tests/test_golden_scenarios.
 - c36-tag-rename-churn (collector-level)
 - c45-steady-high-utilization (asserts the task-time utilization evidence only)
 - c48-long-unchanged-warehouse
+- c50-single-cluster-queueing (demo fleet evidence)
 
 The `--demo` fleet is separate from these fixtures: the fixtures are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/test_demo_fleet.py`).
 
