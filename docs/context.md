@@ -559,6 +559,7 @@ Examples of current posture:
 - min-cluster decrease requires evidence that the warehouse spends material time at minimum without pressure;
 - auto-stop is the most directly cost-oriented rule and uses measured idle gaps with cold-start protection;
 - type migration requires compatibility review and canary validation.
+- missing spill, queue or latency evidence is unknown (null), never zero pressure: size-down and queue-based reductions are held with an `*_EVIDENCE_UNAVAILABLE` blocker, and increases need known evidence.
 
 Exact values live in `docs/thresholds.md` and the versioned policy/constants in code.
 

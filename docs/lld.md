@@ -120,7 +120,7 @@ Publisher v2.10.0 declares independent version identifiers for deterministic rep
 |---|---|---|
 | `PUBLISHER_VERSION` | `2.10.0` | implementation release |
 | `POLICY_VERSION` | `sql-warehouse-policy-v2.9.0` | threshold/policy semantics |
-| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.9.0` | analyzer semantics |
+| `ANALYZER_VERSION` | `sql-warehouse-analyzer-v2.10.0` | analyzer semantics |
 | `OPTIMIZER_VERSION` | `sql-warehouse-optimizer-v2.10.0` | decision semantics |
 | `MODEL_VERSION` | `epoch-runrate-v2.10.0` | forward forecast |
 | `ESTIMATOR_VERSION` | `counterfactual-v2.10.0` | candidate economics |
@@ -661,6 +661,8 @@ p99_execution <= 30s
 previous size exists
 ```
 
+Spill frequency, queue frequency and p95/p99 execution latency must be known. When the collector did not report one, the value stays null (never read as 0 / no pressure) and the downsize is held as `NO_CHANGE` with `SPILL_EVIDENCE_UNAVAILABLE`, `QUEUE_EVIDENCE_UNAVAILABLE` or `LATENCY_EVIDENCE_UNAVAILABLE`.
+
 Status is `TEST_REQUIRED`; an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
 
 Otherwise the result is `NO_CHANGE` with reasons preserved as blockers/context.
@@ -678,6 +680,8 @@ max_observed_clusters >= current max_clusters
 current max_clusters < 40
 ```
 
+Unknown queue frequency or capacity wait is never read as 0; an increase needs both known.
+
 Status: `ACTIONABLE`.
 
 #### Reduce ceiling
@@ -692,6 +696,8 @@ queued_query_pct <= 0.5%
 time_at_max <= 1%
 0 < max_observed_clusters < configured max
 ```
+
+Queue frequency must be known, and when queries queued their capacity wait must be known too. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported) or `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported).
 
 Target:
 
@@ -715,6 +721,8 @@ p95_wait_at_capacity <= 5s
 time_at_max < 20%
 time_at_min >= 25%
 ```
+
+Queue frequency and capacity wait must be known; an unreported value is held as a blocker (`QUEUE_EVIDENCE_UNAVAILABLE`, `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`), never read as 0.
 
 Status: `ACTIONABLE`. It invalidates auto-stop because baseline capacity changed.
 

@@ -33,7 +33,7 @@
   "candidates": [
     {
       "blockers": [],
-      "candidate_id": "CAND-16E28D4A7F0B58A50DBE0DFE",
+      "candidate_id": "CAND-4167A8679B4A1B90F843092D",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -113,7 +113,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-429785936CDB1BB844384CE3",
+      "candidate_id": "CAND-A0F0429E86B1059645AC0434",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -211,7 +211,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-0EB9378528832881336CC3CB",
+      "candidate_id": "CAND-46596128E3E4F327654EF4F7",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -304,7 +304,7 @@
       "blockers": [
         "QUEUE_PRESSURE_PRESENT"
       ],
-      "candidate_id": "CAND-147B23ADCB8854F570950756",
+      "candidate_id": "CAND-F054E20A5C72F58E47C4F1C9",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -399,7 +399,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-9036A0CCF32202C187B847C1",
+      "candidate_id": "CAND-9D7A327697568E5AF18C643E",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -494,7 +494,7 @@
       "blockers": [
         "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-50DDBBB8A017E60563909CE4",
+      "candidate_id": "CAND-F4B80F41F909E69C829CDCFD",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -1384,8 +1384,8 @@
     },
     "excluded_scenarios": [],
     "included_scenario_ids": [
-      "SCN-EB2C0C39F179860453FE1B76",
-      "SCN-BA79A1BAC0F873D6CDE9EC20"
+      "SCN-75797777AA8A3DD9583C89AA",
+      "SCN-30CF5E29A24ADD2F1111E6B8"
     ],
     "scenario_envelope": {
       "maximum_savings": {
@@ -1400,7 +1400,7 @@
           "dbu": 38191.92,
           "total": 112961.62
         },
-        "scenario_id": "SCN-BA79A1BAC0F873D6CDE9EC20"
+        "scenario_id": "SCN-30CF5E29A24ADD2F1111E6B8"
       },
       "minimum_savings": {
         "bound": "LOW",
@@ -1414,7 +1414,7 @@
           "dbu": -64000.0,
           "total": -123815.76
         },
-        "scenario_id": "SCN-EB2C0C39F179860453FE1B76"
+        "scenario_id": "SCN-75797777AA8A3DD9583C89AA"
       },
       "recommended_base": {
         "bound": "BASE",
@@ -1428,7 +1428,7 @@
           "dbu": -25600.0,
           "total": -45040.12
         },
-        "scenario_id": "SCN-EB2C0C39F179860453FE1B76"
+        "scenario_id": "SCN-75797777AA8A3DD9583C89AA"
       }
     },
     "semantics": {
@@ -1438,7 +1438,7 @@
     }
   },
   "provenance": {
-    "analyzer_version": "sql-warehouse-analyzer-v2.9.0",
+    "analyzer_version": "sql-warehouse-analyzer-v2.10.0",
     "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
     "contract_version": "1.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.9.0",
@@ -1447,7 +1447,7 @@
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.10.0",
-    "package_hash_full_sha256": "7F257D02E028B13BE248658881ACE6EFEC324EBF24D4F2B09FF36FD11007B968",
+    "package_hash_full_sha256": "8CAEB07D73CEEF21AF282BF76E1866BB60C956FC8F7950DE4A049317C28CA8AD",
     "policy_version": "sql-warehouse-policy-v2.9.0",
     "reviewer_version": "recommendation-reviewer-v2.9.0",
     "source_regions": [
@@ -1474,20 +1474,20 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-7F257D02E028B13BE2486588",
+  "recommendation_package_id": "PKG-8CAEB07D73CEEF21AF282BF7",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
     "next_action": "REVIEW_AND_EXECUTE_FIRST_READY_STEP",
     "reevaluation": null,
     "requires_hitl": true,
-    "scenario_id": "SCN-EB2C0C39F179860453FE1B76",
+    "scenario_id": "SCN-75797777AA8A3DD9583C89AA",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-429785936CDB1BB844384CE3",
-        "CAND-9036A0CCF32202C187B847C1"
+        "CAND-A0F0429E86B1059645AC0434",
+        "CAND-9D7A327697568E5AF18C643E"
       ],
       "compatibility": {
         "checks": [],
@@ -1526,7 +1526,7 @@
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-429785936CDB1BB844384CE3",
+          "candidate_id": "CAND-A0F0429E86B1059645AC0434",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1587,7 +1587,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-9036A0CCF32202C187B847C1",
+          "candidate_id": "CAND-9D7A327697568E5AF18C643E",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1759,14 +1759,14 @@
           }
         }
       },
-      "scenario_id": "SCN-EB2C0C39F179860453FE1B76",
+      "scenario_id": "SCN-75797777AA8A3DD9583C89AA",
       "scenario_name": "Plan A \u2014 Optimize current warehouse type",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
     },
     {
       "candidate_refs": [
-        "CAND-50DDBBB8A017E60563909CE4"
+        "CAND-F4B80F41F909E69C829CDCFD"
       ],
       "compatibility": {
         "checks": [
@@ -1888,7 +1888,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-50DDBBB8A017E60563909CE4",
+          "candidate_id": "CAND-F4B80F41F909E69C829CDCFD",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -2027,7 +2027,7 @@
           }
         }
       },
-      "scenario_id": "SCN-BA79A1BAC0F873D6CDE9EC20",
+      "scenario_id": "SCN-30CF5E29A24ADD2F1111E6B8",
       "scenario_name": "Plan B \u2014 Serverless migration experiment",
       "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
       "status": "ALTERNATIVE"
