@@ -147,6 +147,7 @@
           "epoch_start": "2026-09-01T00:00:00+00:00",
           "events": {
             "cluster_minutes": 30000.0,
+            "event_coverage_start": "2026-09-01T00:00:00+00:00",
             "max_observed_clusters": 2,
             "minutes_at_max": 0.0,
             "minutes_at_min": 16000.0,

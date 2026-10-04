@@ -48,16 +48,17 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(p.canonical_json(first.candidates), p.canonical_json(second.candidates))
         self.assertEqual(p.canonical_json(first.scenarios), p.canonical_json(second.scenarios))
 
-    def test_current_epoch_drives_findings_and_history_calibrates_estimator(self):
+    def test_current_epoch_drives_findings_and_history_only_measures_size_rates(self):
         current = self.evidence[0].current_epoch_id
         for c in self.w.candidates:
             for f in c.findings:
                 if f.metric != "serverless_usage_pct_365":
                     self.assertEqual(f.epoch_id, current)
+        # The prior MEDIUM epoch contributes its billed DBU per cluster-hour (24), which validates LARGE -> MEDIUM
+        # against the published ratio; its cost per 1,000 queries no longer enters the price.
         size = self.by_knob["warehouse_size"]
-        calib = size.metadata.get("historical_epoch_calibration")
-        self.assertIsNotNone(calib)
-        self.assertNotEqual(calib["epoch_id"], current)
+        self.assertNotIn("historical_epoch_calibration", size.metadata)
+        self.assertAlmostEqual(size.metadata["capacity_ratio"], 24.0 / 40.0, places=2)
 
     def test_candidates_are_independent_and_portfolio_is_not_sum(self):
         standalone = sum((c.estimated_savings_365 or 0) for c in self.w.candidates)
@@ -1571,10 +1572,8 @@ class PublisherV27Tests(unittest.TestCase):
     def test_pro_size_estimator_does_not_reuse_serverless_dbu_curve(self):
         c=self.by_knob["warehouse_size"]
         self.assertNotEqual(c.metadata.get("capacity_ratio_source"),"DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO")
-        self.assertIn(c.metadata.get("capacity_ratio_source"),{
-            "NOMINAL_SIZE_CAPACITY_RATIO",
-            "WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO",
-        })
+        if c.metadata.get("estimate_blocker")!="PRO_CLASSIC_SIZE_RATE_UNVERIFIED":
+            self.assertEqual(c.metadata.get("capacity_ratio_source"),"WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO")
 
 
 class GoldenScenarioTests(unittest.TestCase):

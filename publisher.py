@@ -45,14 +45,14 @@ from contracts import reporter_contract as rc
 
 PUBLISHER_VERSION = "2.10.0"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.9.0"
+POLICY_VERSION = "sql-warehouse-policy-v2.10.0"
 ANALYZER_VERSION = "sql-warehouse-analyzer-v2.10.0"
 OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.10.0"
 MODEL_VERSION = "epoch-runrate-v2.10.0"
 ESTIMATOR_VERSION = "counterfactual-v2.10.0"
 BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
 REVIEWER_VERSION = "recommendation-reviewer-v2.9.0"
-DECISION_VERSION = "warehouse-decision-graph-v2.9.0"
+DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v1"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
@@ -61,7 +61,6 @@ SIZE_ORDER = [
     "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",
     "2X_LARGE", "3X_LARGE", "4X_LARGE", "5X_LARGE",
 ]
-SIZE_UNITS = {name: 2 ** idx for idx, name in enumerate(SIZE_ORDER)}
 
 # Published SQL Serverless DBU/hour schedule by nominal warehouse size. The
 # production cost model uses account pricing from system.billing.list_prices;
@@ -111,8 +110,6 @@ class Thresholds:
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
     strong_cost_history_days: int = 60
-    min_epoch_calibration_days: int = 14
-    min_epoch_calibration_queries: int = 100
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
@@ -196,12 +193,14 @@ class Thresholds:
     upsize_runtime_multiplier_conservative: float = 1.00
     upsize_runtime_multiplier_base: float = 0.70
     upsize_runtime_multiplier_optimistic: float = 0.50
-    epoch_calibration_weight: float = 0.50
-    epoch_factor_floor: float = 0.40
-    epoch_factor_ceiling: float = 1.60
+    # Pro/Classic DBU per cluster-hour by size is not documented first-party: a workspace's billed rates price a size
+    # change only when they rise with size and the pair ratio is within this band of the published size ratio.
+    size_rate_published_band: float = 0.25
+    # A change made to save money ships only when its own base modeled savings are positive and at least this much a
+    # year (warehouse currency).
+    cost_change_min_annual_savings: float = 500.0
     cost_factor_floor: float = 0.05
     cost_factor_ceiling: float = 3.00
-    cost_normalization_query_count: float = 1000.0
     confidence_coverage_days: float = 90.0
     confidence_epoch_maturity_days: float = 30.0
     confidence_base_weight: float = 0.10
@@ -1365,10 +1364,24 @@ def next_size(size: str) -> Optional[str]:
     return SIZE_ORDER[i + 1] if i < len(SIZE_ORDER) - 1 else None
 
 
-def size_ratio(current: str, target: str) -> float:
-    if current not in SIZE_UNITS or target not in SIZE_UNITS:
-        return 1.0
-    return SIZE_UNITS[target] / SIZE_UNITS[current]
+def validated_size_rate_ratio(rates: Mapping[str, float], current: str, target: str, band: float) -> Tuple[Optional[float], str]:
+    """Target/current DBU-per-cluster-hour ratio from a workspace's billed rates, or None with the reason it is unusable.
+
+    Usable only when the observed rates rise with size and the pair ratio is within `band` of the published size
+    ratio; otherwise a guessed ratio could price a downsize as an upsize.
+    """
+    observed = sorted((SIZE_ORDER.index(s), safe_float(r)) for s, r in rates.items() if s in SIZE_ORDER and safe_float(r) > 0)
+    if any(later <= earlier for (_, earlier), (_, later) in zip(observed, observed[1:])):
+        return None, "RATES_NOT_RISING_WITH_SIZE"
+    if safe_float(rates.get(current)) <= 0 or safe_float(rates.get(target)) <= 0:
+        return None, "SIZE_RATE_NOT_OBSERVED"
+    published_cur, published_target = SQL_DBU_PER_CLUSTER_HOUR.get(current), SQL_DBU_PER_CLUSTER_HOUR.get(target)
+    if not (published_cur and published_target):
+        return None, "NO_PUBLISHED_SIZE_RATE"
+    ratio = safe_float(rates[target]) / safe_float(rates[current])
+    if abs(ratio / (published_target / published_cur) - 1.0) > band:
+        return None, "OUTSIDE_PUBLISHED_RATIO_BAND"
+    return ratio, "VALIDATED"
 
 
 @dataclass(frozen=True)
@@ -2546,26 +2559,6 @@ class Estimator:
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW",
                 "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":None if stability is None else round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
 
-    def _matched_epoch_factor(self,e:WarehouseEvidence,knob:str,target:Any)->Optional[Dict[str,Any]]:
-        cur=e.current_epoch; cur_cfg=cur.config.as_dict(); cur_queries=max(1.0,safe_float(cur.query.get("epoch_queries")))
-        cur_cost=safe_float(cur.cost.get("list_cost")); cur_cpk=cur_cost/cur_queries*self.t.cost_normalization_query_count if cur_cost>0 else 0
-        if cur_cpk<=0: return None
-        matches=[]
-        for ep in e.epochs:
-            if ep.is_current: continue
-            if safe_int(ep.cost.get("cost_days"))<self.t.min_epoch_calibration_days: continue
-            q=safe_float(ep.query.get("epoch_queries")); c=safe_float(ep.cost.get("list_cost"))
-            if q<self.t.min_epoch_calibration_queries or c<=0: continue
-            cfg=ep.config.as_dict()
-            if cfg.get(knob)!=target: continue
-            if any(cfg.get(k)!=cur_cfg.get(k) for k in ACTIVE_KNOBS if k!=knob): continue
-            factor=(c/q*self.t.cost_normalization_query_count)/cur_cpk
-            factor=clamp(factor,self.t.epoch_factor_floor,self.t.epoch_factor_ceiling)
-            matches.append((safe_int(ep.cost.get("cost_days")),q,factor,ep.epoch_id))
-        if not matches: return None
-        matches.sort(key=lambda x:(x[1],x[0]),reverse=True); days,q,factor,eid=matches[0]
-        return {"factor":factor,"epoch_id":eid,"queries":q,"days":days,"method":"matched historical config epoch normalized by cost per 1,000 queries"}
-
     def _range_from_factor(self,baseline:float,factors:Range3)->Tuple[Range3,Range3]:
         costs=Range3(baseline*factors.low,baseline*factors.base,baseline*factors.high).rounded()
         savings=Range3(max(0,baseline-costs.high),max(0,baseline-costs.base),max(0,baseline-costs.low)).rounded()
@@ -2629,8 +2622,6 @@ class Estimator:
         if knob=="warehouse_size":
             cur=str(d.current_config.get("warehouse_size")); target=str(d.recommended_config.get("warehouse_size"))
             warehouse_type=str(e.current_epoch.config.warehouse_type or "").upper()
-            capacity_source="NOMINAL_SIZE_CAPACITY_RATIO"
-            capacity=size_ratio(cur,target)
             if warehouse_type=="SERVERLESS":
                 cur_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(cur); target_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(target)
                 if not (cur_dbu and target_dbu):
@@ -2645,27 +2636,24 @@ class Estimator:
                 capacity=target_dbu/cur_dbu
                 capacity_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO"
             else:
+                # Pro/Classic DBU per size is not documented first-party: price only on the workspace's billed rates
+                # when they are consistent with the published size table; otherwise withhold (never a guessed ratio).
                 empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-                if isinstance(empirical,Mapping):
-                    cur_rate=safe_float(empirical.get(cur),0.0)
-                    target_rate=safe_float(empirical.get(target),0.0)
-                    if cur_rate>0 and target_rate>0:
-                        capacity=target_rate/cur_rate
-                        capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
-            if capacity<1:
+                ratio,check=validated_size_rate_ratio(empirical if isinstance(empirical,Mapping) else {},cur,target,self.t.size_rate_published_band)
+                if ratio is None:
+                    return None,{
+                        "method":"estimate withheld: the workspace's billed DBU per cluster-hour by size does not validate this size change",
+                        "estimate_blocker":"PRO_CLASSIC_SIZE_RATE_UNVERIFIED","size_rate_check":check,
+                        "bundle_effect":{"type":"requires_canary"},**meta,
+                    }
+                capacity=ratio
+                capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
+            # Speed-up multipliers follow the decided direction, never the price ratio.
+            if SIZE_ORDER.index(target)<SIZE_ORDER.index(cur):
                 runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
             else:
                 runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
             factors=Range3(capacity*runtime.low,capacity*runtime.base,capacity*runtime.high)
-            calib=self._matched_epoch_factor(e,"warehouse_size",target)
-            if calib:
-                f=calib["factor"]
-                factors=Range3(
-                    (1-self.t.epoch_calibration_weight)*factors.low+self.t.epoch_calibration_weight*f,
-                    (1-self.t.epoch_calibration_weight)*factors.base+self.t.epoch_calibration_weight*f,
-                    (1-self.t.epoch_calibration_weight)*factors.high+self.t.epoch_calibration_weight*f,
-                )
-                meta["historical_epoch_calibration"]=calib
             vals=sorted([
                 clamp(factors.low,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
                 clamp(factors.base,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
@@ -2673,7 +2661,7 @@ class Estimator:
             ])
             factors=Range3(vals[0],vals[1],vals[2])
             return factors,{
-                "method":"capacity ratio × runtime elasticity, optionally blended with matched config epoch",
+                "method":"capacity ratio × runtime elasticity",
                 "capacity_ratio":capacity,
                 "capacity_ratio_source":capacity_source,
                 "runtime_multiplier_range":as_serializable(runtime),
@@ -2771,59 +2759,86 @@ class Estimator:
         dbu_baseline=round_or_none(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
         total_baseline=None if aws_baseline is None or dbu_baseline is None else round(dbu_baseline+aws_baseline,2)
         for d in decisions:
-            a=analyses[d.knob]; factors,meta=self._factors(e,d,a)
-            dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
-            est=save=None
-            if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
-                migration=self._migration_costs(e,d); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
-                if migration.get("available"):
-                    dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
-                    dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-                    if aws_baseline is not None:
-                        aws_savings=self._delta_range(aws_baseline,aws_costs)
-                    if total_baseline is not None:
-                        total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
-                else:
-                    meta["estimate_blocker"]=migration.get("blocker")
-            elif factors is not None and dbu_baseline is not None:
-                dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
-                dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-                aws_factors=self._aws_factor_range(e,d,factors,meta)
-                meta={**meta,"aws_cost_factor_range":as_serializable(aws_factors) if aws_factors else None}
-                if aws_baseline is not None and aws_factors is not None:
-                    aws_costs=Range3(round(aws_baseline*aws_factors.low,2),round(aws_baseline*aws_factors.base,2),round(aws_baseline*aws_factors.high,2))
-                    aws_savings=self._delta_range(aws_baseline,aws_costs)
-                    total_costs=Range3(round(dbu_costs.low+aws_costs.low,2),round(dbu_costs.base+aws_costs.base,2),round(dbu_costs.high+aws_costs.high,2))
-                    if total_baseline is not None: total_savings=self._delta_range(total_baseline,total_costs)
-                elif e.current_epoch.config.warehouse_type=="SERVERLESS":
-                    aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
-                est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
-            signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
-            cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
-            confidence=self._confidence(e,a,signal=signal,cap=cap)
-            current=d.current_config; recommended=d.recommended_config
-            rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
-            out.append(CandidateRecommendation(
-                recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
-                current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
-                baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
-                estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
-                confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
-                reanalysis_required=d.reanalysis_required,metadata={
-                    **meta,"cost_factor_range":as_serializable(factors) if factors else None,"estimate_is_independent_scenario":True,
-                    "candidate_savings_must_not_be_summed":True,"current_epoch_id":ep.epoch_id,"currency":e.currency,
-                    "rationale":d.rationale,"policy_version":POLICY_VERSION,"analyzer_version":ANALYZER_VERSION,"optimizer_version":OPTIMIZER_VERSION,
-                    "cost_scope":"DBU at published list price (observed system.billing usage x system.billing.list_prices, not contract-effective) plus modeled customer AWS EC2 at on-demand list price for Pro/Classic (Spot not modeled); Serverless cloud infrastructure is embedded in the Serverless DBU line.",
-                    "aws_cost_model":e.aws_cost_model,
-                },
-                dbu_365d_baseline_cost=dbu_baseline,aws_365d_baseline_cost=aws_baseline,total_365d_baseline_cost=total_baseline,
-                dbu_365d_savings_estimate=(dbu_savings.base if dbu_savings else None),aws_365d_savings_estimate=(aws_savings.base if aws_savings else None),
-                total_365d_savings_estimate=(total_savings.base if total_savings else None),dbu_365d_savings_range=dbu_savings,aws_365d_savings_range=aws_savings,
-                total_365d_savings_range=total_savings,dbu_365d_estimated_cost_range=dbu_costs,aws_365d_estimated_cost_range=aws_costs,total_365d_estimated_cost_range=total_costs,
-            ))
+            a=analyses[d.knob]
+            out.append(self._candidate(e,ep,a,d,dbu_baseline,aws_baseline,total_baseline))
+            gate=self._value_gate(d,out[-1])
+            if gate:
+                # A change made to save money ships only when its own modeled savings clear the floor; the modeled
+                # economics stay on the held candidate so the reason is visible.
+                held=dataclasses.replace(d,status="NO_CHANGE",recommended_config=dict(d.current_config),blockers=sorted(set(d.blockers)|{gate["reason_code"]}),
+                    invalidates=[],reanalysis_required=[],rationale=gate["rationale"])
+                out[-1]=self._candidate(e,ep,a,held,dbu_baseline,aws_baseline,total_baseline)
+                out[-1].metadata["value_gate"]=gate
         return out
 
+    def _value_gate(self,d:OptimizationDecision,c:"CandidateRecommendation")->Optional[Dict[str,Any]]:
+        if d.objective!="COST" or d.status not in {"ACTIONABLE","TEST_REQUIRED"} or d.current_config==d.recommended_config:
+            return None
+        save=c.estimated_savings_365
+        if save is None:
+            return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
+        floor=self.t.cost_change_min_annual_savings
+        if save<=0:
+            code,why="COST_CHANGE_NOT_COST_EFFECTIVE","its own modeled savings are not positive"
+        elif save<floor:
+            code,why="COST_SAVINGS_BELOW_MATERIALITY",f"its own modeled savings are below the {floor:,.0f} a year materiality floor"
+        else:
+            return None
+        return {"reason_code":code,"modeled_savings_365":save,"modeled_savings_range_365":as_serializable(c.estimated_savings_range_365),
+                "floor_365":floor,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
+                "rationale":f"Held: the {d.knob} change was proposed to save money but {why}."}
 
+    def _candidate(self,e:WarehouseEvidence,ep:EpochEvidence,a:AnalysisResult,d:OptimizationDecision,dbu_baseline:Optional[float],aws_baseline:Optional[float],total_baseline:Optional[float])->"CandidateRecommendation":
+        factors,meta=self._factors(e,d,a)
+        dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
+        est=save=None
+        if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
+            migration=self._migration_costs(e,d); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
+            if migration.get("available"):
+                dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
+                dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
+                if aws_baseline is not None:
+                    aws_savings=self._delta_range(aws_baseline,aws_costs)
+                if total_baseline is not None:
+                    total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
+            else:
+                meta["estimate_blocker"]=migration.get("blocker")
+        elif factors is not None and dbu_baseline is not None:
+            dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
+            dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
+            aws_factors=self._aws_factor_range(e,d,factors,meta)
+            meta={**meta,"aws_cost_factor_range":as_serializable(aws_factors) if aws_factors else None}
+            if aws_baseline is not None and aws_factors is not None:
+                aws_costs=Range3(round(aws_baseline*aws_factors.low,2),round(aws_baseline*aws_factors.base,2),round(aws_baseline*aws_factors.high,2))
+                aws_savings=self._delta_range(aws_baseline,aws_costs)
+                total_costs=Range3(round(dbu_costs.low+aws_costs.low,2),round(dbu_costs.base+aws_costs.base,2),round(dbu_costs.high+aws_costs.high,2))
+                if total_baseline is not None: total_savings=self._delta_range(total_baseline,total_costs)
+            elif e.current_epoch.config.warehouse_type=="SERVERLESS":
+                aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
+            est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
+        signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
+        cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
+        confidence=self._confidence(e,a,signal=signal,cap=cap)
+        current=d.current_config; recommended=d.recommended_config
+        rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
+        return CandidateRecommendation(
+            recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
+            current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
+            baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
+            estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
+            confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
+            reanalysis_required=d.reanalysis_required,metadata={
+                **meta,"cost_factor_range":as_serializable(factors) if factors else None,"estimate_is_independent_scenario":True,
+                "candidate_savings_must_not_be_summed":True,"current_epoch_id":ep.epoch_id,"currency":e.currency,
+                "rationale":d.rationale,"policy_version":POLICY_VERSION,"analyzer_version":ANALYZER_VERSION,"optimizer_version":OPTIMIZER_VERSION,
+                "cost_scope":"DBU at published list price (observed system.billing usage x system.billing.list_prices, not contract-effective) plus modeled customer AWS EC2 at on-demand list price for Pro/Classic (Spot not modeled); Serverless cloud infrastructure is embedded in the Serverless DBU line.",
+                "aws_cost_model":e.aws_cost_model,
+            },
+            dbu_365d_baseline_cost=dbu_baseline,aws_365d_baseline_cost=aws_baseline,total_365d_baseline_cost=total_baseline,
+            dbu_365d_savings_estimate=(dbu_savings.base if dbu_savings else None),aws_365d_savings_estimate=(aws_savings.base if aws_savings else None),
+            total_365d_savings_estimate=(total_savings.base if total_savings else None),dbu_365d_savings_range=dbu_savings,aws_365d_savings_range=aws_savings,
+            total_365d_savings_range=total_savings,dbu_365d_estimated_cost_range=dbu_costs,aws_365d_estimated_cost_range=aws_costs,total_365d_estimated_cost_range=total_costs,
+        )
 
 class Reviewer:
     """Fail-fast invariant gate for identity, evidence epoch, config, cost, and confidence contracts."""
@@ -4272,19 +4287,46 @@ def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> L
     ]
 
 
-def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence]) -> None:
+def _billed_dbu_per_cluster_hour(x: WarehouseEvidence, ep: EpochEvidence, t: Thresholds) -> Optional[float]:
+    """Billed DBU per running cluster-hour for one configuration epoch, with billing and running time on the same days.
+
+    The current epoch uses its event-covered resource window; an earlier epoch (calibration evidence only) uses its
+    whole-epoch event totals and the billing days from its event coverage start. Unknown when billed DBU per day or the
+    event coverage start was not collected.
+    """
+    def rows_for(days: Optional[set], from_day: Optional[str]) -> List[Mapping[str, Any]]:
+        return [r for r in x.daily_cost_365 if str(r.get("epoch_start")) == ep.epoch_start
+                and (days is None or str(r.get("usage_date"))[:10] in days) and (from_day is None or str(r.get("usage_date"))[:10] >= from_day)]
+    if ep.is_current:
+        window = resource_window(x, t)
+        if window is None:
+            return None
+        rows = rows_for({(dt.date.fromisoformat(window["start"]) + dt.timedelta(days=i)).isoformat() for i in range(window["days"])}, None)
+        cluster_minutes = sum(window["cluster_minutes"])
+    else:
+        coverage = parse_datetime(ep.events.get("event_coverage_start"))
+        if coverage is None:
+            return None
+        rows = rows_for(None, coverage.astimezone(dt.timezone.utc).date().isoformat())
+        cluster_minutes = safe_float(ep.events.get("cluster_minutes"))
+    if not rows or any(r.get("dbu_quantity") is None for r in rows):
+        return None
+    dbu = sum(safe_float(r.get("dbu_quantity")) for r in rows)
+    return dbu / (cluster_minutes / 60.0) if dbu > 0 and cluster_minutes > 0 else None
+
+
+def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresholds: Optional[Thresholds] = None) -> None:
     """Attach workspace-level capability/calibration observations derived only from collected system-table evidence."""
+    t = thresholds or Thresholds()
     serverless_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type == "SERVERLESS" for ep in x.epochs)}
     pro_classic_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type in {"PRO", "CLASSIC"} for ep in x.epochs)}
     pro_rates: Dict[str, Dict[str, List[float]]] = {}
     for x in evidence:
-        ep = x.current_epoch
-        if ep.config.warehouse_type not in {"PRO", "CLASSIC"}:
-            continue
-        dbu = safe_float(ep.cost.get("dbu_quantity"))
-        cluster_minutes = safe_float(ep.events.get("cluster_minutes"))
-        if dbu > 0 and cluster_minutes > 0:
-            pro_rates.setdefault(x.workspace_id, {}).setdefault(ep.config.warehouse_size, []).append(dbu / (cluster_minutes / 60.0))
+        for ep in x.epochs:
+            if ep.config.warehouse_type in {"PRO", "CLASSIC"}:
+                rate = _billed_dbu_per_cluster_hour(x, ep, t)
+                if rate is not None:
+                    pro_rates.setdefault(x.workspace_id, {}).setdefault(ep.config.warehouse_size, []).append(rate)
     rate_registry = {
         ws: {size: round(statistics.median(values), 6) for size, values in sizes.items() if values}
         for ws, sizes in pro_rates.items()
@@ -4322,7 +4364,7 @@ def evaluate_warehouses(
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
     supported = [e for e in evidence if _is_supported_warehouse(e)]
-    _prepare_workspace_calibration(supported)
+    _prepare_workspace_calibration(supported, thresholds)
     ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
@@ -4458,7 +4500,7 @@ def package_locked_contract(
 # Demo / evidence persistence / merge
 # ---------------------------------------------------------------------------
 
-def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str) -> List[Dict[str, Any]]:
+def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str, dbu_total: float) -> List[Dict[str, Any]]:
     base = total / days
     rows: List[Dict[str, Any]] = []
     for i in range(days):
@@ -4474,6 +4516,7 @@ def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, ware
     scale = total / sum(r["list_cost"] for r in rows)
     for r in rows:
         r["list_cost"] = round(r["list_cost"] * scale, 6)
+        r["dbu_quantity"] = round(r["list_cost"] * dbu_total / total, 6)
     return rows
 
 
@@ -4521,7 +4564,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         events={
             "uptime_minutes": 8000.0, "cluster_minutes": 12000.0, "minutes_at_min": 6000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 75.0, "time_at_max_pct": 0.0,
-            "max_observed_clusters": 2,
+            "max_observed_clusters": 2, "event_coverage_start": old_start,
         },
         gaps={},
         cost={"list_cost": 3900.0, "dbu_quantity": 4800.0, "cost_days": 106, "active_cost_days": 106, "currency": "USD"},
@@ -4555,6 +4598,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "uptime_minutes": 20000.0, "cluster_minutes": 30000.0, "minutes_at_min": 16000.0,
             "minutes_at_max": 0.0, "time_at_min_pct": 80.0, "time_at_max_pct": 0.0,
             "max_observed_clusters": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
+            "event_coverage_start": cur_start,
         },
         gaps={
             "gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0,
@@ -4565,8 +4609,8 @@ def demo_evidence() -> List[WarehouseEvidence]:
     )
 
     daily = (
-        _demo_daily(dt.date(2025, 10, 1), 106, 3900.0, workspace, wh, old_start)
-        + _demo_daily(dt.date(2026, 1, 15), 259, 21100.0, workspace, wh, cur_start)
+        _demo_daily(dt.date(2025, 10, 1), 106, 3900.0, workspace, wh, old_start, 4800.0)
+        + _demo_daily(dt.date(2026, 1, 15), 259, 21100.0, workspace, wh, cur_start, 20000.0)
     )
     forecast={
         "forecast_method": MODEL_VERSION, "active_cost_days": 259, "dbu_forecast_status": "COMPLETE",
