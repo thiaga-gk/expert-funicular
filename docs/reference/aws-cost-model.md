@@ -14,6 +14,8 @@ Cluster-minutes come from the daily resource series for the current epoch, on th
 
 Driver type and worker count come from Databricks SQL warehouse sizing documentation. Regional EC2 price comes from the versioned registry.
 
+Billed node types (`usage_metadata.node_type`; driver and worker are not distinguished) must belong to that topology for the size. A node type outside it makes the AWS baseline null (`AWS_NODE_TYPE_MISMATCH`), because the modeled cluster would not describe the real one; `aws_cost_model.node_type_check` is `VERIFIED` when billed node types matched and `UNVERIFIED` when none were billed.
+
 ## Serverless
 Serverless runs on Databricks-managed infrastructure, so the separate customer AWS EC2 line is `0`. Its infrastructure economics are reflected in the Serverless SKU/DBU price rather than a customer EC2 bill line.
 

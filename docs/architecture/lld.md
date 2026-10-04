@@ -250,7 +250,7 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - p95 total/wait/compute/capacity/execution durations,
 - p99 and max execution duration,
 - queued-query percentage,
-- spill frequency, p95 spill bytes, total spill GiB,
+- spill frequency, spilled-query count, p95 spill bytes, total spill GiB,
 - read bytes and IO-cache percentage,
 - failed/cancelled percentage,
 - result-cache percentage,
@@ -259,7 +259,10 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - external/client application counts for Power BI/Tableau/Looker/Databricks SQL Editor,
 - statement-text visibility and legacy Hive metastore reference count,
 - epoch-level p95 execution, queue and spill percentages,
-- epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`).
+- epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`),
+- the decision population count (`decision_queries_30`) and p95 compilation and result-fetch time (evidence only).
+
+Latency (p95/p99/max execution) and spill (share, count, p95 bytes) are measured on the decision population: queries with `execution_status = 'FINISHED'` that were not served from the result cache, because cache hits take about 0 ms and failed or cancelled queries stop early, so both would loosen the latency gates. `decision_queries_30` counts that population and is the sample size the size gates use; when it is missing the size change is held. Queue and failure shares, and the other metrics, still use all queries.
 
 Raw query rows are not loaded into the optimizer.
 
@@ -272,17 +275,20 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 - minutes/time at configured minimum,
 - minutes/time at configured maximum,
 - maximum observed clusters,
+- the first retained event (`event_coverage_start`),
 - 30-day starts,
 - scale-up count,
 - scale-down count.
 
+`system.compute.warehouse_events` keeps 365 days, so running time is known only after a warehouse's first retained event. A warehouse running since before that event (for example an always-on warehouse that was never restarted) has no row until its next event; its event totals and capacity facts are unavailable rather than idle (`docs/reference/known-limitations.md`).
+
 #### `RESOURCE_DAILY_SQL`
 
-Reads a daily resource series for the current epoch over the last `RESOURCE_DAILY_COLLECT_DAYS` UTC days (a hard-coded constant that covers the long forecast window plus billing lag): uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the last `pressure_window_days` have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
+Reads a daily resource series for the current epoch over the last `RESOURCE_DAILY_COLLECT_DAYS` UTC days (a hard-coded constant that covers the long forecast window plus billing lag): uptime minutes, cluster-minutes, minutes at the configured minimum and maximum, recycle minutes, the peak cluster count excluding recycling transients above `max_clusters`, and starts. Event segments are split at UTC midnight so every minute lands on its own UTC day; zero-length segments are dropped. The Python side trims the series to the billing basis (11.1) and to the collected range (`events.resource_daily_from`): days before it are unknown, so the window shrinks instead of counting them as idle. When the series begins after both the collected range and the epoch start (the first retained event), the window starts on the first fully covered day after it. A warehouse billed in the collected range with no series row at all gets no series: `resource_daily` is null and `events.resource_daily_status` is `UNAVAILABLE_BILLED_WITHOUT_RETAINED_EVENTS`, so the recent-window facts and resource-time costs are unavailable. When the last `pressure_window_days` have no running time, the capacity facts are undefined and min/max changes are held with `NO_RECENT_RUNNING_TIME`.
 
 #### Idle-gap SQL
 
-`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps.
+`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps. A `retained` CTE (the warehouse's first `warehouse_events` event in the last 365 days) restricts the sample to queries after that event, so the gap sample covers the same period as the event totals it is divided by.
 
 #### `EPOCH_DAILY_COST_SQL`
 
@@ -301,7 +307,8 @@ Produces current/historical epoch attribution evidence:
 - signed Photon-null DBUs,
 - latest usage timestamp,
 - latest owner,
-- observed owners.
+- observed owners,
+- observed billed node types (`usage_metadata.node_type`, non-Serverless warehouses) and SQL tiers (`product_features.sql_tier`).
 
 #### `SQL_SKU_PRICE_SQL`
 
@@ -432,7 +439,7 @@ flowchart TD
     E --> C[Current epoch]
     E --> P[Prior epochs]
     C --> D[Decision threshold evidence]
-    P --> CAL[Optional matched-epoch calibration]
+    P --> CAL[Calibration evidence only]
     P -. prohibited .-> D
 ```
 
@@ -522,7 +529,7 @@ Unpriced DBU is unknown cost, never zero:
 - unpriced DBU in the trailing 365-day window makes `current_cost_365` (the actual DBU cost) null;
 - unpriced DBU inside the current-epoch forecast basis makes the forward DBU baseline (`forecast_cost_365`) null; because unpriced days would read as $0 days, `trend_ratio`, `run_rate_28`, `run_rate_84` and `cost_cv_84` are also null and `trend_adjustment_factor` is 1.0 (no trend adjustment of the AWS model);
 - price rows without a list price count as unpriced; when price rows overlap, the latest `price_start_time` wins, with currency and end time as tie-breakers;
-- an epoch whose usage includes unpriced DBU has a null list cost and is skipped by historical-epoch calibration;
+- an epoch whose usage includes unpriced DBU has a null list cost;
 - forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
 
 With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
@@ -541,7 +548,7 @@ For Pro/Classic, annual AWS cost is the annualized recent cluster-minutes (daily
 
 The resource window is the last `forecast_long_days` complete days ending at the billing basis end, clipped to the epoch start, with missing days zero-filled (days before the collected range are unknown, so the window shrinks), so DBU and AWS describe the same period.
 
-The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (meanings: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)).
+The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE`, and billed node types outside the modeled topology (the size's driver instance and the `i3.2xlarge` worker; billing does not distinguish driver from worker) give `AWS_NODE_TYPE_MISMATCH`. `aws_cost_model.node_type_check` records `VERIFIED` or `UNVERIFIED` (no billed node type) (meanings: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)).
 
 ---
 
@@ -594,11 +601,11 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 |---|---|
 | `warehouse_channel` | current channel |
 | ~~`enable_photon`~~ | retired; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
-| `warehouse_size` | size, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, IO cache, task-time utilization |
+| `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization |
 | `max_clusters` | max config, observed max clusters, queue %, queued-query count, p95 capacity wait among queued queries, time at max |
 | `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization |
 | `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
-| `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, source/compatibility evidence |
+| `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), source/compatibility evidence |
 
 Common facts include query count, active days, queries per active day, epoch age, epoch query count, cost-history days, and cost variability.
 
@@ -637,7 +644,7 @@ A size outside the known size ordering is `BLOCKED` with `UNKNOWN_WAREHOUSE_SIZE
 Upsize one nominal size when spill is both frequent and severe: the share of spilled queries reaches `spill_query_pct_upsize` and the p95 spilled bytes among spilled queries reach `spill_p95_bytes_upsize`. Outcomes:
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
-- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` queries in the 30-day window (`INSUFFICIENT_QUERY_SAMPLE`) and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
+- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
 - both signals reached, a larger size exists and no gate holds: `ACTIONABLE`, one size up; the change invalidates max/min/auto-stop;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
 
@@ -646,13 +653,13 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 Every case that is not an upsize is evaluated for a downsize of exactly one size. It is proposed only when a smaller size exists and none of these blockers applies:
 
 - epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
-- fewer than `strong_query_sample_size` queries in the 30-day window (`INSUFFICIENT_STRONG_QUERY_SAMPLE`);
+- fewer than `strong_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_STRONG_QUERY_SAMPLE`);
 - spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
 - p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
-Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
+The decision population is the finished, non-result-cache queries (7.2), so latency and spill are not loosened by cache hits or early-stopped failures. Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
 
 With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max/min/auto-stop.
 
@@ -742,6 +749,8 @@ Otherwise the recommendation is `BLOCKED` when any of these hold, each with its 
 
 With none of them the status is `ACTIONABLE`.
 
+Before that, when the idle time a lower auto-stop would remove (saved idle minutes times the current minimum clusters) exceeds the running cluster-minutes the events recorded (both above 0), the two sources contradict each other: the decision is `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price, instead of clamping to `auto_stop_savings_cap`.
+
 ### 15.7 Warehouse type
 
 Warehouse type is always a **separate experimental branch**:
@@ -816,6 +825,8 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 `Range3(low, base, high)` represents ordered annual cost or savings outcomes. Candidate status may have no available estimate.
 
+Value gate: a change whose objective is cost (a size reduction, a lower minimum or a lower auto-stop) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld.
+
 ### 17.2 No-change/guardrail candidates
 
 - `NO_CHANGE` candidates use factor `1.0` (a known no-change), as do channel stability and max-cluster ceiling reduction, which receive **no direct savings**.
@@ -832,7 +843,7 @@ raw_savings_fraction
   = clamp(theoretical_removed / current_cluster_minutes, 0, auto_stop_savings_cap)
 ```
 
-Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings); the same cap bounds the removable minutes in the bundle.
+The cap is a bound on a consistent estimate only: idle time above the recorded running time is not clamped but rejected upstream (15.6). Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings); the same cap bounds the removable minutes in the bundle.
 
 ### 17.4 Min-cluster estimator
 
@@ -859,24 +870,22 @@ capacity_ratio * runtime_elasticity
 Capacity ratio source:
 
 1. **Serverless:** published Serverless SQL DBU/hour size ratio. A size with no published rate is not priced (`SERVERLESS_DBU_RATE_NOT_PUBLISHED`): the candidate keeps its decision status with null economics and a plan containing it is withheld as `REQUIRES_CANARY`.
-2. **Pro/Classic:** same-workspace observed Pro/Classic DBU-per-cluster-hour ratio when both sizes exist.
-3. **Fallback:** nominal deterministic size-capacity ratio.
+2. **Pro/Classic:** the target/current ratio of the workspace's billed DBU per cluster-hour by size (billed DBU over running cluster-hours, on the same days: the current epoch on its event-covered resource window, earlier epochs from their event coverage start), used only when the observed rates rise with size and the pair ratio is within `size_rate_published_band` of the published per-size ratio. Otherwise the estimate is withheld (`PRO_CLASSIC_SIZE_RATE_UNVERIFIED`; `size_rate_check` is `RATES_NOT_RISING_WITH_SIZE`, `SIZE_RATE_NOT_OBSERVED`, `OUTSIDE_PUBLISHED_RATIO_BAND` or `NO_PUBLISHED_SIZE_RATE`): the candidate keeps its decision status with null economics and the plan step needs a canary. There is no nominal capacity-ratio fallback.
 
-Runtime elasticity is a low/base/high multiplier range: a capacity ratio below 1 (downsize) uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; otherwise `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`.
+Runtime elasticity is a low/base/high multiplier range chosen by the decided direction in size order, not by the price ratio: a downsize uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; an upsize uses `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`.
 
-If a prior historical epoch has the target value for the knob, matches every other active config field, and has at least `min_epoch_calibration_days` billed days and `min_epoch_calibration_queries` queries, its cost per `cost_normalization_query_count` queries relative to the current epoch (clamped to `epoch_factor_floor`..`epoch_factor_ceiling`) is blended into each factor with weight `epoch_calibration_weight`. The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Epoch calibration).
+The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No historical epoch enters the size factor. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).
 
 ### 17.6 Max-cluster increase estimator
 
-When increasing max clusters, cost uplift is bounded by the additional capacity that could have been used during observed time at the existing maximum (pressure window):
+When increasing max clusters, the worst-case cost uplift is the additional capacity that could have been used during observed time at the existing maximum (pressure window). It is not capped: a single-cluster warehouse at its ceiling all the time doubles its cost with a second cluster.
 
 ```text
-raw_uplift = clamp(minutes_at_max * (target_max - current_max) / cluster_minutes,
-                   0, max_cluster_uplift_fraction_cap)
+raw_uplift = max(0, minutes_at_max * (target_max - current_max) / cluster_minutes)
 cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, high = 1 + raw_uplift
 ```
 
-Direct savings are not expected; the range represents a cost increase for performance.
+The best case is no added cost (factor 1.0). Direct savings are not expected; the range represents a cost increase for performance.
 
 ### 17.7 Migration estimator
 
@@ -908,6 +917,8 @@ DBU cost = annualized resource minutes / 60
 AWS cost = annualized resource minutes / 60
            * regional modeled EC2 cluster hourly cost
 ```
+
+Migration is priced relative to billing. The same formula applied to the current warehouse (running cluster-hours at the base bound, times its current DBU per cluster-hour, times its current SKU price; Serverless uses the published table, Pro/Classic the workspace's measured rate) gives a modeled current DBU cost. The reconciliation ratio is that cost over the billed DBU forecast. A ratio outside [`migration_reconciliation_min`, `migration_reconciliation_max`], or an unavailable current rate or price, withholds the estimate (`MIGRATION_MODEL_NOT_RECONCILED`). Inside the band, the target DBU cost is scaled by billed over modeled so systematic model error cancels; the AWS target cost stays modeled. The reconciliation is recorded in the estimate metadata (`reconciliation`, `reconciliation_ratio`).
 
 Missing resource bounds, target DBU rate, list price, or AWS registry evidence makes migration economics unavailable rather than guessed.
 
@@ -1196,6 +1207,8 @@ An `EvidenceRecord` includes:
 Interpretation prose is excluded from the evidence fingerprint; decision-relevant values and source semantics are included.
 
 Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package and referenced by every candidate. The package also carries `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`): retracted DBU per originally billed DBU. It is package evidence only: no candidate references it, so it does not enter candidate IDs, and no decision, confidence or economics reads it.
+
+Candidate findings become evidence records, including evidence-only findings that no decision reads: on the size candidate `decision_queries_30` (the sample the size gates use), `p95_compilation_ms_30` and `p95_result_fetch_ms_30`; on the warehouse-type candidate `billed_sql_tiers`.
 
 The package validator recomputes the evidence fingerprint before accepting the package.
 

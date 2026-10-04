@@ -544,7 +544,7 @@ Human presentation shall label these as cost increases rather than displaying a 
 
 Pro/Classic size economics shall not reuse the Serverless DBU/hour size schedule as if it were a Pro/Classic capacity-cost curve.
 
-Pro/Classic sizing shall use same-workspace observed DBU-per-cluster-hour calibration where available, otherwise the approved nominal capacity fallback with canary protection.
+Pro/Classic sizing shall use same-workspace billed DBU-per-cluster-hour only when the rates rise with size and the size-pair ratio stays within 25% of the published size ratio; otherwise the estimate is withheld and the change needs a canary.
 
 ### FR-EST-009
 

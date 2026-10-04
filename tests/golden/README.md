@@ -1,6 +1,6 @@
 # Golden scenarios
 
-Deterministic fixtures for the SQL Warehouse optimizer. Each JSON file contains normalized evidence plus expected semantic outcomes (an `expect` block). The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length`, collector-level `snapshots` fixtures) is documented in the docstring of `tests/test_golden_scenarios.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
+Deterministic fixtures for the SQL Warehouse optimizer. Each JSON file contains normalized evidence plus expected semantic outcomes (an `expect` block). The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length` / `between`, collector-level `snapshots` fixtures) is documented in the docstring of `tests/test_golden_scenarios.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
 
 Core fixtures (used by `tests/test_publisher.py`):
 - idle-expensive-warehouse
@@ -32,5 +32,7 @@ Scenario fixtures (`c*.json` and `a*.json`, run by `tests/test_golden_scenarios.
 The `--demo` fleet is separate from these fixtures: the fixtures are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/test_demo_fleet.py`).
 
 Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance. To add a case, add a JSON file; no test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/test_evidence_format.py` fails otherwise.
+
+Fixtures that predate collector fields (`dbu_quantity` on daily cost rows, `events.event_coverage_start`, `query.decision_queries_30`) are backfilled by `tools/backfill_fixture_fields.py`, fixtures only; real evidence is never backfilled and fails closed.
 
 Evidence fixtures carry the current epoch's daily resource series (`resource_daily`). `tools/add_resource_daily.py` backfills a synthetic one (event totals spread evenly) into older fixtures; real evidence without it fails closed.
