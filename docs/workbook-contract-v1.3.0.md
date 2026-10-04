@@ -1,9 +1,11 @@
-# Workbook Reporter Contract v1.2.0
+# Workbook Reporter Contract v1.3.0
 
-**Version history:** 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
+**Version history:** 1.3.0 adds three text columns to *Warehouse Portfolio* (`earliest_reevaluation_time`, `reevaluation_blockers`, `observed_change`, in the *Recommended plan* group) projecting the Reporter contract 1.2.0 `recommended_plan.reevaluation` and `observed_change`. Null values render as the explicit `—` state, never blank. `observed_change` text includes the change date, for example `warehouse_size MEDIUM→LARGE (2026-09-29)`. Sheets, grains and all other columns are unchanged.
+
+**Earlier history:** 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
 
 **Status:** Locked  
-**Source of truth:** validated Reporter JSON Contract v1.1.0 packages  
+**Source of truth:** validated Reporter JSON Contract v1.2.0 packages  
 **Implementation:** `contracts/workbook_contract.py` + `reporters/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.
@@ -35,7 +37,7 @@ Presents coverage, actual/forward baseline, recommended annual savings, recommen
 
 Groups: identity/epoch; workload; current configuration; currency and actual/forward baseline; signed package low/base/high annual impacts and counterfactual costs; recommended scenario; assessment; compact human decision/plan views; traceability/audit JSON.
 
-The exact ordered set is `PORTFOLIO_COLUMNS` in `contracts/workbook_contract.py` (**58 columns**) and is regression-tested.
+The exact ordered set is `PORTFOLIO_COLUMNS` in `contracts/workbook_contract.py` (**61 columns**) and is regression-tested.
 
 ## 3. Scenario Plans
 
@@ -43,7 +45,7 @@ The exact ordered set is `PORTFOLIO_COLUMNS` in `contracts/workbook_contract.py`
 
 Groups: package/warehouse identity; scenario; confidence; compatibility; currency and baseline; signed DBU/AWS/total low/base/high annual impacts; estimated total cost; execution plan; dependency/invalidation/remeasure fields; audit JSON.
 
-The exact ordered set is `SCENARIO_COLUMNS` (**42 columns**) and is regression-tested.
+The exact ordered set is `SCENARIO_COLUMNS` (**45 columns**) and is regression-tested.
 
 ## 4. Recommendation Registry
 

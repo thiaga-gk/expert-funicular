@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v1.1.0.
+"""Build the locked Reporter Contract JSON Schema v1.2.0.
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.
@@ -20,16 +20,22 @@ from .reporter_contract import (
     ConcurrencyPattern,
     ConfidenceLevel,
     CostAvailability,
+    CarriedForwardDisposition,
     CostBasis,
     DependencyType,
     EstimationStatus,
     EvidenceQualityStatus,
+    MatchOutcome,
+    MatchPolicy,
+    MeasurementStatus,
     ExecutionState,
     Objective,
     PhotonStatus,
     PlanStepType,
     PricingBasis,
     RealizationOutcomeStatus,
+    REEVALUATION_BLOCKING_CODES,
+    ReevaluationStatus,
     RealizationStatus,
     RecommendationStatus,
     ScenarioStatus,
@@ -285,7 +291,7 @@ def build_schema() -> Dict[str, Any]:
         "action_after": nullable({"type": "string", "minLength": 1}),
     })
     defs["StepProjection"] = obj({
-        "pricing_basis": enum_schema(PricingBasis),
+        "pricing_basis": {"type": "string", "enum": [PricingBasis.AUTHORITATIVE.value, PricingBasis.CONTINGENT_PENDING_REEVALUATION.value]},
         "running_savings_365d": ref("ComponentRanges"),
     })
     defs["PlanStep"] = obj({
@@ -328,12 +334,52 @@ def build_schema() -> Dict[str, Any]:
         "execution_plan": arr(ref("PlanStep")),
     })
 
+    defs["ReevaluationWindow"] = obj({
+        "status": enum_schema(ReevaluationStatus),
+        "earliest_reevaluation_time": {"type": "string", "format": "date-time"},
+        "blocking_codes": arr({"type": "string", "enum": list(REEVALUATION_BLOCKING_CODES)}, unique=True, min_items=1),
+        "method": {"type": "string", "minLength": 1},
+    })
     defs["RecommendedPlan"] = obj({
         "scenario_id": nullable(id_schema("SCN")),
         "selection_reason_code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
         "next_action": {"type": "string", "minLength": 1},
         "requires_hitl": {"type": "boolean"},
         "decision_summary": {"type": "string", "minLength": 1},
+        "reevaluation": nullable(ref("ReevaluationWindow")),
+    })
+    defs["ConfigChange"] = obj({
+        "knob": enum_schema(TunableKnob),
+        "previous_value": {},
+        "current_value": {},
+    })
+    defs["ObservedConfigChange"] = obj({
+        "previous_epoch_id": id_schema("EPOCH"),
+        "previous_epoch_start": {"type": "string", "format": "date-time"},
+        "changed_at": {"type": "string", "format": "date-time"},
+        "changes": arr(ref("ConfigChange"), min_items=1),
+        "measurement_status": enum_schema(MeasurementStatus),
+    })
+    defs["CarriedForwardStep"] = obj({
+        "order": {"type": "integer", "minimum": 1},
+        "knob": enum_schema(TunableKnob),
+        "technique_id": {"type": "string", "minLength": 1},
+        "previous_value": {},
+        "recommended_value": {},
+        "disposition": enum_schema(CarriedForwardDisposition),
+        "reason_code": nullable({"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}),
+        "rebased_running_savings_365d": nullable(ref("ComponentRanges")),
+    })
+    defs["CarriedForwardPlan"] = obj({
+        "source_epoch_id": id_schema("EPOCH"),
+        "as_of": {"type": "string", "format": "date-time"},
+        "match_policy": enum_schema(MatchPolicy),
+        "match_outcome": enum_schema(MatchOutcome),
+        "match_reason_code": nullable({"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}),
+        "replay_fingerprint": {"type": "string", "pattern": "^SHA256:[A-F0-9]{64}$"},
+        "steps": arr(ref("CarriedForwardStep")),
+        "remaining_upside_365d": nullable(ref("ComponentRanges")),
+        "pricing_basis": {"const": "CONTINGENT_CARRIED_FORWARD"},
     })
 
     defs["EconomicsPoint"] = obj({
@@ -475,11 +521,14 @@ def build_schema() -> Dict[str, Any]:
             "package_economics": ref("PackageEconomics"),
             "realization": ref("Realization"),
             "provenance": ref("Provenance"),
+            "observed_change": nullable(ref("ObservedConfigChange")),
+            "carried_forward_plan": nullable(ref("CarriedForwardPlan")),
         },
         "required": [
             "recommendation_package_id", "contract_version", "warehouse", "current_config",
             "workload_profile", "cost_baseline", "assessment", "evidence", "candidates",
             "scenarios", "recommended_plan", "package_economics", "realization", "provenance",
+            "observed_change", "carried_forward_plan",
         ],
         "$defs": defs,
     }

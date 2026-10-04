@@ -1,4 +1,4 @@
-"""Reporter contract v1.1.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v1.2.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from publisher.py.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -25,12 +25,18 @@ import dataclasses
 import datetime as dt
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "1.1.0"
+CONTRACT_VERSION = "1.2.0"
+# Re-evaluation gates (contract 1.2.0). The validator embeds them, so changing the matching publisher policy
+# thresholds (current_config_stability_days, min_economics_cost_history_days) requires a contract version bump.
+REEVALUATION_EPOCH_MATURITY_DAYS = 7
+REEVALUATION_COST_HISTORY_DAYS = 7
+REEVALUATION_BLOCKING_CODES = ("COST_HISTORY_INSUFFICIENT", "CURRENT_CONFIG_EPOCH_TOO_NEW")
 HASH_HEX_LENGTH = 24  # 96-bit display identifier; full SHA-256 remains available in provenance.
 
 
@@ -91,6 +97,32 @@ class PricingBasis(str, Enum):
     """Whether a plan step's projected economics may feed scenario/package economics (contract 1.1.0)."""
     AUTHORITATIVE = "AUTHORITATIVE"
     CONTINGENT_PENDING_REEVALUATION = "CONTINGENT_PENDING_REEVALUATION"
+    # Figures replayed from the immediately preceding epoch (contract 1.2.0, reserved for Stage 2); never feed package economics.
+    CONTINGENT_CARRIED_FORWARD = "CONTINGENT_CARRIED_FORWARD"
+
+
+class ReevaluationStatus(str, Enum):
+    WAITING_FOR_EVIDENCE = "WAITING_FOR_EVIDENCE"
+
+
+class MeasurementStatus(str, Enum):
+    NOT_MEASURED = "NOT_MEASURED"
+
+
+class MatchPolicy(str, Enum):
+    EXACT_SINGLE_KNOB = "EXACT_SINGLE_KNOB"
+
+
+class MatchOutcome(str, Enum):
+    MATCHED = "MATCHED"
+    MISMATCH = "MISMATCH"
+    NOT_REPLAYABLE = "NOT_REPLAYABLE"
+
+
+class CarriedForwardDisposition(str, Enum):
+    COMPLETED = "COMPLETED"
+    PENDING_REEVALUATION = "PENDING_REEVALUATION"
+    INVALIDATED = "INVALIDATED"
 
 
 class ScenarioStatus(str, Enum):
@@ -262,6 +294,10 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_FINGERPRINT_PATTERN = re.compile(r"^SHA256:[A-F0-9]{64}$")
+
+
 def _is_iso8601(value: str) -> bool:
     try:
         dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -286,6 +322,39 @@ def _validate_nonnegative(value: Optional[float], field_name: str) -> None:
 def _validate_pct(value: Optional[float], field_name: str) -> None:
     if value is not None:
         _require(0 <= value <= 100, f"{field_name} must be in [0, 100]")
+
+
+def _parse_utc(value: str) -> dt.datetime:
+    parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def _iso_utc(value: dt.datetime) -> str:
+    """UTC ISO string at second precision, rounded UP so a published 'earliest' time is never before the true gate."""
+    value = value.astimezone(dt.timezone.utc)
+    if value.microsecond:
+        value = value.replace(microsecond=0) + dt.timedelta(seconds=1)
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequence[str]) -> str:
+    """Pure function of the epoch start and the active gates (contract 1.2.0).
+
+    maturity gate: epoch start + REEVALUATION_EPOCH_MATURITY_DAYS.
+    cost-history gate: 00:00Z of (epoch start date + REEVALUATION_COST_HISTORY_DAYS), the earliest time the last
+    required billing day can be fully covered.  The result is the later of the active gates.
+    """
+    start = _parse_utc(start_time)
+    times = []
+    if "CURRENT_CONFIG_EPOCH_TOO_NEW" in blocking_codes:
+        times.append(start + dt.timedelta(days=REEVALUATION_EPOCH_MATURITY_DAYS))
+    if "COST_HISTORY_INSUFFICIENT" in blocking_codes:
+        midnight = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        times.append(midnight + dt.timedelta(days=REEVALUATION_COST_HISTORY_DAYS))
+    _require(bool(times), "at least one blocking code is required")
+    return _iso_utc(max(times))
 
 
 def _enum_value(value: Any) -> Any:
@@ -1028,6 +1097,10 @@ class PlanStep:
         self.validation.validate()
         if self.projected_economics is not None:
             self.projected_economics.validate()
+            _require(
+                self.projected_economics.pricing_basis in (PricingBasis.AUTHORITATIVE, PricingBasis.CONTINGENT_PENDING_REEVALUATION),
+                "plan steps may only use AUTHORITATIVE or CONTINGENT_PENDING_REEVALUATION pricing",
+            )
             pending = self.execution_state == ExecutionState.PENDING_REEVALUATION
             _require(
                 pending == (self.projected_economics.pricing_basis == PricingBasis.CONTINGENT_PENDING_REEVALUATION),
@@ -1138,12 +1211,131 @@ class Scenario:
 
 
 @dataclass(frozen=True)
+class ReevaluationWindow:
+    """Time-clearable gates that currently hide the next step (contract 1.2.0). Null on the plan when nothing waits."""
+    status: ReevaluationStatus
+    earliest_reevaluation_time: str
+    blocking_codes: List[str]
+    method: str
+
+    def validate(self) -> None:
+        _require(_is_iso8601(self.earliest_reevaluation_time), "reevaluation.earliest_reevaluation_time must be ISO-8601")
+        _require(len(self.blocking_codes) >= 1, "reevaluation.blocking_codes must not be empty")
+        _require(all(code in REEVALUATION_BLOCKING_CODES for code in self.blocking_codes), "reevaluation.blocking_codes contains an unknown gate")
+        _require(list(self.blocking_codes) == sorted(set(self.blocking_codes)), "reevaluation.blocking_codes must be sorted and unique")
+        _require(bool(self.method), "reevaluation.method is required")
+
+
+@dataclass(frozen=True)
+class ConfigChange:
+    knob: TunableKnob
+    previous_value: Any
+    current_value: Any
+
+
+@dataclass(frozen=True)
+class ObservedConfigChange:
+    """The configuration changed at the start of the current epoch (authoritative config diff; no savings, not realization)."""
+    previous_epoch_id: str
+    previous_epoch_start: str
+    changed_at: str
+    changes: List[ConfigChange]
+    measurement_status: MeasurementStatus
+
+    def validate(self) -> None:
+        _validate_identifier(self.previous_epoch_id, "EPOCH")
+        _require(_is_iso8601(self.previous_epoch_start), "observed_change.previous_epoch_start must be ISO-8601")
+        _require(_is_iso8601(self.changed_at), "observed_change.changed_at must be ISO-8601")
+        _require(len(self.changes) >= 1, "observed_change.changes must not be empty")
+        knobs = [c.knob.value for c in self.changes]
+        _require(knobs == sorted(set(knobs)), "observed_change.changes must be sorted and unique by knob")
+        for change in self.changes:
+            _require(change.previous_value != change.current_value, "observed_change entries must differ")
+
+    def fingerprint(self) -> str:
+        return f"SHA256:{sha256_hex(to_primitive(self)).upper()}"
+
+
+@dataclass(frozen=True)
+class CarriedForwardStep:
+    order: int
+    knob: TunableKnob
+    technique_id: str
+    previous_value: Any
+    recommended_value: Any
+    disposition: CarriedForwardDisposition
+    reason_code: Optional[str]
+    rebased_running_savings_365d: Optional["ComponentRanges"]
+
+    def validate(self) -> None:
+        _require(self.order >= 1, "carried-forward step order must be >= 1")
+        _require(bool(self.technique_id), "carried-forward step technique_id is required")
+        if self.reason_code is not None:
+            _require(bool(_CODE_PATTERN.match(self.reason_code)), "carried-forward step reason_code must match ^[A-Z][A-Z0-9_]*$")
+        if self.disposition == CarriedForwardDisposition.INVALIDATED:
+            _require(bool(self.reason_code), "INVALIDATED carried-forward step requires reason_code")
+        if self.rebased_running_savings_365d is not None:
+            _require(self.disposition == CarriedForwardDisposition.PENDING_REEVALUATION, "only PENDING_REEVALUATION carried-forward steps carry savings")
+            self.rebased_running_savings_365d.validate(nonnegative=False, field_name="carried_forward.step.rebased_running_savings_365d")
+
+
+@dataclass(frozen=True)
+class CarriedForwardPlan:
+    """Contingent replay of the preceding epoch's plan (reserved; null until Stage 2 ships). Never feeds package economics."""
+    source_epoch_id: str
+    as_of: str
+    match_policy: MatchPolicy
+    match_outcome: MatchOutcome
+    match_reason_code: Optional[str]
+    replay_fingerprint: str
+    steps: List[CarriedForwardStep]
+    remaining_upside_365d: Optional["ComponentRanges"]
+    pricing_basis: PricingBasis
+
+    def fingerprint(self) -> str:
+        """Hash of the whole published block, so any change to steps, dates or reasons changes the package identity."""
+        return f"SHA256:{sha256_hex(to_primitive(self)).upper()}"
+
+    def validate(self) -> None:
+        _validate_identifier(self.source_epoch_id, "EPOCH")
+        _require(_is_iso8601(self.as_of), "carried_forward.as_of must be ISO-8601")
+        _require(bool(_FINGERPRINT_PATTERN.match(self.replay_fingerprint)), "replay_fingerprint must use SHA256:<64 uppercase hex>")
+        if self.match_reason_code is not None:
+            _require(bool(_CODE_PATTERN.match(self.match_reason_code)), "carried_forward match_reason_code must match ^[A-Z][A-Z0-9_]*$")
+        _require(self.pricing_basis == PricingBasis.CONTINGENT_CARRIED_FORWARD, "carried-forward economics must be CONTINGENT_CARRIED_FORWARD")
+        _require([s.order for s in self.steps] == list(range(1, len(self.steps) + 1)), "carried-forward steps must be contiguous starting at 1")
+        for step in self.steps:
+            step.validate()
+        if self.match_outcome != MatchOutcome.MATCHED:
+            _require(bool(self.match_reason_code), "carried-forward match_reason_code is required unless MATCHED")
+        if self.match_outcome == MatchOutcome.NOT_REPLAYABLE:
+            _require(len(self.steps) == 0 and self.remaining_upside_365d is None, "NOT_REPLAYABLE requires no steps and null remaining upside")
+        if self.match_outcome == MatchOutcome.MISMATCH:
+            _require(all(s.disposition == CarriedForwardDisposition.INVALIDATED for s in self.steps), "MISMATCH requires every step INVALIDATED")
+            _require(self.remaining_upside_365d is None, "MISMATCH requires null remaining upside")
+        if self.match_outcome == MatchOutcome.MATCHED:
+            _require(len(self.steps) >= 1 and self.steps[0].disposition == CarriedForwardDisposition.COMPLETED, "MATCHED requires the first step COMPLETED")
+        pending = [s for s in self.steps if s.disposition == CarriedForwardDisposition.PENDING_REEVALUATION and s.rebased_running_savings_365d is not None]
+        if self.remaining_upside_365d is not None:
+            self.remaining_upside_365d.validate(nonnegative=False, field_name="carried_forward.remaining_upside_365d")
+            _require(bool(pending), "remaining upside requires a priced pending step")
+            last = pending[-1].rebased_running_savings_365d
+            for component in ("dbu", "aws", "total"):
+                a, b = getattr(self.remaining_upside_365d, component), getattr(last, component)
+                if a is None or b is None:
+                    continue
+                for bound in ("low", "base", "high"):
+                    _require(abs(getattr(a, bound) - getattr(b, bound)) <= 0.03, "remaining upside must equal the last pending step's rebased savings")
+
+
+@dataclass(frozen=True)
 class RecommendedPlan:
     scenario_id: Optional[str]
     selection_reason_code: str
     next_action: str
     requires_hitl: bool
     decision_summary: str
+    reevaluation: Optional[ReevaluationWindow] = None
 
     def validate(self, *, scenario_ids: Iterable[str]) -> None:
         if self.scenario_id is not None:
@@ -1152,6 +1344,8 @@ class RecommendedPlan:
         _require(bool(self.selection_reason_code), "selection_reason_code is required")
         _require(bool(self.next_action), "next_action is required")
         _require(bool(self.decision_summary), "decision_summary is required")
+        if self.reevaluation is not None:
+            self.reevaluation.validate()
 
 
 # ---------------------------------------------------------------------------
@@ -1458,6 +1652,8 @@ class RecommendationPackage:
     package_economics: PackageEconomics
     realization: Realization
     provenance: Provenance
+    observed_change: Optional[ObservedConfigChange] = None
+    carried_forward_plan: Optional[CarriedForwardPlan] = None
 
     def validate(self, *, verify_content_id: bool = True) -> None:
         _validate_identifier(self.recommendation_package_id, "PKG")
@@ -1534,6 +1730,8 @@ class RecommendationPackage:
             _require(len(recommended) == 1, "exactly one scenario must be RECOMMENDED")
             _require(recommended[0].scenario_id == self.recommended_plan.scenario_id, "RECOMMENDED scenario mismatch")
 
+        self._validate_reevaluation_and_change(scenario_by_id_for_plan={x.scenario_id: x for x in self.scenarios})
+
         self.package_economics.validate(
             scenario_ids=scenario_ids,
             recommended_scenario_id=self.recommended_plan.scenario_id,
@@ -1600,6 +1798,63 @@ class RecommendationPackage:
             expected = self.expected_package_id()
             _require(self.recommendation_package_id == expected, f"package id mismatch: expected {expected}")
 
+    def _cost_history_days_evidence(self) -> Optional[float]:
+        for item in self.evidence.values():
+            if item.metric == "cost_history_days" and isinstance(item.value, (int, float)):
+                return float(item.value)
+        return None
+
+    def active_reevaluation_codes(self) -> List[str]:
+        codes = []
+        days = self._cost_history_days_evidence()
+        if days is not None and days < REEVALUATION_COST_HISTORY_DAYS:
+            codes.append("COST_HISTORY_INSUFFICIENT")
+        if self.warehouse.current_epoch.age_days < REEVALUATION_EPOCH_MATURITY_DAYS:
+            codes.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+        return sorted(codes)
+
+    def _validate_reevaluation_and_change(self, *, scenario_by_id_for_plan: Mapping[str, Scenario]) -> None:
+        start_time = self.warehouse.current_epoch.start_time
+        window = self.recommended_plan.reevaluation
+        active = self.active_reevaluation_codes()
+        if window is None:
+            _require(not active, f"reevaluation window is required while gates are active: {active}")
+        else:
+            _require(list(window.blocking_codes) == active, "reevaluation.blocking_codes must equal the gates that are currently active")
+            _require(
+                window.earliest_reevaluation_time == expected_earliest_reevaluation_time(start_time, window.blocking_codes),
+                "reevaluation.earliest_reevaluation_time does not match the epoch start and active gates",
+            )
+            _require(_parse_utc(window.earliest_reevaluation_time) >= _parse_utc(start_time), "reevaluation time must not precede the epoch start")
+        if self.recommended_plan.next_action == "WAIT_FOR_REEVALUATION":
+            _require(window is not None, "WAIT_FOR_REEVALUATION requires a reevaluation window")
+            scenario = scenario_by_id_for_plan.get(self.recommended_plan.scenario_id) if self.recommended_plan.scenario_id else None
+            if scenario is not None:
+                _require(
+                    not any(s.execution_state in (ExecutionState.READY, ExecutionState.READY_FOR_CANARY) for s in scenario.execution_plan),
+                    "WAIT_FOR_REEVALUATION is only valid when the recommended scenario has no ready step",
+                )
+        change = self.observed_change
+        if change is not None:
+            change.validate()
+            _require(change.changed_at == start_time, "observed_change.changed_at must equal the current epoch start")
+            _require(change.previous_epoch_id != self.warehouse.current_epoch.epoch_id, "observed_change.previous_epoch_id must differ from the current epoch")
+        carried = self.carried_forward_plan
+        if carried is not None:
+            carried.validate()
+            _require(change is not None, "carried_forward_plan requires observed_change")
+            _require(carried.source_epoch_id == change.previous_epoch_id, "carried_forward.source_epoch_id must equal observed_change.previous_epoch_id")
+            _require(
+                window is not None and "CURRENT_CONFIG_EPOCH_TOO_NEW" in window.blocking_codes,
+                "carried_forward_plan is only valid while the current epoch is younger than the maturity gate",
+            )
+            current = {(c.knob, repr(c.current_value)) for c in change.changes}
+            for step in carried.steps:
+                if step.disposition == CarriedForwardDisposition.COMPLETED:
+                    _require((step.knob, repr(step.recommended_value)) in current, "COMPLETED carried-forward step must match an observed change")
+            if carried.match_outcome == MatchOutcome.MATCHED:
+                _require(len(change.changes) == 1, "MATCHED requires exactly one observed knob change")
+
     def to_dict(self) -> Dict[str, Any]:
         return to_primitive(self)
 
@@ -1646,6 +1901,15 @@ class RecommendationPackage:
             "technique_catalog_version": self.provenance.technique_catalog_version,
             "ordered_candidate_ids": [x.candidate_id for x in self.candidates],
             "ordered_scenario_ids": [x.scenario_id for x in self.scenarios],
+            # contract 1.2.0: blocks that change what a consumer sees without changing candidate/scenario/evidence IDs.
+            # Prose (reevaluation.method) is excluded.
+            "reevaluation": None if self.recommended_plan.reevaluation is None else {
+                "status": self.recommended_plan.reevaluation.status.value,
+                "earliest_reevaluation_time": self.recommended_plan.reevaluation.earliest_reevaluation_time,
+                "blocking_codes": list(self.recommended_plan.reevaluation.blocking_codes),
+            },
+            "observed_change_fingerprint": None if self.observed_change is None else self.observed_change.fingerprint(),
+            "carried_forward_fingerprint": None if self.carried_forward_plan is None else self.carried_forward_plan.fingerprint(),
         }
 
     def expected_package_id(self) -> str:
@@ -1674,6 +1938,9 @@ def make_recommendation_package_id_from_parts(
     technique_catalog_version: str,
     ordered_candidate_ids: Sequence[str],
     ordered_scenario_ids: Sequence[str],
+    reevaluation: Optional[Mapping[str, Any]] = None,
+    observed_change_fingerprint: Optional[str] = None,
+    carried_forward_fingerprint: Optional[str] = None,
 ) -> str:
     payload = {
         "contract_version": contract_version,
@@ -1693,5 +1960,8 @@ def make_recommendation_package_id_from_parts(
         "technique_catalog_version": technique_catalog_version,
         "ordered_candidate_ids": list(ordered_candidate_ids),
         "ordered_scenario_ids": list(ordered_scenario_ids),
+        "reevaluation": None if reevaluation is None else dict(reevaluation),
+        "observed_change_fingerprint": observed_change_fingerprint,
+        "carried_forward_fingerprint": carried_forward_fingerprint,
     }
     return content_id("PKG", payload)

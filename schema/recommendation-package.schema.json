@@ -297,6 +297,146 @@
       ],
       "type": "object"
     },
+    "CarriedForwardPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "match_outcome": {
+          "enum": [
+            "MATCHED",
+            "MISMATCH",
+            "NOT_REPLAYABLE"
+          ],
+          "type": "string"
+        },
+        "match_policy": {
+          "enum": [
+            "EXACT_SINGLE_KNOB"
+          ],
+          "type": "string"
+        },
+        "match_reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pricing_basis": {
+          "const": "CONTINGENT_CARRIED_FORWARD"
+        },
+        "remaining_upside_365d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRanges"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay_fingerprint": {
+          "pattern": "^SHA256:[A-F0-9]{64}$",
+          "type": "string"
+        },
+        "source_epoch_id": {
+          "pattern": "^EPOCH-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/CarriedForwardStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_epoch_id",
+        "as_of",
+        "match_policy",
+        "match_outcome",
+        "match_reason_code",
+        "replay_fingerprint",
+        "steps",
+        "remaining_upside_365d",
+        "pricing_basis"
+      ],
+      "type": "object"
+    },
+    "CarriedForwardStep": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "COMPLETED",
+            "PENDING_REEVALUATION",
+            "INVALIDATED"
+          ],
+          "type": "string"
+        },
+        "knob": {
+          "enum": [
+            "warehouse_type",
+            "warehouse_size",
+            "min_clusters",
+            "max_clusters",
+            "auto_stop_minutes",
+            "warehouse_channel",
+            "enable_photon"
+          ],
+          "type": "string"
+        },
+        "order": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "previous_value": {},
+        "reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rebased_running_savings_365d": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRanges"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recommended_value": {},
+        "technique_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "order",
+        "knob",
+        "technique_id",
+        "previous_value",
+        "recommended_value",
+        "disposition",
+        "reason_code",
+        "rebased_running_savings_365d"
+      ],
+      "type": "object"
+    },
     "ClientApplicationStat": {
       "additionalProperties": false,
       "properties": {
@@ -489,6 +629,31 @@
         "level",
         "components",
         "method"
+      ],
+      "type": "object"
+    },
+    "ConfigChange": {
+      "additionalProperties": false,
+      "properties": {
+        "current_value": {},
+        "knob": {
+          "enum": [
+            "warehouse_type",
+            "warehouse_size",
+            "min_clusters",
+            "max_clusters",
+            "auto_stop_minutes",
+            "warehouse_channel",
+            "enable_photon"
+          ],
+          "type": "string"
+        },
+        "previous_value": {}
+      },
+      "required": [
+        "knob",
+        "previous_value",
+        "current_value"
       ],
       "type": "object"
     },
@@ -918,6 +1083,44 @@
       ],
       "type": "object"
     },
+    "ObservedConfigChange": {
+      "additionalProperties": false,
+      "properties": {
+        "changed_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/ConfigChange"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "measurement_status": {
+          "enum": [
+            "NOT_MEASURED"
+          ],
+          "type": "string"
+        },
+        "previous_epoch_id": {
+          "pattern": "^EPOCH-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "previous_epoch_start": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "previous_epoch_id",
+        "previous_epoch_start",
+        "changed_at",
+        "changes",
+        "measurement_status"
+      ],
+      "type": "object"
+    },
     "PackageEconomics": {
       "additionalProperties": false,
       "properties": {
@@ -1255,7 +1458,7 @@
           "type": "string"
         },
         "contract_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "decision_graph_version": {
           "minLength": 1,
@@ -1734,6 +1937,16 @@
           "minLength": 1,
           "type": "string"
         },
+        "reevaluation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReevaluationWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "requires_hitl": {
           "type": "boolean"
         },
@@ -1758,7 +1971,46 @@
         "selection_reason_code",
         "next_action",
         "requires_hitl",
-        "decision_summary"
+        "decision_summary",
+        "reevaluation"
+      ],
+      "type": "object"
+    },
+    "ReevaluationWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "blocking_codes": {
+          "items": {
+            "enum": [
+              "COST_HISTORY_INSUFFICIENT",
+              "CURRENT_CONFIG_EPOCH_TOO_NEW"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "earliest_reevaluation_time": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "method": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "WAITING_FOR_EVIDENCE"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "earliest_reevaluation_time",
+        "blocking_codes",
+        "method"
       ],
       "type": "object"
     },
@@ -2190,7 +2442,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:1.1.0",
+  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:1.2.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
@@ -2204,8 +2456,18 @@
       },
       "type": "array"
     },
+    "carried_forward_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CarriedForwardPlan"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "contract_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "cost_baseline": {
       "$ref": "#/$defs/CostBaseline"
@@ -2221,6 +2483,16 @@
         "pattern": "^EVID-[A-F0-9]{24}$"
       },
       "type": "object"
+    },
+    "observed_change": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ObservedConfigChange"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "package_economics": {
       "$ref": "#/$defs/PackageEconomics"
@@ -2265,7 +2537,9 @@
     "recommended_plan",
     "package_economics",
     "realization",
-    "provenance"
+    "provenance",
+    "observed_change",
+    "carried_forward_plan"
   ],
   "title": "Databricks SQL Warehouse Optimization Recommendation Package",
   "type": "object"

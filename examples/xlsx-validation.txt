@@ -1,10 +1,10 @@
-Workbook Contract v1.2.0 — Final XLSX Validation
+Workbook Contract v1.3.0 — Final XLSX Validation
 ====================================================
 Validated with openpyxl (tools/validate_workbook.py plus the scans below) on the workbook generated from the 15-warehouse publisher pipeline.
 
 Observed sheet ranges
 - Executive Summary: A1:T20
-- Warehouse Portfolio: A1:BF19
+- Warehouse Portfolio: A1:BI19
 - Scenario Plans: A1:AS34
 - Recommendation Registry: A1:BA94
 
