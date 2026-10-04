@@ -222,5 +222,24 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         self.assertNotIn("TIMESTAMPDIFF(SECOND,", busy)
 
 
+class DownsizeScaleOutTests(unittest.TestCase):
+    def test_downsize_on_a_busy_multi_cluster_warehouse_prices_the_extra_scale_out(self):
+        # Core demo: Pro LARGE -> MEDIUM (price ratio 0.6), min 2 / max 4, now fully busy. Slower queries raise
+        # concurrency, so the autoscaler runs proportionally more cluster-minutes: the slowdown applies to all
+        # (cluster-weighted) busy time. Base saving is 1 - 0.6 x 1.3 = 22%, not the 40% the price ratio alone suggests
+        # (and the conservative bound 1 - 0.6 x 1.55 = 7%).
+        logging.disable(logging.CRITICAL)
+        try:
+            e = p.demo_evidence()[0]
+            e.current_epoch.gaps["busy_minutes"] = e.current_epoch.events["uptime_minutes"]
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(c.metadata["busy_share"], 1.0)
+        f = c.metadata["cost_factor_range"]
+        self.assertAlmostEqual(f["base"], 0.78, places=6)
+        self.assertAlmostEqual(f["high"], 0.93, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()
