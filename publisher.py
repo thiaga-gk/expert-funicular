@@ -1682,16 +1682,17 @@ class Modeler:
 
         recent = self.t.forecast_recent_days
         long = self.t.forecast_long_days
-        last28 = series[-recent:]
-        last84 = series[-long:]
-        prev28 = series[-2*recent:-recent] if len(series) >= 2*recent else []
+        rate = whole_weeks(series)  # rates use whole weeks only, so weekday/weekend mix carries no bias
+        last28 = rate[-recent:]
+        last84 = rate[-long:]
+        prev28 = rate[-2*recent:-recent] if len(rate) >= 2*recent else []
         mean28, mean84 = mean(last28), mean(last84)
-        if len(series) >= long:
+        if len(rate) >= long:
             daily = self.t.forecast_weight_28_long * mean28 + (1 - self.t.forecast_weight_28_long) * mean84
-        elif len(series) >= recent:
-            daily = self.t.forecast_weight_28_mid * mean28 + (1 - self.t.forecast_weight_28_mid) * mean(series)
+        elif len(rate) >= recent:
+            daily = self.t.forecast_weight_28_mid * mean28 + (1 - self.t.forecast_weight_28_mid) * mean(rate)
         else:
-            daily = mean(series)
+            daily = mean(rate)
 
         ratio = mean28 / mean(prev28) if prev28 and mean(prev28) > 0 else 1.0
         ratio = clamp(ratio, self.t.trend_ratio_floor, self.t.trend_ratio_ceiling)
@@ -1699,11 +1700,12 @@ class Modeler:
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
         active_cost_days = sum(1 for x in series if x > 1e-12)  # billed days; a correction-only (negative) day is not one
+        rate_billed_days = sum(1 for x in rate[-long:] if x > 1e-12)  # the floor applies to the days the rate actually uses
         # The forward DBU cost is published only when it is known: every day priced, enough billed days to estimate a
         # run rate, and a positive run rate. Otherwise it is unknown (null), never $0 or a guess.
         if unpriced_in_basis > 0:
             forecast_status = "UNPRICED_USAGE"
-        elif active_cost_days < self.t.min_economics_cost_history_days:
+        elif rate_billed_days < self.t.min_economics_cost_history_days:
             forecast_status = "INSUFFICIENT_ACTIVE_COST_DAYS"
         elif daily <= 0:
             forecast_status = "NON_POSITIVE_RUN_RATE"
@@ -1732,6 +1734,8 @@ class Modeler:
             "forecast_basis_end": basis_end.isoformat(),
             **completeness_meta,
             "zero_cost_days_in_basis": sum(1 for x in series if abs(x) <= 1e-12),
+            "rate_basis_days": min(len(rate), long),
+            "rate_billed_days": rate_billed_days,
         }
 
 
@@ -1779,8 +1783,15 @@ def resource_window(e: "WarehouseEvidence", t: Thresholds) -> Optional[Dict[str,
     return resource_window_from(e.current_epoch, meta.get("forecast_basis_end") or meta.get("billing_complete_through"), t)
 
 
+def whole_weeks(values: Sequence[float]) -> List[float]:
+    """The most recent whole weeks of a daily series (all of it when shorter than a week)."""
+    values = list(values)
+    return values[len(values) % 7:] if len(values) >= 7 else values
+
+
 def blended_daily_rate(values: Sequence[float], t: Thresholds) -> float:
     """Same recent-weighted blend as the DBU forecast, so AWS and DBU describe the same year."""
+    values = whole_weeks(values)
     if not values:
         return 0.0
     recent, long = values[-t.forecast_recent_days:], values[-t.forecast_long_days:]

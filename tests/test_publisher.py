@@ -446,13 +446,14 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_forecast_zero_fills_calendar_days(self):
         model = p.Modeler(self.unsettled())
-        # 10-day epoch billed on 8 days (enough billed days to forecast): the 2 idle days count as $0 days.
-        rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100, "currency_code": "USD"} for d in (21, 22, 23, 24, 26, 27, 29, 30)]
-        out = model.forecast_from_daily_cost(rows, "2026-09-21T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
-        self.assertEqual(out["cost_history_days"], 10)
-        self.assertEqual(out["active_cost_days"], 8)
+        # 15-day epoch with no billing on 09-25 and 09-28: those count as $0 days. The rate uses the last two whole weeks.
+        rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100, "currency_code": "USD"} for d in range(16, 31) if d not in (25, 28)]
+        out = model.forecast_from_daily_cost(rows, "2026-09-16T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
+        self.assertEqual(out["cost_history_days"], 15)
+        self.assertEqual(out["active_cost_days"], 13)
         self.assertEqual(out["zero_cost_days_in_basis"], 2)
-        self.assertAlmostEqual(out["forecast_cost_365"], 80 * 365, places=2)
+        self.assertEqual((out["rate_basis_days"], out["rate_billed_days"]), (14, 12))
+        self.assertAlmostEqual(out["forecast_cost_365"], 100 * 12 / 14 * 365, places=2)
 
     def _cost_rows(self, days, start="2026-09-01", cost=lambda i: 100.0):
         import datetime as dt
@@ -1022,6 +1023,44 @@ class PublisherV27Tests(unittest.TestCase):
         end = dt.date.fromisoformat(last_day)
         return [{"usage_date": (dt.date(2026, 9, 1) + dt.timedelta(days=i)).isoformat(), "list_cost": 100.0, "currency_code": "USD"}
                 for i in range((end - dt.date(2026, 9, 1)).days + 1)]
+
+    # --- Forecast basis is trimmed to whole weeks (no day-of-week bias) ---------------------------------------
+    def _weekday_only(self, start, days):
+        import datetime as dt
+        d0 = dt.date.fromisoformat(start)
+        return [{"usage_date": (d0 + dt.timedelta(days=i)).isoformat(), "list_cost": 100.0 if (d0 + dt.timedelta(days=i)).weekday() < 5 else 0.0,
+                 "currency_code": "USD"} for i in range(days)]
+
+    def test_short_epochs_forecast_without_day_of_week_bias(self):
+        # Weekday-only $100/day: the true annual run rate is 100 x 5/7 x 365 = 26,071.43 whatever the epoch length.
+        model = p.Modeler(self.unsettled())
+        for days in (14, 15, 20, 30, 40, 90):
+            with self.subTest(days=days):
+                start = (p.dt.date(2026, 10, 1) - p.dt.timedelta(days=days)).isoformat()
+                out = model.forecast_from_daily_cost(self._weekday_only(start, days), start + "T00:00:00+00:00", self.ANALYSIS)
+                self.assertAlmostEqual(out["forecast_cost_365"], 26071.43, places=2)
+                self.assertEqual(out["rate_basis_days"] % 7, 0)
+                self.assertLessEqual(out["rate_basis_days"], 84)
+
+    def test_billed_day_gate_counts_the_days_the_rate_uses(self):
+        model = p.Modeler(self.unsettled())
+        # Weekday-only, 9-12 days: the last whole week holds 5 billed days, below the 7-day floor: unknown, not guessed.
+        for days in (9, 12):
+            with self.subTest(days=days):
+                start = (p.dt.date(2026, 10, 1) - p.dt.timedelta(days=days)).isoformat()
+                out = model.forecast_from_daily_cost(self._weekday_only(start, days), start + "T00:00:00+00:00", self.ANALYSIS)
+                self.assertIsNone(out["forecast_cost_365"])
+                self.assertEqual(out["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
+        # 13 days billed on days 1-6 and 13: 7 billed days overall, but the rate's week holds only one.
+        start = "2026-09-18"
+        rows = [{"usage_date": (p.dt.date(2026, 9, 18) + p.dt.timedelta(days=i)).isoformat(), "list_cost": 100.0 if (i < 6 or i == 12) else 0.0,
+                 "currency_code": "USD"} for i in range(13)]
+        out = model.forecast_from_daily_cost(rows, start + "T00:00:00+00:00", self.ANALYSIS)
+        self.assertIsNone(out["forecast_cost_365"])
+
+    def test_resource_blend_uses_whole_weeks_too(self):
+        values = [100.0 if i % 7 < 5 else 0.0 for i in range(10)]
+        self.assertAlmostEqual(p.blended_daily_rate(values, self.t) * 365, 26071.43, places=2)
 
     def test_a_day_counts_only_after_the_settle_buffer(self):
         out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-01T12:00:00+00:00")

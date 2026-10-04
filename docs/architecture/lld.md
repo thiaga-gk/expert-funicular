@@ -491,6 +491,8 @@ Let:
 - `m84` = mean daily cost over the most recent 84 basis days,
 - `mall` = mean over the available current-epoch basis.
 
+All rates (and the trend and CV) use the most recent whole weeks of the basis (`rate_basis_days`, a multiple of 7; the oldest 0–6 days are dropped), so an epoch that is not a whole number of weeks does not over- or under-weight weekends. The 7-billed-day floor counts billed days inside those rate weeks (`rate_billed_days`), so a weekday-only warehouse gets its first forecast after two weeks rather than one from a single week's partial billing. The daily resource blend for AWS and migration bounds uses the same trim.
+
 Then:
 
 ```text
