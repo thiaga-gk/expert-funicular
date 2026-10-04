@@ -109,7 +109,6 @@ class Thresholds:
     # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
-    strong_cost_history_days: int = 60
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
