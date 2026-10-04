@@ -29,7 +29,7 @@ Do not accept a technique catalog that treats this framework as optional narrati
 ## Workflow
 
 1. Resolve the target Databricks service/resource and release label.
-2. Create or verify a dedicated Git worktree/branch off `develop` for the release. Never mix releases in one worktree.
+2. Create or verify a dedicated Git worktree/branch off the repository's integration branch for the release. Never mix releases in one worktree.
 3. Initialize `artifacts/databricks/<service-id>/` with `scripts/init_service_workspace.py` if it does not exist.
 4. Invoke `databricks-service-discovery` to produce the service profile **and first-principles system model**; approve the discovery gate.
 5. In parallel when tooling permits, invoke:
