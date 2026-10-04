@@ -802,8 +802,9 @@ class PublisherV27Tests(unittest.TestCase):
         payload = json.loads((ROOT / "tests" / "golden" / "c32-unpriced-sku.json").read_text())
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
+            envelope = {"evidence_format_version": p.EVIDENCE_FORMAT_VERSION, "publisher_version": p.PUBLISHER_VERSION, "warehouses": payload["evidence"]}
             for path in (a, b):
-                path.write_text(json.dumps(payload["evidence"]))
+                path.write_text(json.dumps(envelope))
             merged = p.load_evidence_files([str(a), str(b)])
         self.assertEqual(len(merged), 1)
         self.assertEqual(len(merged[0].daily_cost_365), len(payload["evidence"][0]["daily_cost_365"]))
@@ -979,14 +980,6 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertNotIn("no list price", methods)
         self.assertIn("billed days", methods)
 
-    def test_legacy_sparse_evidence_replays_with_the_same_blocker_as_a_fresh_run(self):
-        x = json.loads(json.dumps(p.as_serializable(self.evidence[0])))
-        x["forecast_metadata"].pop("dbu_forecast_status", None)
-        x["forecast_metadata"]["active_cost_days"] = 4
-        e = p.evidence_from_dict(x)
-        self.assertEqual(e.forecast_metadata["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
-        self.assertEqual(p.dbu_baseline_blocker(e, self.t), "BILLED_COST_DAYS_INSUFFICIENT")
-
     def test_blocker_follows_the_configured_cost_history_floor(self):
         import dataclasses
         t14 = dataclasses.replace(self.t, min_economics_cost_history_days=14)
@@ -1003,19 +996,6 @@ class PublisherV27Tests(unittest.TestCase):
         out = self.forecast(rows)
         self.assertEqual(out["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
         self.assertIsNone(out["forecast_cost_365"])
-
-    def test_legacy_evidence_with_a_zero_or_sparse_forecast_replays_as_unknown(self):
-        base = json.loads(json.dumps(p.as_serializable(self.evidence[0])))
-        base["forecast_metadata"].pop("dbu_forecast_status", None)
-        cases = {"zero": (0.0, 259), "sparse": (9733.33, 4)}
-        for name, (baseline, active) in cases.items():
-            with self.subTest(case=name):
-                x = copy.deepcopy(base)
-                x["baseline_forecast_cost_365"] = baseline
-                x["forecast_metadata"]["active_cost_days"] = active
-                self.assertIsNone(p.evidence_from_dict(x).baseline_forecast_cost_365)
-        x = copy.deepcopy(base)  # a regular legacy forecast is kept
-        self.assertEqual(p.evidence_from_dict(x).baseline_forecast_cost_365, self.evidence[0].baseline_forecast_cost_365)
 
     # --- Billing settlement: settle buffer, per-workspace watermark, ingestion cut-off ----------------------------
     def _daily(self, last_day="2026-09-30"):
@@ -1325,14 +1305,6 @@ class PublisherV27Tests(unittest.TestCase):
         sql = p.BILLING_WATERMARK_SQL
         self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),30)", sql)
         self.assertIn("billing_origin_product='SQL'", sql)
-
-    def test_replayed_short_history_cv_of_zero_is_unknown(self):
-        # Evidence written before the CV fix stored 0.0 for short histories; replay must not grant full stability credit.
-        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())["evidence"][0]
-        payload["cost_history_days"], payload["cost_cv_84"] = 3, 0.0
-        self.assertIsNone(p.evidence_from_dict(payload).cost_cv_84)
-        payload["cost_history_days"], payload["cost_cv_84"] = 30, 0.0
-        self.assertEqual(p.evidence_from_dict(payload).cost_cv_84, 0.0)
 
     def test_demo_cv_is_unknown_for_a_warehouse_with_too_little_history(self):
         for e in p.synthetic_demo_evidence(15):

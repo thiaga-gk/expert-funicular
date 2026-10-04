@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Replay evidence file",
+  "description": "Normalized WarehouseEvidence written to evidence.json and read back with --from-evidence. Format version 1.0.0; documented in docs/contracts/evidence-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_format_version", "publisher_version", "warehouses"],
+  "properties": {
+    "evidence_format_version": {"const": "1.0.0"},
+    "publisher_version": {"type": "string", "minLength": 1},
+    "warehouses": {"type": "array", "items": {"$ref": "#/$defs/warehouse"}}
+  },
+  "$defs": {
+    "nullableNumber": {"type": ["number", "null"]},
+    "freeObject": {"type": "object"},
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warehouse_type", "warehouse_channel", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes"],
+      "properties": {
+        "warehouse_type": {"type": "string"},
+        "warehouse_channel": {"type": "string"},
+        "warehouse_size": {"type": "string"},
+        "min_clusters": {"type": "integer"},
+        "max_clusters": {"type": "integer"},
+        "auto_stop_minutes": {"type": "integer"}
+      }
+    },
+    "epoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["epoch_id", "warehouse_id", "workspace_id", "account_id", "warehouse_name", "epoch_start", "epoch_end", "is_current", "config", "tags", "query", "events", "gaps", "cost", "resource_daily"],
+      "properties": {
+        "epoch_id": {"type": "string", "minLength": 1},
+        "warehouse_id": {"type": "string", "minLength": 1},
+        "workspace_id": {"type": "string"},
+        "account_id": {"type": "string"},
+        "warehouse_name": {"type": "string"},
+        "epoch_start": {"type": "string", "minLength": 1},
+        "epoch_end": {"type": ["string", "null"]},
+        "is_current": {"type": "boolean"},
+        "config": {"$ref": "#/$defs/config"},
+        "tags": {"type": "object", "additionalProperties": {"type": "string"}},
+        "query": {"$ref": "#/$defs/freeObject"},
+        "events": {"$ref": "#/$defs/freeObject"},
+        "gaps": {"$ref": "#/$defs/freeObject"},
+        "cost": {"$ref": "#/$defs/freeObject"},
+        "resource_daily": {"type": ["array", "null"], "items": {"$ref": "#/$defs/freeObject"}}
+      }
+    },
+    "photonObservation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["status", "enabled_usage_pct", "known_feature_coverage_pct", "true_dbu", "false_dbu", "null_dbu", "latest_usage_time", "freshness_days", "confidence", "evidence_source"],
+      "properties": {
+        "status": {"enum": ["ENABLED", "DISABLED", "MIXED", "UNKNOWN"]},
+        "enabled_usage_pct": {"$ref": "#/$defs/nullableNumber"},
+        "known_feature_coverage_pct": {"type": "number"},
+        "true_dbu": {"type": "number"},
+        "false_dbu": {"type": "number"},
+        "null_dbu": {"type": "number"},
+        "latest_usage_time": {"type": ["string", "null"]},
+        "freshness_days": {"type": ["integer", "null"]},
+        "confidence": {"$ref": "#/$defs/freeObject"},
+        "evidence_source": {"type": "string"}
+      }
+    },
+    "attribution": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["owner", "observed_owners", "owner_source", "query_source"],
+      "properties": {
+        "owner": {"type": ["string", "null"]},
+        "observed_owners": {"type": "array", "items": {"type": "string"}},
+        "owner_source": {"type": "string"},
+        "query_source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["categories", "percentages", "primary_category", "client_applications", "multi_label"],
+          "properties": {
+            "categories": {"type": "object", "additionalProperties": {"type": "integer"}},
+            "percentages": {"type": "object", "additionalProperties": {"type": "number"}},
+            "primary_category": {"type": "string"},
+            "client_applications": {"type": "array", "items": {"type": "string"}},
+            "multi_label": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "warehouse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "warehouse_id", "workspace_id", "account_id", "warehouse_name", "source_region", "analysis_time", "current_epoch_id", "epochs",
+        "current_cost_365", "baseline_forecast_cost_365", "currency", "cost_history_days", "cost_cv_84", "forecast_metadata",
+        "daily_cost_365", "billing_features", "aws_baseline_cost_365", "aws_cost_model", "sql_sku_prices", "compatibility_evidence",
+        "photon_observation", "attribution"
+      ],
+      "properties": {
+        "warehouse_id": {"type": "string", "minLength": 1},
+        "workspace_id": {"type": "string"},
+        "account_id": {"type": "string"},
+        "warehouse_name": {"type": "string"},
+        "source_region": {"type": "string"},
+        "analysis_time": {"type": "string", "minLength": 1},
+        "current_epoch_id": {"type": "string", "minLength": 1},
+        "epochs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/epoch"}},
+        "current_cost_365": {"$ref": "#/$defs/nullableNumber"},
+        "baseline_forecast_cost_365": {"$ref": "#/$defs/nullableNumber"},
+        "currency": {"type": "string", "minLength": 1},
+        "cost_history_days": {"type": "integer"},
+        "cost_cv_84": {"$ref": "#/$defs/nullableNumber"},
+        "forecast_metadata": {
+          "type": "object",
+          "required": ["dbu_forecast_status"],
+          "properties": {"dbu_forecast_status": {"type": "string", "minLength": 1}}
+        },
+        "daily_cost_365": {"type": "array", "items": {"$ref": "#/$defs/freeObject"}},
+        "billing_features": {"$ref": "#/$defs/freeObject"},
+        "aws_baseline_cost_365": {"$ref": "#/$defs/nullableNumber"},
+        "aws_cost_model": {"$ref": "#/$defs/freeObject"},
+        "sql_sku_prices": {"$ref": "#/$defs/freeObject"},
+        "compatibility_evidence": {"$ref": "#/$defs/freeObject"},
+        "photon_observation": {"$ref": "#/$defs/photonObservation"},
+        "attribution": {"$ref": "#/$defs/attribution"}
+      }
+    }
+  }
+}

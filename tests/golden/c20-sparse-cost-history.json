@@ -69,12 +69,13 @@
         "worker_hourly_price": 0.624,
         "worker_instance": "i3.2xlarge"
       },
-      "baseline_forecast_cost_365": 9733.33,
+      "baseline_forecast_cost_365": null,
       "billing_features": {
         "cloud": "AWS",
         "photon_usage_pct_365": 100.0,
         "serverless_usage_pct_365": 0.0
       },
+      "compatibility_evidence": {},
       "cost_cv_84": null,
       "cost_history_days": 30,
       "currency": "USD",
@@ -514,6 +515,7 @@
       ],
       "forecast_metadata": {
         "active_cost_days": 4,
+        "dbu_forecast_status": "INSUFFICIENT_ACTIVE_COST_DAYS",
         "forecast_basis_end": "2026-09-30",
         "forecast_basis_start": "2026-09-01",
         "forecast_method": "epoch-runrate-v2.10.0"

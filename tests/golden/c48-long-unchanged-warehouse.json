@@ -75,6 +75,7 @@
         "photon_usage_pct_365": 100.0,
         "serverless_usage_pct_365": 0.0
       },
+      "compatibility_evidence": {},
       "cost_cv_84": 0.25,
       "cost_history_days": 365,
       "currency": "USD",
@@ -3953,6 +3954,7 @@
       ],
       "forecast_metadata": {
         "active_cost_days": 365,
+        "dbu_forecast_status": "COMPLETE",
         "forecast_basis_end": "2026-09-30",
         "forecast_basis_start": "2025-10-01",
         "forecast_method": "epoch-runrate-v2.7",

@@ -10,6 +10,7 @@ Contract versions are declared in code (`contracts/reporter_contract.py`, `contr
 | `product/` | [`prd.md`](product/prd.md) | You need what the product must do, scope and acceptance criteria. |
 | `contracts/` | [`reporter-json-contract.md`](contracts/reporter-json-contract.md) | You consume or change the `RecommendationPackage` JSON. |
 | | [`workbook-contract.md`](contracts/workbook-contract.md) | You consume or change the workbook projection. |
+| | [`evidence-format.md`](contracts/evidence-format.md) | You write, replay (`--from-evidence`) or change `evidence.json`. |
 | `reference/` | [`source-mapping.md`](reference/source-mapping.md) | You need which system table or API feeds which field. |
 | | [`thresholds.md`](reference/thresholds.md) | You are tuning or explaining policy thresholds. |
 | | [`technique-catalog.md`](reference/technique-catalog.md) | You need stable technique IDs and the algorithm per knob. |

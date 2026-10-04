@@ -1470,7 +1470,7 @@ The manifest records publisher/contract versions, package count, package paths/I
 
 ### 28.3 Replay evidence
 
-`evidence.json` serializes normalized evidence for deterministic replay. Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity.
+`evidence.json` serializes normalized evidence for deterministic replay as a versioned envelope (`evidence_format_version` 1.0.0) validated against `schema/evidence.schema.json` on write and on load; any other version, or a bare list, is rejected (`docs/contracts/evidence-format.md`). Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity.
 
 ---
 
