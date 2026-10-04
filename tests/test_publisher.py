@@ -1434,7 +1434,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIn("billing_origin_product='SQL'", sql)
 
     def test_demo_cv_is_unknown_for_a_warehouse_with_too_little_history(self):
-        for e in p.synthetic_demo_evidence(15):
+        for e in p.synthetic_demo_evidence():
             if e.cost_history_days < self.t.forecast_cv_min_days:
                 self.assertIsNone(e.cost_cv_84, e.warehouse_name)
 

@@ -7,6 +7,8 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 - **Status:** pass = the code behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
 - **Tracker:** finding IDs that change the behaviour; — when nothing needs to change.
 
+The `--demo` fleet has one simulated warehouse per scenario listed in `publisher.DEMO_FLEET` (config tag `golden_scenario`); `tests/test_demo_fleet.py` asserts the passing rows it contains.
+
 | ID | Scenario | Signature | Expected behavior | In scope | Code coverage | Status | Tracker |
 |---|---|---|---|---|---|---|---|
 | C01 | Always-on idle | `warehouses.auto_stop_minutes = 0`; billed hours ≫ `query.history` busy hours | Auto-stop is the first ready step. Target = cheapest value on the allowed grid (Pro/Classic 10–60), counting idle running time kept plus the cost of restarts the change adds, with added cold-start queries ≤ 2% of queries. Any finite target captures most of the saving (constructed run: Pro MEDIUM, 1 cluster, 2,000 weekday queries a month, about 79–80k/yr). If a polling client keeps gaps short, flag the client instead of claiming savings. | yes | covered | fail | K1, M1, G32, G40, G11, K5 |

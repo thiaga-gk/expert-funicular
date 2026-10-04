@@ -817,7 +817,7 @@ The product shall support running from normalized evidence files without re-quer
 
 ### FR-RUN-004 — Synthetic execution
 
-The product shall include deterministic synthetic evidence sufficient to exercise at least 15 representative warehouses through the same publisher path used by live/replayed evidence.
+The product shall include deterministic synthetic evidence sufficient to exercise one simulated warehouse per golden scenario through the same publisher path used by live/replayed evidence.
 
 ### FR-RUN-005 — Output directory
 
@@ -969,7 +969,7 @@ The current product increment is accepted when all of the following remain true:
 7. Package economics are a scenario envelope.
 8. Reporter Contract v1.2.0 packages validate semantically and against JSON Schema.
 9. Workbook Contract v1.3.0 is a pure four-sheet projection of the packages.
-10. The 15-warehouse synthetic run produces 15 packages, 30 scenarios, 90 candidate rows, and one readable workbook.
+10. The demo fleet run (one simulated warehouse per golden scenario) produces one package per warehouse (38 packages, 76 scenarios, 228 candidate rows) and one readable workbook.
 11. Workbook financial-impact fields are numeric, explicitly currency-scoped, and use signed values: positive = savings, negative = cost increase; unavailable remains unavailable rather than zero.
 12. The test suite passes in a clean checkout/extracted artifact.
 
