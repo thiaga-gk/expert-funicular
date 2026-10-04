@@ -1,6 +1,6 @@
 # M9 contract design: show the next step after an applied change
 
-Status: **DESIGN FOR SIGN-OFF. No contract, schema, workbook or publisher code has been written.** Per the working agreement, any public-contract change needs your sign-off on this diff first. Method: `databricks-contract-designer` skill, applied to an existing locked contract, which "evolves deliberately by version" rather than being rebuilt in the generic form.
+Status: **DESIGN SIGNED OFF on 2026-10-03 (decisions D1 to D7 as recommended in section 13). No contract, schema, workbook or publisher code has been written yet.** Implementation of Stage 1 is the next step; Stage 2 ships after M2. The CLAUDE.md exception in section 9 is **not** applied and will be shown again when Stage 2 is built. Method: `databricks-contract-designer` skill, applied to an existing locked contract, which "evolves deliberately by version" rather than being rebuilt in the generic form.
 
 Inputs: `docs/proposals/audit-m-group-b.md` section M9 (options A/B/C and the ExecutionState taxonomy), `contracts/reporter_contract.py` (1.1.0), `contracts/reporter_schema.py`, `contracts/workbook_contract.py`, `docs/reporter-json-contract-v1.1.0.md`, `docs/workbook-contract-v1.2.0.md`.
 
@@ -225,7 +225,9 @@ Stage 2 (additional): `applied-size-step`, `applied-different-value`, `two-knobs
 - Publisher version: new minor (2.9.0), because decisions do not change but public output does.
 - Evidence format: Stage 1 needs no new evidence fields. Stage 2 needs the prior-epoch fields; absent fields fail closed (see section 10).
 
-## 13. Decisions needed
+## 13. Decisions (all approved as recommended, 2026-10-03)
+
+D2 outcome: one contract bump (1.2.0) that defines the Stage 2 `carried_forward_plan` block now; it stays null until Stage 2 ships. D3 outcome: the exception text is approved in principle but not applied to CLAUDE.md until Stage 2 is implemented after M2.
 
 | # | Decision | Recommendation |
 |---|---|---|
