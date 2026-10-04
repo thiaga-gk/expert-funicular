@@ -525,11 +525,11 @@ Conflicting evidence for the same warehouse/epoch must fail rather than silently
 
 Synthetic mode creates deterministic normalized evidence and then enters the same downstream path as replay/live evidence.
 
-The sealed v2.10.0 fixture exercises 15 representative warehouses and produces:
+The demo fleet has one simulated warehouse per golden scenario. Its evidence is simulated from workload descriptions (query windows, auto-stop, concurrency-driven clusters, billed DBU from published DBU/hour and SKU list prices) and normalized by the same extraction used for live evidence. The full fleet produces:
 
-- 15 recommendation packages,
-- 30 scenarios,
-- 90 candidate rows,
+- 38 recommendation packages,
+- 76 scenarios,
+- 228 candidate rows,
 - one four-sheet workbook.
 
 Synthetic mode is a test/illustration facility, not an alternate recommendation engine.
@@ -947,11 +947,11 @@ flowchart TD
     T --> G[Golden scenario tests]
     G --> RC[Reporter Contract tests]
     RC --> WC[Workbook projection / column-conformance tests]
-    WC --> E2E[15-warehouse end-to-end synthetic run]
+    WC --> E2E[Golden-scenario fleet end-to-end synthetic run]
 ```
 
 
-The sealed v2.10.0 repository is validated by the full regression suite plus the 15-warehouse synthetic end-to-end run; reproduce the results with the commands in `CLAUDE.md`.
+The sealed v2.10.0 repository is validated by the full regression suite plus the golden-scenario fleet synthetic end-to-end run; reproduce the results with the commands in `CLAUDE.md`.
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior, especially around:
 

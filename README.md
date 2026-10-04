@@ -64,13 +64,15 @@ Economic cells are numeric whenever available. Positive annual impact means savi
 
 See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md).
 
-## Synthetic 15-warehouse end-to-end test
+## Synthetic golden-scenario fleet (end-to-end test)
 
 ```bash
-python publisher.py --demo --demo-count 15 --output-dir ./demo_out
+python publisher.py --demo --output-dir ./demo_out
 ```
 
-Expected output: 15 immutable packages, 30 scenarios, 90 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The output directory is not tracked; regenerate it with the command above.
+The demo fleet has one simulated warehouse per golden scenario (38 warehouses, each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..38) runs the first N warehouses.
+
+Expected output: 38 immutable packages, 76 scenarios, 228 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The output directory is not tracked; regenerate it with the command above.
 
 ## Live collector execution
 
@@ -124,4 +126,4 @@ The suite version is declared in `.claude/skills/suite.yaml`; the validator repo
 python -m unittest discover -s tests -v
 ```
 
-The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic 15-warehouse flow.
+The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic golden-scenario fleet flow.

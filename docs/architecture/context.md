@@ -1088,7 +1088,7 @@ Use replay for:
 
 ### 32.3 Synthetic/demo mode
 
-Generates deterministic synthetic collector evidence for up to 15 warehouses and runs it through the same downstream publisher pipeline.
+Generates deterministic synthetic collector evidence for a fleet of simulated warehouses (one per golden scenario) and runs it through the same downstream publisher pipeline.
 
 Synthetic mode is for product validation and demonstration; it is not a source of product truth.
 

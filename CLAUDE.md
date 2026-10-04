@@ -7,7 +7,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - Compile check: `python -m compileall -q publisher.py contracts reporters tests tools`
 - All tests: `python -m unittest discover -s tests -v`
 - One test: `python -m unittest tests.test_publisher.<Class>.<test_name> -v` (or a module: `tests.test_workbook_contract`)
-- 15-warehouse demo: `python publisher.py --demo --demo-count 15 --output-dir ./demo_out`
+- Demo (one warehouse per golden scenario): `python publisher.py --demo --output-dir ./demo_out`
 - Workbook validator: `python tools/validate_workbook.py ./demo_out`
 - Contract example: `python -m contracts.validate_example`
 - Skill suite: `python tools/validate_skill_suite.py`
