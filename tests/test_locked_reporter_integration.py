@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
+from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 import publisher
 from contracts import reporter_contract as rc
@@ -166,6 +169,35 @@ class LockedReporterIntegrationTests(unittest.TestCase):
             for package in packages:
                 package.validate()
                 publisher.validate_locked_package_schema(package.to_dict())
+
+
+class PublicIdentityTests(unittest.TestCase):
+    """Public IDs come only from the contract helpers, never from publisher.py's internal join keys."""
+
+    INTERNAL_KEYS = (("epoch_id", "ZZEPOCH-"), ("finding_id", "ZZFND-"), ("recommendation_id", "ZZREC-"), ("scenario_id", "ZZSCN-"))
+
+    @staticmethod
+    def _unrelated(prefix):
+        return lambda *args: prefix + hashlib.md5(json.dumps(args, sort_keys=True, default=str).encode()).hexdigest()[:11].upper()
+
+    @staticmethod
+    def _fleet():
+        evidence = publisher.demo_evidence() + publisher.synthetic_demo_evidence(15)
+        packages = publisher.build_recommendation_packages(evidence, publisher.Thresholds())
+        return evidence, [package.to_dict() for package in packages]
+
+    def test_public_ids_ignore_internal_join_keys(self):
+        baseline_evidence, baseline = self._fleet()
+        with ExitStack() as stack:
+            mocks = [stack.enter_context(patch.object(publisher, name, side_effect=self._unrelated(prefix)))
+                     for name, prefix in self.INTERNAL_KEYS]
+            scrambled_evidence, scrambled = self._fleet()
+        # The patch must really have changed the internal keys, or this test proves nothing.
+        self.assertTrue(all(m.called for m in mocks))
+        self.assertFalse(any(e.current_epoch_id.startswith("ZZ") for e in baseline_evidence))
+        self.assertTrue(all(e.current_epoch_id.startswith("ZZEPOCH-") for e in scrambled_evidence))
+        self.assertEqual(len(baseline), 16)
+        self.assertEqual(scrambled, baseline)
 
 
 if __name__ == "__main__":
