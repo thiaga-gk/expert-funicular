@@ -9,7 +9,7 @@ Purpose: resolve every tracker finding, one at a time, until every **in-scope** 
 | Findings, design, decisions D1–D14 | `docs/proposals/gap-review-2.8.0.md` |
 | Golden scenarios (one table; finding IDs only in the Tracker column) | `docs/proposals/golden-scenarios.md` |
 | Live status, priority order | Tracker artifact https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w, collection `findings`, doc id = finding id |
-| Earlier proposals M1–M4, M9 | `docs/proposals/audit-m-group-b.md`, `docs/proposals/m9-contract-design.md` |
+| Earlier proposals M1–M4, M9 | `docs/archive/audit-m-group-b.md`, `docs/archive/m9-contract-design.md` |
 | Execution rules | `CLAUDE.md` (change loop, contract rules, security) |
 
 Tracker fields: `rank` (sort key; may be fractional), `batch`, `status` (Open, In progress, Needs input, Done, Deferred), `decision`, `note`, `updated`. Read with `ArtifactData` `list`/`get`; write with `update` and `if_version` set to the version you last read. Never delete rows.
@@ -30,11 +30,11 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 4. **Refactor**, then run the full CLAUDE.md change loop:
    1. `python -m compileall -q publisher.py contracts reporters tests`
    2. `python -m unittest discover -s tests -v`
-   3. regenerate the 15-warehouse demo (`python publisher.py --demo --output-dir examples/demo_output`)
+   3. regenerate the 15-warehouse demo (`python publisher.py --demo --demo-count 15 --output-dir ./demo_out`)
    4. validate every package (semantic + JSON Schema)
-   5. `python tools/validate_workbook.py examples/demo_output`
+   5. `python tools/validate_workbook.py ./demo_out`
    6. stale version/legacy reference scan before any release step
-5. **Versions:** any decision-affecting change bumps the affected component versions (`POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`). The first decision-affecting merge of this cycle moves `PUBLISHER_VERSION` to the next minor (2.10.0) and the affected components to `v2.10.0`; later merges in the cycle update any component newly affected. Contract versions change only through the contract gate below. Regenerate goldens and examples in the same commit.
+5. **Versions:** any decision-affecting change bumps the affected component versions (`POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`). The first decision-affecting merge of this cycle moves `PUBLISHER_VERSION` to the next minor (2.10.0) and the affected components to `v2.10.0`; later merges in the cycle update any component newly affected. Contract versions change only through the contract gate below. Regenerate goldens and the contract example in the same commit.
 6. **Golden table:** for each scenario row this issue touches, set **Code coverage** to *covered* once code handles it, and **Status** to *pass* only when its golden test passes **and** every finding in its Tracker cell is *Done* (this one included after merge). Never add finding IDs to any column but Tracker.
 7. **Review:** run `/code-review low` on the branch. If it returns nothing suspiciously fast, run an independent review subagent (Opus) on `git diff master...fix/<id>` instead. Fix confirmed findings and repeat steps 4–7.
 8. **Merge:** from the main checkout, `git merge --no-ff fix/<id>` into `master` with a message naming the finding IDs; delete the branch. Do not push.

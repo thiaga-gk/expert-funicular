@@ -1,6 +1,15 @@
 # Databricks SQL Warehouse Optimizer — v2.10.0
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.2.0** as the machine source of truth and **Workbook Reporter Contract v1.2.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The sealed testing baseline uses **Reporter JSON Contract v1.2.0** as the machine source of truth and **Workbook Reporter Contract v1.3.0** as the professional human projection.
+
+## Install
+
+Python 3.10 or newer.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
 
 ## Canonical flow
 
@@ -53,7 +62,7 @@ The workbook contains exactly four sheets:
 
 Economic cells are numeric whenever available. Positive annual impact means savings; negative annual impact means cost increase and uses accounting-style parentheses/red formatting. Separate `Currency` and `Impact Type` columns make the meaning explicit. Unavailable economics are never coerced to zero.
 
-See [`docs/workbook-contract-v1.3.0.md`](docs/workbook-contract-v1.3.0.md).
+See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md).
 
 ## Synthetic 15-warehouse end-to-end test
 
@@ -61,7 +70,7 @@ See [`docs/workbook-contract-v1.3.0.md`](docs/workbook-contract-v1.3.0.md).
 python publisher.py --demo --demo-count 15 --output-dir ./demo_out
 ```
 
-Expected output: 15 immutable packages, 30 scenarios, 90 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The committed example is under `examples/demo_output/`.
+Expected output: 15 immutable packages, 30 scenarios, 90 candidate recommendations, one `workbook.xlsx`, replay evidence, manifest and log. The output directory is not tracked; regenerate it with the command above.
 
 ## Live collector execution
 
@@ -91,32 +100,21 @@ python publisher.py \
 
 ## Documentation
 
-Canonical approved documents:
+[`docs/README.md`](docs/README.md) indexes every document by audience: product, architecture, contracts, reference, skills, proposals and archive. Start with [`docs/architecture/context.md`](docs/architecture/context.md) for the domain language, then the two contract docs under `docs/contracts/`.
 
-- [`docs/prd.md`](docs/prd.md) — product requirements.
-- [`docs/hld.md`](docs/hld.md) — high-level architecture.
-- [`docs/lld.md`](docs/lld.md) — implementation/contract design.
-- [`docs/context.md`](docs/context.md) — domain language and invariants.
-- [`docs/reporter-json-contract-v1.2.0.md`](docs/reporter-json-contract-v1.2.0.md) — machine contract.
-- [`docs/workbook-contract-v1.3.0.md`](docs/workbook-contract-v1.3.0.md) — workbook contract.
-
-Supporting current references: `source-mapping.md`, `technique-catalog.md`, `thresholds.md`, `aws-cost-model.md`, `known-limitations.md`.
-
-## Reusable Databricks publisher skill suite — v1.1.0
+## Reusable Databricks publisher skill suite
 
 This repo also contains a reusable nine-skill system under `.claude/skills/` for building equivalent deterministic publishers for other Databricks services without copying SQL-Warehouse domain assumptions.
 
 Start with `databricks-publisher-orchestrator`. It coordinates service discovery, source contracts, technique catalog, economics, public contracts, implementation, independent validation, and release sealing through explicit artifact gates. The generic reporter vocabulary uses `resource`, not `warehouse`, so Job Cluster/Lakeflow implementations rediscover their own identity/configuration/economics while reusing the proven publisher architecture.
 
-See [`docs/skill-system-design.md`](docs/skill-system-design.md). Validate the suite with:
+See [`docs/skills.md`](docs/skills.md). Validate the suite with:
 
 ```bash
 python tools/validate_skill_suite.py
 ```
 
-The suite contains 180 trigger/non-trigger eval queries, 39 functional eval cases, and SQL Warehouse / Job Cluster / Lakeflow cross-service control cases.
-
-v1.1.0 makes the optimization reasoning model explicit: First Principles → Causal Mechanism → Constraints-First Optimization → Counterfactual → Second-Order Effects → Validation & Learning. See `docs/optimization-thinking-framework.md` and `docs/sql-warehouse-v2.7-thinking-framework-audit.md`.
+The suite version is declared in `.claude/skills/suite.yaml`; the validator reports the current eval counts. The optimization reasoning model is explicit: First Principles → Causal Mechanism → Constraints-First Optimization → Counterfactual → Second-Order Effects → Validation & Learning (`.claude/skills/databricks-publisher-orchestrator/references/optimization-thinking-framework.md`).
 
 ## Tests
 
@@ -124,12 +122,4 @@ v1.1.0 makes the optimization reasoning model explicit: First Principles → Cau
 python -m unittest discover -s tests -v
 ```
 
-The suite covers collector/normalization/model/optimizer behavior, deterministic identities, 10 golden scenarios, Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic 15-warehouse flow.
-
-## Economics semantics
-
-- historical actual ≠ forward no-change baseline;
-- candidate economics are independent/non-additive;
-- scenario economics are stateful ordered bundle counterfactuals;
-- package economics are an opportunity envelope across assessable scenarios;
-- realization is measured post-change outcome and never mutates the original package identity.
+The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic 15-warehouse flow.

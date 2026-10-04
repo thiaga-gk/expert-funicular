@@ -639,7 +639,7 @@ def project_executive(packages: Sequence[rc.RecommendationPackage], portfolio_ro
 
 
     metrics = [
-        {"section":"Coverage","metric":"Workbook contract","value":WORKBOOK_CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Compact projection of Reporter JSON Contract v1.1.0"},
+        {"section":"Coverage","metric":"Workbook contract","value":WORKBOOK_CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Compact projection of the Reporter JSON Contract"},
         {"section":"Coverage","metric":"Reporter contract","value":rc.CONTRACT_VERSION,"currency":DISPLAY_NA,"notes":"Locked JSON source of truth"},
         {"section":"Coverage","metric":"Warehouses assessed","value":len(packages),"currency":DISPLAY_NA,"notes":"One immutable package per warehouse/current epoch"},
         {"section":"Coverage","metric":"Workspaces","value":len({p.warehouse.workspace_id for p in packages}),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
