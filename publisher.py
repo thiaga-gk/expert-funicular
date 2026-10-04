@@ -453,6 +453,8 @@ class PlanStep:
     running_aws_cost_range_365: Optional[Range3] = None
     running_dbu_savings_range_365: Optional[Range3] = None
     running_aws_savings_range_365: Optional[Range3] = None
+    step_dbu_savings_range_365: Optional[Range3] = None
+    step_aws_savings_range_365: Optional[Range3] = None
     confidence: Dict[str, Any] = field(default_factory=dict)
     pricing_basis: str = "AUTHORITATIVE"
 
@@ -3171,6 +3173,14 @@ class StatefulBundleEstimator:
         return Range3(*(round(x,2) for x in vals))
 
     @staticmethod
+    def _step_range(before: Optional[Sequence[float]], after: Optional[Sequence[float]]) -> Optional[Range3]:
+        """This step's own savings on its chain, per track (cost before minus after, clamped like running costs):
+        low/high = smallest/largest track change, base = the base track's change, so low <= base <= high always holds."""
+        if before is None or after is None: return None
+        d=[max(0.0,float(b))-max(0.0,float(a)) for b,a in zip(before,after)]
+        return Range3(round(min(d),2),round(d[1],2),round(max(d),2))
+
+    @staticmethod
     def _delta(baseline: Optional[float], cost: Optional[Range3]) -> Optional[Range3]:
         if baseline is None or cost is None: return None
         return Range3(round(baseline-cost.high,2),round(baseline-cost.base,2),round(baseline-cost.low,2))
@@ -3295,9 +3305,11 @@ class StatefulBundleEstimator:
             effect=c.metadata.get("bundle_effect") or {"type":"no_cost_change"}
             pending=step.execution_state=="PENDING_REEVALUATION"
             step.pricing_basis=PRICING_CONTINGENT if pending else PRICING_AUTHORITATIVE
+            chain=cont if pending else auth
+            # The step's own savings are differenced on its own chain, so capture that chain's tracks before applying.
+            before_dbu,before_aws=list(chain.dbu_tracks),(list(chain.aws_tracks) if chain.aws_tracks is not None else None)
             if not pending: self._apply(auth,c,effect,original_resource,realizations)
             self._apply(cont,c,effect,original_resource,realizations)
-            chain=cont if pending else auth
             snap=self._portfolio(e,"RUNNING",chain.dbu_tracks,chain.aws_tracks,"Running stateful plan estimate.") if chain.halt is None else None
             step.running_dbu_cost_range_365=snap.dbu_365d_estimated_cost_range if snap else None
             step.running_aws_cost_range_365=snap.aws_365d_estimated_cost_range if snap else None
@@ -3305,6 +3317,8 @@ class StatefulBundleEstimator:
             step.running_aws_savings_range_365=snap.aws_365d_savings_range if snap else None
             step.running_estimated_cost_range_365=(snap.total_365d_estimated_cost_range or snap.dbu_365d_estimated_cost_range) if snap else None
             step.running_estimated_savings_range_365=(snap.total_365d_savings_range or snap.dbu_365d_savings_range) if snap else None
+            step.step_dbu_savings_range_365=self._step_range(before_dbu,chain.dbu_tracks) if snap else None
+            step.step_aws_savings_range_365=self._step_range(before_aws,chain.aws_tracks) if snap and snap.aws_365d_savings_range is not None else None
 
         priced=[x for x in steps if x.pricing_basis==PRICING_AUTHORITATIVE]
         has_pending=len(priced)<len(steps)
@@ -3426,7 +3440,7 @@ class ScenarioPlanner:
 
 
 # ---------------------------------------------------------------------------
-# Locked Reporter JSON Contract v1.2.0 adapter / canonical JSON packaging
+# Locked Reporter JSON Contract adapter / canonical JSON packaging
 # ---------------------------------------------------------------------------
 
 
@@ -3477,15 +3491,20 @@ def _contract_component_ranges(
 
 
 def _step_projection(step: PlanStep) -> Optional[rc.StepProjection]:
-    """Cumulative stateful savings after this step, or None when the chain could not price it."""
+    """Cumulative and own stateful savings for this step, or None when the chain could not price it."""
     if step.running_dbu_savings_range_365 is None and step.running_aws_savings_range_365 is None:
         return None
     total = step.running_estimated_savings_range_365 if step.running_aws_savings_range_365 is not None else None
+    dbu_step, aws_step = step.step_dbu_savings_range_365, step.step_aws_savings_range_365
+    step_total = None if dbu_step is None or aws_step is None else Range3(
+        dbu_step.low + aws_step.low, dbu_step.base + aws_step.base, dbu_step.high + aws_step.high
+    )
     return rc.StepProjection(
         pricing_basis=rc.PricingBasis(step.pricing_basis),
         running_savings_365d=_contract_component_ranges(
             step.running_dbu_savings_range_365, step.running_aws_savings_range_365, total
         ),
+        step_savings_365d=None if dbu_step is None else _contract_component_ranges(dbu_step, aws_step, step_total),
     )
 
 
@@ -4426,7 +4445,7 @@ def _build_locked_recommendation_package(
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
 ) -> rc.RecommendationPackage:
-    """Build one immutable Reporter JSON Contract v1.2.0 package from reviewed decisions."""
+    """Build one immutable Reporter JSON Contract package from reviewed decisions."""
     ep = e.current_epoch
     start_time = _iso_z(ep.epoch_start)
     contract_epoch_id = rc.make_epoch_id(
@@ -4662,7 +4681,7 @@ def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
     try:
         import jsonschema  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("jsonschema>=4.23 is required to validate Reporter Contract v1.2.0 output") from exc
+        raise RuntimeError(f"jsonschema>=4.23 is required to validate Reporter Contract v{rc.CONTRACT_VERSION} output") from exc
     schema = json.loads(_CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator(schema).validate(dict(payload))
 
@@ -4679,7 +4698,7 @@ def package_locked_contract(
     *,
     generate_workbook: bool = True,
 ) -> Dict[str, str]:
-    """Write locked JSON packages plus the Workbook Contract v1.3.0 projection.
+    """Write locked JSON packages plus the Workbook Contract projection.
 
     Every packages/*.json file remains the source of truth. workbook.xlsx is a
     presentation-only projection and is never read back into the decision engine.
@@ -4717,7 +4736,7 @@ def package_locked_contract(
             from reporters.workbook_reporter import write_workbook
         except ImportError as exc:
             raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
-        workbook_path = write_workbook(output_dir / "workbook.xlsx", packages)
+        workbook_path = write_workbook(output_dir / "workbook.xlsx", packages, unsupported_warehouse_exclusions(evidence))
         result["workbook"] = str(workbook_path)
         LOGGER.info("workbook.v1.done path=%s", workbook_path)
     manifest_path = output_dir / "manifest.json"
@@ -4730,7 +4749,7 @@ def package_locked_contract(
         "packages": entries,
         "excluded_warehouse_count": len(exclusions),
         "excluded_warehouses": exclusions,
-        "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.2.0 RecommendationPackage.",
+        "canonical_json_semantics": f"Each packages/*.json file is exactly one Reporter JSON Contract v{rc.CONTRACT_VERSION} RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
         "workbook_file": None if workbook_path is None else workbook_path.name,
@@ -5591,7 +5610,8 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v1.3.0)")
+    from contracts import workbook_contract as wc
+    p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION})")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])
@@ -5684,7 +5704,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)-excluded_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v1.2.0 package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
+        print(f"Analyzed {len(evidence)-excluded_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v{rc.CONTRACT_VERSION} package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
         for k,v in files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0

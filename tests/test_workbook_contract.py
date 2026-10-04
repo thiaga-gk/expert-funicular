@@ -97,7 +97,7 @@ class WorkbookContractTests(unittest.TestCase):
                     self.assertEqual(spec.number_format,"@",spec.key)
 
     def test_workbook_contract_column_counts_and_long_identifier_rendering(self):
-        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(61,45,53))
+        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(61,45,56))
         # Long digit-only identifiers are written as explicit text cells, so no apostrophe workaround is needed.
         self.assertEqual(wr._excel_text("1234567890123456"), "1234567890123456")
         self.assertEqual(wr._excel_text("wh-synth-001"), "wh-synth-001")
@@ -160,9 +160,64 @@ class WorkbookContractTests(unittest.TestCase):
             self.assertEqual(Path(files["workbook"]).name,"workbook.xlsx")
             self.assertTrue(Path(files["workbook"]).exists())
             manifest=json.loads(Path(files["manifest"]).read_text())
-            self.assertEqual(manifest["workbook_contract_version"],"1.3.0")
+            self.assertEqual(manifest["workbook_contract_version"],"1.4.0")
             self.assertEqual(manifest["workbook_status"],"GENERATED")
 
 
 if __name__=="__main__":
     unittest.main()
+
+
+class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
+    """Reporter 1.3.0 per-step savings and the Workbook 1.4.0 plan-vs-experiment and exclusion rows."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.t=p.Thresholds()
+        cls.packages=p.build_recommendation_packages(p.synthetic_demo_evidence(),cls.t)
+
+    def test_step_savings_are_ordered_and_add_up_along_the_authoritative_chain(self):
+        checked=0
+        for pkg in self.packages:
+            plan=next(s for s in pkg.scenarios if s.status==p.rc.ScenarioStatus.RECOMMENDED)
+            auth=[x.projected_economics for x in plan.execution_plan if x.projected_economics is not None
+                  and x.projected_economics.pricing_basis==p.rc.PricingBasis.AUTHORITATIVE and x.projected_economics.step_savings_365d is not None]
+            for pe in auth:
+                total=pe.step_savings_365d.total
+                if total is not None:
+                    self.assertTrue(total.low<=total.base<=total.high)
+            if len(auth)>=2 and all(x.step_savings_365d.total is not None for x in auth):
+                self.assertAlmostEqual(sum(x.step_savings_365d.total.base for x in auth), auth[-1].running_savings_365d.total.base, delta=0.05*len(auth))
+                self.assertAlmostEqual(auth[0].step_savings_365d.total.base, auth[0].running_savings_365d.total.base, delta=0.03)
+                checked+=1
+        self.assertGreater(checked,0)
+
+    def test_unpriced_step_has_no_step_savings(self):
+        for pkg in self.packages:
+            for s in pkg.scenarios:
+                for x in s.execution_plan:
+                    if x.projected_economics is None:
+                        continue
+                    if x.projected_economics.running_savings_365d.total is None:
+                        self.assertTrue(x.projected_economics.step_savings_365d is None or x.projected_economics.step_savings_365d.total is None)
+
+    def metrics(self, excluded):
+        return {m["metric"]: m for m in wc.project_workbook(self.packages, excluded).executive_metrics}
+
+    def test_executive_summary_separates_plan_savings_from_experiment_upside(self):
+        m=self.metrics([])
+        low,base,high=(m[f"Plan savings {b}"]["value"] for b in ("low","base","high"))
+        self.assertTrue(low<=base<=high)
+        self.assertGreater(m["Migration experiment high"]["value"], 0)
+        self.assertEqual(m["Excluded (unsupported type)"]["value"], 0)
+
+    def test_exclusion_row_counts_unsupported_warehouses_or_says_unavailable(self):
+        excluded=[{"workspace_id":"w","warehouse_id":"x","warehouse_type":"LAKEHOUSE_REALTIME","reason":"UNSUPPORTED_WAREHOUSE_TYPE"}]
+        row=self.metrics(excluded)["Excluded (unsupported type)"]
+        self.assertEqual(row["value"],1)
+        self.assertIn("LAKEHOUSE_REALTIME",row["notes"])
+        self.assertEqual(self.metrics(None)["Excluded (unsupported type)"]["value"], wc.DISPLAY_UNAVAILABLE)
+
+    def test_plan_text_states_each_priced_steps_own_savings(self):
+        texts=[r.get("execution_plan") or "" for r in wc.project_workbook(self.packages, []).scenario_plans]
+        self.assertTrue(any("; step saves " in t for t in texts))

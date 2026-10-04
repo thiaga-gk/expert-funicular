@@ -1,6 +1,6 @@
 # inframate-v1
 
-Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, Reporter JSON Contract v1.2.0, Workbook Contract v1.3.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
+Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, Reporter JSON Contract v1.3.0, Workbook Contract v1.4.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
 
 ## Commands
 Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.

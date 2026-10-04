@@ -178,10 +178,13 @@ def build_package() -> RecommendationPackage:
     plan_a_contingent_savings = ranges((11130.20,16781.91,22621.99),(2814.02,5232.32,7386.81),(13944.22,22014.23,30008.80))
     plan_a_contingent_cost = ranges((4378.01,10218.09,15869.80),(1407.01,3561.50,5979.80),(5785.02,13779.59,21849.60))
     step_running = {
-        1: (StepProjection(PricingBasis.AUTHORITATIVE, plan_a_savings)),
-        2: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_savings)),
-        3: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, ranges((7000,11000,15500),(1800,3300,4800),(8800,14300,20300)))),
-        4: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_contingent_savings)),
+        # Running savings are cumulative; step savings are each step's own change on its chain (contract 1.3.0).
+        1: (StepProjection(PricingBasis.AUTHORITATIVE, plan_a_savings, plan_a_savings)),
+        2: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_savings, ranges((0,0,0),(0,0,0),(0,0,0)))),
+        3: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, ranges((7000,11000,15500),(1800,3300,4800),(8800,14300,20300)),
+                           ranges((4000,6200,8900),(800,1600,2400),(4800,7800,11300)))),
+        4: (StepProjection(PricingBasis.CONTINGENT_PENDING_REEVALUATION, plan_a_contingent_savings,
+                           ranges((4130.20,5781.91,7121.99),(1014.02,1932.32,2586.81),(5144.22,7714.23,9708.80)))),
     }
     plan_b_savings = ranges((4000,9000,13000),(8793.82,8793.82,8793.82),(12793.82,17793.82,21793.82))
     plan_b_cost = ranges((14000,18000,23000),(0,0,0),(14000,18000,23000))

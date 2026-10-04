@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.2.0  
-**Workbook Contract:** v1.3.0  
+**Reporter JSON Contract:** v1.3.0  
+**Workbook Contract:** v1.4.0  
 
 Role: implementation design of the current publisher.
 
@@ -29,8 +29,8 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 1.2.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
-| Workbook Contract | 1.3.0 | `contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
+| Reporter JSON Contract | 1.3.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
+| Workbook Contract | 1.4.0 | `contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
 
@@ -38,7 +38,7 @@ The publisher implements the design directly:
 
 1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
-3. Workbook Contract v1.3.0 is a numeric-first presentation projection of the public packages.
+3. Workbook Contract v1.4.0 is a numeric-first presentation projection of the public packages.
 
 Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
 
@@ -66,7 +66,7 @@ The repository is organized in layers: `publisher.py` (the domain engine and CLI
 ```mermaid
 flowchart LR
     SRC[Databricks sources] --> PUB[publisher.py domain engine]
-    PUB --> RC[Reporter Contract v1.2.0]
+    PUB --> RC[Reporter Contract v1.3.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -1128,7 +1128,7 @@ Only after reviewer gate 2 may the public contract adapter run.
 
 ---
 
-## 22. Public Reporter JSON Contract v1.2.0
+## 22. Public Reporter JSON Contract v1.3.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1297,7 +1297,7 @@ Realization never changes the original `PKG-*` identity.
 
 ---
 
-## 27. Workbook Contract v1.3.0
+## 27. Workbook Contract v1.4.0
 
 The workbook is generated from already-validated `RecommendationPackage` objects.
 
@@ -1508,7 +1508,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A dependency/invalidation order is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.2.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v1.3.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.

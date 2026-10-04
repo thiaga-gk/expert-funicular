@@ -1,4 +1,4 @@
-"""Reporter contract v1.2.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v1.3.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from publisher.py.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -31,7 +31,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "1.2.0"
+CONTRACT_VERSION = "1.3.0"
 # Re-evaluation gates (contract 1.2.0). The validator embeds them, so changing the matching publisher policy
 # thresholds (current_config_stability_days, min_economics_cost_history_days) requires a contract version bump.
 REEVALUATION_EPOCH_MATURITY_DAYS = 7
@@ -1067,12 +1067,25 @@ class ValidationGate:
 
 @dataclass(frozen=True)
 class StepProjection:
-    """Cumulative stateful savings after this step, signed (positive = savings), with its pricing basis."""
+    """Stateful savings for one plan step, signed (positive = savings), with its pricing basis.
+
+    ``running_savings_365d`` is cumulative up to and including this step. ``step_savings_365d`` (contract 1.3.0) is this
+    step's own change on its pricing chain, per realization track (running savings after this step minus after the
+    previous step on the same chain): low/high are the smallest/largest track change, base is the base track's change.
+    """
     pricing_basis: PricingBasis
     running_savings_365d: ComponentRanges
+    step_savings_365d: Optional[ComponentRanges] = None
 
     def validate(self) -> None:
         self.running_savings_365d.validate(nonnegative=False, field_name="plan_step.projected_economics.running_savings_365d")
+        if self.step_savings_365d is not None:
+            self.step_savings_365d.validate(nonnegative=False, field_name="plan_step.projected_economics.step_savings_365d")
+            for component in ("dbu", "aws", "total"):
+                _require(
+                    (getattr(self.step_savings_365d, component) is None) == (getattr(self.running_savings_365d, component) is None),
+                    f"plan_step.projected_economics.step_savings_365d.{component} must be null exactly when running_savings_365d.{component} is null",
+                )
 
 
 @dataclass(frozen=True)
@@ -1209,6 +1222,22 @@ class Scenario:
             last_authoritative = last_projection(PricingBasis.AUTHORITATIVE)
             if last_authoritative is not None:
                 same(econ.savings_365d, last_authoritative, "scenario savings must equal the last authoritative step's running savings")
+        # contract 1.3.0: the first authoritative step starts from the no-change baseline, so its own change equals its
+        # running savings; step lows/highs are per-step track minima/maxima, so their sums bracket the final running range.
+        auth_steps = [x.projected_economics for x in ordered_steps
+                      if x.projected_economics is not None and x.projected_economics.pricing_basis == PricingBasis.AUTHORITATIVE
+                      and x.projected_economics.step_savings_365d is not None]
+        if auth_steps:
+            same(auth_steps[0].step_savings_365d, auth_steps[0].running_savings_365d, "first authoritative step savings must equal its running savings")
+            tol = 0.03 * len(auth_steps)
+            last = auth_steps[-1].running_savings_365d
+            for component in ("dbu", "aws", "total"):
+                final = getattr(last, component)
+                parts = [getattr(x.step_savings_365d, component) for x in auth_steps]
+                if final is None or any(p is None for p in parts):
+                    continue
+                _require(sum(p.low for p in parts) <= final.low + tol, f"step savings {component}.low must not exceed the final running low")
+                _require(sum(p.high for p in parts) >= final.high - tol, f"step savings {component}.high must not fall below the final running high")
 
 
 @dataclass(frozen=True)

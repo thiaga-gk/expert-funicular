@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v1.2.0.
+"""Build the locked Reporter Contract JSON Schema v1.3.0.
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.
@@ -293,6 +293,7 @@ def build_schema() -> Dict[str, Any]:
     defs["StepProjection"] = obj({
         "pricing_basis": {"type": "string", "enum": [PricingBasis.AUTHORITATIVE.value, PricingBasis.CONTINGENT_PENDING_REEVALUATION.value]},
         "running_savings_365d": ref("ComponentRanges"),
+        "step_savings_365d": nullable(ref("ComponentRanges")),
     })
     defs["PlanStep"] = obj({
         "step": {"type": "integer", "minimum": 1},

@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.2.0  
-**Workbook Contract:** v1.3.0
+**Reporter JSON Contract:** v1.3.0  
+**Workbook Contract:** v1.4.0
 
 Role: domain language, semantics and invariants.
 
