@@ -255,6 +255,63 @@ class CarriedForwardReservedBlockTests(unittest.TestCase):
         self.plan(match_outcome=rc.MatchOutcome.NOT_REPLAYABLE, match_reason_code="PRIOR_EVIDENCE_UNAVAILABLE", steps=[], remaining_upside_365d=None).validate()
 
 
+class ReviewFindingTests(unittest.TestCase):
+    """Fixes for the independent review of the Stage 1 contract change."""
+
+    def reid(self, pkg):
+        pkg = dataclasses.replace(pkg, recommendation_package_id=pkg.expected_package_id())
+        return dataclasses.replace(pkg, provenance=dataclasses.replace(pkg.provenance, package_hash_full_sha256=pkg.full_package_hash()))
+
+    def carried(self, pkg, **kw):
+        base = dict(
+            source_epoch_id=pkg.observed_change.previous_epoch_id, as_of="2026-09-29T00:00:00Z", match_policy=rc.MatchPolicy.EXACT_SINGLE_KNOB,
+            match_outcome=rc.MatchOutcome.NOT_REPLAYABLE, match_reason_code="PRIOR_EVIDENCE_UNAVAILABLE", replay_fingerprint="SHA256:" + "A" * 64,
+            steps=[], remaining_upside_365d=None, pricing_basis=rc.PricingBasis.CONTINGENT_CARRIED_FORWARD,
+        )
+        base.update(kw)
+        return rc.CarriedForwardPlan(**base)
+
+    def test_billing_only_wait_on_a_mature_epoch_is_not_called_immature(self):
+        # Epoch is months old; only the billing-history gate is active (days still waiting to be ingested).
+        pkg = build(golden_evidence("sparse-evidence", cost_history_days=6))  # no ready step in the recommended scenario
+        self.assertEqual(pkg.recommended_plan.reevaluation.blocking_codes, ["COST_HISTORY_INSUFFICIENT"])
+        self.assertEqual(pkg.recommended_plan.next_action, "WAIT_FOR_REEVALUATION")
+        self.assertEqual(pkg.recommended_plan.selection_reason_code, "BILLING_HISTORY_ACCRUING")
+        self.assertNotIn("too new", pkg.recommended_plan.decision_summary)
+        young = build(golden_evidence("newly-changed-config"))
+        self.assertEqual(young.recommended_plan.selection_reason_code, "CURRENT_EPOCH_IMMATURE")
+
+    def test_earliest_time_rounds_up_to_the_next_second(self):
+        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-09-24T12:00:00.600000Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), "2026-10-01T12:00:01Z")
+        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-09-24T12:00:00Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), "2026-10-01T12:00:00Z")
+
+    def test_carried_forward_requires_a_young_epoch_not_just_any_window(self):
+        mature_cost_only = build(golden_evidence("spill-constrained", cost_history_days=3))
+        bad = self.reid(dataclasses.replace(mature_cost_only, carried_forward_plan=self.carried(mature_cost_only)))
+        with self.assertRaises(ValueError):
+            bad.validate()
+        young = build(golden_evidence("newly-changed-config"))
+        self.reid(dataclasses.replace(young, carried_forward_plan=self.carried(young))).validate()
+
+    def test_validator_is_as_strict_as_the_schema_for_the_reserved_block(self):
+        young = build(golden_evidence("newly-changed-config"))
+        for kw in ({"replay_fingerprint": "SHA256:" + "z" * 64}, {"replay_fingerprint": "SHA256:" + "a" * 64}, {"match_reason_code": "lower case"}):
+            with self.assertRaises(ValueError):
+                self.carried(young, **kw).validate()
+        step = rc.CarriedForwardStep(1, rc.TunableKnob.WAREHOUSE_SIZE, "T", "A", "B", rc.CarriedForwardDisposition.INVALIDATED, "bad code", None)
+        with self.assertRaises(ValueError):
+            step.validate()
+
+    def test_package_identity_binds_the_whole_carried_forward_block(self):
+        young = build(golden_evidence("newly-changed-config"))
+        a = dataclasses.replace(young, carried_forward_plan=self.carried(young))
+        b = dataclasses.replace(young, carried_forward_plan=self.carried(young, as_of="2026-09-30T00:00:00Z"))  # same replay_fingerprint
+        c = dataclasses.replace(young, carried_forward_plan=self.carried(young, match_reason_code="PRIOR_EVIDENCE_STALE"))
+        self.assertNotEqual(a.expected_package_id(), b.expected_package_id())
+        self.assertNotEqual(a.expected_package_id(), c.expected_package_id())
+        self.assertNotEqual(a.expected_package_id(), young.expected_package_id())
+
+
 class SchemaAndWorkbookTests(unittest.TestCase):
     def test_package_validates_against_the_schema_with_new_keys(self):
         import jsonschema

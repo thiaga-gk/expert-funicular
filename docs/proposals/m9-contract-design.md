@@ -150,8 +150,8 @@ Rationale: putting `BLOCKED` steps into `execution_plan` would require steps wit
 - `make_recommendation_package_id_from_parts` payload gains three keys, each `null` when the block is null:
   - `reevaluation`: canonical JSON of the `ReevaluationWindow` (deterministic from epoch start, thresholds and billing coverage).
   - `observed_change_fingerprint`: `SHA256` of the canonical `ObservedConfigChange`.
-  - `carried_forward_fingerprint`: `CarriedForwardPlan.replay_fingerprint`.
-- Rationale: these blocks change what a consumer sees without changing candidate, scenario or evidence IDs, so they must alter `PKG-*`. The full package hash already covers all content.
+  - `carried_forward_fingerprint`: `SHA256` of the canonical whole `CarriedForwardPlan` block (changed after review from `replay_fingerprint` alone, which would leave steps, `as_of` and reasons untamper-evident).
+- Rationale: these blocks change what a consumer sees without changing candidate, scenario or evidence IDs, so they must alter `PKG-*`. Correction found in review: `full_package_hash` hashes the same payload as the package ID, not the whole package, so it does **not** cover other content; the new blocks must therefore enter that payload explicitly.
 - No new ID prefix. Per-step IDs are unnecessary (identity is positional within a fingerprinted block).
 - `replay_fingerprint` inputs (Stage 2): contract version, workspace, warehouse, `source_epoch_id`, `as_of`, the replay evidence records' normalized `(metric, value, unit, source, source_field, observation_window)` sorted by metric, and the policy / analyzer / optimizer / estimator / bundle / decision-graph / technique-catalog versions.
 - Excluded from every ID: `generated_at`, prose (`method`, `decision_summary`), workbook formatting, logs, file names.

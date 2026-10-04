@@ -25,6 +25,7 @@ import dataclasses
 import datetime as dt
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -293,6 +294,10 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_FINGERPRINT_PATTERN = re.compile(r"^SHA256:[A-F0-9]{64}$")
+
+
 def _is_iso8601(value: str) -> bool:
     try:
         dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -327,7 +332,11 @@ def _parse_utc(value: str) -> dt.datetime:
 
 
 def _iso_utc(value: dt.datetime) -> str:
-    return value.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    """UTC ISO string at second precision, rounded UP so a published 'earliest' time is never before the true gate."""
+    value = value.astimezone(dt.timezone.utc)
+    if value.microsecond:
+        value = value.replace(microsecond=0) + dt.timedelta(seconds=1)
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequence[str]) -> str:
@@ -1261,6 +1270,8 @@ class CarriedForwardStep:
     def validate(self) -> None:
         _require(self.order >= 1, "carried-forward step order must be >= 1")
         _require(bool(self.technique_id), "carried-forward step technique_id is required")
+        if self.reason_code is not None:
+            _require(bool(_CODE_PATTERN.match(self.reason_code)), "carried-forward step reason_code must match ^[A-Z][A-Z0-9_]*$")
         if self.disposition == CarriedForwardDisposition.INVALIDATED:
             _require(bool(self.reason_code), "INVALIDATED carried-forward step requires reason_code")
         if self.rebased_running_savings_365d is not None:
@@ -1281,10 +1292,16 @@ class CarriedForwardPlan:
     remaining_upside_365d: Optional["ComponentRanges"]
     pricing_basis: PricingBasis
 
+    def fingerprint(self) -> str:
+        """Hash of the whole published block, so any change to steps, dates or reasons changes the package identity."""
+        return f"SHA256:{sha256_hex(to_primitive(self)).upper()}"
+
     def validate(self) -> None:
         _validate_identifier(self.source_epoch_id, "EPOCH")
         _require(_is_iso8601(self.as_of), "carried_forward.as_of must be ISO-8601")
-        _require(self.replay_fingerprint.startswith("SHA256:") and len(self.replay_fingerprint) == 71, "replay_fingerprint must use SHA256:<64 hex>")
+        _require(bool(_FINGERPRINT_PATTERN.match(self.replay_fingerprint)), "replay_fingerprint must use SHA256:<64 uppercase hex>")
+        if self.match_reason_code is not None:
+            _require(bool(_CODE_PATTERN.match(self.match_reason_code)), "carried_forward match_reason_code must match ^[A-Z][A-Z0-9_]*$")
         _require(self.pricing_basis == PricingBasis.CONTINGENT_CARRIED_FORWARD, "carried-forward economics must be CONTINGENT_CARRIED_FORWARD")
         _require([s.order for s in self.steps] == list(range(1, len(self.steps) + 1)), "carried-forward steps must be contiguous starting at 1")
         for step in self.steps:
@@ -1827,7 +1844,10 @@ class RecommendationPackage:
             carried.validate()
             _require(change is not None, "carried_forward_plan requires observed_change")
             _require(carried.source_epoch_id == change.previous_epoch_id, "carried_forward.source_epoch_id must equal observed_change.previous_epoch_id")
-            _require(window is not None, "carried_forward_plan is only valid while the current epoch is younger than the maturity gate")
+            _require(
+                window is not None and "CURRENT_CONFIG_EPOCH_TOO_NEW" in window.blocking_codes,
+                "carried_forward_plan is only valid while the current epoch is younger than the maturity gate",
+            )
             current = {(c.knob, repr(c.current_value)) for c in change.changes}
             for step in carried.steps:
                 if step.disposition == CarriedForwardDisposition.COMPLETED:
@@ -1889,7 +1909,7 @@ class RecommendationPackage:
                 "blocking_codes": list(self.recommended_plan.reevaluation.blocking_codes),
             },
             "observed_change_fingerprint": None if self.observed_change is None else self.observed_change.fingerprint(),
-            "carried_forward_fingerprint": None if self.carried_forward_plan is None else self.carried_forward_plan.replay_fingerprint,
+            "carried_forward_fingerprint": None if self.carried_forward_plan is None else self.carried_forward_plan.fingerprint(),
         }
 
     def expected_package_id(self) -> str:

@@ -3626,15 +3626,28 @@ def _recommended_plan(
     first = recommended.execution_plan[0] if recommended.execution_plan else None
     ready = any(x.execution_state in (rc.ExecutionState.READY, rc.ExecutionState.READY_FOR_CANARY) for x in recommended.execution_plan)
     if reevaluation is not None and not ready:
-        return rc.RecommendedPlan(
-            scenario_id=recommended.scenario_id,
-            selection_reason_code="CURRENT_EPOCH_IMMATURE",
-            next_action="WAIT_FOR_REEVALUATION",
-            requires_hitl=True,
-            decision_summary=(
+        young = "CURRENT_CONFIG_EPOCH_TOO_NEW" in reevaluation.blocking_codes
+        if young:
+            reason = "CURRENT_EPOCH_IMMATURE"
+            summary = (
                 f"{recommended.scenario_name} has no step ready yet: the current epoch is too new for a trustworthy decision. "
                 f"Earliest re-evaluation is {reevaluation.earliest_reevaluation_time} (gates: {', '.join(reevaluation.blocking_codes)})."
-            ),
+            )
+        else:
+            # Epoch is mature; only billing history is short. The earliest time can already be past: the missing days have
+            # elapsed but are not yet ingested (billing typically lags ~12h), so the next run after ingestion clears it.
+            reason = "BILLING_HISTORY_ACCRUING"
+            summary = (
+                f"{recommended.scenario_name} has no step ready yet: the current epoch is mature, but fewer than "
+                f"{rc.REEVALUATION_COST_HISTORY_DAYS} days of billing history are available. Re-run once billing ingestion has caught up "
+                f"(earliest {reevaluation.earliest_reevaluation_time}, gates: {', '.join(reevaluation.blocking_codes)})."
+            )
+        return rc.RecommendedPlan(
+            scenario_id=recommended.scenario_id,
+            selection_reason_code=reason,
+            next_action="WAIT_FOR_REEVALUATION",
+            requires_hitl=True,
+            decision_summary=summary,
             reevaluation=reevaluation,
         )
     if first is None:

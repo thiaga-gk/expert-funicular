@@ -195,7 +195,7 @@ ordered candidate_ids
 ordered scenario_ids
 reevaluation (status, earliest_reevaluation_time, blocking_codes; null when absent; method prose excluded)
 observed_change_fingerprint (SHA256 of the canonical observed_change; null when absent)
-carried_forward_fingerprint (replay_fingerprint; null when absent)
+carried_forward_fingerprint (SHA256 of the canonical whole carried_forward_plan block; null when absent)
 ```
 
 ### Realization hash inputs
@@ -617,6 +617,8 @@ If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it 
 | `blocking_codes` | string[] | No | Non-empty, sorted, unique subset of `COST_HISTORY_INSUFFICIENT`, `CURRENT_CONFIG_EPOCH_TOO_NEW` |
 | `method` | string | No | Prose; excluded from identity |
 
+`earliest_reevaluation_time` is a lower bound rounded up to the next second. When the only active gate is `COST_HISTORY_INSUFFICIENT` on a mature epoch, the missing billing days have already elapsed but are not yet ingested (the billing watermark counts only covered days), so the time can already be in the past; the next run after ingestion clears the gate. The publisher then uses `selection_reason_code = BILLING_HISTORY_ACCRUING` instead of `CURRENT_EPOCH_IMMATURE`.
+
 Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while `warehouse.current_epoch.age_days < 7`; `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
 
 ```text
@@ -645,7 +647,7 @@ Null when the current epoch is the first in the retained history window or the c
 
 ## 14.3 `carried_forward_plan` (reserved; always null in 1.2.0 producers)
 
-A contingent replay of the preceding epoch's plan, planned for Stage 2. Its structure and invariants are defined and validated now so the contract does not change again when it ships. It never feeds candidate, scenario or package economics (pricing basis `CONTINGENT_CARRIED_FORWARD`, which plan steps may not use). Fields: `source_epoch_id`, `as_of`, `match_policy` (`EXACT_SINGLE_KNOB`), `match_outcome` (`MATCHED` | `MISMATCH` | `NOT_REPLAYABLE`), `match_reason_code`, `replay_fingerprint`, `steps[]` (`order`, `knob`, `technique_id`, `previous_value`, `recommended_value`, `disposition` of `COMPLETED` | `PENDING_REEVALUATION` | `INVALIDATED`, `reason_code`, `rebased_running_savings_365d`), `remaining_upside_365d`, `pricing_basis`. Savings are **rebased**: running savings after the last `COMPLETED` step are subtracted track by track, so an applied step is not counted again as upside. A non-null block requires `observed_change` and a non-null `reevaluation`, and `source_epoch_id` must equal `observed_change.previous_epoch_id`.
+A contingent replay of the preceding epoch's plan, planned for Stage 2. Its structure and invariants are defined and validated now so the contract does not change again when it ships. It never feeds candidate, scenario or package economics (pricing basis `CONTINGENT_CARRIED_FORWARD`, which plan steps may not use). Fields: `source_epoch_id`, `as_of`, `match_policy` (`EXACT_SINGLE_KNOB`), `match_outcome` (`MATCHED` | `MISMATCH` | `NOT_REPLAYABLE`), `match_reason_code`, `replay_fingerprint`, `steps[]` (`order`, `knob`, `technique_id`, `previous_value`, `recommended_value`, `disposition` of `COMPLETED` | `PENDING_REEVALUATION` | `INVALIDATED`, `reason_code`, `rebased_running_savings_365d`), `remaining_upside_365d`, `pricing_basis`. Savings are **rebased**: running savings after the last `COMPLETED` step are subtracted track by track, so an applied step is not counted again as upside. A non-null block requires `observed_change` and an active `CURRENT_CONFIG_EPOCH_TOO_NEW` gate (the epoch is younger than the maturity gate), and `source_epoch_id` must equal `observed_change.previous_epoch_id`. The package hash covers the whole block (`carried_forward_fingerprint`); `replay_fingerprint` additionally binds it to the replay evidence. The validator applies the same patterns as the schema (uppercase hex fingerprints, `^[A-Z][A-Z0-9_]*$` codes).
 
 ---
 
