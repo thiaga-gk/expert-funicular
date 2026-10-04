@@ -1651,15 +1651,6 @@ The LLD is satisfied by an implementation when all of the following hold:
 
 ## 36. Document relationships
 
-```mermaid
-flowchart LR
-    CTX[context.md<br/>domain language + concepts] --> PRD[prd.md<br/>what/why]
-    PRD --> HLD[hld.md<br/>architecture]
-    HLD --> LLD[lld.md<br/>implementation design]
-    LLD --> RC[Reporter Contract v1.2.0]
-    LLD --> WC[Workbook Contract v1.3.0]
-    LLD --> CODE[publisher.py + modules]
-    CODE --> TEST[tests + golden evidence]
-```
+Document ownership and precedence: `docs/README.md`.
 
 The locked Reporter and Workbook contract documents remain normative for their field-level semantics. This LLD defines how publisher v2.10.0 produces and consumes those contracts.
