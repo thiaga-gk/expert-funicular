@@ -8,9 +8,11 @@ Each fixture holds normalized evidence plus an ``expect`` block:
       "assertions": [{"path": "cost_baseline.forward_365d.dbu_cost", "equals": null}, ...]
     }
 
-Paths address the serialized RecommendationPackage. A segment is a key, ``key[*]`` (every list item) or
+Paths address the serialized RecommendationPackage. A collector-level fixture instead carries raw
+``snapshots`` (system.compute.warehouses rows) and ``now``: the real CONFIG_EPOCHS_SQL runs in sqlite, its rows go
+through extract_evidence, and ``evidence_assertions`` address the serialized WarehouseEvidence. A segment is a key, ``key[*]`` (every list item) or
 ``key[field=value]`` (list items whose field equals value). Operators: ``equals``, ``includes`` (list contains
-every given value), ``excludes`` (list contains none of them). With ``[*]`` or a filter the operator applies
+every given value), ``excludes`` (list contains none of them), ``length`` (list length). With ``[*]`` or a filter the operator applies
 to every matched item, and at least one item must match.
 """
 import json
@@ -65,6 +67,8 @@ def check(package, assertion):
             return f"{path}: expected to include {assertion['includes']!r}, got {value!r}"
         if "excludes" in assertion and set(assertion["excludes"]) & set(value or []):
             return f"{path}: expected to exclude {assertion['excludes']!r}, got {value!r}"
+        if "length" in assertion and len(value) != assertion["length"]:
+            return f"{path}: expected length {assertion['length']}, got {len(value)}"
     return None
 
 
@@ -73,11 +77,34 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertTrue(scenario_fixtures(), "no golden scenario fixtures found")
         for fixture in scenario_fixtures():
             payload = json.loads(fixture.read_text())
-            self.assertIn("assertions", payload["expect"], fixture.name)
+            key = "evidence_assertions" if "snapshots" in payload else "assertions"
+            self.assertTrue(payload["expect"].get(key), fixture.name)
+
+    def test_collector_golden_scenarios(self):
+        from tests.test_config_epochs_sql import run_sql
+
+        for fixture in scenario_fixtures():
+            payload = json.loads(fixture.read_text())
+            if "snapshots" not in payload:
+                continue
+            expect = payload["expect"]
+            with self.subTest(scenario=expect.get("scenario"), fixture=fixture.name):
+                epoch_rows = run_sql(p.CONFIG_EPOCHS_SQL, payload["snapshots"], payload["now"])
+
+                class Client:
+                    def query(self, statement, *, label="collector_sql"):
+                        return epoch_rows if label == "config_epochs" else []
+
+                evidence = {e.warehouse_id: e for e in p.extract_evidence(Client(), p.Thresholds(), "us-east-1")}
+                serialized = p.as_serializable(evidence[expect["warehouse"]])
+                failures = [msg for msg in (check(serialized, a) for a in expect["evidence_assertions"]) if msg]
+                self.assertEqual(failures, [], f"{expect.get('scenario')} {fixture.name}")
 
     def test_golden_scenarios(self):
         for fixture in scenario_fixtures():
             payload = json.loads(fixture.read_text())
+            if "snapshots" in payload:
+                continue
             expect = payload["expect"]
             with self.subTest(scenario=expect.get("scenario"), fixture=fixture.name):
                 evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]

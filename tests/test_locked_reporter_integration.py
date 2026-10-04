@@ -157,6 +157,8 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         golden = Path(__file__).resolve().parent / "golden"
         for fixture in sorted(golden.glob("*.json")):
             payload = json.loads(fixture.read_text())
+            if "evidence" not in payload:
+                continue  # collector-level fixture (raw snapshots), covered by test_golden_scenarios
             evidence = [publisher.evidence_from_dict(x) for x in payload["evidence"]]
             thresholds = publisher.Thresholds()
             packages = publisher.build_recommendation_packages(evidence, thresholds)
