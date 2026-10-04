@@ -161,7 +161,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-1E247325AF60F1AD3F8BA36D",
+      "candidate_id": "CAND-F4AC7EE9465A5004A934DA2B",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -187,6 +187,7 @@
         "EVID-E3969B0FEA1EC3E2953E6635",
         "EVID-EF6BEBBCCBDCFF649C090BB2",
         "EVID-330787B0D67DADCBF273B64B",
+        "EVID-0EADBAEF8B6A37AD95507C84",
         "EVID-FEA1593579C33BD7E3F5E803",
         "EVID-686AD89E86CEBC94CB6BED6C",
         "EVID-75644FA33C29D8ED513B803F",
@@ -228,7 +229,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-4FCA3EA4C15A8B9ED9401CE7",
+      "candidate_id": "CAND-6E7675986097F5B6ABDD269C",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -258,6 +259,7 @@
         "EVID-FD23561554D253F349F128BD",
         "EVID-56715B4903BFF401AF13B22C",
         "EVID-E868B02D7C51E1D2B2C65B3E",
+        "EVID-0EADBAEF8B6A37AD95507C84",
         "EVID-DD24119637B30D9234FEEA1B",
         "EVID-DC8EDE09C90729113AE9AB54",
         "EVID-75644FA33C29D8ED513B803F",
@@ -301,7 +303,7 @@
       "blockers": [
         "CURRENT_CONFIG_EPOCH_TOO_NEW"
       ],
-      "candidate_id": "CAND-5F809CE654AC0096F8D1CDD2",
+      "candidate_id": "CAND-D87639EECA1B6927B6C94756",
       "confidence": {
         "components": {
           "coverage": 0.033,
@@ -324,6 +326,7 @@
       ],
       "evidence_refs": [
         "EVID-17967E4F367F91174E4DD90A",
+        "EVID-0EADBAEF8B6A37AD95507C84",
         "EVID-CC158A559E6C492D009CC048",
         "EVID-03B043795BC8E94DD967C7AF",
         "EVID-DB69FA385B9B0EC01CC13C6E",
@@ -544,6 +547,19 @@
       "threshold": null,
       "unit": "%",
       "value": 35.0
+    },
+    "EVID-0EADBAEF8B6A37AD95507C84": {
+      "comparator": "<= cut-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-0EADBAEF8B6A37AD95507C84",
+      "interpretation": "Failed or cancelled query share; a high or unknown rate holds every capacity cut.",
+      "metric": "failure_cancel_pct_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "execution_status",
+      "threshold": 5.0,
+      "unit": "%",
+      "value": 0.3
     },
     "EVID-166A67EED614A58D24276B2F": {
       "comparator": ">= upsize signal",
@@ -1194,11 +1210,11 @@
     "contract_version": "1.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.9.0",
     "estimator_version": "counterfactual-v2.10.0",
-    "evidence_fingerprint": "SHA256:D7A96BD2963D4B5991259D776BAC2023D47FDAFBAA80D16BF6BAD5CE5F051464",
+    "evidence_fingerprint": "SHA256:AED10F1BAD6C2FDEBF9D4254CEB708FABE5C09A0CF7568BB9AD10DC1BABC4883",
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.10.0",
-    "package_hash_full_sha256": "CB1F2FC87C40BFEA94AAA764E6170F72F600C7BC18AC41E610F42807560951A1",
+    "package_hash_full_sha256": "FB583BEA31B3E0B1CD3002CFEB80634D48CB9D023B731DDE6C557C5A60D6EED3",
     "policy_version": "sql-warehouse-policy-v2.9.0",
     "reviewer_version": "recommendation-reviewer-v2.9.0",
     "source_regions": [
@@ -1225,7 +1241,7 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-CB1F2FC87C40BFEA94AAA764",
+  "recommendation_package_id": "PKG-FB583BEA31B3E0B1CD3002CF",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type has no step ready yet: the current epoch is too new for a trustworthy decision. Earliest re-evaluation is 2026-10-05T00:00:00Z (gates: COST_HISTORY_INSUFFICIENT, CURRENT_CONFIG_EPOCH_TOO_NEW).",
     "next_action": "WAIT_FOR_REEVALUATION",
