@@ -1700,11 +1700,12 @@ class Modeler:
         daily *= trend_adjustment_factor
         cv = statistics.pstdev(last84) / mean84 if len(last84) >= self.t.forecast_cv_min_days and mean84 > 0 else None
         active_cost_days = sum(1 for x in series if x > 1e-12)  # billed days; a correction-only (negative) day is not one
+        rate_billed_days = sum(1 for x in rate[-long:] if x > 1e-12)  # the floor applies to the days the rate actually uses
         # The forward DBU cost is published only when it is known: every day priced, enough billed days to estimate a
         # run rate, and a positive run rate. Otherwise it is unknown (null), never $0 or a guess.
         if unpriced_in_basis > 0:
             forecast_status = "UNPRICED_USAGE"
-        elif active_cost_days < self.t.min_economics_cost_history_days:
+        elif rate_billed_days < self.t.min_economics_cost_history_days:
             forecast_status = "INSUFFICIENT_ACTIVE_COST_DAYS"
         elif daily <= 0:
             forecast_status = "NON_POSITIVE_RUN_RATE"
@@ -1733,7 +1734,8 @@ class Modeler:
             "forecast_basis_end": basis_end.isoformat(),
             **completeness_meta,
             "zero_cost_days_in_basis": sum(1 for x in series if abs(x) <= 1e-12),
-            "rate_basis_days": len(rate),
+            "rate_basis_days": min(len(rate), long),
+            "rate_billed_days": rate_billed_days,
         }
 
 
