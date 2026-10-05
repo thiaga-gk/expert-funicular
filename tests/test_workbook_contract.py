@@ -6,9 +6,10 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-import publisher as p
-from contracts import workbook_contract as wc
-from reporters import workbook_reporter as wr
+sys.path.insert(0,str(ROOT / "src"))
+from publisher import publisher as p
+from publisher.contracts import workbook_contract as wc
+from publisher.reporter import workbook_reporter as wr
 
 
 class WorkbookContractTests(unittest.TestCase):
@@ -105,7 +106,7 @@ class WorkbookContractTests(unittest.TestCase):
     def test_rendered_workbook_satisfies_the_contract(self):
         """Render the real .xlsx and validate sheets, columns, grains, text IDs, numeric economics, no formulas."""
         from openpyxl import load_workbook
-        from tools.validate_workbook import validate_workbook
+        from scripts.validate_workbook import validate_workbook
         with tempfile.TemporaryDirectory() as td:
             path = wr.write_workbook(Path(td) / "workbook.xlsx", self.packages)
             packages = [json.loads(json.dumps(pkg.to_dict())) for pkg in self.packages]
@@ -124,7 +125,7 @@ class WorkbookContractTests(unittest.TestCase):
 
     def test_workbook_validator_rejects_formulas_string_money_and_wrong_columns(self):
         from openpyxl import load_workbook
-        from tools.validate_workbook import validate_workbook
+        from scripts.validate_workbook import validate_workbook
         with tempfile.TemporaryDirectory() as td:
             path = wr.write_workbook(Path(td) / "workbook.xlsx", self.packages[:2])
             self.assertEqual(validate_workbook(path), [])

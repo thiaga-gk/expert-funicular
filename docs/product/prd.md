@@ -963,9 +963,9 @@ Future ML or LLM components may assist explanation, anomaly diagnosis, or thresh
 
 - `docs/contracts/reporter-json-contract.md`
 - `schema/recommendation-package.schema.json`
-- `contracts/reporter_contract.py`
+- `src/publisher/contracts/reporter_contract.py`
 - `docs/contracts/workbook-contract.md`
-- `contracts/workbook_contract.py`
+- `src/publisher/contracts/workbook_contract.py`
 - `docs/reference/technique-catalog.md`
 - `docs/reference/thresholds.md`
 - `docs/reference/source-mapping.md`

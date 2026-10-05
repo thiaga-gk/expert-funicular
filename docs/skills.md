@@ -10,7 +10,7 @@ Copy `.claude/skills/` into the target repo and invoke the orchestrator, for exa
 
 > Use the Databricks publisher orchestrator to build a deterministic job-cluster compute optimization publisher. Start with discovery and stop at the first approval gate.
 
-Validate the skill package with `python tools/validate_skill_suite.py`. The suite also ships deterministic validators for source, optimization policy, technique, economics, contract, golden-manifest, and release artifacts.
+Validate the skill package with `python scripts/validate_skill_suite.py`. The suite also ships deterministic validators for source, optimization policy, technique, economics, contract, golden-manifest, and release artifacts.
 
 ## Expected lifecycle
 
@@ -180,7 +180,7 @@ Each skill includes:
 - 10 negative/non-trigger prompts;
 - at least 3 functional eval cases with assertions.
 
-The orchestrator adds cross-service control/adaptation tests for SQL Warehouse, Job Cluster, and Lakeflow/DLT. Static structure and resource integrity are validated by `tools/validate_skill_suite.py`. The functional prompts are intended for with-skill vs baseline model evaluation in an environment that can execute such model evals.
+The orchestrator adds cross-service control/adaptation tests for SQL Warehouse, Job Cluster, and Lakeflow/DLT. Static structure and resource integrity are validated by `scripts/validate_skill_suite.py`. The functional prompts are intended for with-skill vs baseline model evaluation in an environment that can execute such model evals.
 
 ## Reference exemplar rule
 

@@ -9,6 +9,7 @@ Python 3.10 or newer.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Canonical flow
@@ -67,7 +68,7 @@ See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md)
 ## Synthetic golden-scenario fleet (end-to-end test)
 
 ```bash
-python publisher.py --demo --output-dir ./demo_out
+python -m publisher --demo --output-dir ./demo_out
 ```
 
 The demo fleet has one simulated warehouse per golden scenario (each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..40) runs the first N warehouses.
@@ -82,7 +83,7 @@ SQL warehouse / Serverless execution target:
 
 ```bash
 databricks auth login --host https://<workspace> --profile WHOPT
-python publisher.py \
+python -m publisher \
   --profile WHOPT \
   --serverless-warehouse-id <warehouse-id> \
   --source-region us-east-1 \
@@ -97,7 +98,7 @@ To reproduce an earlier collection despite later billing corrections, add `--bil
 
 ## Weekly scheduled run
 
-Run the publisher once a week as a Databricks job: a Python task or a notebook that calls `publisher.py` in live mode (the flags above) with an OAuth CLI profile available to the job (static PAT profiles are rejected, and the Databricks CLI must be on the job's `PATH`) and `--output-dir` on a Volume, for example `/Volumes/<catalog>/<schema>/<volume>/whopt/<run-date>`. Keep each run's dated output directory: every run reads the system tables afresh, and the directories are the audit trail.
+Run the publisher once a week as a Databricks job: a Python task or a notebook that calls `python -m publisher` in live mode (the flags above) with an OAuth CLI profile available to the job (static PAT profiles are rejected, and the Databricks CLI must be on the job's `PATH`) and `--output-dir` on a Volume, for example `/Volumes/<catalog>/<schema>/<volume>/whopt/<run-date>`. Keep each run's dated output directory: every run reads the system tables afresh, and the directories are the audit trail.
 
 What each run shows, per warehouse package:
 
@@ -132,7 +133,7 @@ Start with `databricks-publisher-orchestrator`. It coordinates service discovery
 See [`docs/skills.md`](docs/skills.md). Validate the suite with:
 
 ```bash
-python tools/validate_skill_suite.py
+python scripts/validate_skill_suite.py
 ```
 
 The suite version is declared in `.claude/skills/suite.yaml`; the validator reports the current eval counts. The optimization reasoning model is explicit: First Principles → Causal Mechanism → Constraints-First Optimization → Counterfactual → Second-Order Effects → Validation & Learning (`.claude/skills/databricks-publisher-orchestrator/references/optimization-thinking-framework.md`).

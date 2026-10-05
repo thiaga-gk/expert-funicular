@@ -450,7 +450,7 @@ Field mapping: `docs/reference/source-mapping.md`.
 ```mermaid
 sequenceDiagram
     participant U as Operator
-    participant CLI as publisher.py
+    participant CLI as python -m publisher
     participant AUTH as Databricks CLI OAuth
     participant DB as Databricks SQL/System Tables
     participant P as Decision Pipeline
@@ -622,7 +622,7 @@ flowchart TD
     REAL -. references immutable package/scenario/candidate .-> PKG
 ```
 
-Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `contracts/reporter_contract.py`. The internal join keys that `publisher.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
+Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. The internal join keys that `src/publisher/publisher.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
 
 Volatile data such as `generated_at`, filenames, log paths, or workbook formatting must not influence recommendation identities.
 
@@ -634,7 +634,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 The only authoritative recommendation serialization is Reporter JSON Contract v2.0.0:
 
-- Python dataclasses: `contracts/reporter_contract.py`
+- Python dataclasses: `src/publisher/contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
 - semantic specification: `docs/contracts/reporter-json-contract.md`
 
@@ -642,8 +642,8 @@ The only authoritative recommendation serialization is Reporter JSON Contract v2
 
 Workbook Contract v1.4.0 is an independently versioned presentation contract:
 
-- projection: `contracts/workbook_contract.py`
-- renderer: `reporters/workbook_reporter.py`
+- projection: `src/publisher/contracts/workbook_contract.py`
+- renderer: `src/publisher/reporter/workbook_reporter.py`
 - specification: `docs/contracts/workbook-contract.md`
 
 The ordered workbook columns and column groups are declared only in the workbook contract module and consumed by the renderer, so renderer-only formatting changes cannot silently drop agreed fields. Sheets, grains and columns: `docs/contracts/workbook-contract.md`.
@@ -666,7 +666,7 @@ flowchart LR
 
 ### 12.3 Internal domain contracts
 
-`publisher.py` keeps typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result. After reviewer gate 2, the publisher assembles the locked public `RecommendationPackage` directly; there is no separate internal report serialization model.
+The typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`). After reviewer gate 2, the publisher assembles the locked public `RecommendationPackage` directly; there is no separate internal report serialization model.
 
 These internal objects are **not public APIs**. The public JSON contract remains the `RecommendationPackage` of the Reporter JSON Contract.
 
@@ -768,7 +768,7 @@ The manifest and log identify the run (publisher and contract versions, emitted 
 
 ```mermaid
 flowchart LR
-    OP[Operator / Scheduler] --> CLI[publisher.py CLI]
+    OP[Operator / Scheduler] --> CLI[publisher CLI]
     CLI --> AUTH[Databricks CLI OAuth]
     CLI --> DBX[Databricks SQL / System Tables]
     CLI --> PR[(Local versioned AWS price registry)]
@@ -968,4 +968,4 @@ Product acceptance criteria: `docs/product/prd.md` section 23. The architecture 
 
 External platform references: `docs/product/prd.md` section 28.
 
-Repository source-of-truth references: the topic homes in `docs/README.md`, plus `contracts/reporter_contract.py`, `contracts/workbook_contract.py`, `publisher.py`, `reporters/workbook_reporter.py` and `tests/`.
+Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.

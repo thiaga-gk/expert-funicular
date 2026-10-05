@@ -8,7 +8,7 @@
 
 **Status:** Locked  
 **Source of truth:** validated Reporter JSON Contract v2.0.0 packages  
-**Implementation:** `contracts/workbook_contract.py` + `reporters/workbook_reporter.py`
+**Implementation:** `src/publisher/contracts/workbook_contract.py` + `src/publisher/reporter/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.
 
@@ -45,7 +45,7 @@ The package scenario envelope (which an experiment can set), confidence posture 
 
 Groups: identity/epoch; workload; current configuration; currency and actual/forward baseline; signed package low/base/high annual impacts and counterfactual costs; recommended scenario; assessment; compact human decision/plan views; traceability/audit JSON.
 
-The exact ordered set is `PORTFOLIO_COLUMNS` in `contracts/workbook_contract.py` (**61 columns**) and is regression-tested.
+The exact ordered set is `PORTFOLIO_COLUMNS` in `src/publisher/contracts/workbook_contract.py` (**61 columns**) and is regression-tested.
 
 ## 3. Scenario Plans
 

@@ -1,6 +1,6 @@
 """Documentation guards: links resolve, contract versions match the code, cited headings exist.
 
-Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, contracts/README.md, docs/contracts/ and docs/reference/. It never globs `**`,
+Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, src/publisher/contracts/README.md, docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
 import ast
@@ -13,9 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from contracts import reporter_contract as rc  # noqa: E402
-from contracts import workbook_contract as wc  # noqa: E402
-import publisher  # noqa: E402
+from publisher.contracts import reporter_contract as rc  # noqa: E402
+from publisher.contracts import workbook_contract as wc  # noqa: E402
+from publisher import publisher  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
 
 CORE = {
@@ -26,14 +26,14 @@ CORE = {
 }
 SCOPE = (
     list(CORE.values())
-    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md", ROOT / "contracts/README.md"]
+    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md", ROOT / "src/publisher/contracts/README.md"]
     + sorted((ROOT / "docs/contracts").glob("*.md"))
     + sorted((ROOT / "docs/reference").glob("*.md"))
 )
 FENCE = re.compile(r"```.*?```", re.S)
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
-REPO_PATH = re.compile(r"^(docs|contracts|reporters|schema|tests|tools|pricing|examples)/[\w./-]+$")
+REPO_PATH = re.compile(r"^(docs|src|scripts|contracts|reporters|tools|schema|tests|pricing|examples)/[\w./-]+$")
 REPORTER_VERSION = re.compile(r"(?<!Workbook )Reporter(?: JSON)?\s+[Cc]ontract\W{0,6}v?(\d+\.\d+\.\d+)")
 PUBLISHER_VERSION = re.compile(r"(?<![\w-])[Pp]ublisher v(\d+\.\d+\.\d+)")
 WORKBOOK_VERSION = re.compile(r"Workbook(?: Reporter)?\s+[Cc]ontract\W{0,6}v?(\d+\.\d+\.\d+)")
@@ -125,7 +125,7 @@ class DocsGuardTests(unittest.TestCase):
         text = read(ROOT / "docs/reference/blocker-codes.md")
         documented = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \|", text, re.M))
         self.assertGreater(len(documented), 20)
-        source = read(ROOT / "publisher.py")
+        source = "\n".join(read(path) for path in sorted((ROOT / "src" / "publisher").rglob("*.py")))
         self.assertEqual(sorted(c for c in documented if c not in source), [], "documented blockers the code no longer has")
         evidence = list(publisher.demo_evidence()) + list(publisher.synthetic_demo_evidence())
         for name in case_names():

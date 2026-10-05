@@ -1,6 +1,6 @@
 # Gap review of publisher 2.8.0: findings, decisions and batch plan
 
-Status: **Living design record.** Per-item implementation status is in the tracker and in the golden table (`docs/proposals/golden-scenarios.md`). Reviewed 2026-10-03 against `docs/product/prd.md`, `docs/architecture/hld.md`, `docs/architecture/lld.md`, `docs/architecture/context.md`, `publisher.py` and current Databricks documentation. Items already tracked in `docs/reference/known-limitations.md` and `docs/archive/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
+Status: **Living design record.** Per-item implementation status is in the tracker and in the golden table (`docs/proposals/golden-scenarios.md`). Reviewed 2026-10-03 against `docs/product/prd.md`, `docs/architecture/hld.md`, `docs/architecture/lld.md`, `docs/architecture/context.md`, `src/publisher/publisher.py` and current Databricks documentation. Items already tracked in `docs/reference/known-limitations.md` and `docs/archive/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
 
 No change to `schema/recommendation-package.schema.json` is needed for any item. Existing enums and fields cover every fix (`availability: PARTIAL`, `overall_status: NO_CHANGE / REVIEW_REQUIRED`, blocker codes). Most fixes change decisions or IDs, so each batch needs the matching policy/analyzer/optimizer/estimator/bundle/decision-graph version bump and regenerated goldens.
 
@@ -218,7 +218,7 @@ All four approved as recommended: Reporter 2.0.0 (MAJOR per §19), CLAUDE.md/PRD
 
 Version: §19 classifies a gate whose meaning changes as MAJOR -> **2.0.0** (recommended). Alternative: 1.4.0 with a §19 amendment (the 1.2.0/1.3.0 precedent stretched further). Either way `contract_version` is in every hash, so every public ID changes, as with every bump. No field is added, removed or renamed; the schema changes only its `contract_version` const.
 
-contracts/reporter_contract.py
+src/publisher/contracts/reporter_contract.py
 ```
 -CONTRACT_VERSION = "1.3.0"
 -REEVALUATION_EPOCH_MATURITY_DAYS = 7

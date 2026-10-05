@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Validate a generated ``workbook.xlsx`` against the Workbook Contract (`contracts/workbook_contract.py`).
+"""Validate a generated ``workbook.xlsx`` against the Workbook Contract (`src/publisher/contracts/workbook_contract.py`).
 
 Checks (CLAUDE.md change-loop step 6): exactly four visible sheets in contract order; detailed-sheet headers
 equal the declared contract columns in order; row grains match the package JSON; no formulas in any cell;
 financial cells numeric (or an explicit unavailable sentinel), never strings such as ``Save USD ...``; identifier
 columns stored as text.
 
-Usage:  python tools/validate_workbook.py <output_dir>      # expects workbook.xlsx and packages/*.json inside
+Usage:  python scripts/validate_workbook.py <output_dir>      # expects workbook.xlsx and packages/*.json inside
 """
 from __future__ import annotations
 
@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _path in (ROOT, ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-from contracts import workbook_contract as wc  # noqa: E402
+from publisher.contracts import workbook_contract as wc  # noqa: E402
 
 DETAILED = (
     (wc.SHEET_PORTFOLIO, wc.PORTFOLIO_COLUMNS, "portfolio"),

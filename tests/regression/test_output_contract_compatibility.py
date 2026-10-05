@@ -10,9 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 from jsonschema import Draft202012Validator, FormatChecker  # noqa: E402
 
-from contracts.reporter_schema import build_schema  # noqa: E402
+from publisher.contracts.reporter_schema import build_schema  # noqa: E402
 from tests.golden import case_dir, case_names  # noqa: E402
 from tests.regression import canonical  # noqa: E402
 

@@ -19,10 +19,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _path in (ROOT, ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-import publisher as p  # noqa: E402
+from publisher import publisher as p  # noqa: E402
 from tests.golden import case_dir, case_names  # noqa: E402
 from tests.regression import canonical  # noqa: E402
 

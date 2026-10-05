@@ -18,8 +18,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from contracts import reporter_contract as rc
-from contracts import workbook_contract as wc
+from publisher.contracts import reporter_contract as rc
+from publisher.contracts import workbook_contract as wc
 
 ESPRESSO = "#3B2F2F"
 ESPRESSO_2 = "#5A463B"

@@ -156,7 +156,7 @@ flowchart TD
     PKG --> REAL[Realization\nREAL-*]
 ```
 
-Each ID is content-addressed: it identifies one thing, and the same normalized inputs under the same versions always give the same ID, so an ID changes only when what it identifies changes. Public IDs come only from the contract helpers in `contracts/reporter_contract.py`. Hash inputs and ID formats: `docs/contracts/reporter-json-contract.md`.
+Each ID is content-addressed: it identifies one thing, and the same normalized inputs under the same versions always give the same ID, so an ID changes only when what it identifies changes. Public IDs come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. Hash inputs and ID formats: `docs/contracts/reporter-json-contract.md`.
 
 ### 6.3 Technique ID vs candidate ID
 

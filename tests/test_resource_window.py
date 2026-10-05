@@ -13,7 +13,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import publisher as p  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from publisher import publisher as p  # noqa: E402
 
 
 def day_rows(start, days, cluster_minutes, *, at_min=0.0, at_max=0.0, recycle=0.0, peak=1, uptime=None):

@@ -7,7 +7,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 - **Status:** pass = the code behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
 - **Tracker:** finding IDs that change the behaviour; — when nothing needs to change.
 
-The `--demo` fleet has one simulated warehouse per scenario listed in `publisher.DEMO_FLEET` (config tag `golden_scenario`); `tests/test_demo_fleet.py` asserts the passing rows it contains. Each scenario with a hand-built case has its folder under `tests/golden/cases/` (for example `tests/golden/cases/c06-oversized-warehouse/`), run by `tests/golden/test_golden_publisher.py`.
+The `--demo` fleet has one simulated warehouse per scenario listed in `DEMO_FLEET` in `src/publisher/publisher.py` (config tag `golden_scenario`); `tests/test_demo_fleet.py` asserts the passing rows it contains. Each scenario with a hand-built case has its folder under `tests/golden/cases/` (for example `tests/golden/cases/c06-oversized-warehouse/`), run by `tests/golden/test_golden_publisher.py`.
 
 | ID | Scenario | Signature | Expected behavior | In scope | Code coverage | Status | Tracker |
 |---|---|---|---|---|---|---|---|
