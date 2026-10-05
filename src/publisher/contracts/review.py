@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from publisher.contracts.candidate import CandidateRecommendation
+from publisher.contracts.candidate import CandidateRecommendation, WarehouseCandidates
 from publisher.contracts.scenario import PlanStep, Scenario
 from publisher.contracts.source import WarehouseEvidence
 
@@ -45,3 +45,9 @@ class WarehouseOptimization:
     @property
     def total_365d_baseline_cost(self) -> Optional[float]:
         return self.evidence.total_365d_baseline_cost
+
+
+@dataclass
+class CandidateReviewResult:
+    """Candidates that passed the Reviewer's candidate gate (the gate fails fast, so every warehouse is accepted or the run stops)."""
+    accepted: List[WarehouseCandidates]

@@ -70,3 +70,9 @@ class Scenario:
     recommended: bool = False
     compatibility: Dict[str, Any] = field(default_factory=dict)
     confidence: Dict[str, Any] = field(default_factory=dict)
+
+
+PRICING_AUTHORITATIVE = "AUTHORITATIVE"
+
+
+PRICING_CONTINGENT = "CONTINGENT_PENDING_REEVALUATION"
