@@ -79,6 +79,14 @@ class UnresolvedNoChangeTests(unittest.TestCase):
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
         self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
 
+    def test_ceiling_increase_states_why_its_best_case_costs_nothing(self):
+        for scenario in ("C50", "C42"):
+            c = self.cands[scenario]["max_clusters"]
+            self.assertEqual(c.status, "ACTIONABLE")
+            self.assertEqual(c.total_365d_savings_range.high, 0.0)  # best case: no added cost
+            self.assertIn("best case adds no cost", c.metadata["rationale"])
+            self.assertIn("best case adds no cost", c.metadata["method"])
+
     def test_quiet_warehouse_keeps_an_empty_blocker_list(self):
         c = self.cands["C06"]["min_clusters"]  # nothing unresolved: no code invented
         self.assertEqual(c.blockers, [])

@@ -1847,6 +1847,12 @@ def scenario_id(workspace_id: str, warehouse_id: str, name: str, recommendation_
     return "SCN-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
 
 
+# Why a ceiling increase's best case is zero added cost, stated with the candidate and its pricing method.
+MAX_INCREASE_COST_BOUNDS = ("Cost: the best case adds no cost, because the same queries run on more clusters at once and the "
+                            "total running time does not grow; the worst case runs every added cluster whenever the warehouse "
+                            "sat at its current ceiling.")
+
+
 def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dict[str, Any]]:
     """Billed days among the last `window_days` settled days of the current epoch's forecast basis, with their cost.
 
@@ -3356,6 +3362,7 @@ class Optimizer:
                         {"max_clusters":cfg.max_clusters},{"max_clusters":target},["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"] if capped else [],["warehouse_size"],["min_clusters"],["min_clusters"],
                         ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
                          "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
+                        + " " + MAX_INCREASE_COST_BOUNDS
                         + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
         elif not window_known:
             # Without recent resource time neither saturation nor the unused ceiling can be judged.
@@ -3771,7 +3778,7 @@ class Estimator:
                 base=raw*self.t.max_cluster_base_uplift_weight; method="upper-bound cost uplift from additional clusters during observed saturation"
             factors=Range3(1.0,1+base,1+raw)
             return factors,{
-                "method":method,
+                "method":method+". "+MAX_INCREASE_COST_BOUNDS,
                 "raw_uplift_fraction":round(raw,4),"base_uplift_fraction":round(base,4),
                 "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(factors)},
                 **meta,
