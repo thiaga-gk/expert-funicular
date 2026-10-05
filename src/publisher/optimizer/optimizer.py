@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Mapping, Sequence
 
 from publisher.analyzer.epochs import ready_billed_days
+from publisher.common.logging import LOGGER
 from publisher.config.thresholds import Thresholds
-from publisher.contracts.analysis import AnalysisResult
-from publisher.contracts.candidate import OptimizationDecision
+from publisher.contracts.analysis import AnalysisResult, FleetAnalysis, WarehouseAnalysis
+from publisher.contracts.candidate import OptimizationDecision, OptimizationResult, WarehouseCandidates
+from publisher.contracts.governance import GovernanceResult
+from publisher.contracts.request import RunContext
 from publisher.contracts.source import WarehouseEvidence
 from publisher.optimizer import conflicts
+from publisher.optimizer.estimator.candidate import Estimator
 from publisher.optimizer.techniques import autostop, migration, scaling, size
 
 
@@ -41,3 +45,34 @@ class Optimizer:
         migration.decide(self, e, analyses, cfg, young, billed_days, out)
         conflicts.apply_canary_rollback(self, e, analyses, cfg, young, billed_days, out)
         return out
+
+
+def optimize(w: WarehouseAnalysis, thresholds: Thresholds) -> WarehouseCandidates:
+    """Decisions for one eligible warehouse, each priced as an isolated candidate."""
+    e, analyses = w.evidence, w.analyses
+    decisions = Optimizer(thresholds).optimize(e, analyses)
+    candidates = Estimator(thresholds).candidates(e, analyses, decisions)
+    return WarehouseCandidates(w, decisions, candidates)
+
+
+def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresholds, batch_size: int = 100) -> OptimizationResult:
+    """Optimize the eligible warehouses in batches, in order."""
+    results: List[WarehouseCandidates] = []
+    batch = max(1, int(batch_size))
+    for offset in range(0, len(eligible), batch):
+        chunk = eligible[offset:offset + batch]
+        LOGGER.info("pipeline.batch.start batch_index=%d start=%d size=%d", offset // batch + 1, offset, len(chunk))
+        for w in chunk:
+            e = w.evidence
+            LOGGER.info(
+                "warehouse.start workspace_id=%s warehouse_id=%s name=%s epoch_id=%s",
+                e.workspace_id, e.warehouse_id, e.warehouse_name, e.current_epoch_id,
+            )
+            results.append(optimize(w, thresholds))
+        LOGGER.info("pipeline.batch.done batch_index=%d processed=%d", offset // batch + 1, len(chunk))
+    return OptimizationResult(results)
+
+
+def run(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult) -> OptimizationResult:
+    """What should change: decisions and isolated candidate estimates for every eligible warehouse."""
+    return optimize_eligible(governance.eligible, context.thresholds, context.request.batch_size)

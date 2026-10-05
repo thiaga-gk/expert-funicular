@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from publisher.contracts.analysis import Finding
+from publisher.contracts.analysis import AnalysisResult, Finding, WarehouseAnalysis
+from publisher.contracts.source import WarehouseEvidence
 
 
 @dataclass
@@ -71,3 +72,25 @@ class CandidateRecommendation:
     dbu_365d_estimated_cost_range: Optional[Range3] = None
     aws_365d_estimated_cost_range: Optional[Range3] = None
     total_365d_estimated_cost_range: Optional[Range3] = None
+
+
+@dataclass
+class WarehouseCandidates:
+    """One eligible warehouse after the Optimizer: its analysis, one decision per active knob, and their candidates."""
+    analysis: WarehouseAnalysis
+    decisions: List[OptimizationDecision]
+    candidates: List[CandidateRecommendation]
+
+    @property
+    def evidence(self) -> WarehouseEvidence:
+        return self.analysis.evidence
+
+    @property
+    def analyses(self) -> Dict[str, AnalysisResult]:
+        return self.analysis.analyses
+
+
+@dataclass
+class OptimizationResult:
+    """Optimizer output: candidates for every eligible warehouse, in the Governor's order."""
+    warehouses: List[WarehouseCandidates]

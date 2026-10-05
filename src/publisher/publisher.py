@@ -44,6 +44,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENCE_SCHEMA_PATH  # noqa: F401
 from publisher.analyzer import analyzer
 from publisher.governor import governor
+from publisher.optimizer import optimizer
+from publisher.contracts.candidate import OptimizationResult
 from publisher.governor.compatibility import migration_compatibility
 from publisher.contracts.governance import GovernanceResult
 from publisher.config.loader import _resolve_execution_args, request_from_args  # noqa: F401
@@ -1756,19 +1758,25 @@ def _build_locked_recommendation_package(
     return package
 
 
-def optimize_warehouse(w: WarehouseAnalysis, thresholds: Thresholds) -> Tuple[List[CandidateRecommendation], List[Scenario], Optional[str]]:
-    """Run the deterministic decision pipeline for one analyzed, supported warehouse."""
-    e, analyses = w.evidence, w.analyses
-    optimizer = Optimizer(thresholds)
-    estimator = Estimator(thresholds)
-    reviewer = Reviewer(thresholds)
-    planner = ScenarioPlanner(thresholds)
-    decisions = optimizer.optimize(e, analyses)
-    candidates = estimator.candidates(e, analyses, decisions)
-    reviewer.review(e, candidates)
-    scenarios, recommended = planner.scenarios(e, candidates)
-    reviewer.review_scenarios(e, candidates, scenarios, recommended)
-    return candidates, scenarios, recommended
+def review_and_plan(optimization: OptimizationResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
+    """Reviewer candidate gate, scenario planning and the scenario gate for each optimized warehouse, in order."""
+    results: List[WarehouseOptimization] = []
+    for w in optimization.warehouses:
+        e, candidates = w.evidence, w.candidates
+        reviewer = Reviewer(thresholds)
+        planner = ScenarioPlanner(thresholds)
+        reviewer.review(e, candidates)
+        scenarios, recommended = planner.scenarios(e, candidates)
+        reviewer.review_scenarios(e, candidates, scenarios, recommended)
+        status_counts: Dict[str, int] = {}
+        for candidate in candidates:
+            status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
+        LOGGER.info(
+            "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
+            e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
+        )
+        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
+    return results
 
 
 def evaluate_analysis(
@@ -1783,29 +1791,7 @@ def evaluate_analysis(
             "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
-    ordered = governance.eligible
-    results: List[WarehouseOptimization] = []
-    batch = max(1, int(batch_size))
-    for offset in range(0, len(ordered), batch):
-        chunk = ordered[offset:offset + batch]
-        LOGGER.info("pipeline.batch.start batch_index=%d start=%d size=%d", offset // batch + 1, offset, len(chunk))
-        for w in chunk:
-            e = w.evidence
-            LOGGER.info(
-                "warehouse.start workspace_id=%s warehouse_id=%s name=%s epoch_id=%s",
-                e.workspace_id, e.warehouse_id, e.warehouse_name, e.current_epoch_id,
-            )
-            candidates, scenarios, recommended = optimize_warehouse(w, thresholds)
-            status_counts: Dict[str, int] = {}
-            for candidate in candidates:
-                status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
-            LOGGER.info(
-                "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
-                e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
-            )
-            results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
-        LOGGER.info("pipeline.batch.done batch_index=%d processed=%d", offset // batch + 1, len(chunk))
-    return results
+    return review_and_plan(optimizer.optimize_eligible(governance.eligible, thresholds, batch_size), thresholds)
 
 
 def evaluate_warehouses(
