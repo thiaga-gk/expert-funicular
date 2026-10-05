@@ -1523,10 +1523,10 @@ These decisions bind the phases above where the generic plan meets the existing 
 - The single-file oracle is the git tag `reorg-oracle-2.10.0` on the last single-file commit, plus stored normalized canonical outputs. `scripts/compare_single_file.py` re-runs the tag in a temporary worktree when a diff needs diagnosis. No in-tree copy of the old `publisher.py` is kept.
 - The test suite takes the section 3 layout in full: golden fixtures become `tests/golden/cases/<CASE>/` folders (`source/`, `pricing/`, `policy/`, `expected/recommendation.json`, `case.yaml` holding the assertion block), and tests live under `unit/`, `component/`, `integration/`, `golden/`, `regression/` and `fixtures/`. Each extraction phase relocates the existing tests that target its capability; Phase 10 relocates the rest.
 - Integration tests against a live SQL warehouse skip unless a Databricks profile is configured.
-- Phase 11 (retire the oracle) waits for the real source-system run in `docs/proposals/real-data-run.md`.
+- Phase 11 retires the single-file oracle once fixture-based parity is proven 1:1 (zero canonical-output diffs over the demo fleet and every golden case, and every single-file function accounted for in a new module). The real source-system run in `docs/proposals/real-data-run.md` then runs on the reorganized code; this replaces the section 14 Phase 11 and section 15 condition that real runs precede retirement.
 
 ### 21.4 Execution
 
-- One worktree and branch per phase (`.worktrees/reorg-pN`, `reorg/pN`), `/code-review low` before each merge to `master`, nothing pushed.
+- One worktree and branch per phase (`.worktrees/reorg-pN`, `reorg/pN`), `/code-review low` before each merge to `master`, nothing pushed. All phases run in one session, with mechanical moves delegated to subagents.
 - Every phase exits with: compile check, the full unit suite, the regression comparison against the oracle, the demo regenerated and the workbook validator passing.
 - A design defect found during extraction is recorded as a separate change item and never fixed inside a structural phase (section 17).
