@@ -4,6 +4,7 @@ A minimum-cluster cut realizes a different share of its removable floor on each 
 track, none on the conservative one), so a later auto-stop step scales its idle saving by that track's own floor, not
 by the target floor on every track.
 """
+import copy
 import logging
 import sys
 import unittest
@@ -62,6 +63,32 @@ class BundleTrackFloorTests(unittest.TestCase):
         first, _ = self.plan("min_clusters", "auto_stop_minutes")
         second, _ = self.plan("auto_stop_minutes", "min_clusters")
         self.assertAlmostEqual(first.total_365d_savings_range.low, second.total_365d_savings_range.low, delta=1.0)
+
+    def assert_same_range(self, a, b):
+        for track in ("low", "base", "high"):
+            self.assertAlmostEqual(getattr(a, track), getattr(b, track), delta=1.0, msg=track)
+
+    def test_plan_total_does_not_depend_on_order_on_any_track(self):
+        first, _ = self.plan("min_clusters", "auto_stop_minutes")
+        second, _ = self.plan("auto_stop_minutes", "min_clusters")
+        self.assert_same_range(first.total_365d_savings_range, second.total_365d_savings_range)
+
+    def test_raised_auto_stop_rescales_when_a_later_floor_cut_lowers_the_floor(self):
+        # A raise saves restarts minus the idle it adds, both per floor cluster: priced first at floor 3, its saving must
+        # shrink when the floor cut that follows lowers the track's floor, exactly as when it is priced after the cut.
+        a = self.by_knob["auto_stop_minutes"]
+        raised = copy.copy(a)
+        raised.metadata = dict(a.metadata, bundle_effect=dict(a.metadata["bundle_effect"], gain_cluster_minutes=21600.0,
+                                                               loss_cluster_minutes=6000.0))
+        raised.recommended_config = dict(a.recommended_config, auto_stop_minutes=45)
+        saved = self.by_knob["auto_stop_minutes"]
+        self.by_knob["auto_stop_minutes"] = raised
+        try:
+            first, _ = self.plan("min_clusters", "auto_stop_minutes")
+            second, _ = self.plan("auto_stop_minutes", "min_clusters")
+        finally:
+            self.by_knob["auto_stop_minutes"] = saved
+        self.assert_same_range(first.total_365d_savings_range, second.total_365d_savings_range)
 
 
 if __name__ == "__main__":

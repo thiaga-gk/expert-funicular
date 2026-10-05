@@ -3625,7 +3625,7 @@ class Estimator:
                 "raw_savings_fraction":round(raw,4),"auto_stop_option":dict(opt),
                 "restart_cost_assumption":"Pro/Classic starting minutes are assumed billed at the floor cluster count (start time about 4 minutes, documented; billing not documented); Serverless restarts cost about nothing.",
                 "bundle_effect":{"type":"idle_cluster_minute_reduction","gain_cluster_minutes":opt["gain_cluster_minutes"],"loss_cluster_minutes":opt["loss_cluster_minutes"],
-                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1),"removes_idle":opt["direction"]=="LOWER"},
+                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1)},
                 **meta,
             }
 
@@ -4077,9 +4077,10 @@ class _ChainState:
     # the conservative one), so later steps scale with that track's own floor.
     floor_tracks: List[float]
     halt: Optional[Tuple[str, str]] = None
-    # Wall-clock idle minutes a lower auto-stop already removed, per track: a later minimum-cluster cut has no floor
-    # cluster to remove while the warehouse is stopped.
-    idle_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    # Net running wall-clock minutes an earlier auto-stop change removed per floor cluster, per track (a lower auto-stop:
+    # idle removed minus restarts added; a higher one: restarts saved minus idle added). A later minimum-cluster cut
+    # re-scales that effect to the lower floor, so the plan total does not depend on step order.
+    auto_stop_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 class StatefulBundleEstimator:
@@ -4178,8 +4179,7 @@ class StatefulBundleEstimator:
                 before=st.resource_tracks[i]; net=unit*st.floor_tracks[i]
                 if before<=0 or net<=0: continue
                 removed=min(before,net*realization)
-                if effect.get("removes_idle"):
-                    st.idle_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
+                st.auto_stop_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
@@ -4193,7 +4193,7 @@ class StatefulBundleEstimator:
                 # The track keeps the share of the floor reduction it did not realize.
                 st.floor_tracks[i]=floor-max(0.0,floor-target_min)*realization
                 if before<=0: continue
-                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0.0,floor-target_min))
+                claim=max(0.0,theoretical-st.auto_stop_wall_minutes[i]*max(0.0,floor-target_min))
                 removed=min(before,claim*realization)
                 after=max(0.0,before-removed)
                 ratio=after/before
