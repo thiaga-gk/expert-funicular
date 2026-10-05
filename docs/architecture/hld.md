@@ -622,7 +622,7 @@ flowchart TD
     REAL -. references immutable package/scenario/candidate .-> PKG
 ```
 
-Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. The internal join keys that `src/publisher/publisher.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
+Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. The internal join keys that `src/publisher/common/ids.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
 
 Volatile data such as `generated_at`, filenames, log paths, or workbook formatting must not influence recommendation identities.
 
@@ -666,7 +666,7 @@ flowchart LR
 
 ### 12.3 Internal domain contracts
 
-The typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`). After reviewer gate 2, the publisher assembles the locked public `RecommendationPackage` directly; there is no separate internal report serialization model.
+The typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`). The Packager (`src/publisher/packager/`) assembles the locked public `RecommendationPackage` directly, and reviewer gate 2 checks its scenarios; there is no separate internal report serialization model.
 
 These internal objects are **not public APIs**. The public JSON contract remains the `RecommendationPackage` of the Reporter JSON Contract.
 
@@ -968,4 +968,4 @@ Product acceptance criteria: `docs/product/prd.md` section 23. The architecture 
 
 External platform references: `docs/product/prd.md` section 28.
 
-Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/analyzer/`, `src/publisher/governor/`, `src/publisher/optimizer/`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.
+Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/analyzer/`, `src/publisher/governor/`, `src/publisher/optimizer/`, `src/publisher/reviewer/`, `src/publisher/packager/`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.

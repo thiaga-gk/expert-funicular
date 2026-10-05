@@ -9,7 +9,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
