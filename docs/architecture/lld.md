@@ -702,7 +702,7 @@ target(peak_clusters) = min(max_clusters_supported_limit,
                             max(min_clusters, peak_clusters + max_cluster_target_headroom_clusters))
 ```
 
-Serverless scales differently and keeps its own rules (queue-based one-step increase, peak-plus-headroom reduction, below).
+Serverless scales differently and keeps its own rules (queue-based one-step increase, shown at low confidence via `confidence_cap_serverless_ceiling_increase`; peak-plus-headroom reduction, below).
 
 #### Increase
 

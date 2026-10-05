@@ -157,5 +157,23 @@ class OlderEpochHoldTests(unittest.TestCase):
         self.assertIn("PEAK_OUTSIDE_RECENT_WINDOW", by["max_clusters"].blockers)
 
 
+class ServerlessCeilingConfidenceTests(unittest.TestCase):
+    def test_serverless_queue_based_increase_is_low_confidence(self):
+        import json
+        logging.disable(logging.CRITICAL)
+        try:
+            payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+            e = p.evidence_from_dict(payload["evidence"][0])
+            import dataclasses
+            for ep in e.epochs:
+                ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS")
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "max_clusters")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertEqual(c.recommended_config["max_clusters"], c.current_config["max_clusters"] + 1)
+        self.assertEqual(c.confidence["level"], "LOW")
+
+
 if __name__ == "__main__":
     unittest.main()

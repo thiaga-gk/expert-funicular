@@ -196,6 +196,7 @@ Deterministic evidence-quality score, levels and caps; confidence is not a proba
 | `confidence_cap_test_required` | `0.78` | Maximum confidence score (0-1) for a TEST_REQUIRED candidate. | [LLD §16 Candidate confidence model](../architecture/lld.md) |
 | `confidence_cap_actionable` | `0.93` | Maximum confidence score (0-1) for an ACTIONABLE candidate. | [LLD §16 Candidate confidence model](../architecture/lld.md) |
 | `confidence_cap_default` | `0.8` | Maximum confidence score (0-1) for candidates that are neither ACTIONABLE nor TEST_REQUIRED. | [LLD §16 Candidate confidence model](../architecture/lld.md) |
+| `confidence_cap_serverless_ceiling_increase` | `0.59` | Confidence cap for a Serverless max-cluster increase (queue-based, one step): below `confidence_medium_threshold`, so it shows as LOW. | [LLD §15.4 Max clusters](../architecture/lld.md) |
 
 ### Estimators and realization
 
