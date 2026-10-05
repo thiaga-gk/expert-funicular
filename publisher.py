@@ -110,6 +110,7 @@ class Thresholds:
     min_economics_cost_history_days: int = 7
     forecast_cadence_gap_days: int = 7  # billing with a longer gap (and median cycle) is a periodic workload
     forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
+    forecast_run_bridge_days: int = 3  # billed days this close belong to one run (a weekend inside a month-end close)
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
@@ -2279,21 +2280,21 @@ def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
 
 
 def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds) -> Dict[str, Any]:
-    """Runs of consecutive billed days in a zero-filled daily cost series and their run-to-run cycles.
+    """Runs of billed days (gaps of at most forecast_run_bridge_days inside a run, so a weekend does not split a
+    month-end close) in a zero-filled daily cost series and their run-to-run cycles.
 
-    periodic: short runs (median run length at most forecast_cadence_gap_days) repeating on a current cadence, with the
+    periodic: short runs (median calendar length at most forecast_cadence_gap_days) repeating on a current cadence, with the
     longest gap between billed days and the median cycle both above forecast_cadence_gap_days (with fewer than three
     runs there is no median, so the gap alone decides). weekly: on that boundary (the gap or the median cycle equals
     it), where the cadence model is used only when the run rate has no number. A cadence is current when the last run
-    started no more than one reference cycle (the median, or the only cycle) plus forecast_cadence_gap_days before the
-    basis end. A run that starts on the basis's first day may be cut by it, so it is not a cycle anchor. The cycle cost
+    started no more than the longest cycle plus forecast_cadence_gap_days before the basis end. A run that starts on the basis's first day may be cut by it, so it is not a cycle anchor. The cycle cost
     is the cost from the first anchor run's first day up to the last run's first day: whole cycles only.
     """
     gap_limit = t.forecast_cadence_gap_days
     billed = [i for i, x in enumerate(series) if x > 1e-12]
     runs: List[List[int]] = []
     for i in billed:
-        if runs and i - runs[-1][-1] <= 1:
+        if runs and i - runs[-1][-1] <= t.forecast_run_bridge_days:
             runs[-1].append(i)
         else:
             runs.append([i])
@@ -2301,8 +2302,8 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
     gap = max((b - a for a, b in zip(billed, billed[1:])), default=None)
     cycles = [b - a for a, b in zip(starts, starts[1:])]
     median = statistics.median(cycles) if len(starts) >= 3 else None
-    short_runs = bool(runs) and statistics.median(len(r) for r in runs) <= gap_limit
-    reference = median if median is not None else (cycles[0] if cycles else None)
+    short_runs = bool(runs) and statistics.median(r[-1] - r[0] + 1 for r in runs) <= gap_limit
+    reference = max(cycles) if cycles else None
     current = reference is not None and (len(series) - 1 - starts[-1]) <= reference + gap_limit
     shape = short_runs and current
     periodic = shape and gap is not None and gap > gap_limit and (median is None or median > gap_limit)

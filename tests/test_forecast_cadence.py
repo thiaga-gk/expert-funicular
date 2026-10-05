@@ -144,6 +144,31 @@ class CadenceClassificationTests(unittest.TestCase):
         self.assertEqual(f["forecast_model"], "RUN_RATE")
         self.assertIsNone(f["forecast_cost_365"])
 
+    def test_a_weekend_inside_a_close_does_not_split_the_run(self):
+        # Last five business days of each month: a weekend splits most closes into two pieces. Read on 26 December
+        # 2026 with a 120-day epoch, the pieces once pulled the median cycle down and the forecast fell to the run rate
+        # (3,015/yr); bridged into one run per close, the cadence model gives the true level (6,000/yr) within 5%.
+        closes = {d for y in (2025, 2026) for m in range(1, 13) for d in last_bdays(y, m, 5)}
+        today = dt.date(2026, 12, 26)
+        start = today - dt.timedelta(days=120)
+        rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
+                 "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                for d in (start + dt.timedelta(days=k) for k in range(120)) if d in closes]
+        f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-12-26T12:00:00+00:00")
+        self.assertEqual(f["forecast_model"], "CADENCE")
+        self.assertAlmostEqual(f["forecast_cost_365"], 6000, delta=0.05 * 6000)
+
+    def test_five_day_quarter_end_close_is_periodic(self):
+        closes = {d for y in (2025, 2026) for m in (3, 6, 9, 12) for d in last_bdays(y, m, 5)}
+        f = forecast_fn(lambda d, i: 100 if d in closes else 0, 365)
+        self.assertEqual(f["forecast_model"], "CADENCE")
+        self.assertAlmostEqual(f["forecast_cost_365"], 2000, delta=0.2 * 2000)
+
+    def test_long_runs_keep_the_run_rate(self):
+        # Ten days on, twenty off: runs longer than a week are not a periodic burst.
+        f = forecast_fn(lambda d, i: 100 if i % 30 < 10 else 0, 180)
+        self.assertEqual(f["forecast_model"], "RUN_RATE")
+
     def test_a_run_cut_by_the_basis_start_is_not_a_cycle_anchor(self):
         # Two-day runs on the 1st and 2nd of each month; the epoch starts on 2 June, inside a run. Anchoring on that
         # cut run would count half a run for a whole cycle (2,005/yr); whole cycles from 1 July give 2,355 (true 2,400).
