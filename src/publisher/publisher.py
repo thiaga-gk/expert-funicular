@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
-"""Deterministic Databricks SQL Warehouse optimizer and publisher.
+"""Deterministic, read-only Databricks SQL Warehouse optimizer: the publisher facade.
 
-Pipeline:
-collect -> normalize/epochs -> analyze -> optimize -> model -> estimate ->
-review -> scenario plan -> stateful bundle estimate -> package/report
+    Analyzer -> Governor -> Optimizer -> Reviewer (candidate gate) -> Packager -> Reviewer (package gate) -> Reporter
 
-Source policy
--------------
-* Source configs: system.compute.warehouses only.
-* Source metrics: Databricks system tables only.
-* Source configs and workload/cost metrics remain system-table-only.
-* Read-only Databricks REST is permitted only for execution-target resolution/validation and Serverless compatibility evidence.
-* Compatibility uses API evidence when available (B) and deterministically falls back to HITL/system-table evidence (A) when unavailable.
-* OAuth is resolved from a local Databricks CLI profile; tokens are never logged.
-
-The runtime is read-only and contains no LLM calls. Identical normalized
-source evidence + policy/model versions produces identical recommendation IDs
-and decision semantics.
+``publish`` orchestrates the capabilities and nothing else: SQL, policy, decisions, estimation, scenarios, review
+rules and rendering live in their packages (docs/architecture/repo-reorg-design.md). The runtime is read-only and has
+no LLM calls; identical normalized evidence and policy/model/contract versions produce identical packages.
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import List, Optional, Sequence, Tuple
+
+from publisher.analyzer import analyzer
+from publisher.common.logging import LOGGER, setup_logging
+from publisher.config.loader import parse_args, request_from_args
+from publisher.config.versions import ANALYZER_VERSION, BUNDLE_MODEL_VERSION, ESTIMATOR_VERSION, OPTIMIZER_VERSION, POLICY_VERSION
+from publisher.contracts import reporter_contract as rc
+from publisher.contracts.analysis import FleetAnalysis
+from publisher.contracts.governance import GovernanceResult
+from publisher.contracts.report import ReportContract
+from publisher.contracts.request import MODE_REPLAY, PublisherRequest, RunContext
+from publisher.contracts.review import CandidateReviewResult, WarehouseOptimization
+from publisher.contracts.source import WarehouseEvidence
+from publisher.governor import governor
+from publisher.governor.thresholds import Thresholds
+from publisher.optimizer import optimizer
+from publisher.packager import packager
+from publisher.reporter import reporter
+from publisher.reviewer import reviewer
+
+# Transitional: names re-exported for tests that still read them through the facade.
 import argparse
 import bisect
 import dataclasses
@@ -241,7 +252,11 @@ from publisher.reporter.json_reporter import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-def log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
+def build_context(request: PublisherRequest, thresholds: Optional[Thresholds] = None) -> RunContext:
+    return RunContext(request=request, thresholds=thresholds if thresholds is not None else Thresholds())
+
+
+def _log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(analysis.evidence), batch_size)
     for excluded in governance.exclusions:
         LOGGER.warning(
@@ -250,105 +265,61 @@ def log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, ba
         )
 
 
-def evaluate_analysis(
-    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
-) -> List[WarehouseOptimization]:
-    """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
-    governance = governance if governance is not None else governor.govern(analysis)
-    log_pipeline_start(analysis, governance, batch_size)
-    # Evidence already in hand is a replay: the context carries only the policy and the batch size.
-    context = RunContext(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
+def publish(request: PublisherRequest) -> ReportContract:
+    """One deterministic publisher run: every capability once, in order."""
+    context = build_context(request)
+    analysis = analyzer.run(context)
+    governance = governor.run(context, analysis)
+    _log_pipeline_start(analysis, governance, request.batch_size)
     optimization = optimizer.run(context, analysis, governance)
-    optimizations = packager.plan(reviewer.review_candidates(context, analysis, governance, optimization), thresholds)
-    for w in optimizations:
-        Reviewer(thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
-    return optimizations
+    reviewed_candidates = reviewer.review_candidates(context, analysis, governance, optimization)
+    package = packager.run(context, analysis, governance, reviewed_candidates)
+    reviewed_package = reviewer.review_package(context, analysis, governance, package)
+    return reporter.run(context, analysis, governance, reviewed_package)
+
+
+def _reviewed_candidates(
+    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int
+) -> Tuple[RunContext, FleetAnalysis, GovernanceResult, CandidateReviewResult]:
+    """Evidence already in hand (a replay) through the Analyzer, Governor, Optimizer and the candidate gate."""
+    context = build_context(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
+    analysis = FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds))
+    governance = governor.govern(analysis)
+    _log_pipeline_start(analysis, governance, batch_size)
+    optimization = optimizer.run(context, analysis, governance)
+    return context, analysis, governance, reviewer.review_candidates(context, analysis, governance, optimization)
 
 
 def evaluate_warehouses(
     evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
 ) -> List[WarehouseOptimization]:
-    """Analyze and evaluate warehouses from evidence already in hand (the CLI runs analyzer.run first)."""
-    return evaluate_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
-
-
-def build_packages_from_analysis(
-    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
-) -> List[rc.RecommendationPackage]:
-    """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
-    return packager.assemble(analysis, evaluate_analysis(analysis, thresholds, batch_size, governance), thresholds)
+    """Evidence in hand through both Reviewer gates, without assembling public packages."""
+    context, _, _, reviewed = _reviewed_candidates(evidence, thresholds, batch_size)
+    optimizations = packager.plan(reviewed, thresholds)
+    reviewer.review_plans(context, optimizations)
+    return optimizations
 
 
 def build_recommendation_packages(
     evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
 ) -> List[rc.RecommendationPackage]:
-    """Analyze evidence already in hand and assemble locked public packages (the CLI runs analyzer.run first)."""
-    return build_packages_from_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
+    """Evidence in hand to reviewed public packages, without writing anything."""
+    context, analysis, governance, reviewed = _reviewed_candidates(evidence, thresholds, batch_size)
+    return reviewer.review_package(context, analysis, governance, packager.run(context, analysis, governance, reviewed)).packages
 
 
-# ---------------------------------------------------------------------------
-# Demo / evidence persistence / merge
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-
-def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    from publisher.contracts import workbook_contract as wc
-    p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION})")
-    p.add_argument("--output-dir",default="./warehouse_optimizer_out")
-    p.add_argument("--demo",action="store_true")
-    p.add_argument("--from-evidence",action="append",default=[])
-    p.add_argument("--profile",default=os.getenv("DATABRICKS_CONFIG_PROFILE","DEFAULT"))
-    p.add_argument("--execution-kind",choices=("warehouse","cluster"),default=None,help="Collector SQL execution target kind")
-    p.add_argument("--execution-id",default=None,help="SQL warehouse ID or all-purpose cluster ID")
-    p.add_argument("--sql-warehouse-id",default=os.getenv("DATABRICKS_SQL_WAREHOUSE_ID"),help="Convenience alias for a SQL warehouse execution target")
-    p.add_argument("--serverless-warehouse-id",default=os.getenv("DATABRICKS_SERVERLESS_WAREHOUSE_ID"),help="Convenience alias for a Serverless SQL warehouse execution target")
-    p.add_argument("--all-purpose-cluster-id",default=os.getenv("DATABRICKS_ALL_PURPOSE_CLUSTER_ID"),help="Convenience alias for an all-purpose compute execution target")
-    p.add_argument("--workspace-id",default=os.getenv("DATABRICKS_WORKSPACE_ID"),help="Workspace/org ID; optional for warehouse, used to construct all-purpose cluster HTTP path")
-    p.add_argument("--config-file",default=os.getenv("DATABRICKS_CONFIG_FILE"))
-    p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"),help="AWS region of the workspace; Pro/Classic AWS cost uses its registry prices")
-    p.add_argument("--allow-missing-aws-price",action="store_true",help="Live mode: publish even when --source-region is missing from the AWS price registry (Pro/Classic AWS cost unavailable)")
-    p.add_argument("--billing-ingested-through",default=None,help="YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)")
-    default_registry=str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json")
-    p.add_argument("--aws-price-registry",default=os.getenv("AWS_PRICE_REGISTRY",default_registry))
-    p.add_argument("--batch-size",type=int,default=int(os.getenv("WAREHOUSE_BATCH_SIZE","100")),help="Downstream analysis/report batch size; collector SQL is set-based and aggregated in Databricks")
-    p.add_argument("--compatibility-api-mode",choices=("auto","off"),default=os.getenv("COMPATIBILITY_API_MODE","auto"),help="auto=B read-only workspace compatibility API when available, else A HITL fallback")
-    p.add_argument("--log-level",choices=("DEBUG","INFO","WARNING","ERROR"),default=os.getenv("PUBLISHER_LOG_LEVEL","INFO"))
-    p.add_argument("--demo-count",type=int,default=len(DEMO_FLEET),help=f"Synthetic collector warehouse count for --demo (1..{len(DEMO_FLEET)}, one per golden scenario)")
-    p.add_argument("--no-workbook",action="store_true",help="Skip workbook.xlsx generation; locked JSON packages are still emitted")
-    p.add_argument("--print-json",action="store_true")
-    return p.parse_args(argv)
-
-
-def main(argv:Optional[Sequence[str]]=None)->int:
-    args=parse_args(argv); t=Thresholds(); out=Path(args.output_dir)
-    log_path=setup_logging(out,args.log_level)
-    LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",POLICY_VERSION,ANALYZER_VERSION,OPTIMIZER_VERSION,ESTIMATOR_VERSION,BUNDLE_MODEL_VERSION)
-    context=RunContext(request=request_from_args(args),thresholds=t)
-    analysis=analyzer.run(context)
-    evidence=analysis.evidence; unseen=analysis.unseen_billed_warehouses
-    governance=governor.run(context,analysis)
-    log_pipeline_start(analysis,governance,args.batch_size)
-    optimization=optimizer.run(context,analysis,governance)
-    reviewed=reviewer.review_candidates(context,analysis,governance,optimization)
-    packaging=packager.run(context,analysis,governance,reviewed)
-    report=reporter.run(context,analysis,governance,reviewer.review_package(context,analysis,governance,packaging))
-    packages=report.packages
-    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",report.analyzed_count,report.excluded_count,len(packages),report.candidate_count,report.scenario_count,log_path)
-    if args.print_json:
-        if len(packages) != 1:
-            raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
-        print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
-    else:
-        print(f"Analyzed {report.analyzed_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v{rc.CONTRACT_VERSION} package(s), {report.candidate_count} candidates, and {report.scenario_count} scenarios; excluded {report.excluded_count} unsupported warehouse(s) (see manifest).")
-        for k,v in report.files.items(): print(f"{k}: {v}")
-        print(f"log: {log_path}")
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """CLI: python -m publisher."""
+    args = parse_args(argv)
+    log_path = setup_logging(Path(args.output_dir), args.log_level)
+    LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",
+                POLICY_VERSION, ANALYZER_VERSION, OPTIMIZER_VERSION, ESTIMATOR_VERSION, BUNDLE_MODEL_VERSION)
+    report = publish(request_from_args(args))
+    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",
+                report.analyzed_count, report.excluded_count, len(report.packages), report.candidate_count, report.scenario_count, log_path)
+    reporter.print_summary(report, log_path, print_json=args.print_json)
     return 0
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     raise SystemExit(main())
