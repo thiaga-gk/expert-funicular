@@ -859,7 +859,8 @@ Components (parameters: [`docs/reference/thresholds.md`](../reference/thresholds
 
 ```text
 coverage       = clamp(cost_history_days / confidence_coverage_days, 0, 1)
-sample         = clamp(queries_30 / strong_query_sample_size, 0, 1)
+sample         = clamp(decision_sample / strong_sample, 0, 1)   # the sample the knob's decision is made on;
+                                                                  # an unknown sample earns no credit
 stability      = clamp(1 - cost_cv_84 / 2, 0, 1)          # unknown cv earns no credit
 epoch_maturity = clamp(epoch_age_days / confidence_epoch_maturity_days, 0, 1)
 signal         = confidence_signal_change for ACTIONABLE / TEST_REQUIRED,
@@ -877,7 +878,17 @@ score = confidence_base_weight
       + confidence_signal_weight    * signal
 ```
 
-The score is clamped to a cap by candidate status (`confidence_cap_test_required`, `confidence_cap_actionable`, `confidence_cap_default`) and mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences.
+Decision sample by knob:
+
+| Knob | `decision_sample` | `strong_sample` |
+|---|---|---|
+| Size | queries not served from the result cache, last 30 days | `strong_query_sample_size` |
+| Max clusters | busy minutes in the recent window | `confidence_strong_busy_minutes` |
+| Min clusters | busy periods in the recent window | `confidence_strong_busy_periods` |
+| Auto-stop | queries over the running-idle window | `strong_query_sample_size` |
+| Migration | queries, last 30 days | `strong_query_sample_size` |
+
+The score is clamped to a cap by candidate status: `confidence_cap_actionable` for `ACTIONABLE`, `confidence_cap_test_required` for `TEST_REQUIRED`, `confidence_cap_insufficient_evidence` for `INSUFFICIENT_EVIDENCE` (below the MEDIUM cut-off) and `confidence_cap_default` for every other status (below the HIGH cut-off): a candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`. The score is mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences; a scenario with no steps has no score (`UNKNOWN`).
 
 ---
 

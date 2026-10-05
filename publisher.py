@@ -264,7 +264,11 @@ class Thresholds:
     confidence_signal_no_change: float = 0.70
     confidence_cap_test_required: float = 0.78
     confidence_cap_actionable: float = 0.93
-    confidence_cap_default: float = 0.80
+    confidence_cap_default: float = 0.79  # every status but ACTIONABLE/TEST_REQUIRED: a decision that changes nothing is never HIGH
+    confidence_cap_insufficient_evidence: float = 0.59  # below the MEDIUM cut-off: a candidate without enough evidence is LOW
+    # Full credit of the sample component for the knobs that do not decide on a query count (5x their evidence minimum).
+    confidence_strong_busy_minutes: int = 1000
+    confidence_strong_busy_periods: int = 100
     # Serverless scales differently from the documented Pro/Classic rule, so its queue-based ceiling increase is shown
     # at low confidence (below confidence_medium_threshold).
     confidence_cap_serverless_ceiling_increase: float = 0.59
@@ -3550,8 +3554,14 @@ class Estimator:
     def __init__(self, thresholds: Thresholds):
         self.t=thresholds
 
+    # The sample each knob's decision is made on and its full-credit size; an unknown sample earns no credit.
+    _DECISION_SAMPLE={"warehouse_size":("decision_queries","strong_query_sample_size"),"max_clusters":("busy_minutes_recent","confidence_strong_busy_minutes"),
+                      "min_clusters":("busy_periods_recent","confidence_strong_busy_periods"),"auto_stop_minutes":("running_idle_queries","strong_query_sample_size"),
+                      "warehouse_type":("queries_30","strong_query_sample_size")}
+
     def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
-        q=safe_float(a.facts.get("queries_30")); coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(q/self.t.strong_query_sample_size,0,1)
+        fact,strong=self._DECISION_SAMPLE[a.knob]
+        coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(safe_float(a.facts.get(fact))/getattr(self.t,strong),0,1)
         stability=cost_stability(e.cost_cv_84); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
         score=clamp(
             self.t.confidence_base_weight
@@ -3894,7 +3904,8 @@ class Estimator:
                 aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
             est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
         signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
-        cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
+        cap=(self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE"
+             else self.t.confidence_cap_insufficient_evidence if d.status=="INSUFFICIENT_EVIDENCE" else self.t.confidence_cap_default)
         if (d.knob=="max_clusters" and e.current_epoch.config.warehouse_type=="SERVERLESS"
                 and safe_int(d.recommended_config.get("max_clusters"))>safe_int(d.current_config.get("max_clusters"))):
             cap=min(cap,self.t.confidence_cap_serverless_ceiling_increase)
@@ -3986,7 +3997,7 @@ class Reviewer:
             raise ValueError(f"Expected exactly one recommended scenario for {e.workspace_id}/{e.warehouse_id}")
         for sc in scenarios:
             sc_score=safe_float(sc.confidence.get("score"),-1)
-            if not 0<=sc_score<=1:
+            if not (0<=sc_score<=1 or (not sc.steps and sc.confidence.get("score") is None)):
                 raise ValueError(f"Scenario confidence out of range: {sc.scenario_id}")
             seen_steps=set(); invalidated=set()
             for st in sc.steps:
@@ -4256,7 +4267,7 @@ class ScenarioPlanner:
     def _scenario_confidence(self, steps: Sequence[PlanStep]) -> Dict[str, Any]:
         scores=[safe_float(s.confidence.get("score"),0.0) for s in steps if s.confidence]
         if not scores:
-            return {"score":1.0,"level":"HIGH","method":"no-change/empty scenario"}
+            return {"score":None,"level":"UNKNOWN","method":"no steps: nothing to be confident about"}
         score=min(scores)
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW","method":"bottleneck minimum of step confidences"}
 
