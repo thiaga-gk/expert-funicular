@@ -46,16 +46,29 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `publisher.py` (the facade and pipeline, which still carries most of the logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, repository-relative settings), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `publisher.py` (the facade and the pipeline stages downstream of the analyzer, which still carries their logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
 | Module | Responsibility | May make optimization decisions? |
 |---|---|---:|
-| `src/publisher/publisher.py` | collection, normalization, model/analyze/optimize/estimate/review/scenario orchestration, public package adaptation, CLI (`main`) | Yes, deterministic only |
+| `src/publisher/analyzer/analyzer.py` | analyzer facade: `collect` (demo, replay or live source), `analyze` and `run`; fails closed on unsupported warehouse types before calibration and findings, while the publisher records the exclusions | No |
+| `src/publisher/analyzer/collector/queries/` (`config_epochs.py`, `query_history.py`, `events.py`, `billing.py`) | collector SQL, one module per system-table family: configuration epochs, query history, warehouse events, billing | No |
+| `src/publisher/analyzer/collector/` (`sql_executor.py`, `workspace_api.py`, `billing.py`, `pricing.py`, `collector.py`, `replay.py`, `demo.py`) | read-only SQL execution (`SqlClient`), read-only REST and OAuth, billing helpers (settle buffer, watermark, unseen billed warehouses), price sources and the AWS baseline cost model, evidence assembly (`extract_evidence`), replay evidence files, the synthetic demo fleet (`DEMO_FLEET`, `synthetic_demo_evidence`) | No |
+| `src/publisher/analyzer/normalizer.py` | normalization of source values: sizes, owners, tags, Photon observation, query-source profiles | No |
+| `src/publisher/analyzer/epochs.py` | epoch age and observed days, evidence carried across a change, settled billed days | No |
+| `src/publisher/analyzer/metrics.py` | derived metrics: auto-stop measurement grid, running idle, concurrency histograms, resource windows, demand trends | No |
+| `src/publisher/analyzer/forecast.py` | the Modeler: no-change DBU baseline forecast from daily billing | No |
+| `src/publisher/analyzer/blockers.py` | evidence-level blockers and the withheld-baseline rationale | No |
+| `src/publisher/analyzer/calibration.py` | workspace calibration: observed warehouse types and billed Pro/Classic DBU rates per size | No |
+| `src/publisher/analyzer/findings.py` | `Analyzer`: per-knob facts and findings, never a recommendation; `canary_observation` | No |
+| `src/publisher/publisher.py` | optimize/estimate/review/scenario orchestration, public package adaptation, CLI (`main`); re-exports the moved names so `publisher.<name>` keeps resolving | Yes, deterministic only |
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) and the orchestration result (`WarehouseOptimization`) | No |
-| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs; repository root and committed schema paths | No |
+| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
+| `src/publisher/config/thresholds.py` | `Thresholds`: every decision default (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
+| `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
+| `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
 | `src/publisher/common/logging.py`, `ids.py`, `hashing.py`, `time.py`, `utils.py` | run logging; internal 16-hex join keys (never public IDs); canonical JSON; timestamp parsing; value coercion and serialization | No |
 | `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
 | `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
@@ -70,7 +83,8 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 
 ```mermaid
 flowchart LR
-    SRC[Databricks sources] --> PUB[src/publisher/publisher.py domain engine]
+    SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
+    ANA --> PUB[src/publisher/publisher.py decision engine]
     PUB --> RC[Reporter Contract v2.0.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
@@ -232,6 +246,8 @@ Configuration values from read-only APIs **must never override** `system.compute
 ### 7.2 Collector projections
 
 #### `CONFIG_EPOCHS_SQL`
+
+Defined in `src/publisher/analyzer/collector/queries/config_epochs.py`; the other collector SQL lives beside it, one module per system-table family.
 
 Produces one row per configuration epoch for active warehouses, with:
 
@@ -404,7 +420,7 @@ Unknown compatibility evidence is represented as `UNKNOWN` / HITL-required, not 
 
 ## 9. Normalized internal domain contracts
 
-Internal dataclasses are implementation contracts, not public API contracts. They live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`), except `Thresholds`, which stays in `src/publisher/publisher.py`.
+Internal dataclasses are implementation contracts, not public API contracts. They live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`), except `Thresholds`, which lives in `src/publisher/config/thresholds.py`, and `PublisherRequest` and `RunContext`, in `request.py`.
 
 | Contract | Role | Key invariants |
 |---|---|---|
@@ -504,13 +520,13 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-The publisher enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+The analyzer (`analyze` in `src/publisher/analyzer/analyzer.py`) enforces this gate before workspace calibration and per-knob findings; unsupported/future types fail closed and never reach them. The exclusion is per warehouse: the rest of the fleet is still analyzed and evaluated, and the publisher records each excluded warehouse in `manifest.json` `excluded_warehouses`.
 
 ---
 
 ## 11. Forward baseline model
 
-`Modeler.forecast_from_daily_cost()` builds the no-change DBU forward baseline from **zero-filled calendar-day current-epoch daily cost**, while `current_cost_365` remains the observed trailing-365-day actual DBU list cost.
+`Modeler.forecast_from_daily_cost()` (`src/publisher/analyzer/forecast.py`) builds the no-change DBU forward baseline from **zero-filled calendar-day current-epoch daily cost**, while `current_cost_365` remains the observed trailing-365-day actual DBU list cost.
 
 ### 11.1 Basis
 
@@ -1616,7 +1632,7 @@ The full regression suite is the validation baseline; reproduce the results with
 
 Golden cases are folders under `tests/golden/cases/<name>/`: `case.yaml` (the `expect` block), `source/` (normalized evidence or collector snapshots) and `expected/` (canonical output generated by `scripts/update_goldens.py`). The case list and layout: `tests/golden/README.md`; the assertion DSL: the docstring of `tests/golden/test_golden_publisher.py`; the scenario catalog: `docs/proposals/golden-scenarios.md`.
 
-Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/test_resource_window.py`, `tests/test_config_epochs_sql.py`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
+Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
 
 ### 32.4 Required contract assertions
 
