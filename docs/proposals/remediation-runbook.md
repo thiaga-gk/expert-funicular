@@ -9,6 +9,7 @@ Purpose: resolve every tracker finding, one at a time, until every **in-scope** 
 | Findings, design, decisions D1–D14 | `docs/proposals/gap-review-2.8.0.md` |
 | Golden scenarios (one table; finding IDs only in the Tracker column) | `docs/proposals/golden-scenarios.md` |
 | Live status, priority order | Tracker artifact https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w, collection `findings`, doc id = finding id |
+| Repo copy of the tracker (for environments without claude.ai) | `docs/proposals/tracker.md`, regenerated from the artifact at every batch merge |
 | Earlier proposals M1–M4, M9 | `docs/archive/audit-m-group-b.md`, `docs/archive/m9-contract-design.md` |
 | Execution rules | `CLAUDE.md` (change loop, contract rules, security) |
 
