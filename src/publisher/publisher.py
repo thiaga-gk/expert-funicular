@@ -63,8 +63,11 @@ DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v2"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
-# Repository root: the committed schema/ and pricing/ directories are resolved from it.
+# Repository root: the committed schema/ and pricing/ directories are resolved from it, so the package runs from a
+# checkout (pip install -e .), never from a copied site-packages install.
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if not (REPO_ROOT / "schema").is_dir():
+    raise ImportError(f"publisher must run from a repository checkout (pip install -e .): no schema/ under {REPO_ROOT}")
 
 SIZE_ORDER = [
     "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",

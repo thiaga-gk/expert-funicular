@@ -12,6 +12,8 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+The install must be editable (`-e`): the package reads the committed `schema/` and `pricing/` folders from the checkout and refuses to import from a copied install.
+
 ## Canonical flow
 
 ```mermaid
