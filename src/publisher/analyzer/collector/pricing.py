@@ -8,7 +8,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 from publisher.analyzer.metrics import annualized_resource_rates
 from publisher.common.utils import safe_float
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import EpochEvidence
 
 

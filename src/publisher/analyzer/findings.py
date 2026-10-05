@@ -30,7 +30,7 @@ from publisher.common.ids import finding_id
 from publisher.common.time import parse_datetime
 from publisher.common.utils import as_string_list, clamp, optional_float, round_or_none, safe_float, safe_int
 from publisher.config.defaults import SIZE_ORDER
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import AnalysisResult, Finding
 from publisher.contracts.source import WarehouseEvidence
 

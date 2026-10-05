@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.common.time import parse_datetime
 from publisher.common.utils import clamp, optional_float, safe_float, safe_int
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import EpochEvidence, WarehouseEvidence
 
 

@@ -1,4 +1,4 @@
-"""Configuration (src/publisher/config): versions, defaults and repository-relative settings."""
+"""Configuration (src/publisher/config): versions, reference constants and repository-relative settings."""
 import re
 import sys
 import unittest
@@ -28,6 +28,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(set(defaults.AWS_SQL_WAREHOUSE_TOPOLOGY), set(defaults.SIZE_ORDER))
         self.assertLessEqual(set(defaults.SQL_DBU_PER_CLUSTER_HOUR), set(defaults.SIZE_ORDER))
         self.assertEqual(len(defaults.ACTIVE_KNOBS), 5)
+        self.assertEqual(defaults.SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
 
 
 if __name__ == "__main__":

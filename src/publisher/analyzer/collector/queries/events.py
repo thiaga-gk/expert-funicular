@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE
 from publisher.analyzer.metrics import auto_stop_targets
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 
 
 EPOCH_EVENT_METRICS_SQL = r"""

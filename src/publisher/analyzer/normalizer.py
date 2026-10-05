@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional
 
 from publisher.common.time import iso, parse_datetime
 from publisher.common.utils import as_string_list, clamp, safe_float, safe_int
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import PhotonObservation, QuerySourceProfile
 
 

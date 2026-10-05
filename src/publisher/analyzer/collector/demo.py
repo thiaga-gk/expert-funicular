@@ -25,7 +25,7 @@ from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float, safe_int
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SQL_DBU_PER_CLUSTER_HOUR
 from publisher.config.settings import REPO_ROOT
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import (
     EpochEvidence,
     PhotonObservation,

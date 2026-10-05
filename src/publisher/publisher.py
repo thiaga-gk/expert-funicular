@@ -69,7 +69,7 @@ from publisher.config.versions import (  # noqa: F401
     MODEL_VERSION, OPTIMIZER_VERSION, POLICY_VERSION, PUBLISHER_VERSION, REVIEWER_VERSION, TECHNIQUE_CATALOG_VERSION,
 )
 from publisher.config.defaults import (  # noqa: F401
-    ACTIVE_KNOBS, AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR,
+    ACTIVE_KNOBS, AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR, SUPPORTED_WAREHOUSE_TYPES,
 )
 from publisher.common.utils import (  # noqa: F401
     _map_pairs, as_serializable, as_string_list, clamp, normalize_map, optional_float, round_or_none, safe_float, safe_int,
@@ -86,11 +86,8 @@ from publisher.common.ids import (  # noqa: F401
 from publisher.common.logging import (  # noqa: F401
     LOGGER, setup_logging,
 )
-from publisher.config.thresholds import (  # noqa: F401
+from publisher.governor.thresholds import (  # noqa: F401
     Thresholds,
-)
-from publisher.config.defaults import (  # noqa: F401
-    SUPPORTED_WAREHOUSE_TYPES,
 )
 from publisher.analyzer.collector.queries.config_epochs import (  # noqa: F401
     CONFIG_EPOCHS_CTE, CONFIG_EPOCHS_SQL,

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from publisher.common.ids import scenario_id
 from publisher.common.utils import safe_float
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.candidate import CandidateRecommendation
 from publisher.contracts.scenario import PlanStep, Scenario
 from publisher.contracts.source import WarehouseEvidence

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from publisher.contracts.source import WarehouseEvidence
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 
 
 def failure_blockers(failure_pct: Optional[float], t: "Thresholds") -> List[str]:

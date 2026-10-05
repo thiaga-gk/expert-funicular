@@ -47,7 +47,7 @@ Keep these defaults for the first real run. Review false positives/negatives acr
 
 ## Parameter reference
 
-Every field of `Thresholds` in `src/publisher/config/thresholds.py`, one row per field, grouped by decision area. Each default is the dataclass default; a test compares the two. The meaning is taken from how the publisher uses the field. Warehouse-type migration has no dedicated parameter: it is gated by `min_economics_cost_history_days` and priced with the estimator parameters below. Changing any decision-affecting default requires a policy version change and golden-test updates.
+Every field of `Thresholds` in `src/publisher/governor/thresholds.py`, one row per field, grouped by decision area. Each default is the dataclass default; a test compares the two. The meaning is taken from how the publisher uses the field. Warehouse-type migration has no dedicated parameter: it is gated by `min_economics_cost_history_days` and priced with the estimator parameters below. Changing any decision-affecting default requires a policy version change and golden-test updates.
 
 ### Evidence sufficiency and cost history
 

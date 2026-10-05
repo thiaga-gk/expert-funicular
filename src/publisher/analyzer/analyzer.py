@@ -14,7 +14,7 @@ from publisher.analyzer.collector.workspace_api import collect_workspace_compati
 from publisher.analyzer.findings import Analyzer
 from publisher.common.logging import LOGGER
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import FleetAnalysis, WarehouseAnalysis
 from publisher.contracts.request import MODE_DEMO, MODE_REPLAY, PublisherRequest, RunContext
 from publisher.contracts.source import WarehouseEvidence
