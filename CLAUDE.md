@@ -3,14 +3,14 @@
 Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, Reporter JSON Contract v2.0.0, Workbook Contract v1.4.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
 
 ## Commands
-Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
-- Compile check: `python -m compileall -q publisher.py contracts reporters tests tools scripts`
+Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`.
+- Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
 - One test: `python -m unittest tests.test_publisher.<Class>.<test_name> -v` (or a module: `tests.test_workbook_contract`)
-- Demo (one warehouse per golden scenario): `python publisher.py --demo --output-dir ./demo_out`
-- Workbook validator: `python tools/validate_workbook.py ./demo_out`
-- Contract example: `python -m contracts.validate_example`
-- Skill suite: `python tools/validate_skill_suite.py`
+- Demo (one warehouse per golden scenario): `python -m publisher --demo --output-dir ./demo_out`
+- Workbook validator: `python scripts/validate_workbook.py ./demo_out`
+- Contract example: `python scripts/validate_contracts.py`
+- Skill suite: `python scripts/validate_skill_suite.py`
 - Oracle parity (single-file tag vs working tree): `python scripts/compare_single_file.py`
 
 ## Change loop
@@ -18,7 +18,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 2. Compile check, then all tests.
 3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
 4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
-5. A decision-affecting change bumps the affected component versions in `publisher.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
+5. A decision-affecting change bumps the affected component versions in `src/publisher/publisher.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
 6. A new `Thresholds` field needs a row in `docs/reference/thresholds.md`, and a new blocker code a row in `docs/reference/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
 7. Update the docs that describe the changed behavior in the same change. Each topic has one home (`docs/README.md`); `tests/test_docs.py` must pass.
 
@@ -45,7 +45,7 @@ Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → 
 - Workbook annual impact is numeric and signed (positive = savings, negative = cost increase) with explicit currency and impact type. No strings like `Save USD ...` in economic cells.
 
 ## Identity and package write order
-- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/test_locked_reporter_integration.py` pins that packages ignore them).
+- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `src/publisher/contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `src/publisher/publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/test_locked_reporter_integration.py` pins that packages ignore them).
 - Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
 - Write order (`_build_locked_recommendation_package`, `package_locked_contract`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
 
@@ -53,7 +53,7 @@ Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → 
 `<output-dir>/evidence.json` is a versioned envelope (`evidence_format_version` 1.0.0) checked against `schema/evidence.schema.json` on write and on `--from-evidence` load; other versions and bare lists are rejected, with no legacy shims. It holds owner emails and tags, so treat it as sensitive. A format change updates the dataclass, schema, version, `docs/contracts/evidence-format.md` and the `tests/golden/` fixtures together.
 
 ## Workbook
-Column order and groups live only in `contracts/workbook_contract.py`; the renderer in `reporters/workbook_reporter.py` consumes them and keeps no second list. Exactly four visible sheets (Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry), no formulas/macros/hidden sheets, IDs as text, audit JSON at the far right.
+Column order and groups live only in `src/publisher/contracts/workbook_contract.py`; the renderer in `src/publisher/reporter/workbook_reporter.py` consumes them and keeps no second list. Exactly four visible sheets (Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry), no formulas/macros/hidden sheets, IDs as text, audit JSON at the far right.
 
 ## Tests
 Unittest only, no pytest. Golden cases live in `tests/golden/cases/<name>/` (`case.yaml` with the `expect` block, `source/` evidence or collector snapshots, `expected/` canonical output generated by `scripts/update_goldens.py`); the assertion DSL is documented in the `tests/golden/test_golden_publisher.py` docstring. Adding a case needs a folder with `case.yaml` and `source/`, then `expected/` from `python scripts/update_goldens.py --case <name> --approved-change "<why>"`.

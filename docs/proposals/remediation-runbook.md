@@ -29,11 +29,11 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
    - Run the tests and confirm they fail **for the reason the finding describes**. Paste the failing assertion into the issue summary.
 3. **Green:** make the smallest layer-local change that passes (analyzer observes, optimizer decides, candidate estimator prices one change, bundle estimator prices scenarios). Unknown stays null, never zero. Keep determinism.
 4. **Refactor**, then run the full CLAUDE.md change loop:
-   1. `python -m compileall -q publisher.py contracts reporters tests`
+   1. `python -m compileall -q src tests scripts examples`
    2. `python -m unittest discover -s tests -v`
-   3. regenerate the demo fleet (one simulated warehouse per golden scenario: `python publisher.py --demo --output-dir ./demo_out`)
+   3. regenerate the demo fleet (one simulated warehouse per golden scenario: `python -m publisher --demo --output-dir ./demo_out`)
    4. validate every package (semantic + JSON Schema)
-   5. `python tools/validate_workbook.py ./demo_out`
+   5. `python scripts/validate_workbook.py ./demo_out`
    6. stale version/legacy reference scan before any release step
 5. **Versions:** any decision-affecting change bumps the affected component versions (`POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`). The first decision-affecting merge of this cycle moves `PUBLISHER_VERSION` to the next minor (2.10.0) and the affected components to `v2.10.0`; later merges in the cycle update any component newly affected. Contract versions change only through the contract gate below. Regenerate goldens and the contract example in the same commit.
 6. **Golden table:** for each scenario row this issue touches, set **Code coverage** to *covered* once code handles it, and **Status** to *pass* only when its golden test passes **and** every finding in its Tracker cell is *Done* (this one included after merge). Never add finding IDs to any column but Tracker.

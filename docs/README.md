@@ -1,6 +1,6 @@
 # Documentation index
 
-Contract versions are declared in code (`contracts/reporter_contract.py`, `contracts/workbook_contract.py`) and in each contract document's header. File names carry no version.
+Contract versions are declared in code (`src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`) and in each contract document's header. File names carry no version.
 
 | Folder | Document | Read it when |
 |---|---|---|
@@ -32,10 +32,10 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Domain language, semantics, invariants, anti-patterns, worked example, glossary, persona-to-sheet mapping | [`architecture/context.md`](architecture/context.md) |
 | Component responsibilities, system context, runtime flows, topology, deployment, trade-offs, failure taxonomy | [`architecture/hld.md`](architecture/hld.md) |
 | Algorithm shape and formulas (with named parameters), SQL semantics, state machines, validation steps, failure table, CLI semantics, manifest contents, package evidence | [`architecture/lld.md`](architecture/lld.md) |
-| Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/reporter-json-contract.md`](contracts/reporter-json-contract.md) and `contracts/reporter_contract.py` |
-| Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `contracts/workbook_contract.py` |
+| Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/reporter-json-contract.md`](contracts/reporter-json-contract.md) and `src/publisher/contracts/reporter_contract.py` |
+| Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `src/publisher/contracts/workbook_contract.py` |
 | Replay evidence | [`contracts/evidence-format.md`](contracts/evidence-format.md) |
-| Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `publisher.py` |
+| Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `src/publisher/publisher.py` |
 | Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/blocker-codes.md`](reference/blocker-codes.md) |
 | Technique IDs | [`reference/technique-catalog.md`](reference/technique-catalog.md) |
 | Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
@@ -46,12 +46,12 @@ Every topic is stated in one place. Other documents point to it instead of resta
 
 ## Precedence
 
-For behavior, the code and its tests are authoritative, then the locked contracts (`docs/contracts/`, `schema/`, `contracts/*.py`). For product scope and requirements, the PRD is authoritative. Every other document owns the topics in the table above and explains the rest by pointer. When two documents disagree, fix the one that does not own the topic; a disagreement is a documentation bug, not a tie to break.
+For behavior, the code and its tests are authoritative, then the locked contracts (`docs/contracts/`, `schema/`, `src/publisher/contracts/*.py`). For product scope and requirements, the PRD is authoritative. Every other document owns the topics in the table above and explains the rest by pointer. When two documents disagree, fix the one that does not own the topic; a disagreement is a documentation bug, not a tie to break.
 
 ## Writing rules
 
 - State a topic once, in its home, and point to it from everywhere else with one sentence.
 - Move a block into its home before replacing it with a pointer.
 - Never delete or renumber a numbered heading that other files cite; replace its body with a pointer.
-- Numbers come from `Thresholds` in `publisher.py` and live only in `reference/thresholds.md`; prose names the parameter.
+- Numbers come from `Thresholds` in `src/publisher/publisher.py` and live only in `reference/thresholds.md`; prose names the parameter.
 - Describe the current state in generic wording; keep finding and decision IDs out of these documents.

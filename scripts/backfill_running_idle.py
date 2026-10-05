@@ -1,6 +1,6 @@
 """Backfill running-idle evidence into fixtures that predate it (fixtures only).
 
-Usage: python tools/backfill_running_idle.py tests/golden/cases/*   (case folders, or case names)
+Usage: python scripts/backfill_running_idle.py tests/golden/cases/*   (case folders, or case names)
 
 Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
@@ -17,7 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import publisher as p  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from publisher import publisher as p  # noqa: E402
 from tests.golden import evidence_source_path  # noqa: E402
 
 LEGACY = "saved_idle_minutes_if_"

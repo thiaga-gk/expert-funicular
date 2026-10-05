@@ -41,7 +41,14 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from contracts import reporter_contract as rc
+from publisher.contracts import reporter_contract as rc
+from publisher.contracts.analysis import AnalysisResult, Finding
+from publisher.contracts.candidate import CandidateRecommendation, OptimizationDecision, Range3
+from publisher.contracts.review import WarehouseOptimization
+from publisher.contracts.scenario import PlanStep, PortfolioEstimate, Scenario
+from publisher.contracts.source import (
+    EpochEvidence, PhotonObservation, QuerySourceProfile, WarehouseAttribution, WarehouseConfig, WarehouseEvidence,
+)
 
 PUBLISHER_VERSION = "2.10.0"
 CONTRACT_VERSION = rc.CONTRACT_VERSION
@@ -56,6 +63,11 @@ DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v2"
 GIB = 1024 ** 3
 LOGGER = logging.getLogger("publisher")
+# Repository root: the committed schema/ and pricing/ directories are resolved from it, so the package runs from a
+# checkout (pip install -e .), never from a copied site-packages install.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if not (REPO_ROOT / "schema").is_dir():
+    raise ImportError(f"publisher must run from a repository checkout (pip install -e .): no schema/ under {REPO_ROOT}")
 
 SIZE_ORDER = [
     "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",
@@ -281,317 +293,6 @@ class Thresholds:
     growth_hold_weekly_ratio: float = 1.10  # capacity cuts wait while every one of the last 4 weeks has >= this x the prior 4-week median of queries
     plan_risk_hitl_change: float = 1.0  # plan order divides base savings x confidence by this for an ACTIONABLE step
     plan_risk_canary_change: float = 2.0  # ... and by this for a TEST_REQUIRED step (a canary costs a measurement cycle)
-
-
-@dataclass(frozen=True)
-class WarehouseConfig:
-    """Canonical SQL warehouse configuration snapshot used to form config epochs."""
-    warehouse_type: str
-    warehouse_channel: str
-    warehouse_size: str
-    min_clusters: int
-    max_clusters: int
-    auto_stop_minutes: int
-
-    def as_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(frozen=True)
-class PhotonObservation:
-    """Billing-derived Photon observation for the current warehouse epoch.
-
-    This is an observed workload state, not a direct warehouse configuration read.
-    It is derived from signed DBU usage attributed to product_features.is_photon.
-    """
-    status: str  # ENABLED | DISABLED | MIXED | UNKNOWN
-    enabled_usage_pct: Optional[float]
-    known_feature_coverage_pct: float
-    true_dbu: float
-    false_dbu: float
-    null_dbu: float
-    latest_usage_time: Optional[str]
-    freshness_days: Optional[int]
-    confidence: Dict[str, Any]
-    evidence_source: str = "system.billing.usage.product_features.is_photon"
-
-
-@dataclass(frozen=True)
-class QuerySourceProfile:
-    """Multi-label query-source profile for a warehouse's current epoch."""
-    categories: Dict[str, int]
-    percentages: Dict[str, float]
-    primary_category: str
-    client_applications: List[str]
-    multi_label: bool = True
-
-
-@dataclass(frozen=True)
-class WarehouseAttribution:
-    """Human/business attribution inferred from billing and query history."""
-    owner: Optional[str]
-    observed_owners: List[str]
-    owner_source: str
-    query_source: QuerySourceProfile
-
-
-@dataclass
-class EpochEvidence:
-    """Normalized evidence attached to one immutable warehouse configuration epoch."""
-    epoch_id: str
-    warehouse_id: str
-    workspace_id: str
-    account_id: str
-    warehouse_name: str
-    epoch_start: str
-    epoch_end: Optional[str]
-    is_current: bool
-    config: WarehouseConfig
-    tags: Dict[str, str] = field(default_factory=dict)
-    query: Dict[str, Any] = field(default_factory=dict)
-    events: Dict[str, Any] = field(default_factory=dict)
-    gaps: Dict[str, Any] = field(default_factory=dict)
-    cost: Dict[str, Any] = field(default_factory=dict)
-    # Daily resource series (current epoch only): None = not collected (older evidence), [] = collected, no activity.
-    resource_daily: Optional[List[Dict[str, Any]]] = None
-
-
-@dataclass
-class WarehouseEvidence:
-    """Complete normalized evidence contract for one workspace/warehouse identity."""
-    warehouse_id: str
-    workspace_id: str
-    account_id: str
-    warehouse_name: str
-    source_region: str
-    analysis_time: str
-    current_epoch_id: str
-    epochs: List[EpochEvidence]
-    current_cost_365: Optional[float]  # None = unknown (unpriced usage in the trailing window); never 0.0
-    baseline_forecast_cost_365: Optional[float]  # None = unknown forward DBU cost; never 0.0
-    currency: str
-    cost_history_days: int
-    cost_cv_84: Optional[float]  # None = unknown (history too short or no cost basis); never 0.0
-    forecast_metadata: Dict[str, Any] = field(default_factory=dict)
-    daily_cost_365: List[Dict[str, Any]] = field(default_factory=list)
-    billing_features: Dict[str, Any] = field(default_factory=dict)
-    aws_baseline_cost_365: Optional[float] = None
-    aws_cost_model: Dict[str, Any] = field(default_factory=dict)
-    sql_sku_prices: Dict[str, Any] = field(default_factory=dict)
-    compatibility_evidence: Dict[str, Any] = field(default_factory=dict)
-    photon_observation: Optional[PhotonObservation] = None
-    attribution: Optional[WarehouseAttribution] = None
-
-    @property
-    def dbu_365d_baseline_cost(self) -> Optional[float]:
-        return self.baseline_forecast_cost_365
-
-    @property
-    def total_365d_baseline_cost(self) -> Optional[float]:
-        if self.aws_baseline_cost_365 is None or self.baseline_forecast_cost_365 is None:
-            return None
-        return round(self.baseline_forecast_cost_365 + self.aws_baseline_cost_365, 2)
-
-    @property
-    def current_epoch(self) -> EpochEvidence:
-        for e in self.epochs:
-            if e.epoch_id == self.current_epoch_id:
-                return e
-        raise ValueError(f"Current epoch missing for {self.warehouse_id}: {self.current_epoch_id}")
-
-
-@dataclass(frozen=True)
-class Finding:
-    """Atomic explainability record tying a fact to its source, threshold, and epoch."""
-    finding_id: str
-    metric: str
-    value: Any
-    unit: str
-    threshold: Any
-    comparator: str
-    source_table: str
-    source_field: str
-    epoch_id: str
-    window: str
-    interpretation: str
-    # CURRENT, or CARRIED_ACROSS_CHANGE for evidence read across a configuration change that cannot affect it.
-    epoch_scope: str = "CURRENT"
-
-
-@dataclass
-class AnalysisResult:
-    """Analyzer output for one knob: facts and findings only, never a recommendation."""
-    warehouse_id: str
-    knob: str
-    current_epoch_id: str
-    findings: List[Finding]
-    facts: Dict[str, Any]
-
-
-@dataclass
-class OptimizationDecision:
-    """Optimizer decision contract before any cost counterfactual is attached."""
-    warehouse_id: str
-    knob: str
-    objective: str
-    status: str
-    current_config: Dict[str, Any]
-    recommended_config: Dict[str, Any]
-    blockers: List[str]
-    dependencies: List[str]
-    invalidates: List[str]
-    reanalysis_required: List[str]
-    rationale: str
-
-
-@dataclass(frozen=True)
-class Range3:
-    """Deterministic low/base/high range used for cost, savings, and scenario estimates."""
-    low: float
-    base: float
-    high: float
-
-    def rounded(self) -> "Range3":
-        return Range3(round(self.low, 2), round(self.base, 2), round(self.high, 2))
-
-
-@dataclass
-class CandidateRecommendation:
-    """Reviewed standalone per-knob counterfactual with evidence, confidence, and economics."""
-    recommendation_id: str
-    warehouse_id: str
-    workspace_id: str
-    warehouse_name: str
-    knob: str
-    objective: str
-    status: str
-    current_config: Dict[str, Any]
-    recommended_config: Dict[str, Any]
-    current_cost_365: Optional[float]
-    baseline_forecast_cost_365: Optional[float]
-    estimated_cost_365: Optional[float]
-    estimated_cost_range_365: Optional[Range3]
-    estimated_savings_365: Optional[float]
-    estimated_savings_range_365: Optional[Range3]
-    confidence: Dict[str, Any]
-    findings: List[Finding]
-    blockers: List[str]
-    dependencies: List[str]
-    invalidates: List[str]
-    reanalysis_required: List[str]
-    metadata: Dict[str, Any]
-    dbu_365d_baseline_cost: Optional[float] = None
-    aws_365d_baseline_cost: Optional[float] = None
-    total_365d_baseline_cost: Optional[float] = None
-    dbu_365d_savings_estimate: Optional[float] = None
-    aws_365d_savings_estimate: Optional[float] = None
-    total_365d_savings_estimate: Optional[float] = None
-    dbu_365d_savings_range: Optional[Range3] = None
-    aws_365d_savings_range: Optional[Range3] = None
-    total_365d_savings_range: Optional[Range3] = None
-    dbu_365d_estimated_cost_range: Optional[Range3] = None
-    aws_365d_estimated_cost_range: Optional[Range3] = None
-    total_365d_estimated_cost_range: Optional[Range3] = None
-
-
-@dataclass
-class PlanStep:
-    """One ordered scenario step referencing a canonical candidate and validation gate."""
-    step: int
-    recommendation_id: str
-    knob: str
-    current_config: Dict[str, Any]
-    recommended_config: Dict[str, Any]
-    status: str
-    validation_gate: str
-    remeasure_days: int
-    invalidates: List[str]
-    dependencies: List[str]
-    execution_state: str = "READY"
-    instruction: str = ""
-    running_estimated_cost_range_365: Optional[Range3] = None
-    running_estimated_savings_range_365: Optional[Range3] = None
-    running_dbu_cost_range_365: Optional[Range3] = None
-    running_aws_cost_range_365: Optional[Range3] = None
-    running_dbu_savings_range_365: Optional[Range3] = None
-    running_aws_savings_range_365: Optional[Range3] = None
-    step_dbu_savings_range_365: Optional[Range3] = None
-    step_aws_savings_range_365: Optional[Range3] = None
-    confidence: Dict[str, Any] = field(default_factory=dict)
-    pricing_basis: str = "AUTHORITATIVE"
-
-
-@dataclass
-class PortfolioEstimate:
-    """Stateful non-overlapping forward DBU/AWS/total scenario economics."""
-    estimate_status: str
-    baseline_cost_365: float
-    estimated_cost_range_365: Optional[Range3]
-    estimated_savings_range_365: Optional[Range3]
-    method: str
-    non_additive: bool = True
-    dbu_365d_baseline_cost: Optional[float] = None
-    aws_365d_baseline_cost: Optional[float] = None
-    total_365d_baseline_cost: Optional[float] = None
-    dbu_365d_estimated_cost_range: Optional[Range3] = None
-    aws_365d_estimated_cost_range: Optional[Range3] = None
-    total_365d_estimated_cost_range: Optional[Range3] = None
-    dbu_365d_savings_range: Optional[Range3] = None
-    aws_365d_savings_range: Optional[Range3] = None
-    total_365d_savings_range: Optional[Range3] = None
-    # Stateful upside of steps marked PENDING_REEVALUATION; None when nothing is pending or it cannot be priced.
-    contingent: Optional["PortfolioEstimate"] = None
-
-
-@dataclass
-class Scenario:
-    """Mutually exclusive execution-plan branch with ordered steps and portfolio estimate."""
-    scenario_id: str
-    warehouse_id: str
-    workspace_id: str
-    name: str
-    description: str
-    steps: List[PlanStep]
-    portfolio_estimate: PortfolioEstimate
-    blockers: List[str]
-    recommended: bool = False
-    compatibility: Dict[str, Any] = field(default_factory=dict)
-    confidence: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class WarehouseOptimization:
-    """Reviewed decision-layer result for one warehouse; not a serialization contract."""
-    warehouse_id: str
-    workspace_id: str
-    evidence: WarehouseEvidence
-    candidates: List[CandidateRecommendation]
-    scenarios: List[Scenario]
-    recommended_scenario_id: Optional[str]
-
-    @property
-    def recommended_scenario(self) -> Optional[Scenario]:
-        return next((s for s in self.scenarios if s.scenario_id == self.recommended_scenario_id), None)
-
-    @property
-    def recommended_execution_plan(self) -> List[PlanStep]:
-        scenario = self.recommended_scenario
-        return [] if scenario is None else scenario.steps
-
-    @property
-    def query_source_profile(self) -> Dict[str, Any]:
-        attribution = self.evidence.attribution
-        profile = attribution.query_source if attribution else derive_query_source_profile(carried_query_view(self.evidence.current_epoch.query)[0])
-        return as_serializable(profile)
-
-    @property
-    def aws_365d_baseline_cost(self) -> Optional[float]:
-        return self.evidence.aws_baseline_cost_365
-
-    @property
-    def total_365d_baseline_cost(self) -> Optional[float]:
-        return self.evidence.total_365d_baseline_cost
-
 
 
 # ---------------------------------------------------------------------------
@@ -5037,9 +4738,9 @@ def _scalar_config(d: Mapping[str, Any]) -> Any:
     return dict(d)
 
 
-_CONTRACT_SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "recommendation-package.schema.json"
+_CONTRACT_SCHEMA_PATH = REPO_ROOT / "schema" / "recommendation-package.schema.json"
 EVIDENCE_FORMAT_VERSION = "1.0.0"
-_EVIDENCE_SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "evidence.schema.json"
+_EVIDENCE_SCHEMA_PATH = REPO_ROOT / "schema" / "evidence.schema.json"
 _ENTITY_QUERY_SOURCE_CATEGORIES = {"DASHBOARD", "JOB", "NOTEBOOK", "GENIE", "ALERT", "SQL_EDITOR", "OTHER", "UNKNOWN"}
 _CLIENT_QUERY_SOURCE_CATEGORIES = {"POWER_BI", "TABLEAU", "LOOKER", "SQL_EDITOR"}
 
@@ -6371,12 +6072,12 @@ def package_locked_contract(
 
     evidence_path = output_dir / "evidence.json"
     save_evidence(evidence_path, evidence)
-    from contracts import workbook_contract as wc
+    from publisher.contracts import workbook_contract as wc
     workbook_path: Optional[Path] = None
     if generate_workbook:
         LOGGER.info("workbook.v1.start packages=%d", len(packages))
         try:
-            from reporters.workbook_reporter import write_workbook
+            from publisher.reporter.workbook_reporter import write_workbook
         except ImportError as exc:
             raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
         workbook_path = write_workbook(output_dir / "workbook.xlsx", packages, unsupported_warehouse_exclusions(evidence))
@@ -6552,7 +6253,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
     )
     model = Modeler(Thresholds()).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
     forecast = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
-    registry=load_aws_price_registry(str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json"))
+    registry=load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
     cur.resource_daily=synthesize_resource_daily(cur,analysis_time)
     aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry)
     e=WarehouseEvidence(
@@ -7201,7 +6902,7 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
         def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
             return [dict(r) for r in rows.get(label, [])]
 
-    registry = load_aws_price_registry(str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json"))
+    registry = load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
     evidence = extract_evidence(_DemoClient(), Thresholds(), "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]
     for e in evidence:
         e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "workspace_id": e.workspace_id, "enable_serverless_compute": True,
@@ -7379,7 +7080,7 @@ def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
     return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
-    from contracts import workbook_contract as wc
+    from publisher.contracts import workbook_contract as wc
     p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION})")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
@@ -7395,7 +7096,7 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--source-region",default=os.getenv("DATABRICKS_REGION","unknown"),help="AWS region of the workspace; Pro/Classic AWS cost uses its registry prices")
     p.add_argument("--allow-missing-aws-price",action="store_true",help="Live mode: publish even when --source-region is missing from the AWS price registry (Pro/Classic AWS cost unavailable)")
     p.add_argument("--billing-ingested-through",default=None,help="YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)")
-    default_registry=str(Path(__file__).resolve().parent / "pricing" / "aws_ec2_on_demand.json")
+    default_registry=str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json")
     p.add_argument("--aws-price-registry",default=os.getenv("AWS_PRICE_REGISTRY",default_registry))
     p.add_argument("--batch-size",type=int,default=int(os.getenv("WAREHOUSE_BATCH_SIZE","100")),help="Downstream analysis/report batch size; collector SQL is set-based and aggregated in Databricks")
     p.add_argument("--compatibility-api-mode",choices=("auto","off"),default=os.getenv("COMPATIBILITY_API_MODE","auto"),help="auto=B read-only workspace compatibility API when available, else A HITL fallback")

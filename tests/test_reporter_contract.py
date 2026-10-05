@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import sys
 import unittest
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from contracts.reporter_contract import (
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+from publisher.contracts.reporter_contract import (  # noqa: E402
     CONTRACT_VERSION,
     BoundName,
     ComponentRanges,
@@ -23,10 +29,9 @@ from contracts.reporter_contract import (
     canonical_json_for_hash,
     content_id,
 )
-from contracts.reporter_schema import build_schema
+from publisher.contracts.reporter_schema import build_schema
 from examples.build_contract_example import build_package
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReporterContractTests(unittest.TestCase):
@@ -53,7 +58,7 @@ class ReporterContractTests(unittest.TestCase):
         props = build_schema()["$defs"]["CurrentConfig"]["properties"]
         self.assertEqual((props["min_clusters"]["minimum"], props["min_clusters"]["maximum"]), (1, 30))
         self.assertEqual((props["max_clusters"]["minimum"], props["max_clusters"]["maximum"]), (1, 40))
-        import publisher
+        from publisher import publisher
         limits = publisher.Thresholds()
         self.assertEqual(limits.min_clusters_supported_limit, props["min_clusters"]["maximum"])
         self.assertEqual(limits.max_clusters_supported_limit, props["max_clusters"]["maximum"])

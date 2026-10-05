@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import tempfile
 import unittest
 from contextlib import ExitStack
@@ -9,9 +10,14 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-import publisher
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+from publisher import publisher
 from tests.golden import case_names, load_case
-from contracts import reporter_contract as rc
+from publisher.contracts import reporter_contract as rc
 
 
 class LockedReporterIntegrationTests(unittest.TestCase):

@@ -29,8 +29,8 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 2.0.0 | `contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
-| Workbook Contract | 1.4.0 | `contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
+| Reporter JSON Contract | 2.0.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
+| Workbook Contract | 1.4.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
 
@@ -46,26 +46,29 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The repository is organized in layers: `publisher.py` (the domain engine and CLI), `contracts/` (the public Reporter and Workbook contracts and their schema/example tooling), `reporters/` (workbook rendering), `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `tools/` (validators and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `publisher.py` (the facade and pipeline, which still carries most of the logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
 | Module | Responsibility | May make optimization decisions? |
 |---|---|---:|
-| `publisher.py` | collection, normalization, model/analyze/optimize/estimate/review/scenario orchestration, public package adaptation, CLI | Yes, deterministic only |
-| `contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
-| `contracts/reporter_schema.py` | JSON Schema generation/support | No |
-| `contracts/workbook_contract.py` | pure JSON-package-to-workbook row projection | No |
-| `reporters/workbook_reporter.py` | Excel rendering, number formats, widths, filters, frozen panes, conditional formatting | No |
+| `src/publisher/publisher.py` | collection, normalization, model/analyze/optimize/estimate/review/scenario orchestration, public package adaptation, CLI (`main`) | Yes, deterministic only |
+| `src/publisher/__main__.py` | `python -m publisher` entry point | No |
+| `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) and the orchestration result (`WarehouseOptimization`) | No |
+| `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
+| `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
+| `src/publisher/contracts/workbook_contract.py` | pure JSON-package-to-workbook row projection | No |
+| `src/publisher/reporter/workbook_reporter.py` | Excel rendering, number formats, widths, filters, frozen panes, conditional formatting | No |
 | `pricing/aws_ec2_on_demand.json` | versioned regional EC2 price reference | No |
 | `schema/*.schema.json` | committed Draft 2020-12 schemas for the package and for replay evidence | No |
-| `tools/validate_workbook.py` | independent workbook validator (sheets, columns, grains, numeric economics) | No |
+| `scripts/validate_workbook.py` | independent workbook validator (sheets, columns, grains, numeric economics) | No |
+| `scripts/validate_contracts.py` | validates the committed contract example against the semantic contract and schema | No |
 
 ### 3.2 Layer dependency rule
 
 ```mermaid
 flowchart LR
-    SRC[Databricks sources] --> PUB[publisher.py domain engine]
+    SRC[Databricks sources] --> PUB[src/publisher/publisher.py domain engine]
     PUB --> RC[Reporter Contract v2.0.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
@@ -82,12 +85,12 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-The publisher declares independent version identifiers for deterministic replay. Values: `publisher.py` (`PUBLISHER_VERSION` and the other `*_VERSION` constants).
+The publisher declares independent version identifiers for deterministic replay. Values: `src/publisher/publisher.py` (`PUBLISHER_VERSION` and the other `*_VERSION` constants).
 
 | Constant | Purpose |
 |---|---|
 | `PUBLISHER_VERSION` | implementation release |
-| `CONTRACT_VERSION` | public Reporter contract version (from `contracts/reporter_contract.py`) |
+| `CONTRACT_VERSION` | public Reporter contract version (from `src/publisher/contracts/reporter_contract.py`) |
 | `POLICY_VERSION` | threshold/policy semantics |
 | `ANALYZER_VERSION` | analyzer semantics |
 | `OPTIMIZER_VERSION` | decision semantics |
@@ -399,7 +402,7 @@ Unknown compatibility evidence is represented as `UNKNOWN` / HITL-required, not 
 
 ## 9. Normalized internal domain contracts
 
-Internal dataclasses are implementation contracts, not public API contracts.
+Internal dataclasses are implementation contracts, not public API contracts. They live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`), except `Thresholds`, which stays in `src/publisher/publisher.py`.
 
 | Contract | Role | Key invariants |
 |---|---|---|
@@ -1333,7 +1336,7 @@ Top-level keys and their order: [`docs/contracts/reporter-json-contract.md`](../
 
 ### 22.4 Public candidate identity
 
-The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `contracts/reporter_contract.py` and are 24 hex characters; `publisher.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
+The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `src/publisher/contracts/reporter_contract.py` and are 24 hex characters; `publisher.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
 
 ### 22.5 Technique IDs
 
@@ -1476,7 +1479,7 @@ Sheets, grains and the sheet list: [`docs/contracts/workbook-contract.md`](../co
 
 ```mermaid
 flowchart LR
-    P[RecommendationPackage[]] --> PROJ[contracts/workbook_contract.py]
+    P[RecommendationPackage[]] --> PROJ[src/publisher/contracts/workbook_contract.py]
     PROJ --> E[Executive rows]
     PROJ --> W[Warehouse rows]
     PROJ --> S[Scenario rows]
@@ -1490,7 +1493,7 @@ flowchart LR
 
 ### 27.3 Contract-owned columns
 
-Exact ordered columns and column groups live in `contracts/workbook_contract.py`; the renderer must not maintain a separate column list. Column groups per sheet: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md). Tests pin the column counts from the contract declarations.
+Exact ordered columns and column groups live in `src/publisher/contracts/workbook_contract.py`; the renderer must not maintain a separate column list. Column groups per sheet: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md). Tests pin the column counts from the contract declarations.
 
 ### 27.4 Presentation rules
 

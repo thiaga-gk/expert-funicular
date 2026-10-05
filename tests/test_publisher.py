@@ -9,7 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import publisher as p
+sys.path.insert(0, str(ROOT / "src"))
+from publisher import publisher as p
 from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
 
@@ -1466,7 +1467,7 @@ class PublisherV27Tests(unittest.TestCase):
             self.assertEqual(p._load_profile_host("WHOPT", str(cfg)), "dbc.example.cloud.databricks.com")
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
-            with patch("publisher.subprocess.run", return_value=R()) as run:
+            with patch("publisher.publisher.subprocess.run", return_value=R()) as run:
                 auth = p.resolve_cli_oauth("WHOPT", "abc123", str(cfg))
                 self.assertEqual(auth.http_path, "/sql/1.0/warehouses/abc123")
                 self.assertEqual(auth.access_token, "short-lived")
@@ -1481,7 +1482,7 @@ class PublisherV27Tests(unittest.TestCase):
             cfg.write_text("[WHOPT]\nhost = https://dbc.example.cloud.databricks.com\n")
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
-            with patch("publisher.subprocess.run", return_value=R()), patch("publisher._validate_all_purpose_cluster", return_value={"cluster_source":"UI"}), patch("publisher._current_workspace_id", return_value="123456789"):
+            with patch("publisher.publisher.subprocess.run", return_value=R()), patch("publisher.publisher._validate_all_purpose_cluster", return_value={"cluster_source":"UI"}), patch("publisher.publisher._current_workspace_id", return_value="123456789"):
                 auth = p.resolve_cli_oauth("WHOPT", "cluster", "1234-567890-demo123", str(cfg))
                 self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/1234-567890-demo123")
                 self.assertEqual(auth.execution_kind, "cluster")
@@ -1489,17 +1490,17 @@ class PublisherV27Tests(unittest.TestCase):
     def test_compatibility_api_b_and_fallback_a(self):
         auth=p.AuthContext("WHOPT","dbc.example.cloud.databricks.com","/sql/1.0/warehouses/x","tok",None,"warehouse","x","123")
         payload={"enable_serverless_compute":True,"enabled_warehouse_types":[{"warehouse_type":"PRO","enabled":True}],"data_access_config":[],"security_policy":"NONE"}
-        with patch("publisher._api_get", return_value=payload):
+        with patch("publisher.publisher._api_get", return_value=payload):
             ev=p.collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"B_READ_ONLY_API")
             self.assertTrue(ev["enable_serverless_compute"])
             self.assertFalse(ev["external_legacy_hive_metastore_detected"])
-        with patch("publisher._api_get", side_effect=RuntimeError("denied")):
+        with patch("publisher.publisher._api_get", side_effect=RuntimeError("denied")):
             ev=p.collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"A_HITL_FALLBACK")
 
     def test_candidate_and_recommended_plan_views(self):
-        from contracts import workbook_contract as wc
+        from publisher.contracts import workbook_contract as wc
         projection = wc.project_workbook(self.packages)
         row = projection.warehouse_portfolio[0]
         self.assertNotIn("Photon", row["candidate_view"])
@@ -1524,7 +1525,7 @@ class PublisherV27Tests(unittest.TestCase):
                 p.resolve_cli_oauth("PAT", "abc123", str(cfg))
 
     def test_same_evidence_produces_identical_locked_json_and_workbook_projection(self):
-        from contracts import workbook_contract as wc
+        from publisher.contracts import workbook_contract as wc
         ea = p.demo_evidence(); eb = p.demo_evidence()
         pa = p.build_recommendation_packages(ea, self.t)
         pb = p.build_recommendation_packages(eb, self.t)

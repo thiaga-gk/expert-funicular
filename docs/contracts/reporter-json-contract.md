@@ -11,7 +11,7 @@
 **Status:** LOCKED for implementation  
 **Scope:** one immutable recommendation package per Databricks SQL warehouse / current configuration epoch  
 **Schema:** `schema/recommendation-package.schema.json`  
-**Python:** `contracts/reporter_contract.py`
+**Python:** `src/publisher/contracts/reporter_contract.py`
 
 The contract is intentionally independent of the workbook. The JSON contract is the canonical product/API contract; the workbook is a projection of this model (`workbook-contract.md`) and never recomputes decisions, confidence, IDs or economics.
 
@@ -861,8 +861,8 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 # 20. Source-of-truth artifacts
 
 1. **Semantic contract:** `docs/contracts/reporter-json-contract.md`
-2. **Python executable contract:** `contracts/reporter_contract.py`
-3. **Schema builder:** `contracts/reporter_schema.py`
+2. **Python executable contract:** `src/publisher/contracts/reporter_contract.py`
+3. **Schema builder:** `src/publisher/contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/test_reporter_contract.py`

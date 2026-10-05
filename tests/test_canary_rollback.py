@@ -15,8 +15,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import publisher as p  # noqa: E402
-from contracts import reporter_contract as rc  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from publisher import publisher as p  # noqa: E402
+from publisher.contracts import reporter_contract as rc  # noqa: E402
 from tests.test_readiness import changed  # noqa: E402
 
 

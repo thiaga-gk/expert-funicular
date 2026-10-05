@@ -1,6 +1,6 @@
 """Backfill per-minute concurrency histograms into fixtures that predate them (fixtures only).
 
-Usage: python tools/backfill_concurrency.py tests/golden/cases/*   (case folders, or case names)
+Usage: python scripts/backfill_concurrency.py tests/golden/cases/*   (case folders, or case names)
 
 Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from tests.golden import evidence_source_path  # noqa: E402
 
 

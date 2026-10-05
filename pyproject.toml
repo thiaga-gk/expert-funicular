@@ -7,3 +7,13 @@ dependencies = ["databricks-sql-connector>=4.2.6", "jsonschema>=4.23", "openpyxl
 
 [tool.ruff]
 line-length = 120
+
+[project.optional-dependencies]
+test = ["pyyaml>=6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

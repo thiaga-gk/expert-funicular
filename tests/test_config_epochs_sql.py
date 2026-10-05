@@ -12,7 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import publisher as p  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from publisher import publisher as p  # noqa: E402
 
 COLUMNS = ("account_id", "workspace_id", "warehouse_id", "warehouse_name", "warehouse_type", "warehouse_channel",
            "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "tags", "change_time", "delete_time")
