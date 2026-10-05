@@ -97,7 +97,7 @@ class GoldenExpectedOutputTests(unittest.TestCase):
                 self.assertEqual(sorted(stored), sorted(produced), f"{name}: expected/ files")
                 for file, text in produced.items():
                     self.assertTrue(stored[file] == text, f"{name}: expected/{file} differs from the publisher output "
-                                    "(run scripts/compare_single_file.py to diagnose)")
+                                    "(run scripts/compare_with_ref.py --ref <ref> to diagnose)")
 
 
 if __name__ == "__main__":

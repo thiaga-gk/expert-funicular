@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Compare the working tree against the single-file oracle end to end (repo-reorg-design.md sections 13.4, 21.3).
+"""Compare the working tree against any git ref end to end: same inputs, canonical outputs diffed.
 
 Both trees run through their CLI on the same inputs: the demo fleet, and every evidence-level golden case wrapped in
-an evidence file (collector-level cases have no CLI input; their expected/ output covers them). The oracle tag is
-checked out into a temporary worktree and removed afterwards. Canonical outputs (packages, manifest, evidence.json,
+an evidence file (collector-level cases have no CLI input; their expected/ output covers them). The ref is
+checked out into a temporary worktree and removed afterwards; refs from before the src/publisher layout run through
+their single-file ``publisher.py``. Canonical outputs (packages, manifest, evidence.json,
 workbook cell dump) must be identical; the log and stdout are compared after removing timestamps and output paths and
 are reported separately, as they are not canonical.
 
 Usage:
-  python scripts/compare_single_file.py                      # oracle tag reorg-oracle-2.10.0 vs the working tree
-  python scripts/compare_single_file.py --ref <git-ref>      # another baseline
-  python scripts/compare_single_file.py --case <name> ...    # only these golden cases (repeatable), plus the demo
-  python scripts/compare_single_file.py --no-demo            # golden cases only
+  python scripts/compare_with_ref.py --ref master                 # master vs the working tree
+  python scripts/compare_with_ref.py --ref <ref> --case <name>    # only these golden cases (repeatable), plus the demo
+  python scripts/compare_with_ref.py --ref <ref> --no-demo        # golden cases only
 Exit status 1 when any canonical output differs.
 """
 from __future__ import annotations
@@ -35,7 +35,6 @@ for _path in (ROOT, ROOT / "src"):
 from tests.golden import case_names, load_case  # noqa: E402
 from tests.regression import canonical  # noqa: E402
 
-ORACLE_REF = "reorg-oracle-2.10.0"
 EVIDENCE_FORMAT_VERSION = "1.0.0"
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z ")
 
@@ -80,43 +79,43 @@ def compare(label: str, old: Dict[str, str], new: Dict[str, str]) -> List[str]:
     problems = []
     for rel in sorted(set(old) | set(new)):
         if rel not in old or rel not in new:
-            problems.append(f"{label}: {rel} only in {'working tree' if rel in new else 'oracle'}")
+            problems.append(f"{label}: {rel} only in {'working tree' if rel in new else 'ref'}")
         elif old[rel] != new[rel]:
-            diff = list(difflib.unified_diff(old[rel].splitlines(), new[rel].splitlines(), "oracle", "working", lineterm="", n=1))
+            diff = list(difflib.unified_diff(old[rel].splitlines(), new[rel].splitlines(), "ref", "working", lineterm="", n=1))
             problems.append(f"{label}: {rel} differs\n" + "\n".join(diff[:40]))
     return problems
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ref", default=ORACLE_REF)
+    ap.add_argument("--ref", required=True, help="git ref to compare the working tree against")
     ap.add_argument("--case", action="append", default=[])
     ap.add_argument("--no-demo", action="store_true")
     args = ap.parse_args(argv)
     cases = args.case or case_names()
-    with tempfile.TemporaryDirectory(prefix="compare-single-file-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="compare-with-ref-") as tmp:
         tmp_path = Path(tmp)
-        oracle = tmp_path / "oracle"
-        subprocess.run(["git", "worktree", "add", "--detach", "--quiet", str(oracle), args.ref], cwd=ROOT, check=True)
+        base = tmp_path / "ref"
+        subprocess.run(["git", "worktree", "add", "--detach", "--quiet", str(base), args.ref], cwd=ROOT, check=True)
         try:
             jobs = inputs(tmp_path, cases, not args.no_demo)
             failures: List[str] = []
             notes: List[str] = []
             for label, cli in jobs:
                 outs = {}
-                for side, tree in (("oracle", oracle), ("working", ROOT)):
+                for side, tree in (("ref", base), ("working", ROOT)):
                     out = tmp_path / "out" / side / label.replace(":", "_")
                     stdout = run(tree, cli, out)
                     log = (out / "publisher.log").read_text(encoding="utf-8")
                     outs[side] = (canonical.output_dir_canonical(out), non_canonical(stdout, out), non_canonical(log, out))
-                failures += compare(label, outs["oracle"][0], outs["working"][0])
+                failures += compare(label, outs["ref"][0], outs["working"][0])
                 for idx, name in ((1, "stdout"), (2, "publisher.log")):
-                    if outs["oracle"][idx] != outs["working"][idx]:
-                        diff = difflib.unified_diff(outs["oracle"][idx], outs["working"][idx], "oracle", "working", lineterm="", n=0)
+                    if outs["ref"][idx] != outs["working"][idx]:
+                        diff = difflib.unified_diff(outs["ref"][idx], outs["working"][idx], "ref", "working", lineterm="", n=0)
                         notes.append(f"{label}: {name} differs (not canonical)\n" + "\n".join(list(diff)[:20]))
                 print(f"{label}: {'OK' if not any(f.startswith(label + ':') for f in failures) else 'DIFF'}")
         finally:
-            subprocess.run(["git", "worktree", "remove", "--force", str(oracle)], cwd=ROOT, check=False)
+            subprocess.run(["git", "worktree", "remove", "--force", str(base)], cwd=ROOT, check=False)
     for note in notes:
         print(f"NOTE {note}")
     for failure in failures:
