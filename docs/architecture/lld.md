@@ -52,7 +52,8 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 
 | Module | Responsibility | May make optimization decisions? |
 |---|---|---:|
-| `src/publisher/analyzer/analyzer.py` | analyzer facade: `collect` (demo, replay or live source), `analyze` and `run`; fails closed on unsupported warehouse types before calibration and findings, while the publisher records the exclusions | No |
+| `src/publisher/analyzer/analyzer.py` | analyzer facade: `collect` (demo, replay or live source), `analyze` and `run`; fails closed on unsupported warehouse types before calibration and findings, while the Governor records the exclusions | No |
+| `src/publisher/governor/governor.py`, `eligibility.py`, `constraints.py`, `compatibility.py` | Governor: `run` returns the eligible warehouses and the fail-closed exclusions; a live run stops when its region has no AWS instance prices for Pro/Classic warehouses (unless `--allow-missing-aws-price`); the migration compatibility gate the scenario planner applies to Plan B | No (gates only) |
 | `src/publisher/analyzer/collector/queries/` (`config_epochs.py`, `query_history.py`, `events.py`, `billing.py`) | collector SQL, one module per system-table family: configuration epochs, query history, warehouse events, billing | No |
 | `src/publisher/analyzer/collector/` (`sql_executor.py`, `workspace_api.py`, `billing.py`, `pricing.py`, `collector.py`, `replay.py`, `demo.py`) | read-only SQL execution (`SqlClient`), read-only REST and OAuth, billing helpers (settle buffer, watermark, unseen billed warehouses), price sources and the AWS baseline cost model, evidence assembly (`extract_evidence`), replay evidence files, the synthetic demo fleet (`DEMO_FLEET`, `synthetic_demo_evidence`) | No |
 | `src/publisher/analyzer/normalizer.py` | normalization of source values: sizes, owners, tags, Photon observation, query-source profiles | No |
@@ -69,6 +70,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/config/thresholds.py` | `Thresholds`: every decision default (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
 | `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
 | `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
+| `src/publisher/contracts/governance.py` | `GovernanceResult`: the eligible analyzed warehouses and the per-warehouse exclusions | No |
 | `src/publisher/common/logging.py`, `ids.py`, `hashing.py`, `time.py`, `utils.py` | run logging; internal 16-hex join keys (never public IDs); canonical JSON; timestamp parsing; value coercion and serialization | No |
 | `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
 | `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
@@ -520,7 +522,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-The analyzer (`analyze` in `src/publisher/analyzer/analyzer.py`) enforces this gate before workspace calibration and per-knob findings; unsupported/future types fail closed and never reach them. The exclusion is per warehouse: the rest of the fleet is still analyzed and evaluated, and the publisher records each excluded warehouse in `manifest.json` `excluded_warehouses`.
+The analyzer (`analyze` in `src/publisher/analyzer/analyzer.py`) enforces this gate before workspace calibration and per-knob findings; unsupported/future types fail closed and never reach them. The exclusion is per warehouse: the rest of the fleet is still analyzed and evaluated, and the Governor (`src/publisher/governor/eligibility.py`) lists each excluded warehouse, which the run writes to `manifest.json` `excluded_warehouses`.
 
 ---
 

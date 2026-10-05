@@ -43,6 +43,9 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENCE_SCHEMA_PATH  # noqa: F401
 from publisher.analyzer import analyzer
+from publisher.governor import governor
+from publisher.governor.compatibility import migration_compatibility
+from publisher.contracts.governance import GovernanceResult
 from publisher.config.loader import _resolve_execution_args, request_from_args  # noqa: F401
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts.analysis import FleetAnalysis, WarehouseAnalysis
@@ -138,6 +141,12 @@ from publisher.analyzer.collector.demo import (  # noqa: F401
 )
 from publisher.analyzer.analyzer import (  # noqa: F401
     _is_supported_warehouse,
+)
+from publisher.governor.eligibility import (  # noqa: F401
+    unsupported_warehouse_exclusions,
+)
+from publisher.governor.constraints import (  # noqa: F401
+    aws_region_price_guard,
 )
 
 
@@ -1455,39 +1464,7 @@ class ScenarioPlanner:
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
     def _compatibility(self,e:WarehouseEvidence,target_type:str)->Dict[str,Any]:
-        q=carried_query_view(e.current_epoch.query)[0]; checks=[]
-        target=target_type.upper(); api=dict(e.compatibility_evidence or {})
-        if target=="SERVERLESS":
-            region=(e.source_region or "").split(",")[0]
-            observed=bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses"))
-            # No verified per-region Serverless availability list is used, so a region label proves nothing; a Serverless
-            # warehouse already running in this workspace does.
-            checks.append({"check":"aws_region_serverless_availability","status":"PASS" if observed else "UNKNOWN","evidence":{"region":region or None,"existing_serverless_warehouse_in_workspace":observed,"policy":"No verified per-region Serverless availability list; confirm the region supports Serverless SQL unless the workspace already runs a Serverless warehouse."},"source":"system.compute.warehouses"})
-            checks.append({"check":"workspace_serverless_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
-            if api.get("mode")=="B_READ_ONLY_API" and api.get("status")=="AVAILABLE":
-                enabled=api.get("enable_serverless_compute")
-                checks.append({"check":"workspace_serverless_enablement","status":"PASS" if enabled is True else "FAIL" if enabled is False else "UNKNOWN","evidence":enabled,"source":api.get("source")})
-                external=api.get("external_legacy_hive_metastore_detected")
-                checks.append({"check":"external_legacy_hive_metastore_workspace_setting","status":"FAIL" if external is True else "PASS" if external is False else "UNKNOWN","evidence":{"detected":external,"config_keys":api.get("external_legacy_hive_metastore_config_keys",[])},"source":api.get("source")})
-                checks.append({"check":"s3_access_policy_compatibility","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":api.get("s3_access_policy_status"),"source":api.get("source")})
-            else:
-                checks.append({"check":"workspace_serverless_enablement","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":api,"source":"fallback A"})
-                checks.append({"check":"external_legacy_hive_metastore_workspace_setting","status":"UNKNOWN","evidence":"Read-only compatibility API unavailable or workspace not directly connected","source":"fallback A"})
-                checks.append({"check":"s3_access_policy_compatibility","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":"No verified read-only endpoint used; HITL unless existing Serverless proves workspace eligibility","source":"fallback A"})
-            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=hive_reference_count(q)
-            checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
-        else:
-            observed=bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))
-            checks.append({"check":"workspace_pro_classic_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
-            if api.get("mode")=="B_READ_ONLY_API" and api.get("status")=="AVAILABLE":
-                types=api.get("enabled_warehouse_types") or {}
-                if "PRO" in types:
-                    checks.append({"check":"pro_warehouse_type_enabled","status":"PASS" if types.get("PRO") else "FAIL","evidence":types.get("PRO"),"source":api.get("source")})
-            region_prices=bool(e.aws_cost_model.get("region_instance_prices"))
-            checks.append({"check":"aws_price_registry_region","status":"PASS" if region_prices else "UNKNOWN","evidence":e.source_region})
-        statuses={x["status"] for x in checks}
-        result="FAIL" if "FAIL" in statuses else "REVIEW_REQUIRED" if ("REVIEW" in statuses or "UNKNOWN" in statuses) else "PASS_WITH_LIMITATIONS" if ("PASS_WITH_LIMITATION" in statuses or "PASS_BY_EXISTING_SERVERLESS" in statuses) else "PASS"
-        return {"target_warehouse_type":target,"assessment":result,"evidence_mode":api.get("mode","A_HITL_FALLBACK"),"checks":checks}
+        return migration_compatibility(e,target_type)
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
@@ -2657,25 +2634,6 @@ def _build_locked_recommendation_package(
     return package
 
 
-def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> List[Dict[str, str]]:
-    """Supported-type gate: list warehouses that fail closed, one entry each, in deterministic order.
-
-    An unsupported or future type is never routed into Pro/Classic/Serverless algorithms; it is excluded
-    per warehouse and recorded in the run manifest, so the rest of the fleet is still evaluated.
-    """
-    return [
-        {
-            "workspace_id": e.workspace_id,
-            "warehouse_id": e.warehouse_id,
-            "warehouse_name": e.warehouse_name,
-            "warehouse_type": e.current_epoch.config.warehouse_type,
-            "reason_code": "UNSUPPORTED_WAREHOUSE_TYPE",
-        }
-        for e in sorted(evidence, key=lambda x: (x.workspace_id, x.warehouse_id))
-        if not _is_supported_warehouse(e)
-    ]
-
-
 def optimize_warehouse(w: WarehouseAnalysis, thresholds: Thresholds) -> Tuple[List[CandidateRecommendation], List[Scenario], Optional[str]]:
     """Run the deterministic decision pipeline for one analyzed, supported warehouse."""
     e, analyses = w.evidence, w.analyses
@@ -2691,16 +2649,19 @@ def optimize_warehouse(w: WarehouseAnalysis, thresholds: Thresholds) -> Tuple[Li
     return candidates, scenarios, recommended
 
 
-def evaluate_analysis(analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100) -> List[WarehouseOptimization]:
-    """Evaluate the analyzed supported warehouses through both reviewer gates without constructing reporter objects."""
+def evaluate_analysis(
+    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
+) -> List[WarehouseOptimization]:
+    """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
     evidence = analysis.evidence
+    governance = governance if governance is not None else governor.govern(analysis)
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(evidence), batch_size)
-    for excluded in unsupported_warehouse_exclusions(evidence):
+    for excluded in governance.exclusions:
         LOGGER.warning(
             "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
-    ordered = analysis.warehouses
+    ordered = governance.eligible
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
     for offset in range(0, len(ordered), batch):
@@ -2733,11 +2694,11 @@ def evaluate_warehouses(
 
 
 def build_packages_from_analysis(
-    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100
+    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
 ) -> List[rc.RecommendationPackage]:
     """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
     evidence = analysis.evidence
-    optimizations = evaluate_analysis(analysis, thresholds, batch_size)
+    optimizations = evaluate_analysis(analysis, thresholds, batch_size, governance)
     evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
@@ -2890,25 +2851,6 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     return p.parse_args(argv)
 
 
-def aws_region_price_guard(evidence: Sequence[WarehouseEvidence], source_region: str, aws_registry: Mapping[str, Any], *, allow_missing: bool) -> Optional[str]:
-    """Return a refusal message when supported Pro/Classic warehouses need AWS prices for a region the registry lacks.
-
-    Without the region's instance prices every Pro/Classic AWS, total and package figure would silently be null (or,
-    with a wrong label, priced for the wrong region); a live run stops instead unless the operator opts in.
-    """
-    if allow_missing:
-        return None
-    regions = sorted((aws_registry.get("regions") or {}).keys())
-    if source_region in regions:
-        return None
-    pro_classic = [e for e in evidence if e.current_epoch.config.warehouse_type in {"PRO", "CLASSIC"}]
-    if not pro_classic:
-        return None
-    return (f"--source-region {source_region or '(empty)'!r} is not in the AWS price registry (regions: {', '.join(regions) or 'none'}); "
-            f"{len(pro_classic)} Pro/Classic warehouse(s) need AWS instance prices. Pass the workspace's AWS region, extend the "
-            "registry, or pass --allow-missing-aws-price to publish with AWS cost unavailable.")
-
-
 def main(argv:Optional[Sequence[str]]=None)->int:
     args=parse_args(argv); t=Thresholds(); out=Path(args.output_dir)
     log_path=setup_logging(out,args.log_level)
@@ -2916,18 +2858,12 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     context=RunContext(request=request_from_args(args),thresholds=t)
     analysis=analyzer.run(context)
     evidence=analysis.evidence; unseen=analysis.unseen_billed_warehouses
-    if context.request.mode==MODE_LIVE:
-        registry=analysis.aws_price_registry
-        refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
-        if refusal:
-            raise SystemExit(refusal)
-        if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
-            LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
-    packages=build_packages_from_analysis(analysis,t,args.batch_size)
+    governance=governor.run(context,analysis)
+    packages=build_packages_from_analysis(analysis,t,args.batch_size,governance)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
-    excluded_count=len(unsupported_warehouse_exclusions(evidence))
+    excluded_count=len(governance.exclusions)
     LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence)-excluded_count,excluded_count,len(packages),candidate_count,scenario_count,log_path)
     if args.print_json:
         if len(packages) != 1:
