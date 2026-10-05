@@ -310,6 +310,12 @@ class DemoFleetTests(unittest.TestCase):
         self.assertEqual(c["status"], "NO_CHANGE")
         self.assertIn("FAILURE_CANCEL_RATE_HIGH", c["blockers"])
 
+    def test_c22_spill_from_two_statements_is_a_rewrite_not_an_upsize(self):
+        c = self.candidate("C22", "warehouse_size")
+        self.assertEqual((c["status"], c["blockers"]), ("NO_CHANGE", ["SPILL_CONCENTRATED_IN_FEW_STATEMENTS"]))
+        broad = self.candidate("C07", "warehouse_size")  # 25% of queries spill across many notebooks
+        self.assertEqual((broad["status"], broad["recommended_value"]), ("TEST_REQUIRED", "LARGE"))
+
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
         self.assertEqual((c["current_value"], c["status"]), (1, "NO_CHANGE"))

@@ -254,5 +254,24 @@ class BatchProfileTests(unittest.TestCase):
         self.assertIn("INSUFFICIENT_BATCH_RUN_DAYS", c.blockers)
 
 
+class SpillConcentrationTests(unittest.TestCase):
+    def test_sql_ranks_sources_and_never_merges_redacted_statements(self):
+        sql = p.build_spill_source_sql(p.Thresholds())
+        self.assertIn("rn <= 3", sql)
+        self.assertIn("WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id", sql)
+        self.assertIn("SHA2(x.statement_text, 256)", sql)
+        self.assertIn("INTERVAL 30 DAYS", sql)
+
+    def test_missing_concentration_evidence_fails_closed_for_an_upsize(self):
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C07")
+            e.current_epoch.query.pop("top_spill_source_share_pct_30")
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual((c.status, c.blockers), ("INSUFFICIENT_EVIDENCE", ["SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE"]))
+
+
 if __name__ == "__main__":
     unittest.main()

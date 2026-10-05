@@ -130,6 +130,9 @@ class Thresholds:
     # backed by at least this many affected queries (below ~20 samples a p95 is just the maximum).
     severity_min_affected_queries: int = 20
     spill_query_pct_downsize_safe: float = 0.1
+    # A few statements carrying most spilled bytes are a rewrite, not an upsize for every query.
+    spill_concentration_top_sources: int = 3
+    spill_concentration_hold_pct: float = 80.0
     # Failed/cancelled share of queries; above it, low spill/queue/latency is not trustworthy evidence of headroom.
     failure_cancel_pct_downsize_safe: float = 5.0
     p95_execution_ms_downsize_safe: int = 5_000
@@ -758,6 +761,38 @@ SELECT
   CASE WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS THEN COUNT_IF(start_time >= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS AND start_time < CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 49 DAYS) END AS queries_week_8
 FROM q
 GROUP BY workspace_id, warehouse_id, epoch_start
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
+
+# Spill concentration (current epoch, last 30 days): spilled bytes per statement source (saved query, dashboard, job,
+# notebook, else a hash of the statement text; a redacted statement counts on its own, never merged with others) and the
+# share carried by the top three sources. The statement text itself is never exported.
+def build_spill_source_sql(t: Thresholds) -> str:
+    """Spill concentration collector, with the number of top sources rendered from Thresholds."""
+    return SPILL_SOURCE_SQL_TEMPLATE.replace("__TOP_SOURCES__", str(int(t.spill_concentration_top_sources)))
+
+
+SPILL_SOURCE_SQL_TEMPLATE = r"""
+WITH __CONFIG_EPOCHS__,
+cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs WHERE epoch_end IS NULL),
+src AS (
+  SELECT c.workspace_id, c.warehouse_id, c.epoch_start,
+    COALESCE(x.query_source.sql_query_id, x.query_source.dashboard_id, x.query_source.legacy_dashboard_id,
+      CAST(x.query_source.job_info.job_id AS STRING), x.query_source.notebook_id,
+      CASE WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id ELSE SHA2(x.statement_text, 256) END) AS source_key,
+    SUM(CAST(x.spilled_local_bytes AS DOUBLE)) AS spilled_bytes
+  FROM system.query.history x
+  JOIN cur c ON x.workspace_id = c.workspace_id AND x.compute.warehouse_id = c.warehouse_id AND x.start_time >= c.epoch_start
+  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
+    AND COALESCE(x.from_result_cache, FALSE) = FALSE AND x.spilled_local_bytes > 0
+  GROUP BY 1, 2, 3, 4
+), ranked AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY workspace_id, warehouse_id, epoch_start ORDER BY spilled_bytes DESC, source_key) AS rn,
+    SUM(spilled_bytes) OVER (PARTITION BY workspace_id, warehouse_id, epoch_start) AS total_bytes
+  FROM src
+)
+SELECT workspace_id, warehouse_id, epoch_start, COUNT(*) AS spill_sources_30,
+  100.0 * SUM(CASE WHEN rn <= __TOP_SOURCES__ THEN spilled_bytes ELSE 0 END) / MAX(total_bytes) AS top_spill_source_share_pct_30
+FROM ranked GROUP BY workspace_id, warehouse_id, epoch_start
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 EPOCH_EVENT_METRICS_SQL = r"""
@@ -2517,6 +2552,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     epoch_rows = client.query(CONFIG_EPOCHS_SQL,label="config_epochs")
     LOGGER.info("collector.discovery current_warehouses=%d epoch_rows=%d", sum(1 for r in epoch_rows if bool(r.get("is_current"))), len(epoch_rows))
     query_idx = _index_epoch_rows(client.query(EPOCH_QUERY_METRICS_SQL,label="query_metrics"))
+    for r in client.query(build_spill_source_sql(thresholds),label="spill_sources"):
+        if _row_key(r) in query_idx:
+            query_idx[_row_key(r)].update({"spill_sources_30": safe_int(r.get("spill_sources_30")), "top_spill_source_share_pct_30": optional_float(r.get("top_spill_source_share_pct_30"))})
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
     running_idle_idx = _index_epoch_rows(client.query(build_running_idle_sql(thresholds),label="running_idle"))
@@ -2833,12 +2871,15 @@ class Analyzer:
         # slows down query execution, not the idle running time around it.
         busy_share = size_busy_share(gaps.get("busy_minutes"), ev.get("uptime_minutes"), ev.get("cluster_minutes"), cfg.min_clusters)
         fs.append(self._f(e,"warehouse_size","busy_cluster_time_share",busy_share,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window="current epoch",interpretation="Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy)."))
+        top_spill_share = optional_float(q.get("top_spill_source_share_pct_30")); spill_sources = optional_float(q.get("spill_sources_30"))
+        fs.append(self._f(e,"warehouse_size","top_spill_source_share_pct_30",round_or_none(top_spill_share,3),unit="%",threshold=self.t.spill_concentration_hold_pct,comparator=">= rewrite, not upsize",table="system.query.history",field="spilled_local_bytes by statement source",window="last 30 days within current epoch",
+            interpretation=f"Share of spilled bytes from the top {self.t.spill_concentration_top_sources} statement sources (saved query, dashboard, job, notebook or statement hash); the statement text is not exported."))
         job_q = optional_float(q.get("job_queries_30"))
         job_share = None if job_q is None or q30 <= 0 else round(100.0 * job_q / q30, 3)
         batch_profile = job_share is not None and job_share >= self.t.batch_job_query_share_pct
         fs.append(self._f(e,"warehouse_size","job_query_share_30",job_share,unit="%",threshold=self.t.batch_job_query_share_pct,comparator=">= batch profile",table="system.query.history",field="query_source.job_info.job_id",window="last 30 days within current epoch",
             interpretation="Share of queries from jobs; a batch warehouse's downsize canary is judged on run days and job run time, not interactive latency."))
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"batch_profile":batch_profile,"job_share":job_share,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"batch_profile":batch_profile,"job_share":job_share,"top_spill_share":top_spill_share,"spill_sources":None if spill_sources is None else int(spill_sources),"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
         # Concurrency demand: per-minute running + queued queries (time-weighted), as clusters at the documented
         # queries per cluster. P99.5 of busy minutes over the recent window and the whole current epoch; P95 of busy
@@ -3044,7 +3085,14 @@ class Optimizer:
             if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
             elif f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
-            if target and blockers:
+            concentrated = f.get("top_spill_share") is not None and f["top_spill_share"] >= self.t.spill_concentration_hold_pct
+            if not blockers and f.get("top_spill_share") is None:
+                blockers.append("SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE")
+            if target and not blockers and concentrated:
+                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","NO_CHANGE",
+                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_CONCENTRATED_IN_FEW_STATEMENTS"],[],[],[],
+                    f"{f['top_spill_share']:g}% of spilled bytes come from {self.t.spill_concentration_top_sources} or fewer statement sources ({f['spill_sources']} spilled in all): rewrite those statements; a larger size for every query is the expensive fix."))
+            elif target and blockers:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
                     "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
@@ -5577,6 +5625,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "statement_text_visible_pct_30": 100.0, "hive_metastore_reference_queries_30": 0,
             "epoch_p95_execution_ms": 2700, "epoch_queued_query_pct": 0.0, "epoch_spill_query_pct": 0.0,
             "decision_queries_30": 10320, "p95_compilation_ms_30": 420, "p95_result_fetch_ms_30": 900,
+            "spill_sources_30": 0, "top_spill_source_share_pct_30": 0.0,
             # Running + queued queries per busy minute: P99.5 = 20 (2 clusters); busy periods start at <= 10 (1 cluster).
             "concurrency_histogram": {"RECENT": {"1": 1500.0, "6": 280.0, "15": 12.0, "20": 8.0},
                                       "EPOCH": {"1": 12500.0, "6": 2300.0, "15": 100.0, "20": 100.0},
@@ -5707,7 +5756,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C21", "name": "Cached BI", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20, "cache_pct": 70.0,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 1, "dur": 0.2, "conc": 4, "src": "DASHBOARD", "client": "Power BI"}]},
     {"scenario": "C22", "name": "Few Heavy Queries", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 20,
-     "spill_pct": 3.0, "spill_p95_bytes": 5 * GIB,
+     "spill_pct": 3.0, "spill_p95_bytes": 5 * GIB, "spill_statements": 2,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 2, "src": "DASHBOARD"}]},
     {"scenario": "C25", "restart_every_days": 30, "name": "Weekday Operations", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "07:00", "end": "19:00", "every": 3, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
@@ -6008,6 +6057,10 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "p95_execution_ms_30": p95 if n30 else None, "p99_execution_ms_30": p99 if n30 else None, "max_execution_ms_30": p99 * 2 if n30 else None,
             "queued_query_pct_30": round(100.0 * round(queued30) / n30, 4) if n30 else None,
             "spill_query_pct_30": spill_pct if decision30 else None, "spill_queries_30": int(round(decision30 * spill_pct / 100.0)),
+            # Spilled bytes spread evenly over the spilling statement sources (spec spill_statements, default one per 50
+            # spilling queries); the top three carry min(3, n) / n of them.
+            **({"spill_sources_30": n_src, "top_spill_source_share_pct_30": round(100.0 * min(3, n_src) / n_src, 3)}
+               if (n_src := (spec.get("spill_statements") or max(1, int(round(decision30 * spill_pct / 100.0 / 50.0))))) and decision30 * spill_pct > 0 else {}),
             "p95_spill_bytes_when_spilled_30": spec.get("spill_p95_bytes") if spill_pct and n30 else None,
             "total_spill_gib_30": round(n30 * spill_pct / 100.0 * spec.get("spill_p95_bytes", 0) / 2 / GIB, 2),
             "p95_read_bytes_30": 50 * 1024 ** 2, "avg_read_io_cache_percent_30": 35.0 if n30 else None,

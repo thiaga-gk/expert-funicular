@@ -3627,9 +3627,11 @@
             "result_cache_pct_30": 14.0,
             "spill_queries_30": 600,
             "spill_query_pct_30": 5.0,
+            "spill_sources_30": 12,
             "sql_query_source_queries_30": 200,
             "statement_text_visible_pct_30": 100.0,
             "tagged_query_pct_30": 78.0,
+            "top_spill_source_share_pct_30": 25.0,
             "total_spill_gib_30": 0.0
           },
           "resource_daily": [
