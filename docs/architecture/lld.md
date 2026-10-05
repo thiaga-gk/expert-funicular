@@ -1129,9 +1129,9 @@ group    = -1 if the candidate is a canary rollback (CANARY_GUARDRAIL_BREACHED)
 knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 ```
 
-`base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
+`base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). A canary rollback (15.9) is placed first, whatever later steps invalidate, because it restores its knob regardless. The rest of the sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
 
-**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. The sentence is text only: step order, `next_action` and savings are unchanged.
+**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. When the plan has a canary rollback, the summary first says to apply the rollback (its knobs) before any other step: a change applied first starts a new configuration, and the next run no longer sees the change being rolled back. Both sentences are text only: step order, `next_action` and savings are unchanged.
 
 ### 19.2 Invalidation behavior
 
@@ -1279,7 +1279,8 @@ The codes that explain each withheld status: [`docs/reference/blocker-codes.md`]
 - step knob/current/recommended config exactly equal candidate contract,
 - step confidence exactly equals candidate confidence,
 - invalidated downstream steps are `PENDING_REEVALUATION`,
-- no step precedes a step that invalidates it,
+- every canary rollback is a first step and never `PENDING_REEVALUATION`,
+- no step precedes a step that invalidates it, except a canary rollback,
 - a step's pricing basis matches its execution state (`PENDING_REEVALUATION` ⇔ contingent),
 - authoritative scenario savings equal the last authoritative step's running savings, and contingent savings equal the last pending step's,
 - every scenario range is ordered,

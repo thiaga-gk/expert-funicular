@@ -186,9 +186,9 @@ class CanaryRollbackTests(unittest.TestCase):
         obs = p.canary_observation(e, self.t)
         self.assertIsInstance(obs["details"]["current"]["failure_cancel_pct"], float)
 
-    def queueing_with_floor_cut(self):
-        # C08 (chronic queueing at max 2, a 2 -> 5 increase is ACTIONABLE), floor cut 2 -> 1 four days ago, failures up.
-        e, _ = changed("C08", "auto_stop_minutes", 25, 4)
+    def queueing_with_floor_cut(self, days=4):
+        # C08 (chronic queueing at max 2, a 2 -> 5 increase is ACTIONABLE), floor cut 2 -> 1 `days` days ago, failures up.
+        e, _ = changed("C08", "auto_stop_minutes", 25, days)
         prev = self.previous(e)
         prev.config = dataclasses.replace(prev.config, auto_stop_minutes=e.current_epoch.config.auto_stop_minutes, min_clusters=2)
         e.current_epoch.query["canary_guard"]["CURRENT"].update(failure_cancel_pct=6.0)
@@ -209,6 +209,41 @@ class CanaryRollbackTests(unittest.TestCase):
         self.assertIn(("max_clusters", 5, "PENDING_REEVALUATION"), steps)
         mx = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
         self.assertNotIn("CANARY_ROLLBACK_PENDING", mx.blockers)
+
+    def test_kept_steps_publish_their_invalidations_unchanged(self):
+        # The rollback is ordered first by the planner; kept candidates keep what they invalidate, so the ceiling
+        # increase still invalidates the floor, the plan still ends with a re-measure, and Plan B's migration (evaluated
+        # once the epoch has a week of cost history) invalidates every in-place knob.
+        pkg, _ = self.plan_states(self.queueing_with_floor_cut(days=19))
+        mx = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertEqual([k.value for k in mx.invalidates], ["min_clusters"])
+        plan = next(s for s in pkg.scenarios if s.scenario_id == pkg.recommended_plan.scenario_id)
+        step = next(st for st in plan.execution_plan if st.knob is not None and st.knob.value == "max_clusters")
+        self.assertEqual([k.value for k in step.invalidates], ["min_clusters"])
+        self.assertEqual(plan.execution_plan[-1].step_type, rc.PlanStepType.REMEASURE)
+        mig = next(c for c in pkg.candidates if c.knob.value == "warehouse_type")
+        self.assertEqual(mig.status.value, "TEST_REQUIRED")
+        self.assertEqual(sorted(k.value for k in mig.invalidates), ["auto_stop_minutes", "max_clusters", "min_clusters", "warehouse_size"])
+
+    def test_reviewer_requires_every_rollback_to_be_a_first_ready_step(self):
+        e = self.queueing_with_floor_cut()
+        original = p.ScenarioPlanner._plan_order
+        def rollbacks_last(planner, eligible):
+            ordered = original(planner, eligible)
+            return [c for c in ordered if "CANARY_GUARDRAIL_BREACHED" not in c.blockers] + [c for c in ordered if "CANARY_GUARDRAIL_BREACHED" in c.blockers]
+        p.ScenarioPlanner._plan_order = rollbacks_last
+        try:
+            with self.assertRaisesRegex(ValueError, "Canary rollback must be a first, ready step"):
+                p.build_recommendation_packages([e], self.t)
+        finally:
+            p.ScenarioPlanner._plan_order = original
+
+    def test_summary_says_to_apply_the_rollback_before_other_steps(self):
+        pkg, steps = self.plan_states(self.queueing_with_floor_cut())
+        self.assertIn(("max_clusters", 5, "READY"), steps)
+        self.assertIn("Apply the canary rollback (min_clusters) before any other step", pkg.recommended_plan.decision_summary)
+        c55 = p.build_recommendation_packages([self.e], self.t)[0]
+        self.assertIn("Apply the canary rollback (warehouse_size)", c55.recommended_plan.decision_summary)
 
 if __name__ == "__main__":
     unittest.main()

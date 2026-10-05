@@ -4606,10 +4606,12 @@ class Reviewer:
                 if st.knob in invalidated and st.execution_state!="PENDING_REEVALUATION":
                     raise ValueError(f"Invalidated downstream step must be pending reevaluation: {st.recommendation_id}")
                 invalidated.update(st.invalidates)
+            # A canary rollback is a first, ready step and restores its knob regardless of what later steps invalidate.
+            rollbacks=[i for i,st in enumerate(sc.steps) if "CANARY_GUARDRAIL_BREACHED" in by_id[st.recommendation_id].blockers]
+            if rollbacks!=list(range(len(rollbacks))) or any(sc.steps[i].execution_state=="PENDING_REEVALUATION" for i in rollbacks):
+                raise ValueError(f"Canary rollback must be a first, ready step: {sc.scenario_id}")
             for i,st in enumerate(sc.steps):
-                # A canary rollback restores its knob regardless of what later steps invalidate.
-                rollback="CANARY_GUARDRAIL_BREACHED" in by_id[st.recommendation_id].blockers
-                if not rollback and any(st.knob in later.invalidates for later in sc.steps[i+1:]):
+                if i not in rollbacks and any(st.knob in later.invalidates for later in sc.steps[i+1:]):
                     raise ValueError(f"Plan step precedes a step that invalidates it: {st.recommendation_id}")
             pe=sc.portfolio_estimate
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
@@ -5939,6 +5941,7 @@ def derive_observed_change(e: WarehouseEvidence) -> Optional[rc.ObservedConfigCh
 def _recommended_plan(
     scenarios: Sequence[rc.Scenario],
     reevaluation: Optional[rc.ReevaluationWindow] = None,
+    candidates: Sequence[rc.CandidateRecommendation] = (),
 ) -> rc.RecommendedPlan:
     recommended = next((s for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED), None)
     if recommended is None:
@@ -5986,9 +5989,21 @@ def _recommended_plan(
         next_action=next_action,
         requires_hitl=True,
         decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes."
-                         + _canary_sequencing_note(recommended),
+                         + _rollback_sequencing_note(recommended, candidates) + _canary_sequencing_note(recommended),
         reevaluation=reevaluation,
     )
+
+
+def _rollback_sequencing_note(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation]) -> str:
+    """A canary rollback goes before every other step: a change applied first starts a new configuration, and the next
+    run no longer sees the change being rolled back."""
+    rollback_ids = {c.candidate_id for c in candidates if "CANARY_GUARDRAIL_BREACHED" in c.blockers}
+    knobs = [x.knob.value for x in scenario.execution_plan
+             if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None and x.candidate_id in rollback_ids]
+    if not knobs:
+        return ""
+    return (f" Apply the canary rollback ({', '.join(knobs)}) before any other step: a change applied first starts a new "
+            "configuration, and the next run no longer sees the change being rolled back.")
 
 
 def _canary_sequencing_note(scenario: rc.Scenario) -> str:
@@ -6029,7 +6044,7 @@ def _build_locked_recommendation_package(
         e, scenarios, contract_epoch_id, candidates_by_internal_id, candidate_contracts, compatibility_map
     )
     reevaluation = compute_reevaluation(e, thresholds, start_time=start_time, epoch_age=epoch_age_days(ep, e.analysis_time))
-    recommended = _recommended_plan(scenario_contracts, reevaluation)
+    recommended = _recommended_plan(scenario_contracts, reevaluation, candidate_contracts)
     package_economics = _package_economics(e, scenario_contracts, recommended.scenario_id)
     evidence_fingerprint = rc.make_evidence_fingerprint(
         workspace_id=e.workspace_id, warehouse_id=e.warehouse_id, epoch_id=contract_epoch_id,

@@ -685,7 +685,7 @@ A scenario is a **mutually exclusive execution path**, not a list of all candida
 
 Current Phase-1 policy constructs an in-place optimization path and treats it as the recommended scenario when valid.
 
-Steps run in order of expected value (base savings × confidence ÷ risk); a step never precedes the step that invalidates it. Typical result for an idle, over-sized warehouse:
+Steps run in order of expected value (base savings × confidence ÷ risk); a step never precedes the step that invalidates it, except a canary rollback, which always goes first. Typical result for an idle, over-sized warehouse:
 
 ```mermaid
 flowchart LR
