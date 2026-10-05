@@ -11,7 +11,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - Workbook validator: `python scripts/validate_workbook.py ./demo_out`
 - Contract example: `python scripts/validate_contracts.py`
 - Skill suite: `python scripts/validate_skill_suite.py`
-- Oracle parity (single-file tag vs working tree): `python scripts/compare_single_file.py`
+- Output diff against a git ref (canonical packages, evidence, manifest, workbook cells): `python scripts/compare_with_ref.py --ref master`
 
 ## Change loop
 1. Make the smallest layer-local change.

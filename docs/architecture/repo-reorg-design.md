@@ -1542,3 +1542,8 @@ These decisions bind the phases above where the generic plan meets the existing 
 - One worktree and branch per phase (`.worktrees/reorg-pN`, `reorg/pN`), `/code-review low` before each merge to `master`, nothing pushed. All phases run in one session, with mechanical moves delegated to subagents.
 - Every phase exits with: compile check, the full unit suite, the regression comparison against the oracle, the demo regenerated and the workbook validator passing.
 - A design defect found during extraction is recorded as a separate change item and never fixed inside a structural phase (section 17).
+
+### 21.5 Outcome
+
+All phases are complete and the single-file oracle is retired: 245 of its 246 top-level definitions live in the capability packages under the same name (`optimize_warehouse` is the composition of the Optimizer, the candidate gate, planning and the scenario gate), and the reorganized code reproduces the oracle's canonical outputs exactly. The parity record and its evidence are in [`docs/proposals/repo-reorg-parity.md`](../proposals/repo-reorg-parity.md). The real source-system run in `docs/proposals/real-data-run.md` runs on the reorganized code.
+

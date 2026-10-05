@@ -1,7 +1,7 @@
 """Canonical publisher outputs for the behavioral baseline (repo-reorg-design.md sections 13.3, 13.4, 21.3).
 
 One place defines what "the same output" means, for the golden ``expected/`` files, the stored demo expectations,
-``scripts/update_goldens.py`` and ``scripts/compare_single_file.py``:
+``scripts/update_goldens.py`` and ``scripts/compare_with_ref.py``:
 
 - packages, ``manifest.json`` and ``evidence.json`` are compared byte for byte: they carry no wall-clock or path
   data (``generated_at`` derives from the evidence analysis time);
