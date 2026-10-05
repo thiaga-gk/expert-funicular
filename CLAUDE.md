@@ -7,7 +7,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
 - One test: `python -m unittest tests.unit.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.reporter.test_workbook_contract`)
-- Demo (one warehouse per golden scenario): `python -m publisher --demo --output-dir ./demo_out`
+- Demo (one warehouse per golden scenario): `python -m publisher --demo --output-dir ./demo_out`, or without an install `python scripts/run_demo.py [output_dir]`
 - Workbook validator: `python scripts/validate_workbook.py ./demo_out`
 - Contract example: `python scripts/validate_contracts.py`
 - Skill suite: `python scripts/validate_skill_suite.py`
@@ -37,7 +37,7 @@ These summarize `docs/product/prd.md` (scope and requirements) and `docs/archite
 - Preserve `(workspace_id, warehouse_id)` identity.
 
 ## Pipeline boundaries
-Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → Modeler/Estimator → Reviewer 1 → Scenario Planner → Stateful Bundle Estimator → Reviewer 2 → RecommendationPackage → validation → Workbook. The analyzer observes, the optimizer decides, the candidate estimator prices isolated changes, the bundle estimator prices stateful scenarios. Do not merge these responsibilities (`docs/architecture/hld.md`).
+Analyzer (collector → normalizer → epochs → derived metrics → findings; fails closed on unsupported warehouse types) → Governor (eligibility, `Thresholds`, run constraints, migration compatibility) → Optimizer (one technique per active knob, cross-technique conflicts, candidate estimator) → Reviewer candidate gate → Packager (scenario planner, sequencing, stateful bundle estimator, package estimate, evidence registry, contract assembly) → Reviewer package gate → Reporter (packages, evidence, workbook, manifest). `publish()` in `src/publisher/publisher.py` calls each capability once, in that order, and holds no domain logic. The analyzer observes, the governor decides what may be considered, the optimizer decides, the candidate estimator prices isolated changes, the bundle estimator prices stateful scenarios. Do not merge these responsibilities (`docs/architecture/hld.md`).
 
 ## Economics
 - Keep DBU and AWS components separate. Unknown cost is null/unavailable, never zero or guessed.

@@ -31,7 +31,7 @@ The workbook is a human decision/reporting projection of immutable `Recommendati
 **Persona:** executive/product sponsor, FinOps lead, platform owner.  
 **Grain:** run/portfolio aggregation over the supplied packages.
 
-Presents coverage, including the count of warehouses excluded by the supported-type gate. That count comes from the run manifest's `excluded_warehouses` and is `UNAVAILABLE` when the caller passes no exclusion list. It also shows the actual/forward baseline, recommended annual savings, recommended annual cost increase and signed net annual impact, followed by two separate blocks:
+Presents coverage, including the count of warehouses excluded by the Governor as unsupported types. That count comes from the run manifest's `excluded_warehouses` and is `UNAVAILABLE` when the caller passes no exclusion list. It also shows the actual/forward baseline, recommended annual savings, recommended annual cost increase and signed net annual impact, followed by two separate blocks:
 
 - **Recommended plan savings:** sums of the recommended scenario's total low, base and high over warehouses whose recommended scenario is priced. The note states how many are priced; unpriced plans are excluded, never counted as zero. The base equals the net annual impact.
 - **Pricing basis:** the *Forward 365d baseline* and *Plan savings* notes state that DBU cost is at the account's list price (negotiated discounts lower real savings proportionally) and AWS cost at on-demand EC2 prices (Spot, Reserved Instances and Savings Plans are not modeled).

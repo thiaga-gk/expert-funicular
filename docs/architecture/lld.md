@@ -36,7 +36,7 @@ The following contracts are versioned independently of the publisher:
 
 The publisher implements the design directly:
 
-1. the fail-closed Supported-Type Gate permits only `CLASSIC`, `PRO`, and standard `SERVERLESS`;
+1. the fail-closed supported-type check (the Analyzer analyzes, and the Governor admits, only `CLASSIC`, `PRO`, and standard `SERVERLESS`);
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
 3. Workbook Contract v1.4.0 is a numeric-first presentation projection of the public packages.
 
@@ -46,7 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `governor/` (supported-type and eligibility gates), `optimizer/` (the per-knob decisions and the candidate estimator), `reviewer/` (the candidate and scenario gates), `packager/` (scenario planning, stateful bundle estimation, package economics and the contract adapter that assembles the public package), `publisher.py` (the facade: package writing, the CLI and the convenience entry points), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It is organised by capability: `analyzer/` (collection in `collector/`, normalization, epochs, derived metrics, the forecast, blockers, calibration and findings), `governor/` (eligibility, the `Thresholds` policy, run constraints, migration compatibility), `optimizer/` (the per-knob `techniques/`, cross-technique `conflicts.py` and the candidate `estimator/`), `reviewer/` (the candidate gate, the scenario gate and the package gate), `packager/` (scenario planning, sequencing, the stateful bundle `estimator/`, package economics, the evidence registry, the contract adapter and the manifest), `reporter/` (writing packages, evidence and the workbook, and the CLI summary), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries between capabilities), `config/` (version identifiers, product defaults, repository-relative settings, request loading and CLI parsing) and `common/` (logging, internal join keys, canonical hashing, time and value helpers). `publisher.py` is the facade: `publish` calls each capability once, in order, and holds no domain logic. Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (the no-install CLI and demo launchers, validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit tests per capability, component, integration, golden and regression suites, and fixtures) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -69,7 +69,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/optimizer/estimator/candidate.py` | `Estimator`: prices each decision as an isolated candidate, candidate confidence and the cost-value gate | No (prices decisions, never chooses them) |
 | `src/publisher/optimizer/estimator/cost.py` | `CostModel`: per-knob cost factors, migration target costs, current-model reconciliation; `validated_size_rate_ratio`, `aws_cluster_hourly_from_evidence`, `resolve_target_sku_price` | No |
 | `src/publisher/optimizer/estimator/savings.py` | `SavingsModel`: cost ranges from cost factors and savings deltas against a baseline | No |
-| `src/publisher/reviewer/reviewer.py`, `candidate.py`, `scenario.py` | Reviewer: `Reviewer` combines the candidate gate (`CandidateGate.review`: identity, one candidate per active knob, cost, confidence, status/config consistency, knob bounds) and the scenario gate (`ScenarioGate.review_scenarios`); `review_candidates` runs the candidate gate over the optimized fleet before packaging and `review_package` runs the scenario gate over every packaged warehouse after it; both gates fail fast with `ValueError` | No (gates only) |
+| `src/publisher/reviewer/reviewer.py`, `candidate.py`, `scenario.py` | Reviewer: `Reviewer` combines the candidate gate (`CandidateGate.review`: identity, one candidate per active knob, cost, confidence, status/config consistency, knob bounds) and the scenario gate (`ScenarioGate.review_scenarios`); `review_candidates` runs the candidate gate over the optimized fleet before packaging, `review_plans` runs the scenario gate over planned warehouses and `review_package` runs the scenario gate over every packaged warehouse after packaging; both gates fail fast with `ValueError` | No (gates only) |
 | `src/publisher/reviewer/package.py` | package gate, report-contract consistency: `review_contract` runs each frozen package's semantic `validate()` and the committed JSON Schema (`validate_locked_package_schema`); `review_package` applies it after the scenario gate. The writer validates the schema again immediately before each write | No (gates only) |
 | `src/publisher/packager/packager.py` | Packager boundary: `plan` (scenarios for each warehouse that passed the candidate gate), `assemble` and `run` (returns `PackagingResult`); `_build_locked_recommendation_package` assembles one frozen package (package ID and full hash, semantic `validate()`) | Yes, deterministic only |
 | `src/publisher/packager/scenarios.py`, `sequencing.py` | `ScenarioPlanner` (Plan A, Plan B and their steps); `PlanOrdering` (`_plan_order`, `PLAN_KNOB_RANK`, the rollback and canary sequencing notes) | Yes, deterministic only |
@@ -78,12 +78,12 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/packager/estimator/package.py` | `_package_economics` and `_economics_point_from_scenario`: the package-level opportunity envelope from scenario economics | No |
 | `src/publisher/packager/evidence.py` | `_add_evidence`, `_build_evidence_registry`: the public evidence registry and its `EVID-` references | No |
 | `src/publisher/packager/adapter.py` | contract adapter: maps internal candidates, scenarios, assessments and workload profiles onto the public Reporter types (`_candidate_contracts`, `_scenario_contracts`, `_assessment_contract`, `_workload_profile`, `_step_projection`, `compute_reevaluation`, `derive_observed_change`) | No |
-| `src/publisher/publisher.py` | the facade: the CLI (`parse_args`, `main`), the convenience entry points (`evaluate_analysis`, `evaluate_warehouses`, `build_packages_from_analysis`, `build_recommendation_packages`) and re-exports of the moved names so `publisher.<name>` keeps resolving | No (orchestration and writing only) |
+| `src/publisher/publisher.py` | the facade: `build_context`, `publish` (calls `analyzer.run`, `governor.run`, `optimizer.run`, `reviewer.review_candidates`, `packager.run`, `reviewer.review_package` and `reporter.run`, once each, in that order), the two evidence-in-hand entry points (`evaluate_warehouses`, `build_recommendation_packages`) and the CLI `main` | No (orchestration only) |
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`, `package.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) the orchestration result (`WarehouseOptimization`), the reviewer results (`CandidateReviewResult`, `PackageReviewResult`) and the Packager result (`PackagingResult`) | No |
 | `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
 | `src/publisher/governor/thresholds.py` | `Thresholds`: every decision default; the Governor owns the policy parameters because they change what is recommended (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
-| `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
+| `src/publisher/config/loader.py` | CLI argument parsing (`parse_args`) and turning the parsed arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
 | `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
 | `src/publisher/contracts/governance.py` | `GovernanceResult`: the eligible analyzed warehouses and the per-warehouse exclusions | No |
 | `src/publisher/contracts/candidate.py` (Optimizer boundary types) | `WarehouseCandidates`: one warehouse's analyses, decisions and candidates; `OptimizationResult`: the fleet-level result that `optimizer.run` returns | No |
@@ -91,12 +91,14 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
 | `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
 | `src/publisher/contracts/workbook_contract.py` | pure JSON-package-to-workbook row projection | No |
-| `src/publisher/reporter/reporter.py` | Reporter: `run` persists the reviewed packages and the run outputs and returns a `ReportContract` (`src/publisher/contracts/report.py`: written files and headline counts); it never recalculates or changes a package | No |
+| `src/publisher/reporter/reporter.py` | Reporter: `run` persists the reviewed packages and the run outputs and returns a `ReportContract` (`src/publisher/contracts/report.py`: written files and headline counts); it never recalculates or changes a package; `print_summary` prints the CLI summary or the single package as JSON | No |
 | `src/publisher/reporter/json_reporter.py` | `package_locked_contract`: writes each package (schema-validated immediately before the write), `evidence.json`, the workbook (through `workbook_reporter.py`) and `manifest.json` | No |
 | `src/publisher/packager/manifest.py` | `build_manifest`: the run manifest (versions, one entry per package, exclusions, the unseen billed-warehouse check, output file names) | No |
 | `src/publisher/reporter/workbook_reporter.py` | Excel rendering, number formats, widths, filters, frozen panes, conditional formatting | No |
 | `pricing/aws_ec2_on_demand.json` | versioned regional EC2 price reference | No |
 | `schema/*.schema.json` | committed Draft 2020-12 schemas for the package and for replay evidence | No |
+| `scripts/run_publisher.py` | the CLI from a checkout without installing: puts `src/` on the path and calls `publisher.publisher.main`, with the same arguments as `python -m publisher` | No |
+| `scripts/run_demo.py` | the demo fleet from a checkout without installing: `python scripts/run_demo.py [output_dir]`, calling `main` with `--demo --output-dir` | No |
 | `scripts/validate_workbook.py` | independent workbook validator (sheets, columns, grains, numeric economics) | No |
 | `scripts/validate_contracts.py` | validates the committed contract example against the semantic contract and schema | No |
 
@@ -206,45 +208,36 @@ sequenceDiagram
     participant CLI as CLI
     participant AUTH as OAuth/Auth
     participant SQL as Databricks SQL
-    participant COL as Collector
-    participant MOD as Modeler
     participant ANA as Analyzer
+    participant GOV as Governor
     participant OPT as Optimizer
-    participant EST as Estimator
-    participant R1 as Reviewer Gate 1
-    participant PLN as Scenario Planner
-    participant BND as Bundle Estimator
-    participant R2 as Reviewer Gate 2
-    participant ADP as Public Contract Adapter
-    participant VAL as Contract Validator
-    participant WB as Workbook Projection
+    participant R1 as Reviewer candidate gate
+    participant PKG as Packager
+    participant R2 as Reviewer package gate
+    participant REP as Reporter
     participant OUT as Output Directory
 
     CLI->>AUTH: resolve execution target + U2M token
     AUTH->>SQL: SQL Connector session (UTC-pinned, verified)
-    SQL->>COL: set-based system table aggregates
-    COL->>MOD: daily DBU cost + current epoch
-    MOD-->>COL: forward baseline forecast
-    COL->>ANA: WarehouseEvidence
-    ANA-->>OPT: AnalysisResult[5]
-    OPT-->>EST: OptimizationDecision[5]
-    EST-->>R1: CandidateRecommendation[5]
-    R1-->>PLN: reviewed candidates
-    PLN->>BND: ordered Plan A / Plan B steps
-    BND-->>PLN: stateful scenario economics
-    PLN-->>R2: scenarios
-    R2-->>ADP: reviewed internal report
-    ADP->>VAL: RecommendationPackage
-    VAL->>VAL: semantic/hash/schema checks
-    VAL-->>OUT: packages/*.json
-    VAL->>WB: validated packages
-    WB-->>OUT: workbook.xlsx
-    COL-->>OUT: evidence.json
-    VAL-->>OUT: manifest.json
+    SQL->>ANA: set-based system table aggregates (collector)
+    ANA->>ANA: normalize, current epoch, forward baseline forecast, findings
+    ANA-->>GOV: WarehouseEvidence + AnalysisResult[5] (supported types only)
+    GOV-->>OPT: eligible warehouses + exclusions
+    OPT->>OPT: OptimizationDecision[5], then the candidate estimator prices each
+    OPT-->>R1: CandidateRecommendation[5]
+    R1-->>PKG: reviewed candidates
+    PKG->>PKG: scenario planner orders Plan A / Plan B steps, bundle estimator prices them
+    PKG->>PKG: contract adapter assembles the frozen RecommendationPackage
+    PKG-->>R2: scenarios + packages
+    R2->>R2: scenario gate, then semantic/hash/schema checks
+    R2-->>REP: reviewed packages
+    REP-->>OUT: packages/*.json
+    REP-->>OUT: workbook.xlsx
+    REP-->>OUT: evidence.json + manifest.json
     CLI-->>OUT: publisher.log
 ```
 
-The Packager (`src/publisher/packager/packager.py`) plans the scenarios for the candidates that passed the candidate gate, then its contract adapter assembles each frozen package; no internal run report exists. Reviewer Gate 2 (`review_package`) checks the planned scenarios of every packaged warehouse. `build_recommendation_packages()` in `src/publisher/publisher.py` is the convenience entry point that evaluates the supported warehouses and assembles each package.
+The Packager (`src/publisher/packager/packager.py`) plans the scenarios for the candidates that passed the candidate gate, then its contract adapter assembles each frozen package; no internal run report exists. The Reviewer package gate (`review_package`) checks the planned scenarios of every packaged warehouse and then each package's contract consistency. `publish()` in `src/publisher/publisher.py` calls each capability once, in this order; `build_recommendation_packages()` is the evidence-in-hand entry point that runs a replay through both gates and returns the reviewed packages without writing.
 
 ---
 
@@ -516,7 +509,7 @@ flowchart TD
     P -. prohibited .-> D
 ```
 
-Only current-epoch findings may satisfy active optimizer decisions, with the one carry exception below. Reviewer gate 1 rejects decision findings from historical epochs except explicitly non-decision historical coverage evidence.
+Only current-epoch findings may satisfy active optimizer decisions, with the one carry exception below. The Reviewer candidate gate rejects decision findings from historical epochs except explicitly non-decision historical coverage evidence.
 
 Older epochs have three decision uses: the older-epoch peak hold, carried evidence and the canary rollback (15.9). First, they can hold a capacity cut. A size reduction, a lower max clusters or a lower min clusters is held (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`) when any older epoch of the same warehouse within the last 365 days peaked at more clusters of demand than the current recent window (15). Both peaks are read at the same rate: the older epoch's is the per-minute concurrency level reached in at least `peak_demand_min_minutes` busy minutes of its `query.concurrency_histogram.EPOCH`; the recent window's is the level reached in `peak_demand_min_minutes` × (recent days) / (older epoch days) of its `RECENT` busy minutes (at least one; recent days = 30, or the current epoch's age when younger), so the same spike rate compares equal over windows of different length. An older epoch with fewer busy minutes than the threshold has no peak and holds nothing; a recent window too quiet to reach its threshold counts at its highest level (0 with no busy minute), so a quiet present never hides a busier past. Older concurrency depends on that epoch's configuration (a smaller size shows more concurrency), so it is used only to hold, never to choose a change, its target or its economics. After a heavy team leaves, the hold lasts until the older epoch ages past 365 days; the blocker stays visible for a human override.
 
@@ -531,9 +524,9 @@ Second, evidence a configuration change cannot affect carries across that change
 
 `carried_query_view()` lays the demand-period fields over the current epoch's query evidence: query counts and mix, the decision sample, execution p95 and p99, spill and its source concentration, failures, and the recent and busy-start concurrency histograms. It lays the capacity-period queue fields (queued share, queued count, capacity wait) over it as well. The current epoch's whole-epoch concurrency histogram (`EPOCH`), cold-start wait, total latency, resource-window shares, running idle, cluster-minutes and billing stay the current epoch's. A finding read across a change has `epoch_scope = CARRIED_ACROSS_CHANGE` and the window "last 30 days since <date> (carried across a configuration change that does not affect it)"; every other finding has `epoch_scope = CURRENT`. The recent concurrency window then spans the demand period rather than the epoch start: when it covers the whole current epoch no epoch peak lies outside it, and an older epoch wholly inside it is part of the recent window, not an older peak. The workload profile, the query-source attribution, the assessment's query sample and the migration compatibility checks read the same view.
 
-### 10.3 Supported-Type Gate
+### 10.3 Supported-type check
 
-Immediately after normalization and before analyzer invocation:
+Immediately after normalization and before any analysis:
 
 ```python
 SUPPORTED_WAREHOUSE_TYPES = {"CLASSIC", "PRO", "SERVERLESS"}
@@ -541,7 +534,7 @@ if current_epoch.config.warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
     # fail closed / publish unsupported assessment; do not route into Pro/Classic logic
 ```
 
-The analyzer (`analyze` in `src/publisher/analyzer/analyzer.py`) enforces this gate before workspace calibration and per-knob findings; unsupported/future types fail closed and never reach them. The exclusion is per warehouse: the rest of the fleet is still analyzed and evaluated, and the Governor (`src/publisher/governor/eligibility.py`) lists each excluded warehouse, which the run writes to `manifest.json` `excluded_warehouses`.
+The Analyzer (`analyze` in `src/publisher/analyzer/analyzer.py`) enforces this check before workspace calibration and per-knob findings; unsupported/future types fail closed and never reach them. The exclusion is per warehouse: the rest of the fleet is still analyzed and evaluated, and the Governor (`src/publisher/governor/eligibility.py`) lists each excluded warehouse, which the run writes to `manifest.json` `excluded_warehouses`.
 
 ---
 
@@ -1126,7 +1119,7 @@ Missing resource bounds, target DBU rate, list price, or AWS registry evidence m
 
 ---
 
-## 18. Reviewer Gate 1 — candidate invariants
+## 18. Reviewer candidate gate — candidate invariants
 
 `Reviewer.review()` fails the run for a warehouse when any invariant is violated.
 
@@ -1150,8 +1143,8 @@ It validates:
 
 ```mermaid
 flowchart LR
-    C[5 candidates] --> R{Reviewer Gate 1}
-    R -->|all invariants pass| S[Scenario Planner]
+    C[5 candidates] --> R{Reviewer candidate gate}
+    R -->|all invariants pass| S[Packager: scenario planner]
     R -->|any invariant fails| F[Fail closed<br/>No public package]
 ```
 
@@ -1313,7 +1306,7 @@ The codes that explain each withheld status: [`docs/reference/blocker-codes.md`]
 
 ---
 
-## 21. Reviewer Gate 2 — scenario invariants
+## 21. Reviewer package gate — scenario invariants
 
 `Reviewer.review_scenarios()` validates:
 
@@ -1333,7 +1326,7 @@ The codes that explain each withheld status: [`docs/reference/blocker-codes.md`]
 - Plan A contains no warehouse-type migration,
 - Plan B contains no more than one step.
 
-A package is final only after reviewer gate 2 has passed its scenarios.
+A package is final only after the Reviewer package gate has passed its scenarios.
 
 ---
 
@@ -1554,7 +1547,7 @@ Filenames are operational locators only. They are not content identities and are
 
 ### 28.2 Manifest
 
-The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
+The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses the Governor excluded as unsupported types (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 
