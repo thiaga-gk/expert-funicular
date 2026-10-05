@@ -32,6 +32,7 @@ class PublisherRequest:
     batch_size: int = 100
     generate_workbook: bool = True
     print_json: bool = False
+    execution_mode: str = "local"
 
 
 @dataclass(frozen=True)

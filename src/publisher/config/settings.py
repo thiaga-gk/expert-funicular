@@ -15,3 +15,8 @@ _CONTRACT_SCHEMA_PATH = REPO_ROOT / "schema" / "recommendation-package.schema.js
 
 
 _EVIDENCE_SCHEMA_PATH = REPO_ROOT / "schema" / "evidence.schema.json"
+
+
+# Where a run executes. Only local execution exists; a Databricks Asset Bundle mode is added with its adapters.
+EXECUTION_MODES = ("local",)
+

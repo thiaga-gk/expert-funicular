@@ -7,7 +7,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
 - One test: `python -m unittest tests.unit.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.reporter.test_workbook_contract`)
-- Demo (one warehouse per golden scenario): `python -m publisher --demo --output-dir ./demo_out`, or without an install `python scripts/run_demo.py [output_dir]`
+- Demo (one warehouse per golden scenario): `publisher --demo --output-dir ./demo_out` (same as `publisher publish ...` or `python -m publisher ...`), or without an install `python scripts/run_demo.py [output_dir]`
 - Workbook validator: `python scripts/validate_workbook.py ./demo_out`
 - Contract example: `python scripts/validate_contracts.py`
 - Skill suite: `python scripts/validate_skill_suite.py`
@@ -38,6 +38,7 @@ These summarize `docs/product/prd.md` (scope and requirements) and `docs/archite
 
 ## Pipeline boundaries
 Analyzer (collector → normalizer → epochs → derived metrics → findings; fails closed on unsupported warehouse types) → Governor (eligibility, `Thresholds`, run constraints, migration compatibility) → Optimizer (one technique per active knob, cross-technique conflicts, candidate estimator) → Reviewer candidate gate → Packager (scenario planner, sequencing, stateful bundle estimator, package estimate, evidence registry, contract assembly) → Reviewer package gate → Reporter (packages, evidence, workbook, manifest). `publish()` in `src/publisher/publisher.py` calls each capability once, in that order, and holds no domain logic. The analyzer observes, the governor decides what may be considered, the optimizer decides, the candidate estimator prices isolated changes, the bundle estimator prices stateful scenarios. Do not merge these responsibilities (`docs/architecture/hld.md`).
+The CLI (`src/publisher/cli/`) is an adapter in front of the facade: it parses and validates its own arguments, builds the `PublisherRequest` (including `--mode`, today only `local`), configures logging, calls `publisher.publish` and maps a `PublisherError` to exit status 2. It never imports a capability package (`tests/unit/cli/test_cli.py` checks this); the config layer resolves the execution mode.
 
 ## Economics
 - Keep DBU and AWS components separate. Unknown cost is null/unavailable, never zero or guessed.

@@ -8,6 +8,9 @@ dependencies = ["databricks-sql-connector>=4.2.6", "jsonschema>=4.23", "openpyxl
 [tool.ruff]
 line-length = 120
 
+[project.scripts]
+publisher = "publisher.cli.main:main"
+
 [project.optional-dependencies]
 test = ["pyyaml>=6"]
 

@@ -34,6 +34,7 @@ from publisher.reviewer.package import validate_locked_package_schema  # noqa: E
 import datetime as dt  # noqa: E402
 from tests.golden import load_case  # noqa: E402
 from tests.publisher_case import PublisherCase  # noqa: E402
+from publisher.common.errors import PublisherError  # noqa: E402
 
 
 class AnalyzerCases(PublisherCase):
@@ -423,7 +424,7 @@ class AnalyzerCases(PublisherCase):
     def test_sql_session_not_in_utc_fails_closed(self):
         calls, modules = self._fake_connector("America/Los_Angeles")
         with patch.dict(sys.modules, modules):
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(PublisherError):
                 with SqlClient(self._auth()):
                     pass
         self.assertTrue(calls.get("closed"))
@@ -596,7 +597,7 @@ class AnalyzerCases(PublisherCase):
         extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1")
         for label in billing:
             self.assertIn("CAST(NULL AS DATE)", seen[label], label)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(PublisherError):
             extract_evidence(self._two_workspace_client({}), self.t, "us-east-1", ingestion_cutoff="30/09/2026")
 
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
@@ -665,7 +666,7 @@ class AnalyzerCases(PublisherCase):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / ".databrickscfg"
             cfg.write_text("[PAT]\nhost = https://dbc.example.cloud.databricks.com\ntoken = secret\n")
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(PublisherError):
                 resolve_cli_oauth("PAT", "abc123", str(cfg))
 
     def test_photon_inference_uses_coverage_freshness_and_signed_dbu(self):

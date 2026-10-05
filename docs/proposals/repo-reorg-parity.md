@@ -22,7 +22,7 @@ The run log is not canonical output. It now groups lines by stage (all eligible 
 | Module | Definitions from the single-file publisher |
 |---|---|
 | `src/publisher/config/defaults.py` | `GIB`, `SIZE_ORDER`, `SQL_DBU_PER_CLUSTER_HOUR`, `AWS_SQL_WAREHOUSE_TOPOLOGY`, `SUPPORTED_WAREHOUSE_TYPES`, `ACTIVE_KNOBS` |
-| `src/publisher/config/loader.py` | `parse_args`, `_resolve_execution_args` |
+| `src/publisher/cli/publish.py` | `parse_args`, `_resolve_execution_args`, and the old `main` as `run` |
 | `src/publisher/config/settings.py` | `_CONTRACT_SCHEMA_PATH`, `_EVIDENCE_SCHEMA_PATH` |
 | `src/publisher/config/versions.py` | `PUBLISHER_VERSION`, `CONTRACT_VERSION`, `POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `MODEL_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`, `TECHNIQUE_CATALOG_VERSION`, `EVIDENCE_FORMAT_VERSION` |
 | `src/publisher/common/hashing.py` | `canonical_json` |
@@ -75,7 +75,7 @@ The run log is not canonical output. It now groups lines by stage (all eligible 
 | `src/publisher/packager/selection.py` | `_overall_status` |
 | `src/publisher/packager/sequencing.py` | `PLAN_KNOB_RANK`, `_rollback_knobs`, `_rollback_sequencing_note`, `_canary_sequencing_note` |
 | `src/publisher/reporter/json_reporter.py` | `_safe_artifact_name`, `package_locked_contract` |
-| `src/publisher/publisher.py` | `evaluate_warehouses`, `build_recommendation_packages`, `main` |
+| `src/publisher/publisher.py` | `evaluate_warehouses`, `build_recommendation_packages` |
 
 ## After the reorganization
 

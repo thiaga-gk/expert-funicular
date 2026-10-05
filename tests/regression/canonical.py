@@ -30,6 +30,7 @@ for _path in (ROOT, ROOT / "src"):
 from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 from publisher.common.utils import as_serializable  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.cli.main import main as cli_main  # noqa: E402
 
 DEMO_EXPECTED = ROOT / "tests" / "fixtures" / "expected" / "demo"
 WALL_CLOCK = "<wall-clock>"
@@ -127,7 +128,7 @@ def demo_expected_files(p) -> Dict[str, str]:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "demo"
         with contextlib.redirect_stdout(io.StringIO()):
-            rc = p.main(["--demo", "--output-dir", str(out), "--log-level", "ERROR"])
+            rc = cli_main(["--demo", "--output-dir", str(out), "--log-level", "ERROR"])
         if rc != 0:
             raise RuntimeError(f"demo run exited {rc}")
         view = output_dir_canonical(out)

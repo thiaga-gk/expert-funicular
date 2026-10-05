@@ -24,6 +24,7 @@ from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E
 from publisher.analyzer.collector.queries.billing import UNSEEN_BILLED_WAREHOUSES_SQL  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.reporter.json_reporter import package_locked_contract  # noqa: E402
+from publisher.cli.main import main as cli_main  # noqa: E402
 
 
 class FakeClient:
@@ -111,13 +112,13 @@ class UnseenBilledWarehouseTests(unittest.TestCase):
             evidence = synthetic_demo_evidence(1)
             client = FakeClient({"unseen_billed_warehouses": UNSEEN})
             with tempfile.TemporaryDirectory() as td, \
-                    patch("publisher.config.loader._resolve_execution_args", return_value=("warehouse", "abc")), \
+                    patch("publisher.cli.publish._resolve_execution_args", return_value=("warehouse", "abc")), \
                     patch("publisher.analyzer.analyzer.resolve_cli_oauth", return_value=object()), \
                     patch("publisher.analyzer.analyzer.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "UNAVAILABLE"}), \
                     patch("publisher.analyzer.analyzer.SqlClient", return_value=client), \
                     patch("publisher.analyzer.analyzer.extract_evidence", return_value=evidence):
                 with contextlib.redirect_stdout(io.StringIO()):
-                    code = p.main(["--profile", "X", "--sql-warehouse-id", "abc", "--source-region", "us-east-1", "--output-dir", td, "--no-workbook"])
+                    code = cli_main(["--profile", "X", "--sql-warehouse-id", "abc", "--source-region", "us-east-1", "--output-dir", td, "--no-workbook"])
                 self.assertEqual(code, 0)
                 m = json.loads((Path(td) / "manifest.json").read_text())
                 self.assertEqual((m["unseen_billed_warehouse_check"], m["unseen_billed_warehouse_count"]), ("CHECKED", 2))

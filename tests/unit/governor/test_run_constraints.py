@@ -15,6 +15,7 @@ from publisher.analyzer.collector.pricing import load_aws_price_registry  # noqa
 from publisher.governor.constraints import aws_region_price_guard  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.packager.scenarios import ScenarioPlanner  # noqa: E402
+from publisher.cli.main import main as cli_main  # noqa: E402
 
 
 class AwsRegionPriceGuardTests(unittest.TestCase):
@@ -57,12 +58,14 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
                 patch("publisher.analyzer.analyzer.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
                 patch("publisher.analyzer.analyzer.SqlClient", MagicMock()), \
                 patch("publisher.analyzer.analyzer.extract_evidence", return_value=self.evidence):
-            with self.assertRaises(SystemExit) as cm:
-                p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
-            self.assertIn("--allow-missing-aws-price", str(cm.exception.code))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = cli_main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
+            self.assertEqual(code, 2)
+            self.assertIn("--allow-missing-aws-price", err.getvalue())
             self.assertFalse((Path(tmp) / "packages").exists())
             # The escape flag publishes with AWS cost unavailable.
-            self.assertEqual(p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
+            self.assertEqual(cli_main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
             self.assertTrue(any((Path(tmp) / "packages").glob("*.json")))
 
 
