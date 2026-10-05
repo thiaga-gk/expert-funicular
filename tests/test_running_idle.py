@@ -75,12 +75,12 @@ class RunningIdleOracleTests(unittest.TestCase):
         self.assertEqual(m["removable_running_wall_minutes_if_10"], 0.0)
 
     def test_running_past_the_current_auto_stop_is_kept_alive_not_removable(self):
-        # Auto-stop 30 but the warehouse ran the whole 120-minute gap: something other than queries kept it alive,
-        # so a lower auto-stop removes only [10, 30) after the query and the rest is reported as kept alive.
+        # Auto-stop 30 but the warehouse ran the whole 120-minute gap: something other than queries kept it alive, and
+        # it would keep it alive past a lower value too, so nothing is removable and no restart is added.
         busy = [(0.0, 10.0), (130.0, 140.0)]
         running = [(0.0, 140.0, 1)]
         m = self.metrics(busy, running, (0.0, 140.0), 30)
-        self.assertAlmostEqual(m["removable_running_wall_minutes_if_10"], 20.0, places=3)
+        self.assertEqual(m["removable_running_wall_minutes_if_10"], 0.0)
         self.assertEqual(m["additional_starts_if_10"], 0)
         self.assertAlmostEqual(m["kept_alive_wall_minutes"], 90.0, places=3)
         self.assertEqual(m["kept_alive_gap_count"], 1)
@@ -103,6 +103,18 @@ class RunningIdleOracleTests(unittest.TestCase):
         m = self.metrics(busy, [(0.0, 363.0, 1)], (0.0, 363.0), 0, targets=(90, 100))
         self.assertEqual(m["additional_starts_if_90"], 4)
         self.assertEqual(m["additional_starts_if_100"], 0)
+
+    def test_a_stop_event_trailing_the_auto_stop_is_not_kept_alive(self):
+        # Auto-stop 30; the stop event lands 1.5 minutes late (within the 2-minute tolerance): still removable.
+        busy = [(0.0, 10.0), (200.0, 210.0)]
+        m = self.metrics(busy, [(0.0, 41.5, 1), (200.0, 210.0, 1)], (0.0, 210.0), 30)
+        self.assertAlmostEqual(m["removable_running_wall_minutes_if_10"], 20.0, places=3)
+        self.assertEqual(m["kept_alive_gap_count"], 0)
+        self.assertEqual(m["restarts_for_queries"], 1)
+
+    def test_segments_are_clipped_to_the_window(self):
+        m = self.metrics([], [(-100.0, 50.0, 2), (200.0, 300.0, 1)], (0.0, 100.0), 0)
+        self.assertEqual((m["observed_running_cluster_minutes"], m["running_segment_count"]), (100.0, 1))
 
     def test_zero_query_window_is_one_trailing_gap_from_the_window_start(self):
         m = self.metrics([], [(0.0, 600.0, 1)], (0.0, 600.0), 0)
@@ -132,6 +144,7 @@ class RunningIdleSqlTests(unittest.TestCase):
         self.assertIn("1.1 * m.gap_min", self.targets_sql)  # a value covers a gap only with the 10% margin
         for key in p.RUNNING_IDLE_HEADER_FIELDS:
             self.assertIn(key, self.sql)
+        self.assertNotIn("LEFT JOIN running", self.sql)  # pieces come from an inner join: no NULL bounds in GREATEST/LEAST
 
     def test_candidates_start_at_the_type_floor(self):
         self.assertEqual(p.auto_stop_candidates(self.t, "PRO")[0], 10)

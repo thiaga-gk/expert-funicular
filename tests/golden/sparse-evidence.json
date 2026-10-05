@@ -3461,6 +3461,7 @@
             "kept_alive_gap_count": 0,
             "kept_alive_wall_minutes": 0.0,
             "observed_running_cluster_minutes": 100.0,
+            "restarts_for_queries": 0,
             "running_idle_by_target": {
               "10": {
                 "added_idle_wall_minutes": 0.0,

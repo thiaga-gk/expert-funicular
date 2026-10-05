@@ -3671,6 +3671,7 @@
             "observed_running_cluster_minutes": 30000.0,
             "p50_gap_minutes": 8.0,
             "p90_gap_minutes": 95.0,
+            "restarts_for_queries": 0,
             "running_idle_by_target": {
               "10": {
                 "added_idle_wall_minutes": 0.0,

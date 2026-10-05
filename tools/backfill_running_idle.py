@@ -6,7 +6,7 @@ Each current epoch whose gaps carry the legacy `saved_idle_minutes_if_{T}` estim
 auto-stop, the old auto-stop basis) and no running-idle keys gets them, as if the warehouse had run through every gap
 until its auto-stop: removable running wall minutes per auto-stop value (below the current one) interpolated linearly
 from the legacy values (and extended at the same slope below and above them, floored at 0), cluster minutes = wall
-minutes x min clusters, no added or avoided restarts and no kept-alive time; queries = 30-day queries; the window covers
+minutes x min clusters, no added or avoided restarts, no restarts for queries and no kept-alive time; queries = 30-day queries; the window covers
 the event totals. Values with nothing removable get no row (a known zero). The legacy keys are then removed. Real evidence is never backfilled: missing running-idle evidence fails closed.
 """
 import json
@@ -41,6 +41,10 @@ def backfill(evidence):
         for ep in x["epochs"]:
             gaps = ep.get("gaps") or {}
             legacy = {int(k[len(LEGACY):]): float(v or 0.0) for k, v in gaps.items() if k.startswith(LEGACY)}
+            if ep.get("is_current") and "running_idle_queries" in gaps and "restarts_for_queries" not in gaps:
+                gaps["restarts_for_queries"] = 0  # fixtures backfilled before restarts were counted
+                changed += 1
+                continue
             if not ep.get("is_current") or not legacy or "running_idle_queries" in gaps:
                 continue
             if len(legacy) == 1:
@@ -60,7 +64,7 @@ def backfill(evidence):
                 "running_idle_window_end": x["analysis_time"],
                 "running_idle_queries": int((ep.get("query") or {}).get("queries_30") or 0),
                 "running_segment_count": 1, "observed_running_cluster_minutes": float(events.get("cluster_minutes") or 0.0),
-                "kept_alive_wall_minutes": 0.0, "kept_alive_gap_count": 0,
+                "kept_alive_wall_minutes": 0.0, "kept_alive_gap_count": 0, "restarts_for_queries": 0,
             })
             for k in [k for k in gaps if k.startswith(LEGACY)]:
                 del gaps[k]

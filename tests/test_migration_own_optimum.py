@@ -52,7 +52,7 @@ class MigrationOwnOptimumTests(unittest.TestCase):
 class MigrationTargetBudgetTests(unittest.TestCase):
     def test_target_auto_stop_respects_the_target_cold_start_budget(self):
         # Serverless at 30 -> Pro: every lower Pro value adds restarts for 50% of queries (over the 2% budget), so the
-        # Pro alternative keeps 30 (no saving from auto-stop) instead of being priced at a value the policy rejects.
+        # Pro alternative keeps 30 or raises it, instead of being priced at a lower value the policy rejects.
         logging.disable(logging.CRITICAL)
         try:
             e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C02")
@@ -64,8 +64,24 @@ class MigrationTargetBudgetTests(unittest.TestCase):
             a = p.Analyzer(p.Thresholds()).analyze(e)["warehouse_type"].facts
         finally:
             logging.disable(logging.NOTSET)
-        self.assertEqual(a["migration_target_option"]["target"], 30)
-        self.assertEqual(a["migration_running_fraction"], 1.0)
+        self.assertGreaterEqual(a["migration_target_option"]["target"], 30)  # never a lower value over the budget
+
+
+class MigrationTargetRestartTests(unittest.TestCase):
+    def test_pro_target_pays_its_own_restarts(self):
+        # Serverless at 5 restarting for most queries: the Pro alternative keeps paying ~4 cluster-minutes per restart
+        # it still has (only 0.1 today), so its running time is above today's even before idle is added.
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C02")
+            a = p.Analyzer(p.Thresholds()).analyze(e)["warehouse_type"].facts
+        finally:
+            logging.disable(logging.NOTSET)
+        g = e.current_epoch.gaps
+        o = a["migration_target_option"]
+        restarts = g["restarts_for_queries"] + o["added_starts"]
+        self.assertGreater(restarts, 0)
+        self.assertGreaterEqual(o["target_running_cluster_minutes"], g["observed_running_cluster_minutes"] - o["gain_cluster_minutes"] + restarts * 3.9 - 1e-6)
 
 
 if __name__ == "__main__":
