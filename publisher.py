@@ -3361,11 +3361,15 @@ class Optimizer:
                 recent_max = ceiling_for(peak)
                 reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
                 epoch_peak_label = f"{safe_int(epoch_peak)} cluster(s)"
-            base_eligible = (
-                window_known and cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
+            cut_shape = (
+                window_known and cfg.max_clusters > cfg.min_clusters
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
             )
+            base_eligible = cut_shape and age >= self.t.current_config_stability_days
+            # A cut the recent window would allow, held only because the configuration is younger than the stability period.
+            young_hold = (cut_shape and not base_eligible
+                          and (demand_blocker is not None or recent_max < cfg.max_clusters))
             eligible = base_eligible and demand_blocker is None and reduced_max < cfg.max_clusters
             held_by_epoch_peak = base_eligible and demand_blocker is None and not eligible and recent_max < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
@@ -3409,6 +3413,11 @@ class Optimizer:
                     f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
                     " Clusters are added minutes after a burst starts (scale-up lag), so short bursts queue before the ceiling is reached;"
                     " a higher floor would absorb burst starts at the cost of running those clusters all the time, which is a human decision."))
+            elif young_hold:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},
+                    ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+([demand_blocker] if demand_blocker else []),["warehouse_size"],[],[],
+                    f"The current configuration is too new ({age} of {self.t.current_config_stability_days} days) to cut the ceiling; it is re-evaluated once the configuration has run for the stability period."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
