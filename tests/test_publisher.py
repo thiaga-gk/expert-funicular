@@ -356,7 +356,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_read_only_api_scope_and_supported_type_gate_are_explicit(self):
         self.assertEqual(p.SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
-        source = Path(p.__file__).read_text()
+        source = "\n".join(path.read_text() for path in sorted(Path(p.__file__).parent.rglob("*.py")))
         self.assertIn("/api/2.0/sql/config/warehouses", source)
         self.assertIn("/api/2.1/clusters/get", source)
         self.assertNotIn("/api/2.0/sql/warehouses/{id}", source)
@@ -1467,7 +1467,7 @@ class PublisherV27Tests(unittest.TestCase):
             self.assertEqual(p._load_profile_host("WHOPT", str(cfg)), "dbc.example.cloud.databricks.com")
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
-            with patch("publisher.publisher.subprocess.run", return_value=R()) as run:
+            with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()) as run:
                 auth = p.resolve_cli_oauth("WHOPT", "abc123", str(cfg))
                 self.assertEqual(auth.http_path, "/sql/1.0/warehouses/abc123")
                 self.assertEqual(auth.access_token, "short-lived")
@@ -1482,7 +1482,7 @@ class PublisherV27Tests(unittest.TestCase):
             cfg.write_text("[WHOPT]\nhost = https://dbc.example.cloud.databricks.com\n")
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
-            with patch("publisher.publisher.subprocess.run", return_value=R()), patch("publisher.publisher._validate_all_purpose_cluster", return_value={"cluster_source":"UI"}), patch("publisher.publisher._current_workspace_id", return_value="123456789"):
+            with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()), patch("publisher.analyzer.collector.workspace_api._validate_all_purpose_cluster", return_value={"cluster_source":"UI"}), patch("publisher.analyzer.collector.workspace_api._current_workspace_id", return_value="123456789"):
                 auth = p.resolve_cli_oauth("WHOPT", "cluster", "1234-567890-demo123", str(cfg))
                 self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/1234-567890-demo123")
                 self.assertEqual(auth.execution_kind, "cluster")
@@ -1490,12 +1490,12 @@ class PublisherV27Tests(unittest.TestCase):
     def test_compatibility_api_b_and_fallback_a(self):
         auth=p.AuthContext("WHOPT","dbc.example.cloud.databricks.com","/sql/1.0/warehouses/x","tok",None,"warehouse","x","123")
         payload={"enable_serverless_compute":True,"enabled_warehouse_types":[{"warehouse_type":"PRO","enabled":True}],"data_access_config":[],"security_policy":"NONE"}
-        with patch("publisher.publisher._api_get", return_value=payload):
+        with patch("publisher.analyzer.collector.workspace_api._api_get", return_value=payload):
             ev=p.collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"B_READ_ONLY_API")
             self.assertTrue(ev["enable_serverless_compute"])
             self.assertFalse(ev["external_legacy_hive_metastore_detected"])
-        with patch("publisher.publisher._api_get", side_effect=RuntimeError("denied")):
+        with patch("publisher.analyzer.collector.workspace_api._api_get", side_effect=RuntimeError("denied")):
             ev=p.collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"A_HITL_FALLBACK")
 
@@ -2006,10 +2006,10 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
         import contextlib, io
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), \
-                patch.object(p, "resolve_cli_oauth", return_value=MagicMock()), \
-                patch.object(p, "collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
-                patch.object(p, "SqlClient", MagicMock()), \
-                patch.object(p, "extract_evidence", return_value=self.evidence):
+                patch("publisher.analyzer.analyzer.resolve_cli_oauth", return_value=MagicMock()), \
+                patch("publisher.analyzer.analyzer.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
+                patch("publisher.analyzer.analyzer.SqlClient", MagicMock()), \
+                patch("publisher.analyzer.analyzer.extract_evidence", return_value=self.evidence):
             with self.assertRaises(SystemExit) as cm:
                 p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
             self.assertIn("--allow-missing-aws-price", str(cm.exception.code))

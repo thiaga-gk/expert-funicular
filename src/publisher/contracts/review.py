@@ -30,7 +30,9 @@ class WarehouseOptimization:
 
     @property
     def query_source_profile(self) -> Dict[str, Any]:
-        from publisher.publisher import as_serializable, carried_query_view, derive_query_source_profile
+        from publisher.analyzer.epochs import carried_query_view
+        from publisher.analyzer.normalizer import derive_query_source_profile
+        from publisher.common.utils import as_serializable
 
         attribution = self.evidence.attribution
         profile = attribution.query_source if attribution else derive_query_source_profile(carried_query_view(self.evidence.current_epoch.query)[0])

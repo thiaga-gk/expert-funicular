@@ -67,7 +67,7 @@ def recompute_forecast(p, e) -> None:
 
 def collector_evidence(p, case: Dict[str, Any]) -> List[Any]:
     """Run the real CONFIG_EPOCHS_SQL over the case's snapshots in sqlite and extract evidence from its rows."""
-    from tests.test_config_epochs_sql import run_sql
+    from tests.unit.analyzer.test_config_epochs_sql import run_sql
 
     epoch_rows = run_sql(p.CONFIG_EPOCHS_SQL, case["snapshots"], case["now"])
     other_rows = case.get("collector_rows", {})

@@ -1,5 +1,7 @@
-"""Product defaults: warehouse sizes, published DBU and AWS topology tables, and the active recommendation knobs."""
+"""Product defaults: warehouse sizes, published DBU and AWS topology tables, the active recommendation knobs and the supported (fail-closed) warehouse types."""
 from __future__ import annotations
+
+
 
 
 GIB = 1024 ** 3
@@ -44,3 +46,6 @@ ACTIVE_KNOBS = (
     "auto_stop_minutes",
     "warehouse_type",
 )
+
+
+SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
