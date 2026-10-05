@@ -33,7 +33,7 @@ def review_package(context: RunContext, analysis: FleetAnalysis, governance: Gov
 
     Raises on the first violated invariant (ValueError, or a schema ValidationError).
     """
-    for w, p in zip(package.warehouses, package.packages):
+    for w, p in zip(package.warehouses, package.packages, strict=True):
         Reviewer(context.thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
         review_contract(p)
     return PackageReviewResult(list(package.packages))
