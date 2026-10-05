@@ -1721,6 +1721,26 @@ WHERE price_end_time IS NULL
 ORDER BY account_id, sku_name
 """
 
+# SQL warehouses billed in the last 30 settled days with no row in system.compute.warehouses. The table keeps 365 days
+# and writes a row only when a configuration changes; whether an unchanged warehouse's only row survives the retention
+# period is not documented, and such a warehouse would be invisible to the collector. Reported, never analyzed.
+UNSEEN_BILLED_WAREHOUSES_SQL = r"""
+WITH billed AS (
+  SELECT workspace_id, usage_metadata.warehouse_id AS warehouse_id,
+    SUM(CAST(usage_quantity AS DOUBLE)) AS billed_dbu_30, MAX(usage_date) AS last_usage_date
+  FROM system.billing.usage
+  WHERE usage_metadata.warehouse_id IS NOT NULL AND billing_origin_product='SQL' AND usage_unit='DBU'
+    AND usage_date>=DATE_SUB(CURRENT_DATE(),30) AND usage_date<CURRENT_DATE()
+    AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
+  GROUP BY workspace_id, usage_metadata.warehouse_id
+), snapshots AS (
+  SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouses
+)
+SELECT b.workspace_id, b.warehouse_id, b.billed_dbu_30, b.last_usage_date
+FROM billed b LEFT ANTI JOIN snapshots s ON b.workspace_id=s.workspace_id AND b.warehouse_id=s.warehouse_id
+ORDER BY b.workspace_id, b.warehouse_id
+"""
+
 # ---------------------------------------------------------------------------
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
@@ -2968,6 +2988,22 @@ def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
     except ValueError as exc:
         raise SystemExit(f"--billing-ingested-through must be a YYYY-MM-DD date, got {cutoff!r}") from exc
     return statement.replace("__INGESTION_CUTOFF__", f"DATE'{day.isoformat()}'")
+
+
+def collect_unseen_billed_warehouses(client: SqlClient, *, ingestion_cutoff: Optional[str] = None) -> List[Dict[str, Any]]:
+    """SQL warehouses billed in the last 30 days that have no configuration snapshot: logged as a warning and listed
+    in the manifest. Their configuration is unknown, so no package is written for them."""
+    rows = client.query(with_ingestion_cutoff(UNSEEN_BILLED_WAREHOUSES_SQL, ingestion_cutoff), label="unseen_billed_warehouses")
+    unseen = sorted(({"workspace_id": str(r.get("workspace_id") or ""), "warehouse_id": str(r.get("warehouse_id") or ""),
+                      "billed_dbu_30": optional_float(r.get("billed_dbu_30")), "last_usage_date": None if r.get("last_usage_date") is None else str(r.get("last_usage_date"))[:10],
+                      "reason_code": "NO_CONFIGURATION_SNAPSHOT"} for r in rows), key=lambda x: (x["workspace_id"], x["warehouse_id"]))
+    if unseen:
+        LOGGER.warning("collector.unseen_billed_warehouses %d billed SQL warehouse(s) have no configuration snapshot in "
+                       "system.compute.warehouses (retention?); not analyzed: %s", len(unseen),
+                       ", ".join(f"{x['workspace_id']}/{x['warehouse_id']}" for x in unseen))
+    else:
+        LOGGER.info("collector.unseen_billed_warehouses count=0")
+    return unseen
 
 
 def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None, *, ingestion_cutoff: Optional[str] = None, analysis_time: Optional[str] = None) -> List[WarehouseEvidence]:
@@ -6292,6 +6328,7 @@ def package_locked_contract(
     evidence: Sequence[WarehouseEvidence],
     *,
     generate_workbook: bool = True,
+    unseen_billed_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Dict[str, str]:
     """Write locked JSON packages plus the Workbook Contract projection.
 
@@ -6344,6 +6381,10 @@ def package_locked_contract(
         "packages": entries,
         "excluded_warehouse_count": len(exclusions),
         "excluded_warehouses": exclusions,
+        # Live runs only: billed warehouses with no configuration snapshot (None = not checked: demo or replay).
+        "unseen_billed_warehouse_check": "NOT_CHECKED" if unseen_billed_warehouses is None else "CHECKED",
+        "unseen_billed_warehouse_count": None if unseen_billed_warehouses is None else len(unseen_billed_warehouses),
+        "unseen_billed_warehouses": [dict(x) for x in unseen_billed_warehouses or []],
         "canonical_json_semantics": f"Each packages/*.json file is exactly one Reporter JSON Contract v{rc.CONTRACT_VERSION} RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
@@ -7389,6 +7430,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     args=parse_args(argv); t=Thresholds(); out=Path(args.output_dir)
     log_path=setup_logging(out,args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",POLICY_VERSION,ANALYZER_VERSION,OPTIMIZER_VERSION,ESTIMATOR_VERSION,BUNDLE_MODEL_VERSION)
+    unseen=None
     if args.demo:
         if not (1 <= args.demo_count <= len(DEMO_FLEET)):
             raise SystemExit(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
@@ -7405,13 +7447,14 @@ def main(argv:Optional[Sequence[str]]=None)->int:
         registry=load_aws_price_registry(args.aws_price_registry)
         with SqlClient(auth) as client:
             evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
+            unseen=collect_unseen_billed_warehouses(client,ingestion_cutoff=args.billing_ingested_through)
         refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
         if refusal:
             raise SystemExit(refusal)
         if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
             LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
     packages=build_recommendation_packages(evidence,t,args.batch_size)
-    files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
+    files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
     excluded_count=len(unsupported_warehouse_exclusions(evidence))

@@ -341,6 +341,10 @@ Produces current/historical epoch attribution evidence:
 
 Loads currently effective SQL DBU list-price rows and classifies them for Pro/Classic/Serverless target pricing.
 
+#### `UNSEEN_BILLED_WAREHOUSES_SQL`
+
+Live runs only: lists the SQL warehouses billed in the last 30 settled days (honoring `--billing-ingested-through`) that have no row at all in `system.compute.warehouses`, with their billed DBU and last usage date. The table keeps 365 days and writes a row only when a configuration changes; Databricks does not document whether an unchanged warehouse's only row survives the retention period, and such a warehouse would be invisible to every other collector query. The run logs a warning naming them and records them in the manifest (reason code `NO_CONFIGURATION_SNAPSHOT`); no package is written for them, because their configuration is unknown.
+
 ### 7.3 Collector cardinality
 
 ```mermaid
@@ -1508,7 +1512,7 @@ Filenames are operational locators only. They are not content identities and are
 
 ### 28.2 Manifest
 
-The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
+The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 

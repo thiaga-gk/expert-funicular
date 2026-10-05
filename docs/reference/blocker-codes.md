@@ -124,11 +124,12 @@ These are blockers by construction: they travel with a `TEST_REQUIRED` candidate
 | `A_B_PERFORMANCE_VALIDATION_REQUIRED` | The change needs an A/B performance canary before it is applied. | `Optimizer.optimize` on a size upsize whose gates all pass, on a size downsize with no other blocker, and on a min-cluster reduction with no other blocker. | none | `TEST_REQUIRED` | [PRD FR-OPT-003, FR-OPT-004](../product/prd.md), [LLD §15.3, §15.5](../architecture/lld.md) |
 | `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED` | The migration needs an A/B cost and performance canary before it is applied. | `Optimizer.optimize` (warehouse type) when the migration candidate is built after the baseline-cost check passes, in both directions. | none | `TEST_REQUIRED` | [PRD FR-OPT-009](../product/prd.md), [LLD §15.7](../architecture/lld.md) |
 
-### Supported-type gate
+### Warehouses not analyzed (supported-type gate, missing snapshot)
 
 | Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
 |---|---|---|---|---|---|
 | `UNSUPPORTED_WAREHOUSE_TYPE` | The current warehouse type is not `CLASSIC`, `PRO` or `SERVERLESS`, so the warehouse fails closed. | `unsupported_warehouse_exclusions` (called by `evaluate_warehouses` and the manifest writer) when `current_epoch.config.warehouse_type` is not in `SUPPORTED_WAREHOUSE_TYPES`. | none | Warehouse excluded: no package, listed in the manifest `excluded_warehouses` as `reason_code` | [LLD §28.2](../architecture/lld.md), rule: [LLD §10.3](../architecture/lld.md) |
+| `NO_CONFIGURATION_SNAPSHOT` | The SQL warehouse was billed in the last 30 days but has no row in `system.compute.warehouses`, so its configuration is unknown (the table keeps 365 days and writes a row only on a change). | `collect_unseen_billed_warehouses` on a live run (`UNSEEN_BILLED_WAREHOUSES_SQL`). | none | Warehouse not analyzed: no package, a warning in `publisher.log`, listed in the manifest `unseen_billed_warehouses` as `reason_code` | [LLD §7.2](../architecture/lld.md) |
 
 ### Warehouse type and migration
 
