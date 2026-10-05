@@ -1,10 +1,12 @@
-"""Packager: assemble the frozen, content-addressed RecommendationPackage for one warehouse."""
+"""Packager: plan scenarios for the reviewed candidates and assemble the frozen, content-addressed RecommendationPackage per warehouse."""
 from __future__ import annotations
 
 import dataclasses
-from typing import Sequence
+from typing import Dict, List, Sequence
 
 from publisher.analyzer.epochs import epoch_age_days
+from publisher.common.hashing import canonical_json
+from publisher.common.logging import LOGGER
 from publisher.common.time import _iso_z
 from publisher.config.thresholds import Thresholds
 from publisher.config.versions import (
@@ -19,7 +21,12 @@ from publisher.config.versions import (
     TECHNIQUE_CATALOG_VERSION,
 )
 from publisher.contracts import reporter_contract as rc
+from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.candidate import CandidateRecommendation
+from publisher.contracts.governance import GovernanceResult
+from publisher.contracts.package import PackagingResult
+from publisher.contracts.request import RunContext
+from publisher.contracts.review import CandidateReviewResult, WarehouseOptimization
 from publisher.contracts.scenario import Scenario
 from publisher.contracts.source import WarehouseEvidence
 from publisher.packager.adapter import (
@@ -37,6 +44,7 @@ from publisher.packager.adapter import (
 from publisher.packager.estimator.package import _package_economics
 from publisher.packager.evidence import _build_evidence_registry
 from publisher.packager.execution_plan import _recommended_plan
+from publisher.packager.scenarios import ScenarioPlanner
 
 
 def _build_locked_recommendation_package(
@@ -131,3 +139,49 @@ def _build_locked_recommendation_package(
     )
     package.validate()
     return package
+
+
+def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
+    """Scenarios for each warehouse whose candidates passed the candidate gate, in order."""
+    results: List[WarehouseOptimization] = []
+    for w in reviewed.accepted:
+        e, candidates = w.evidence, w.candidates
+        planner = ScenarioPlanner(thresholds)
+        scenarios, recommended = planner.scenarios(e, candidates)
+        status_counts: Dict[str, int] = {}
+        for candidate in candidates:
+            status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
+        LOGGER.info(
+            "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
+            e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
+        )
+        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
+    return results
+
+
+def assemble(
+    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
+) -> List[rc.RecommendationPackage]:
+    """Assemble one locked public package per reviewed, planned warehouse."""
+    evidence = analysis.evidence
+    evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
+    packages: List[rc.RecommendationPackage] = []
+    for result in optimizations:
+        e = evidence_by_key[(result.workspace_id, result.warehouse_id)]
+        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds)
+        packages.append(package)
+        LOGGER.info(
+            "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",
+            e.workspace_id, e.warehouse_id, package.recommendation_package_id, len(package.candidates), len(package.scenarios),
+        )
+    LOGGER.info(
+        "pipeline.done warehouses=%d packages=%d candidates=%d scenarios=%d",
+        len(evidence), len(packages), sum(len(p.candidates) for p in packages), sum(len(p.scenarios) for p in packages),
+    )
+    return packages
+
+
+def run(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult, candidates: CandidateReviewResult) -> PackagingResult:
+    """Scenarios, stateful scenario estimates, selection and the canonical package for every reviewed warehouse."""
+    optimizations = plan(candidates, context.thresholds)
+    return PackagingResult(optimizations, assemble(analysis, optimizations, context.thresholds))

@@ -46,6 +46,7 @@ from publisher.analyzer import analyzer
 from publisher.governor import governor
 from publisher.optimizer import optimizer
 from publisher.reviewer import reviewer
+from publisher.packager import packager
 from publisher.contracts.review import CandidateReviewResult
 from publisher.contracts.request import MODE_REPLAY, PublisherRequest
 from publisher.contracts.candidate import OptimizationResult
@@ -236,26 +237,6 @@ from publisher.packager.packager import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-def review_and_plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
-    """Scenario planning and the scenario gate for each warehouse whose candidates passed the candidate gate, in order."""
-    results: List[WarehouseOptimization] = []
-    for w in reviewed.accepted:
-        e, candidates = w.evidence, w.candidates
-        gate = Reviewer(thresholds)
-        planner = ScenarioPlanner(thresholds)
-        scenarios, recommended = planner.scenarios(e, candidates)
-        gate.review_scenarios(e, candidates, scenarios, recommended)
-        status_counts: Dict[str, int] = {}
-        for candidate in candidates:
-            status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
-        LOGGER.info(
-            "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
-            e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
-        )
-        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
-    return results
-
-
 def log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(analysis.evidence), batch_size)
     for excluded in governance.exclusions:
@@ -274,7 +255,10 @@ def evaluate_analysis(
     # Evidence already in hand is a replay: the context carries only the policy and the batch size.
     context = RunContext(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
     optimization = optimizer.run(context, analysis, governance)
-    return review_and_plan(reviewer.review_candidates(context, analysis, governance, optimization), thresholds)
+    optimizations = packager.plan(reviewer.review_candidates(context, analysis, governance, optimization), thresholds)
+    for w in optimizations:
+        Reviewer(thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
+    return optimizations
 
 
 def evaluate_warehouses(
@@ -288,29 +272,7 @@ def build_packages_from_analysis(
     analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
 ) -> List[rc.RecommendationPackage]:
     """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
-    return build_packages(analysis, evaluate_analysis(analysis, thresholds, batch_size, governance), thresholds)
-
-
-def build_packages(
-    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
-) -> List[rc.RecommendationPackage]:
-    """Assemble one locked public package per reviewed, planned warehouse."""
-    evidence = analysis.evidence
-    evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
-    packages: List[rc.RecommendationPackage] = []
-    for result in optimizations:
-        e = evidence_by_key[(result.workspace_id, result.warehouse_id)]
-        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds)
-        packages.append(package)
-        LOGGER.info(
-            "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",
-            e.workspace_id, e.warehouse_id, package.recommendation_package_id, len(package.candidates), len(package.scenarios),
-        )
-    LOGGER.info(
-        "pipeline.done warehouses=%d packages=%d candidates=%d scenarios=%d",
-        len(evidence), len(packages), sum(len(p.candidates) for p in packages), sum(len(p.scenarios) for p in packages),
-    )
-    return packages
+    return packager.assemble(analysis, evaluate_analysis(analysis, thresholds, batch_size, governance), thresholds)
 
 
 def build_recommendation_packages(
@@ -459,7 +421,8 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     log_pipeline_start(analysis,governance,args.batch_size)
     optimization=optimizer.run(context,analysis,governance)
     reviewed=reviewer.review_candidates(context,analysis,governance,optimization)
-    packages=build_packages(analysis,review_and_plan(reviewed,t),t)
+    packaging=packager.run(context,analysis,governance,reviewed)
+    packages=reviewer.review_package(context,analysis,governance,packaging).packages
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)

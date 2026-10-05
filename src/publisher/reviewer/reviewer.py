@@ -5,8 +5,9 @@ from publisher.config.thresholds import Thresholds
 from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.candidate import OptimizationResult
 from publisher.contracts.governance import GovernanceResult
+from publisher.contracts.package import PackagingResult
 from publisher.contracts.request import RunContext
-from publisher.contracts.review import CandidateReviewResult
+from publisher.contracts.review import CandidateReviewResult, PackageReviewResult
 from publisher.reviewer.candidate import CandidateGate
 from publisher.reviewer.scenario import ScenarioGate
 
@@ -23,3 +24,11 @@ def review_candidates(context: RunContext, analysis: FleetAnalysis, governance: 
     for w in optimization.warehouses:
         Reviewer(context.thresholds).review(w.evidence, w.candidates)
     return CandidateReviewResult(list(optimization.warehouses))
+
+
+def review_package(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult,
+                   package: PackagingResult) -> PackageReviewResult:
+    """Package gate for every packaged warehouse, in order; raises ValueError on the first violated invariant."""
+    for w in package.warehouses:
+        Reviewer(context.thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
+    return PackageReviewResult(list(package.packages))

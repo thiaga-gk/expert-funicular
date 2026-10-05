@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from publisher.contracts import reporter_contract as rc
 from publisher.contracts.candidate import CandidateRecommendation, WarehouseCandidates
 from publisher.contracts.scenario import PlanStep, Scenario
 from publisher.contracts.source import WarehouseEvidence
@@ -51,3 +52,9 @@ class WarehouseOptimization:
 class CandidateReviewResult:
     """Candidates that passed the Reviewer's candidate gate (the gate fails fast, so every warehouse is accepted or the run stops)."""
     accepted: List[WarehouseCandidates]
+
+
+@dataclass
+class PackageReviewResult:
+    """Packages that passed the Reviewer's package gate, ready for the Reporter."""
+    packages: List[rc.RecommendationPackage]
