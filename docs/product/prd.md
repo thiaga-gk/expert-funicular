@@ -61,7 +61,7 @@ The product should be usable by platform engineering, FinOps, SRE, product leade
 ## 4. Product principles
 
 1. **Deterministic decisions** — identical normalized evidence plus identical policy/model versions must produce identical decisions, IDs, confidence values, scenarios, and economics.
-2. **Current-epoch authority** — only evidence belonging to the current warehouse configuration epoch may satisfy decision thresholds. Historical epochs may calibrate models but must not justify current-state decisions.
+2. **Current-epoch authority** — only evidence belonging to the current warehouse configuration epoch may satisfy decision thresholds. Older epochs are calibration/backtest only, with one exception: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
 3. **System-table first** — source configuration and optimization telemetry come from Databricks system tables. Read-only APIs are limited to execution-target resolution/validation and compatibility evidence.
 4. **Read-only by default** — the product generates recommendations; it does not apply warehouse configuration changes.
 5. **HITL mandatory** — configuration changes require human review; materially behavior-changing recommendations require canary validation.
@@ -300,7 +300,7 @@ A configuration change shall invalidate prior current-epoch decision evidence wh
 
 ### FR-EPOCH-003
 
-Historical epochs may be used for model calibration/backtesting only when configuration compatibility is explicitly satisfied.
+Older epochs are calibration/backtest only, with one exception: a capacity cut (size down, lower max clusters, lower min clusters) is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics. Calibration and backtesting use older epochs only when configuration compatibility is explicitly satisfied.
 
 ### FR-EPOCH-004
 
@@ -362,16 +362,17 @@ Photon is observed and never recommended; no Photon recommendation is produced f
 
 A one-size down canary may be proposed only when all of the following hold:
 
-- the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`strong_query_sample_size`);
+- the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`strong_query_sample_size`); a batch warehouse (job queries at least `batch_job_query_share_pct` of its queries) instead needs enough run days (`batch_min_active_days`);
 - spill frequency is known and not above the downsize-safe level (`spill_query_pct_downsize_safe`);
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
-- p95 and p99 execution latency are known and not above the downsize-safe levels (`p95_execution_ms_downsize_safe`, `p99_execution_ms_downsize_safe`);
+- p95 and p99 execution latency are known and not above the downsize-safe levels (`p95_execution_ms_downsize_safe`, `p99_execution_ms_downsize_safe`); a batch warehouse is not judged on interactive latency, because its canary measures job run times;
 - query volume is not growing: the smallest of the last four complete weekly query counts is below `growth_hold_weekly_ratio` times the median of the four weeks before (unknown when the epoch has fewer than eight complete weeks, which holds nothing);
 - the whole current epoch's peak cluster count is not above the recent window's ceiling (recent peak plus headroom), so a seasonal peak the 30-day evidence cannot see is not downsized into;
+- no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
 - the warehouse size is known and a smaller size exists.
 
-Evidence the collector did not report is null (never treated as zero pressure) and holds the downsize. Growing volume or a peak outside the recent window holds it as `NO_CHANGE` with `QUERY_VOLUME_GROWING` or `PEAK_OUTSIDE_RECENT_WINDOW`; an auto-stop reduction is not held by growth.
+Evidence the collector did not report is null (never treated as zero pressure) and holds the downsize. Growing volume, a peak outside the recent window or a higher older-epoch peak holds it as `NO_CHANGE` with `QUERY_VOLUME_GROWING`, `PEAK_OUTSIDE_RECENT_WINDOW` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`; an auto-stop reduction is not held by growth.
 
 Downsize status shall be `TEST_REQUIRED`, not auto-actionable. When any condition fails the candidate is `NO_CHANGE` and carries the blockers that explain why (`docs/reference/blocker-codes.md`).
 
@@ -382,7 +383,8 @@ An upsize canary may be proposed only when all of the following hold:
 - spill frequency is at or above the upsize level (`spill_query_pct_upsize`) and p95 spill among spilled queries is at or above the upsize severity level (`spill_p95_bytes_upsize`);
 - enough queries spilled for the p95 to be meaningful (`severity_min_affected_queries`);
 - the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration epoch is old enough (`current_config_stability_days`);
-- a larger known size exists.
+- a larger known size exists;
+- the spilled bytes are not concentrated in a few statement sources (`spill_concentration_top_sources`, `spill_concentration_hold_pct`): when a few statements carry most of the spill the candidate is `NO_CHANGE` (rewrite those statements rather than size every query up), and unreported concentration is `INSUFFICIENT_EVIDENCE`.
 
 When spill frequency crosses the upsize level but spill severity is unreported, or the sample, affected-query count or epoch age is insufficient, the candidate is `INSUFFICIENT_EVIDENCE` and no resize is recommended. At the largest known size the candidate is `BLOCKED`. Unknown spill evidence is never treated as zero.
 
@@ -390,15 +392,18 @@ Upsize status shall be `TEST_REQUIRED`, not auto-actionable: the speed-up and it
 
 ### FR-OPT-005 — Max clusters increase
 
-An increase of one cluster may be proposed only when all of the following hold:
+An increase may be proposed only when all of the following hold:
 
 - queue frequency is at or above the increase level (`queue_query_pct_increase_max`);
 - p95 capacity wait among queued queries is at or above the increase level (`queue_wait_p95_ms_increase_max`);
 - time at the configured maximum is saturated over the recent resource window (`time_at_max_pct_saturated`, `pressure_window_days`); saturation and queueing are required together but are not proven to coincide (`docs/reference/known-limitations.md`);
 - enough queries queued for the p95 to be meaningful (`severity_min_affected_queries`), the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration epoch is old enough (`current_config_stability_days`);
-- the configured maximum is below the supported limit (`max_clusters_supported_limit`).
+- the configured maximum is below the supported limit (`max_clusters_supported_limit`);
+- for Pro and Classic, peak query concurrency was collected and covers enough busy minutes (`concurrency_min_busy_minutes`).
 
-When the frequency and saturation signals are present but capacity wait is unreported, or the sample, queued-query count or epoch age is insufficient, the candidate is `INSUFFICIENT_EVIDENCE`. At the supported limit it is `BLOCKED`. Unknown queue evidence is never treated as zero.
+For Pro and Classic the new maximum is derived from peak concurrency: the peak running plus queued queries (`max_cluster_target_percentile` of busy minutes), at the documented queries per cluster (`queries_per_cluster_pro_classic`), plus headroom (`max_cluster_target_headroom_clusters`), in one move. When peak demand already fits the current ceiling the candidate is `NO_CHANGE`: the queueing is not caused by the ceiling. Serverless keeps a one-cluster step.
+
+When the frequency and saturation signals are present but capacity wait is unreported, or the sample, queued-query count or epoch age is insufficient, the candidate is `INSUFFICIENT_EVIDENCE`; so is a Pro/Classic candidate without concurrency evidence. At the supported limit it is `BLOCKED`. Unknown queue evidence is never treated as zero.
 
 ### FR-OPT-006 — Max clusters reduction
 
@@ -410,7 +415,8 @@ A reduction may be proposed only when the configured maximum is demonstrably unu
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
 - query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003);
-- the new maximum is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), and it is below the current maximum; the peak is the larger of the recent-window peak and the whole current epoch's peak, so a seasonal peak outside the recent window is never cut away.
+- no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
+- the new maximum is below the current maximum. For Pro and Classic it is derived from peak concurrency, as in FR-OPT-005, from the larger of the recent peak and the whole current epoch's peak (the level reached in `peak_demand_min_minutes` busy minutes), so a seasonal peak outside the recent window is never cut away; peak concurrency must be collected and cover enough busy minutes. For Serverless it is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), where the peak is the larger of the recent-window peak and the whole current epoch's peak.
 
 Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/blocker-codes.md`).
 
@@ -418,13 +424,17 @@ This candidate is primarily a cost/operational guardrail; the system shall not f
 
 ### FR-OPT-007 — Min clusters reduction
 
-A reduction of one cluster may be proposed only when current-epoch evidence demonstrates substantial time at minimum capacity with low queue/scale pressure:
+A reduction may be proposed only when current-epoch evidence demonstrates substantial time at minimum capacity with low queue/scale pressure, and the floor needed by the demand busy periods start with is below the current floor:
 
 - the configured minimum is above 1, the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
 - time at the configured minimum is high enough (`time_at_min_pct_reduce`) and time at the configured maximum is below the blocking level (`time_at_max_pct_block_min_reduce`), both over the recent resource window;
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`), and p95 capacity wait among queued queries is known and not above the safe level (`queue_wait_p95_ms_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
-- query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003).
+- query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003);
+- no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
+- busy-period start concurrency was collected and covers enough busy periods (`min_cluster_min_busy_periods`).
+
+The target floor is the smallest that carries the demand busy periods start with (`min_cluster_busy_start_percentile` of busy-period peaks in the first scale-up-lag minutes, `scale_up_lag_minutes_pro_classic` / `scale_up_lag_minutes_serverless`), moved in one canary; a floor raise is never recommended. A pinned warehouse (minimum equal to maximum) is not held for sustained scale pressure, since it always runs at its maximum; queueing is judged instead.
 
 Unreported queue frequency or capacity wait holds the reduction (`docs/reference/blocker-codes.md`).
 
@@ -432,16 +442,21 @@ Time at the minimum does not prove a floor cluster was spare, so the status shal
 
 ### FR-OPT-008 — Auto-stop
 
-The optimizer shall derive a deterministic target based on activity class and warehouse type: standard Serverless has its own target (`serverless_auto_stop_target_minutes`); Pro/Classic targets rise with queries per active day across the low, medium and high activity classes (`low_activity_queries_per_day`, `medium_activity_queries_per_day`, `low_activity_auto_stop_target_minutes`, `medium_activity_auto_stop_target_minutes`, `high_activity_auto_stop_target_minutes`).
+The optimizer shall choose, among the auto-stop values the warehouse type allows (every step from the type's floor to a maximum: `auto_stop_floor_pro_classic`, `auto_stop_floor_serverless`, `auto_stop_step_minutes`, `auto_stop_max_minutes`), the one that costs least on the warehouse's measured running idle time: idle gaps intersected with the time the warehouse actually ran. A lower value is scored on the idle running minutes it removes minus the restarts it adds; a higher value on the restarts it saves minus the idle time it adds. A restart is priced at the documented start time per floor cluster (`restart_cost_cluster_minutes_pro_classic`, `restart_cost_cluster_minutes_serverless`); whether starting minutes are billed is not documented, so the Pro/Classic restart cost is a stated assumption. A value covers a gap only when it is longer than the gap by a margin (`auto_stop_bridge_margin_pct`).
 
-No change is proposed when a non-zero current auto-stop is already at or below the target.
+Running time past the current auto-stop with no query running (open sessions, result fetching, keep-alive) is reported and never counted as removable. The best net saving wins; among values within `auto_stop_near_best_pct` of it the smallest change wins.
 
-The optimizer shall block an auto-stop reduction (status `BLOCKED`) when any of the following holds:
+A lower value shall stay within a cold-start budget on Pro and Classic: the restarts it adds, as a share of queries, must not exceed `cold_start_added_share_max_pct` (`cold_start_added_share_max_pct_nonprod` for a warehouse tagged nonprod). Serverless starts in seconds and has no budget.
 
-- the current configuration epoch is too young (`current_config_stability_days`) or the 30-day query sample is too small (`min_query_sample_size`);
-- too few idle gaps (`min_idle_gap_sample_size`) or too few observed cluster-minutes (`min_cluster_minutes_for_cost_model`) support the counterfactual;
-- the workload is cold-start sensitive: p95 compute wait among queries that waited and warehouse starts per active day are both at or above their blocking levels (`cold_start_p95_ms_block`, `cold_starts_per_active_day_block`), or the compute-wait severity is unreported;
-- the failed/cancelled query share is unknown or above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`).
+Statuses:
+
+- `ACTIONABLE` for a lower value; `BLOCKED` when the failed/cancelled query share is unknown or above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
+- `TEST_REQUIRED` canary for a higher value (its saving is restarts avoided under the billing assumption);
+- `NO_CHANGE` when no value saves money, when every saving value is over the cold-start budget, or for a Serverless value below its floor;
+- `REVIEW` when the warehouse ran with no queries in the window and a lower value removes that running time;
+- `INSUFFICIENT_EVIDENCE` when running idle time was not collected, when too few cluster-minutes were observed (`min_cluster_minutes_for_cost_model`), when idle time contradicts recorded running time, or when the configuration epoch is too young (`current_config_stability_days`).
+
+Two advisory flags describe non-work activity: running time kept alive by something other than queries (`kept_alive_flag_pct`), and a warehouse that runs around the clock while queries are busy only a small share of its running time, so frequent tiny queries (BI polling, dashboard refresh) keep it up (`always_on_running_pct`, `always_on_busy_pct_max`). Blocker meanings: `docs/reference/blocker-codes.md`.
 
 ### FR-OPT-009 — Warehouse type migration
 
@@ -450,7 +465,7 @@ The optimizer shall create a separate migration candidate/scenario:
 - Pro/Classic → Serverless experiment,
 - Serverless → Pro experiment.
 
-Migration shall be `TEST_REQUIRED` and compatibility-gated when the forward DBU baseline is known; when it is unknown or too young the candidate is `INSUFFICIENT_EVIDENCE` with a DBU-baseline blocker (`docs/reference/blocker-codes.md`). Current-type tuning and type migration shall not be combined into the same execution scenario.
+The migration target shall be priced at its own cost-minimizing auto-stop on the same running-idle evidence, not at the current warehouse's. Migration shall be `TEST_REQUIRED` and compatibility-gated when the forward DBU baseline is known, unless even its best case costs more than today, in which case it is held as `NO_CHANGE` (`MIGRATION_NOT_COST_EFFECTIVE`); when it is unknown or too young the candidate is `INSUFFICIENT_EVIDENCE` with a DBU-baseline blocker (`docs/reference/blocker-codes.md`). Current-type tuning and type migration shall not be combined into the same execution scenario.
 
 ### FR-OPT-010 — Candidate completeness
 
@@ -472,7 +487,7 @@ For example, an `ACTIONABLE` candidate may be `PENDING_REEVALUATION` in a scenar
 
 ### FR-PLAN-001
 
-Plan A shall order its steps by expected value: base annual savings × confidence ÷ risk, highest first, where a change that needs a canary carries more risk than one that needs human approval only (`plan_risk_canary_change`, `plan_risk_hitl_change`). Priced changes with positive savings come first, then changes that need a canary to be priced, then changes with no priced saving (guardrails and performance fixes). A step never precedes a step that invalidates its evidence.
+Plan A shall order its steps by expected value: base annual savings × confidence ÷ risk, highest first, where a change that needs a canary carries more risk than one that needs human approval only (`plan_risk_canary_change`, `plan_risk_hitl_change`). Priced changes with positive savings come first, then changes that need a canary to be priced, then changes with no priced saving (guardrails and performance fixes). A step never precedes a step that invalidates its evidence, and steps another step invalidates (always pending re-evaluation) follow every ready step.
 
 Only true invalidations hold a step: a size change invalidates max- and min-cluster evidence, and a max-cluster increase invalidates min-cluster evidence. A max-cluster ceiling cut above the observed peak, a min-cluster change and an auto-stop change invalidate nothing; auto-stop is evaluated independently of size and min clusters.
 

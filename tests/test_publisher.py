@@ -32,7 +32,8 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(self.by_knob["warehouse_size"].recommended_config, {"warehouse_size": "MEDIUM"})
         self.assertEqual(self.by_knob["max_clusters"].recommended_config, {"max_clusters": 3})
         self.assertEqual(self.by_knob["min_clusters"].recommended_config, {"min_clusters": 1})
-        self.assertEqual(self.by_knob["auto_stop_minutes"].recommended_config, {"auto_stop_minutes": 30})
+        # Cheapest value on measured running idle: 10 removes 25,000 cluster-minutes and adds 210 restarts (1,680).
+        self.assertEqual(self.by_knob["auto_stop_minutes"].recommended_config, {"auto_stop_minutes": 10})
         self.assertEqual(self.by_knob["warehouse_type"].recommended_config, {"warehouse_type": "SERVERLESS"})
 
     def test_recommendation_ids_are_deterministic_and_include_current_config(self):
@@ -1336,24 +1337,24 @@ class PublisherV27Tests(unittest.TestCase):
         ep = ev.current_epoch
         ep.config = dataclasses.replace(ep.config, min_clusters=1)
         ep.query.update(queued_query_pct_30=0.6, queued_queries_30=72, p95_wait_capacity_ms_when_queued_30=1000)
-        for k in list(ep.gaps):
-            if k.startswith("saved_idle_minutes_if_"):
-                ep.gaps[k] = ep.events["cluster_minutes"] * idle_multiple
+        for row in ep.gaps["running_idle_by_target"].values():
+            row["removable_running_cluster_minutes"] = ep.events["cluster_minutes"] * idle_multiple
+            row["removable_running_wall_minutes"] = row["removable_running_cluster_minutes"]
         w = p.evaluate_warehouses([ev], self.t)[0]
         cand = next(c for c in w.candidates if c.knob == "auto_stop_minutes")
         plan = next(s for s in w.scenarios if [st.knob for st in s.steps] == ["auto_stop_minutes"])
         return cand, plan
 
-    def test_single_step_auto_stop_scenario_matches_the_capped_candidate(self):
-        # Idle gaps worth 90% of all cluster-minutes: the candidate caps removable time at auto_stop_savings_cap (60%).
-        # Before: the stateful bundle used the uncapped idle minutes, so the one-step plan claimed more than its own step.
+    def test_single_step_auto_stop_scenario_matches_the_candidate(self):
+        # Running idle worth 90% of all cluster-minutes is priced in full (it is measured running time, so no cap), and
+        # the one-step plan claims exactly what its own step does.
         # (Idle above 100% of running time is contradictory evidence and is not priced at all: test_auto_stop_evidence.)
         for multiple in (0.2, 0.9):
             cand, plan = self.auto_stop_only(multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.high, cand.dbu_365d_savings_range.high, places=2, msg=multiple)
-        capped, _ = self.auto_stop_only(0.9)
-        self.assertEqual(capped.metadata["raw_savings_fraction"], self.t.auto_stop_savings_cap)
+        uncapped, _ = self.auto_stop_only(0.9)
+        self.assertEqual(uncapped.metadata["raw_savings_fraction"], 0.9)
 
     def test_guardrail_changes_with_no_direct_savings_are_labeled_no_delta_modeled(self):
         # Demo max-cluster tightening (4 -> 3) is a guardrail: it carries no priced delta, so it is not a "modeled range".
@@ -1444,11 +1445,11 @@ class PublisherV27Tests(unittest.TestCase):
             if e.cost_history_days < self.t.forecast_cv_min_days:
                 self.assertIsNone(e.cost_cv_84, e.warehouse_name)
 
-    def test_gap_collector_handles_overlapping_queries_and_policy_targets(self):
+    def test_gap_collector_handles_overlapping_queries_in_milliseconds(self):
         sql = p.build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
-        for target in {self.t.serverless_auto_stop_target_minutes, self.t.low_activity_auto_stop_target_minutes, self.t.medium_activity_auto_stop_target_minutes, self.t.high_activity_auto_stop_target_minutes}:
-            self.assertIn(f"saved_idle_minutes_if_{target}", sql)
+        self.assertNotIn("TIMESTAMPDIFF(SECOND", sql)
+        self.assertNotIn("saved_idle", sql)  # auto-stop savings come from the running-idle collector
 
     def test_profile_host_and_cli_oauth_flow(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1521,14 +1522,17 @@ class PublisherV27Tests(unittest.TestCase):
         pb = p.build_recommendation_packages(eb, self.t)
         self.assertEqual([x.to_dict() for x in pa], [x.to_dict() for x in pb])
         self.assertEqual(wc.project_workbook(pa), wc.project_workbook(pb))
-    def test_auto_stop_blocks_without_gap_or_event_evidence(self):
+    def test_auto_stop_fails_closed_without_running_idle_or_event_evidence(self):
         ev = p.demo_evidence()
-        ev[0].current_epoch.gaps = {}
+        ev[0].current_epoch.gaps = {}  # evidence collected before running-idle evidence existed
+        auto = next(c for c in p.evaluate_warehouses(ev, self.t)[0].candidates if c.knob == "auto_stop_minutes")
+        self.assertEqual(auto.status, "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(auto.blockers, ["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"])
+        self.assertIsNone(auto.estimated_savings_365)
+        ev = p.demo_evidence()
         ev[0].current_epoch.events["cluster_minutes"] = 0
-        result = p.evaluate_warehouses(ev, self.t)[0]
-        auto = next(c for c in result.candidates if c.knob == "auto_stop_minutes")
-        self.assertEqual(auto.status, "BLOCKED")
-        self.assertIn("INSUFFICIENT_IDLE_GAP_SAMPLE", auto.blockers)
+        auto = next(c for c in p.evaluate_warehouses(ev, self.t)[0].candidates if c.knob == "auto_stop_minutes")
+        self.assertEqual(auto.status, "INSUFFICIENT_EVIDENCE")
         self.assertIn("INSUFFICIENT_EVENT_RESOURCE_EVIDENCE", auto.blockers)
 
     def test_manifest_carries_locked_contract_and_workbook_metadata(self):
@@ -1732,13 +1736,18 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertIn("INSUFFICIENT_AFFECTED_QUERY_SAMPLE", c.blockers)
 
-    def test_cold_start_waits_on_first_queries_block_auto_stop(self):
-        # 30 first-after-start queries wait 120s out of 12,000; the all-query p95 compute wait was 0.
-        ev = self.severity_evidence("cold-start-sensitive", compute_wait_queries_30=30,
-                                    p95_wait_compute_ms_when_waited_30=120000)
+    def test_cold_start_budget_counts_added_restarts_not_current_waits(self):
+        # Long compute waits on today's first-after-start queries do not block a lower auto-stop that adds no restart:
+        # the guard is the share of queries that would meet a restart the change adds.
+        ev = self.severity_evidence("idle-expensive-warehouse", compute_wait_queries_30=30, p95_wait_compute_ms_when_waited_30=120000)
+        self.assertEqual(self.candidate(ev, "auto_stop_minutes").status, "ACTIONABLE")
+        ev = self.severity_evidence("idle-expensive-warehouse")
+        rows = ev[0].current_epoch.gaps["running_idle_by_target"]
+        rows["10"]["additional_starts"] = 241  # 2.008% of 12,000 queries: over the 2% budget
+        rows["15"]["additional_starts"] = 240  # exactly 2%: within it
         c = self.candidate(ev, "auto_stop_minutes")
-        self.assertEqual(c.status, "BLOCKED")
-        self.assertIn("COLD_START_SENSITIVE", c.blockers)
+        self.assertEqual(c.status, "ACTIONABLE")
+        self.assertNotEqual(c.recommended_config["auto_stop_minutes"], 10)
 
     def scaled(self, golden, *, max_clusters=None, **events):
         """Severity-schema golden fixture with the current epoch's max_clusters / events overridden (audit M3)."""
@@ -1780,22 +1789,22 @@ class GoldenScenarioTests(unittest.TestCase):
         below = self.increase_candidate(max_observed_clusters=2, time_at_max_pct=limit - 0.01)
         self.assertEqual(below.status, "NO_CHANGE")
 
-    def reduction(self, max_clusters, peak):
-        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=peak, time_at_max_pct=0.0, minutes_at_max=0.0)
+    def reduction(self, max_clusters, peak_queries):
+        """Idle-expensive fixture with max overridden and P99.5 running + queued queries per busy minute = peak_queries."""
+        ev = self.scaled("idle-expensive-warehouse", max_clusters=max_clusters, max_observed_clusters=2, time_at_max_pct=0.0, minutes_at_max=0.0)
+        hist = {"1": 990.0, str(peak_queries): 10.0}
+        ev[0].current_epoch.query["concurrency_histogram"].update(RECENT=dict(hist), EPOCH=dict(hist))
         return self.candidate(ev, "max_clusters")
 
-    def test_max_reduction_keeps_headroom_above_observed_peak(self):
-        # Before: max 4, peak 3 -> target 3 (no growth room at all). Now one cluster of headroom is required.
-        self.assertEqual(self.reduction(4, 3).status, "NO_CHANGE")
-        self.assertEqual(self.reduction(4, 2).recommended_config["max_clusters"], 3)
-        # Headroom scales with the peak: max(1, ceil(25% x peak)). Peak 8 needs 2 -> 10, which is not below max 10.
-        self.assertEqual(self.reduction(10, 8).status, "NO_CHANGE")
-        self.assertEqual(self.reduction(10, 4).recommended_config["max_clusters"], 5)
-        self.assertEqual(self.reduction(10, 5).recommended_config["max_clusters"], 7)
-        self.assertEqual(self.reduction(10, 2).recommended_config["max_clusters"], 3)
+    def test_max_reduction_targets_peak_demand_plus_one_cluster(self):
+        # Pro/Classic: one cluster per 10 concurrent queries at P99.5, plus one cluster of headroom, in one move.
+        self.assertEqual(self.reduction(4, 20).recommended_config["max_clusters"], 3)   # 2 clusters needed
+        self.assertEqual(self.reduction(4, 30).status, "NO_CHANGE")                      # 3 + 1 = 4: not below max 4
+        self.assertEqual(self.reduction(10, 40).recommended_config["max_clusters"], 5)  # 4 + 1
+        self.assertEqual(self.reduction(10, 21).recommended_config["max_clusters"], 4)  # 21 queries need 3 clusters
 
     def test_max_reduction_never_goes_below_min_clusters(self):
-        c = self.reduction(10, 1)  # idle-expensive min_clusters is 2
+        c = self.reduction(10, 5)  # 1 cluster + 1 = 2; idle-expensive min_clusters is 2
         self.assertEqual(c.recommended_config["max_clusters"], 2)
 
     def test_few_long_capacity_waits_block_min_cluster_reduction(self):
@@ -1845,9 +1854,9 @@ class GoldenScenarioTests(unittest.TestCase):
         minc = self.candidate(evidence, "min_clusters")
         self.assertEqual(minc.status, "NO_CHANGE")
         self.assertIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", minc.blockers)
+        # Auto-stop no longer reads compute-wait severity (the cold-start guard counts the restarts a change adds).
         auto = self.candidate(evidence, "auto_stop_minutes")
-        self.assertEqual(auto.status, "BLOCKED")
-        self.assertIn("COLD_START_EVIDENCE_UNAVAILABLE", auto.blockers)
+        self.assertEqual(auto.status, "ACTIONABLE")
 
     # --- H5: a withheld estimate is null, never zero --------------------------------------------------------
     def golden_package(self, name):
@@ -1860,7 +1869,7 @@ class GoldenScenarioTests(unittest.TestCase):
         return all(ranges[k] is None for k in ("dbu", "aws", "total"))
 
     def test_blocked_candidate_economics_are_null_not_zero(self):
-        pkg = self.golden_package("cold-start-sensitive")
+        pkg = self.golden_package("c26-failure-heavy")
         blocked = next(c for c in pkg["candidates"] if c["knob"] == "auto_stop_minutes")
         self.assertEqual(blocked["status"], "BLOCKED")
         econ = blocked["independent_economics"]
@@ -1911,8 +1920,9 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(c.status,"ACTIONABLE"); self.assertEqual(c.recommended_config["max_clusters"],3)
 
     def test_cold_start_sensitive(self):
+        # Every lower value adds restarts for 5% of queries (600 of 12,000): above the 2% budget, so auto-stop stays.
         _,r=self.load("cold-start-sensitive"); c=next(c for c in r[0].candidates if c.knob=="auto_stop_minutes")
-        self.assertEqual(c.status,"BLOCKED"); self.assertIn("COLD_START_SENSITIVE",c.blockers)
+        self.assertEqual(c.status,"NO_CHANGE"); self.assertIn("COLD_START_BUDGET_EXCEEDED",c.blockers)
 
     def test_new_epoch_and_sparse_blockers(self):
         for name,blocker in (("newly-changed-config","CURRENT_CONFIG_EPOCH_TOO_NEW"),("sparse-evidence","INSUFFICIENT_QUERY_SAMPLE")):
@@ -2080,16 +2090,18 @@ class OverallStatusTests(unittest.TestCase):
 
 
 class SeasonalCeilingTests(unittest.TestCase):
-    """A ceiling cut never goes below the highest cluster count the current configuration has run at."""
+    """A ceiling cut never goes below the peak demand of the whole current epoch (Pro/Classic: concurrency)."""
 
     def setUp(self):
         self.t = p.Thresholds()
 
-    def max_candidate(self, epoch_peak):
-        e = p.demo_evidence()[0]  # max 3, recent peak 2 -> ceiling 3 kept today; widen the ceiling to 8
+    def max_candidate(self, epoch_peak_clusters):
+        e = p.demo_evidence()[0]  # recent P99.5 = 20 queries (2 clusters) -> ceiling 3; widen the ceiling to 8
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
-        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak
+        hist = e.current_epoch.query["concurrency_histogram"]
+        hist["EPOCH"] = {} if epoch_peak_clusters is None else {"1": 9900.0, str(10 * epoch_peak_clusters): 100.0}
+        e.current_epoch.events["max_observed_clusters_within_ceiling"] = epoch_peak_clusters
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
 
     def test_epoch_peak_inside_the_recent_window_keeps_the_recent_cut(self):
@@ -2097,7 +2109,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
 
     def test_epoch_peak_outside_the_recent_window_raises_the_cut_target(self):
-        c = self.max_candidate(4)  # 4 + 1 headroom
+        c = self.max_candidate(4)  # 40 queries at the epoch's P99.5: 4 clusters + 1 headroom
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 5))
 
     def test_epoch_peak_at_the_ceiling_holds_the_cut(self):
@@ -2122,6 +2134,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         e.current_epoch.events["max_observed_clusters_within_ceiling"] = 8
+        e.current_epoch.query["concurrency_histogram"]["EPOCH"] = {"1": 9900.0, "80": 100.0}
         e.current_epoch.query.pop("queued_query_pct_30", None)
         c = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
         self.assertEqual(c.status, "NO_CHANGE")
@@ -2202,9 +2215,12 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
         _, plan_a = self.plan([e])
         contingent = plan_a.portfolio_estimate.contingent
         self.assertIsNotNone(contingent)
-        recorded = p.safe_float(e.current_epoch.events.get("cluster_minutes"))
-        # With the overlap rule the floor cluster's idle minutes that auto-stop already removed are not removed again.
-        self.assertLess(contingent.estimated_savings_range_365.base, 17000)
+        # With the overlap rule the floor cluster's idle minutes that auto-stop already removed are not removed again:
+        # the pending min-cluster cut adds far less than its standalone saving (about 1,520 of 6,074).
+        w, _ = self.plan([e])
+        standalone = next(c for c in w.candidates if c.knob == "min_clusters").estimated_savings_365
+        added = contingent.estimated_savings_range_365.base - plan_a.portfolio_estimate.estimated_savings_range_365.base
+        self.assertLess(added, 0.5 * standalone)
 
     def test_reviewer_rejects_a_step_before_its_invalidator(self):
         w, plan_a = self.plan(p.demo_evidence())

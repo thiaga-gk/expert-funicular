@@ -3292,12 +3292,39 @@
             "busy_minutes": 157440.0,
             "epoch_start": "2025-07-01T00:00:00+00:00",
             "gap_count": 260,
+            "kept_alive_gap_count": 0,
+            "kept_alive_wall_minutes": 0.0,
+            "observed_running_cluster_minutes": 358825.0,
             "p50_gap_minutes": 840.0,
             "p90_gap_minutes": 3720.0,
-            "saved_idle_minutes_if_10": 2600.0,
-            "saved_idle_minutes_if_15": 1300.0,
-            "saved_idle_minutes_if_30": 0,
-            "saved_idle_minutes_if_45": 0,
+            "restarts_for_queries": 0,
+            "running_idle_by_target": {
+              "10": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 2600.0,
+                "removable_running_wall_minutes": 2600.0
+              },
+              "15": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 1300.0,
+                "removable_running_wall_minutes": 1300.0
+              },
+              "5": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 3900.0,
+                "removable_running_wall_minutes": 3900.0
+              }
+            },
+            "running_idle_queries": 394682,
+            "running_idle_window_end": "2026-10-01T12:00:00+00:00",
+            "running_idle_window_start": "2025-10-01T18:00:00+00:00",
+            "running_segment_count": 1,
             "warehouse_id": "wh-demo-025",
             "workspace_id": "1234567890123456"
           },
@@ -3308,6 +3335,19 @@
             "avg_read_io_cache_percent_30": 35.0,
             "client_applications_30": [],
             "compute_wait_queries_30": 2637,
+            "concurrency_histogram": {
+              "BUSY_START": {
+                "10": 30.0
+              },
+              "EPOCH": {
+                "1": 155865.6,
+                "80": 1574.4
+              },
+              "RECENT": {
+                "1": 155865.6,
+                "20": 1574.4
+              }
+            },
             "dashboard_queries_30": 394682,
             "databricks_sql_editor_client_queries_30": 0,
             "decision_queries_30": 355214,

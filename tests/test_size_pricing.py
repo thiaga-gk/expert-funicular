@@ -222,5 +222,56 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         self.assertNotIn("TIMESTAMPDIFF(SECOND,", busy)
 
 
+class DownsizeScaleOutTests(unittest.TestCase):
+    def test_downsize_on_a_busy_multi_cluster_warehouse_prices_the_extra_scale_out(self):
+        # Core demo: Pro LARGE -> MEDIUM (price ratio 0.6), min 2 / max 4, now fully busy. Slower queries raise
+        # concurrency, so the autoscaler runs proportionally more cluster-minutes: the slowdown applies to all
+        # (cluster-weighted) busy time. Base saving is 1 - 0.6 x 1.3 = 22%, not the 40% the price ratio alone suggests
+        # (and the conservative bound 1 - 0.6 x 1.55 = 7%).
+        logging.disable(logging.CRITICAL)
+        try:
+            e = p.demo_evidence()[0]
+            e.current_epoch.gaps["busy_minutes"] = e.current_epoch.events["uptime_minutes"]
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(c.metadata["busy_share"], 1.0)
+        f = c.metadata["cost_factor_range"]
+        self.assertAlmostEqual(f["base"], 0.78, places=6)
+        self.assertAlmostEqual(f["high"], 0.93, places=6)
+
+
+class BatchProfileTests(unittest.TestCase):
+    def test_weekly_job_has_too_few_run_days_for_a_downsize_canary(self):
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C05")
+            e.current_epoch.query["active_days_30"] = 4
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("INSUFFICIENT_BATCH_RUN_DAYS", c.blockers)
+
+
+class SpillConcentrationTests(unittest.TestCase):
+    def test_sql_ranks_sources_and_never_merges_redacted_statements(self):
+        sql = p.build_spill_source_sql(p.Thresholds())
+        self.assertIn("rn <= 3", sql)
+        self.assertIn("WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id", sql)
+        self.assertIn("SHA2(x.statement_text, 256)", sql)
+        self.assertIn("INTERVAL 30 DAYS", sql)
+
+    def test_missing_concentration_evidence_fails_closed_for_an_upsize(self):
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C07")
+            e.current_epoch.query.pop("top_spill_source_share_pct_30")
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual((c.status, c.blockers), ("INSUFFICIENT_EVIDENCE", ["SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3402,6 +3402,12 @@
           "gaps": {},
           "is_current": false,
           "query": {
+            "concurrency_histogram": {
+              "EPOCH": {
+                "1": 990.0,
+                "20": 10.0
+              }
+            },
             "epoch_active_days": 100,
             "epoch_p95_execution_ms": 3300,
             "epoch_queries": 30000,
@@ -3452,12 +3458,130 @@
           },
           "gaps": {
             "gap_count": 480,
+            "kept_alive_gap_count": 0,
+            "kept_alive_wall_minutes": 0.0,
+            "observed_running_cluster_minutes": 30000.0,
             "p50_gap_minutes": 8.0,
             "p90_gap_minutes": 95.0,
-            "saved_idle_minutes_if_10": 12500.0,
-            "saved_idle_minutes_if_15": 11500.0,
-            "saved_idle_minutes_if_30": 9000.0,
-            "saved_idle_minutes_if_45": 6500.0
+            "restarts_for_queries": 0,
+            "running_idle_by_target": {
+              "10": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 25000.0,
+                "removable_running_wall_minutes": 12500.0
+              },
+              "15": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 23000.0,
+                "removable_running_wall_minutes": 11500.0
+              },
+              "20": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 21333.334,
+                "removable_running_wall_minutes": 10666.667
+              },
+              "25": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 19666.666,
+                "removable_running_wall_minutes": 9833.333
+              },
+              "30": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 18000.0,
+                "removable_running_wall_minutes": 9000.0
+              },
+              "35": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 16333.334,
+                "removable_running_wall_minutes": 8166.667
+              },
+              "40": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 14666.666,
+                "removable_running_wall_minutes": 7333.333
+              },
+              "45": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 13000.0,
+                "removable_running_wall_minutes": 6500.0
+              },
+              "5": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 27000.0,
+                "removable_running_wall_minutes": 13500.0
+              },
+              "50": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 11333.334,
+                "removable_running_wall_minutes": 5666.667
+              },
+              "55": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 9666.666,
+                "removable_running_wall_minutes": 4833.333
+              },
+              "60": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 8000.0,
+                "removable_running_wall_minutes": 4000.0
+              },
+              "65": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 6333.334,
+                "removable_running_wall_minutes": 3166.667
+              },
+              "70": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 4666.666,
+                "removable_running_wall_minutes": 2333.333
+              },
+              "75": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 3000.0,
+                "removable_running_wall_minutes": 1500.0
+              },
+              "80": {
+                "added_idle_wall_minutes": 0.0,
+                "additional_starts": 0,
+                "avoided_starts": 0,
+                "removable_running_cluster_minutes": 1333.334,
+                "removable_running_wall_minutes": 666.667
+              }
+            },
+            "running_idle_queries": 12000,
+            "running_idle_window_end": "2026-10-01T12:00:00+00:00",
+            "running_idle_window_start": "2026-01-15T00:00:00+00:00",
+            "running_segment_count": 1
           },
           "is_current": true,
           "query": {
@@ -3465,6 +3589,19 @@
             "alert_queries_30": 300,
             "avg_read_io_cache_percent_30": 42.0,
             "compute_wait_queries_30": 8,
+            "concurrency_histogram": {
+              "BUSY_START": {
+                "10": 30.0
+              },
+              "EPOCH": {
+                "1": 990.0,
+                "20": 10.0
+              },
+              "RECENT": {
+                "1": 990.0,
+                "20": 10.0
+              }
+            },
             "dashboard_queries_30": 7000,
             "decision_queries_30": 10320,
             "epoch_active_days": 250,
@@ -3491,9 +3628,11 @@
             "result_cache_pct_30": 14.0,
             "spill_queries_30": 600,
             "spill_query_pct_30": 5.0,
+            "spill_sources_30": 12,
             "sql_query_source_queries_30": 200,
             "statement_text_visible_pct_30": 100.0,
             "tagged_query_pct_30": 78.0,
+            "top_spill_source_share_pct_30": 25.0,
             "total_spill_gib_30": 0.0
           },
           "resource_daily": [

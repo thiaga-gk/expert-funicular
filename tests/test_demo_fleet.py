@@ -231,12 +231,90 @@ class DemoFleetTests(unittest.TestCase):
         self.assertLess(e.current_epoch.epoch_start, "2025-01-01")
         self.assertEqual(len(pkg["candidates"]), 5)
 
-    def test_c50_single_cluster_increase_shows_about_double_the_cost_as_worst_case(self):
+    def test_c50_single_cluster_increase_goes_to_peak_demand_and_about_doubles_the_cost(self):
+        # About 19 concurrent queries all day: 2 clusters of demand + 1 headroom. Demand fills the second cluster all
+        # day (base ~ +100% of cost); the worst case runs both added clusters whenever the warehouse sat at its ceiling.
         e, pkg = self.by_scenario["C50"]
         c = self.candidate("C50", "max_clusters")
-        self.assertEqual((c["current_value"], c["recommended_value"]), (1, 2))
-        worst = c["independent_economics"]["savings_365d"]["total"]["low"]
-        self.assertLess(abs(-worst / pkg["cost_baseline"]["forward_365d"]["total_cost"] - 1.0), 0.03)
+        self.assertEqual((c["current_value"], c["recommended_value"]), (1, 3))
+        cost = pkg["cost_baseline"]["forward_365d"]["total_cost"]
+        savings = c["independent_economics"]["savings_365d"]["total"]
+        self.assertLess(abs(-savings["base"] / cost - 1.0), 0.05)
+        self.assertLess(abs(-savings["low"] / cost - 2.0), 0.05)
+
+    # --- Auto-stop: cost-minimizing value on measured running idle time ----------------------------------------
+    def auto_stop(self, scenario):
+        c = self.candidate(scenario, "auto_stop_minutes")
+        return c["status"], c["recommended_value"], c
+
+    def test_c01_c25_always_on_goes_to_the_cheapest_value_within_two_percent_and_the_cold_start_budget(self):
+        for scenario in ("C01", "C25"):
+            status, value, c = self.auto_stop(scenario)
+            self.assertEqual(status, "ACTIONABLE", scenario)
+            self.assertTrue(10 <= value <= 60, (scenario, value))
+            self.assertGreater(c["independent_economics"]["savings_365d"]["total"]["base"], 20000, scenario)
+
+    def test_c02_c10_serverless_goes_to_five(self):
+        for scenario in ("C02", "C10"):
+            self.assertEqual(self.auto_stop(scenario)[:2], ("ACTIONABLE", 5), scenario)
+
+    def test_c05_nightly_etl_goes_to_the_ten_minute_floor(self):
+        self.assertEqual(self.auto_stop("C05")[:2], ("ACTIONABLE", 10))
+
+    def test_c13_lowered_when_it_adds_no_cold_starts(self):
+        # Queries every 45 minutes: the warehouse already restarts for each one, so 10 adds no restart.
+        self.assertEqual(self.auto_stop("C13")[:2], ("ACTIONABLE", 10))
+
+    def test_c39_nonprod_tag_gets_the_larger_cold_start_budget(self):
+        import copy
+        status, value, _ = self.auto_stop("C39")
+        self.assertEqual((status, value), ("ACTIONABLE", 10))  # adds restarts for about 5% of queries: within 10%
+        e = copy.deepcopy(self.by_scenario["C39"][0])
+        e.current_epoch.tags["environment"] = "staging"  # staging stays production: 2% budget
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "auto_stop_minutes")
+        self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["COLD_START_BUDGET_EXCEEDED"]))
+
+    def test_c45_steady_warehouse_gets_no_zero_value_auto_stop_change(self):
+        status, value, c = self.auto_stop("C45")
+        self.assertEqual((status, value), ("NO_CHANGE", 30))
+
+    def test_c49_auto_stop_is_raised_when_restarts_saved_outweigh_idle_added(self):
+        status, value, c = self.auto_stop("C49")
+        self.assertEqual((status, value), ("TEST_REQUIRED", 15))
+        self.assertIn("RESTART_BILLING_UNVERIFIED", c["blockers"])
+
+    def test_c51_mostly_idle_removes_far_more_than_sixty_percent(self):
+        e, _ = self.by_scenario["C51"]
+        status, value, _ = self.auto_stop("C51")
+        self.assertEqual((status, value), ("ACTIONABLE", 10))
+        w = p.evaluate_warehouses([e], self.t)[0]
+        raw = next(c for c in w.candidates if c.knob == "auto_stop_minutes").metadata["raw_savings_fraction"]
+        self.assertGreater(raw, 0.8)
+
+    def test_c53_c54_long_auto_stop_drops_to_the_value_covering_daytime_gaps(self):
+        # Gaps of ~87 minutes (C53) and ~190 minutes (C54): the smallest 5-minute value at least 10% longer than the gap
+        # keeps every daytime gap without a restart and cuts the overnight tail.
+        for scenario, value in (("C53", 100), ("C54", 210)):
+            status, got, c = self.auto_stop(scenario)
+            self.assertEqual((status, got), ("ACTIONABLE", value), scenario)
+            self.assertGreater(c["independent_economics"]["savings_365d"]["total"]["base"], 5000, scenario)
+
+    def test_c05_nightly_etl_gets_a_downsize_canary_judged_on_run_days(self):
+        # 100% job queries on 30 of 30 days with 10-minute p95 queries: the interactive latency gates do not apply.
+        c = self.candidate("C05", "warehouse_size")
+        self.assertEqual((c["status"], c["current_value"], c["recommended_value"]), ("TEST_REQUIRED", "LARGE", "MEDIUM"))
+        self.assertNotIn("P95_LATENCY_TOO_HIGH", c["blockers"])
+
+    def test_c26_flaky_etl_stays_held_by_its_failures(self):
+        c = self.candidate("C26", "warehouse_size")
+        self.assertEqual(c["status"], "NO_CHANGE")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", c["blockers"])
+
+    def test_c22_spill_from_two_statements_is_a_rewrite_not_an_upsize(self):
+        c = self.candidate("C22", "warehouse_size")
+        self.assertEqual((c["status"], c["blockers"]), ("NO_CHANGE", ["SPILL_CONCENTRATED_IN_FEW_STATEMENTS"]))
+        broad = self.candidate("C07", "warehouse_size")  # 25% of queries spill across many notebooks
+        self.assertEqual((broad["status"], broad["recommended_value"]), ("TEST_REQUIRED", "LARGE"))
 
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
