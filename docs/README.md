@@ -7,6 +7,7 @@ Contract versions are declared in code (`contracts/reporter_contract.py`, `contr
 | `architecture/` | [`context.md`](architecture/context.md) | You are new: domain language, invariants and concepts. Read first. |
 | | [`hld.md`](architecture/hld.md) | You need the component architecture and its traceability to requirements. |
 | | [`lld.md`](architecture/lld.md) | You are changing code: module responsibilities, CLI, internal contracts. |
+| | [`repo-reorg-design.md`](architecture/repo-reorg-design.md) | You are working on the package reorganization: target layout, phases and approved decisions. |
 | `product/` | [`prd.md`](product/prd.md) | You need what the product must do, scope and acceptance criteria. |
 | `contracts/` | [`reporter-json-contract.md`](contracts/reporter-json-contract.md) | You consume or change the `RecommendationPackage` JSON. |
 | | [`workbook-contract.md`](contracts/workbook-contract.md) | You consume or change the workbook projection. |
