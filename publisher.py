@@ -183,6 +183,9 @@ class Thresholds:
     # A gap counts as kept alive (by sessions, result fetching or keep-alive, not queries) when the warehouse ran this
     # many minutes past the current auto-stop; below it, the stop event merely trailed the auto-stop.
     kept_alive_gap_tolerance_minutes: float = 2.0
+    # A gap the warehouse stopped in before the next query is kept alive only when it ran longer than this past the
+    # auto-stop (a session held it open); shorter overruns are a late stop event.
+    kept_alive_stopped_gap_minutes: float = 10.0
     # Cost of one restart in cluster-minutes per cluster started, from the documented start times: Pro/Classic about 4
     # minutes, Serverless 2-6 seconds (upper end). Whether starting time is billed is not documented, so this is a
     # priced assumption.
@@ -937,7 +940,7 @@ RUNNING_IDLE_HEADER_FIELDS = ("running_idle_window_start", "running_idle_window_
 
 def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence[Tuple[float, float, int]], window: Tuple[float, float],
                          auto_stop: int, targets: Sequence[float], full_fraction: float = 0.99, margin_pct: float = 10.0,
-                         kept_alive_tolerance: float = 2.0) -> Dict[str, Any]:
+                         kept_alive_tolerance: float = 2.0, stopped_gap_lag: float = 10.0) -> Dict[str, Any]:
     """Reference implementation of the running-idle collector (times in minutes, intervals half-open).
 
     ``busy`` are query intervals (start, end), ``segments`` RUNNING intervals (start, end, clusters > 0), ``window`` the
@@ -1002,9 +1005,9 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
         running = overlap(c0, c1)
         alive = overlap(max(c0, stop_at), c1) if stop_at is not None else 0.0
         ran_through = running >= full_fraction * (c1 - c0)
-        # Kept alive: ran through to the next query (or the window end) more than the tolerance past the auto-stop. A gap
-        # the warehouse stopped in only had a late stop event.
-        kept = ran_through and alive > kept_alive_tolerance
+        # Kept alive: ran through to the next query (or the window end) more than the tolerance past the auto-stop, or
+        # stopped before it but only after running longer than a late stop event explains (a session held it open).
+        kept = alive > kept_alive_tolerance and (ran_through or alive > stopped_gap_lag)
         kept_alive += alive if kept else 0.0; kept_gaps += 1 if kept else 0; restarts += 1 if has_next and not ran_through else 0
         per_gap.append((g0, g1, has_next, c0, c1, stop_at, running, ran_through, kept))
     out["kept_alive_wall_minutes"] = round(kept_alive, 3)
@@ -1052,6 +1055,7 @@ def _running_idle_ctes(t: Thresholds) -> str:
     full = t.running_idle_full_window_fraction
     cover = 1.0 + t.auto_stop_bridge_margin_pct / 100.0
     tolerance = t.kept_alive_gap_tolerance_minutes
+    stopped_lag = t.kept_alive_stopped_gap_minutes
     targets = auto_stop_targets(t)
     return f"""
 WITH {CONFIG_EPOCHS_CTE},
@@ -1123,11 +1127,13 @@ retained AS (
   FROM g LEFT JOIN pieces p ON p.workspace_id = g.workspace_id AND p.warehouse_id = g.warehouse_id AND p.g0 = g.g0 AND p.g1 = g.g1
   GROUP BY g.workspace_id, g.warehouse_id, g.g0, g.g1
 ), gaps_full AS (
-  -- A gap the warehouse ran through, more than the event-lag tolerance past the current auto-stop, was kept alive by
-  -- something other than queries and would not stop at a lower value either: no removable time, no added restart.
+  -- A gap run past the current auto-stop by more than a late stop event explains (the tolerance when it ran through
+  -- to the next query, the stopped-gap lag otherwise) was kept alive by something other than queries and would not
+  -- stop at a lower value either: no removable time, no added restart.
   SELECT g.*, gr.running_min, gr.kept_alive_min,
     gr.running_min >= {full} * TIMESTAMPDIFF(MILLISECOND, g.c0, g.c1) / 60000.0 AS ran_through,
-    gr.running_min >= {full} * TIMESTAMPDIFF(MILLISECOND, g.c0, g.c1) / 60000.0 AND gr.kept_alive_min > {tolerance} AS kept_alive
+    gr.kept_alive_min > {tolerance} AND (gr.running_min >= {full} * TIMESTAMPDIFF(MILLISECOND, g.c0, g.c1) / 60000.0
+      OR gr.kept_alive_min > {stopped_lag}) AS kept_alive
   FROM g JOIN gap_running gr ON gr.workspace_id = g.workspace_id AND gr.warehouse_id = g.warehouse_id AND gr.g0 = g.g0 AND gr.g1 = g.g1
 ), per_target AS (
   -- Only pairs that can contribute: a gap the warehouse ran through matters to values that do not cover it (with the
@@ -1274,14 +1280,15 @@ def histogram_top_level(hist: Optional[Mapping[str, Any]], minutes: float) -> Op
     return None
 
 
-def recent_peak_at_rate(recent: Optional[Mapping[str, Any]], long_days: float, t: Thresholds) -> Optional[int]:
+def recent_peak_at_rate(recent: Optional[Mapping[str, Any]], long_days: float, t: Thresholds, recent_days: float = 30.0) -> Optional[int]:
     """The recent (30-day) window's peak read at the same rate as a long window's: a long window's peak is the level
     reached in peak_demand_min_minutes busy minutes over long_days, so the recent window's is the level reached in
-    peak_demand_min_minutes x 30 / long_days of its busy minutes (at least 1). A recent window with busy minutes but
+    peak_demand_min_minutes x recent_days / long_days of its busy minutes (at least 1); recent_days is the window's
+    actual span (30, or the current epoch's age when younger). A recent window with busy minutes but
     less weight than that counts at its highest level; one with no busy minute counts as 0; None when not collected."""
     if recent is None:
         return None
-    minutes = max(1.0, t.peak_demand_min_minutes * 30.0 / max(long_days, 1.0))
+    minutes = max(1.0, t.peak_demand_min_minutes * max(recent_days, 0.0) / max(long_days, 1.0))
     level = histogram_top_level(recent, minutes)
     if level is None:
         level = max((int(k) for k, v in recent.items() if safe_float(v) > 0), default=0)
@@ -2887,16 +2894,19 @@ class Analyzer:
         horizon = parse_datetime(e.analysis_time) - dt.timedelta(days=365)
         qpc_all = self.t.queries_per_cluster_pro_classic
         older_peak: Optional[int] = None; recent_peak: Optional[int] = None; held = False
+        cur_recent_days = min(30.0, window_days(ep.epoch_start, None, e.analysis_time))
         for x in e.epochs:
             if x.is_current or not isinstance(x.query.get("concurrency_histogram"), Mapping) or (x.epoch_end is not None and parse_datetime(x.epoch_end) <= horizon):
                 continue
             peak = histogram_top_level(x.query["concurrency_histogram"].get("EPOCH"), self.t.peak_demand_min_minutes)
-            recent_at = recent_peak_at_rate(cur_hist.get("RECENT"), window_days(x.epoch_start, x.epoch_end, e.analysis_time), self.t)
+            recent_at = recent_peak_at_rate(cur_hist.get("RECENT"), window_days(x.epoch_start, x.epoch_end, e.analysis_time), self.t, cur_recent_days)
             if peak is None or recent_at is None:
                 continue
-            if older_peak is None or peak > older_peak:
+            holds = math.ceil(peak / qpc_all) > math.ceil(recent_at / qpc_all)
+            # Report the epoch that holds (the largest such peak), else the largest older peak.
+            if (holds and (not held or peak > safe_int(older_peak))) or (not held and not holds and (older_peak is None or peak > older_peak)):
                 older_peak, recent_peak = peak, recent_at
-            held = held or math.ceil(peak / qpc_all) > math.ceil(recent_at / qpc_all)
+            held = held or holds
         common["older_epoch_peak_concurrency"] = older_peak
         common["older_epoch_demand_higher"] = held
 
@@ -2950,7 +2960,8 @@ class Analyzer:
         conc_recent = histogram_percentile((hist or {}).get("RECENT"), self.t.max_cluster_target_percentile)
         conc_epoch = histogram_top_level((hist or {}).get("EPOCH"), self.t.peak_demand_min_minutes)
         # The recent window's peak at the same rate as the whole epoch's, for the seasonal comparison.
-        conc_recent_sustained = recent_peak_at_rate((hist or {}).get("RECENT"), window_days(ep.epoch_start, None, e.analysis_time), self.t)
+        recent_days = min(30.0, window_days(ep.epoch_start, None, e.analysis_time))
+        conc_recent_sustained = recent_peak_at_rate((hist or {}).get("RECENT"), window_days(ep.epoch_start, None, e.analysis_time), self.t, recent_days)
         conc_busy_start = histogram_percentile((hist or {}).get("BUSY_START"), self.t.min_cluster_busy_start_percentile)
         busy_minutes_recent = sum(safe_float(v) for v in ((hist or {}).get("RECENT") or {}).values()) if hist else None
         busy_periods = sum(safe_float(v) for v in ((hist or {}).get("BUSY_START") or {}).values()) if hist else None
@@ -6210,7 +6221,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             th = Thresholds()
             ri = running_idle_metrics([(a, b) for a, b, _ in ep_runs if b > cov - 1440.0], [(a, b, cl) for a, b, cl, _, _ in live if cl > 0],
                                       (cov, hi_t), cfg["auto_stop_minutes"], auto_stop_targets(th), th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
-                                      th.kept_alive_gap_tolerance_minutes)
+                                      th.kept_alive_gap_tolerance_minutes, th.kept_alive_stopped_gap_minutes)
             key_cols = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso}
             rows["running_idle"].append({**key_cols, "running_idle_window_start": stamp(cov), "running_idle_window_end": stamp(hi_t),
                                          "running_idle_queries": int(round(queries_between(cov, hi_t)[0])),

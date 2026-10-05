@@ -138,6 +138,18 @@ class OlderEpochHoldTests(unittest.TestCase):
         e.current_epoch.query["concurrency_histogram"]["RECENT"] = {"1": 25.0}
         self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", self.candidates(e)["min_clusters"].blockers)
 
+    def test_a_young_current_epoch_reads_its_recent_peak_over_its_own_age(self):
+        # 15-day current epoch whose recent window and epoch are the same 15 days: the epoch peak is not "outside".
+        import datetime as dt
+        e = self.evidence()
+        start = (p.parse_datetime(e.analysis_time) - dt.timedelta(days=15)).isoformat()
+        e.current_epoch.epoch_start = start
+        e.epochs[0].epoch_end = start
+        e.epochs[0].query.pop("concurrency_histogram", None)
+        same = {"1": 20000.0, "15": 800.0, "25": 150.0, "35": 50.0}
+        e.current_epoch.query["concurrency_histogram"].update(RECENT=dict(same), EPOCH=dict(same))
+        self.assertNotIn("PEAK_OUTSIDE_RECENT_WINDOW", self.candidates(e)["max_clusters"].blockers)
+
     def test_quarter_end_peak_in_the_current_epoch_keeps_the_ceiling(self):
         # 2 hours at 72 queries out of 150,000 busy minutes (0.08%): P99.5 misses it, the 30-busy-minute peak does not.
         by = self.candidates(self.evidence(current_epoch_hist={"1": 149880.0, "72": 120.0}))

@@ -120,6 +120,17 @@ class RunningIdleOracleTests(unittest.TestCase):
         self.assertAlmostEqual(m["removable_running_wall_minutes_if_10"], 20.0, places=3)
         self.assertEqual((m["kept_alive_gap_count"], m["kept_alive_wall_minutes"]), (0, 0.0))
 
+    def test_a_session_holding_the_warehouse_hours_past_auto_stop_is_kept_alive_even_if_it_stops(self):
+        # Auto-stop 30; queries 08:00-18:00; a session keeps the warehouse up until 02:00, then it stops; the next query
+        # is at 08:00. The overnight gap is kept alive (7.5 hours past the auto-stop), so nothing there is removable.
+        days = 5
+        busy = [(hm(d, "08:00"), hm(d, "18:00")) for d in range(days)]
+        running = [(hm(d, "08:00"), hm(d + 1, "02:00"), 1) for d in range(days)]
+        m = self.metrics(busy, running, (hm(0, "08:00"), hm(days - 1, "18:00")), 30)
+        self.assertEqual(m["kept_alive_gap_count"], days - 1)
+        self.assertAlmostEqual(m["kept_alive_wall_minutes"], (days - 1) * 450.0, places=3)
+        self.assertEqual(m["removable_running_wall_minutes_if_10"], 0.0)
+
     def test_segments_are_clipped_to_the_window(self):
         m = self.metrics([], [(-100.0, 50.0, 2), (200.0, 300.0, 1)], (0.0, 100.0), 0)
         self.assertEqual((m["observed_running_cluster_minutes"], m["running_segment_count"]), (100.0, 1))
