@@ -5989,32 +5989,43 @@ def _recommended_plan(
         next_action=next_action,
         requires_hitl=True,
         decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes."
-                         + _rollback_sequencing_note(recommended, candidates) + _canary_sequencing_note(recommended),
+                         + _rollback_sequencing_note(recommended, candidates) + _canary_sequencing_note(recommended, candidates),
         reevaluation=reevaluation,
     )
+
+
+def _rollback_knobs(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation]) -> List[str]:
+    """Knobs of the scenario's canary rollback steps, in plan order."""
+    rollback_ids = {c.candidate_id for c in candidates if "CANARY_GUARDRAIL_BREACHED" in c.blockers}
+    return [x.knob.value for x in scenario.execution_plan
+            if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None and x.candidate_id in rollback_ids]
 
 
 def _rollback_sequencing_note(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation]) -> str:
     """A canary rollback goes before every other step: a change applied first starts a new configuration, and the next
     run no longer sees the change being rolled back."""
-    rollback_ids = {c.candidate_id for c in candidates if "CANARY_GUARDRAIL_BREACHED" in c.blockers}
-    knobs = [x.knob.value for x in scenario.execution_plan
-             if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None and x.candidate_id in rollback_ids]
+    knobs = _rollback_knobs(scenario, candidates)
     if not knobs:
         return ""
     return (f" Apply the canary rollback ({', '.join(knobs)}) before any other step: a change applied first starts a new "
             "configuration, and the next run no longer sees the change being rolled back.")
 
 
-def _canary_sequencing_note(scenario: rc.Scenario) -> str:
+def _canary_sequencing_note(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation] = ()) -> str:
     """When approval-only steps and canaries are both ready: approval-only steps go first, canaries start once those
-    have run for the stability period, so a canary's cost reading is not mixed with another change's saving."""
+    have run for the stability period, so a canary's cost reading is not mixed with another change's saving. A canary
+    rollback has its own sentence (it goes before everything), so it is not listed again here."""
+    rollbacks = _rollback_knobs(scenario, candidates)
     steps = [x for x in scenario.execution_plan if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None]
-    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY]
+    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY and x.knob.value not in rollbacks]
     canary = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY_FOR_CANARY]
-    if not hitl or not canary:
+    if not canary or not (hitl or rollbacks):
         return ""
-    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary once the next run shows "
+    if not hitl:
+        return (f" Start the {', '.join(canary)} canary once the next run shows the restored configuration ready "
+                f"({rc.REEVALUATION_READY_BILLED_DAYS} settled billed days), so the canary's cost reading is not mixed with the rollback.")
+    lead = f" Then apply the ready no-canary steps ({', '.join(hitl)});" if rollbacks else f" Apply the ready no-canary steps ({', '.join(hitl)}) first;"
+    return (f"{lead} start the {', '.join(canary)} canary once the next run shows "
             f"their new configuration ready ({rc.REEVALUATION_READY_BILLED_DAYS} settled billed days), so the canary's cost reading is not "
             "mixed with their savings.")
 
