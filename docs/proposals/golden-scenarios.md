@@ -67,7 +67,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C54 | Very long auto-stop, two daily jobs hours apart | Pro `auto_stop_minutes` = 365; two short job windows ~3 hours apart each morning | Auto-stop drops to the value covering the gap between the two jobs (constructed run: 365 → 210, no added cold starts, about 10.5k/yr) and cuts the long overnight tail. | yes | covered | pass | K1 |
 | A01 | Serverless auto-stop below 5 via API | Serverless `auto_stop_minutes` < 5 | Read the actual value; leave it alone. | yes | covered | pass | — |
 | A02 | Pro/Classic auto-stop below 10 | Target < 10 on Pro/Classic | Never emitted; rejected by the reviewer. | yes | covered | pass | K1 |
-| A03 | Serverless sizing and concurrency | Serverless with high max | Queue-based ceiling rule at low confidence. | yes | covered | fail | K2 |
+| A03 | Serverless sizing and concurrency | Serverless with high max | Queue-based ceiling rule at low confidence. | yes | covered | pass | K2 |
 | A04 | Cluster limits | Targets above 40 max or 30 min | Clamped. | yes | covered | pass | — |
 | A05 | Region or networking blocks Serverless | No Serverless in region; custom networking | No migration proposed; region check unknown unless verified. | yes | covered | pass | G41 |
 | A06 | Starter warehouse left running | Auto-created default warehouse idle | Treated as always-on or zero-query idle. | yes | covered | pass | G8, K1 |

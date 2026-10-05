@@ -265,6 +265,9 @@ class Thresholds:
     confidence_cap_test_required: float = 0.78
     confidence_cap_actionable: float = 0.93
     confidence_cap_default: float = 0.80
+    # Serverless scales differently from the documented Pro/Classic rule, so its queue-based ceiling increase is shown
+    # at low confidence (below confidence_medium_threshold).
+    confidence_cap_serverless_ceiling_increase: float = 0.59
     remeasure_days_after_invalidating_change: int = 7
     growth_hold_weekly_ratio: float = 1.10  # capacity cuts wait while every one of the last 4 weeks has >= this x the prior 4-week median of queries
     plan_risk_hitl_change: float = 1.0  # plan order divides base savings x confidence by this for an ACTIONABLE step
@@ -3837,6 +3840,9 @@ class Estimator:
             est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
         signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
         cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
+        if (d.knob=="max_clusters" and e.current_epoch.config.warehouse_type=="SERVERLESS"
+                and safe_int(d.recommended_config.get("max_clusters"))>safe_int(d.current_config.get("max_clusters"))):
+            cap=min(cap,self.t.confidence_cap_serverless_ceiling_increase)
         confidence=self._confidence(e,a,signal=signal,cap=cap)
         current=d.current_config; recommended=d.recommended_config
         rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
