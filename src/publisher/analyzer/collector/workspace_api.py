@@ -13,6 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.config.versions import PUBLISHER_VERSION
 
@@ -33,7 +34,7 @@ class AuthContext:
 def _load_profile_values(profile: str, config_file: Optional[str] = None) -> Dict[str, str]:
     path = Path(config_file or os.getenv("DATABRICKS_CONFIG_FILE") or Path.home() / ".databrickscfg")
     if not path.exists():
-        raise SystemExit(f"Databricks CLI config not found: {path}")
+        raise PublisherError(f"Databricks CLI config not found: {path}")
     parser = configparser.ConfigParser()
     parser.read(path)
     if profile == "DEFAULT":
@@ -41,7 +42,7 @@ def _load_profile_values(profile: str, config_file: Optional[str] = None) -> Dic
     elif parser.has_section(profile):
         section = parser[profile]
     else:
-        raise SystemExit(f"Databricks CLI profile not found: {profile} in {path}")
+        raise PublisherError(f"Databricks CLI profile not found: {profile} in {path}")
     return {str(k): str(v) for k, v in section.items()}
 
 
@@ -49,14 +50,14 @@ def _load_profile_host(profile: str, config_file: Optional[str] = None) -> str:
     section = _load_profile_values(profile, config_file)
     host = str(section.get("host") or "").strip()
     if not host:
-        raise SystemExit(f"Databricks host is missing from CLI profile: {profile}")
+        raise PublisherError(f"Databricks host is missing from CLI profile: {profile}")
     return host.replace("https://", "").replace("http://", "").rstrip("/")
 
 
 def _resolve_cli_token(profile: str, config_file: Optional[str] = None) -> Tuple[str, str, Optional[str]]:
     values = _load_profile_values(profile, config_file)
     if values.get("token"):
-        raise SystemExit(f"Profile {profile} contains a PAT token. Use an OAuth U2M Databricks CLI profile.")
+        raise PublisherError(f"Profile {profile} contains a PAT token. Use an OAuth U2M Databricks CLI profile.")
     host = _load_profile_host(profile, config_file)
     cmd = ["databricks", "auth", "token", profile, "-o", "json"]
     clean_env = dict(os.environ)
@@ -67,14 +68,14 @@ def _resolve_cli_token(profile: str, config_file: Optional[str] = None) -> Tuple
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=clean_env)
     except FileNotFoundError as exc:
-        raise SystemExit("Databricks CLI is not installed or not on PATH.") from exc
+        raise PublisherError("Databricks CLI is not installed or not on PATH.") from exc
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
-        raise SystemExit(f"Unable to resolve OAuth token for profile {profile}: {detail}") from exc
+        raise PublisherError(f"Unable to resolve OAuth token for profile {profile}: {detail}") from exc
     payload = json.loads(result.stdout)
     token = str(payload.get("access_token") or "")
     if not token:
-        raise SystemExit(f"Databricks CLI returned no access token for profile {profile}")
+        raise PublisherError(f"Databricks CLI returned no access token for profile {profile}")
     return host, token, str(payload.get("expiry") or "") or None
 
 
@@ -111,7 +112,7 @@ def _validate_all_purpose_cluster(host: str, token: str, cluster_id: str) -> Dic
     payload = _api_get(host, token, "/api/2.1/clusters/get", {"cluster_id": cluster_id})
     source = str(payload.get("cluster_source") or "").upper()
     if source == "JOB":
-        raise SystemExit("The Databricks SQL Connector does not support jobs compute. Supply an all-purpose cluster ID.")
+        raise PublisherError("The Databricks SQL Connector does not support jobs compute. Supply an all-purpose cluster ID.")
     LOGGER.info("execution.cluster validated cluster_id=%s name=%s source=%s state=%s", cluster_id, payload.get("cluster_name"), source or "UNKNOWN", payload.get("state"))
     return {"cluster_id": cluster_id, "cluster_name": payload.get("cluster_name"), "cluster_source": source, "state": payload.get("state")}
 
@@ -129,7 +130,7 @@ def resolve_cli_oauth(profile: str, execution_kind: str, execution_id: Optional[
             config_file=str(execution_id)
         execution_kind="warehouse"; execution_id=legacy_warehouse_id
     if not execution_id:
-        raise SystemExit("execution_id is required")
+        raise PublisherError("execution_id is required")
     host, token, expiry = _resolve_cli_token(profile, config_file)
     kind = execution_kind.lower().strip()
     resolved_workspace_id = workspace_id or os.getenv("DATABRICKS_WORKSPACE_ID")
@@ -139,10 +140,10 @@ def resolve_cli_oauth(profile: str, execution_kind: str, execution_id: Optional[
         _validate_all_purpose_cluster(host, token, execution_id)
         resolved_workspace_id = resolved_workspace_id or _current_workspace_id(host, token)
         if not resolved_workspace_id:
-            raise SystemExit("Unable to resolve workspace ID for all-purpose cluster HTTP path. Supply --workspace-id or DATABRICKS_WORKSPACE_ID.")
+            raise PublisherError("Unable to resolve workspace ID for all-purpose cluster HTTP path. Supply --workspace-id or DATABRICKS_WORKSPACE_ID.")
         http_path = f"sql/protocolv1/o/{resolved_workspace_id}/{execution_id}"
     else:
-        raise SystemExit(f"Unsupported execution kind: {execution_kind}. Use warehouse or cluster.")
+        raise PublisherError(f"Unsupported execution kind: {execution_kind}. Use warehouse or cluster.")
     LOGGER.info("execution.target kind=%s id=%s workspace_id=%s http_path=%s", kind, execution_id, resolved_workspace_id or "UNKNOWN", http_path)
     return AuthContext(profile=profile, host=host, http_path=http_path, access_token=token, token_expiry=expiry, execution_kind=kind, execution_id=execution_id, workspace_id=resolved_workspace_id)
 

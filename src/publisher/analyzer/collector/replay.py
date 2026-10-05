@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 from publisher.analyzer.collector.billing import _is_unpriced_only_row
 from publisher.analyzer.normalizer import clean_owner
+from publisher.common.errors import PublisherError
 from publisher.common.hashing import canonical_json
 from publisher.common.utils import as_serializable, round_or_none, safe_float, safe_int
 from publisher.config.settings import _EVIDENCE_SCHEMA_PATH
@@ -102,12 +103,12 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
             payload = json.loads(Path(filename).read_text(encoding="utf-8"))
             validate_evidence_payload(payload)
         except ValueError as exc:
-            raise SystemExit(f"{filename}: {exc}") from exc
+            raise PublisherError(f"{filename}: {exc}") from exc
         for item in payload["warehouses"]:
             e = evidence_from_dict(item)
             key = (e.workspace_id, e.warehouse_id)
             if not e.analysis_time:
-                raise SystemExit(f"Evidence is missing analysis_time for {key}")
+                raise PublisherError(f"Evidence is missing analysis_time for {key}")
 
             if key not in merged:
                 merged[key] = e
@@ -132,12 +133,12 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
                 canonical_json(e.photon_observation), canonical_json(e.attribution),
             )
             if comparable != incoming:
-                raise SystemExit(f"Conflicting modeled evidence for workspace/warehouse {key}")
+                raise PublisherError(f"Conflicting modeled evidence for workspace/warehouse {key}")
 
             epochs: Dict[str, EpochEvidence] = {x.epoch_id: x for x in prior.epochs}
             for ep in e.epochs:
                 if ep.epoch_id in epochs and canonical_json(epochs[ep.epoch_id]) != canonical_json(ep):
-                    raise SystemExit(f"Conflicting epoch evidence for {key}/{ep.epoch_id}")
+                    raise PublisherError(f"Conflicting epoch evidence for {key}/{ep.epoch_id}")
                 epochs.setdefault(ep.epoch_id, ep)
 
             daily: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
@@ -145,13 +146,13 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
                 currency_key = "UNPRICED" if _is_unpriced_only_row(row) else str(row.get("currency_code") or prior.currency)
                 dk = (str(row.get("usage_date")), str(row.get("epoch_start")), currency_key)
                 if dk in daily and canonical_json(daily[dk]) != canonical_json(row):
-                    raise SystemExit(f"Conflicting daily cost evidence for {key}/{dk}")
+                    raise PublisherError(f"Conflicting daily cost evidence for {key}/{dk}")
                 daily[dk] = row
 
             features = dict(prior.billing_features)
             for fk, fv in e.billing_features.items():
                 if fk in features and canonical_json(features[fk]) != canonical_json(fv):
-                    raise SystemExit(f"Conflicting billing feature evidence for {key}/{fk}")
+                    raise PublisherError(f"Conflicting billing feature evidence for {key}/{fk}")
                 features[fk] = fv
 
             regions = sorted({x for x in (prior.source_region.split(",") + e.source_region.split(",")) if x})

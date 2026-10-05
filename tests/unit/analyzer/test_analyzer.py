@@ -15,6 +15,7 @@ from publisher.config.defaults import ACTIVE_KNOBS  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.contracts.request import MODE_DEMO, MODE_REPLAY, PublisherRequest, RunContext  # noqa: E402
 from publisher.contracts.source import WarehouseConfig  # noqa: E402
+from publisher.common.errors import PublisherError  # noqa: E402
 
 CALIBRATION_KEYS = (
     "workspace_serverless_observed_from_system_compute_warehouses",
@@ -79,7 +80,7 @@ class RunTests(unittest.TestCase):
             self.assertEqual({k: v.facts for k, v in a.analyses.items()}, {k: v.facts for k, v in b.analyses.items()})
 
     def test_demo_count_is_bounded(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(PublisherError):
             analyzer.run(RunContext(PublisherRequest(mode=MODE_DEMO, output_dir=Path("."), demo_count=0), Thresholds()))
 
 

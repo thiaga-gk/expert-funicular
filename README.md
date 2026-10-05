@@ -70,7 +70,7 @@ See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md)
 ## Synthetic golden-scenario fleet (end-to-end test)
 
 ```bash
-python -m publisher --demo --output-dir ./demo_out
+publisher --demo --output-dir ./demo_out
 python scripts/run_demo.py ./demo_out      # same run, no install
 ```
 
@@ -86,7 +86,7 @@ SQL warehouse / Serverless execution target:
 
 ```bash
 databricks auth login --host https://<workspace> --profile WHOPT
-python -m publisher \
+publisher \
   --profile WHOPT \
   --serverless-warehouse-id <warehouse-id> \
   --source-region us-east-1 \

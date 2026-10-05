@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.metrics import annualized_resource_rates
+from publisher.common.errors import PublisherError
 from publisher.common.utils import safe_float
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY
 from publisher.governor.thresholds import Thresholds
@@ -28,10 +29,10 @@ def load_aws_price_registry(path: Optional[str]) -> Dict[str, Any]:
         return {}
     p = Path(path)
     if not p.exists():
-        raise SystemExit(f"AWS price registry not found: {path}")
+        raise PublisherError(f"AWS price registry not found: {path}")
     payload = json.loads(p.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
-        raise SystemExit(f"AWS price registry must be a JSON object: {path}")
+        raise PublisherError(f"AWS price registry must be a JSON object: {path}")
     return dict(payload)
 
 

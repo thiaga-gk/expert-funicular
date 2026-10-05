@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from publisher.analyzer.collector.workspace_api import AuthContext
+from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.config.versions import PUBLISHER_VERSION
 
@@ -23,7 +24,7 @@ class SqlClient:
         try:
             from databricks import sql  # type: ignore
         except ImportError as exc:
-            raise SystemExit('Install dependency: python -m pip install "databricks-sql-connector>=4.2.6"') from exc
+            raise PublisherError('Install dependency: python -m pip install "databricks-sql-connector>=4.2.6"') from exc
         # Billing usage_date and every analysis window are UTC; DATE()/CURRENT_DATE() follow the session time zone,
         # so the session is pinned to UTC and verified before any collector query runs.
         self._connection = sql.connect(
@@ -37,7 +38,7 @@ class SqlClient:
         timezone = str(rows[0].get("tz") if rows else "")
         if timezone not in UTC_TIMEZONE_NAMES:
             self.__exit__(None, None, None)
-            raise SystemExit(f"SQL session time zone is {timezone or 'unknown'}, not UTC; collector dates would not align with UTC billing dates.")
+            raise PublisherError(f"SQL session time zone is {timezone or 'unknown'}, not UTC; collector dates would not align with UTC billing dates.")
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -64,5 +65,5 @@ def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
     try:
         day = dt.date.fromisoformat(str(cutoff))
     except ValueError as exc:
-        raise SystemExit(f"--billing-ingested-through must be a YYYY-MM-DD date, got {cutoff!r}") from exc
+        raise PublisherError(f"--billing-ingested-through must be a YYYY-MM-DD date, got {cutoff!r}") from exc
     return statement.replace("__INGESTION_CUTOFF__", f"DATE'{day.isoformat()}'")

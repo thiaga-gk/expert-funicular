@@ -12,6 +12,7 @@ from publisher.analyzer.collector.replay import load_evidence_files
 from publisher.analyzer.collector.sql_executor import SqlClient
 from publisher.analyzer.collector.workspace_api import collect_workspace_compatibility_evidence, resolve_cli_oauth
 from publisher.analyzer.findings import Analyzer
+from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES
 from publisher.governor.thresholds import Thresholds
@@ -43,7 +44,7 @@ def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[War
     """
     if request.mode == MODE_DEMO:
         if not (1 <= request.demo_count <= len(DEMO_FLEET)):
-            raise SystemExit(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
+            raise PublisherError(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
         LOGGER.info("mode.demo synthetic_collector_warehouses=%d", request.demo_count)
         return synthetic_demo_evidence(request.demo_count), None, None
     if request.mode == MODE_REPLAY:

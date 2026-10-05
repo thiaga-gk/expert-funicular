@@ -1,0 +1,246 @@
+{
+  "options": [
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": "./warehouse_optimizer_out",
+      "dest": "output_dir",
+      "flags": [
+        "--output-dir"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreTrueAction",
+      "choices": null,
+      "default": false,
+      "dest": "demo",
+      "flags": [
+        "--demo"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_AppendAction",
+      "choices": null,
+      "default": [],
+      "dest": "from_evidence",
+      "flags": [
+        "--from-evidence"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": "DEFAULT",
+      "dest": "profile",
+      "flags": [
+        "--profile"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": [
+        "warehouse",
+        "cluster"
+      ],
+      "default": null,
+      "dest": "execution_kind",
+      "flags": [
+        "--execution-kind"
+      ],
+      "help": "Collector SQL execution target kind",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "execution_id",
+      "flags": [
+        "--execution-id"
+      ],
+      "help": "SQL warehouse ID or all-purpose cluster ID",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "sql_warehouse_id",
+      "flags": [
+        "--sql-warehouse-id"
+      ],
+      "help": "Convenience alias for a SQL warehouse execution target",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "serverless_warehouse_id",
+      "flags": [
+        "--serverless-warehouse-id"
+      ],
+      "help": "Convenience alias for a Serverless SQL warehouse execution target",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "all_purpose_cluster_id",
+      "flags": [
+        "--all-purpose-cluster-id"
+      ],
+      "help": "Convenience alias for an all-purpose compute execution target",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "workspace_id",
+      "flags": [
+        "--workspace-id"
+      ],
+      "help": "Workspace/org ID; optional for warehouse, used to construct all-purpose cluster HTTP path",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "config_file",
+      "flags": [
+        "--config-file"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": "unknown",
+      "dest": "source_region",
+      "flags": [
+        "--source-region"
+      ],
+      "help": "AWS region of the workspace; Pro/Classic AWS cost uses its registry prices",
+      "type": null
+    },
+    {
+      "action": "_StoreTrueAction",
+      "choices": null,
+      "default": false,
+      "dest": "allow_missing_aws_price",
+      "flags": [
+        "--allow-missing-aws-price"
+      ],
+      "help": "Live mode: publish even when --source-region is missing from the AWS price registry (Pro/Classic AWS cost unavailable)",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": null,
+      "dest": "billing_ingested_through",
+      "flags": [
+        "--billing-ingested-through"
+      ],
+      "help": "YYYY-MM-DD: only billing records ingested on or before this date (reproduces an earlier collection)",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": "<repo>/pricing/aws_ec2_on_demand.json",
+      "dest": "aws_price_registry",
+      "flags": [
+        "--aws-price-registry"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": 100,
+      "dest": "batch_size",
+      "flags": [
+        "--batch-size"
+      ],
+      "help": "Downstream analysis/report batch size; collector SQL is set-based and aggregated in Databricks",
+      "type": "int"
+    },
+    {
+      "action": "_StoreAction",
+      "choices": [
+        "auto",
+        "off"
+      ],
+      "default": "auto",
+      "dest": "compatibility_api_mode",
+      "flags": [
+        "--compatibility-api-mode"
+      ],
+      "help": "auto=B read-only workspace compatibility API when available, else A HITL fallback",
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": [
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR"
+      ],
+      "default": "INFO",
+      "dest": "log_level",
+      "flags": [
+        "--log-level"
+      ],
+      "help": null,
+      "type": null
+    },
+    {
+      "action": "_StoreAction",
+      "choices": null,
+      "default": 41,
+      "dest": "demo_count",
+      "flags": [
+        "--demo-count"
+      ],
+      "help": "Synthetic collector warehouse count for --demo (1..41, one per golden scenario)",
+      "type": "int"
+    },
+    {
+      "action": "_StoreTrueAction",
+      "choices": null,
+      "default": false,
+      "dest": "no_workbook",
+      "flags": [
+        "--no-workbook"
+      ],
+      "help": "Skip workbook.xlsx generation; locked JSON packages are still emitted",
+      "type": null
+    },
+    {
+      "action": "_StoreTrueAction",
+      "choices": null,
+      "default": false,
+      "dest": "print_json",
+      "flags": [
+        "--print-json"
+      ],
+      "help": null,
+      "type": null
+    }
+  ]
+}

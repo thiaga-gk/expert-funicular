@@ -17,6 +17,7 @@ from publisher.common.utils import as_serializable  # noqa: E402
 from publisher.config.versions import EVIDENCE_FORMAT_VERSION, PUBLISHER_VERSION  # noqa: E402
 from publisher.contracts.source import EpochEvidence, PhotonObservation, QuerySourceProfile, WarehouseAttribution, WarehouseConfig, WarehouseEvidence  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
+from publisher.common.errors import PublisherError  # noqa: E402
 
 SCHEMA = json.loads((ROOT / "schema" / "evidence.schema.json").read_text())
 
@@ -51,7 +52,7 @@ class EvidenceFormatTests(unittest.TestCase):
     def test_a_bare_list_is_rejected(self):
         path = self.dir / "old.json"
         path.write_text(json.dumps(as_serializable(self.evidence)))
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(PublisherError) as ctx:
             load_evidence_files([str(path)])
         self.assertIn("evidence_format_version", str(ctx.exception))
 
@@ -65,14 +66,14 @@ class EvidenceFormatTests(unittest.TestCase):
                     payload["evidence_format_version"] = version
                 path = self.dir / "v.json"
                 path.write_text(json.dumps(payload))
-                with self.assertRaises(SystemExit) as ctx:
+                with self.assertRaises(PublisherError) as ctx:
                     load_evidence_files([str(path)])
                 self.assertIn("unsupported evidence_format_version", str(ctx.exception))
 
     def test_invalid_json_is_rejected_with_the_file_name(self):
         path = self.dir / "broken.json"
         path.write_text("{not json")
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(PublisherError) as ctx:
             load_evidence_files([str(path)])
         self.assertIn("broken.json", str(ctx.exception))
 
@@ -81,7 +82,7 @@ class EvidenceFormatTests(unittest.TestCase):
         del payload["warehouses"][0]["forecast_metadata"]["dbu_forecast_status"]
         path = self.dir / "nostatus.json"
         path.write_text(json.dumps(payload))
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(PublisherError) as ctx:
             load_evidence_files([str(path)])
         self.assertIn("warehouses/0/forecast_metadata", str(ctx.exception))
         self.assertIn("dbu_forecast_status", str(ctx.exception))

@@ -15,6 +15,7 @@ from publisher.contracts.analysis import FleetAnalysis  # noqa: E402
 from publisher.contracts.request import MODE_DEMO, MODE_LIVE, PublisherRequest, RunContext  # noqa: E402
 from publisher.governor import governor  # noqa: E402
 from publisher.governor.compatibility import migration_compatibility  # noqa: E402
+from publisher.common.errors import PublisherError  # noqa: E402
 
 REGISTRY = {"regions": {"us-east-1": {}}}
 
@@ -46,9 +47,9 @@ class LiveConstraintTests(unittest.TestCase):
 
     def test_live_run_stops_when_its_region_has_no_aws_prices(self):
         analysis = analysis_of(synthetic_demo_evidence(4), REGISTRY)
-        with self.assertRaises(SystemExit) as cm:
+        with self.assertRaises(PublisherError) as cm:
             governor.run(self.request("eu-west-9"), analysis)
-        self.assertIn("--allow-missing-aws-price", str(cm.exception.code))
+        self.assertIn("--allow-missing-aws-price", str(cm.exception))
         self.assertEqual(len(governor.run(self.request("us-east-1"), analysis).eligible), 4)
 
     def test_escape_flag_publishes_and_logs(self):

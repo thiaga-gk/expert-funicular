@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic, read-only Databricks SQL Warehouse optimizer: the publisher facade.
+"""Deterministic, read-only Databricks SQL Warehouse optimizer: the publisher facade (the CLI is publisher.cli).
 
     Analyzer -> Governor -> Optimizer -> Reviewer (candidate gate) -> Packager -> Reviewer (package gate) -> Reporter
 
@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from publisher.analyzer import analyzer
-from publisher.common.logging import LOGGER, setup_logging
-from publisher.config.loader import parse_args, request_from_args
-from publisher.config.versions import ANALYZER_VERSION, BUNDLE_MODEL_VERSION, ESTIMATOR_VERSION, OPTIMIZER_VERSION, POLICY_VERSION
+from publisher.analyzer.collector.demo import DEMO_FLEET
+from publisher.common.logging import LOGGER
+from publisher.config.loader import resolve_execution_mode
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.governance import GovernanceResult
@@ -31,9 +31,14 @@ from publisher.reporter import reporter
 from publisher.reviewer import reviewer
 
 
-
 def build_context(request: PublisherRequest, thresholds: Optional[Thresholds] = None) -> RunContext:
+    resolve_execution_mode(request.execution_mode)
     return RunContext(request=request, thresholds=thresholds if thresholds is not None else Thresholds())
+
+
+def demo_fleet_size() -> int:
+    """Simulated warehouses in the demo fleet (one per golden scenario); the CLI's --demo-count default and bound."""
+    return len(DEMO_FLEET)
 
 
 def _log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
@@ -86,20 +91,3 @@ def build_recommendation_packages(
     """Evidence in hand to reviewed public packages, without writing anything."""
     context, analysis, governance, reviewed = _reviewed_candidates(evidence, thresholds, batch_size)
     return reviewer.review_package(context, analysis, governance, packager.run(context, analysis, governance, reviewed)).packages
-
-
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    """CLI: python -m publisher."""
-    args = parse_args(argv)
-    log_path = setup_logging(Path(args.output_dir), args.log_level)
-    LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",
-                POLICY_VERSION, ANALYZER_VERSION, OPTIMIZER_VERSION, ESTIMATOR_VERSION, BUNDLE_MODEL_VERSION)
-    report = publish(request_from_args(args))
-    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",
-                report.analyzed_count, report.excluded_count, len(report.packages), report.candidate_count, report.scenario_count, log_path)
-    reporter.print_summary(report, log_path, print_json=args.print_json)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
