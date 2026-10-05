@@ -4327,12 +4327,19 @@ class ScenarioPlanner:
         type_c=by_knob["warehouse_type"]; bsteps=[]
         if type_c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"}:
             bsteps=[PlanStep(1,type_c.recommendation_id,type_c.knob,type_c.current_config,type_c.recommended_config,type_c.status,self._gate(type_c),self.t.remeasure_days_after_invalidating_change,type_c.invalidates,type_c.dependencies,"READY_FOR_CANARY","Run a compatibility-gated A/B canary; successful migration invalidates current-type tuning and requires re-analysis.",confidence=dict(type_c.confidence))]
-        target=str(type_c.recommended_config.get("warehouse_type") or "UNKNOWN").upper()
-        plan_b_name=f"Plan B — {target.title()} migration experiment"
+        # The type the migration was evaluated against: the recommended type, or the one a value gate held. A migration
+        # that was never evaluated (too little evidence) has no target, so no checks run against the current type.
+        held=(type_c.metadata.get("value_gate") or {}).get("held_change") or {}
+        evaluated=type_c.recommended_config.get("warehouse_type") if bsteps else held.get("warehouse_type")
+        target=str(evaluated).upper() if evaluated else None
         plan_b_id=scenario_id(e.workspace_id,e.warehouse_id,"Plan B",[s.recommendation_id for s in bsteps])
-        compat=self._compatibility(e,target)
         pe=self.bundle.estimate(e,bsteps,by_id) if bsteps else self.bundle.estimate(e,[],by_id)
-        plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,plan_b_name,f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else [],False,compat,self._scenario_confidence(bsteps))
+        if target is None:
+            plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,"Plan B — Migration not evaluated",
+                "No warehouse-type migration was evaluated: "+", ".join(type_c.blockers or ["NO_MIGRATION_TARGET"])+". Re-run once the evidence gates pass.",
+                [],pe,list(type_c.blockers),False,{"target_warehouse_type":None,"assessment":"NOT_EVALUATED","evidence_mode":"A_HITL_FALLBACK","checks":[]},self._scenario_confidence([]))
+        else:
+            plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,f"Plan B — {target.title()} migration experiment",f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else list(type_c.blockers),False,self._compatibility(e,target),self._scenario_confidence(bsteps))
         return [plan_a,plan_b],plan_a.scenario_id
 
 
@@ -4862,12 +4869,16 @@ def _compatibility_contract(
 ) -> rc.Compatibility:
     comp = s.compatibility or {}
     assessment = str(comp.get("assessment") or "CURRENT_TYPE")
-    # A planner FAIL (a check failed) is incompatible; its PASS stays REQUIRES_VALIDATION for now: an empty
-    # alternative marked COMPATIBLE would hash to the same scenario ID as an empty recommended plan.
-    if assessment in {"CURRENT_TYPE", "COMPATIBLE"}:
+    # A planner FAIL (a check failed) is incompatible and a migration whose every check passed is compatible. An empty
+    # alternative (no migration step) is never COMPATIBLE: it would hash to the same scenario ID as an empty recommended
+    # plan, which is always COMPATIBLE. A migration that was not evaluated has no checks: UNKNOWN.
+    migrates = any(st.knob == "warehouse_type" for st in s.steps)
+    if assessment in {"CURRENT_TYPE", "COMPATIBLE"} or (assessment == "PASS" and migrates):
         status = rc.CompatibilityStatus.COMPATIBLE
     elif assessment in {"INCOMPATIBLE", "BLOCKED", "FAIL"}:
         status = rc.CompatibilityStatus.INCOMPATIBLE
+    elif assessment == "NOT_EVALUATED":
+        status = rc.CompatibilityStatus.UNKNOWN
     else:
         status = rc.CompatibilityStatus.REQUIRES_VALIDATION
     mode_raw = str(comp.get("evidence_mode") or ("SYSTEM_TABLE_ONLY" if assessment == "CURRENT_TYPE" else "A_HITL_FALLBACK"))
