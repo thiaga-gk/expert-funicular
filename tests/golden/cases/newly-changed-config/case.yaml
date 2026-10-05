@@ -1,0 +1,5 @@
+name: newly-changed-config
+description: A current config epoch younger than policy maturity blocks aggressive changes.
+expect:
+  blocker: CURRENT_CONFIG_EPOCH_TOO_NEW
+  warehouse: wh-demo-001

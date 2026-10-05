@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import publisher
+from tests.golden import case_names, load_case
 from contracts import reporter_contract as rc
 
 
@@ -157,15 +158,14 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         })
 
     def test_all_golden_scenarios_adapt_to_locked_contract(self):
-        golden = Path(__file__).resolve().parent / "golden"
-        for fixture in sorted(golden.glob("*.json")):
-            payload = json.loads(fixture.read_text())
+        for name in case_names():
+            payload = load_case(name)
             if "evidence" not in payload:
-                continue  # collector-level fixture (raw snapshots), covered by test_golden_scenarios
+                continue  # collector-level fixture (raw snapshots), covered by tests/golden/test_golden_publisher.py
             evidence = [publisher.evidence_from_dict(x) for x in payload["evidence"]]
             thresholds = publisher.Thresholds()
             packages = publisher.build_recommendation_packages(evidence, thresholds)
-            self.assertGreaterEqual(len(packages), 1, fixture.name)
+            self.assertGreaterEqual(len(packages), 1, name)
             for package in packages:
                 package.validate()
                 publisher.validate_locked_package_schema(package.to_dict())

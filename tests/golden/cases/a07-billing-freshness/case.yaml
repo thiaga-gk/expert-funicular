@@ -1,0 +1,11 @@
+name: a07-billing-freshness
+description: 'A07 Billing freshness: analysis at 2026-10-01 12:00 UTC; 2026-09-30 is only half ingested ($50 of a steady $100/day).
+  A day counts only once it has settled (24 h after it ends), so the forecast uses 2026-09-01..09-29 and is 36,500/yr, not
+  dragged down by the partial day.'
+expect:
+  assertions:
+  - equals: 36500.0
+    path: cost_baseline.forward_365d.dbu_cost
+  recompute_forecast: true
+  scenario: A07
+  warehouse: wh-demo-001

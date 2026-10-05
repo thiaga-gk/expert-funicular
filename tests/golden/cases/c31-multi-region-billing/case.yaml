@@ -1,0 +1,16 @@
+name: c31-multi-region-billing
+description: 'C31 Multi-region account: two workspaces whose billing ingestion is at different points (us-east through 2026-10-03,
+  eu-west only through 2026-09-25). Completeness is judged per workspace, so the lagging workspace''s forecast stops at its
+  own watermark instead of the account-wide one; its warehouse kept running, so the missing billing is lag, not idleness.'
+now: '2026-10-03 12:00:00'
+analysis_time: '2026-10-03T12:00:00+00:00'
+expect:
+  evidence_assertions:
+  - equals: '2026-09-24'
+    path: forecast_metadata.billing_complete_through
+  - equals: '2026-09-25'
+    path: forecast_metadata.billing_ingested_through
+  - equals: 24
+    path: forecast_metadata.billing_settle_hours
+  scenario: C31
+  warehouse: wh-west

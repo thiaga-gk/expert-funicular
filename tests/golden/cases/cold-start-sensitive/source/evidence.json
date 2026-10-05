@@ -1,0 +1,4559 @@
+[
+  {
+    "account_id": "acct-demo",
+    "analysis_time": "2026-10-01T12:00:00+00:00",
+    "attribution": {
+      "observed_owners": [
+        "golden-owner@databricks.example"
+      ],
+      "owner": "golden-owner@databricks.example",
+      "owner_source": "system.billing.usage.identity_metadata.owned_by",
+      "query_source": {
+        "categories": {
+          "ALERT": 300,
+          "DASHBOARD": 7000,
+          "GENIE": 500,
+          "JOB": 3000,
+          "LOOKER": 0,
+          "NOTEBOOK": 1000,
+          "POWER_BI": 0,
+          "SQL_EDITOR": 200,
+          "TABLEAU": 0
+        },
+        "client_applications": [],
+        "multi_label": true,
+        "percentages": {
+          "ALERT": 2.5,
+          "DASHBOARD": 58.333,
+          "GENIE": 4.167,
+          "JOB": 25.0,
+          "LOOKER": 0.0,
+          "NOTEBOOK": 8.333,
+          "POWER_BI": 0.0,
+          "SQL_EDITOR": 1.667,
+          "TABLEAU": 0.0
+        },
+        "primary_category": "DASHBOARD"
+      }
+    },
+    "aws_baseline_cost_365": 8793.82,
+    "aws_cost_model": {
+      "annualized_cluster_hours": 704.633,
+      "annualized_cluster_minutes": 42277.992,
+      "cluster_hourly_price": 12.48,
+      "currency": "USD",
+      "driver_hourly_price": 2.496,
+      "driver_instance": "i3.8xlarge",
+      "method": "current-config-epoch cluster-minute run-rate \u00d7 documented SQL warehouse AWS topology \u00d7 versioned regional EC2 price registry",
+      "observed_cluster_minutes": 30000.0,
+      "observed_days": 259,
+      "pricing_mode": "ON_DEMAND_LIST",
+      "region": "us-east-1",
+      "region_instance_prices": {
+        "i3.16xlarge": 4.992,
+        "i3.2xlarge": 0.624,
+        "i3.4xlarge": 1.248,
+        "i3.8xlarge": 2.496
+      },
+      "sources": [
+        "https://aws.amazon.com/ec2/pricing/on-demand/",
+        "https://aws.amazon.com/blogs/aws/now-available-i3-instances-for-demanding-io-intensive-applications/",
+        "https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior"
+      ],
+      "status": "MODELED",
+      "trend_adjustment_factor": 1.0,
+      "warehouse_size": "LARGE",
+      "worker_count": 16,
+      "worker_hourly_price": 0.624,
+      "worker_instance": "i3.2xlarge"
+    },
+    "baseline_forecast_cost_365": 27000.0,
+    "billing_features": {
+      "cloud": "AWS",
+      "photon_usage_pct_365": 100.0,
+      "serverless_usage_pct_365": 0.0
+    },
+    "compatibility_evidence": {},
+    "cost_cv_84": 0.25,
+    "cost_history_days": 259,
+    "currency": "USD",
+    "current_cost_365": 25000.0,
+    "current_epoch_id": "EPOCH-6A60A322EE69723E",
+    "daily_cost_365": [
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-10-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-10-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-10-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-10-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-10-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-10-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-10-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-10-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-10-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-10-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-10-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-10-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-10-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-10-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-10-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-10-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-10-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-10-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-10-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-10-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-10-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-10-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-10-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-10-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-10-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-10-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-10-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-10-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-10-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-10-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-10-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-11-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-11-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-11-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-11-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-11-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-11-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-11-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-11-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-11-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-11-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-11-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-11-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-11-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-11-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-11-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-11-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-11-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-11-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-11-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-11-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-11-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-11-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-11-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-11-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-11-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-11-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-11-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-11-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-11-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-11-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-12-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-12-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-12-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-12-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-12-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-12-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-12-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-12-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-12-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-12-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-12-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-12-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-12-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-12-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-12-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-12-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-12-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-12-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-12-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-12-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-12-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-12-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-12-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-12-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2025-12-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2025-12-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2025-12-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2025-12-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2025-12-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2025-12-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2025-12-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2026-01-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2026-01-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2026-01-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2026-01-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2026-01-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2026-01-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2026-01-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 43.05949,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 34.985836,
+        "usage_date": "2026-01-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 45.325778,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 36.827195,
+        "usage_date": "2026-01-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 47.592068,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 38.668555,
+        "usage_date": "2026-01-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 49.858357,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 40.509915,
+        "usage_date": "2026-01-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 38.526912,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 31.303116,
+        "usage_date": "2026-01-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 52.124646,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 42.351275,
+        "usage_date": "2026-01-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 40.793201,
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "list_cost": 33.144476,
+        "usage_date": "2026-01-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-01-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-01-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-01-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-01-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-01-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-01-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-01-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-01-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-01-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-01-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-01-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-01-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-01-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-01-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-01-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-01-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-01-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-02-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-02-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-02-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-02-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-02-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-02-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-02-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-02-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-02-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-02-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-02-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-02-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-02-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-02-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-02-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-02-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-02-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-02-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-02-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-02-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-02-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-02-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-02-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-02-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-02-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-02-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-02-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-02-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-03-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-03-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-03-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-03-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-03-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-03-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-03-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-03-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-03-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-03-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-03-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-03-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-03-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-03-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-03-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-03-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-03-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-03-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-03-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-03-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-03-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-03-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-03-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-03-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-03-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-03-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-03-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-03-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-03-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-03-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-03-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-04-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-04-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-04-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-04-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-04-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-04-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-04-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-04-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-04-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-04-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-04-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-04-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-04-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-04-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-04-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-04-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-04-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-04-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-04-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-04-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-04-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-04-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-04-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-04-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-04-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-04-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-04-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-04-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-04-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-04-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-05-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-05-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-05-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-05-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-05-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-05-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-05-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-05-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-05-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-05-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-05-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-05-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-05-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-05-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-05-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-05-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-05-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-05-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-05-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-05-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-05-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-05-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-05-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-05-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-05-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-05-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-05-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-05-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-05-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-05-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-05-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-06-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-06-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-06-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-06-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-06-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-06-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-06-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-06-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-06-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-06-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-06-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-06-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-06-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-06-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-06-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-06-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-06-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-06-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-06-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-06-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-06-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-06-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-06-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-06-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-06-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-06-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-06-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-06-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-06-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-06-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-07-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-07-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-07-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-07-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-07-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-07-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-07-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-07-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-07-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-07-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-07-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-07-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-07-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-07-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-07-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-07-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-07-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-07-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-07-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-07-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-07-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-07-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-07-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-07-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-07-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-07-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-07-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-07-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-07-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-07-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-07-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-08-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-08-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-08-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-08-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-08-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-08-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-08-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-08-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-08-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-08-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-08-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-08-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-08-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-08-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-08-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-08-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-08-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-08-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-08-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-08-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-08-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-08-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-08-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-08-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-08-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-08-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-08-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-08-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-08-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-08-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-08-31",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-09-01",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-09-02",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-09-03",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-09-04",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-09-05",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-09-06",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-09-07",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-09-08",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-09-09",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-09-10",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-09-11",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-09-12",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-09-13",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-09-14",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-09-15",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-09-16",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-09-17",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-09-18",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-09-19",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-09-20",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-09-21",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-09-22",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-09-23",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 69.498069,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 73.320463,
+        "usage_date": "2026-09-24",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 73.359073,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 77.393822,
+        "usage_date": "2026-09-25",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 77.220077,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 81.467181,
+        "usage_date": "2026-09-26",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 81.081082,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 85.540541,
+        "usage_date": "2026-09-27",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 84.942085,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 89.6139,
+        "usage_date": "2026-09-28",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 65.637065,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 69.247104,
+        "usage_date": "2026-09-29",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "currency_code": "USD",
+        "dbu_quantity": 88.803089,
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "list_cost": 93.687259,
+        "usage_date": "2026-09-30",
+        "warehouse_id": "wh-demo-001",
+        "workspace_id": "1234567890123456"
+      }
+    ],
+    "epochs": [
+      {
+        "account_id": "acct-demo",
+        "config": {
+          "auto_stop_minutes": 120,
+          "max_clusters": 4,
+          "min_clusters": 2,
+          "warehouse_channel": "CURRENT",
+          "warehouse_size": "MEDIUM",
+          "warehouse_type": "PRO"
+        },
+        "cost": {
+          "active_cost_days": 106,
+          "cost_days": 106,
+          "currency": "USD",
+          "dbu_quantity": 4800.0,
+          "list_cost": 3900.0
+        },
+        "epoch_end": "2026-01-15T00:00:00+00:00",
+        "epoch_id": "EPOCH-45CB2468F2C53295",
+        "epoch_start": "2025-10-01T00:00:00+00:00",
+        "events": {
+          "cluster_minutes": 12000.0,
+          "event_coverage_start": "2025-10-01T00:00:00+00:00",
+          "max_observed_clusters": 2,
+          "minutes_at_max": 0.0,
+          "minutes_at_min": 6000.0,
+          "time_at_max_pct": 0.0,
+          "time_at_min_pct": 75.0,
+          "uptime_minutes": 8000.0
+        },
+        "gaps": {},
+        "is_current": false,
+        "query": {
+          "concurrency_histogram": {
+            "EPOCH": {
+              "1": 990.0,
+              "20": 10.0
+            }
+          },
+          "epoch_active_days": 100,
+          "epoch_p95_execution_ms": 3300,
+          "epoch_queries": 30000,
+          "epoch_queued_query_pct": 0.1,
+          "epoch_spill_query_pct": 0.0
+        },
+        "resource_daily": null,
+        "tags": {
+          "environment": "production"
+        },
+        "warehouse_id": "wh-demo-001",
+        "warehouse_name": "BI - Sales",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "account_id": "acct-demo",
+        "config": {
+          "auto_stop_minutes": 120,
+          "max_clusters": 4,
+          "min_clusters": 2,
+          "warehouse_channel": "CURRENT",
+          "warehouse_size": "LARGE",
+          "warehouse_type": "PRO"
+        },
+        "cost": {
+          "active_cost_days": 259,
+          "cost_days": 259,
+          "currency": "USD",
+          "dbu_quantity": 20000.0,
+          "list_cost": 21100.0
+        },
+        "epoch_end": null,
+        "epoch_id": "EPOCH-6A60A322EE69723E",
+        "epoch_start": "2026-01-15T00:00:00+00:00",
+        "events": {
+          "cluster_minutes": 30000.0,
+          "event_coverage_start": "2026-01-15T00:00:00+00:00",
+          "max_observed_clusters": 2,
+          "minutes_at_max": 0.0,
+          "minutes_at_min": 16000.0,
+          "resource_coverage_from": null,
+          "scale_downs_30": 3,
+          "scale_ups_30": 3,
+          "starts_30": 30,
+          "time_at_max_pct": 0.0,
+          "time_at_min_pct": 80.0,
+          "uptime_minutes": 20000.0
+        },
+        "gaps": {
+          "gap_count": 480,
+          "kept_alive_gap_count": 0,
+          "kept_alive_wall_minutes": 0.0,
+          "observed_running_cluster_minutes": 30000.0,
+          "p50_gap_minutes": 8.0,
+          "p90_gap_minutes": 95.0,
+          "restarts_for_queries": 0,
+          "running_idle_by_target": {
+            "10": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 25000.0,
+              "removable_running_wall_minutes": 12500.0
+            },
+            "15": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 23000.0,
+              "removable_running_wall_minutes": 11500.0
+            },
+            "20": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 21333.334,
+              "removable_running_wall_minutes": 10666.667
+            },
+            "25": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 19666.666,
+              "removable_running_wall_minutes": 9833.333
+            },
+            "30": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 18000.0,
+              "removable_running_wall_minutes": 9000.0
+            },
+            "35": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 16333.334,
+              "removable_running_wall_minutes": 8166.667
+            },
+            "40": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 14666.666,
+              "removable_running_wall_minutes": 7333.333
+            },
+            "45": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 13000.0,
+              "removable_running_wall_minutes": 6500.0
+            },
+            "5": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 27000.0,
+              "removable_running_wall_minutes": 13500.0
+            },
+            "50": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 11333.334,
+              "removable_running_wall_minutes": 5666.667
+            },
+            "55": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 9666.666,
+              "removable_running_wall_minutes": 4833.333
+            },
+            "60": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 8000.0,
+              "removable_running_wall_minutes": 4000.0
+            },
+            "65": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 6333.334,
+              "removable_running_wall_minutes": 3166.667
+            },
+            "70": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 4666.666,
+              "removable_running_wall_minutes": 2333.333
+            },
+            "75": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 3000.0,
+              "removable_running_wall_minutes": 1500.0
+            },
+            "80": {
+              "added_idle_wall_minutes": 0.0,
+              "additional_starts": 600,
+              "avoided_starts": 0,
+              "removable_running_cluster_minutes": 1333.334,
+              "removable_running_wall_minutes": 666.667
+            }
+          },
+          "running_idle_queries": 12000,
+          "running_idle_window_end": "2026-10-01T12:00:00+00:00",
+          "running_idle_window_start": "2026-01-15T00:00:00+00:00",
+          "running_segment_count": 1
+        },
+        "is_current": true,
+        "query": {
+          "active_days_30": 30,
+          "alert_queries_30": 300,
+          "avg_read_io_cache_percent_30": 42.0,
+          "compute_wait_queries_30": 30,
+          "concurrency_histogram": {
+            "BUSY_START": {
+              "10": 30.0
+            },
+            "EPOCH": {
+              "1": 990.0,
+              "20": 10.0
+            },
+            "RECENT": {
+              "1": 990.0,
+              "20": 10.0
+            }
+          },
+          "dashboard_queries_30": 7000,
+          "decision_queries_30": 10320,
+          "epoch_active_days": 250,
+          "epoch_p95_execution_ms": 2700,
+          "epoch_queries": 110000,
+          "epoch_queued_query_pct": 0.0,
+          "epoch_spill_query_pct": 0.0,
+          "failure_cancel_pct_30": 0.2,
+          "genie_queries_30": 500,
+          "hive_metastore_reference_queries_30": 0,
+          "job_queries_30": 3000,
+          "max_execution_ms_30": 220000,
+          "notebook_queries_30": 1000,
+          "p95_execution_ms_30": 2500,
+          "p95_read_bytes_30": 20971520,
+          "p95_spill_bytes_when_spilled_30": null,
+          "p95_total_ms_30": 3200,
+          "p95_wait_capacity_ms_when_queued_30": null,
+          "p95_wait_compute_ms_when_waited_30": 120000,
+          "p99_execution_ms_30": 10000,
+          "queries_30": 12000,
+          "queued_queries_30": 0,
+          "queued_query_pct_30": 0.0,
+          "result_cache_pct_30": 14.0,
+          "spill_queries_30": 0,
+          "spill_query_pct_30": 0.0,
+          "sql_query_source_queries_30": 200,
+          "statement_text_visible_pct_30": 100.0,
+          "tagged_query_pct_30": 78.0,
+          "total_spill_gib_30": 0.0
+        },
+        "resource_daily": [
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-07"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-08"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-09"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-10"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-11"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-12"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-13"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-14"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-15"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-16"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-17"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-18"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-19"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-20"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-21"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-22"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-23"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-24"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-25"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-26"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-27"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-28"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-29"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-30"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-07-31"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-01"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-02"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-03"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-04"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-05"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-06"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-07"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-08"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-09"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-10"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-11"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-12"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-13"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-14"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-15"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-16"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-17"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-18"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-19"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-20"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-21"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-22"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-23"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-24"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-25"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-26"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-27"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-28"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-29"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-30"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-08-31"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-01"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-02"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-03"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-04"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-05"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-06"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-07"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-08"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-09"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-10"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-11"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-12"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-13"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-14"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-15"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-16"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-17"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-18"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-19"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-20"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-21"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-22"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-23"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-24"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-25"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-26"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-27"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-28"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-29"
+          },
+          {
+            "cluster_minutes": 115.830116,
+            "max_cluster_count": 2,
+            "minutes_at_max": 0.0,
+            "minutes_at_min": 61.776062,
+            "recycle_minutes": 0.0,
+            "starts": 0,
+            "uptime_minutes": 77.220077,
+            "usage_day": "2026-09-30"
+          }
+        ],
+        "tags": {
+          "environment": "production",
+          "team": "sales-analytics"
+        },
+        "warehouse_id": "wh-demo-001",
+        "warehouse_name": "BI - Sales",
+        "workspace_id": "1234567890123456"
+      }
+    ],
+    "forecast_metadata": {
+      "active_cost_days": 259,
+      "dbu_forecast_status": "COMPLETE",
+      "forecast_basis_end": "2026-09-30",
+      "forecast_basis_start": "2026-01-15",
+      "forecast_method": "epoch-runrate-v2.7",
+      "run_rate_28": 28000.0,
+      "run_rate_84": 26500.0,
+      "trend_adjustment_factor": 1.0,
+      "trend_ratio": 1.0,
+      "zero_cost_days_in_basis": 0
+    },
+    "photon_observation": {
+      "confidence": {
+        "components": {
+          "dbu_volume": 1.0,
+          "feature_coverage": 1.0,
+          "freshness": 1.0,
+          "state_purity": 1.0
+        },
+        "level": "HIGH",
+        "score": 0.98
+      },
+      "enabled_usage_pct": 100.0,
+      "evidence_source": "system.billing.usage.product_features.is_photon",
+      "false_dbu": 0.0,
+      "freshness_days": 0,
+      "known_feature_coverage_pct": 100.0,
+      "latest_usage_time": "2026-09-30T23:00:00+00:00",
+      "null_dbu": 0.0,
+      "status": "ENABLED",
+      "true_dbu": 20000.0
+    },
+    "source_region": "us-east-1",
+    "sql_sku_prices": {
+      "PREMIUM_SQL_PRO_COMPUTE": {
+        "classification": "PRO",
+        "cloud": "AWS",
+        "currency_code": "USD",
+        "effective_list_price": 0.22,
+        "usage_unit": "DBU"
+      },
+      "PREMIUM_SQL_SERVERLESS_COMPUTE": {
+        "classification": "SERVERLESS",
+        "cloud": "AWS",
+        "currency_code": "USD",
+        "effective_list_price": 0.7,
+        "usage_unit": "DBU"
+      }
+    },
+    "warehouse_id": "wh-demo-001",
+    "warehouse_name": "BI - Sales",
+    "workspace_id": "1234567890123456"
+  }
+]

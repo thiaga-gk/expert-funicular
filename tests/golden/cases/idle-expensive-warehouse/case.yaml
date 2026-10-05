@@ -1,0 +1,10 @@
+name: idle-expensive-warehouse
+description: Long idle gaps + excess minimum capacity produce deterministic cost candidates.
+expect:
+  aws_baseline_required: true
+  candidate_status:
+    auto_stop_minutes: ACTIONABLE
+    min_clusters: ACTIONABLE
+    warehouse_size: TEST_REQUIRED
+  recommended_plan: Plan A — Optimize current warehouse type
+  warehouse: wh-demo-001

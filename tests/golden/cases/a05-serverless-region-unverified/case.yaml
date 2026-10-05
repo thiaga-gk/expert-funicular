@@ -1,0 +1,16 @@
+name: a05-serverless-region-unverified
+description: 'A05 Region or networking blocks Serverless: Pro warehouse in us-east-1, no Serverless warehouse observed in
+  the workspace. No region list is verified, so the Serverless region check is UNKNOWN (requires review), never PASS on a
+  region label alone.'
+expect:
+  assertions:
+  - equals: UNKNOWN
+    path: scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].compatibility.checks[check=aws_region_serverless_availability].status
+  - equals: true
+    path: scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].compatibility.checks[check=aws_region_serverless_availability].requires_hitl
+  - equals: REQUIRES_VALIDATION
+    path: scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].compatibility.status
+  - equals: ALTERNATIVE
+    path: scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].status
+  scenario: A05
+  warehouse: wh-demo-001

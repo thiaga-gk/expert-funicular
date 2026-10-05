@@ -1,6 +1,8 @@
 """Backfill running-idle evidence into fixtures that predate it (fixtures only).
 
-Usage: python tools/backfill_running_idle.py tests/golden/*.json
+Usage: python tools/backfill_running_idle.py tests/golden/cases/*   (case folders, or case names)
+
+Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
 Each current epoch whose gaps carry the legacy `saved_idle_minutes_if_{T}` estimates (query gaps capped at the current
 auto-stop, the old auto-stop basis) and no running-idle keys gets them, as if the warehouse had run through every gap
@@ -16,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
+from tests.golden import evidence_source_path  # noqa: E402
 
 LEGACY = "saved_idle_minutes_if_"
 
@@ -73,15 +76,14 @@ def backfill(evidence):
     return changed
 
 
-def main(paths):
-    for name in paths:
-        path = Path(name)
-        payload = json.loads(path.read_text())
-        if isinstance(payload, dict) and "evidence" not in payload:
-            continue  # collector-level fixture (raw rows go through the collector)
-        evidence = payload["evidence"] if isinstance(payload, dict) else payload
+def main(cases):
+    for case in cases:
+        path = evidence_source_path(case)
+        if not path.is_file():
+            continue  # collector-level case (raw rows go through the collector)
+        evidence = json.loads(path.read_text())
         if backfill(evidence):
-            path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            path.write_text(json.dumps(evidence, indent=2) + "\n")
             print(f"backfilled {path}")
 
 

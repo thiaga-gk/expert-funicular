@@ -1,0 +1,22 @@
+name: c38-growth-trend
+description: 'C38 Growth trend: Pro LARGE 1/4 weekday BI whose query volume doubles every 30 days. Weekly query counts over
+  the last 8 complete weeks rise steadily (every recent week >= 1.10 x the prior 4-week median), so the LARGE -> MEDIUM downsize
+  and the 4 -> 2 ceiling cut wait. Evidence is the demo fleet''s simulated warehouse.'
+expect:
+  assertions:
+  - equals: NO_CHANGE
+    path: candidates[knob=warehouse_size].status
+  - includes:
+    - QUERY_VOLUME_GROWING
+    path: candidates[knob=warehouse_size].blockers
+  - equals: NO_CHANGE
+    path: candidates[knob=max_clusters].status
+  - includes:
+    - QUERY_VOLUME_GROWING
+    path: candidates[knob=max_clusters].blockers
+  - between:
+    - 1.1
+    - 10.0
+    path: evidence[metric=query_volume_growth_ratio].value
+  scenario: C38
+  warehouse: wh-demo-026

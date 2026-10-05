@@ -25,7 +25,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 1. **Start:** in the worktree, `git switch -c fix/<id> master` (after the first issue). Set the tracker row to *In progress*.
 2. **Red:** write the failing tests first.
    - Unit tests for the defect in `tests/test_publisher.py` (or the contract/workbook test file it belongs to).
-   - For every golden scenario row whose Tracker cell lists this finding: a fixture `tests/golden/<cXX>-<slug>.json` (normalized evidence plus an `expected` block, same shape as the existing fixtures) and a test asserting the row's Expected behavior. Reuse an existing fixture when it already represents the scenario.
+   - For every golden scenario row whose Tracker cell lists this finding: a case folder `tests/golden/cases/<cXX>-<slug>/` (`case.yaml` with the `expect` block and `source/` normalized evidence, same shape as the existing cases; `expected/` comes from `scripts/update_goldens.py`) and a test asserting the row's Expected behavior. Reuse an existing fixture when it already represents the scenario.
    - Run the tests and confirm they fail **for the reason the finding describes**. Paste the failing assertion into the issue summary.
 3. **Green:** make the smallest layer-local change that passes (analyzer observes, optimizer decides, candidate estimator prices one change, bundle estimator prices scenarios). Unknown stays null, never zero. Keep determinism.
 4. **Refactor**, then run the full CLAUDE.md change loop:

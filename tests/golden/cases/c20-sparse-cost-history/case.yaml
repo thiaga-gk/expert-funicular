@@ -1,0 +1,20 @@
+name: c20-sparse-cost-history
+description: 'C20 Sparse / new warehouse: a mature 30-day epoch billed on only 4 days, three days apart (no weekly or slower
+  cadence to average). The forward DBU cost is unknown (too few active cost days to forecast), never $0 or a guessed run rate;
+  savings estimates and the migration comparison abstain.'
+expect:
+  assertions:
+  - equals: null
+    path: cost_baseline.forward_365d.dbu_cost
+  - equals: UNAVAILABLE
+    path: cost_baseline.forward_365d.dbu_basis
+  - equals: UNAVAILABLE
+    path: candidates[knob=auto_stop_minutes].independent_economics.estimation_status
+  - equals: INSUFFICIENT_EVIDENCE
+    path: candidates[knob=warehouse_type].status
+  - includes:
+    - BILLED_COST_DAYS_INSUFFICIENT
+    path: candidates[knob=warehouse_type].blockers
+  recompute_forecast: true
+  scenario: C20
+  warehouse: wh-demo-001

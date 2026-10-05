@@ -1,0 +1,7 @@
+name: cold-start-sensitive
+description: 'Frequent short gaps: every lower auto-stop adds restarts for more than 2% of queries, so auto-stop stays.'
+expect:
+  blocker: COLD_START_BUDGET_EXCEEDED
+  candidate_status:
+    auto_stop_minutes: NO_CHANGE
+  warehouse: wh-demo-001

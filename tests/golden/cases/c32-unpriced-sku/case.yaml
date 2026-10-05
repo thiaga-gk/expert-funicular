@@ -1,0 +1,34 @@
+name: c32-unpriced-sku
+description: 'C32 Unpriced / promotional SKU: 1,500 DBU over the last 10 days of the current epoch were billed under an SKU
+  with no list_prices row. Forward and actual DBU cost are unavailable (null); estimates are withheld; migration lacks a cost
+  basis.'
+expect:
+  assertions:
+  - equals: null
+    path: cost_baseline.forward_365d.dbu_cost
+  - equals: UNAVAILABLE
+    path: cost_baseline.forward_365d.dbu_basis
+  - equals: PARTIAL
+    path: cost_baseline.forward_365d.availability
+  - equals: null
+    path: cost_baseline.actual_365d.dbu_cost
+  - equals: UNAVAILABLE
+    path: cost_baseline.actual_365d.availability
+  - equals: null
+    path: package_economics.baseline_365d.dbu_cost
+  - equals: INSUFFICIENT_EVIDENCE
+    path: candidates[knob=auto_stop_minutes].status
+  - equals: UNAVAILABLE
+    path: candidates[knob=auto_stop_minutes].independent_economics.estimation_status
+  - equals: UNAVAILABLE
+    path: candidates[knob=warehouse_size].independent_economics.estimation_status
+  - equals: INSUFFICIENT_EVIDENCE
+    path: candidates[knob=warehouse_type].status
+  - includes:
+    - DBU_COST_UNAVAILABLE
+    path: candidates[knob=warehouse_type].blockers
+  - includes:
+    - DBU_COST_UNAVAILABLE
+    path: candidates[knob=auto_stop_minutes].blockers
+  scenario: C32
+  warehouse: wh-demo-001

@@ -1,0 +1,9 @@
+name: c45-steady-high-utilization
+description: C45 Steady 24/7 Pro at high utilization, 100% of time at min (min 2). Only the utilization evidence is asserted
+  until the floor/size optimizers land.
+expect:
+  assertions:
+  - equals: 1.6
+    path: evidence[metric=task_minutes_per_cluster_minute].value
+  scenario: C45
+  warehouse: wh-demo-001

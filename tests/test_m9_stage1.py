@@ -9,15 +9,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p
+from tests.golden import load_case
 from contracts import reporter_contract as rc
 from contracts import reporter_schema
 from contracts import workbook_contract as wc
 
-GOLDEN = ROOT / "tests" / "golden"
-
 
 def golden_evidence(name, *, current_start=None, cost_history_days=None, analysis_time=None):
-    payload = json.loads((GOLDEN / f"{name}.json").read_text())["evidence"][0]
+    payload = load_case(name)["evidence"][0]
     if analysis_time:
         payload["analysis_time"] = analysis_time
     if cost_history_days is not None:

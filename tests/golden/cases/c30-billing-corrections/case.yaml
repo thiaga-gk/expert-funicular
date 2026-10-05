@@ -1,0 +1,23 @@
+name: c30-billing-corrections
+description: 'C30 Billing corrections: a settled day carries 60 DBU of RETRACTION rows and 45 DBU of RESTATEMENT rows (already
+  netted in the day sums), and the unsettled latest day carries its own retraction. Evidence reports the settled correction
+  volume (retracted 60, restated 45, 60 / 3,100 originally billed = 0.019355 share) and excludes the unsettled day, so the
+  net cost is 31 x 100 - 15 = 3,085.'
+now: '2026-10-03 12:00:00'
+analysis_time: '2026-10-03T12:00:00+00:00'
+expect:
+  evidence_assertions:
+  - equals: '2026-10-01'
+    path: forecast_metadata.billing_complete_through
+  - equals: '2026-10-03'
+    path: forecast_metadata.billing_ingested_through
+  - equals: 3085.0
+    path: current_cost_365
+  - equals: 60.0
+    path: forecast_metadata.billing_retracted_dbu_quantity_365
+  - equals: 45.0
+    path: forecast_metadata.billing_restated_dbu_quantity_365
+  - equals: 0.019355
+    path: forecast_metadata.billing_correction_dbu_share_365
+  scenario: C30
+  warehouse: wh-corr

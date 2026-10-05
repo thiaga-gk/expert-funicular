@@ -1,0 +1,9 @@
+name: c10-over-provisioned-floor
+description: 'C10 Over-provisioned floor: cluster_count at min, low utilization. Only the utilization evidence is asserted
+  until the floor/size optimizers land.'
+expect:
+  assertions:
+  - equals: 0.2
+    path: evidence[metric=task_minutes_per_cluster_minute].value
+  scenario: C10
+  warehouse: wh-demo-001

@@ -45,4 +45,4 @@ The file contains owner emails (`attribution.owner`, `observed_owners`) and ware
 
 1. Update the dataclass in `publisher.py` and `schema/evidence.schema.json` together.
 2. Bump `EVIDENCE_FORMAT_VERSION` and the schema `const`, and update this document.
-3. Update the golden fixtures in `tests/golden/` (their `evidence` items use this item shape) and regenerate the demo.
+3. Update the golden cases in `tests/golden/cases/` (their `source/evidence.json` items use this item shape) and regenerate the demo.

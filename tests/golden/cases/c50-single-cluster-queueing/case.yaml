@@ -1,0 +1,15 @@
+name: c50-single-cluster-queueing
+description: 'Golden C50: max_clusters = 1, about 40% of queries queued, 100% of running time at the ceiling (demo fleet warehouse).
+  Max 1 -> 2 with a worst case of about double the cost.'
+expect:
+  assertions:
+  - equals: ACTIONABLE
+    path: candidates[knob=max_clusters].status
+  - equals: 2
+    path: candidates[knob=max_clusters].recommended_value
+  - between:
+    - -57474.36
+    - -54126.34
+    path: candidates[knob=max_clusters].independent_economics.savings_365d.total.low
+  scenario: C50
+  warehouse: wh-demo-035

@@ -1,7 +1,6 @@
 """Replay evidence file format (schema/evidence.schema.json, docs/contracts/evidence-format.md)."""
 import copy
 import dataclasses
-import glob
 import json
 import sys
 import tempfile
@@ -11,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
+from tests.golden import case_names, load_case  # noqa: E402
 
 SCHEMA = json.loads((ROOT / "schema" / "evidence.schema.json").read_text())
 
@@ -104,8 +104,8 @@ class EvidenceFormatTests(unittest.TestCase):
 
     def test_every_golden_fixture_item_and_synthetic_fleet_matches_the_schema(self):
         items = []
-        for name in sorted(glob.glob(str(ROOT / "tests" / "golden" / "*.json"))):
-            items += json.loads(Path(name).read_text()).get("evidence") or []
+        for name in case_names():
+            items += load_case(name).get("evidence") or []
         self.assertGreaterEqual(len(items), 16)
         p.validate_evidence_payload(envelope(items))
         p.validate_evidence_payload(envelope(p.as_serializable(p.synthetic_demo_evidence())))

@@ -1,0 +1,14 @@
+name: a08-owner-attribution
+description: 'A08 Owner attribution: billing identity_metadata.owned_by gives the owner. A redacted owner value is unknown,
+  never an owner: the attribution SQL drops it before picking the latest owner, and the normalizer drops any that reaches
+  it, so here the owner is unknown and only the real owner is listed.'
+now: '2026-10-01 12:00:00'
+expect:
+  evidence_assertions:
+  - equals: null
+    path: attribution.owner
+  - equals:
+    - ana@example.com
+    path: attribution.observed_owners
+  scenario: A08
+  warehouse: wh-a08

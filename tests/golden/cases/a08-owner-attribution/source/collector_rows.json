@@ -1,0 +1,21 @@
+{
+  "billing_attribution_photon_owner": [
+    {
+      "epoch_start": "2026-03-01 00:00:00",
+      "latest_owner": "__REDACTED__",
+      "latest_usage_time": "2026-09-30 23:00:00",
+      "observed_node_types": [],
+      "observed_owners": [
+        "__REDACTED__",
+        "ana@example.com",
+        "redacted"
+      ],
+      "observed_sql_tiers": [],
+      "photon_false_dbu": 120.0,
+      "photon_null_dbu": 0.0,
+      "photon_true_dbu": 0.0,
+      "warehouse_id": "wh-a08",
+      "workspace_id": "1234567890123456"
+    }
+  ]
+}
