@@ -18,10 +18,16 @@ this question.
 ```sql
 WITH billed AS (SELECT DISTINCT workspace_id, usage_metadata.warehouse_id AS warehouse_id FROM system.billing.usage
   WHERE billing_origin_product='SQL' AND usage_metadata.warehouse_id IS NOT NULL AND usage_date >= current_date() - 30),
+-- billing is account-wide, the warehouses table regional: count only warehouses this region's tables show
+regional AS (SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouse_events
+  WHERE event_time >= current_timestamp() - INTERVAL 365 DAYS
+  UNION SELECT DISTINCT workspace_id, compute.warehouse_id FROM system.query.history
+  WHERE compute.type = 'WAREHOUSE' AND start_time >= current_date() - 30),
 snap AS (SELECT workspace_id, warehouse_id, MAX(change_time) AS last_change FROM system.compute.warehouses GROUP BY ALL)
 SELECT COUNT(*) AS billed_warehouses, COUNT_IF(s.warehouse_id IS NULL) AS missing_from_warehouses_table,
        COUNT_IF(s.last_change < current_timestamp() - INTERVAL 365 DAYS) AS unchanged_over_365d
-FROM billed b LEFT JOIN snap s USING (workspace_id, warehouse_id);
+FROM billed b LEFT SEMI JOIN regional r USING (workspace_id, warehouse_id)
+LEFT JOIN snap s USING (workspace_id, warehouse_id);
 ```
 
 ## SQL SKU names, tiers and prices (tracker G5)

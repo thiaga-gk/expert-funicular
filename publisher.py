@@ -1721,9 +1721,12 @@ WHERE price_end_time IS NULL
 ORDER BY account_id, sku_name
 """
 
-# SQL warehouses billed in the last 30 settled days with no row in system.compute.warehouses. The table keeps 365 days
-# and writes a row only when a configuration changes; whether an unchanged warehouse's only row survives the retention
+# SQL warehouses billed in the last 30 days with no row in system.compute.warehouses. The table keeps 365 days and
+# writes a row only when a configuration changes; whether an unchanged warehouse's only row survives the retention
 # period is not documented, and such a warehouse would be invisible to the collector. Reported, never analyzed.
+# Billing is account-wide but the warehouses table is regional, so only warehouses active in this region count: a
+# warehouse event in the events table's retention, or a query in the last 30 days (an always-on warehouse may emit no
+# event for months).
 UNSEEN_BILLED_WAREHOUSES_SQL = r"""
 WITH billed AS (
   SELECT workspace_id, usage_metadata.warehouse_id AS warehouse_id,
@@ -1733,11 +1736,19 @@ WITH billed AS (
     AND usage_date>=DATE_SUB(CURRENT_DATE(),30) AND usage_date<CURRENT_DATE()
     AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
   GROUP BY workspace_id, usage_metadata.warehouse_id
+), regional AS (
+  SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouse_events
+  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+  UNION
+  SELECT DISTINCT workspace_id, compute.warehouse_id AS warehouse_id FROM system.query.history
+  WHERE compute.type = 'WAREHOUSE' AND compute.warehouse_id IS NOT NULL AND start_time >= CAST(DATE_SUB(CURRENT_DATE(),30) AS TIMESTAMP)
 ), snapshots AS (
   SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouses
 )
 SELECT b.workspace_id, b.warehouse_id, b.billed_dbu_30, b.last_usage_date
-FROM billed b LEFT ANTI JOIN snapshots s ON b.workspace_id=s.workspace_id AND b.warehouse_id=s.warehouse_id
+FROM billed b
+LEFT SEMI JOIN regional r ON b.workspace_id=r.workspace_id AND b.warehouse_id=r.warehouse_id
+LEFT ANTI JOIN snapshots s ON b.workspace_id=s.workspace_id AND b.warehouse_id=s.warehouse_id
 ORDER BY b.workspace_id, b.warehouse_id
 """
 
@@ -2995,7 +3006,7 @@ def collect_unseen_billed_warehouses(client: SqlClient, *, ingestion_cutoff: Opt
     in the manifest. Their configuration is unknown, so no package is written for them."""
     rows = client.query(with_ingestion_cutoff(UNSEEN_BILLED_WAREHOUSES_SQL, ingestion_cutoff), label="unseen_billed_warehouses")
     unseen = sorted(({"workspace_id": str(r.get("workspace_id") or ""), "warehouse_id": str(r.get("warehouse_id") or ""),
-                      "billed_dbu_30": optional_float(r.get("billed_dbu_30")), "last_usage_date": None if r.get("last_usage_date") is None else str(r.get("last_usage_date"))[:10],
+                      "billed_dbu_30": round_or_none(optional_float(r.get("billed_dbu_30")), 6), "last_usage_date": None if r.get("last_usage_date") is None else str(r.get("last_usage_date"))[:10],
                       "reason_code": "NO_CONFIGURATION_SNAPSHOT"} for r in rows), key=lambda x: (x["workspace_id"], x["warehouse_id"]))
     if unseen:
         LOGGER.warning("collector.unseen_billed_warehouses %d billed SQL warehouse(s) have no configuration snapshot in "

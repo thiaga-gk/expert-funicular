@@ -48,6 +48,21 @@ class UnseenBilledWarehouseTests(unittest.TestCase):
         self.assertIn("LEFT ANTI JOIN", sql)
         self.assertIn("__INGESTION_CUTOFF__", sql)
 
+    def test_sql_reports_only_warehouses_active_in_this_region(self):
+        # Billing is account-wide but the warehouses table is regional: a warehouse billed in another region has no
+        # row here and must not be reported. Regional activity = a warehouse event in the table's retention or a query
+        # in the last 30 days (an always-on warehouse may emit no event for months).
+        sql = " ".join(p.UNSEEN_BILLED_WAREHOUSES_SQL.split())
+        self.assertIn("FROM system.compute.warehouse_events", sql)
+        self.assertIn("FROM system.query.history", sql)
+        self.assertIn("LEFT SEMI JOIN regional r ON b.workspace_id=r.workspace_id AND b.warehouse_id=r.warehouse_id", sql)
+        self.assertLess(sql.index("LEFT SEMI JOIN regional"), sql.index("LEFT ANTI JOIN snapshots"))
+
+    def test_billed_dbu_is_rounded(self):
+        rows = [dict(UNSEEN[0], billed_dbu_30=12.123456789)]
+        with self.assertLogs("publisher", level="WARNING"):
+            self.assertEqual(p.collect_unseen_billed_warehouses(FakeClient({"unseen_billed_warehouses": rows}))[0]["billed_dbu_30"], 12.123457)
+
     def test_collect_lists_unseen_warehouses_sorted_and_warns(self):
         client = FakeClient({"unseen_billed_warehouses": UNSEEN})
         with self.assertLogs("publisher", level="WARNING") as logs:
