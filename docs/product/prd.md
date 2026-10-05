@@ -2,7 +2,7 @@
 
 **Document:** `docs/product/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.3.0 (locked)  
+**Reporter JSON Contract:** v2.0.0 (locked)  
 **Workbook Contract:** v1.4.0 (locked)
 
 Role: product scope, requirements and acceptance criteria.
@@ -21,7 +21,7 @@ The product is designed to answer five questions for every in-scope SQL warehous
 4. **What are the candidate and scenario-level economic consequences, with confidence and guardrails?**
 5. **What should a human reviewer validate, canary, apply, remeasure, or reject?**
 
-The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v1.3.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.4.0 is a presentation-only projection of those locked packages.
+The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v2.0.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.4.0 is a presentation-only projection of those locked packages.
 
 The current implementation is **advisory only**. It does not mutate SQL warehouse configuration. Human-in-the-loop approval and canary validation are mandatory for changes that can materially alter workload behavior or runtime.
 
@@ -639,7 +639,7 @@ A validation failure shall stop publication of the affected package rather than 
 
 ## 17. Public Reporter JSON Contract requirements
 
-The only authoritative public recommendation serialization is **Reporter JSON Contract v1.3.0**.
+The only authoritative public recommendation serialization is **Reporter JSON Contract v2.0.0**.
 
 ### FR-JSON-001
 
@@ -995,7 +995,7 @@ Current product support remains intentionally narrower than every newly availabl
 
 ### Recorded in this PRD
 
-1. Reporter JSON Contract v1.3.0 is authoritative.
+1. Reporter JSON Contract v2.0.0 is authoritative.
 2. Workbook Contract v1.4.0 is presentation-only.
 3. Phase-1 optimization is infrastructure/configuration only.
 4. Candidate economics are never additive.

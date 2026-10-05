@@ -1,6 +1,6 @@
 # Databricks SQL Warehouse Optimizer
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v1.3.0** as the machine source of truth and **Workbook Reporter Contract v1.4.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v2.0.0** as the machine source of truth and **Workbook Reporter Contract v1.4.0** as the professional human projection.
 
 ## Install
 
@@ -23,7 +23,7 @@ flowchart LR
     A --> R1[Reviewer gate 1]
     R1 --> S[Scenario planner + stateful bundle estimator]
     S --> R2[Reviewer gate 2]
-    R2 --> P[RecommendationPackage v1.3.0]
+    R2 --> P[RecommendationPackage v2.0.0]
     P --> J[packages/*.json]
     P --> W[Workbook Contract v1.4.0]
     W --> X1[workbook.xlsx]

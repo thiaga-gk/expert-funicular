@@ -2,7 +2,7 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.3.0 (locked)  
+**Reporter JSON Contract:** v2.0.0 (locked)  
 **Workbook Contract:** v1.4.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
@@ -355,7 +355,7 @@ It verifies, at minimum:
 
 ### 6.11 Public contract adapter
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.3.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v2.0.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
@@ -632,7 +632,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v1.3.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v2.0.0:
 
 - Python dataclasses: `contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`

@@ -111,7 +111,7 @@ class Thresholds:
     forecast_cadence_gap_days: int = 7  # short runs resting longer than this between them are a periodic workload
     forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
     forecast_run_bridge_days: int = 3  # billed days this close belong to one run (a weekend inside a month-end close)
-    current_config_stability_days: int = 7
+    readiness_min_billed_days: int = 2  # settled billed days the current configuration needs before a change is decided
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
     photon_min_feature_coverage_pct: float = 90.0
@@ -1866,7 +1866,9 @@ def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dic
     start, end = parse_datetime(meta.get("forecast_basis_start")), parse_datetime(meta.get("forecast_basis_end"))
     if not start or not end or end < start:
         return None
-    first = max(start.date(), end.date() - dt.timedelta(days=window_days - 1))
+    epoch_start = parse_datetime(e.current_epoch.epoch_start)
+    first = max(start.date(), end.date() - dt.timedelta(days=window_days - 1),
+                epoch_start.astimezone(dt.timezone.utc).date() if epoch_start else start.date())
     dbu: Dict[str, float] = {}; cost = 0.0; unpriced = False
     current_start = e.current_epoch.epoch_start
     for r in e.daily_cost_365:
@@ -1878,8 +1880,16 @@ def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dic
         key = day.date().isoformat()
         dbu[key] = dbu.get(key, 0.0) + safe_float(r.get("dbu_quantity")) + safe_float(r.get("unpriced_dbu_quantity"))
         cost += safe_float(r.get("list_cost")); unpriced = unpriced or safe_float(r.get("unpriced_dbu_quantity")) > 0
+    if first > end.date():
+        return {"settled_days": 0, "billed_days": 0, "billed_cost": None, "first_day": first.isoformat(), "last_day": end.date().isoformat()}
     return {"settled_days": (end.date() - first).days + 1, "billed_days": sum(1 for v in dbu.values() if v > 1e-12),
             "billed_cost": None if unpriced else round(cost, 2), "first_day": first.isoformat(), "last_day": end.date().isoformat()}
+
+
+def ready_billed_days(e: "WarehouseEvidence") -> int:
+    """Settled billed days of the current epoch's forecast basis: the readiness count (0 when the basis is unknown)."""
+    billed = billed_days_recent(e, 100000)
+    return 0 if billed is None else int(billed["billed_days"])
 
 
 def epoch_age_days(epoch: EpochEvidence, as_of: Optional[str] = None) -> int:
@@ -3353,7 +3363,9 @@ class Optimizer:
 
     def optimize(self, e: WarehouseEvidence, analyses: Dict[str, AnalysisResult]) -> List[OptimizationDecision]:
         cfg = e.current_epoch.config
-        age = epoch_age_days(e.current_epoch, e.analysis_time)
+        # Readiness: the current configuration has run for enough settled billed days (not a fixed calendar age).
+        billed_days = ready_billed_days(e)
+        young = billed_days < self.t.readiness_min_billed_days
         out: List[OptimizationDecision] = []
 
         # Size
@@ -3370,7 +3382,7 @@ class Optimizer:
         elif f["spill_pct"] is not None and f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
             target = next_size(cfg.warehouse_size)
             # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
-            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             # Spill and latency are measured on executed queries (not result-cache hits); so is the sample.
             if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
             elif f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
@@ -3400,7 +3412,7 @@ class Optimizer:
             target = previous_size(cfg.warehouse_size)
             batch = f.get("batch_profile")
             if target is None: blockers.append("ALREADY_AT_SMALLEST_SIZE")
-            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if batch:
                 # Batch: one run a day is enough evidence; the canary measures job run time instead of interactive latency.
                 if f["active_days_30"] < self.t.batch_min_active_days: blockers.append("INSUFFICIENT_BATCH_RUN_DAYS")
@@ -3449,10 +3461,10 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                     ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
-            elif f["queue_n"] < self.t.severity_min_affected_queries or age < self.t.current_config_stability_days or f["queries_30"] < self.t.min_query_sample_size:
+            elif f["queue_n"] < self.t.severity_min_affected_queries or young or f["queries_30"] < self.t.min_query_sample_size:
                 # Like every other change: a mature configuration epoch, a query sample and enough queued queries.
                 gates=[code for code,hit in (
-                    ("CURRENT_CONFIG_EPOCH_TOO_NEW",age < self.t.current_config_stability_days),
+                    ("CURRENT_CONFIG_EPOCH_TOO_NEW",young),
                     ("INSUFFICIENT_QUERY_SAMPLE",f["queries_30"] < self.t.min_query_sample_size),
                     ("INSUFFICIENT_AFFECTED_QUERY_SAMPLE",f["queue_n"] < self.t.severity_min_affected_queries)) if hit]
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
@@ -3520,7 +3532,7 @@ class Optimizer:
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
             )
-            base_eligible = cut_shape and age >= self.t.current_config_stability_days
+            base_eligible = cut_shape and not young
             # A cut the recent window would allow, held only because the configuration is younger than the stability period.
             # Queueing above the safe level would hold the cut at any age, so it is not an age hold.
             young_hold = (cut_shape and not base_eligible
@@ -3574,7 +3586,7 @@ class Optimizer:
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},
                     ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+evidence_blockers+([demand_blocker] if demand_blocker else [])
                     +(["PEAK_OUTSIDE_RECENT_WINDOW"] if demand_blocker is None and reduced_max >= cfg.max_clusters else []),["warehouse_size"],[],[],
-                    f"The current configuration is too new ({age} of {self.t.current_config_stability_days} days) to cut the ceiling; it is re-evaluated once the configuration has run for the stability period."))
+                    f"The current configuration is not ready yet ({billed_days} of {self.t.readiness_min_billed_days} settled billed days) to cut the ceiling; it is re-evaluated once it is."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -3588,7 +3600,7 @@ class Optimizer:
                 {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},[],["warehouse_size","max_clusters"],[],[],"Minimum is already 1."))
         else:
             blockers=[]
-            if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
+            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
             elif f["queue_pct"] > self.t.queue_query_pct_safe or (f["wait_capacity"] is not None and f["wait_capacity"] > self.t.queue_wait_p95_ms_safe): blockers.append("QUEUE_PRESSURE_PRESENT")
@@ -3640,8 +3652,8 @@ class Optimizer:
             auto_stop("NO_CHANGE",cur_auto,[],"Serverless auto-stop is below the lowest value the console offers (set through the API); it is left alone.")
         elif not f["running_available"]:
             billed=f.get("billed_recent")
-            if (billed and f["queries_30"]==0 and age>=self.t.current_config_stability_days
-                    and billed["settled_days"]>=self.t.current_config_stability_days and billed["billed_days"]==billed["settled_days"]
+            if (billed and f["queries_30"]==0 and not young
+                    and billed["settled_days"]>=self.t.min_economics_cost_history_days and billed["billed_days"]==billed["settled_days"]
                     and e.baseline_forecast_cost_365 is not None and (cur_auto==0 or min(grid)<cur_auto)):
                 # Billing shows it ran every settled day with no query, but without retained running intervals no
                 # running hours or idle saving can be measured: a human decides first, and nothing is priced.
@@ -3661,8 +3673,8 @@ class Optimizer:
             # two collectors saw different periods or data, so nothing can be priced.
             auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["IDLE_EVIDENCE_EXCEEDS_RUNTIME"],
                 "Removable idle time exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced.")
-        elif age < self.t.current_config_stability_days:
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["CURRENT_CONFIG_EPOCH_TOO_NEW"],"The current configuration is too new to measure its idle gaps; auto-stop is re-evaluated once the epoch matures.")
+        elif young:
+            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["CURRENT_CONFIG_EPOCH_TOO_NEW"],"The current configuration is not ready yet (too few settled billed days) to measure its idle gaps; auto-stop is re-evaluated once it is.")
         elif not f.get("running_idle_queries"):
             # No queries but running time: a human decides whether the warehouse is still needed or what keeps it up.
             floor=min(grid); o=options.get(floor)
@@ -4029,7 +4041,7 @@ class Estimator:
             if gate:
                 # A change made to save money ships only when its own modeled savings clear the floor; the modeled
                 # economics stay on the held candidate so the reason is visible.
-                held=dataclasses.replace(d,status="NO_CHANGE",recommended_config=dict(d.current_config),blockers=sorted(set(d.blockers)|{gate["reason_code"]}),
+                held=dataclasses.replace(d,status=gate.get("status","NO_CHANGE"),recommended_config=dict(d.current_config),blockers=sorted(set(d.blockers)|{gate["reason_code"]}),
                     invalidates=[],reanalysis_required=[],rationale=gate["rationale"])
                 out[-1]=self._candidate(e,ep,a,held,dbu_baseline,aws_baseline,total_baseline)
                 out[-1].metadata["value_gate"]=gate
@@ -4050,6 +4062,12 @@ class Estimator:
         if d.objective!="COST" or d.status not in {"ACTIONABLE","TEST_REQUIRED"} or d.current_config==d.recommended_config:
             return None
         save=c.estimated_savings_365
+        if save is None and d.status=="ACTIONABLE" and c.metadata.get("estimate_blocker"):
+            # A cost change applied without a canary has nothing else to validate it: it waits for its own price.
+            blocker=c.metadata["estimate_blocker"]
+            return {"reason_code":blocker,"status":"INSUFFICIENT_EVIDENCE","modeled_savings_365":None,"modeled_savings_range_365":None,
+                    "floor_365":self.t.cost_change_min_annual_savings,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
+                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced ({DBU_BASELINE_WITHHELD[blocker][1]})"}
         if save is None:
             return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
         floor=self.t.cost_change_min_annual_savings
@@ -4980,6 +4998,13 @@ def _build_evidence_registry(
             observation_window="current_epoch", threshold=None, comparator="",
             interpretation="Calendar-day coverage available to the forward cost model.",
         ),
+        _add_evidence(
+            registry, e=e, contract_epoch_id=contract_epoch_id,
+            metric="billed_cost_days", value=ready_billed_days(e), unit="days",
+            source="system.billing.usage", source_field="usage_date/usage_quantity",
+            observation_window="current_epoch", threshold=rc.REEVALUATION_READY_BILLED_DAYS, comparator=">= readiness",
+            interpretation="Settled days of the current epoch with billed usage: the current configuration is ready once it reaches the readiness count.",
+        ),
     ]
     # Cost-basis quality signal: package evidence only. It is not a shared cost ref, so it never enters candidate
     # evidence refs (and their IDs); no decision, confidence or economics reads it.
@@ -5352,7 +5377,7 @@ def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.Candidate
     q = e.current_epoch.query
     query_ok = safe_int(q.get("queries_30")) >= t.min_query_sample_size
     cost_ok = e.cost_history_days >= t.min_cost_history_days
-    epoch_ok = epoch_age_days(e.current_epoch, e.analysis_time) >= t.current_config_stability_days
+    epoch_ok = ready_billed_days(e) >= t.readiness_min_billed_days
     source_flags = [True, bool(q), bool(e.current_epoch.events), e.cost_history_days > 0, bool(e.sql_sku_prices)]
     coverage = round(100.0 * sum(1 for x in source_flags if x) / len(source_flags), 6)
     score = round(0.25 * float(query_ok) + 0.25 * float(cost_ok) + 0.20 * float(epoch_ok) + 0.30 * coverage / 100.0, 6)
@@ -5466,30 +5491,31 @@ def _package_economics(
 
 
 def compute_reevaluation(e: WarehouseEvidence, thresholds: Thresholds, *, start_time: str, epoch_age: int) -> Optional[rc.ReevaluationWindow]:
-    """Time-clearable gates that currently hide the next step; None once both are clear (contract 1.2.0).
+    """Gates that currently hide the next step; None once both are clear (contract 2.0.0).
 
-    Pure function of the epoch start, the epoch age and the cost-history days. The contract validator embeds the same
-    gate lengths, so a policy change to them must travel with a contract version bump.
+    Pure function of the epoch start, the analysis time, the settled billed days and the cost-history days. The contract
+    validator embeds the same gate lengths, so a policy change to them must travel with a contract version bump.
     """
-    if (thresholds.current_config_stability_days, thresholds.min_economics_cost_history_days) != (
-        rc.REEVALUATION_EPOCH_MATURITY_DAYS, rc.REEVALUATION_COST_HISTORY_DAYS
+    if (thresholds.readiness_min_billed_days, thresholds.min_economics_cost_history_days) != (
+        rc.REEVALUATION_READY_BILLED_DAYS, rc.REEVALUATION_COST_HISTORY_DAYS
     ):
         raise ValueError("Re-evaluation gate thresholds differ from the locked contract constants; bump the contract version")
     codes = []
     if e.cost_history_days < thresholds.min_economics_cost_history_days:
         codes.append("COST_HISTORY_INSUFFICIENT")
-    if epoch_age < thresholds.current_config_stability_days:
+    if ready_billed_days(e) < thresholds.readiness_min_billed_days:
         codes.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
     if not codes:
         return None
     return rc.ReevaluationWindow(
         status=rc.ReevaluationStatus.WAITING_FOR_EVIDENCE,
-        earliest_reevaluation_time=rc.expected_earliest_reevaluation_time(start_time, sorted(codes)),
+        earliest_reevaluation_time=rc.expected_earliest_reevaluation_time(start_time, sorted(codes), _iso_z(e.analysis_time)),
         blocking_codes=sorted(codes),
         method=(
-            f"Later of the active gates: epoch start + {rc.REEVALUATION_EPOCH_MATURITY_DAYS} days (config-epoch maturity) and "
-            f"00:00Z of epoch start date + {rc.REEVALUATION_COST_HISTORY_DAYS} days (cost-history floor). "
-            "Earliest only: the 24-hour billing settle buffer, billing ingestion lag and query-sample gates can delay it."
+            f"Later of the active gates: the next settled day, 00:00Z of the analysis date + 2 days (readiness: "
+            f"{rc.REEVALUATION_READY_BILLED_DAYS} settled billed days in the current epoch) and 00:00Z of epoch start date + "
+            f"{rc.REEVALUATION_COST_HISTORY_DAYS} days (cost-history floor). Earliest only: billing ingestion lag, days "
+            "without billing and query-sample gates can delay it."
         ),
     )
 
@@ -5583,8 +5609,9 @@ def _canary_sequencing_note(scenario: rc.Scenario) -> str:
     canary = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY_FOR_CANARY]
     if not hitl or not canary:
         return ""
-    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary after they have run for "
-            f"{rc.REEVALUATION_EPOCH_MATURITY_DAYS} days, so the canary's cost reading is not mixed with their savings.")
+    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary once the next run shows "
+            f"their new configuration ready ({rc.REEVALUATION_READY_BILLED_DAYS} settled billed days), so the canary's cost reading is not "
+            "mixed with their savings.")
 
 
 def _build_locked_recommendation_package(
@@ -6145,7 +6172,7 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
      "work": [{"days": "all", "start": "00:00", "end": "24:00", "conc": 8, "q_min": 0.5, "src": "JOB"}]},
     {"scenario": "C18", "name": "Preview Channel", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 20, "channel": "PREVIEW",
      "work": [{"days": "weekdays", "start": "09:00", "end": "17:00", "every": 5, "dur": 0.5, "conc": 1, "src": "SQL", "client": "Databricks SQL Editor"}]},
-    {"scenario": "C19", "name": "Product Launch", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30, "epoch_start": "2026-09-28",
+    {"scenario": "C19", "name": "Product Launch", "ws": 0, "type": "PRO", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 30, "epoch_start": "2026-09-30",
      "prior": [{"start": "2025-10-01", "size": "MEDIUM"}],
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.5, "conc": 1, "src": "DASHBOARD"}]},
     {"scenario": "C20", "name": "New Team Sandbox", "ws": 2, "type": "PRO", "size": "SMALL", "min": 1, "max": 1, "auto_stop": 10, "created": "2026-09-26",

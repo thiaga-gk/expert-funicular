@@ -191,7 +191,7 @@ class DemoFleetTests(unittest.TestCase):
         # reading would include the auto-stop saving.
         summary = self.by_scenario["C06"][1]["recommended_plan"]["decision_summary"]
         self.assertIn("Apply the ready no-canary steps (auto_stop_minutes) first", summary)
-        self.assertIn("start the warehouse_size canary after they have run for 7 days", summary)
+        self.assertIn("start the warehouse_size canary once the next run shows their new configuration ready (2 settled billed days)", summary)
         quiet = self.by_scenario["C47"][1]["recommended_plan"]["decision_summary"]
         self.assertNotIn("no-canary steps", quiet)
 

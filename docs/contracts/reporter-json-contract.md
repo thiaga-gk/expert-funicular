@@ -1,6 +1,8 @@
-# Reporter JSON Contract v1.3.0 — Locked
+# Reporter JSON Contract v2.0.0 — Locked
 
-**Version history:** 1.3.0 adds the required, nullable `StepProjection.step_savings_365d`: each plan step's own savings on its pricing chain (section 13). No existing field or value changes. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.2.0 packages.
+**Version history:** 2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next settled day after the analysis (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
+
+1.3.0 adds the required, nullable `StepProjection.step_savings_365d`: each plan step's own savings on its pricing chain (section 13). No existing field or value changes. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.2.0 packages.
 
 **Earlier history:** 1.2.0 adds the nullable `recommended_plan.reevaluation` window, the top-level nullable `observed_change` (observed config diff, no savings) and the reserved nullable `carried_forward_plan` (always null until Stage 2 ships), plus the `WAIT_FOR_REEVALUATION` next action. The package hash payload gains `reevaluation`, `observed_change_fingerprint` and `carried_forward_fingerprint`, and `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.1.0 packages. See section 19 for why this is a MINOR version.
 
@@ -264,7 +266,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `1.3.0` |
+| `contract_version` | string | Yes | No | Constant `2.0.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
@@ -626,23 +628,23 @@ If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it 
 | Field | Type | Nullable | Semantics |
 |---|---|---:|---|
 | `status` | enum | No | `WAITING_FOR_EVIDENCE` (the only value) |
-| `earliest_reevaluation_time` | ISO-8601 UTC | No | Later of the active gates. **Earliest only**: the billing settle buffer (`billing_settle_hours`), billing ingestion lag and query-sample gates can delay it |
+| `earliest_reevaluation_time` | ISO-8601 UTC | No | Later of the active gates. **Earliest only**: billing ingestion lag, days without billing and query-sample gates can delay it |
 | `blocking_codes` | string[] | No | Non-empty, sorted, unique subset of `COST_HISTORY_INSUFFICIENT`, `CURRENT_CONFIG_EPOCH_TOO_NEW` |
 | `method` | string | No | Prose; excluded from identity |
 
 `earliest_reevaluation_time` is a lower bound rounded up to the next second. When the only active gate is `COST_HISTORY_INSUFFICIENT` on a mature epoch, the missing billing days have already elapsed but are not yet ingested (the billing watermark counts only covered days), so the time can already be in the past; the next run after ingestion clears the gate. The publisher then uses `selection_reason_code = BILLING_HISTORY_ACCRUING` instead of `CURRENT_EPOCH_IMMATURE`.
 
-Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while `warehouse.current_epoch.age_days < 7`; `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
+Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the package's `billed_cost_days` evidence value is `< 2` (the current configuration is not ready: fewer than two settled billed days; a missing record counts as not ready); `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
 
 ```text
-t_maturity = epoch start + 7 days
-t_cost     = 00:00Z of (epoch start date + 7 days)
+t_ready = 00:00Z of (analysis date + 2 days), never before the epoch start   # the analysis day has then settled
+t_cost  = 00:00Z of (epoch start date + 7 days)
 earliest_reevaluation_time = max(t_x for each active gate)
 ```
 
-Example: epoch start `2026-10-01T15:00:00Z` with both gates active gives `2026-10-08T15:00:00Z`.
+The analysis time is `provenance.generated_at`. `t_ready` is the next chance only: how many more days the configuration needs depends on future billing. Example: epoch start `2026-09-29T00:00:00Z`, analysis `2026-10-01T12:00:00Z`, readiness gate only, gives `2026-10-03T00:00:00Z`; with both gates active, `2026-10-06T00:00:00Z`.
 
-`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the epoch is mature and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the 7-day gate lengths in the publisher policy requires a contract version bump.
+`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the epoch is mature and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the readiness or cost-history gate lengths in the publisher policy requires a contract version bump.
 
 ## 14.2 `observed_change` (new in 1.2.0)
 
@@ -780,7 +782,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal the contract version of this document (`1.3.0`) |
+| `contract_version` | Must equal the contract version of this document (`2.0.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -862,4 +864,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/test_reporter_contract.py`
 
-The workbook is not part of Reporter Contract v1.3.0. It is specified separately in `workbook-contract.md` as a projection of these packages.
+The workbook is not part of Reporter Contract v2.0.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

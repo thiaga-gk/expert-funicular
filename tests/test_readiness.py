@@ -1,0 +1,104 @@
+"""Evidence-based readiness after a configuration change.
+
+A change is decided once the current configuration is ready (enough settled billed days in the new epoch), with each
+knob's own sample and, for a capacity cut, the older-epoch peak hold; not after a fixed number of calendar days. A cost
+change applied without a canary also waits for its own price. Each case simulates a demo warehouse whose setting was
+changed `days` ago and runs it through the real collector path (extract_evidence).
+"""
+import copy
+import datetime as dt
+import logging
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import publisher as p  # noqa: E402
+from contracts import reporter_contract as rc  # noqa: E402
+
+AT = p.DEMO_ANALYSIS_TIME
+DAY0 = dt.date.fromisoformat(AT[:10])
+KEYMAP = {"auto_stop_minutes": "auto_stop", "max_clusters": "max", "min_clusters": "min", "warehouse_size": "size"}
+
+
+def changed(scenario, knob, value, days, t=None):
+    """Evidence and evaluation for a demo warehouse whose `knob` changed to `value` at 00:00 UTC `days` days ago."""
+    t = t or p.Thresholds()
+    idx, spec = next((i, s) for i, s in enumerate(p.DEMO_FLEET, start=1) if s["scenario"] == scenario)
+    s2 = copy.deepcopy(spec)
+    created = spec.get("created") or (spec["prior"][0]["start"] if spec.get("prior") else spec.get("epoch_start") or "2025-07-01")
+    old = {k: spec[k] for k in ("size", "min", "max", "auto_stop")}
+    prior = [dict(x) for x in spec.get("prior", [])] or [{"start": created}]
+    s2["prior"] = [dict(x, **{k: v for k, v in old.items() if k not in x}) for x in prior]
+    s2["epoch_start"] = (DAY0 - dt.timedelta(days=days)).isoformat()
+    s2["created"] = created
+    s2[KEYMAP[knob]] = value
+    rows = p._simulate_demo_warehouse(s2, idx, AT)
+    rows["billing_watermark"] = [{"workspace_id": p.DEMO_WORKSPACES[spec["ws"]], "billing_watermark": AT[:10] + "T06:00:00+00:00",
+                                  "billing_ingested_through": AT[:10]}]
+    rows["sql_sku_prices"] = [{"account_id": p.DEMO_ACCOUNT_ID, "sku_name": n, "cloud": "AWS", "currency_code": "USD", "usage_unit": "DBU",
+                               "effective_list_price": pr} for n, pr in sorted(p.DEMO_SKU_PRICES.items())]
+
+    class Client:
+        def query(self, sql, *, label="collector_sql"):
+            return [dict(r) for r in rows.get(label, [])]
+
+    reg = p.load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
+    e = p.extract_evidence(Client(), t, "us-east-1", reg, analysis_time=AT)[0]
+    return e, {c.knob: c for c in p.evaluate_warehouses([e], t)[0].candidates}
+
+
+class ReadinessTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        logging.disable(logging.CRITICAL)
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+
+    def test_not_ready_before_two_settled_billed_days(self):
+        # Changed two days ago at 00:00: only one day has settled (billing settles a day after it ends).
+        e, by = changed("C06", "auto_stop_minutes", 10, 2)
+        self.assertEqual(p.ready_billed_days(e), 1)
+        self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", by["warehouse_size"].blockers)
+        self.assertEqual(by["max_clusters"].blockers[:1], ["CURRENT_CONFIG_EPOCH_TOO_NEW"])
+
+    def test_ready_after_two_settled_billed_days_not_seven_calendar_days(self):
+        # C06 three days after its auto-stop change: two settled billed days, 500+ executed queries since the change.
+        # The size canary and the ceiling cut are decided now; under the 7-day age gate they waited until day 7.
+        e, by = changed("C06", "auto_stop_minutes", 10, 3)
+        self.assertEqual(p.ready_billed_days(e), 2)
+        self.assertEqual((by["warehouse_size"].status, by["warehouse_size"].recommended_config["warehouse_size"]), ("TEST_REQUIRED", "MEDIUM"))
+        self.assertEqual((by["max_clusters"].status, by["max_clusters"].recommended_config["max_clusters"]), ("ACTIONABLE", 2))
+
+    def test_a_cost_change_without_a_canary_waits_for_its_price(self):
+        # Three days in, the forward cost is still unknown (fewer than seven settled days): an approval-only cost change
+        # is held with the cost-history code instead of shipping unpriced.
+        e, by = changed("C06", "auto_stop_minutes", 15, 3)  # back at 15: the cheaper value 10 is approval-only
+        a = by["auto_stop_minutes"]
+        if a.current_config != a.recommended_config or a.status != "NO_CHANGE":
+            self.assertEqual(a.status, "INSUFFICIENT_EVIDENCE")
+            self.assertIn("COST_HISTORY_INSUFFICIENT", a.blockers)
+        self.assertNotEqual(a.status, "ACTIONABLE")
+
+    def test_reevaluation_waits_for_the_next_settled_day(self):
+        e, _ = changed("C06", "auto_stop_minutes", 10, 2)
+        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        window = pkg.recommended_plan.reevaluation
+        self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", window.blocking_codes)
+        # Analysis day 2026-10-01 settles at 00:00Z on 2026-10-03; the cost-history gate (7 days) is later.
+        self.assertEqual(rc.expected_earliest_reevaluation_time(e.current_epoch.epoch_start, ["CURRENT_CONFIG_EPOCH_TOO_NEW"], AT), "2026-10-03T00:00:00Z")
+        billed = [x.value for x in pkg.evidence.values() if x.metric == "billed_cost_days"]
+        self.assertEqual(billed, [1])
+
+    def test_contract_constants_match_policy(self):
+        t = p.Thresholds()
+        self.assertEqual((rc.REEVALUATION_READY_BILLED_DAYS, rc.REEVALUATION_COST_HISTORY_DAYS),
+                         (t.readiness_min_billed_days, t.min_economics_cost_history_days))
+        self.assertEqual(rc.CONTRACT_VERSION, "2.0.0")
+
+
+if __name__ == "__main__":
+    unittest.main()

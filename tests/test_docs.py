@@ -164,7 +164,9 @@ class DocsGuardTests(unittest.TestCase):
 
     def test_design_docs_carry_no_version_stamps_or_internal_ids(self):
         pattern = re.compile(r"\b[Pp]ublisher v\d|\bv2\.\d+\.\d+\b|\baudit M\d|\bM9\b|\b[GK]\d{1,2}\b")
-        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
+        # Reporter contract versions are stamped on purpose and checked against the code by the version test above.
+        contract = re.compile(REPORTER_VERSION.pattern + r"|JSON Schema v\d+\.\d+\.\d+")
+        found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(contract.sub("", line))]
         self.assertEqual(found, [], "versions live in code constants; findings live in the tracker")
 
     def test_lld_hierarchy_diagram_matches_the_schema(self):
