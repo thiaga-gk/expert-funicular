@@ -195,6 +195,18 @@ class DemoFleetTests(unittest.TestCase):
         quiet = self.by_scenario["C47"][1]["recommended_plan"]["decision_summary"]
         self.assertNotIn("no-canary steps", quiet)
 
+    def test_c55_canary_regression_rolls_back_first_with_no_saving(self):
+        # LARGE -> MEDIUM a few days ago; p95 on shared statement sources rose well above the limit.
+        _, pkg = self.by_scenario["C55"]
+        c = self.candidate("C55", "warehouse_size")
+        self.assertEqual((c["status"], c["current_value"], c["recommended_value"]), ("ACTIONABLE", "MEDIUM", "LARGE"))
+        self.assertEqual(c["blockers"][:2], ["CANARY_GUARDRAIL_BREACHED", "CANARY_P95_REGRESSION"])
+        plan = next(s for s in pkg["scenarios"] if s["scenario_id"] == pkg["recommended_plan"]["scenario_id"])
+        first = plan["execution_plan"][0]
+        self.assertEqual((first["knob"], first["recommended_value"], first["execution_state"]), ("warehouse_size", "LARGE", "READY"))
+        self.assertIsNone(plan["portfolio_economics"]["savings_365d"]["total"])
+        self.assertIn("Apply the canary rollback (warehouse_size) before any other step", pkg["recommended_plan"]["decision_summary"])
+
     def test_c19_newly_changed_config_waits_with_a_reevaluation_time(self):
         _, pkg = self.by_scenario["C19"]
         self.assertEqual(pkg["assessment"]["overall_status"], "INSUFFICIENT_EVIDENCE")
