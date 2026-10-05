@@ -1,0 +1,9 @@
+name: serverless
+description: Serverless current state keeps type migration as an alternate Pro canary; no direct customer AWS baseline.
+notes: Without an observed Pro/Classic peer in the workspace, target Pro DBU/hour remains unknown and the migration cost model
+  must say so.
+expect:
+  aws_baseline: 0.0
+  migration_status: TEST_REQUIRED
+  warehouse: wh-demo-001
+  warehouse_type_target: PRO

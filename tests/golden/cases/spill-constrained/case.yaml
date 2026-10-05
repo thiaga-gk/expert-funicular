@@ -1,0 +1,7 @@
+name: spill-constrained
+description: Sustained spill triggers one-size performance upsize.
+expect:
+  candidate_status:
+    warehouse_size: TEST_REQUIRED
+  warehouse: wh-demo-001
+  warehouse_size_target: X_LARGE

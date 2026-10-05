@@ -1,0 +1,23 @@
+name: c37-seasonal-peak
+description: 'C37 Month/quarter-end seasonality: Pro MEDIUM 1/8, weekday BI plus a half-year-end close at 6 or more clusters.
+  The last 30 days peak at 2 clusters; the current epoch (events retained 365 days) peaked at 8. The ceiling is not cut below
+  the epoch''s peak, so 8 -> 3 is held, and the MEDIUM -> SMALL downsize waits for the same peak. Evidence is the demo fleet''s
+  simulated warehouse.'
+expect:
+  assertions:
+  - equals: NO_CHANGE
+    path: candidates[knob=max_clusters].status
+  - equals: 8
+    path: candidates[knob=max_clusters].recommended_value
+  - includes:
+    - PEAK_OUTSIDE_RECENT_WINDOW
+    path: candidates[knob=max_clusters].blockers
+  - equals: 8
+    path: evidence[metric=epoch_max_observed_clusters].value
+  - equals: NO_CHANGE
+    path: candidates[knob=warehouse_size].status
+  - includes:
+    - PEAK_OUTSIDE_RECENT_WINDOW
+    path: candidates[knob=warehouse_size].blockers
+  scenario: C37
+  warehouse: wh-demo-025

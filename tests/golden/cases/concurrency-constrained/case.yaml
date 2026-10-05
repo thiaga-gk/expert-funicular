@@ -1,0 +1,7 @@
+name: concurrency-constrained
+description: Queue pressure plus saturation triggers max-cluster scale-out.
+expect:
+  candidate_status:
+    max_clusters: ACTIONABLE
+  max_clusters_target: 3
+  warehouse: wh-demo-001

@@ -1,0 +1,13 @@
+name: c48-long-unchanged-warehouse
+description: 'C48 Long-unchanged warehouse: the only configuration snapshot is from 2025-06-01, more than 365 days before
+  analysis; the warehouse is still analyzed with mature-epoch gates.'
+expect:
+  assertions:
+  - equals: EPOCH-026C15922420369C890427EE
+    path: warehouse.current_epoch.epoch_id
+  - equals: ACTIONABLE
+    path: candidates[knob=auto_stop_minutes].status
+  - equals: null
+    path: recommended_plan.reevaluation
+  scenario: C48
+  warehouse: wh-demo-001

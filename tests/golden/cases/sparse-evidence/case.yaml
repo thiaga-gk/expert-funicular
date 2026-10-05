@@ -1,0 +1,5 @@
+name: sparse-evidence
+description: Sparse current-epoch evidence prevents aggressive cost actions.
+expect:
+  blocker: INSUFFICIENT_QUERY_SAMPLE
+  warehouse: wh-demo-001

@@ -1,0 +1,8 @@
+name: serverless-to-pro-costed
+description: Serverless->Pro Plan B is costed only when workspace system-table evidence supplies empirical Pro DBU/cluster-hour
+  plus regional AWS pricing.
+expect:
+  migration_estimate_status: PRE_CANARY_MODELED_RANGE
+  target_dbu_rate_source: WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR
+  warehouse: wh-serverless-001
+  warehouse_type_target: PRO

@@ -1,0 +1,6 @@
+name: aws-region-missing
+description: 'No silent regional AWS fallback: AWS cost remains unavailable until registry/CUR coverage exists.'
+expect:
+  aws_baseline: null
+  aws_blocker: AWS_PRICE_REGION_NOT_IN_REGISTRY
+  warehouse: wh-demo-001

@@ -1,0 +1,13 @@
+name: c08-concurrency-gates
+description: 'C08 Concurrency-constrained: queueing at the ceiling, but the configuration is 1 day old with 25 queries. A
+  max-cluster increase needs the same epoch-age and query-sample gates as every other change, so none is made yet.'
+expect:
+  assertions:
+  - equals: 2
+    path: candidates[knob=max_clusters].recommended_value
+  - includes:
+    - CURRENT_CONFIG_EPOCH_TOO_NEW
+    - INSUFFICIENT_QUERY_SAMPLE
+    path: candidates[knob=max_clusters].blockers
+  scenario: C08
+  warehouse: wh-demo-001

@@ -1,0 +1,202 @@
+[
+  {
+    "account_id": "acct-demo",
+    "analysis_time": "<wall-clock>",
+    "attribution": {
+      "observed_owners": [],
+      "owner": null,
+      "owner_source": "system.billing.usage.identity_metadata.owned_by",
+      "query_source": {
+        "categories": {
+          "ALERT": 0,
+          "DASHBOARD": 0,
+          "GENIE": 0,
+          "JOB": 0,
+          "LOOKER": 0,
+          "NOTEBOOK": 0,
+          "POWER_BI": 0,
+          "SQL_EDITOR": 0,
+          "TABLEAU": 0
+        },
+        "client_applications": [],
+        "multi_label": true,
+        "percentages": {
+          "ALERT": 0.0,
+          "DASHBOARD": 0.0,
+          "GENIE": 0.0,
+          "JOB": 0.0,
+          "LOOKER": 0.0,
+          "NOTEBOOK": 0.0,
+          "POWER_BI": 0.0,
+          "SQL_EDITOR": 0.0,
+          "TABLEAU": 0.0
+        },
+        "primary_category": "UNATTRIBUTED"
+      }
+    },
+    "aws_baseline_cost_365": null,
+    "aws_cost_model": {
+      "blocker": "AWS_PRICE_REGION_NOT_IN_REGISTRY",
+      "region": "us-east-1",
+      "status": "UNAVAILABLE"
+    },
+    "baseline_forecast_cost_365": null,
+    "billing_features": {},
+    "compatibility_evidence": {
+      "mode": "A_HITL_FALLBACK",
+      "status": "OTHER_WORKSPACE_API_NOT_QUERIED",
+      "workspace_id": "1234567890123456"
+    },
+    "cost_cv_84": null,
+    "cost_history_days": 125,
+    "currency": "USD",
+    "current_cost_365": 0,
+    "current_epoch_id": "EPOCH-C29B5CF9E22DCE00",
+    "daily_cost_365": [],
+    "epochs": [
+      {
+        "account_id": "acct-demo",
+        "config": {
+          "auto_stop_minutes": 10,
+          "max_clusters": 2,
+          "min_clusters": 1,
+          "warehouse_channel": "CHANNEL_NAME_CURRENT",
+          "warehouse_size": "SMALL",
+          "warehouse_type": "PRO"
+        },
+        "cost": {
+          "active_cost_days": 0,
+          "cost_days": 93,
+          "currency": "USD",
+          "dbu_quantity": 0,
+          "list_cost": 0,
+          "unpriced_dbu_quantity": 0
+        },
+        "epoch_end": "2026-06-01T00:00:00+00:00",
+        "epoch_id": "EPOCH-BF92AA7FB3385CB4",
+        "epoch_start": "2026-03-01T00:00:00+00:00",
+        "events": {},
+        "gaps": {},
+        "is_current": false,
+        "query": {
+          "concurrency_histogram": {
+            "EPOCH": {}
+          }
+        },
+        "resource_daily": null,
+        "tags": {
+          "team": "bi"
+        },
+        "warehouse_id": "wh-c36",
+        "warehouse_name": "BI Churn",
+        "workspace_id": "1234567890123456"
+      },
+      {
+        "account_id": "acct-demo",
+        "config": {
+          "auto_stop_minutes": 10,
+          "max_clusters": 2,
+          "min_clusters": 1,
+          "warehouse_channel": "CHANNEL_NAME_CURRENT",
+          "warehouse_size": "MEDIUM",
+          "warehouse_type": "PRO"
+        },
+        "cost": {
+          "active_cost_days": 0,
+          "cost_days": 126,
+          "currency": "USD",
+          "dbu_quantity": 0,
+          "list_cost": 0,
+          "unpriced_dbu_quantity": 0
+        },
+        "epoch_end": null,
+        "epoch_id": "EPOCH-C29B5CF9E22DCE00",
+        "epoch_start": "2026-06-01T00:00:00+00:00",
+        "events": {
+          "resource_coverage_from": null,
+          "resource_daily_from": "2026-06-07"
+        },
+        "gaps": {},
+        "is_current": true,
+        "query": {
+          "concurrency_histogram": {
+            "BUSY_START": {},
+            "EPOCH": {},
+            "RECENT": {}
+          }
+        },
+        "resource_daily": [],
+        "tags": {
+          "cost_center": "42",
+          "team": "bi"
+        },
+        "warehouse_id": "wh-c36",
+        "warehouse_name": "BI Churn (renamed)",
+        "workspace_id": "1234567890123456"
+      }
+    ],
+    "forecast_metadata": {
+      "active_cost_days": 0,
+      "billing_complete_through": "2026-10-03",
+      "billing_completeness": "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY",
+      "billing_correction_dbu_share_365": null,
+      "billing_cycles": 0,
+      "billing_ingested_through": null,
+      "billing_ingestion_cutoff": null,
+      "billing_restated_dbu_quantity_365": 0.0,
+      "billing_retracted_dbu_quantity_365": 0.0,
+      "billing_runs": 0,
+      "billing_settle_hours": 24,
+      "billing_watermark": null,
+      "billing_watermark_source": "ACCOUNT",
+      "cadence_run_starts": null,
+      "cadence_window_end": null,
+      "cadence_window_start": null,
+      "cost_cv_84": null,
+      "cost_history_days": 125,
+      "dbu_forecast_status": "INSUFFICIENT_ACTIVE_COST_DAYS",
+      "dbu_pricing_status": "COMPLETE",
+      "excluded_incomplete_days": 1,
+      "forecast_basis_end": "2026-10-03",
+      "forecast_basis_start": "2026-06-01",
+      "forecast_method": "epoch-runrate-v2.10.0",
+      "forecast_model": "RUN_RATE",
+      "median_cycle_days": null,
+      "rate_basis_days": 84,
+      "rate_billed_days": 0,
+      "run_rate_28": 0.0,
+      "run_rate_84": 0.0,
+      "trend_adjustment_factor": 1.0,
+      "trend_ratio": 1.0,
+      "unpriced_dbu_quantity_365": 0,
+      "unpriced_dbu_quantity_in_basis": 0,
+      "zero_cost_days_in_basis": 125
+    },
+    "photon_observation": {
+      "confidence": {
+        "components": {
+          "dbu_volume": 0.0,
+          "feature_coverage": 0.0,
+          "freshness": 0.0,
+          "state_purity": 0.0
+        },
+        "level": "LOW",
+        "score": 0.0
+      },
+      "enabled_usage_pct": null,
+      "evidence_source": "system.billing.usage.product_features.is_photon",
+      "false_dbu": 0.0,
+      "freshness_days": null,
+      "known_feature_coverage_pct": 0.0,
+      "latest_usage_time": null,
+      "null_dbu": 0.0,
+      "status": "UNKNOWN",
+      "true_dbu": 0.0
+    },
+    "source_region": "us-east-1",
+    "sql_sku_prices": {},
+    "warehouse_id": "wh-c36",
+    "warehouse_name": "BI Churn (renamed)",
+    "workspace_id": "1234567890123456"
+  }
+]

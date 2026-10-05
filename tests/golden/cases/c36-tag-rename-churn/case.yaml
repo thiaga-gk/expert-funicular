@@ -1,0 +1,23 @@
+name: c36-tag-rename-churn
+description: 'C36 Tag / rename churn: a real size change on 2026-06-01, then a tag edit on 2026-09-28 and a rename on 2026-09-30.
+  Only the size change starts a configuration period; the cosmetic snapshots do not reset its start (maturity gates, cost
+  history, forecast basis) and the current name and tags are the latest.'
+now: '2026-10-01 12:00:00'
+expect:
+  evidence_assertions:
+  - length: 2
+    path: epochs
+  - equals: '2026-06-01T00:00:00+00:00'
+    path: epochs[is_current=True].epoch_start
+  - equals: MEDIUM
+    path: epochs[is_current=True].config.warehouse_size
+  - equals: SMALL
+    path: epochs[is_current=False].config.warehouse_size
+  - equals: BI Churn (renamed)
+    path: epochs[is_current=True].warehouse_name
+  - equals:
+      cost_center: '42'
+      team: bi
+    path: epochs[is_current=True].tags
+  scenario: C36
+  warehouse: wh-c36

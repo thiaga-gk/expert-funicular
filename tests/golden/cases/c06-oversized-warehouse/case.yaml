@@ -1,0 +1,9 @@
+name: c06-oversized-warehouse
+description: 'C06 Over-sized: no spill, low latency, low task time per cluster-hour. Only the utilization evidence is asserted
+  until the floor/size optimizers land.'
+expect:
+  assertions:
+  - equals: 0.15
+    path: evidence[metric=task_minutes_per_cluster_minute].value
+  scenario: C06
+  warehouse: wh-demo-001

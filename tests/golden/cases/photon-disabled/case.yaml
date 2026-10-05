@@ -1,0 +1,11 @@
+name: photon-disabled
+description: Photon current config is intentionally not inferred from system tables; capability remains API-required/out-of-scope.
+expect:
+  active_candidate_knobs:
+  - warehouse_size
+  - max_clusters
+  - min_clusters
+  - auto_stop_minutes
+  - warehouse_type
+  api_required_capability: enable_photon
+  warehouse: wh-demo-001

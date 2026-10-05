@@ -1,0 +1,28 @@
+name: c26-failure-heavy
+description: 'C26 Failure-heavy warehouse: 12% of queries failed or were cancelled in the last 30 days. No capacity cut of
+  any kind (size, max clusters, min clusters, auto-stop) is recommended while the failure share is high; the failure rate
+  is surfaced as the blocker.'
+expect:
+  assertions:
+  - includes:
+    - FAILURE_CANCEL_RATE_HIGH
+    path: candidates[knob=warehouse_size].blockers
+  - includes:
+    - FAILURE_CANCEL_RATE_HIGH
+    path: candidates[knob=max_clusters].blockers
+  - includes:
+    - FAILURE_CANCEL_RATE_HIGH
+    path: candidates[knob=min_clusters].blockers
+  - includes:
+    - FAILURE_CANCEL_RATE_HIGH
+    path: candidates[knob=auto_stop_minutes].blockers
+  - equals: LARGE
+    path: candidates[knob=warehouse_size].recommended_value
+  - equals: 4
+    path: candidates[knob=max_clusters].recommended_value
+  - equals: 2
+    path: candidates[knob=min_clusters].recommended_value
+  - equals: BLOCKED
+    path: candidates[knob=auto_stop_minutes].status
+  scenario: C26
+  warehouse: wh-demo-001
