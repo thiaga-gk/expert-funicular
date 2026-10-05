@@ -4035,7 +4035,9 @@ class _ChainState:
     dbu_tracks: List[float]
     aws_tracks: Optional[List[float]]
     resource_tracks: List[float]
-    current_min: int
+    # Floor clusters per track: a minimum-cluster cut realizes a different share of its reduction on each track (none on
+    # the conservative one), so later steps scale with that track's own floor.
+    floor_tracks: List[float]
     halt: Optional[Tuple[str, str]] = None
     # Wall-clock idle minutes a lower auto-stop already removed, per track: a later minimum-cluster cut has no floor
     # cluster to remove while the warehouse is stopped.
@@ -4132,34 +4134,34 @@ class StatefulBundleEstimator:
                 for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
         elif typ=="idle_cluster_minute_reduction":
             # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
-            # measured at the floor the candidate saw; both terms scale with the chain's current floor.
-            scale=st.current_min/max(1,safe_int(effect.get("floor_clusters"),1))
-            net=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))*scale
+            # measured at the floor the candidate saw; both terms scale with the track's current floor.
+            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/max(1,safe_int(effect.get("floor_clusters"),1))
             for i,realization in enumerate(realizations):
-                before=st.resource_tracks[i]
+                before=st.resource_tracks[i]; net=unit*st.floor_tracks[i]
                 if before<=0 or net<=0: continue
                 removed=min(before,net*realization)
                 if effect.get("removes_idle"):
-                    st.idle_wall_minutes[i]+=removed/max(1,st.current_min)
+                    st.idle_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=before-removed
         elif typ=="min_cluster_reduction":
             theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
-            target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
+            target_min=max(1,safe_int(effect.get("target_min_clusters"),1))
             effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
             for i,realization in enumerate(effect_realizations):
-                before=st.resource_tracks[i]
+                before=st.resource_tracks[i]; floor=st.floor_tracks[i]
+                # The track keeps the share of the floor reduction it did not realize.
+                st.floor_tracks[i]=floor-max(0.0,floor-target_min)*realization
                 if before<=0: continue
-                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0,st.current_min-target_min))
+                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0.0,floor-target_min))
                 removed=min(before,claim*realization)
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=after
-            st.current_min=target_min
         elif typ=="estimate_withheld":
             st.halt=(str(effect.get("status") or "UNAVAILABLE"),str(effect.get("reason") or "Estimate withheld."))
         elif typ=="requires_canary":
@@ -4183,7 +4185,7 @@ class StatefulBundleEstimator:
 
         original_resource=max(0.0,safe_float(e.current_epoch.events.get("cluster_minutes")))
         def fresh()->_ChainState:
-            st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+            st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,[float(max(1,e.current_epoch.config.min_clusters))]*3)
             if dbu_base is None:
                 st.halt=DBU_BASELINE_WITHHELD[dbu_baseline_blocker(e,self.t)]
             return st
