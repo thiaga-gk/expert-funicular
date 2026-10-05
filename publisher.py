@@ -5478,6 +5478,8 @@ def _build_locked_recommendation_package(
         "Current configuration epoch is the decision baseline.",
         "Forward DBU cost uses the deterministic current-epoch run-rate model.",
         "AWS forward cost is modeled from observed current-epoch resource time and the configured regional price registry when available.",
+        "DBU cost is priced at the account's list price; negotiated discounts lower real savings in proportion.",
+        "AWS cost is priced at on-demand EC2 rates; Spot, Reserved Instances and Savings Plans are not modeled.",
     ]
     source_regions = sorted({x for x in e.source_region.split(",") if x}) or ["unknown"]
     provenance = rc.Provenance(

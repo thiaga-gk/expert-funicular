@@ -34,6 +34,7 @@ The workbook is a human decision/reporting projection of immutable `Recommendati
 Presents coverage, including the count of warehouses excluded by the supported-type gate. That count comes from the run manifest's `excluded_warehouses` and is `UNAVAILABLE` when the caller passes no exclusion list. It also shows the actual/forward baseline, recommended annual savings, recommended annual cost increase and signed net annual impact, followed by two separate blocks:
 
 - **Recommended plan savings:** sums of the recommended scenario's total low, base and high over warehouses whose recommended scenario is priced. The note states how many are priced; unpriced plans are excluded, never counted as zero. The base equals the net annual impact.
+- **Pricing basis:** the *Forward 365d baseline* and *Plan savings* notes state that DBU cost is at the account's list price (negotiated discounts lower real savings proportionally) and AWS cost at on-demand EC2 prices (Spot, Reserved Instances and Savings Plans are not modeled).
 - **Experiment upside:** the sum of the positive total `high` of each package's priced, non-blocked migration-experiment scenario. It is an alternative to the recommended plan, not added to it, and unvalidated until the canary.
 
 The package scenario envelope (which an experiment can set), confidence posture and up to 15 highest-impact warehouses follow. Financial cells are numeric and chartable.
