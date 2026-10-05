@@ -491,7 +491,7 @@ For example, an `ACTIONABLE` candidate may be `PENDING_REEVALUATION` in a scenar
 
 ### FR-PLAN-001
 
-Plan A shall order its steps by expected value: base annual savings × confidence ÷ risk, highest first, where a change that needs a canary carries more risk than one that needs human approval only (`plan_risk_canary_change`, `plan_risk_hitl_change`). Priced changes with positive savings come first, then changes that need a canary to be priced, then changes with no priced saving (guardrails and performance fixes). A step never precedes a step that invalidates its evidence, and steps another step invalidates (always pending re-evaluation) follow every ready step.
+Plan A shall order its steps by expected value: base annual savings × confidence ÷ risk, highest first, where a change that needs a canary carries more risk than one that needs human approval only (`plan_risk_canary_change`, `plan_risk_hitl_change`). Priced changes with positive savings come first, then changes that need a canary to be priced, then changes with no priced saving (guardrails and performance fixes). A canary rollback (FR-EPOCH-005) is the first step and is always ready. Otherwise a step never precedes a step that invalidates its evidence, and steps another step invalidates (always pending re-evaluation) follow every ready step.
 
 Only true invalidations hold a step: a size change invalidates max- and min-cluster evidence, and a max-cluster increase invalidates min-cluster evidence. A max-cluster ceiling cut above the observed peak, a min-cluster change and an auto-stop change invalidate nothing; auto-stop is evaluated independently of size and min clusters.
 
