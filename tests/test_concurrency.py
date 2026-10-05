@@ -125,6 +125,19 @@ class OlderEpochHoldTests(unittest.TestCase):
         by = self.candidates(self.evidence({"1": 5000.0, "80": 10.0}))  # 10 minutes only
         self.assertEqual(by["max_clusters"].recommended_config["max_clusters"], 3)
 
+    def test_same_spike_rate_over_a_longer_older_epoch_does_not_hold(self):
+        # Spikes to 45 queries for 20 minutes a month both now and in a 106-day older epoch (~70 minutes there): the
+        # older 30-minute peak (45) is compared with the recent peak read at the same rate (~8 minutes: also 45).
+        e = self.evidence({"1": 140000.0, "15": 2800.0, "25": 640.0, "45": 70.0})
+        e.current_epoch.query["concurrency_histogram"]["RECENT"] = {"1": 39000.0, "15": 800.0, "25": 180.0, "45": 20.0}
+        by = self.candidates(e)
+        self.assertNotIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", by["max_clusters"].blockers)
+
+    def test_a_quiet_recent_window_does_not_hide_a_busier_past(self):
+        e = self.evidence({"1": 5000.0, "45": 600.0})
+        e.current_epoch.query["concurrency_histogram"]["RECENT"] = {"1": 25.0}
+        self.assertIn("OLDER_EPOCH_PEAK_DEMAND_HIGHER", self.candidates(e)["min_clusters"].blockers)
+
     def test_quarter_end_peak_in_the_current_epoch_keeps_the_ceiling(self):
         # 2 hours at 72 queries out of 150,000 busy minutes (0.08%): P99.5 misses it, the 30-busy-minute peak does not.
         by = self.candidates(self.evidence(current_epoch_hist={"1": 149880.0, "72": 120.0}))

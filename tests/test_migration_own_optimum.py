@@ -84,5 +84,20 @@ class MigrationTargetRestartTests(unittest.TestCase):
         self.assertGreaterEqual(o["target_running_cluster_minutes"], g["observed_running_cluster_minutes"] - o["gain_cluster_minutes"] + restarts * 3.9 - 1e-6)
 
 
+class MigrationBasisTests(unittest.TestCase):
+    def test_today_basis_carries_today_restarts_at_today_cost(self):
+        # Measured running time excludes starting time, so the fraction is target cost over (today's running + today's
+        # restarts at today's restart cost), never today's running minus restarts it never contained.
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C49")
+            a = p.Analyzer(p.Thresholds()).analyze(e)["warehouse_type"].facts
+        finally:
+            logging.disable(logging.NOTSET)
+        g = e.current_epoch.gaps
+        basis = g["observed_running_cluster_minutes"] + g["restarts_for_queries"] * 4.0
+        self.assertAlmostEqual(a["migration_running_fraction"], round(a["migration_target_option"]["target_running_cluster_minutes"] / basis, 6), places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

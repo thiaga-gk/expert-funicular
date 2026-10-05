@@ -112,6 +112,14 @@ class RunningIdleOracleTests(unittest.TestCase):
         self.assertEqual(m["kept_alive_gap_count"], 0)
         self.assertEqual(m["restarts_for_queries"], 1)
 
+    def test_a_late_stop_event_in_a_stopped_gap_keeps_its_savings(self):
+        # Auto-stop 30; the stop event lands 5 minutes late but the warehouse did stop before the next query: removable
+        # [10, 30) stays, and the gap is not kept alive (only gaps run through to the next query can be).
+        busy = [(0.0, 10.0), (200.0, 210.0)]
+        m = self.metrics(busy, [(0.0, 45.0, 1), (200.0, 210.0, 1)], (0.0, 210.0), 30)
+        self.assertAlmostEqual(m["removable_running_wall_minutes_if_10"], 20.0, places=3)
+        self.assertEqual((m["kept_alive_gap_count"], m["kept_alive_wall_minutes"]), (0, 0.0))
+
     def test_segments_are_clipped_to_the_window(self):
         m = self.metrics([], [(-100.0, 50.0, 2), (200.0, 300.0, 1)], (0.0, 100.0), 0)
         self.assertEqual((m["observed_running_cluster_minutes"], m["running_segment_count"]), (100.0, 1))
@@ -145,6 +153,7 @@ class RunningIdleSqlTests(unittest.TestCase):
         for key in p.RUNNING_IDLE_HEADER_FIELDS:
             self.assertIn(key, self.sql)
         self.assertNotIn("LEFT JOIN running", self.sql)  # pieces come from an inner join: no NULL bounds in GREATEST/LEAST
+        self.assertIn("CASE WHEN x.start_time >= c.w_end - INTERVAL 1 DAY THEN c.w_end ELSE x.start_time END", self.sql)  # only a recent open query runs until now
 
     def test_candidates_start_at_the_type_floor(self):
         self.assertEqual(p.auto_stop_candidates(self.t, "PRO")[0], 10)
