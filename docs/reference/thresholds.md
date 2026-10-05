@@ -113,6 +113,8 @@ Spill, latency and failure limits for size up and size down.
 | `failure_cancel_pct_downsize_safe` | `5.0` | Largest share of failed or cancelled queries (percent) before every capacity cut (size down, lower max or min clusters, lower auto-stop) is held. | [LLD §15 Optimizer decision algorithms](../architecture/lld.md), Gates [`FAILURE_CANCEL_RATE_HIGH`](blocker-codes.md), [failure guard row](thresholds.md) |
 | `p95_execution_ms_downsize_safe` | `5000` | Largest p95 query execution time (ms) still treated as safe for a size down. | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3 Warehouse size](../architecture/lld.md), Gates [`P95_LATENCY_TOO_HIGH`](blocker-codes.md) |
 | `p99_execution_ms_downsize_safe` | `30000` | Largest p99 query execution time (ms) still treated as safe for a size down. | [PRD FR-OPT-003](../product/prd.md), [LLD §15.3 Warehouse size](../architecture/lld.md), Gates [`P99_LATENCY_TOO_HIGH`](blocker-codes.md) |
+| `batch_job_query_share_pct` | `80.0` | Share of last-30-day queries from jobs (%) at or above which a warehouse is batch: its downsize canary skips the interactive latency gates and uses run days as the sample. | [LLD §15.3 Warehouse size](../architecture/lld.md) |
+| `batch_min_active_days` | `20` | Active days in the last 30 a batch warehouse needs before a downsize canary. | [LLD §15.3 Warehouse size](../architecture/lld.md), Gates [`INSUFFICIENT_BATCH_RUN_DAYS`](blocker-codes.md) |
 
 ### Max clusters
 

@@ -134,6 +134,10 @@ class Thresholds:
     failure_cancel_pct_downsize_safe: float = 5.0
     p95_execution_ms_downsize_safe: int = 5_000
     p99_execution_ms_downsize_safe: int = 30_000
+    # Batch profile: a warehouse whose recent queries come mostly from jobs is judged on run days, not on interactive
+    # latency (a 10-minute ETL query is normal), for a downsize canary only.
+    batch_job_query_share_pct: float = 80.0
+    batch_min_active_days: int = 20
 
     # Min / max clusters
     time_at_min_pct_reduce: float = 25.0
@@ -2829,7 +2833,12 @@ class Analyzer:
         # slows down query execution, not the idle running time around it.
         busy_share = size_busy_share(gaps.get("busy_minutes"), ev.get("uptime_minutes"), ev.get("cluster_minutes"), cfg.min_clusters)
         fs.append(self._f(e,"warehouse_size","busy_cluster_time_share",busy_share,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window="current epoch",interpretation="Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy)."))
-        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
+        job_q = optional_float(q.get("job_queries_30"))
+        job_share = None if job_q is None or q30 <= 0 else round(100.0 * job_q / q30, 3)
+        batch_profile = job_share is not None and job_share >= self.t.batch_job_query_share_pct
+        fs.append(self._f(e,"warehouse_size","job_query_share_30",job_share,unit="%",threshold=self.t.batch_job_query_share_pct,comparator=">= batch profile",table="system.query.history",field="query_source.job_info.job_id",window="last 30 days within current epoch",
+            interpretation="Share of queries from jobs; a batch warehouse's downsize canary is judged on run days and job run time, not interactive latency."))
+        out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"batch_profile":batch_profile,"job_share":job_share,"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
         # Concurrency demand: per-minute running + queued queries (time-weighted), as clusters at the documented
         # queries per cluster. P99.5 of busy minutes over the recent window and the whole current epoch; P95 of busy
@@ -3051,17 +3060,22 @@ class Optimizer:
                     [],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
         else:
             target = previous_size(cfg.warehouse_size)
+            batch = f.get("batch_profile")
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
+            if batch:
+                # Batch: one run a day is enough evidence; the canary measures job run time instead of interactive latency.
+                if f["active_days_30"] < self.t.batch_min_active_days: blockers.append("INSUFFICIENT_BATCH_RUN_DAYS")
+            elif f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
             elif f["decision_queries"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
             if f["spill_pct"] is None: blockers.append("SPILL_EVIDENCE_UNAVAILABLE")
             elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
             if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
             elif f["queue_pct"] > self.t.queue_query_pct_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
             blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
-            if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
-            if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
+            if not batch:
+                if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
+                if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
+                if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
             # Seasonality: the canary's 30-day evidence cannot see a peak the epoch reached beyond the recent ceiling.
             mf = analyses["max_clusters"].facts
             if mf.get("max_observed") is not None and mf.get("epoch_max_observed") is not None \
@@ -3074,7 +3088,8 @@ class Optimizer:
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
                     [],["max_clusters","min_clusters"],
                     ["max_clusters","min_clusters"],
-                    "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety."))
+                    ("A batch warehouse (mostly job queries) with no spill or queueing: one size down is a canary that measures job run times; absence of pressure is not proof the jobs still finish in their windows." if batch else
+                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety.")))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],

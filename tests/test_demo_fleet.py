@@ -299,6 +299,17 @@ class DemoFleetTests(unittest.TestCase):
             self.assertEqual((status, got), ("ACTIONABLE", value), scenario)
             self.assertGreater(c["independent_economics"]["savings_365d"]["total"]["base"], 5000, scenario)
 
+    def test_c05_nightly_etl_gets_a_downsize_canary_judged_on_run_days(self):
+        # 100% job queries on 30 of 30 days with 10-minute p95 queries: the interactive latency gates do not apply.
+        c = self.candidate("C05", "warehouse_size")
+        self.assertEqual((c["status"], c["current_value"], c["recommended_value"]), ("TEST_REQUIRED", "LARGE", "MEDIUM"))
+        self.assertNotIn("P95_LATENCY_TOO_HIGH", c["blockers"])
+
+    def test_c26_flaky_etl_stays_held_by_its_failures(self):
+        c = self.candidate("C26", "warehouse_size")
+        self.assertEqual(c["status"], "NO_CHANGE")
+        self.assertIn("FAILURE_CANCEL_RATE_HIGH", c["blockers"])
+
     def test_a01_serverless_auto_stop_below_five_is_left_alone(self):
         c = self.candidate("A01", "auto_stop_minutes")
         self.assertEqual((c["current_value"], c["status"]), (1, "NO_CHANGE"))

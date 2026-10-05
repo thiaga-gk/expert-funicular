@@ -241,5 +241,18 @@ class DownsizeScaleOutTests(unittest.TestCase):
         self.assertAlmostEqual(f["high"], 0.93, places=6)
 
 
+class BatchProfileTests(unittest.TestCase):
+    def test_weekly_job_has_too_few_run_days_for_a_downsize_canary(self):
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C05")
+            e.current_epoch.query["active_days_30"] = 4
+            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(c.status, "NO_CHANGE")
+        self.assertIn("INSUFFICIENT_BATCH_RUN_DAYS", c.blockers)
+
+
 if __name__ == "__main__":
     unittest.main()
