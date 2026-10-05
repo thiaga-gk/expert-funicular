@@ -95,6 +95,20 @@ Every flag, its default and its meaning: [`docs/architecture/lld.md`](docs/archi
 
 To reproduce an earlier collection despite later billing corrections, add `--billing-ingested-through YYYY-MM-DD`: every billing query then reads only records ingested on or before that date. A UTC day enters the cost basis only after the `billing_settle_hours` buffer following its end and once its workspace's billing watermark has passed it.
 
+## Weekly scheduled run
+
+Run the publisher once a week as a Databricks job: a Python task or a notebook that calls `publisher.py` in live mode (the flags above) with an OAuth CLI profile available to the job (static PAT profiles are rejected, and the Databricks CLI must be on the job's `PATH`) and `--output-dir` on a Volume, for example `/Volumes/<catalog>/<schema>/<volume>/whopt/<run-date>`. Keep each run's dated output directory: every run reads the system tables afresh, and the directories are the audit trail.
+
+What each run shows, per warehouse package:
+
+- `observed_change`: the configuration change since the previous epoch, that is, a plan step that was applied;
+- steps that became ready as their evidence matured (`execution_state` `READY` or `READY_FOR_CANARY` in `recommended_plan`);
+- `recommended_plan.reevaluation` with `earliest_reevaluation_time` while nothing is ready yet and the plan is waiting for the stability period or cost history to clear.
+
+`carried_forward_plan` (the earlier epoch's plan carried forward) is reserved in the contract and not produced yet ([`docs/reference/known-limitations.md`](docs/reference/known-limitations.md)).
+
+Weekly is enough: every gate measured in days (the stability period, the cost history) clears within a week, and a canary's result is read on the first run after its stability period. The job is read-only and never applies a change: owners apply approved steps in the Databricks UI or API themselves, and the next run measures the epoch that follows.
+
 ## Source policy
 
 - `system.compute.warehouses` — configuration snapshots/epochs (an epoch is a period of unchanged type, channel, size, min/max clusters and auto-stop; name/tag-only snapshots do not start one).

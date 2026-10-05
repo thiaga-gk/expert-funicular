@@ -61,6 +61,46 @@ class UnresolvedNoChangeTests(unittest.TestCase):
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
         self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["QUEUEING_WITH_DEMAND_WITHIN_CEILING"]))
 
+    def test_ceiling_cut_held_on_a_young_configuration_is_named(self):
+        # C06 a few days after another setting changed: the 4 -> 2 ceiling cut waits for the stability period, and the
+        # hold says so instead of leaving the blocker list empty.
+        self.assertEqual(self.cands["C06"]["max_clusters"].status, "ACTIONABLE")
+        for days in (2, 5):
+            e = copy.deepcopy(self.by["C06"])
+            start = p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=days)
+            e.current_epoch.epoch_start = start.isoformat()
+            c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+            self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), days)
+            self.assertIn("too new", c.metadata["rationale"])
+
+    def test_young_hold_names_the_evidence_a_mature_epoch_would_also_need(self):
+        e = copy.deepcopy(self.by["C06"])
+        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.query["queued_query_pct_30"] = None  # queue frequency not reported
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+        self.assertEqual(c.blockers, ["CURRENT_CONFIG_EPOCH_TOO_NEW", "QUEUE_EVIDENCE_UNAVAILABLE"])
+
+    def test_young_epoch_whose_queueing_holds_the_cut_anyway_gets_no_age_code(self):
+        e = copy.deepcopy(self.by["C06"])
+        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.query["queued_query_pct_30"] = self.t.queue_query_pct_safe + 1.0  # above safe, below increase
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+        self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
+
+    def test_young_configuration_with_nothing_to_cut_invents_no_code(self):
+        e = copy.deepcopy(self.by["C47"])  # max clusters already at the floor: no cut to hold
+        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+        self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
+
+    def test_ceiling_increase_states_why_its_best_case_costs_nothing(self):
+        for scenario in ("C50", "C42"):
+            c = self.cands[scenario]["max_clusters"]
+            self.assertEqual(c.status, "ACTIONABLE")
+            self.assertEqual(c.total_365d_savings_range.high, 0.0)  # best case: no added cost
+            self.assertIn("best case adds no cost", c.metadata["rationale"])
+            self.assertIn("best case adds no cost", c.metadata["method"])
+
     def test_quiet_warehouse_keeps_an_empty_blocker_list(self):
         c = self.cands["C06"]["min_clusters"]  # nothing unresolved: no code invented
         self.assertEqual(c.blockers, [])

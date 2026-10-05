@@ -108,6 +108,9 @@ class Thresholds:
     # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
+    forecast_cadence_gap_days: int = 7  # short runs resting longer than this between them are a periodic workload
+    forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
+    forecast_run_bridge_days: int = 3  # billed days this close belong to one run (a weekend inside a month-end close)
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
@@ -232,7 +235,7 @@ class Thresholds:
     min_cluster_realization_base: float = 0.50
     min_cluster_realization_conservative: float = 0.00
     max_cluster_base_uplift_weight: float = 0.50
-    downsize_runtime_multiplier_conservative: float = 1.55
+    downsize_runtime_multiplier_conservative: float = 2.0  # fully linear slowdown: one size down halves the workers
     downsize_runtime_multiplier_base: float = 1.30
     downsize_runtime_multiplier_optimistic: float = 1.10
     upsize_runtime_multiplier_conservative: float = 1.00
@@ -1575,7 +1578,7 @@ def dbu_baseline_blocker(e: "WarehouseEvidence", t: "Thresholds") -> str:
     if e.cost_history_days < t.min_economics_cost_history_days:
         return "COST_HISTORY_INSUFFICIENT"
     status = (e.forecast_metadata or {}).get("dbu_forecast_status")
-    return "BILLED_COST_DAYS_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+    return "BILLED_COST_DAYS_INSUFFICIENT" if status in ("INSUFFICIENT_ACTIVE_COST_DAYS", "INSUFFICIENT_BILLING_CYCLES") else "DBU_COST_UNAVAILABLE"
 
 
 MIGRATION_BASELINE_RATIONALE = {
@@ -1845,6 +1848,38 @@ def scenario_id(workspace_id: str, warehouse_id: str, name: str, recommendation_
     """Internal plan key, mapped to a public SCN- identity when the package is built."""
     raw = canonical_json({"v": DECISION_VERSION, "workspace": workspace_id, "warehouse": warehouse_id, "name": name, "ids": list(recommendation_ids)})
     return "SCN-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
+
+
+# Why a ceiling increase's best case is zero added cost, stated with the candidate and its pricing method.
+MAX_INCREASE_COST_BOUNDS = ("Cost: the best case adds no cost, because the same queries run on more clusters at once and the "
+                            "total running time does not grow; the worst case runs every added cluster whenever the warehouse "
+                            "sat at its current ceiling.")
+
+
+def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dict[str, Any]]:
+    """Billed days among the last `window_days` settled days of the current epoch's forecast basis, with their cost.
+
+    None when the basis is unknown. A day counts as billed when it has positive DBU usage; cost is None when any of
+    those days carries unpriced usage (unknown, never understated).
+    """
+    meta = e.forecast_metadata or {}
+    start, end = parse_datetime(meta.get("forecast_basis_start")), parse_datetime(meta.get("forecast_basis_end"))
+    if not start or not end or end < start:
+        return None
+    first = max(start.date(), end.date() - dt.timedelta(days=window_days - 1))
+    dbu: Dict[str, float] = {}; cost = 0.0; unpriced = False
+    current_start = e.current_epoch.epoch_start
+    for r in e.daily_cost_365:
+        day = parse_datetime(r.get("usage_date"))
+        if not day or not first <= day.date() <= end.date():
+            continue
+        if r.get("epoch_start") is not None and parse_datetime(r.get("epoch_start")) != parse_datetime(current_start):
+            continue  # an older epoch's usage on the current epoch's first day
+        key = day.date().isoformat()
+        dbu[key] = dbu.get(key, 0.0) + safe_float(r.get("dbu_quantity")) + safe_float(r.get("unpriced_dbu_quantity"))
+        cost += safe_float(r.get("list_cost")); unpriced = unpriced or safe_float(r.get("unpriced_dbu_quantity")) > 0
+    return {"settled_days": (end.date() - first).days + 1, "billed_days": sum(1 for v in dbu.values() if v > 1e-12),
+            "billed_cost": None if unpriced else round(cost, 2), "first_day": first.isoformat(), "last_day": end.date().isoformat()}
 
 
 def epoch_age_days(epoch: EpochEvidence, as_of: Optional[str] = None) -> int:
@@ -2244,6 +2279,57 @@ def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
     return row.get("currency_code") is None and row.get("list_cost") is None and safe_float(row.get("unpriced_dbu_quantity")) > 0
 
 
+def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds) -> Dict[str, Any]:
+    """Runs of billed days in a zero-filled daily cost series and their run-to-run cycles.
+
+    Billed days at most forecast_run_bridge_days apart form one run, so a weekend does not split a month-end close.
+    periodic: short runs (median calendar length at most forecast_cadence_gap_days) with long rests between them (median
+    idle gap from one run's last day to the next run's first day above it) on a current cadence: the last run started
+    no more than one reference cycle (the upper quartile of cycles, or the only cycle) plus forecast_cadence_gap_days
+    before the basis end. weekly: the same shape with a rest of exactly the limit, where the cadence model is used only
+    when the run rate has no number. A run starting within forecast_run_bridge_days of the basis start may continue
+    before it, so it is not a cycle anchor. The cycle cost is the cost from the first anchor run's first day up to the
+    last run's first day: whole cycles only.
+    """
+    gap_limit = t.forecast_cadence_gap_days
+    billed = [i for i, x in enumerate(series) if x > 1e-12]
+    runs: List[List[int]] = []
+    for i in billed:
+        if runs and i - runs[-1][-1] <= t.forecast_run_bridge_days:
+            runs[-1].append(i)
+        else:
+            runs.append([i])
+    starts = [r[0] for r in runs]
+    cycles = [b - a for a, b in zip(starts, starts[1:])]
+    median = statistics.median(cycles) if len(starts) >= 3 else None
+    short_runs = bool(runs) and statistics.median(r[-1] - r[0] + 1 for r in runs) <= gap_limit
+    # Idle time between runs (next run's first day minus the previous run's last day): a periodic workload rests longer
+    # than a week between bursts; frequent ad hoc use bridged into short runs does not.
+    idle = [b[0] - a[-1] for a, b in zip(runs, runs[1:])]
+    rest = statistics.median(idle) if idle else None
+    # Recency reference: the upper quartile of cycles, so a stable two-runs-a-month cadence (7 and 24 days) stays
+    # current between its runs while a stopped job still lapses about one cycle after its last run.
+    reference = statistics.quantiles(cycles, n=4, method="inclusive")[-1] if len(cycles) >= 2 else (cycles[0] if cycles else None)
+    current = reference is not None and (len(series) - 1 - starts[-1]) <= reference + gap_limit
+    shape = short_runs and current and rest is not None
+    # Each cycle is at least its own rest, so the median cycle and the longest gap are at least the median rest: the
+    # rest alone decides.
+    periodic = shape and rest > gap_limit
+    weekly = shape and rest == gap_limit
+    # A run within forecast_run_bridge_days of the basis start may continue before it (cut by the epoch or window
+    # start), so it is not a cycle anchor.
+    anchors = starts[1:] if starts and starts[0] < t.forecast_run_bridge_days else starts
+    day = lambda i: (basis_start + dt.timedelta(days=i)).isoformat()
+    return {
+        "periodic": periodic, "weekly": weekly, "runs": len(runs), "cycles": max(0, len(anchors) - 1),
+        "median_cycle_days": median,
+        "cycle_cost": sum(series[anchors[0]:anchors[-1]]) if len(anchors) >= 2 else 0.0,
+        "cycle_days": (anchors[-1] - anchors[0]) if len(anchors) >= 2 else 0,
+        "window_start": day(anchors[0]) if anchors else None, "window_end": day(anchors[-1]) if anchors else None,
+        "run_starts": [day(i) for i in anchors],
+    }
+
+
 class Modeler:
     """Forward-looking baseline model using zero-filled calendar-day cost history."""
     def __init__(self, thresholds: Thresholds):
@@ -2354,6 +2440,7 @@ class Modeler:
                 "cost_cv_84": None,
                 **completeness_meta,
                 "forecast_method": MODEL_VERSION,
+                "forecast_model": "RUN_RATE",
                 "forecast_basis_start": None,
                 "forecast_basis_end": None,
             }
@@ -2392,6 +2479,25 @@ class Modeler:
             forecast_status = "NON_POSITIVE_RUN_RATE"
         else:
             forecast_status = "COMPLETE"
+        forecast_365 = round(daily * 365, 2) if forecast_status == "COMPLETE" else None
+        cadence = billing_cadence(series, basis_start, self.t)
+        model = "RUN_RATE"
+        if cadence["periodic"] or (cadence["weekly"] and forecast_365 is None):
+            # Periodic workload (short runs resting longer than a week; weekly only when the run rate has no
+            # number): average whole run-to-run cycles, with no trend; fewer than forecast_min_cycles cycles is unknown.
+            model = "CADENCE"
+            ratio = None
+            trend_adjustment_factor = 1.0
+            cv = None
+            if unpriced_in_basis > 0:
+                forecast_status = "UNPRICED_USAGE"
+            elif cadence["cycles"] < self.t.forecast_min_cycles:
+                forecast_status = "INSUFFICIENT_BILLING_CYCLES"
+            elif cadence["cycle_cost"] <= 0:
+                forecast_status = "NON_POSITIVE_RUN_RATE"
+            else:
+                forecast_status = "COMPLETE"
+            forecast_365 = round(cadence["cycle_cost"] / cadence["cycle_days"] * 365, 2) if forecast_status == "COMPLETE" else None
         if unpriced_in_basis > 0:
             # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
             # AWS model gets no trend adjustment instead of a spurious downward one.
@@ -2400,7 +2506,14 @@ class Modeler:
             cv = None
         return {
             "current_cost_365": actual,
-            "forecast_cost_365": round(daily * 365, 2) if forecast_status == "COMPLETE" else None,
+            "forecast_cost_365": forecast_365,
+            "forecast_model": model,
+            "billing_runs": cadence["runs"],
+            "billing_cycles": cadence["cycles"],
+            "median_cycle_days": cadence["median_cycle_days"],
+            "cadence_window_start": cadence["window_start"] if model == "CADENCE" else None,
+            "cadence_window_end": cadence["window_end"] if model == "CADENCE" else None,
+            "cadence_run_starts": cadence["run_starts"] if model == "CADENCE" else None,
             "dbu_forecast_status": forecast_status,
             "currency": currency,
             "cost_history_days": len(series),
@@ -2435,16 +2548,16 @@ def observed_epoch_calendar_days(epoch_start: str, epoch_end: Optional[str], ana
 RESOURCE_SERIES_FIELDS = ("uptime_minutes", "cluster_minutes", "minutes_at_min", "minutes_at_max", "recycle_minutes", "max_cluster_count", "starts")
 
 
-def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thresholds) -> Optional[Dict[str, Any]]:
-    """The current epoch's daily resource series on the DBU forecast's calendar: the last forecast_long_days complete
-    days ending at the billing basis end, clipped to the epoch start, missing days zero-filled. None when the series was
-    not collected or no basis day exists."""
+def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thresholds, days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """The current epoch's daily resource series on the DBU forecast's calendar: the last forecast_long_days (or `days`)
+    complete days ending at the billing basis end, clipped to the epoch start, missing days zero-filled. None when the
+    series was not collected or no basis day exists."""
     end = parse_datetime(basis_end) if basis_end else None
     start_dt = parse_datetime(epoch.epoch_start)
     if epoch.resource_daily is None or end is None or start_dt is None:
         return None
     end_day = end.date()
-    start_day = max(start_dt.astimezone(dt.timezone.utc).date(), end_day - dt.timedelta(days=t.forecast_long_days - 1))
+    start_day = max(start_dt.astimezone(dt.timezone.utc).date(), end_day - dt.timedelta(days=(days or t.forecast_long_days) - 1))
     collected_from = parse_datetime(epoch.events.get("resource_daily_from"))
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
@@ -2469,6 +2582,38 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
 def resource_window(e: "WarehouseEvidence", t: Thresholds) -> Optional[Dict[str, Any]]:
     meta = e.forecast_metadata or {}
     return resource_window_from(e.current_epoch, meta.get("forecast_basis_end") or meta.get("billing_complete_through"), t)
+
+
+def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: Thresholds, fields: Sequence[str]) -> Tuple[Optional[Dict[str, float]], Dict[str, Any]]:
+    """Annual totals of daily resource series on the DBU forecast's model, so AWS and DBU describe the same year.
+
+    Run-rate model: the forecast's window and recent-weighted blend, times its trend adjustment. Cadence model: the same
+    whole run-to-run cycles over the latest runs warehouse events cover (at least forecast_min_cycles of them), with no
+    trend. Returns (None, info with a blocker) when the window is missing or holds too few covered cycles.
+    """
+    end = meta.get("forecast_basis_end") or meta.get("billing_complete_through")
+    if meta.get("forecast_model") == "CADENCE":
+        window = resource_window_from(epoch, end, t, days=365)
+        if window is None:
+            return None, {"blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
+        first = dt.date.fromisoformat(window["start"])
+        starts = [x for x in (meta.get("cadence_run_starts") or []) if x >= window["start"]]
+        if len(starts) < t.forecast_min_cycles + 1:
+            return None, {"blocker": "CADENCE_CYCLES_NOT_COVERED_BY_EVENTS", "cadence_cycles": max(0, len(starts) - 1),
+                          "resource_window_start": window["start"], "resource_window_end": window["end"]}
+        i0, i1 = ((dt.date.fromisoformat(x) - first).days for x in (starts[0], starts[-1]))
+        rates = {f: sum(window[f][i0:i1]) / (i1 - i0) * 365.0 for f in fields}
+        return rates, {"model": "CADENCE", "cadence_cycles": len(starts) - 1, "trend_adjustment_factor": 1.0, "window_cluster_minutes": sum(window["cluster_minutes"][i0:i1]),
+                       "window_uptime_minutes": sum(window["uptime_minutes"][i0:i1]), "max_observed_clusters": max(window["max_cluster_count"][i0:i1], default=0.0),
+                       "resource_window_start": starts[0], "resource_window_end": (dt.date.fromisoformat(starts[-1]) - dt.timedelta(days=1)).isoformat(), "resource_window_days": i1 - i0}
+    window = resource_window_from(epoch, end, t)
+    if window is None:
+        return None, {"blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
+    trend = safe_float(meta.get("trend_adjustment_factor"), 1.0)
+    rates = {f: blended_daily_rate(window[f], t) * 365.0 * trend for f in fields}
+    return rates, {"model": "RUN_RATE", "trend_adjustment_factor": trend, "window_cluster_minutes": sum(window["cluster_minutes"]),
+                   "window_uptime_minutes": sum(window["uptime_minutes"]), "max_observed_clusters": max(window["max_cluster_count"], default=0.0),
+                   "resource_window_start": window["start"], "resource_window_end": window["end"], "resource_window_days": window["days"]}
 
 
 def whole_weeks(values: Sequence[float]) -> List[float]:
@@ -2563,20 +2708,23 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
                       "expected_node_types": sorted({topo["driver_instance"], topo["worker_instance"]})}
     topo = {**topo, "node_type_check": "VERIFIED" if billed_nodes else "UNVERIFIED", "observed_node_types": billed_nodes}
     t = thresholds or Thresholds()
-    window = resource_window_from(current, forecast_metadata.get("forecast_basis_end") or forecast_metadata.get("billing_complete_through"), t)
-    if window is None:
-        return None, {**topo, "status": "UNAVAILABLE", "blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
-    cluster_minutes = sum(window["cluster_minutes"])
+    rates, info = annualized_resource_rates(current, forecast_metadata, t, ("cluster_minutes",))
+    if rates is None:
+        return None, {**topo, "status": "UNAVAILABLE", **info}
+    cluster_minutes = info["window_cluster_minutes"]
     if cluster_minutes <= 0:
-        return None, {**topo, "status": "UNAVAILABLE", "blocker": "INSUFFICIENT_WAREHOUSE_EVENT_CLUSTER_MINUTES", "cluster_minutes": cluster_minutes, "resource_window_days": window["days"]}
-    trend = safe_float(forecast_metadata.get("trend_adjustment_factor"), 1.0)
-    annual_cluster_minutes = blended_daily_rate(window["cluster_minutes"], t) * 365.0 * trend
+        return None, {**topo, "status": "UNAVAILABLE", "blocker": "INSUFFICIENT_WAREHOUSE_EVENT_CLUSTER_MINUTES", "cluster_minutes": cluster_minutes, "resource_window_days": info["resource_window_days"]}
+    annual_cluster_minutes = rates["cluster_minutes"]
     cost = annual_cluster_minutes / 60.0 * hourly
+    cadence = info["model"] == "CADENCE"
     return round(cost, 2), {
-        **topo, "status": "MODELED", "method": "cluster-minute run rate on the DBU forecast's window and blend × documented SQL warehouse AWS topology × versioned regional EC2 price registry",
-        "observed_cluster_minutes": round(cluster_minutes, 3), "resource_window_start": window["start"], "resource_window_end": window["end"],
-        "resource_window_days": window["days"], "trend_adjustment_factor": round(trend, 6), "annualized_cluster_minutes": round(annual_cluster_minutes, 3),
+        **topo, "status": "MODELED",
+        "method": ("cluster-minutes over the DBU forecast's whole billing cycles" if cadence else "cluster-minute run rate on the DBU forecast's window and blend")
+                  + " × documented SQL warehouse AWS topology × versioned regional EC2 price registry",
+        "observed_cluster_minutes": round(cluster_minutes, 3), "resource_window_start": info["resource_window_start"], "resource_window_end": info["resource_window_end"],
+        "resource_window_days": info["resource_window_days"], "trend_adjustment_factor": round(info["trend_adjustment_factor"], 6), "annualized_cluster_minutes": round(annual_cluster_minutes, 3),
         "annualized_cluster_hours": round(annual_cluster_minutes / 60.0, 3),
+        **({"cadence_cycles": info["cadence_cycles"]} if cadence else {}),
     }
 
 
@@ -3095,6 +3243,9 @@ class Analyzer:
         busy_minutes = optional_float(gaps.get("busy_minutes"))
         busy_pct = None if not uptime or busy_minutes is None else round(100.0 * min(busy_minutes, uptime) / uptime, 3)
         kept_alive_pct = None if not uptime or kept_alive is None else round(100.0 * kept_alive / uptime, 3)
+        # Billing alone: on how many of the last pressure-window settled days of the current epoch the warehouse was
+        # billed (it ran), and what those days cost. Used only when no retained warehouse event gives running intervals.
+        billed_recent = billed_days_recent(e, self.t.pressure_window_days)
         positive = [o for o in options if o["net_cluster_minutes"] > 0]
         best_any = max(positive, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
         best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
@@ -3110,12 +3261,14 @@ class Analyzer:
             self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value); only effect: the larger cold-start budget."),
             self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
             self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share."),
+            self._f(e,"auto_stop_minutes","billed_days_of_settled_days_recent",None if billed_recent is None else [billed_recent["billed_days"],billed_recent["settled_days"]],unit="billed days, settled days",table="system.billing.usage",field="usage_date/usage_quantity",window=f"last {self.t.pressure_window_days} settled days within current epoch",interpretation="Days the warehouse was billed (ran) among the settled days; billed every day with no query and no retained warehouse event is a review item."),
             self._f(e,"auto_stop_minutes","auto_stop_best_option_within_budget",best_ok,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving among those within the cold-start budget."),
         ]
         out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
             "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
             "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod,
-            "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or []})
+            "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or [],
+            "billed_recent":billed_recent})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -3328,6 +3481,7 @@ class Optimizer:
                         {"max_clusters":cfg.max_clusters},{"max_clusters":target},["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"] if capped else [],["warehouse_size"],["min_clusters"],["min_clusters"],
                         ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
                          "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
+                        + " " + MAX_INCREASE_COST_BOUNDS
                         + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
         elif not window_known:
             # Without recent resource time neither saturation nor the unused ceiling can be judged.
@@ -3361,17 +3515,23 @@ class Optimizer:
                 recent_max = ceiling_for(peak)
                 reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
                 epoch_peak_label = f"{safe_int(epoch_peak)} cluster(s)"
-            base_eligible = (
-                window_known and cfg.max_clusters > cfg.min_clusters and age >= self.t.current_config_stability_days
+            cut_shape = (
+                window_known and cfg.max_clusters > cfg.min_clusters
                 and f["queries_30"] >= self.t.min_query_sample_size
                 and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
             )
+            base_eligible = cut_shape and age >= self.t.current_config_stability_days
+            # A cut the recent window would allow, held only because the configuration is younger than the stability period.
+            # Queueing above the safe level would hold the cut at any age, so it is not an age hold.
+            young_hold = (cut_shape and not base_eligible
+                          and (demand_blocker is not None or recent_max < cfg.max_clusters)
+                          and not (queue_known and f["queue_pct"] > self.t.queue_query_pct_safe))
             eligible = base_eligible and demand_blocker is None and reduced_max < cfg.max_clusters
             held_by_epoch_peak = base_eligible and demand_blocker is None and not eligible and recent_max < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
             # A cut held for the epoch's peak still names these, so the holds stay visible together.
-            considered = eligible or held_by_epoch_peak
+            considered = eligible or held_by_epoch_peak or young_hold
             evidence_blockers: List[str] = []
             if considered and not queue_known:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
@@ -3409,6 +3569,12 @@ class Optimizer:
                     f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
                     " Clusters are added minutes after a burst starts (scale-up lag), so short bursts queue before the ceiling is reached;"
                     " a higher floor would absorb burst starts at the cost of running those clusters all the time, which is a human decision."))
+            elif young_hold:
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},
+                    ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+evidence_blockers+([demand_blocker] if demand_blocker else [])
+                    +(["PEAK_OUTSIDE_RECENT_WINDOW"] if demand_blocker is None and reduced_max >= cfg.max_clusters else []),["warehouse_size"],[],[],
+                    f"The current configuration is too new ({age} of {self.t.current_config_stability_days} days) to cut the ceiling; it is re-evaluated once the configuration has run for the stability period."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -3473,8 +3639,21 @@ class Optimizer:
         if cfg.warehouse_type=="SERVERLESS" and 0<cur_auto<min(grid):
             auto_stop("NO_CHANGE",cur_auto,[],"Serverless auto-stop is below the lowest value the console offers (set through the API); it is left alone.")
         elif not f["running_available"]:
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
-                "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
+            billed=f.get("billed_recent")
+            if (billed and f["queries_30"]==0 and age>=self.t.current_config_stability_days
+                    and billed["settled_days"]>=self.t.current_config_stability_days and billed["billed_days"]==billed["settled_days"]
+                    and e.baseline_forecast_cost_365 is not None and (cur_auto==0 or min(grid)<cur_auto)):
+                # Billing shows it ran every settled day with no query, but without retained running intervals no
+                # running hours or idle saving can be measured: a human decides first, and nothing is priced.
+                spent="" if billed["billed_cost"] is None else f" ({billed['billed_cost']:,.0f} {e.currency})"
+                auto_stop("REVIEW",min(grid),["NO_QUERIES_WHILE_RUNNING"],
+                    f"The warehouse was billed on {billed['billed_days']} of the last {billed['settled_days']} settled days{spent} with no query in the last 30 days; "
+                    f"its forward cost is {e.baseline_forecast_cost_365:,.0f} {e.currency} a year. Review whether it is still needed or what keeps it running "
+                    f"(open sessions, keep-alive, a connected tool). If it stays, {min(grid)} minutes is the lowest auto-stop; no saving is priced because "
+                    "no retained warehouse event gives its running time.")
+            else:
+                auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
+                    "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
         elif safe_float(f.get("cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
             auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["INSUFFICIENT_EVENT_RESOURCE_EVIDENCE"],"The warehouse recorded too little running time to price an auto-stop change.")
         elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes"]>safe_float(f.get("cluster_minutes"))+0.01 for o in options.values()):
@@ -3527,6 +3706,11 @@ class Optimizer:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
                 {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e,self.t)],[],[],[],
                 MIGRATION_BASELINE_RATIONALE[dbu_baseline_blocker(e,self.t)]))
+        elif any(d.knob=="auto_stop_minutes" and "NO_QUERIES_WHILE_RUNNING" in d.blockers for d in out):
+            # A warehouse that ran with no query may not be needed at all: the review comes before any migration.
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","NO_CHANGE",
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["NO_QUERIES_WHILE_RUNNING"],[],[],[],
+                "The warehouse ran with no queries; no migration experiment is proposed until a review decides whether it is still needed."))
         elif cfg.warehouse_type == "SERVERLESS":
             if not f.get("pro_classic_observed"):
                 blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
@@ -3606,7 +3790,9 @@ class Estimator:
             opt=next((o for o in a.facts.get("options") or [] if o["target"]==target),None)
             cluster=safe_float(a.facts.get("cluster_minutes"))
             if opt is None or cluster<=0:
-                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop","bundle_effect":{"type":"no_cost_change"},**meta}
+                reason="The auto-stop step cannot be priced without the warehouse's running time (no retained warehouse event); economics are withheld."
+                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop",
+                             "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
             # Net cluster-minutes saved (idle removed minus restarts added, or restarts saved minus idle added) as a share
             # of running cluster-minutes over the same period; the realization range applies to that net.
             raw=clamp(opt["net_cluster_minutes"]/cluster,0,1)
@@ -3616,7 +3802,7 @@ class Estimator:
                 "raw_savings_fraction":round(raw,4),"auto_stop_option":dict(opt),
                 "restart_cost_assumption":"Pro/Classic starting minutes are assumed billed at the floor cluster count (start time about 4 minutes, documented; billing not documented); Serverless restarts cost about nothing.",
                 "bundle_effect":{"type":"idle_cluster_minute_reduction","gain_cluster_minutes":opt["gain_cluster_minutes"],"loss_cluster_minutes":opt["loss_cluster_minutes"],
-                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1),"removes_idle":opt["direction"]=="LOWER"},
+                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1)},
                 **meta,
             }
 
@@ -3714,7 +3900,7 @@ class Estimator:
                 base=raw*self.t.max_cluster_base_uplift_weight; method="upper-bound cost uplift from additional clusters during observed saturation"
             factors=Range3(1.0,1+base,1+raw)
             return factors,{
-                "method":method,
+                "method":method+". "+MAX_INCREASE_COST_BOUNDS,
                 "raw_uplift_fraction":round(raw,4),"base_uplift_fraction":round(base,4),
                 "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(factors)},
                 **meta,
@@ -3745,19 +3931,20 @@ class Estimator:
         return Range3(vals[0],vals[1],vals[2])
 
     def _annualized_resource_bounds(self,e:WarehouseEvidence)->Tuple[Optional[Range3],Dict[str,Any]]:
-        window=resource_window(e,self.t)
-        if window is None:
-            return None,{"status":"UNAVAILABLE","blocker":"RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
-        cluster_minutes=sum(window["cluster_minutes"]); uptime=sum(window["uptime_minutes"]); max_obs=max(1,int(max(window["max_cluster_count"],default=1)))
+        # Same window and model as the DBU forecast (run-rate blend, or whole billing cycles): AWS/resource bounds and
+        # DBU describe the same year.
+        rates,info=annualized_resource_rates(e.current_epoch,e.forecast_metadata or {},self.t,("uptime_minutes","cluster_minutes"))
+        if rates is None:
+            return None,{"status":"UNAVAILABLE",**info}
+        cluster_minutes=info["window_cluster_minutes"]; uptime=info["window_uptime_minutes"]; max_obs=max(1,int(info["max_observed_clusters"] or 1))
         if cluster_minutes<=0 or uptime<=0:
-            return None,{"status":"UNAVAILABLE","blocker":"INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE","resource_window_days":window["days"],"cluster_minutes":cluster_minutes,"uptime_minutes":uptime}
-        trend=safe_float(e.forecast_metadata.get("trend_adjustment_factor"),1.0)
-        # Same window and blend as the DBU forecast: AWS/resource bounds and DBU describe the same year.
-        low=blended_daily_rate(window["uptime_minutes"],self.t)*365.0*trend
-        base=blended_daily_rate(window["cluster_minutes"],self.t)*365.0*trend
+            return None,{"status":"UNAVAILABLE","blocker":"INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE","resource_window_days":info["resource_window_days"],"cluster_minutes":cluster_minutes,"uptime_minutes":uptime}
+        trend=info["trend_adjustment_factor"]
+        low=rates["uptime_minutes"]
+        base=rates["cluster_minutes"]
         high=max(base,low*max_obs)
         vals=sorted([low,base,high])
-        return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and blend, annualized forward","resource_window_start":window["start"],"resource_window_end":window["end"],"resource_window_days":window["days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
+        return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and model, annualized forward","resource_window_start":info["resource_window_start"],"resource_window_end":info["resource_window_end"],"resource_window_days":info["resource_window_days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
 
     def _current_model_reconciliation(self,e:WarehouseEvidence,resources:Range3)->Dict[str,Any]:
         """Modeled current DBU cost (running cluster-hours x current DBU/hour x current price) over the billed forecast."""
@@ -4068,9 +4255,14 @@ class _ChainState:
     # the conservative one), so later steps scale with that track's own floor.
     floor_tracks: List[float]
     halt: Optional[Tuple[str, str]] = None
-    # Wall-clock idle minutes a lower auto-stop already removed, per track: a later minimum-cluster cut has no floor
-    # cluster to remove while the warehouse is stopped.
-    idle_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    # Net running wall-clock minutes an earlier auto-stop change removed per floor cluster, per track (a lower auto-stop:
+    # idle removed minus restarts added; a higher one: restarts saved minus idle added). A later minimum-cluster cut
+    # re-scales that effect to the lower floor, so the plan total does not depend on step order.
+    auto_stop_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    # Cluster-minutes an earlier minimum-cluster cut removed, per track: a later auto-stop's saving at the lower floor
+    # gives back at most this much (the overlap of the two is bounded by what the floor cut removed), so the plan total
+    # does not depend on step order even when the floor cut's claim is clamped at zero.
+    floor_cut_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 class StatefulBundleEstimator:
@@ -4164,13 +4356,18 @@ class StatefulBundleEstimator:
         elif typ=="idle_cluster_minute_reduction":
             # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
             # measured at the floor the candidate saw; both terms scale with the track's current floor.
-            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/max(1,safe_int(effect.get("floor_clusters"),1))
+            floor0=max(1,safe_int(effect.get("floor_clusters"),1))
+            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/floor0
             for i,realization in enumerate(realizations):
-                before=st.resource_tracks[i]; net=unit*st.floor_tracks[i]
-                if before<=0 or net<=0: continue
-                removed=min(before,net*realization)
-                if effect.get("removes_idle"):
-                    st.idle_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
+                before=st.resource_tracks[i]
+                if before<=0 or unit<=0: continue
+                # The saving at the floor the candidate saw, less its overlap with an earlier floor cut (the floor
+                # clusters that cut already removed), never more than that cut removed.
+                overlap=min(unit*realization*max(0.0,floor0-st.floor_tracks[i]),st.floor_cut_minutes[i])
+                st.floor_cut_minutes[i]-=overlap
+                removed=min(before,unit*floor0*realization-overlap)
+                if removed<=0: continue
+                st.auto_stop_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
@@ -4184,8 +4381,9 @@ class StatefulBundleEstimator:
                 # The track keeps the share of the floor reduction it did not realize.
                 st.floor_tracks[i]=floor-max(0.0,floor-target_min)*realization
                 if before<=0: continue
-                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0.0,floor-target_min))
+                claim=max(0.0,theoretical-st.auto_stop_wall_minutes[i]*max(0.0,floor-target_min))
                 removed=min(before,claim*realization)
+                st.floor_cut_minutes[i]+=removed
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
@@ -4488,7 +4686,7 @@ def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
     score = round(0.65 * coverage + 0.35 * (stability or 0.0), 6)  # unknown stability earns no credit
     return _contract_confidence(
         {"score": score, "components": {"history_coverage": coverage, "cost_stability": stability}},
-        method="current_epoch_runrate_evidence",
+        method="current_epoch_billing_cycle_evidence" if (e.forecast_metadata or {}).get("forecast_model") == "CADENCE" else "current_epoch_runrate_evidence",
     )
 
 
@@ -5371,9 +5569,22 @@ def _recommended_plan(
         selection_reason_code=reason,
         next_action=next_action,
         requires_hitl=True,
-        decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
+        decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes."
+                         + _canary_sequencing_note(recommended),
         reevaluation=reevaluation,
     )
+
+
+def _canary_sequencing_note(scenario: rc.Scenario) -> str:
+    """When approval-only steps and canaries are both ready: approval-only steps go first, canaries start once those
+    have run for the stability period, so a canary's cost reading is not mixed with another change's saving."""
+    steps = [x for x in scenario.execution_plan if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None]
+    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY]
+    canary = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY_FOR_CANARY]
+    if not hitl or not canary:
+        return ""
+    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary after they have run for "
+            f"{rc.REEVALUATION_EPOCH_MATURITY_DAYS} days, so the canary's cost reading is not mixed with their savings.")
 
 
 def _build_locked_recommendation_package(
@@ -5412,8 +5623,12 @@ def _build_locked_recommendation_package(
     forward = _forward_cost_breakdown(e)
     forecast_assumptions = [
         "Current configuration epoch is the decision baseline.",
-        "Forward DBU cost uses the deterministic current-epoch run-rate model.",
+        ("Forward DBU cost averages whole run-to-run billing cycles of this periodic current-epoch workload."
+         if (e.forecast_metadata or {}).get("forecast_model") == "CADENCE" else
+         "Forward DBU cost uses the deterministic current-epoch run-rate model."),
         "AWS forward cost is modeled from observed current-epoch resource time and the configured regional price registry when available.",
+        "DBU cost is priced at the account's list price; negotiated discounts lower real savings in proportion.",
+        "AWS cost is priced at on-demand EC2 rates; Spot, Reserved Instances and Savings Plans are not modeled.",
     ]
     source_regions = sorted({x for x in e.source_region.split(",") if x}) or ["unknown"]
     provenance = rc.Provenance(

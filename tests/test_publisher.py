@@ -1068,7 +1068,9 @@ class PublisherV27Tests(unittest.TestCase):
 
     # --- An unknown DBU baseline is never published as $0 -------------------------------------------------------
     def test_too_few_active_cost_days_leave_the_forecast_unknown(self):
-        rows = [{"usage_date": d, "list_cost": 200.0, "currency_code": "USD"} for d in ("2026-09-05", "2026-09-12", "2026-09-19", "2026-09-26")]
+        # Three days apart: frequent enough for the run-rate model, which needs more billed days (weekly billing would
+        # be forecast from its cycles instead).
+        rows = [{"usage_date": d, "list_cost": 200.0, "currency_code": "USD"} for d in ("2026-09-17", "2026-09-20", "2026-09-23", "2026-09-26")]
         out = self.forecast(rows)
         self.assertEqual(out["cost_history_days"], 30)
         self.assertEqual(out["active_cost_days"], 4)

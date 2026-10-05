@@ -679,7 +679,7 @@ def project_executive(
     experiment_highs = [max(r.high for r in rs) for rs in (_scenario_total(p, False) for p in packages) if rs]
     plan_sum = {b: (round(sum(float(getattr(r, b)) for r in plan_ranges), 2) if same_currency else None) for b in ("low", "base", "high")}
     experiment_upside = round(sum(max(float(h), 0.0) for h in experiment_highs), 2) if same_currency else None
-    plan_note = f"{len(plan_ranges)} of {len(packages)} recommended plans priced; unpriced plans are excluded, not zero"
+    plan_note = f"{len(plan_ranges)} of {len(packages)} recommended plans priced; unpriced plans are excluded, not zero; DBU at list price, AWS on-demand"
     exclusion_types = sorted({str(x.get("warehouse_type")) for x in excluded_warehouses or ()})
 
 
@@ -692,7 +692,7 @@ def project_executive(
         {"section":"Coverage","metric":"Excluded (unsupported type)","value":DISPLAY_UNAVAILABLE if excluded_warehouses is None else len(excluded_warehouses),"currency":DISPLAY_NA,"notes":DISPLAY_NA if not exclusion_types else "Types: " + ", ".join(exclusion_types) + "; see manifest.json excluded_warehouses"},
         {"section":"Coverage","metric":"Economically assessable","value":len(assessable),"currency":DISPLAY_NA,"notes":f"Not priced: {len(packages)-len(assessable)}"},
         {"section":"Cost","metric":"Actual trailing 365d","value":_money_or_unavailable(actual_total),"currency":currency,"notes":"UNAVAILABLE when any package lacks historical AWS total"},
-        {"section":"Cost","metric":"Forward 365d baseline","value":_money_or_unavailable(forward_total),"currency":currency,"notes":"No-change forecast"},
+        {"section":"Cost","metric":"Forward 365d baseline","value":_money_or_unavailable(forward_total),"currency":currency,"notes":"No-change forecast; DBU at list price (negotiated discounts lower real savings proportionally); AWS at on-demand EC2 prices (Spot, Reserved Instances, Savings Plans not modeled)"},
         {"section":"Economic impact","metric":"Recommended annual savings","value":_money_or_unavailable(recommended_savings),"currency":currency,"notes":"Sum of positive recommended-scenario base impacts"},
         {"section":"Economic impact","metric":"Recommended annual cost increase","value":_money_or_unavailable(recommended_cost_increase),"currency":currency,"notes":"Absolute sum of negative recommended-scenario base impacts"},
         {"section":"Economic impact","metric":"Recommended net annual impact","value":_money_or_unavailable(net),"currency":currency,"notes":"Positive = net savings; negative = net cost increase"},

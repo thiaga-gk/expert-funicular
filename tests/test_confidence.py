@@ -45,9 +45,12 @@ class ConfidenceTests(unittest.TestCase):
                     if c.status == "INSUFFICIENT_EVIDENCE":
                         self.assertEqual(c.confidence["level"], "LOW")
 
-    def test_month_end_migration_without_enough_evidence_is_low(self):
+    def test_month_end_migration_is_priced_from_its_billing_cycles(self):
+        # One billed day a month: the forward cost comes from whole billing cycles, which have no day-to-day
+        # stability figure, so confidence rests on coverage, sample, maturity and signal.
         c = self.cands["C52"]["warehouse_type"]
-        self.assertEqual((c.status, c.confidence["score"], c.confidence["level"]), ("INSUFFICIENT_EVIDENCE", 0.59, "LOW"))
+        self.assertEqual((c.status, c.confidence["score"], c.confidence["level"]), ("TEST_REQUIRED", 0.78, "MEDIUM"))
+        self.assertIsNone(c.confidence["components"]["stability"])
 
     def test_auto_stop_sample_is_its_idle_window(self):
         # Mostly idle: 88 queries in 30 days, but the auto-stop decision is measured on 1,044 over its idle window.

@@ -165,3 +165,45 @@ Each batch follows the CLAUDE.md change loop with a per-item summary and worked 
 - Pro/Classic DBU/hour parity with the Serverless table from a first-party page (G6).
 - Whether a tag or rename creates a `system.compute.warehouses` row (G3) and whether 365-day retention drops the only snapshot of a long-unchanged warehouse (G4).
 - `cluster_count` reported on STARTING/STOPPING events (affects uptime and D3).
+
+## Batch 8 approved designs, built in batch 9 (G49, G50)
+
+Approved by the user on 2026-10-05; to be built after the real-data run (`real-data-run.md`), which also calibrates N and Y on real noise. Both need collector SQL changes and evidence format 1.1.0; G50 also needs Reporter contract 1.4.0 (the 7-day gate is pinned as re-evaluation rule R3) and PRD FR text. Show the exact PRD/CLAUDE.md/contract text again before code.
+
+### G50 evidence-based readiness (replaces the fixed 7-day age gate for decisions)
+
+- Readiness = at least 1 settled billing day in the new period + the knob's own sample (size 500 executed queries, ceiling 200 busy minutes, floor 20 busy periods; unchanged) + N = 2 active days in the new period.
+- Peak coverage for capacity cuts = the existing older-epoch hold (X = 100%, compared in clusters): a cut waits until the 30-day window reaches the peak of any older epoch within 365 days. The prior peak is a reference for waiting, never for choosing.
+- A cost change with no canary (auto-stop, approval-only floor cut) waits for its own price (`min_economics_cost_history_days` billed days; unchanged), so nothing unpriced is applied without a canary.
+- Fail-fast canary rollback on every settled day after a canary (size down, floor cut, raised auto-stop): failures > safe, capacity queue > safe, spill > downsize-safe after a size-down, or p95 execution on statement sources seen in both periods > +Y = 25% (needs >= 300 executed queries on shared sources) -> ACTIONABLE rollback to the previous value, code `CANARY_GUARDRAIL_BREACHED`.
+- Text changes: PRD FR (age gate, prd.md line ~307) -> the readiness rule; CLAUDE.md source authority appends "...; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence."; Reporter 1.4.0: R3 and `earliest_reevaluation_time` become "next settled day"; new blocker codes in blocker-codes.md; collector per-source p95 for both periods.
+
+Simulation, size-down decision days after a change (today 7-day gate / N=1 / N=2 / N=3):
+
+| Workload | Change 2026-10-02 | Change 2026-10-20 |
+|---|---|---|
+| daily BI | 7 / 1 / 2 / 3 | 7 / 1 / 2 / 3 |
+| weekdays BI | 7 / 1 / 4 / 5 | 7 / 1 / 2 / 3 |
+| weekly job | 11 / 11 / 11 / 18 | 14 / 14 / 14 / 21 |
+| bi-weekly job | 25 / 25 / 25 / 39 | 21 / 21 / 21 / 35 |
+| month-end close only | 27 / 27 / 28 / 29 | 9 / 9 / 10 / 11 |
+| light daily + month-end peak | 27 / 27 / 27 / 27 | 9 / 9 / 9 / 9 |
+| BI + quarter-end peak | 89 / 89 / 89 / 89 | 71 / 71 / 71 / 71 |
+| ad hoc (1 day in 10) | 7 / 3 / 3 / 3 | 44 / 44 / 44 / 44 |
+
+p95 guard (lognormal latencies, sigma 1): +25% at n=100 has 7.8% false alarms and detects a x1.55 slowdown 78% of the time; n=300: 2.6% / 95%; n=1000: 0.1% / 100% (x1.3: 68%).
+
+### G49 keep evidence a configuration change cannot affect
+
+Carry only inside the last 30 days, never across a size or type change:
+
+| Change applied | Carries (unchanged) | Resets (new period only) |
+|---|---|---|
+| auto-stop | demand (concurrency, busy minutes, busy periods, busy-start demand, query counts and mix); per query (spill, execution p95/p99, failures); capacity queueing | running time, idle gaps, restarts, cold-start wait, at-min/at-max shares, cluster-minutes, billing |
+| max clusters | demand; per query | capacity queueing, at-max share, cluster-minutes, billing, running/idle |
+| min clusters | demand; per query | queueing, at-min share, cluster-minutes, billing, running/idle |
+| size / type | nothing | everything |
+
+CLAUDE.md, Source authority (approved replacement): "The current epoch controls recommendations; older epochs are calibration/backtest only, with two exceptions: a capacity cut is held when <unchanged>; and evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change. Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch." Reviewer gate 1 accepts carried findings (`epoch_scope` `CARRIED_ACROSS_CHANGE`); LLD §10.2 gets the map; the PRD epoch FR the same rule.
+
+Floor/ceiling decision days after an auto-stop change (today / G50 N=2 / G50 + G49): daily BI 7/2/2; weekdays BI 7/4/4; weekly job 11/11/11; bi-weekly 25/25/25; month-end only 27/28/28; light daily + month-end 27/27/4; BI + quarter-end peak 89/89/4; ad hoc 7/3/2. Demo C11 floor cut after auto-stop 30 -> 10: today about day 28 (20 fresh busy periods), with carry day 2. Simulation script: session scratchpad `g50sim.py`.

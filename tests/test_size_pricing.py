@@ -227,7 +227,7 @@ class DownsizeScaleOutTests(unittest.TestCase):
         # Core demo: Pro LARGE -> MEDIUM (price ratio 0.6), min 2 / max 4, now fully busy. Slower queries raise
         # concurrency, so the autoscaler runs proportionally more cluster-minutes: the slowdown applies to all
         # (cluster-weighted) busy time. Base saving is 1 - 0.6 x 1.3 = 22%, not the 40% the price ratio alone suggests
-        # (and the conservative bound 1 - 0.6 x 1.55 = 7%).
+        # (and the conservative bound, a fully linear slowdown: one size down halves the workers, 1 - 0.6 x 2.0 = -20%).
         logging.disable(logging.CRITICAL)
         try:
             e = p.demo_evidence()[0]
@@ -238,7 +238,7 @@ class DownsizeScaleOutTests(unittest.TestCase):
         self.assertEqual(c.metadata["busy_share"], 1.0)
         f = c.metadata["cost_factor_range"]
         self.assertAlmostEqual(f["base"], 0.78, places=6)
-        self.assertAlmostEqual(f["high"], 0.93, places=6)
+        self.assertAlmostEqual(f["high"], 1.2, places=6)
 
 
 class BatchProfileTests(unittest.TestCase):

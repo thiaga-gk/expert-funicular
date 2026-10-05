@@ -162,6 +162,39 @@ class DemoFleetTests(unittest.TestCase):
             self.assertEqual(ordered, sorted(ordered), e.workspace_id)
 
     # --- Golden rows that pass ---------------------------------------------------------------------------------
+    def test_c03_zero_query_warehouse_billed_every_day_gets_a_review_item(self):
+        # No retained warehouse event, so no running intervals: billing alone shows it ran on every settled day.
+        e, pkg = self.by_scenario["C03"]
+        c = self.candidate("C03", "auto_stop_minutes")
+        self.assertEqual(c["status"], "REVIEW")
+        self.assertIn("NO_QUERIES_WHILE_RUNNING", c["blockers"])
+        self.assertIsNone(c["independent_economics"]["savings_365d"]["total"])  # no savings claimed, no hours guessed
+        self.assertIn("30 of the last 30 settled days", c["rationale"])
+        self.assertIn(f"{e.baseline_forecast_cost_365:,.0f}", c["rationale"])  # the billed cost is shown
+        self.assertEqual(pkg["assessment"]["overall_status"], "REVIEW_REQUIRED")
+        plan = next(s for s in pkg["scenarios"] if s["scenario_id"] == pkg["recommended_plan"]["scenario_id"])
+        self.assertIsNone(plan["portfolio_economics"]["savings_365d"]["total"])
+        # A warehouse that may not be needed gets no migration experiment.
+        migration = self.candidate("C03", "warehouse_type")
+        self.assertEqual((migration["status"], migration["blockers"]), ("NO_CHANGE", ["NO_QUERIES_WHILE_RUNNING"]))
+
+    def test_c52_month_end_close_forecast_comes_from_whole_billing_cycles(self):
+        e, pkg = self.by_scenario["C52"]
+        self.assertEqual(e.forecast_metadata["forecast_model"], "CADENCE")
+        self.assertGreaterEqual(e.forecast_metadata["billing_cycles"], 2)
+        self.assertIsNotNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
+        self.assertIn("billing cycles", " ".join(pkg["cost_baseline"]["forecast"]["assumptions"]))
+        self.assertEqual(pkg["cost_baseline"]["forecast"]["confidence"]["method"], "current_epoch_billing_cycle_evidence")
+
+    def test_plan_summary_puts_no_canary_steps_before_canaries(self):
+        # C06: auto-stop (approval only) and a size canary are both ready; applied together, the canary's cost
+        # reading would include the auto-stop saving.
+        summary = self.by_scenario["C06"][1]["recommended_plan"]["decision_summary"]
+        self.assertIn("Apply the ready no-canary steps (auto_stop_minutes) first", summary)
+        self.assertIn("start the warehouse_size canary after they have run for 7 days", summary)
+        quiet = self.by_scenario["C47"][1]["recommended_plan"]["decision_summary"]
+        self.assertNotIn("no-canary steps", quiet)
+
     def test_c19_newly_changed_config_waits_with_a_reevaluation_time(self):
         _, pkg = self.by_scenario["C19"]
         self.assertEqual(pkg["assessment"]["overall_status"], "INSUFFICIENT_EVIDENCE")

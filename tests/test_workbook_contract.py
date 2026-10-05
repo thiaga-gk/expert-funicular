@@ -209,6 +209,18 @@ class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
         self.assertGreater(m["Migration experiment high"]["value"], 0)
         self.assertEqual(m["Excluded (unsupported type)"]["value"], 0)
 
+    def test_cost_notes_state_the_pricing_basis(self):
+        m=self.metrics([])
+        self.assertIn("DBU at list price", m["Forward 365d baseline"]["notes"])
+        self.assertIn("on-demand EC2", m["Forward 365d baseline"]["notes"])
+        for b in ("low","base","high"):
+            self.assertIn("DBU at list price, AWS on-demand", m[f"Plan savings {b}"]["notes"])
+
+    def test_package_assumptions_state_the_pricing_basis(self):
+        text=" ".join(self.packages[0].cost_baseline.forecast.assumptions)
+        self.assertIn("list price; negotiated discounts lower real savings in proportion", text)
+        self.assertIn("on-demand EC2 rates; Spot, Reserved Instances and Savings Plans are not modeled", text)
+
     def test_exclusion_row_counts_unsupported_warehouses_or_says_unavailable(self):
         excluded=[{"workspace_id":"w","warehouse_id":"x","warehouse_type":"LAKEHOUSE_REALTIME","reason":"UNSUPPORTED_WAREHOUSE_TYPE"}]
         row=self.metrics(excluded)["Excluded (unsupported type)"]
