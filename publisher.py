@@ -1847,6 +1847,29 @@ def scenario_id(workspace_id: str, warehouse_id: str, name: str, recommendation_
     return "SCN-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
 
 
+def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dict[str, Any]]:
+    """Billed days among the last `window_days` settled days of the current epoch's forecast basis, with their cost.
+
+    None when the basis is unknown. A day counts as billed when it has positive DBU usage; cost is None when any of
+    those days carries unpriced usage (unknown, never understated).
+    """
+    meta = e.forecast_metadata or {}
+    start, end = parse_datetime(meta.get("forecast_basis_start")), parse_datetime(meta.get("forecast_basis_end"))
+    if not start or not end or end < start:
+        return None
+    first = max(start.date(), end.date() - dt.timedelta(days=window_days - 1))
+    dbu: Dict[str, float] = {}; cost = 0.0; unpriced = False
+    for r in e.daily_cost_365:
+        day = parse_datetime(r.get("usage_date"))
+        if not day or not first <= day.date() <= end.date():
+            continue
+        key = day.date().isoformat()
+        dbu[key] = dbu.get(key, 0.0) + safe_float(r.get("dbu_quantity")) + safe_float(r.get("unpriced_dbu_quantity"))
+        cost += safe_float(r.get("list_cost")); unpriced = unpriced or safe_float(r.get("unpriced_dbu_quantity")) > 0
+    return {"settled_days": (end.date() - first).days + 1, "billed_days": sum(1 for v in dbu.values() if v > 1e-12),
+            "billed_cost": None if unpriced else round(cost, 2), "first_day": first.isoformat(), "last_day": end.date().isoformat()}
+
+
 def epoch_age_days(epoch: EpochEvidence, as_of: Optional[str] = None) -> int:
     start = parse_datetime(epoch.epoch_start)
     if not start:
@@ -3095,6 +3118,9 @@ class Analyzer:
         busy_minutes = optional_float(gaps.get("busy_minutes"))
         busy_pct = None if not uptime or busy_minutes is None else round(100.0 * min(busy_minutes, uptime) / uptime, 3)
         kept_alive_pct = None if not uptime or kept_alive is None else round(100.0 * kept_alive / uptime, 3)
+        # Billing alone: on how many of the last pressure-window settled days of the current epoch the warehouse was
+        # billed (it ran), and what those days cost. Used only when no retained warehouse event gives running intervals.
+        billed_recent = billed_days_recent(e, self.t.pressure_window_days)
         positive = [o for o in options if o["net_cluster_minutes"] > 0]
         best_any = max(positive, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
         best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
@@ -3110,12 +3136,14 @@ class Analyzer:
             self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value); only effect: the larger cold-start budget."),
             self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
             self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share."),
+            self._f(e,"auto_stop_minutes","billed_days_of_settled_days_recent",None if billed_recent is None else [billed_recent["billed_days"],billed_recent["settled_days"]],unit="billed days, settled days",table="system.billing.usage",field="usage_date/usage_quantity",window=f"last {self.t.pressure_window_days} settled days within current epoch",interpretation="Days the warehouse was billed (ran) among the settled days; billed every day with no query and no retained warehouse event is a review item."),
             self._f(e,"auto_stop_minutes","auto_stop_best_option_within_budget",best_ok,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving among those within the cold-start budget."),
         ]
         out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
             "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
             "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod,
-            "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or []})
+            "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or [],
+            "billed_recent":billed_recent})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -3482,8 +3510,21 @@ class Optimizer:
         if cfg.warehouse_type=="SERVERLESS" and 0<cur_auto<min(grid):
             auto_stop("NO_CHANGE",cur_auto,[],"Serverless auto-stop is below the lowest value the console offers (set through the API); it is left alone.")
         elif not f["running_available"]:
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
-                "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
+            billed=f.get("billed_recent")
+            if (billed and f["queries_30"]==0 and age>=self.t.current_config_stability_days
+                    and billed["settled_days"]>=self.t.current_config_stability_days and billed["billed_days"]==billed["settled_days"]
+                    and e.baseline_forecast_cost_365 is not None and min(grid)<cur_auto):
+                # Billing shows it ran every settled day with no query, but without retained running intervals no
+                # running hours or idle saving can be measured: a human decides first, and nothing is priced.
+                spent="" if billed["billed_cost"] is None else f" ({billed['billed_cost']:,.0f} {e.currency})"
+                auto_stop("REVIEW",min(grid),["NO_QUERIES_WHILE_RUNNING"],
+                    f"The warehouse was billed on {billed['billed_days']} of the last {billed['settled_days']} settled days{spent} with no query in the last 30 days; "
+                    f"its forward cost is {e.baseline_forecast_cost_365:,.0f} {e.currency} a year. Review whether it is still needed or what keeps it running "
+                    f"(open sessions, keep-alive, a connected tool). If it stays, {min(grid)} minutes is the lowest auto-stop; no saving is priced because "
+                    "no retained warehouse event gives its running time.")
+            else:
+                auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
+                    "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
         elif safe_float(f.get("cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
             auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["INSUFFICIENT_EVENT_RESOURCE_EVIDENCE"],"The warehouse recorded too little running time to price an auto-stop change.")
         elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes"]>safe_float(f.get("cluster_minutes"))+0.01 for o in options.values()):
@@ -3536,6 +3577,11 @@ class Optimizer:
             out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
                 {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e,self.t)],[],[],[],
                 MIGRATION_BASELINE_RATIONALE[dbu_baseline_blocker(e,self.t)]))
+        elif any(d.knob=="auto_stop_minutes" and "NO_QUERIES_WHILE_RUNNING" in d.blockers for d in out):
+            # A warehouse that ran with no query may not be needed at all: the review comes before any migration.
+            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","NO_CHANGE",
+                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["NO_QUERIES_WHILE_RUNNING"],[],[],[],
+                "The warehouse ran with no queries; no migration experiment is proposed until a review decides whether it is still needed."))
         elif cfg.warehouse_type == "SERVERLESS":
             if not f.get("pro_classic_observed"):
                 blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
@@ -3615,7 +3661,9 @@ class Estimator:
             opt=next((o for o in a.facts.get("options") or [] if o["target"]==target),None)
             cluster=safe_float(a.facts.get("cluster_minutes"))
             if opt is None or cluster<=0:
-                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop","bundle_effect":{"type":"no_cost_change"},**meta}
+                reason="The auto-stop step cannot be priced without the warehouse's running time (no retained warehouse event); economics are withheld."
+                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop",
+                             "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
             # Net cluster-minutes saved (idle removed minus restarts added, or restarts saved minus idle added) as a share
             # of running cluster-minutes over the same period; the realization range applies to that net.
             raw=clamp(opt["net_cluster_minutes"]/cluster,0,1)

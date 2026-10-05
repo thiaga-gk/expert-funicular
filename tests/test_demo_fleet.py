@@ -162,6 +162,22 @@ class DemoFleetTests(unittest.TestCase):
             self.assertEqual(ordered, sorted(ordered), e.workspace_id)
 
     # --- Golden rows that pass ---------------------------------------------------------------------------------
+    def test_c03_zero_query_warehouse_billed_every_day_gets_a_review_item(self):
+        # No retained warehouse event, so no running intervals: billing alone shows it ran on every settled day.
+        e, pkg = self.by_scenario["C03"]
+        c = self.candidate("C03", "auto_stop_minutes")
+        self.assertEqual(c["status"], "REVIEW")
+        self.assertIn("NO_QUERIES_WHILE_RUNNING", c["blockers"])
+        self.assertIsNone(c["independent_economics"]["savings_365d"]["total"])  # no savings claimed, no hours guessed
+        self.assertIn("30 of the last 30 settled days", c["rationale"])
+        self.assertIn(f"{e.baseline_forecast_cost_365:,.0f}", c["rationale"])  # the billed cost is shown
+        self.assertEqual(pkg["assessment"]["overall_status"], "REVIEW_REQUIRED")
+        plan = next(s for s in pkg["scenarios"] if s["scenario_id"] == pkg["recommended_plan"]["scenario_id"])
+        self.assertIsNone(plan["portfolio_economics"]["savings_365d"]["total"])
+        # A warehouse that may not be needed gets no migration experiment.
+        migration = self.candidate("C03", "warehouse_type")
+        self.assertEqual((migration["status"], migration["blockers"]), ("NO_CHANGE", ["NO_QUERIES_WHILE_RUNNING"]))
+
     def test_c19_newly_changed_config_waits_with_a_reevaluation_time(self):
         _, pkg = self.by_scenario["C19"]
         self.assertEqual(pkg["assessment"]["overall_status"], "INSUFFICIENT_EVIDENCE")

@@ -293,3 +293,32 @@ class AutoStopDecisionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZeroQueryBilledWithoutEventsTests(unittest.TestCase):
+    """Billing alone flags a warehouse that ran every settled day with no query; a billing gap keeps it unpriced."""
+    @classmethod
+    def setUpClass(cls):
+        logging.disable(logging.CRITICAL)
+        cls.t = p.Thresholds()
+        cls.e = next(e for e in p.synthetic_demo_evidence() if e.current_epoch.tags["golden_scenario"] == "C03")
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+
+    def candidates(self, e):
+        return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+
+    def test_a_settled_day_without_billing_keeps_insufficient_evidence(self):
+        e = copy.deepcopy(self.e)
+        last = max(r["usage_date"] for r in e.daily_cost_365 if r["usage_date"] <= e.forecast_metadata["forecast_basis_end"])
+        e.daily_cost_365 = [r for r in e.daily_cost_365 if r["usage_date"] != last]
+        by = self.candidates(e)
+        self.assertEqual((by["auto_stop_minutes"].status, by["auto_stop_minutes"].blockers), ("INSUFFICIENT_EVIDENCE", ["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"]))
+        self.assertEqual(by["warehouse_type"].status, "TEST_REQUIRED")
+
+    def test_queries_in_the_window_keep_insufficient_evidence(self):
+        e = copy.deepcopy(self.e)
+        e.current_epoch.query["queries_30"] = 12
+        self.assertEqual(self.candidates(e)["auto_stop_minutes"].status, "INSUFFICIENT_EVIDENCE")
