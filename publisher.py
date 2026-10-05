@@ -108,7 +108,7 @@ class Thresholds:
     # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
-    forecast_cadence_gap_days: int = 7  # billing with a longer gap (and median cycle) is a periodic workload
+    forecast_cadence_gap_days: int = 7  # short runs resting longer than this between them are a periodic workload
     forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
     forecast_run_bridge_days: int = 3  # billed days this close belong to one run (a weekend inside a month-end close)
     current_config_stability_days: int = 7
@@ -2312,7 +2312,8 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
     reference = statistics.quantiles(cycles, n=4, method="inclusive")[-1] if len(cycles) >= 2 else (cycles[0] if cycles else None)
     current = reference is not None and (len(series) - 1 - starts[-1]) <= reference + gap_limit
     shape = short_runs and current and rest is not None
-    # Every cycle and the longest gap are at least the rest, so the rest alone decides.
+    # Each cycle is at least its own rest, so the median cycle and the longest gap are at least the median rest: the
+    # rest alone decides.
     periodic = shape and rest > gap_limit
     weekly = shape and rest == gap_limit
     # A run within forecast_run_bridge_days of the basis start may continue before it (cut by the epoch or window
@@ -2482,7 +2483,7 @@ class Modeler:
         cadence = billing_cadence(series, basis_start, self.t)
         model = "RUN_RATE"
         if cadence["periodic"] or (cadence["weekly"] and forecast_365 is None):
-            # Periodic workload (billing gaps and cycles longer than a week; weekly only when the run rate has no
+            # Periodic workload (short runs resting longer than a week; weekly only when the run rate has no
             # number): average whole run-to-run cycles, with no trend; fewer than forecast_min_cycles cycles is unknown.
             model = "CADENCE"
             ratio = None
