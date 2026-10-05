@@ -245,5 +245,32 @@ class CanaryRollbackTests(unittest.TestCase):
         c55 = p.build_recommendation_packages([self.e], self.t)[0]
         self.assertIn("Apply the canary rollback (warehouse_size)", c55.recommended_plan.decision_summary)
 
+    def floor_rollback_with_size_canary(self, days):
+        # C07 (spill: a size-up canary is ready), floor and ceiling 2/2 -> 1/2 `days` days ago, failures up.
+        e, _ = changed("C07", "auto_stop_minutes", 25, days)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, auto_stop_minutes=e.current_epoch.config.auto_stop_minutes, min_clusters=2, max_clusters=2)
+        guard = e.current_epoch.query["canary_guard"]
+        guard["CURRENT"].update(failure_cancel_pct=6.0)
+        guard["PREVIOUS"].update(failure_cancel_pct=0.3)
+        return e
+
+    def test_canary_note_does_not_repeat_the_rollback(self):
+        pkg, steps = self.plan_states(self.floor_rollback_with_size_canary(4))
+        self.assertEqual(steps, [("min_clusters", 2, "READY"), ("warehouse_size", "LARGE", "READY_FOR_CANARY")])
+        summary = pkg.recommended_plan.decision_summary
+        self.assertNotIn("no-canary steps (min_clusters)", summary)
+        self.assertIn("Start the warehouse_size canary once the next run shows the restored configuration ready (2 settled billed days), "
+                      "so the canary's cost reading is not mixed with the rollback.", summary)
+
+    def test_canary_note_lists_kept_no_canary_steps_after_the_rollback(self):
+        pkg, steps = self.plan_states(self.floor_rollback_with_size_canary(19))
+        self.assertEqual([k for k, _, _ in steps], ["min_clusters", "auto_stop_minutes", "warehouse_size"])
+        summary = pkg.recommended_plan.decision_summary
+        self.assertIn("Then apply the ready no-canary steps (auto_stop_minutes); start the warehouse_size canary once the next run shows "
+                      "their new configuration ready", summary)
+        self.assertLess(summary.index("Apply the canary rollback"), summary.index("Then apply"))
+
+
 if __name__ == "__main__":
     unittest.main()

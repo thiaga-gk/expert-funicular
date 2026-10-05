@@ -7,16 +7,27 @@ publisher fails safe for that item: the value is unknown, never guessed.
 ## Warehouse snapshot retention (tracker G4b)
 
 Can 365-day retention of `system.compute.warehouses` drop the only snapshot of a warehouse that has not changed for
-over a year? If `missing_from_warehouses_table > 0`, those warehouses are invisible to the publisher and would need to
-be discovered from billing with an unknown configuration.
+over a year? The docs give the period and the write rule but not the answer: the system tables overview lists a 365-day
+free retention for the table (https://docs.databricks.com/aws/en/admin/system-tables/), and the table page says "A new
+snapshot is created when the properties change" (https://docs.databricks.com/aws/en/admin/system-tables/warehouses);
+neither says whether the latest row of an unchanged warehouse is kept. If `missing_from_warehouses_table > 0`, those
+warehouses are invisible to the analysis. A live run also reports them: a warning in `publisher.log` and
+`unseen_billed_warehouse_count` / `unseen_billed_warehouses` in `manifest.json`, so the publisher run itself answers
+this question.
 
 ```sql
 WITH billed AS (SELECT DISTINCT workspace_id, usage_metadata.warehouse_id AS warehouse_id FROM system.billing.usage
   WHERE billing_origin_product='SQL' AND usage_metadata.warehouse_id IS NOT NULL AND usage_date >= current_date() - 30),
+-- billing is account-wide, the warehouses table regional: count only warehouses this region's tables show
+regional AS (SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouse_events
+  WHERE event_time >= current_timestamp() - INTERVAL 365 DAYS
+  UNION SELECT DISTINCT workspace_id, compute.warehouse_id FROM system.query.history
+  WHERE compute.type = 'WAREHOUSE' AND start_time >= current_date() - 30),
 snap AS (SELECT workspace_id, warehouse_id, MAX(change_time) AS last_change FROM system.compute.warehouses GROUP BY ALL)
 SELECT COUNT(*) AS billed_warehouses, COUNT_IF(s.warehouse_id IS NULL) AS missing_from_warehouses_table,
        COUNT_IF(s.last_change < current_timestamp() - INTERVAL 365 DAYS) AS unchanged_over_365d
-FROM billed b LEFT JOIN snap s USING (workspace_id, warehouse_id);
+FROM billed b LEFT SEMI JOIN regional r USING (workspace_id, warehouse_id)
+LEFT JOIN snap s USING (workspace_id, warehouse_id);
 ```
 
 ## SQL SKU names, tiers and prices (tracker G5)

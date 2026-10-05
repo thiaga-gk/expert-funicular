@@ -341,6 +341,10 @@ Produces current/historical epoch attribution evidence:
 
 Loads currently effective SQL DBU list-price rows and classifies them for Pro/Classic/Serverless target pricing.
 
+#### `UNSEEN_BILLED_WAREHOUSES_SQL`
+
+Live runs only: lists the SQL warehouses billed in the last 30 days (honoring `--billing-ingested-through`) that are active in this region and have no row at all in `system.compute.warehouses`, with their billed DBU and last usage date. Billing is account-wide while the warehouses table is regional ([context §8.1](context.md)), so a billed warehouse counts only when this region's tables show it: a warehouse event within the events table's 365 days, or a query in the last 30 days (an always-on warehouse may emit no event for months). The table keeps 365 days and writes a row only when a configuration changes; Databricks does not document whether an unchanged warehouse's only row survives the retention period, and such a warehouse would be invisible to every other collector query. The run logs a warning naming them and records them in the manifest (reason code `NO_CONFIGURATION_SNAPSHOT`); no package is written for them, because their configuration is unknown.
+
 ### 7.3 Collector cardinality
 
 ```mermaid
@@ -1131,7 +1135,7 @@ knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 
 `base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). A canary rollback (15.9) is placed first, whatever later steps invalidate, because it restores its knob regardless. The rest of the sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
 
-**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. When the plan has a canary rollback, the summary first says to apply the rollback (its knobs) before any other step: a change applied first starts a new configuration, and the next run no longer sees the change being rolled back. Both sentences are text only: step order, `next_action` and savings are unchanged.
+**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. When the plan has a canary rollback, the summary first says to apply the rollback (its knobs) before any other step: a change applied first starts a new configuration, and the next run no longer sees the change being rolled back. The canary sentence then leaves the rollback out: it says to apply the other ready no-canary steps next, or, when there are none, to start the canary once the next run shows the restored configuration ready. Both sentences are text only: step order, `next_action` and savings are unchanged.
 
 ### 19.2 Invalidation behavior
 
@@ -1508,7 +1512,7 @@ Filenames are operational locators only. They are not content identities and are
 
 ### 28.2 Manifest
 
-The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
+The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses excluded by the supported-type gate (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 

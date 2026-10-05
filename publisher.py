@@ -1721,6 +1721,37 @@ WHERE price_end_time IS NULL
 ORDER BY account_id, sku_name
 """
 
+# SQL warehouses billed in the last 30 days with no row in system.compute.warehouses. The table keeps 365 days and
+# writes a row only when a configuration changes; whether an unchanged warehouse's only row survives the retention
+# period is not documented, and such a warehouse would be invisible to the collector. Reported, never analyzed.
+# Billing is account-wide but the warehouses table is regional, so only warehouses active in this region count: a
+# warehouse event in the events table's retention, or a query in the last 30 days (an always-on warehouse may emit no
+# event for months).
+UNSEEN_BILLED_WAREHOUSES_SQL = r"""
+WITH billed AS (
+  SELECT workspace_id, usage_metadata.warehouse_id AS warehouse_id,
+    SUM(CAST(usage_quantity AS DOUBLE)) AS billed_dbu_30, MAX(usage_date) AS last_usage_date
+  FROM system.billing.usage
+  WHERE usage_metadata.warehouse_id IS NOT NULL AND billing_origin_product='SQL' AND usage_unit='DBU'
+    AND usage_date>=DATE_SUB(CURRENT_DATE(),30) AND usage_date<CURRENT_DATE()
+    AND (__INGESTION_CUTOFF__ IS NULL OR ingestion_date <= __INGESTION_CUTOFF__)
+  GROUP BY workspace_id, usage_metadata.warehouse_id
+), regional AS (
+  SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouse_events
+  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
+  UNION
+  SELECT DISTINCT workspace_id, compute.warehouse_id AS warehouse_id FROM system.query.history
+  WHERE compute.type = 'WAREHOUSE' AND compute.warehouse_id IS NOT NULL AND start_time >= CAST(DATE_SUB(CURRENT_DATE(),30) AS TIMESTAMP)
+), snapshots AS (
+  SELECT DISTINCT workspace_id, warehouse_id FROM system.compute.warehouses
+)
+SELECT b.workspace_id, b.warehouse_id, b.billed_dbu_30, b.last_usage_date
+FROM billed b
+LEFT SEMI JOIN regional r ON b.workspace_id=r.workspace_id AND b.warehouse_id=r.warehouse_id
+LEFT ANTI JOIN snapshots s ON b.workspace_id=s.workspace_id AND b.warehouse_id=s.warehouse_id
+ORDER BY b.workspace_id, b.warehouse_id
+"""
+
 # ---------------------------------------------------------------------------
 # Utilities / auth / collection
 # ---------------------------------------------------------------------------
@@ -2968,6 +2999,22 @@ def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
     except ValueError as exc:
         raise SystemExit(f"--billing-ingested-through must be a YYYY-MM-DD date, got {cutoff!r}") from exc
     return statement.replace("__INGESTION_CUTOFF__", f"DATE'{day.isoformat()}'")
+
+
+def collect_unseen_billed_warehouses(client: SqlClient, *, ingestion_cutoff: Optional[str] = None) -> List[Dict[str, Any]]:
+    """SQL warehouses billed in the last 30 days that have no configuration snapshot: logged as a warning and listed
+    in the manifest. Their configuration is unknown, so no package is written for them."""
+    rows = client.query(with_ingestion_cutoff(UNSEEN_BILLED_WAREHOUSES_SQL, ingestion_cutoff), label="unseen_billed_warehouses")
+    unseen = sorted(({"workspace_id": str(r.get("workspace_id") or ""), "warehouse_id": str(r.get("warehouse_id") or ""),
+                      "billed_dbu_30": round_or_none(optional_float(r.get("billed_dbu_30")), 6), "last_usage_date": None if r.get("last_usage_date") is None else str(r.get("last_usage_date"))[:10],
+                      "reason_code": "NO_CONFIGURATION_SNAPSHOT"} for r in rows), key=lambda x: (x["workspace_id"], x["warehouse_id"]))
+    if unseen:
+        LOGGER.warning("collector.unseen_billed_warehouses %d billed SQL warehouse(s) have no configuration snapshot in "
+                       "system.compute.warehouses (retention?); not analyzed: %s", len(unseen),
+                       ", ".join(f"{x['workspace_id']}/{x['warehouse_id']}" for x in unseen))
+    else:
+        LOGGER.info("collector.unseen_billed_warehouses count=0")
+    return unseen
 
 
 def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None, *, ingestion_cutoff: Optional[str] = None, analysis_time: Optional[str] = None) -> List[WarehouseEvidence]:
@@ -5989,32 +6036,43 @@ def _recommended_plan(
         next_action=next_action,
         requires_hitl=True,
         decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes."
-                         + _rollback_sequencing_note(recommended, candidates) + _canary_sequencing_note(recommended),
+                         + _rollback_sequencing_note(recommended, candidates) + _canary_sequencing_note(recommended, candidates),
         reevaluation=reevaluation,
     )
+
+
+def _rollback_knobs(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation]) -> List[str]:
+    """Knobs of the scenario's canary rollback steps, in plan order."""
+    rollback_ids = {c.candidate_id for c in candidates if "CANARY_GUARDRAIL_BREACHED" in c.blockers}
+    return [x.knob.value for x in scenario.execution_plan
+            if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None and x.candidate_id in rollback_ids]
 
 
 def _rollback_sequencing_note(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation]) -> str:
     """A canary rollback goes before every other step: a change applied first starts a new configuration, and the next
     run no longer sees the change being rolled back."""
-    rollback_ids = {c.candidate_id for c in candidates if "CANARY_GUARDRAIL_BREACHED" in c.blockers}
-    knobs = [x.knob.value for x in scenario.execution_plan
-             if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None and x.candidate_id in rollback_ids]
+    knobs = _rollback_knobs(scenario, candidates)
     if not knobs:
         return ""
     return (f" Apply the canary rollback ({', '.join(knobs)}) before any other step: a change applied first starts a new "
             "configuration, and the next run no longer sees the change being rolled back.")
 
 
-def _canary_sequencing_note(scenario: rc.Scenario) -> str:
+def _canary_sequencing_note(scenario: rc.Scenario, candidates: Sequence[rc.CandidateRecommendation] = ()) -> str:
     """When approval-only steps and canaries are both ready: approval-only steps go first, canaries start once those
-    have run for the stability period, so a canary's cost reading is not mixed with another change's saving."""
+    have run for the stability period, so a canary's cost reading is not mixed with another change's saving. A canary
+    rollback has its own sentence (it goes before everything), so it is not listed again here."""
+    rollbacks = _rollback_knobs(scenario, candidates)
     steps = [x for x in scenario.execution_plan if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None]
-    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY]
+    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY and x.knob.value not in rollbacks]
     canary = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY_FOR_CANARY]
-    if not hitl or not canary:
+    if not canary or not (hitl or rollbacks):
         return ""
-    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary once the next run shows "
+    if not hitl:
+        return (f" Start the {', '.join(canary)} canary once the next run shows the restored configuration ready "
+                f"({rc.REEVALUATION_READY_BILLED_DAYS} settled billed days), so the canary's cost reading is not mixed with the rollback.")
+    lead = f" Then apply the ready no-canary steps ({', '.join(hitl)});" if rollbacks else f" Apply the ready no-canary steps ({', '.join(hitl)}) first;"
+    return (f"{lead} start the {', '.join(canary)} canary once the next run shows "
             f"their new configuration ready ({rc.REEVALUATION_READY_BILLED_DAYS} settled billed days), so the canary's cost reading is not "
             "mixed with their savings.")
 
@@ -6281,6 +6339,7 @@ def package_locked_contract(
     evidence: Sequence[WarehouseEvidence],
     *,
     generate_workbook: bool = True,
+    unseen_billed_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Dict[str, str]:
     """Write locked JSON packages plus the Workbook Contract projection.
 
@@ -6333,6 +6392,10 @@ def package_locked_contract(
         "packages": entries,
         "excluded_warehouse_count": len(exclusions),
         "excluded_warehouses": exclusions,
+        # Live runs only: billed warehouses with no configuration snapshot (None = not checked: demo or replay).
+        "unseen_billed_warehouse_check": "NOT_CHECKED" if unseen_billed_warehouses is None else "CHECKED",
+        "unseen_billed_warehouse_count": None if unseen_billed_warehouses is None else len(unseen_billed_warehouses),
+        "unseen_billed_warehouses": [dict(x) for x in unseen_billed_warehouses or []],
         "canonical_json_semantics": f"Each packages/*.json file is exactly one Reporter JSON Contract v{rc.CONTRACT_VERSION} RecommendationPackage.",
         "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
         "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
@@ -7378,6 +7441,7 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     args=parse_args(argv); t=Thresholds(); out=Path(args.output_dir)
     log_path=setup_logging(out,args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",POLICY_VERSION,ANALYZER_VERSION,OPTIMIZER_VERSION,ESTIMATOR_VERSION,BUNDLE_MODEL_VERSION)
+    unseen=None
     if args.demo:
         if not (1 <= args.demo_count <= len(DEMO_FLEET)):
             raise SystemExit(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
@@ -7394,13 +7458,14 @@ def main(argv:Optional[Sequence[str]]=None)->int:
         registry=load_aws_price_registry(args.aws_price_registry)
         with SqlClient(auth) as client:
             evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
+            unseen=collect_unseen_billed_warehouses(client,ingestion_cutoff=args.billing_ingested_through)
         refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
         if refusal:
             raise SystemExit(refusal)
         if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
             LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
     packages=build_recommendation_packages(evidence,t,args.batch_size)
-    files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook)
+    files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
     excluded_count=len(unsupported_warehouse_exclusions(evidence))
