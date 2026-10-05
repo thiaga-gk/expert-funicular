@@ -3245,10 +3245,11 @@ def carried_query_view(query: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[s
 
 
 def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
-    """Fail-fast guard after a canary-type change (one size down, a lower minimum, a higher auto-stop).
+    """Fail-fast guard after a canary-type change (one size down or a lower minimum), within 30 days of it.
 
     Compares the current epoch with the immediately preceding one on the canary guard collector's rows. A guard trips when
-    the current value is above its safe level AND above the previous epoch's, with a minimum sample; the p95 guard
+    the current value is above its safe level AND more than canary_p95_regression_pct above the previous epoch's, with a
+    minimum sample; the p95 guard
     compares execution time on statement sources seen in both epochs. Returns {"changes": {knob: previous value},
     "guards": [codes], "details": {...}}; no change or no rows: no guards.
     """
@@ -3661,8 +3662,8 @@ class Analyzer:
         out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,
             "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":hive_reference_count(q)})
 
-        # Canary guard evidence: the values a rollback rests on are findings of every capacity and auto-stop knob, so
-        # the package cites them and they enter the evidence fingerprint.
+        # Canary guard evidence: the values a rollback rests on are findings of the size and cluster knobs, so the
+        # package cites them and they enter the evidence fingerprint.
         canary = common["canary"]
         if canary.get("details"):
             now, before = canary["details"]["current"], canary["details"]["previous"]
@@ -3673,7 +3674,7 @@ class Analyzer:
                      ("canary_shared_source_queries", "shared_source_queries", "queries", f"current (value) vs previous (threshold); the p95 guard needs >= {self.t.canary_p95_min_queries} current")]
             if "warehouse_size" in canary["changes"]:
                 specs.append(("canary_spill_query_pct", "spill_query_pct", "%", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g} and above {self.t.spill_query_pct_downsize_safe:g}%"))
-            for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+            for knob in ("warehouse_size", "max_clusters", "min_clusters"):
                 for metric, field_name, unit, comparator in specs:
                     out[knob].findings.append(self._f(e, knob, metric, now.get(field_name), unit=unit, threshold=before.get(field_name),
                         comparator=comparator, table="system.query.history", field=field_name, window=window,
@@ -4093,26 +4094,30 @@ class Optimizer:
                     {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
                     [], invalidates, invalidates,
                     f"Roll back the {knob} change to {previous}: since the change, {why}. The previous value is restored; no saving is claimed.")
-            # Changes that conflict with the rollback wait for it: after a size rollback every other size and cluster
-            # change (its evidence was measured at the size being rolled back); after a floor rollback a lower ceiling
-            # or a smaller size (the floor comes back). An increase for queueing or spill is never held.
+            # Changes that conflict with the rollback wait for it: after a size rollback the other size and cluster
+            # cuts (their evidence was measured at the size being rolled back), after a floor rollback a lower ceiling
+            # or a smaller size (the floor comes back). An increase for queueing or spill is never held; after a size
+            # rollback it waits behind it (the size rollback invalidates it).
+            def lower(d: OptimizationDecision) -> bool:
+                cur, rec = d.current_config.get(d.knob), d.recommended_config.get(d.knob)
+                if d.knob == "warehouse_size":
+                    return cur in SIZE_ORDER and rec in SIZE_ORDER and SIZE_ORDER.index(rec) < SIZE_ORDER.index(cur)
+                return safe_int(rec) < safe_int(cur)
             def conflicts(d: OptimizationDecision) -> bool:
-                if d.knob in changes or d.status not in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW"):
+                if d.knob in changes or d.status not in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW") or not lower(d):
                     return False
                 if "warehouse_size" in changes:
                     return d.knob in ("max_clusters", "min_clusters")
-                if "min_clusters" in changes:
-                    if d.knob == "max_clusters":
-                        return safe_int(d.recommended_config.get("max_clusters")) < safe_int(d.current_config.get("max_clusters"))
-                    if d.knob == "warehouse_size":
-                        return (d.recommended_config.get("warehouse_size") in SIZE_ORDER and d.current_config.get("warehouse_size") in SIZE_ORDER
-                                and SIZE_ORDER.index(d.recommended_config["warehouse_size"]) < SIZE_ORDER.index(d.current_config["warehouse_size"]))
-                return False
+                return "min_clusters" in changes and d.knob in ("max_clusters", "warehouse_size")
             for i, d in enumerate(out):
+                # A kept change never invalidates a knob being rolled back: the rollback restores it regardless.
+                if d.knob not in changes and (set(d.invalidates) | set(d.reanalysis_required)) & set(changes):
+                    out[i] = d = dataclasses.replace(d, invalidates=[k for k in d.invalidates if k not in changes],
+                                                     reanalysis_required=[k for k in d.reanalysis_required if k not in changes])
                 if conflicts(d):
                     out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
                         ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
-                        f"Held while the canary rollback is pending: this {d.knob} change rests on evidence measured on the configuration being rolled back.")
+                        f"Held while the canary rollback is pending: this {d.knob} change conflicts with restoring the previous configuration.")
         return out
 
 

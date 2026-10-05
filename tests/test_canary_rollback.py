@@ -1,7 +1,7 @@
-"""Fail-fast canary rollback after a canary-type change (one size down, a lower minimum, a higher auto-stop).
+"""Fail-fast canary rollback after a canary-type change (one size down or a lower minimum).
 
 Every run compares the new epoch's own evidence with the previous epoch's last 30 days. A failure/cancel rate, queued
-share or (after a size-down) spill share above its safe level and above the previous epoch's, or a p95 execution time on
+share or (after a size-down) spill share above its safe level and more than canary_p95_regression_pct above the previous epoch's, or a p95 execution time on
 statement sources seen in both epochs more than canary_p95_regression_pct above the previous epoch's (with at least
 canary_p95_min_queries such queries), recommends restoring the previous value: ACTIONABLE with
 CANARY_GUARDRAIL_BREACHED, first in the plan, no savings claimed. Golden row C55.
@@ -186,15 +186,29 @@ class CanaryRollbackTests(unittest.TestCase):
         obs = p.canary_observation(e, self.t)
         self.assertIsInstance(obs["details"]["current"]["failure_cancel_pct"], float)
 
-    def test_a_floor_rollback_keeps_a_ceiling_increase_for_queueing(self):
-        # Floor 2 -> 1 rolled back; queueing at the ceiling still raises max (an increase is never held).
-        e = copy.deepcopy(self.e)
+    def queueing_with_floor_cut(self):
+        # C08 (chronic queueing at max 2, a 2 -> 5 increase is ACTIONABLE), floor cut 2 -> 1 four days ago, failures up.
+        e, _ = changed("C08", "auto_stop_minutes", 25, 4)
         prev = self.previous(e)
-        prev.config = dataclasses.replace(prev.config, warehouse_size=e.current_epoch.config.warehouse_size, min_clusters=2, max_clusters=2)
-        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
-        self.assertEqual(by["min_clusters"].status, "ACTIONABLE")
-        self.assertNotEqual(by["max_clusters"].blockers, ["CANARY_ROLLBACK_PENDING"])
+        prev.config = dataclasses.replace(prev.config, auto_stop_minutes=e.current_epoch.config.auto_stop_minutes, min_clusters=2)
+        e.current_epoch.query["canary_guard"]["CURRENT"].update(failure_cancel_pct=6.0)
+        e.current_epoch.query["canary_guard"]["PREVIOUS"].update(failure_cancel_pct=0.3)
+        return e
 
+    def test_a_floor_rollback_comes_first_and_keeps_a_ceiling_increase(self):
+        pkg, steps = self.plan_states(self.queueing_with_floor_cut())
+        self.assertEqual(steps[0], ("min_clusters", 2, "READY"))
+        self.assertIn(("max_clusters", 5, "READY"), steps)
+
+    def test_a_size_rollback_keeps_a_ceiling_increase_waiting_behind_it(self):
+        e = self.queueing_with_floor_cut()
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, min_clusters=e.current_epoch.config.min_clusters, warehouse_size="LARGE")
+        pkg, steps = self.plan_states(e)
+        self.assertEqual(steps[0], ("warehouse_size", "LARGE", "READY"))
+        self.assertIn(("max_clusters", 5, "PENDING_REEVALUATION"), steps)
+        mx = next(c for c in pkg.candidates if c.knob.value == "max_clusters")
+        self.assertNotIn("CANARY_ROLLBACK_PENDING", mx.blockers)
 
 if __name__ == "__main__":
     unittest.main()
