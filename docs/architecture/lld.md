@@ -186,9 +186,9 @@ sequenceDiagram
     COL->>MOD: daily DBU cost + current epoch
     MOD-->>COL: forward baseline forecast
     COL->>ANA: WarehouseEvidence
-    ANA-->>OPT: AnalysisResult[6]
-    OPT-->>EST: OptimizationDecision[6]
-    EST-->>R1: CandidateRecommendation[6]
+    ANA-->>OPT: AnalysisResult[5]
+    OPT-->>EST: OptimizationDecision[5]
+    EST-->>R1: CandidateRecommendation[5]
     R1-->>PLN: reviewed candidates
     PLN->>BND: ordered Plan A / Plan B steps
     BND-->>PLN: stateful scenario economics
@@ -676,7 +676,7 @@ A size outside the known size ordering is `BLOCKED` with `UNKNOWN_WAREHOUSE_SIZE
 Upsize one nominal size when spill is both frequent and severe: the share of spilled queries reaches `spill_query_pct_upsize` and the p95 spilled bytes among spilled queries reach `spill_p95_bytes_upsize`. Outcomes:
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
-- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
+- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), a missing decision-population query count (`DECISION_QUERY_EVIDENCE_UNAVAILABLE`), fewer than `min_query_sample_size` decision-population queries in the 30-day window (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
 - both signals reached, a larger size exists, no gate holds and the share of spilled bytes carried by the top `spill_concentration_top_sources` statement sources reaches `spill_concentration_hold_pct`: `NO_CHANGE` with `SPILL_CONCENTRATED_IN_FEW_STATEMENTS`, because a few statements are better rewritten than every query moved to a larger size; a missing share (older evidence) is `INSUFFICIENT_EVIDENCE` with `SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE`;
 - both signals reached, a larger size exists, no gate holds and the spill is spread across statements: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max and min clusters;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
@@ -686,7 +686,7 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 Every case that is not an upsize is evaluated for a downsize of exactly one size. It is proposed only when a smaller size exists and none of these blockers applies:
 
 - epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
-- fewer than `strong_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_STRONG_QUERY_SAMPLE`); a batch warehouse uses run days instead (below);
+- a missing decision-population query count (`DECISION_QUERY_EVIDENCE_UNAVAILABLE`), or fewer than `strong_query_sample_size` decision-population queries in the 30-day window (`INSUFFICIENT_STRONG_QUERY_SAMPLE`); a batch warehouse uses run days instead (below);
 - spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
@@ -812,7 +812,7 @@ raising:   net = restarts avoided * restart_cost
 restart_cost = restart_cost_cluster_minutes_{pro_classic|serverless} * floor clusters
 ```
 
-The restart cost is the documented start time (about 4 minutes on Pro and Classic, 2 to 6 seconds on Serverless, priced at the upper end). Databricks does not document whether starting minutes are billed, so on Pro and Classic the restart cost is a priced assumption: a raise, whose saving is entirely avoided restarts, is therefore always a canary. Running time past the current auto-stop (kept-alive time: open sessions, result fetching) is reported and never removable by a lower value. A gap run past the current auto-stop by more than a late stop event explains (more than `kept_alive_gap_tolerance_minutes` when it ran through to the next query or the window end, more than `kept_alive_stopped_gap_minutes` when it stopped before the next query) was kept alive by something other than queries and would not stop at a lower value either, so it contributes no removable time and no added restart; added restarts are otherwise counted only in gaps within the current setting. A migration alternative is priced on its own cost basis: today's running time, minus the idle time its auto-stop removes (or plus the idle it adds), plus every restart it still has at its own restart cost, against today's running time plus today's restarts at today's cost (measured running time excludes starting time). A query with no end time counts as still running only if it started within the last day; an older one ends at its start.
+The restart cost is the documented start time (about 4 minutes on Pro and Classic, 2 to 6 seconds on Serverless, priced at the upper end). Databricks does not document whether starting minutes are billed, so on Pro and Classic the restart cost is a priced assumption: a raise, whose saving is entirely avoided restarts, is therefore always a canary. Running time past the current auto-stop (kept-alive time: open sessions, result fetching) is reported and never removable by a lower value. A gap run past the current auto-stop by more than a late stop event explains (more than `kept_alive_gap_tolerance_minutes` when it ran through to the next query or the window end, more than `kept_alive_stopped_gap_minutes` when it stopped before the next query) was kept alive by something other than queries and would not stop at a lower value either, so it contributes no removable time and no added restart; added restarts are otherwise counted only in gaps within the current setting. A migration alternative is priced on its own cost basis: today's running time, minus the idle time its auto-stop removes (or plus the idle it adds), plus every restart it still has at its own restart cost, against today's running time plus today's restarts at today's cost (measured running time excludes starting time). A query with no end time ends at its start time plus its total duration when that is known; with neither, it counts as still running only if it started within the last day, and an older one ends at its start.
 
 **Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries over the same window, must stay within `cold_start_added_share_max_pct`, or `cold_start_added_share_max_pct_nonprod` for a warehouse tagged nonprod. Nonprod means a tag whose key is one of `nonprod_tag_keys` (case-insensitive) with a value in `nonprod_tag_values`; staging and UAT stay production, and the only effect of nonprod is the larger budget.
 
@@ -921,7 +921,7 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 `Range3(low, base, high)` represents ordered annual cost or savings outcomes. Candidate status may have no available estimate.
 
-Value gate: a change whose objective is cost (a size reduction, a lower minimum or a lower auto-stop) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld. A warehouse-type migration has its own gate: when even the best case of its total savings range is not above 0 it is held (no gate when the total is unknown) as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, and the modeled economics are recorded the same way.
+Value gate: a change whose objective is cost (a size reduction, a lower minimum or an auto-stop change) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld. A warehouse-type migration has its own gate: when even the best case of its total savings range is not above 0 it is held (no gate when the total is unknown) as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, and the modeled economics are recorded the same way.
 
 ### 17.2 No-change/guardrail candidates
 
@@ -969,7 +969,8 @@ Capacity ratio source:
 Runtime elasticity is a low/base/high multiplier range chosen by the decided direction in size order, not by the price ratio: a downsize uses `downsize_runtime_multiplier_optimistic`, `_base` and `_conservative`; an upsize uses `upsize_runtime_multiplier_optimistic`, `_base` and `_conservative`. The multiplier changes query execution time only; idle running time is unchanged. It is therefore applied to the busy share of running cluster time:
 
 ```text
-busy_cluster_time_share = clamp(1 - (uptime - busy) * min_clusters / cluster_minutes, 0, 1)
+idle_cluster_minutes    = (uptime - busy) * min_clusters
+busy_cluster_time_share = clamp(max(1 - idle_cluster_minutes / cluster_minutes, busy / cluster_minutes), 0, 1)
 effective_multiplier    = busy_cluster_time_share * runtime_multiplier + (1 - busy_cluster_time_share)
 cost_factor             = capacity_ratio * effective_multiplier
 ```
@@ -978,7 +979,7 @@ The conservative downsize multiplier is a fully linear slowdown: one size down h
 
 `busy_cluster_time_share` is the analyzer's size finding over the whole current epoch (`uptime` and `cluster_minutes` from the event totals, `busy` from the idle-gap query); it is null when any input is unknown, and an unknown share treats all running time as busy. Candidate metadata records `busy_share`, `busy_runtime_multiplier_range` (the policy multipliers) and `runtime_multiplier_range` (the effective range). Example: Serverless LARGE to X_LARGE (DBU ratio 2.0) with half of the cluster time busy has a base factor of 2.0 x (0.5 x 0.70 + 0.5) = 1.70, not 1.40.
 
-The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No historical epoch enters the size factor. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).
+The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No earlier epoch's workload evidence enters the size factor; earlier epochs only calibrate the workspace's billed DBU-per-cluster-hour rates. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).
 
 ### 17.6 Max-cluster increase estimator
 
@@ -1005,7 +1006,7 @@ today_high = max(today_base, annualized uptime * max_observed_clusters)
 
 Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and recent/long-window blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Under the cadence model (11.2) they are annualized over the same whole billing cycles inside event coverage with no trend, and are unavailable (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`) when events cover fewer than `forecast_min_cycles` cycles. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
-The target runs at its own cost-minimizing auto-stop (15.7). Its running fraction is `f = 1 - net(T*) / observed running cluster-minutes`, clamped to [0, `cost_factor_ceiling`], where `net(T*)` is that value's net cluster-minutes saving (zero when the current value is kept). The target's resource range is:
+The target runs at its own cost-minimizing auto-stop (15.7). Its running fraction `f` is the target's running cluster-minutes over today's, clamped to [0, `cost_factor_ceiling`]: the target's are the observed running minutes, plus (or minus) the idle time its own auto-stop adds (or removes), plus all of its restarts at its own restart cost; today's are the observed running minutes plus today's restarts at today's restart cost (15.6, 15.7). The target's resource range is:
 
 ```text
 base         = today_base * f
@@ -1075,7 +1076,7 @@ flowchart LR
 
 ### 19.1 Plan A
 
-Plan A is the Phase-1 recommended scenario. Size, max-cluster, min-cluster and auto-stop candidates with status `ACTIONABLE` or `TEST_REQUIRED` become plan steps, ordered by:
+Plan A is the Phase-1 recommended scenario. Size, max-cluster, min-cluster and auto-stop candidates with status `ACTIONABLE`, `TEST_REQUIRED` or `REVIEW` become plan steps, ordered by:
 
 ```text
 priority = base_savings_365 * confidence_score / risk
