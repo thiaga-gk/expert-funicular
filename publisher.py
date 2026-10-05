@@ -4110,10 +4110,6 @@ class Optimizer:
                     return d.knob in ("max_clusters", "min_clusters")
                 return "min_clusters" in changes and d.knob in ("max_clusters", "warehouse_size")
             for i, d in enumerate(out):
-                # A kept change never invalidates a knob being rolled back: the rollback restores it regardless.
-                if d.knob not in changes and (set(d.invalidates) | set(d.reanalysis_required)) & set(changes):
-                    out[i] = d = dataclasses.replace(d, invalidates=[k for k in d.invalidates if k not in changes],
-                                                     reanalysis_required=[k for k in d.reanalysis_required if k not in changes])
                 if conflicts(d):
                     out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
                         ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
@@ -4611,7 +4607,9 @@ class Reviewer:
                     raise ValueError(f"Invalidated downstream step must be pending reevaluation: {st.recommendation_id}")
                 invalidated.update(st.invalidates)
             for i,st in enumerate(sc.steps):
-                if any(st.knob in later.invalidates for later in sc.steps[i+1:]):
+                # A canary rollback restores its knob regardless of what later steps invalidate.
+                rollback="CANARY_GUARDRAIL_BREACHED" in by_id[st.recommendation_id].blockers
+                if not rollback and any(st.knob in later.invalidates for later in sc.steps[i+1:]):
                     raise ValueError(f"Plan step precedes a step that invalidates it: {st.recommendation_id}")
             pe=sc.portfolio_estimate
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
@@ -4888,7 +4886,10 @@ class ScenarioPlanner:
             group=-1 if "CANARY_GUARDRAIL_BREACHED" in c.blockers else 1 if base is None else 0 if base>0 else 2
             value=0.0 if base is None else round(base*safe_float(c.confidence.get("score"),0.0)/risk,2)
             return (group,-value,PLAN_KNOB_RANK[c.knob])
-        remaining=sorted(eligible,key=key); ordered:List[CandidateRecommendation]=[]
+        # A canary rollback restores the previous configuration: it is first and never waits on another step, whatever
+        # the kept steps invalidate (a rollback restores its knob regardless).
+        rollbacks=[c for c in sorted(eligible,key=key) if "CANARY_GUARDRAIL_BREACHED" in c.blockers]
+        remaining=[c for c in sorted(eligible,key=key) if c not in rollbacks]; ordered:List[CandidateRecommendation]=[]
         while remaining:
             nxt=next((c for c in remaining if not any(c.knob in x.invalidates for x in remaining if x is not c)),None)
             if nxt is None:
@@ -4897,8 +4898,8 @@ class ScenarioPlanner:
         # A step another plan step invalidates is always pending re-evaluation (its invalidator precedes it), so ready
         # steps come first: what can be applied now is listed before what waits, and the pending tail prices the
         # contingent upside on its own.
-        invalidated={k for c in ordered for k in c.invalidates}
-        return [c for c in ordered if c.knob not in invalidated]+[c for c in ordered if c.knob in invalidated]
+        invalidated={k for c in rollbacks+ordered for k in c.invalidates}
+        return rollbacks+[c for c in ordered if c.knob not in invalidated]+[c for c in ordered if c.knob in invalidated]
 
     def _gate(self,c:CandidateRecommendation)->str:
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
