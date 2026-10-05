@@ -4,6 +4,11 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
+from publisher.analyzer.collector.collector import extract_evidence
+from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_SQL
+from publisher.analyzer.forecast import Modeler
+from publisher.governor.thresholds import Thresholds
+
 _SEGMENT = re.compile(r"^(?P<key>[A-Za-z0-9_]+)(?:\[(?P<sel>\*|[A-Za-z0-9_]+=[^\]]*)\])?$")
 
 
@@ -53,7 +58,7 @@ def check(package, assertion) -> Optional[str]:
 
 def recompute_forecast(p, e) -> None:
     """Mirror extract_evidence: forecast fields come from Modeler.forecast_from_daily_cost over the daily rows."""
-    model = p.Modeler(p.Thresholds()).forecast_from_daily_cost(
+    model = Modeler(Thresholds()).forecast_from_daily_cost(
         e.daily_cost_365, e.current_epoch.epoch_start, e.analysis_time,
         billing_watermark=e.forecast_metadata.get("billing_watermark"),
     )
@@ -69,11 +74,11 @@ def collector_evidence(p, case: Dict[str, Any]) -> List[Any]:
     """Run the real CONFIG_EPOCHS_SQL over the case's snapshots in sqlite and extract evidence from its rows."""
     from tests.unit.analyzer.test_config_epochs_sql import run_sql
 
-    epoch_rows = run_sql(p.CONFIG_EPOCHS_SQL, case["snapshots"], case["now"])
+    epoch_rows = run_sql(CONFIG_EPOCHS_SQL, case["snapshots"], case["now"])
     other_rows = case.get("collector_rows", {})
 
     class Client:
         def query(self, statement, *, label="collector_sql"):
             return epoch_rows if label == "config_epochs" else other_rows.get(label, [])
 
-    return list(p.extract_evidence(Client(), p.Thresholds(), "us-east-1", analysis_time=case.get("analysis_time")))
+    return list(extract_evidence(Client(), Thresholds(), "us-east-1", analysis_time=case.get("analysis_time")))

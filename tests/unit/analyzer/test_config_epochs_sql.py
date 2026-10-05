@@ -13,7 +13,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
-from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.queries.billing import EPOCH_BILLING_ATTRIBUTION_SQL, EPOCH_DAILY_COST_SQL  # noqa: E402
+from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE, CONFIG_EPOCHS_SQL  # noqa: E402
+from publisher.analyzer.collector.queries.events import EPOCH_EVENT_METRICS_SQL, build_epoch_gap_metrics_sql  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import EPOCH_QUERY_METRICS_SQL  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 COLUMNS = ("account_id", "workspace_id", "warehouse_id", "warehouse_name", "warehouse_type", "warehouse_channel",
            "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "tags", "change_time", "delete_time")
@@ -42,7 +46,7 @@ def run_sql(sql, rows, now=NOW):
 
 class ConfigEpochIslandTests(unittest.TestCase):
     def epochs(self, rows):
-        return run_sql(p.CONFIG_EPOCHS_SQL, rows)
+        return run_sql(CONFIG_EPOCHS_SQL, rows)
 
     def test_tag_and_rename_snapshots_do_not_start_a_new_epoch(self):
         out = self.epochs([
@@ -112,16 +116,16 @@ class ConfigEpochIslandTests(unittest.TestCase):
 
     def test_every_epoch_query_uses_the_shared_island_cte(self):
         sqls = {
-            "CONFIG_EPOCHS_SQL": p.CONFIG_EPOCHS_SQL,
-            "EPOCH_QUERY_METRICS_SQL": p.EPOCH_QUERY_METRICS_SQL,
-            "EPOCH_EVENT_METRICS_SQL": p.EPOCH_EVENT_METRICS_SQL,
-            "gap metrics": p.build_epoch_gap_metrics_sql(p.Thresholds()),
-            "EPOCH_DAILY_COST_SQL": p.EPOCH_DAILY_COST_SQL,
-            "EPOCH_BILLING_ATTRIBUTION_SQL": p.EPOCH_BILLING_ATTRIBUTION_SQL,
+            "CONFIG_EPOCHS_SQL": CONFIG_EPOCHS_SQL,
+            "EPOCH_QUERY_METRICS_SQL": EPOCH_QUERY_METRICS_SQL,
+            "EPOCH_EVENT_METRICS_SQL": EPOCH_EVENT_METRICS_SQL,
+            "gap metrics": build_epoch_gap_metrics_sql(Thresholds()),
+            "EPOCH_DAILY_COST_SQL": EPOCH_DAILY_COST_SQL,
+            "EPOCH_BILLING_ATTRIBUTION_SQL": EPOCH_BILLING_ATTRIBUTION_SQL,
         }
         for name, sql in sqls.items():
             with self.subTest(sql=name):
-                self.assertIn(p.CONFIG_EPOCHS_CTE, sql)
+                self.assertIn(CONFIG_EPOCHS_CTE, sql)
                 self.assertNotIn("LEAD(change_time)", sql)
 
 

@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 from tests.golden import load_case
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts import reporter_schema
@@ -29,18 +31,18 @@ def golden_evidence(name, *, current_start=None, cost_history_days=None, analysi
         prior = [e for e in payload["epochs"] if not e["is_current"]]
         for ep in prior:  # keep the prior epoch strictly before the new current start
             ep["epoch_end"] = current_start
-    return [p.evidence_from_dict(payload)]
+    return [evidence_from_dict(payload)]
 
 
 def build(evidence):
-    return p.build_recommendation_packages(evidence, p.Thresholds())[0]
+    return p.build_recommendation_packages(evidence, Thresholds())[0]
 
 
 class ContractConstantsTests(unittest.TestCase):
     def test_versions_and_gate_constants_match_policy(self):
         self.assertEqual(rc.CONTRACT_VERSION, "2.0.0")
         self.assertEqual(wc.WORKBOOK_CONTRACT_VERSION, "1.4.0")
-        t = p.Thresholds()
+        t = Thresholds()
         # The validator embeds these gates; changing the policy thresholds therefore requires a contract bump.
         self.assertEqual(rc.REEVALUATION_READY_BILLED_DAYS, t.readiness_min_billed_days)
         self.assertEqual(rc.REEVALUATION_COST_HISTORY_DAYS, t.min_economics_cost_history_days)

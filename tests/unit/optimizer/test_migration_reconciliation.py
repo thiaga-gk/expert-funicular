@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 
 def migration(evidence, scenario, t):
@@ -27,8 +29,8 @@ class MigrationReconciliationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        cls.fleet = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        cls.fleet = synthetic_demo_evidence()
 
     @classmethod
     def tearDownClass(cls):

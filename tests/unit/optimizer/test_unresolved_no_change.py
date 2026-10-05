@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+import datetime as dt  # noqa: E402
 from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
 
 
@@ -22,8 +26,8 @@ class UnresolvedNoChangeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        fleet = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        fleet = synthetic_demo_evidence()
         cls.by = {e.current_epoch.tags["golden_scenario"]: e for e in fleet}
         cls.cands = {}
         for w in p.evaluate_warehouses(fleet, cls.t):
@@ -69,28 +73,28 @@ class UnresolvedNoChangeTests(unittest.TestCase):
         self.assertEqual(self.cands["C06"]["max_clusters"].status, "ACTIONABLE")
         for days in (2,):  # one settled day: the resource window exists, the configuration is not ready
             e = copy.deepcopy(self.by["C06"])
-            move_current_epoch_start(e, (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=days)).replace(hour=0, minute=0).isoformat())
+            move_current_epoch_start(e, (parse_datetime(e.analysis_time) - dt.timedelta(days=days)).replace(hour=0, minute=0).isoformat())
             c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
             self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), days)
             self.assertIn("not ready yet", c.metadata["rationale"])
 
     def test_young_hold_names_the_evidence_a_mature_epoch_would_also_need(self):
         e = copy.deepcopy(self.by["C06"])
-        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.epoch_start = (parse_datetime(e.analysis_time) - dt.timedelta(days=2)).isoformat()
         e.current_epoch.query["queued_query_pct_30"] = None  # queue frequency not reported
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
         self.assertEqual(c.blockers, ["CURRENT_CONFIG_EPOCH_TOO_NEW", "QUEUE_EVIDENCE_UNAVAILABLE"])
 
     def test_young_epoch_whose_queueing_holds_the_cut_anyway_gets_no_age_code(self):
         e = copy.deepcopy(self.by["C06"])
-        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.epoch_start = (parse_datetime(e.analysis_time) - dt.timedelta(days=2)).isoformat()
         e.current_epoch.query["queued_query_pct_30"] = self.t.queue_query_pct_safe + 1.0  # above safe, below increase
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
         self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
 
     def test_young_configuration_with_nothing_to_cut_invents_no_code(self):
         e = copy.deepcopy(self.by["C47"])  # max clusters already at the floor: no cut to hold
-        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.epoch_start = (parse_datetime(e.analysis_time) - dt.timedelta(days=2)).isoformat()
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
         self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
 
@@ -112,8 +116,8 @@ class UnresolvedNoChangeMissingDemandTests(unittest.TestCase):
     def test_rationale_never_prints_a_missing_demand_figure(self):
         logging.disable(logging.CRITICAL)
         try:
-            t = p.Thresholds()
-            e = copy.deepcopy(next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C46"))
+            t = Thresholds()
+            e = copy.deepcopy(next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C46"))
             e.current_epoch.query["concurrency_histogram"]["BUSY_START"] = {}
             c = next(c for c in p.evaluate_warehouses([e], t)[0].candidates if c.knob == "max_clusters")
             self.assertEqual(c.blockers, ["QUEUEING_BELOW_CEILING"])

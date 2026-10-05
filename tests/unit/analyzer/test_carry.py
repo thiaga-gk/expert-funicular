@@ -14,7 +14,13 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
-from tests.test_readiness import changed  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import CARRY_PERIOD_COLUMNS, build_carried_concurrency_sql, build_carried_query_metrics_sql, build_carried_spill_source_sql  # noqa: E402
+from publisher.analyzer.epochs import carried_query_view  # noqa: E402
+from publisher.analyzer.findings import Analyzer  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+import datetime as dt  # noqa: E402
+from tests.unit.optimizer.test_readiness import changed  # noqa: E402
 
 
 class CarryTests(unittest.TestCase):
@@ -36,7 +42,7 @@ class CarryTests(unittest.TestCase):
 
     def test_carried_findings_are_labelled(self):
         e, _ = changed("C11", "auto_stop_minutes", 10, 3)
-        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        pkg = p.build_recommendation_packages([e], Thresholds())[0]
         carried = {x.metric: x for x in pkg.evidence.values() if x.epoch_scope == "CARRIED_ACROSS_CHANGE"}
         self.assertIn("busy_periods_recent", carried)
         self.assertIn("queued_query_pct_30", carried)
@@ -57,7 +63,7 @@ class CarryTests(unittest.TestCase):
                  "concurrency_histogram": {"EPOCH": {"1": 5}, "RECENT": {"1": 5}, "BUSY_START": {"1": 1}},
                  "carried": {"demand": {"period_start": "2026-09-01T00:00:00+00:00", "queries_30": 900, "p95_wait_compute_ms_when_waited_30": 1,
                                         "queued_query_pct_30": 1.0, "concurrency_histogram": {"RECENT": {"2": 40}}}}}
-        view, periods = p.carried_query_view(query)
+        view, periods = carried_query_view(query)
         self.assertEqual(view["queries_30"], 900)
         self.assertEqual(view["p95_wait_compute_ms_when_waited_30"], 4000)  # cold-start wait never carries
         self.assertEqual(view["queued_query_pct_30"], 9.0)  # no capacity period: queueing stays current
@@ -65,13 +71,13 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(periods, {"demand": "2026-09-01T00:00:00+00:00", "capacity": None})
 
     def test_carried_collectors_render(self):
-        t = p.Thresholds()
+        t = Thresholds()
         for family in ("demand", "capacity"):
-            sql = p.build_carried_query_metrics_sql(family)
-            self.assertIn(f"c.{p.CARRY_PERIOD_COLUMNS[family]} < c.cur_start", sql)
+            sql = build_carried_query_metrics_sql(family)
+            self.assertIn(f"c.{CARRY_PERIOD_COLUMNS[family]} < c.cur_start", sql)
             self.assertIn("epoch_start AS period_start", sql)
-        self.assertIn("demand_period_start < cur_start", p.build_carried_spill_source_sql(t))
-        self.assertIn("'BUSY_START' AS scope", p.build_carried_concurrency_sql(t))
+        self.assertIn("demand_period_start < cur_start", build_carried_spill_source_sql(t))
+        self.assertIn("'BUSY_START' AS scope", build_carried_concurrency_sql(t))
 
     def test_carry_survives_a_new_epoch_without_queries(self):
         def drop_current_query(rows):
@@ -84,7 +90,7 @@ class CarryTests(unittest.TestCase):
 
     def test_source_and_mix_findings_are_labelled_carried(self):
         e, _ = changed("C11", "auto_stop_minutes", 10, 3)
-        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        pkg = p.build_recommendation_packages([e], Thresholds())[0]
         scopes = {x.metric: x.epoch_scope for x in pkg.evidence.values()}
         for metric in ("dashboard_queries_30", "power_bi_queries_30"):
             if metric in scopes:
@@ -96,26 +102,26 @@ class CarryTests(unittest.TestCase):
 
     def test_weekly_counts_never_reach_across_the_change(self):
         query = {"queries_week_5": None, "carried": {"demand": {"period_start": "2026-08-01T00:00:00+00:00", "queries_week_5": 900}}}
-        view, _ = p.carried_query_view(query)
+        view, _ = carried_query_view(query)
         self.assertIsNone(view["queries_week_5"])
 
     def test_a_channel_change_breaks_the_carry(self):
-        sql = p.build_carried_query_metrics_sql("demand")
+        sql = build_carried_query_metrics_sql("demand")
         self.assertIn("LAG(warehouse_channel) OVER w <=> warehouse_channel", sql)
         self.assertIn("c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", sql)
 
     def test_carried_concurrency_clips_at_the_period_end(self):
-        sql = p.build_carried_concurrency_sql(p.Thresholds())
+        sql = build_carried_concurrency_sql(Thresholds())
         self.assertIn("CASE WHEN x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY THEN CURRENT_TIMESTAMP() ELSE x.start_time END), CURRENT_TIMESTAMP()) AS t", sql)
 
     def test_recent_window_covering_the_epoch_is_not_a_seasonal_peak(self):
         e, by = changed("C11", "auto_stop_minutes", 10, 3)
-        f = p.Analyzer(p.Thresholds()).analyze(e)["max_clusters"].facts
+        f = Analyzer(Thresholds()).analyze(e)["max_clusters"].facts
         self.assertFalse(f.get("epoch_peak_outside_recent"))
 
     def test_assessment_query_sample_reads_carried_evidence(self):
         e, _ = changed("C11", "auto_stop_minutes", 10, 3)
-        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        pkg = p.build_recommendation_packages([e], Thresholds())[0]
         self.assertTrue(pkg.assessment.evidence_quality.query_sample_sufficient)
 
     def test_older_epoch_inside_the_carried_window_does_not_hold(self):
@@ -125,12 +131,12 @@ class CarryTests(unittest.TestCase):
         cur = e.current_epoch
         recent = cur.query["carried"]["demand"]["concurrency_histogram"]["RECENT"]
         top = max(int(k) for k in recent)
-        start = p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=10)
+        start = parse_datetime(e.analysis_time) - dt.timedelta(days=10)
         inside = copy.deepcopy(next(x for x in e.epochs if not x.is_current))
         inside.epoch_id, inside.epoch_start, inside.epoch_end = "inside", start.isoformat(), cur.epoch_start
         inside.query = {"concurrency_histogram": {"EPOCH": {str(top): 400}}}
         e.epochs.append(inside)
-        f = p.Analyzer(p.Thresholds()).analyze(e)["min_clusters"].facts
+        f = Analyzer(Thresholds()).analyze(e)["min_clusters"].facts
         self.assertFalse(f["older_epoch_demand_higher"])
 
     def test_workload_profile_and_attribution_read_the_carried_view(self):
@@ -138,7 +144,7 @@ class CarryTests(unittest.TestCase):
             cur = rows["query_metrics_carried_demand"][0]["cur_start"]
             rows["query_metrics"] = [r for r in rows["query_metrics"] if r["epoch_start"] != cur]
         e, _ = changed("C11", "auto_stop_minutes", 10, 3, rows_hook=drop_current_query)
-        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        pkg = p.build_recommendation_packages([e], Thresholds())[0]
         self.assertGreater(pkg.workload_profile.activity.queries_30d, 1000)
         self.assertEqual(getattr(pkg.workload_profile.primary_query_source, "value", pkg.workload_profile.primary_query_source), "DASHBOARD")
 

@@ -14,13 +14,15 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 
 class AutoStopEvidenceTests(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
-        self.t = p.Thresholds()
-        self.e = copy.deepcopy(p.demo_evidence()[0])  # auto-stop 120, min 2
+        self.t = Thresholds()
+        self.e = copy.deepcopy(demo_evidence()[0])  # auto-stop 120, min 2
 
     def tearDown(self):
         logging.disable(logging.NOTSET)

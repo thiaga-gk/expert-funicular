@@ -121,7 +121,7 @@ flowchart TD
 
 ### 5.1 Current implementation alignment
 
-The publisher enforces the fail-closed supported-type gate before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
+The Analyzer analyzes, and the Governor admits, only supported types, so unsupported ones fail closed before active optimization. Unknown/future values cannot fall through into Pro/Classic logic.
 
 ---
 
@@ -442,7 +442,7 @@ flowchart LR
     A --> O[OptimizationDecision]
     O --> EST[Independent Estimator]
     EST --> C[CandidateRecommendation]
-    C --> R[Reviewer Gate 1]
+    C --> R[Reviewer candidate gate]
 ```
 
 ---
@@ -864,9 +864,9 @@ flowchart TD
 
 ## 27. Reviewer gates
 
-The product has two separate fail-closed review gates.
+The Reviewer capability has two separate fail-closed gates: the candidate gate and the package gate.
 
-### 27.1 Reviewer Gate 1 — candidate integrity
+### 27.1 Reviewer candidate gate — candidate integrity
 
 Ensures atomic recommendations are internally valid before scenario construction.
 
@@ -881,7 +881,7 @@ Examples:
 - current/recommended config differences valid;
 - evidence references resolvable.
 
-### 27.2 Reviewer Gate 2 — scenario integrity
+### 27.2 Reviewer package gate — scenario integrity
 
 Ensures bundled execution paths are valid before package publication.
 
@@ -896,10 +896,10 @@ Examples:
 
 ```mermaid
 flowchart LR
-    C[Candidates] --> R1{Gate 1}
+    C[Candidates] --> R1{Candidate gate}
     R1 -->|fail| STOP1[Do not plan]
-    R1 -->|pass| S[Scenario planner]
-    S --> R2{Gate 2}
+    R1 -->|pass| S[Packager: scenario planner]
+    S --> R2{Package gate}
     R2 -->|fail| STOP2[Do not publish]
     R2 -->|pass| P[Public package]
 ```
@@ -1256,13 +1256,13 @@ Auto-stop is ready immediately because no other change invalidates it. The max- 
 
 ## 40. Current known gaps and debt
 
-### 40.1 Supported-type gate
+### 40.1 Supported types
 
 Supported types and the fail-closed gate: `docs/reference/known-limitations.md`.
 
 ### 40.2 Internal orchestration
 
-The decision pipeline uses a minimal `WarehouseOptimization` orchestration object for reviewed candidate/scenario state and assembles the public `RecommendationPackage` directly. Internal orchestration objects are not serialization contracts.
+The capability pipeline uses a minimal `WarehouseOptimization` orchestration object for reviewed candidate/scenario state and assembles the public `RecommendationPackage` directly. Internal orchestration objects are not serialization contracts.
 
 ### 40.3 Realization ingestion
 

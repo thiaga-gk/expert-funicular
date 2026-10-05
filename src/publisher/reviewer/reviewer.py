@@ -1,13 +1,15 @@
 """Reviewer: one capability with a candidate gate and a scenario/package gate."""
 from __future__ import annotations
 
-from publisher.governor.thresholds import Thresholds
+from typing import Sequence
+
 from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.candidate import OptimizationResult
 from publisher.contracts.governance import GovernanceResult
 from publisher.contracts.package import PackagingResult
 from publisher.contracts.request import RunContext
-from publisher.contracts.review import CandidateReviewResult, PackageReviewResult
+from publisher.contracts.review import CandidateReviewResult, PackageReviewResult, WarehouseOptimization
+from publisher.governor.thresholds import Thresholds
 from publisher.reviewer.candidate import CandidateGate
 from publisher.reviewer.package import review_contract
 from publisher.reviewer.scenario import ScenarioGate
@@ -34,6 +36,12 @@ def review_package(context: RunContext, analysis: FleetAnalysis, governance: Gov
     Raises on the first violated invariant (ValueError, or a schema ValidationError).
     """
     for w, p in zip(package.warehouses, package.packages, strict=True):
-        Reviewer(context.thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
+        review_plans(context, [w])
         review_contract(p)
     return PackageReviewResult(list(package.packages))
+
+
+def review_plans(context: RunContext, warehouses: Sequence[WarehouseOptimization]) -> None:
+    """Scenario gate for each planned warehouse, in order."""
+    for w in warehouses:
+        Reviewer(context.thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)

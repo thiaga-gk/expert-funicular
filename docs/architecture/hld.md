@@ -56,20 +56,20 @@ Query telemetry is used as evidence, but SQL rewrite/query optimization is outsi
 
 Lakehouse Real-Time (Beta) is **not** part of the Phase-1 optimization model. It has distinct sizing and autoscaling semantics and requires a dedicated analyzer, optimizer, estimator, compatibility contract, and golden-test suite before activation.
 
-The architecture therefore requires a **Supported-Type Gate** immediately after normalization:
+The architecture therefore requires a supported-type check immediately after normalization: the Analyzer analyzes only supported types and the Governor records every other warehouse as an exclusion:
 
 ```mermaid
 flowchart LR
-    T[Normalized warehouse type] --> G{Supported-Type Gate}
+    T[Normalized warehouse type] --> G{Analyzer type check<br/>+ Governor exclusion}
     G -->|CLASSIC| P[Optimization pipeline]
     G -->|PRO| P
     G -->|SERVERLESS| P
-    G -->|Any other / future type| U[Unsupported assessment<br/>Fail closed]
+    G -->|Any other / future type| U[Excluded warehouse<br/>Fail closed]
 ```
 
 An unsupported type must never be silently processed using Pro/Classic assumptions.
 
-**Implementation conformance:** the publisher enforces this gate before analyzer invocation; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
+**Implementation conformance:** the Analyzer never analyzes an unsupported or future type and the Governor excludes it; unsupported/future types fail closed. The exclusion is per warehouse: the rest of the fleet is still evaluated, and each excluded warehouse is recorded in `manifest.json` `excluded_warehouses`.
 
 ### 3.3 Active candidate domains
 
@@ -101,27 +101,26 @@ flowchart LR
     REG[(Versioned AWS EC2\nPrice Registry)]
 
     subgraph OPT[SQL Warehouse Optimizer]
-        COL[Collector]
-        NOR[Normalizer + Epoch Builder]
-        DEC[Deterministic Decision Pipeline]
-        PKG[Recommendation Package Builder]
-        VAL[Contract Validation]
-        XLSX[Workbook Projection]
+        ANA[Analyzer<br/>collector + normalizer]
+        GOV[Governor]
+        DEC[Optimizer + Reviewer candidate gate]
+        PKG[Packager]
+        VAL[Reviewer package gate]
+        REP[Reporter<br/>packages, evidence, workbook]
     end
 
     HITL[Platform / FinOps / SRE / Owner\nHuman Review]
     OUT[(Output Directory)]
 
-    CW --> COL
-    WE --> COL
-    QH --> COL
-    BU --> COL
-    LP --> COL
-    API --> COL
-    REG --> COL
+    CW --> ANA
+    WE --> ANA
+    QH --> ANA
+    BU --> ANA
+    LP --> ANA
+    API --> ANA
+    REG --> ANA
 
-    COL --> NOR --> DEC --> PKG --> VAL --> OUT
-    VAL --> XLSX --> OUT
+    ANA --> GOV --> DEC --> PKG --> VAL --> REP --> OUT
     OUT --> HITL
 
     HITL -. future measured outcome .-> OUT
@@ -142,33 +141,40 @@ There is no Phase-1 edge from the optimizer to a Databricks warehouse update API
 
 ## 5. Logical architecture
 
+The system is seven capabilities, called once each, in this order, by `publish()` in `src/publisher/publisher.py`, which holds no domain logic:
+
 ```mermaid
 flowchart TD
-    A[1. Collect] --> B[2. Normalize + Build Config Epochs]
-    B --> G{Supported-Type Gate}
-    G -->|Supported| C[3. Analyze]
-    G -->|Unsupported| U[Unsupported / non-optimizable result]
+    A[1. Analyzer\ncollect, normalize, build config epochs, derive findings] --> G[2. Governor\neligibility, thresholds, run constraints, migration compatibility]
+    G -->|Supported| O[3. Optimizer\ntechniques, cross-technique conflicts, candidate estimator]
+    G -->|Unsupported| U[Excluded warehouse: recorded, never analyzed]
 
-    C --> D[4. Optimize]
-    D --> E[5. Model + Estimate Independent Candidates]
-    E --> R1[6. Reviewer Gate 1\nCandidate invariants]
-    R1 --> S[7. Scenario Planner]
-    S --> BE[8. Stateful Bundle Estimator]
-    BE --> R2[9. Reviewer Gate 2\nScenario / portfolio invariants]
-    R2 --> APT[10. Public Contract Adapter]
-    APT --> SV[11. Semantic + Hash + JSON Schema Validation]
-    SV --> J[12. Immutable RecommendationPackage JSON]
-    J --> W[13. Workbook Projection]
-    J --> M[Manifest / evidence replay artifacts]
+    O --> R1[4. Reviewer candidate gate\nCandidate invariants]
+    R1 --> P[5. Packager\nscenario planner, stateful bundle estimator, package estimate, contract assembly]
+    P --> R2[6. Reviewer package gate\nScenario / portfolio invariants + semantic, hash and schema validation]
+    R2 --> RP[7. Reporter]
+    RP --> J[Immutable RecommendationPackage JSON]
+    RP --> W[Workbook projection]
+    RP --> M[Manifest / evidence replay artifacts]
 ```
 
-The numbered stages define the high-level architecture contract. A stage may be composed of multiple implementation classes/functions, but responsibility must not cross the boundaries below.
+The numbered capabilities define the high-level architecture contract. A capability may be composed of multiple implementation classes/functions, but responsibility must not cross the boundaries below. The component sections of section 6 name the capability that owns each responsibility:
+
+| Capability | Owns | Component sections |
+|---|---|---|
+| Analyzer | source collection, normalization and configuration epochs, derived metrics and findings; analyzes only supported warehouse types | 6.1, 6.2, 6.4 |
+| Governor | which analyzed warehouses may be considered (exclusion of unsupported types), the policy `Thresholds`, run constraints, migration compatibility | 6.3 |
+| Optimizer | one deterministic decision per active domain, cross-technique conflicts, candidate pricing in isolation | 6.5, 6.6 |
+| Reviewer candidate gate | candidate invariants, before any scenario exists | 6.7 |
+| Packager | scenario planning and sequencing, stateful bundle pricing, package envelope, evidence registry, public contract assembly | 6.8, 6.9, 6.11 |
+| Reviewer package gate | scenario/package invariants and contract validation before anything is written | 6.10, 6.12 |
+| Reporter | write packages, evidence, workbook and manifest | 6.12, 6.13 |
 
 ---
 
 ## 6. Component responsibilities
 
-### 6.1 Collector
+### 6.1 Analyzer: collector
 
 **Responsibility:** Execute set-based source queries and return bounded, per-warehouse/per-epoch evidence rather than raw event/query histories.
 
@@ -204,7 +210,7 @@ It must not:
 - modify warehouse configuration,
 - allow REST configuration values to override authoritative system-table configuration.
 
-### 6.2 Normalizer and configuration-epoch builder
+### 6.2 Analyzer: normalizer and configuration-epoch builder
 
 **Responsibility:** Convert source-shaped rows into normalized evidence and reconstruct immutable configuration regimes.
 
@@ -222,9 +228,9 @@ Only one current epoch may exist for a warehouse in a valid normalized evidence 
 
 Older epochs are calibration/backtest only, with three exceptions: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days, never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence. The map and the guard rules are in the LLD (10.2, 15.9). Otherwise older epochs never choose a change, its target or its economics.
 
-### 6.3 Supported-Type Gate
+### 6.3 Governor: eligibility and supported types
 
-**Responsibility:** Ensure only explicitly modeled warehouse types enter the optimization pipeline.
+**Responsibility:** Decide what the Optimizer may consider. The Analyzer analyzes only explicitly modeled warehouse types; the Governor records every other warehouse as an exclusion and holds the policy `Thresholds`, the run constraints (for a live run, the AWS price-registry constraint) and the migration compatibility rules.
 
 Allowed Phase-1 types:
 
@@ -236,7 +242,7 @@ SERVERLESS
 
 Unknown or future warehouse types must be handled as unsupported, not mapped implicitly to a supported type.
 
-### 6.4 Analyzer
+### 6.4 Analyzer: findings
 
 **Responsibility:** Convert normalized evidence into deterministic facts/findings for each candidate domain.
 
@@ -257,7 +263,7 @@ Analyzer outputs contain observations such as:
 
 The analyzer does not produce final recommendations and does not perform configuration mutation.
 
-### 6.5 Optimizer
+### 6.5 Optimizer: decisions
 
 **Responsibility:** Apply versioned deterministic policy thresholds to analyzer facts and produce one decision state per active candidate domain.
 
@@ -265,7 +271,7 @@ The decision states are the public recommendation statuses (`docs/contracts/repo
 
 The optimizer determines current/recommended config values, blockers, dependencies, invalidations, rationale, and objective. It does not own cost arithmetic.
 
-### 6.6 Modeler / independent estimator
+### 6.6 Optimizer: candidate estimator
 
 **Responsibility:** Convert each candidate decision into an isolated forward counterfactual with deterministic confidence.
 
@@ -278,7 +284,7 @@ Key architecture rules:
 - Photon is observation-only and is never priced or recommended (section 7.3),
 - migration economics are pre-canary modeled ranges.
 
-### 6.7 Reviewer Gate 1 — candidate integrity
+### 6.7 Reviewer candidate gate — candidate integrity
 
 **Responsibility:** Fail closed before scenarios are created if candidate-level invariants are violated.
 
@@ -294,7 +300,7 @@ Examples include:
 - no fake savings for no-change/guardrail cases,
 - currency/cost consistency.
 
-### 6.8 Scenario planner
+### 6.8 Packager: scenario planner
 
 **Responsibility:** Build mutually exclusive execution branches from reviewed candidates.
 
@@ -317,7 +323,7 @@ flowchart TD
 
 Auto-stop has no upstream invalidator. A max-cluster ceiling cut and a min-cluster change invalidate nothing downstream; a size change invalidates max and min clusters, which then wait in `PENDING_REEVALUATION`. Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
 
-### 6.9 Stateful bundle estimator
+### 6.9 Packager: stateful bundle estimator
 
 **Responsibility:** Estimate scenario economics against evolving resource/configuration state.
 
@@ -339,7 +345,7 @@ flowchart LR
 
 Only stateful scenario economics feed the package-level opportunity envelope.
 
-### 6.10 Reviewer Gate 2 — scenario/package integrity
+### 6.10 Reviewer package gate — scenario/package integrity
 
 **Responsibility:** Validate assembled execution branches before any public package is built.
 
@@ -353,7 +359,7 @@ It verifies, at minimum:
 - the recommended scenario exists,
 - migration/current-type branches do not incorrectly combine incompatible changes.
 
-### 6.11 Public contract adapter
+### 6.11 Packager: public contract assembly
 
 **Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v2.0.0.
 
@@ -361,9 +367,9 @@ The public top-level hierarchy and field semantics: `docs/contracts/reporter-jso
 
 One public package represents exactly one warehouse/current configuration epoch.
 
-### 6.12 Contract validators
+### 6.12 Contract validators (Reviewer package gate, re-checked by the Reporter at write)
 
-Before a package is written, it must pass:
+The Reviewer package gate validates every frozen package, and the Reporter checks the serialized package against the schema again as it writes it. Before a package is written, it must pass:
 
 1. dataclass/type validation,
 2. semantic validation,
@@ -374,7 +380,7 @@ Before a package is written, it must pass:
 
 Any failure prevents package publication.
 
-### 6.13 Workbook projection
+### 6.13 Reporter: workbook projection
 
 **Responsibility:** Render human decision views from valid public packages only.
 
@@ -453,8 +459,8 @@ sequenceDiagram
     participant CLI as python -m publisher
     participant AUTH as Databricks CLI OAuth
     participant DB as Databricks SQL/System Tables
-    participant P as Decision Pipeline
-    participant V as Contract Validators
+    participant P as Capability Pipeline
+    participant V as Reviewer Package Gate
     participant O as Output Directory
 
     U->>CLI: live run + execution target + region
@@ -464,7 +470,7 @@ sequenceDiagram
     CLI->>DB: set-based collector queries
     DB-->>CLI: aggregated evidence
     CLI->>P: normalized WarehouseEvidence[]
-    P->>P: analyze / optimize / estimate / review / scenarios
+    P->>P: analyzer / governor / optimizer / reviewer candidate gate / packager
     P->>V: RecommendationPackage per warehouse
     V-->>P: semantic/hash/schema PASS
     P->>O: packages/*.json
@@ -568,11 +574,11 @@ The forward baseline is the expected next-365-day cost with no change, built fro
 
 ### 10.3 Candidate economics
 
-The modeler/estimator prices each candidate in isolation; candidate economics are non-additive.
+The Optimizer's candidate estimator prices each candidate in isolation; candidate economics are non-additive.
 
 ### 10.4 Scenario economics
 
-The stateful bundle estimator owns scenario-level economics because it accounts for ordering and overlap.
+The Packager's stateful bundle estimator owns scenario-level economics because it accounts for ordering and overlap.
 
 ### 10.5 Package economics
 
@@ -666,7 +672,7 @@ flowchart LR
 
 ### 12.3 Internal domain contracts
 
-The typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`). The Packager (`src/publisher/packager/`) assembles the locked public `RecommendationPackage` directly, and reviewer gate 2 checks its scenarios; there is no separate internal report serialization model.
+The typed internal dataclasses for normalized evidence, findings, decisions, candidates, scenarios, and the minimal `WarehouseOptimization` orchestration result live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`). The Packager (`src/publisher/packager/`) assembles the locked public `RecommendationPackage` directly, and the Reviewer package gate checks its scenarios; there is no separate internal report serialization model.
 
 These internal objects are **not public APIs**. The public JSON contract remains the `RecommendationPackage` of the Reporter JSON Contract.
 
@@ -758,7 +764,7 @@ The architecture forbids silent fallbacks that convert unknown into:
 
 Each run writes packages, the workbook, replay evidence, a run manifest and a log; the output tree is in `README.md`.
 
-The manifest and log identify the run (publisher and contract versions, emitted packages and warehouses excluded by the supported-type gate) without duplicating metric evidence, which stays in the package and evidence artifacts. Manifest contents: `docs/architecture/lld.md` section 28.2. Policy, model and component versions are recorded in each package's provenance.
+The manifest and log identify the run (publisher and contract versions, emitted packages and warehouses the Governor excluded as unsupported types) without duplicating metric evidence, which stays in the package and evidence artifacts. Manifest contents: `docs/architecture/lld.md` section 28.2. Policy, model and component versions are recorded in each package's provenance.
 
 ---
 
@@ -877,11 +883,12 @@ The repository test model is layered:
 
 ```mermaid
 flowchart TD
-    U[Unit / invariant tests] --> T[Technique / estimator tests]
-    T --> G[Golden scenario tests]
-    G --> RC[Reporter Contract tests]
-    RC --> WC[Workbook projection / column-conformance tests]
-    WC --> E2E[Golden-scenario fleet end-to-end synthetic run]
+    U[Unit tests per capability] --> C[Component tests across capabilities]
+    C --> G[Golden scenario tests]
+    G --> RG[Regression and output-contract compatibility tests]
+    RG --> RC[Reporter Contract and workbook projection tests]
+    RC --> E2E[Golden-scenario fleet end-to-end synthetic run]
+    E2E -.-> LV[Live integration tests: skipped without a profile]
 ```
 
 The architecture expects tests to prove both positive behavior and fail-closed behavior. Test design, golden scenarios and required contract assertions: `docs/architecture/lld.md` section 32. Reproduce results with the commands in `CLAUDE.md`.

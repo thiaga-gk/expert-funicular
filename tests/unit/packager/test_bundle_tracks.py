@@ -14,15 +14,19 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.contracts.scenario import PlanStep  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.packager.estimator.scenario import StatefulBundleEstimator  # noqa: E402
 
 
 class BundleTrackFloorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
+        cls.t = Thresholds()
         # Pinned Capacity: Pro MEDIUM pinned at 3 clusters; the floor cut 3 -> 1 is a canary, auto-stop is actionable.
-        cls.e = next(e for e in p.synthetic_demo_evidence() if e.current_epoch.tags["golden_scenario"] == "C11")
+        cls.e = next(e for e in synthetic_demo_evidence() if e.current_epoch.tags["golden_scenario"] == "C11")
         cls.by_knob = {c.knob: c for c in p.evaluate_warehouses([cls.e], cls.t)[0].candidates}
 
     @classmethod
@@ -31,12 +35,12 @@ class BundleTrackFloorTests(unittest.TestCase):
 
     def step(self, n, knob, state):
         c = self.by_knob[knob]
-        return p.PlanStep(n, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status, "GATE", 0, [], [], state)
+        return PlanStep(n, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status, "GATE", 0, [], [], state)
 
     def plan(self, *knobs):
         steps = [self.step(i + 1, k, "READY_FOR_CANARY" if k == "min_clusters" else "READY_FOR_HITL") for i, k in enumerate(knobs)]
         by_id = {c.recommendation_id: c for c in self.by_knob.values()}
-        return p.StatefulBundleEstimator(self.t).estimate(self.e, steps, by_id), steps
+        return StatefulBundleEstimator(self.t).estimate(self.e, steps, by_id), steps
 
     def test_preconditions(self):
         self.assertEqual((self.by_knob["min_clusters"].current_config["min_clusters"], self.by_knob["min_clusters"].recommended_config["min_clusters"]), (3, 1))

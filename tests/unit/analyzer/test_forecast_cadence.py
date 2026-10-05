@@ -15,7 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
-from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.blockers import dbu_baseline_blocker  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.forecast import Modeler  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 AT = "2026-10-01T12:00:00+00:00"
 TODAY = dt.date(2026, 10, 1)
@@ -65,7 +68,7 @@ def forecast(name, age):
     rows = [{"usage_date": d.isoformat(), "list_cost": c, "dbu_quantity": c / 0.55, "retracted_dbu_quantity": 0.0,
              "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
             for d, c in series.items() if c > 0 and d >= start]
-    return p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), AT)
+    return Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), AT)
 
 
 class CadenceForecastTests(unittest.TestCase):
@@ -110,9 +113,9 @@ class CadenceForecastTests(unittest.TestCase):
         self.check("quarterly", 365, 403.31, "CADENCE")  # true 400, only once the epoch is about a year old
 
     def test_unknown_cadence_forecast_withholds_economics_as_too_few_billed_days(self):
-        e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C06")
+        e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C06")
         e.forecast_metadata = dict(e.forecast_metadata, dbu_forecast_status="INSUFFICIENT_BILLING_CYCLES")
-        self.assertEqual(p.dbu_baseline_blocker(e, p.Thresholds()), "BILLED_COST_DAYS_INSUFFICIENT")
+        self.assertEqual(dbu_baseline_blocker(e, Thresholds()), "BILLED_COST_DAYS_INSUFFICIENT")
 
 
 def forecast_fn(fn, age):
@@ -124,7 +127,7 @@ def forecast_fn(fn, age):
         if c:
             rows.append({"usage_date": d.isoformat(), "list_cost": c, "dbu_quantity": c / 0.55, "retracted_dbu_quantity": 0.0,
                          "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"})
-    return p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), AT)
+    return Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), AT)
 
 
 class CadenceClassificationTests(unittest.TestCase):
@@ -155,7 +158,7 @@ class CadenceClassificationTests(unittest.TestCase):
         rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
                  "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
                 for d in (start + dt.timedelta(days=k) for k in range(120)) if d in closes]
-        f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-12-26T12:00:00+00:00")
+        f = Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-12-26T12:00:00+00:00")
         self.assertEqual(f["forecast_model"], "CADENCE")
         self.assertAlmostEqual(f["forecast_cost_365"], 6000, delta=0.05 * 6000)
 
@@ -179,7 +182,7 @@ class CadenceClassificationTests(unittest.TestCase):
             rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
                      "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
                     for d in (start + dt.timedelta(days=j) for j in range(365)) if d.day in (1, 8)]
-            f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
+            f = Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
             self.assertEqual(f["forecast_model"], "CADENCE", today)
             self.assertAlmostEqual(f["forecast_cost_365"], 2400, delta=0.05 * 2400, msg=today)
 
@@ -199,7 +202,7 @@ class CadenceClassificationTests(unittest.TestCase):
         rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
                  "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
                 for d in (start + dt.timedelta(days=k) for k in range(65)) if d in closes]
-        f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-11-02T12:00:00+00:00")
+        f = Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-11-02T12:00:00+00:00")
         self.assertNotEqual(f["cadence_window_start"], "2026-08-31")
         if f["forecast_cost_365"] is not None:
             self.assertAlmostEqual(f["forecast_cost_365"], 4800, delta=0.06 * 4800)
@@ -211,7 +214,7 @@ class CadenceClassificationTests(unittest.TestCase):
             rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
                      "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
                     for d in (start + dt.timedelta(days=j) for j in range(365)) if d.day == 1 and d <= dt.date(2026, 5, 1)]
-            return p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
+            return Modeler(Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
         self.assertEqual(at(dt.date(2026, 6, 5))["forecast_model"], "CADENCE")
         late = at(dt.date(2026, 6, 15))
         self.assertEqual(late["forecast_model"], "RUN_RATE")
@@ -229,7 +232,7 @@ class CadenceDemoTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C52")
+        cls.e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C52")
 
     @classmethod
     def tearDownClass(cls):

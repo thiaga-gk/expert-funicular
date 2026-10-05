@@ -12,25 +12,25 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-The install must be editable (`-e`): the package reads the committed `schema/` and `pricing/` folders from the checkout and refuses to import from a copied install.
+The install must be editable (`-e`): the package reads the committed `schema/` and `pricing/` folders from the checkout and refuses to import from a copied install. After the install, run the CLI with `python -m publisher`. Without an install, run `python scripts/run_publisher.py` from the checkout: it takes the same arguments.
 
 ## Canonical flow
 
 ```mermaid
 flowchart LR
-    ST[Databricks system tables] --> C[Collector]
-    C --> N[Normalize + current epoch]
-    N --> G{Supported-type gate}
-    G -->|CLASSIC / PRO / SERVERLESS| A[Analyze → optimize → estimate]
-    G -->|Other| X[Fail closed]
-    A --> R1[Reviewer gate 1]
-    R1 --> S[Scenario planner + stateful bundle estimator]
-    S --> R2[Reviewer gate 2]
-    R2 --> P[RecommendationPackage v2.0.0]
-    P --> J[packages/*.json]
-    P --> W[Workbook Contract v1.4.0]
-    W --> X1[workbook.xlsx]
+    ST[Databricks system tables] --> A[Analyzer<br/>collect, normalize, epochs, findings]
+    A --> G[Governor<br/>eligibility, thresholds, constraints]
+    G -->|CLASSIC / PRO / SERVERLESS| O[Optimizer<br/>techniques, conflicts, candidate estimator]
+    G -->|Other types| X[Excluded: fail closed]
+    O --> R1[Reviewer<br/>candidate gate]
+    R1 --> P[Packager<br/>scenarios, bundle estimator, contract assembly]
+    P --> R2[Reviewer<br/>package gate]
+    R2 --> RP[Reporter]
+    RP --> J[packages/*.json<br/>RecommendationPackage v2.0.0]
+    RP --> W[workbook.xlsx<br/>Workbook Contract v1.4.0]
 ```
+
+`publish()` in `src/publisher/publisher.py` calls each capability once, in this order, and holds no domain logic; each capability lives in its own package under `src/publisher/` (`analyzer`, `governor`, `optimizer`, `reviewer`, `packager`, `reporter`, plus `contracts`, `config` and `common`). Architecture: [`docs/architecture/hld.md`](docs/architecture/hld.md).
 
 The workbook never recalculates recommendations, confidence, IDs, or scenario economics.
 
@@ -71,6 +71,7 @@ See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md)
 
 ```bash
 python -m publisher --demo --output-dir ./demo_out
+python scripts/run_demo.py ./demo_out      # same run, no install
 ```
 
 The demo fleet has one simulated warehouse per golden scenario (each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..40) runs the first N warehouses.
@@ -146,4 +147,4 @@ The suite version is declared in `.claude/skills/suite.yaml`; the validator repo
 python -m unittest discover -s tests -v
 ```
 
-The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/cases/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic golden-scenario fleet flow.
+The suite is layered: unit tests per capability (`tests/unit/<capability>/`), component tests that chain capabilities, golden scenarios, regression checks and live integration tests (skipped without a Databricks profile). It covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/cases/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic golden-scenario fleet flow.

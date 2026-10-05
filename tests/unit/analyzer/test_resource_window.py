@@ -15,6 +15,16 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence  # noqa: E402
+from publisher.analyzer.collector.pricing import model_aws_baseline_cost  # noqa: E402
+from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE  # noqa: E402
+from publisher.analyzer.collector.queries.events import EPOCH_EVENT_METRICS_SQL, RESOURCE_DAILY_SQL, build_epoch_gap_metrics_sql  # noqa: E402
+from publisher.analyzer.collector.replay import load_evidence_files, save_evidence  # noqa: E402
+from publisher.analyzer.findings import Analyzer  # noqa: E402
+from publisher.analyzer.metrics import blended_daily_rate, resource_window  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.optimizer.estimator.candidate import Estimator  # noqa: E402
 
 
 def day_rows(start, days, cluster_minutes, *, at_min=0.0, at_max=0.0, recycle=0.0, peak=1, uptime=None):
@@ -30,7 +40,7 @@ def day_rows(start, days, cluster_minutes, *, at_min=0.0, at_max=0.0, recycle=0.
 
 def demo_rows_without_events():
     """The always-on demo warehouse (golden C01) as the real collector sees it after a year without a restart."""
-    rows = p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME)
+    rows = _demo_fleet_rows(1, DEMO_ANALYSIS_TIME)
     rows = dict(rows, warehouse_events=[], resource_daily=[], idle_gaps=[])
 
     class Client:
@@ -38,13 +48,13 @@ def demo_rows_without_events():
             return [dict(r) for r in rows.get(label, [])]
 
     registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
-    return {"evidence": p.extract_evidence(Client(), p.Thresholds(), "us-east-1", registry, analysis_time=p.DEMO_ANALYSIS_TIME)[0]}
+    return {"evidence": extract_evidence(Client(), Thresholds(), "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)[0]}
 
 
 class ResourceWindowTests(unittest.TestCase):
     def setUp(self):
-        self.t = p.Thresholds()
-        self.e = copy.deepcopy(p.demo_evidence()[0])  # PRO LARGE, epoch 2026-01-15, analysis 2026-10-01
+        self.t = Thresholds()
+        self.e = copy.deepcopy(demo_evidence()[0])  # PRO LARGE, epoch 2026-01-15, analysis 2026-10-01
         self.e.forecast_metadata = dict(self.e.forecast_metadata, forecast_basis_end="2026-09-29", trend_adjustment_factor=1.0)
 
     def regime_shift(self):
@@ -54,7 +64,7 @@ class ResourceWindowTests(unittest.TestCase):
     def test_window_is_the_last_84_basis_days_zero_filled(self):
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
         self.e.current_epoch.resource_daily = day_rows("2026-06-03", 119, 100.0)[::2]  # every other day of the collected range
-        w = p.resource_window(self.e, self.t)
+        w = resource_window(self.e, self.t)
         self.assertEqual((w["start"], w["end"], w["days"]), ("2026-07-08", "2026-09-29", 84))
         self.assertEqual(len(w["cluster_minutes"]), 84)
         self.assertEqual(sum(1 for x in w["cluster_minutes"] if x == 0), 42)
@@ -66,11 +76,11 @@ class ResourceWindowTests(unittest.TestCase):
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
         self.e.current_epoch.events["resource_coverage_from"] = "2026-08-12"  # set by the collector (billed lead-in)
         self.e.current_epoch.resource_daily = day_rows("2026-08-11", 50, 1440.0)
-        w = p.resource_window(self.e, self.t)
+        w = resource_window(self.e, self.t)
         self.assertEqual((w["start"], w["days"]), ("2026-08-12", 49))
         self.assertNotIn(0.0, w["cluster_minutes"])
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
-        cost, meta = p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
+        cost, meta = model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
         self.assertAlmostEqual(meta["annualized_cluster_minutes"], 1440.0 * 365, places=3)  # full uptime, not 49/84 of it
 
     def collect(self, rows):
@@ -78,32 +88,32 @@ class ResourceWindowTests(unittest.TestCase):
             def query(self, statement, *, label="collector_sql"):
                 return [dict(r) for r in rows.get(label, [])]
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
-        return p.extract_evidence(Client(), self.t, "us-east-1", registry, analysis_time=p.DEMO_ANALYSIS_TIME)[0]
+        return extract_evidence(Client(), self.t, "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)[0]
 
     def test_billed_days_before_the_first_event_mark_coverage(self):
-        rows = copy.deepcopy(p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME))  # always on, billed every day
+        rows = copy.deepcopy(_demo_fleet_rows(1, DEMO_ANALYSIS_TIME))  # always on, billed every day
         rows["resource_daily"] = [r for r in rows["resource_daily"] if r["usage_day"] >= "2026-08-11"]
         e = self.collect(rows)
         self.assertEqual(e.current_epoch.events["resource_coverage_from"], "2026-08-12")
 
     def test_unbilled_days_before_the_first_event_are_known_idle(self):
         # A warehouse dormant (nothing billed) until 2026-08-11: the lead-in days are zeros, so AWS and DBU agree.
-        rows = copy.deepcopy(p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME))
+        rows = copy.deepcopy(_demo_fleet_rows(1, DEMO_ANALYSIS_TIME))
         rows["resource_daily"] = [r for r in rows["resource_daily"] if r["usage_day"] >= "2026-08-11"]
         rows["billing_daily_cost"] = [r for r in rows["billing_daily_cost"] if r["usage_date"] >= "2026-08-11"]
         e = self.collect(rows)
         self.assertIsNone(e.current_epoch.events["resource_coverage_from"])
-        self.assertEqual(p.resource_window(e, self.t)["start"], "2026-07-08")
+        self.assertEqual(resource_window(e, self.t)["start"], "2026-07-08")
 
     def test_evidence_without_the_coverage_marker_fails_closed(self):
         # Collected before the marker existed: a billed lead-in cannot be told from idle days, so no window.
         self.e.current_epoch.events.pop("resource_coverage_from", None)
-        self.assertIsNone(p.resource_window(self.e, self.t))
+        self.assertIsNone(resource_window(self.e, self.t))
 
     def test_series_starting_at_the_collected_range_is_not_clipped(self):
         self.e.current_epoch.events["resource_daily_from"] = "2026-06-03"
         self.e.current_epoch.resource_daily = day_rows("2026-06-03", 119, 100.0)
-        self.assertEqual(p.resource_window(self.e, self.t)["start"], "2026-07-08")
+        self.assertEqual(resource_window(self.e, self.t)["start"], "2026-07-08")
 
     def test_billed_warehouse_without_retained_events_is_unavailable_not_idle(self):
         # Always on for over a year: no event in retention, no daily rows, but billed every day.
@@ -118,21 +128,21 @@ class ResourceWindowTests(unittest.TestCase):
     def test_gap_sample_covers_the_same_period_as_the_event_totals(self):
         # Idle gaps are counted only after the warehouse's first retained event, the period event totals cover, so
         # the auto-stop savings ratio (idle minutes / cluster-minutes) compares like with like.
-        sql = p.build_epoch_gap_metrics_sql(self.t)
+        sql = build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MIN(event_time) AS first_event_time", sql)
         self.assertIn("x.start_time >= r.first_event_time", sql)
-        self.assertIn("MIN(segment_start) AS event_coverage_start", p.EPOCH_EVENT_METRICS_SQL)
+        self.assertIn("MIN(segment_start) AS event_coverage_start", EPOCH_EVENT_METRICS_SQL)
 
     def test_window_is_clipped_to_the_epoch_start(self):
         self.e.current_epoch.epoch_start = "2026-09-10T00:00:00+00:00"
         self.e.current_epoch.resource_daily = day_rows("2026-09-10", 20, 100.0)
-        w = p.resource_window(self.e, self.t)
+        w = resource_window(self.e, self.t)
         self.assertEqual((w["start"], w["days"]), ("2026-09-10", 20))
 
     def test_aws_baseline_follows_the_recent_regime_not_the_epoch_average(self):
         self.e.current_epoch.resource_daily = self.regime_shift()
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
-        cost, meta = p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
+        cost, meta = model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
         self.assertAlmostEqual(meta["annualized_cluster_minutes"], 150.0 * 365, places=3)  # not (216*600+84*150)/300*365 = 173,010
         self.assertEqual(meta["resource_window_days"], 84)
         self.assertAlmostEqual(cost, round(150.0 * 365 / 60.0 * meta["cluster_hourly_price"], 2), places=2)
@@ -140,7 +150,7 @@ class ResourceWindowTests(unittest.TestCase):
     def test_old_evidence_without_the_daily_series_fails_closed(self):
         self.e.current_epoch.resource_daily = None
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
-        cost, meta = p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
+        cost, meta = model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, registry, self.t)
         self.assertIsNone(cost)
         self.assertEqual(meta["blocker"], "RECENT_RESOURCE_WINDOW_UNAVAILABLE")
         by = {c.knob: c for c in p.evaluate_warehouses([self.e], self.t)[0].candidates}
@@ -152,18 +162,18 @@ class ResourceWindowTests(unittest.TestCase):
         # 54 days pinned at the floor, then 30 days never at the floor: the min-cluster rule must see the recent 0%.
         self.e.current_epoch.resource_daily = (day_rows("2026-07-08", 54, 200.0, at_min=100.0, uptime=100.0)
                                               + day_rows("2026-08-31", 30, 300.0, at_min=0.0, uptime=100.0, peak=3))
-        analyses = p.Analyzer(self.t).analyze(self.e)
+        analyses = Analyzer(self.t).analyze(self.e)
         self.assertEqual(analyses["min_clusters"].facts["at_min_pct"], 0.0)
         self.assertEqual(analyses["max_clusters"].facts["max_observed"], 3)
 
     def test_recycle_transients_are_not_peak_demand(self):
         self.e.current_epoch.resource_daily = day_rows("2026-07-08", 84, 200.0, peak=2, recycle=5.0, uptime=100.0)
-        analyses = p.Analyzer(self.t).analyze(self.e)
+        analyses = Analyzer(self.t).analyze(self.e)
         self.assertEqual(analyses["max_clusters"].facts["max_observed"], 2)
 
     def test_migration_resource_bounds_use_the_window(self):
         self.e.current_epoch.resource_daily = self.regime_shift()
-        bounds, meta = p.Estimator(self.t)._annualized_resource_bounds(self.e)
+        bounds, meta = Estimator(self.t)._annualized_resource_bounds(self.e)
         self.assertAlmostEqual(bounds.base, 150.0 * 365, places=3)
         self.assertEqual(meta["resource_window_days"], 84)
 
@@ -174,13 +184,13 @@ class ResourceWindowTests(unittest.TestCase):
                 e.current_epoch.resource_daily = value
                 with tempfile.TemporaryDirectory() as td:
                     path = Path(td) / "e.json"
-                    p.save_evidence(path, [e])
-                    back = p.load_evidence_files([str(path)])[0]
+                    save_evidence(path, [e])
+                    back = load_evidence_files([str(path)])[0]
                 self.assertEqual(back.current_epoch.resource_daily, value)
 
     def test_daily_resource_sql_splits_at_midnight_and_excludes_recycle_from_peak(self):
-        sql = p.RESOURCE_DAILY_SQL
-        self.assertIn(p.CONFIG_EPOCHS_CTE, sql)
+        sql = RESOURCE_DAILY_SQL
+        self.assertIn(CONFIG_EPOCHS_CTE, sql)
         self.assertIn("explode(sequence(", sql)
         self.assertIn("recycle_minutes", sql)
         self.assertIn("MAX(CASE WHEN cluster_count <= max_clusters THEN cluster_count END) AS max_cluster_count", sql)
@@ -196,7 +206,7 @@ class ResourceWindowTests(unittest.TestCase):
             def query(self, statement, *, label="collector_sql"):
                 return [epoch] if label == "config_epochs" else rows if label == "resource_daily" else []
 
-        e = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-01T12:00:00+00:00")[0]
+        e = extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-01T12:00:00+00:00")[0]
         self.assertEqual([r["usage_day"] for r in e.current_epoch.resource_daily], [r["usage_day"] for r in rows])
         self.assertNotIn("workspace_id", e.current_epoch.resource_daily[0])
 
@@ -207,14 +217,14 @@ class ResourceWindowTests(unittest.TestCase):
         self.e.current_epoch.events["resource_daily_from"] = "2026-07-10"
         self.e.current_epoch.resource_daily = day_rows("2026-07-10", 80, 100.0)
         self.e.forecast_metadata["forecast_basis_end"] = "2026-09-25"
-        w = p.resource_window(self.e, self.t)
+        w = resource_window(self.e, self.t)
         self.assertEqual(w["start"], "2026-07-10")
         self.assertNotIn(0.0, w["cluster_minutes"])
-        self.assertAlmostEqual(p.blended_daily_rate(w["cluster_minutes"], self.t) * 365, 36500.0, places=3)
+        self.assertAlmostEqual(blended_daily_rate(w["cluster_minutes"], self.t) * 365, 36500.0, places=3)
 
     def test_collector_widens_collection_and_records_its_start(self):
-        self.assertIn("DATE_SUB(CURRENT_DATE(), 120)", p.RESOURCE_DAILY_SQL)
-        self.assertIn("s.seg_end > s.seg_start", p.RESOURCE_DAILY_SQL)  # zero-length segments add nothing
+        self.assertIn("DATE_SUB(CURRENT_DATE(), 120)", RESOURCE_DAILY_SQL)
+        self.assertIn("s.seg_end > s.seg_start", RESOURCE_DAILY_SQL)  # zero-length segments add nothing
 
     def test_max_increase_is_priced_on_the_window_it_is_decided_on(self):
         # Whole-epoch minutes at max are 0, but 40% of recent uptime is at the ceiling with heavy queueing.
@@ -244,7 +254,7 @@ class ResourceWindowTests(unittest.TestCase):
             self.assertIn("NO_RECENT_RUNNING_TIME", by[knob].blockers, knob)
 
     def test_collected_range_comes_from_the_query_not_the_analysis_clock(self):
-        self.assertIn("DATE_SUB(CURRENT_DATE(), 120) AS collected_from", p.RESOURCE_DAILY_SQL)
+        self.assertIn("DATE_SUB(CURRENT_DATE(), 120) AS collected_from", RESOURCE_DAILY_SQL)
         epoch = {"workspace_id": "1", "warehouse_id": "w", "account_id": "a", "warehouse_name": "W", "warehouse_type": "PRO",
                  "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
                  "auto_stop_minutes": 10, "epoch_start": "2026-05-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}
@@ -256,7 +266,7 @@ class ResourceWindowTests(unittest.TestCase):
                 return [epoch] if label == "config_epochs" else rows if label == "resource_daily" else []
 
         # A fixed analysis time earlier than the run must not widen the collected range.
-        e = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-09-01T12:00:00+00:00")[0]
+        e = extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-09-01T12:00:00+00:00")[0]
         self.assertEqual(e.current_epoch.events["resource_daily_from"], "2026-06-14")
         self.assertNotIn("collected_from", e.current_epoch.resource_daily[0])
 

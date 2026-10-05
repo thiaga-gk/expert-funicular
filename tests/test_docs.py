@@ -1,6 +1,6 @@
 """Documentation guards: links resolve, contract versions match the code, cited headings exist.
 
-Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, src/publisher/contracts/README.md, docs/contracts/ and docs/reference/. It never globs `**`,
+Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
 import ast
@@ -16,6 +16,10 @@ sys.path.insert(0, str(ROOT))
 from publisher.contracts import reporter_contract as rc  # noqa: E402
 from publisher.contracts import workbook_contract as wc  # noqa: E402
 from publisher import publisher  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.config import versions as versions_mod  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
 
 CORE = {
@@ -26,7 +30,7 @@ CORE = {
 }
 SCOPE = (
     list(CORE.values())
-    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md", ROOT / "src/publisher/contracts/README.md"]
+    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md"]
     + sorted((ROOT / "docs/contracts").glob("*.md"))
     + sorted((ROOT / "docs/reference").glob("*.md"))
 )
@@ -86,8 +90,8 @@ class DocsGuardTests(unittest.TestCase):
                 if version != rc.CONTRACT_VERSION:
                     wrong.append(f"{path.relative_to(ROOT)}: Reporter contract {version} != {rc.CONTRACT_VERSION}")
             for version in PUBLISHER_VERSION.findall(text):
-                if version != publisher.PUBLISHER_VERSION:
-                    wrong.append(f"{path.relative_to(ROOT)}: publisher {version} != {publisher.PUBLISHER_VERSION}")
+                if version != versions_mod.PUBLISHER_VERSION:
+                    wrong.append(f"{path.relative_to(ROOT)}: publisher {version} != {versions_mod.PUBLISHER_VERSION}")
             for version in WORKBOOK_VERSION.findall(text):
                 if version != wc.WORKBOOK_CONTRACT_VERSION:
                     wrong.append(f"{path.relative_to(ROOT)}: Workbook contract {version} != {wc.WORKBOOK_CONTRACT_VERSION}")
@@ -116,7 +120,7 @@ class DocsGuardTests(unittest.TestCase):
         for name, default in rows:
             self.assertNotIn(name, documented, f"{name} is listed twice")
             documented[name] = ast.literal_eval(default)
-        fields = {f.name: f.default for f in dataclasses.fields(publisher.Thresholds)}
+        fields = {f.name: f.default for f in dataclasses.fields(Thresholds)}
         self.assertEqual(sorted(set(fields) - set(documented)), [], "parameters missing from thresholds.md")
         self.assertEqual(sorted(set(documented) - set(fields)), [], "thresholds.md lists parameters the code no longer has")
         self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
@@ -127,13 +131,13 @@ class DocsGuardTests(unittest.TestCase):
         self.assertGreater(len(documented), 20)
         source = "\n".join(read(path) for path in sorted((ROOT / "src" / "publisher").rglob("*.py")))
         self.assertEqual(sorted(c for c in documented if c not in source), [], "documented blockers the code no longer has")
-        evidence = list(publisher.demo_evidence()) + list(publisher.synthetic_demo_evidence())
+        evidence = list(demo_evidence()) + list(synthetic_demo_evidence())
         for name in case_names():
-            evidence += [publisher.evidence_from_dict(x) for x in load_case(name).get("evidence") or []]
+            evidence += [evidence_from_dict(x) for x in load_case(name).get("evidence") or []]
         emitted = set()
         # One build per evidence item: fixtures reuse warehouse identities, so they must not be merged into one run.
         for item in evidence:
-            for package in publisher.build_recommendation_packages([item], publisher.Thresholds()):
+            for package in publisher.build_recommendation_packages([item], Thresholds()):
                 for candidate in package.to_dict()["candidates"]:
                     emitted.update(candidate["blockers"])
         self.assertEqual(sorted(emitted - documented), [], "blockers emitted by the fixtures but not documented")

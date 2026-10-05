@@ -124,7 +124,7 @@ These are blockers by construction: they travel with a `TEST_REQUIRED` candidate
 | `A_B_PERFORMANCE_VALIDATION_REQUIRED` | The change needs an A/B performance canary before it is applied. | `Optimizer.optimize` on a size upsize whose gates all pass, on a size downsize with no other blocker, and on a min-cluster reduction with no other blocker. | none | `TEST_REQUIRED` | [PRD FR-OPT-003, FR-OPT-004](../product/prd.md), [LLD §15.3, §15.5](../architecture/lld.md) |
 | `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED` | The migration needs an A/B cost and performance canary before it is applied. | `Optimizer.optimize` (warehouse type) when the migration candidate is built after the baseline-cost check passes, in both directions. | none | `TEST_REQUIRED` | [PRD FR-OPT-009](../product/prd.md), [LLD §15.7](../architecture/lld.md) |
 
-### Warehouses not analyzed (supported-type gate, missing snapshot)
+### Warehouses not analyzed (unsupported type, missing snapshot)
 
 | Code | Meaning | Fires when | Gating parameter(s) | Resulting status | Used by |
 |---|---|---|---|---|---|

@@ -23,8 +23,13 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _path in (ROOT, ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.common.utils import as_serializable  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 DEMO_EXPECTED = ROOT / "tests" / "fixtures" / "expected" / "demo"
 WALL_CLOCK = "<wall-clock>"
@@ -79,11 +84,11 @@ def golden_recommendation(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Packages built from an evidence-level case, in publisher order, exactly as the golden harness builds them."""
     from tests.golden.harness import recompute_forecast
 
-    evidence = [p.evidence_from_dict(x) for x in case["evidence"]]
+    evidence = [evidence_from_dict(x) for x in case["evidence"]]
     if (case.get("expect") or {}).get("recompute_forecast"):
         for e in evidence:
             recompute_forecast(p, e)
-    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, p.Thresholds())]
+    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, Thresholds())]
 
 
 def golden_collector_evidence(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -93,7 +98,7 @@ def golden_collector_evidence(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     from tests.golden.harness import collector_evidence
 
-    items = [p.as_serializable(e) for e in collector_evidence(p, case)]
+    items = [as_serializable(e) for e in collector_evidence(p, case)]
     if case.get("analysis_time") is None:
         for item in items:
             item["analysis_time"] = WALL_CLOCK

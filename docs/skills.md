@@ -150,26 +150,19 @@ The generic contract never assumes `warehouse_id`, `warehouse_size`, or SQL Ware
 
 ```mermaid
 flowchart LR
-  SRC[Service sources] --> C[Collector]
-  C --> N[Normalizer/current regime]
-  N --> G{Supported-type gate}
-  G -->|supported| A[Analyzer]
-  G -->|unsupported| X[Fail closed]
-  A --> CE[Constraint evaluation]
-  CE --> O[Deterministic optimizer]
-  O --> EST[Candidate estimator]
-  EST --> R1[Reviewer gate 1]
-  R1 --> SP[Scenario planner]
-  SP --> BE[Stateful bundle estimator]
-  BE --> SCE[Scenario constraint evaluation]
-  SCE --> R2[Reviewer gate 2]
-  R2 --> P[RecommendationPackage]
-  P --> JV[Semantic + schema validation]
-  JV --> JSON[packages/*.json]
-  P --> W[Workbook projection]
+  SRC[Service sources] --> A[Analyzer<br/>collector, normalizer, current regime, findings]
+  A -->|supported| G[Governor<br/>eligibility, thresholds, constraints]
+  A -->|unsupported| X[Fail closed]
+  G --> O[Optimizer<br/>deterministic decisions + candidate estimator]
+  O --> R1[Reviewer candidate gate]
+  R1 --> PK[Packager<br/>scenario planner, stateful bundle estimator, scenario constraint evaluation]
+  PK --> R2[Reviewer package gate<br/>semantic + schema validation]
+  R2 --> RP[Reporter]
+  RP --> JSON[packages/*.json]
+  RP --> W[Workbook projection]
 ```
 
-The single `publisher.py` core remains the default fast-iteration implementation shape for early validation; do not prematurely split the optimization engine into many modules. Locked public contracts/reporters may remain separate modules.
+These are the capabilities of the SQL Warehouse exemplar (`src/publisher/`, one package per capability, with `publish()` in `src/publisher/publisher.py` calling each once, in order). A new service may start as a single `publisher.py` core for fast iteration and early validation, but keeps the same capability boundaries so it can be split without redesign. Locked public contracts/reporters may remain separate modules.
 
 LLMs are permitted for discovery, challenge, explanation, and development assistance. They are not the authoritative runtime recommendation engine.
 

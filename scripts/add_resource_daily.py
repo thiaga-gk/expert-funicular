@@ -15,17 +15,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from tests.golden import evidence_source_path  # noqa: E402
-from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthesize_resource_daily  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 
 
 
 def backfill(evidence):
     changed = 0
     for x in evidence:
-        e = p.evidence_from_dict(x)
+        e = evidence_from_dict(x)
         for raw, ep in zip(x["epochs"], e.epochs):
             if ep.is_current and raw.get("resource_daily") is None:
-                raw["resource_daily"] = p.synthesize_resource_daily(ep, e.analysis_time)
+                raw["resource_daily"] = synthesize_resource_daily(ep, e.analysis_time)
                 changed += 1
     return changed
 
