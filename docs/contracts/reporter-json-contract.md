@@ -1,6 +1,6 @@
 # Reporter JSON Contract v2.0.0 — Locked
 
-**Version history:** 2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next settled day after the analysis (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
+**Version history:** 2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next chance for another settled day (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
 
 1.3.0 adds the required, nullable `StepProjection.step_savings_365d`: each plan step's own savings on its pricing chain (section 13). No existing field or value changes. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.2.0 packages.
 
@@ -637,12 +637,12 @@ If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it 
 Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the package's `billed_cost_days` evidence value is `< 2` (the current configuration is not ready: fewer than two settled billed days; a missing record counts as not ready); `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
 
 ```text
-t_ready = 00:00Z of (analysis date + 2 days), never before the epoch start   # the analysis day has then settled
+t_ready = 00:00Z of (analysis date + 1 day), never before the epoch start   # one more day can have settled
 t_cost  = 00:00Z of (epoch start date + 7 days)
 earliest_reevaluation_time = max(t_x for each active gate)
 ```
 
-The analysis time is `provenance.generated_at`. `t_ready` is the next chance only: how many more days the configuration needs depends on future billing. Example: epoch start `2026-09-29T00:00:00Z`, analysis `2026-10-01T12:00:00Z`, readiness gate only, gives `2026-10-03T00:00:00Z`; with both gates active, `2026-10-06T00:00:00Z`.
+The analysis time is `provenance.generated_at`. `t_ready` is the next chance only: how many more days the configuration needs depends on future billing. Example: epoch start `2026-09-29T00:00:00Z`, analysis `2026-10-01T12:00:00Z`, readiness gate only, gives `2026-10-02T00:00:00Z`; with both gates active, `2026-10-06T00:00:00Z`.
 
 `next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the configuration is ready and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A configuration that is not ready can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the readiness or cost-history gate lengths in the publisher policy requires a contract version bump.
 

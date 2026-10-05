@@ -103,10 +103,10 @@ class Thresholds:
     min_query_sample_size: int = 100
     strong_query_sample_size: int = 500
     min_cost_history_days: int = 14
-    # Hard floor: below this many current-epoch billing days no forecast-dependent estimate is published and a
-    # cost-judged migration is INSUFFICIENT_EVIDENCE. It equals the config-epoch maturity gate, so it adds no meaningful
-    # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
-    # when the billing watermark has not yet covered the latest day.
+    # Hard floor: below this many current-epoch billing days no forecast-dependent estimate is published, a cost-judged
+    # migration is INSUFFICIENT_EVIDENCE and an approval-only cost change waits for its price (cost history restarts
+    # with each applied change). It can trail epoch age by up to a day when the billing watermark has not yet covered
+    # the latest day.
     min_economics_cost_history_days: int = 7
     forecast_cadence_gap_days: int = 7  # short runs resting longer than this between them are a periodic workload
     forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
@@ -817,14 +817,15 @@ SELECT workspace_id, warehouse_id, epoch_start, COUNT(*) AS spill_sources_30,
 FROM ranked GROUP BY workspace_id, warehouse_id, epoch_start
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
-# Fail-fast canary guard: the current epoch (last 30 days) against the immediately preceding epoch's last 30 days, on the
+# Fail-fast canary guard, for a current epoch at most 30 days old (the canary window): its queries against the
+# immediately preceding epoch's last 30 days, on the
 # same statement sources (saved query, dashboard, job, notebook, else a hash of the statement text; a redacted statement
 # counts on its own). The statement text itself is never exported.
 CANARY_GUARD_FIELDS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
                        "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
 CANARY_GUARD_SQL = r"""
 WITH __CONFIG_EPOCHS__,
-cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs WHERE epoch_end IS NULL),
+cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs c WHERE epoch_end IS NULL AND c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),
 prv AS (
   SELECT c.workspace_id, c.warehouse_id, c.epoch_start, h.epoch_start AS prev_start, h.epoch_end AS prev_end
   FROM cur c JOIN config_epochs h ON h.workspace_id = c.workspace_id AND h.warehouse_id = c.warehouse_id AND h.epoch_end = c.epoch_start
@@ -840,7 +841,7 @@ prv AS (
     COALESCE(x.spilled_local_bytes, 0) > 0 AS spilled
   FROM system.query.history x
   JOIN prv p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
-  WHERE x.compute.type = 'WAREHOUSE'
+  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS
     AND ((x.start_time >= p.epoch_start AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS)
       OR (x.start_time >= p.prev_start AND x.start_time < p.prev_end AND x.start_time >= p.prev_end - INTERVAL 30 DAYS))
 ), shared AS (
@@ -861,8 +862,9 @@ GROUP BY q.workspace_id, q.warehouse_id, q.epoch_start, q.period
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 # Carry periods: evidence a configuration change cannot affect is read across that change, inside the last 30 days. The
-# demand period starts at the last size or type change (query demand and per-query evidence); the capacity period at the
-# last size, type, min- or max-cluster change (capacity queueing). Running time, idle time and billing never carry.
+# demand period starts at the last size, type or channel change (query demand and per-query evidence); the capacity
+# period at the last size, type, channel, min- or max-cluster change (capacity queueing). Only a current epoch younger
+# than 30 days carries (otherwise its own 30 days are the whole window). Running time, idle time and billing never carry.
 PERIODS_CTE = r"""
 periods AS (
   SELECT *,
@@ -871,8 +873,9 @@ periods AS (
   FROM (
     SELECT *,
       NOT (COALESCE(LAG(warehouse_type) OVER w <=> warehouse_type, FALSE) AND COALESCE(LAG(warehouse_size) OVER w <=> warehouse_size, FALSE)
-           AND LAG(epoch_start) OVER w IS NOT NULL) AS demand_break,
+           AND COALESCE(LAG(warehouse_channel) OVER w <=> warehouse_channel, FALSE) AND LAG(epoch_start) OVER w IS NOT NULL) AS demand_break,
       NOT (COALESCE(LAG(warehouse_type) OVER w <=> warehouse_type, FALSE) AND COALESCE(LAG(warehouse_size) OVER w <=> warehouse_size, FALSE)
+           AND COALESCE(LAG(warehouse_channel) OVER w <=> warehouse_channel, FALSE)
            AND COALESCE(LAG(min_clusters) OVER w <=> min_clusters, FALSE) AND COALESCE(LAG(max_clusters) OVER w <=> max_clusters, FALSE)
            AND LAG(epoch_start) OVER w IS NOT NULL) AS capacity_break
     FROM config_epochs
@@ -893,7 +896,7 @@ def build_carried_query_metrics_sql(family: str) -> str:
         ("h AS (SELECT workspace_id, warehouse_id, epoch_start, epoch_end FROM config_epochs),",
          PERIODS_CTE.strip() + ",\nh AS (SELECT p.workspace_id, p.warehouse_id, c." + col + " AS epoch_start, p.epoch_start AS seg_start, p.epoch_end, c.cur_start "
          "FROM periods p JOIN cur_period c ON p.workspace_id = c.workspace_id AND p.warehouse_id = c.warehouse_id AND p." + col + " = c." + col
-         + " WHERE c." + col + " < c.cur_start),"),
+         + " WHERE c." + col + " < c.cur_start AND c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),"),
         ("AND x.start_time >= h.epoch_start\n", "AND x.start_time >= h.seg_start\n"),
         ("    h.epoch_start,\n    h.epoch_end,\n", "    h.epoch_start,\n    h.epoch_end,\n    h.cur_start,\n"),
         ("SELECT\n  workspace_id,\n  warehouse_id,\n  epoch_start,\n  COUNT(*) AS epoch_queries,",
@@ -911,7 +914,8 @@ def build_carried_spill_source_sql(t: Thresholds) -> str:
     sql = build_spill_source_sql(t)
     for old, new in (
         ("cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs WHERE epoch_end IS NULL),",
-         PERIODS_CTE.strip() + ",\ncur AS (SELECT workspace_id, warehouse_id, cur_start AS epoch_start, demand_period_start AS seg_start FROM cur_period WHERE demand_period_start < cur_start),"),
+         PERIODS_CTE.strip() + ",\ncur AS (SELECT workspace_id, warehouse_id, cur_start AS epoch_start, demand_period_start AS seg_start FROM cur_period "
+         "WHERE demand_period_start < cur_start AND cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),"),
         ("AND x.start_time >= c.epoch_start\n", "AND x.start_time >= c.seg_start\n"),
     ):
         if sql.count(old) != 1:
@@ -931,12 +935,13 @@ ep AS (
     GREATEST(p.epoch_start, CURRENT_TIMESTAMP() - INTERVAL 30 DAYS) AS e_start, COALESCE(p.epoch_end, CURRENT_TIMESTAMP()) AS e_end,
     CASE WHEN p.warehouse_type = 'SERVERLESS' THEN {t.scale_up_lag_minutes_serverless} ELSE {t.scale_up_lag_minutes_pro_classic} END AS lag_min
   FROM periods p JOIN cur_period c ON p.workspace_id = c.workspace_id AND p.warehouse_id = c.warehouse_id AND p.demand_period_start = c.demand_period_start
-  WHERE c.demand_period_start < c.cur_start AND COALESCE(p.epoch_end, CURRENT_TIMESTAMP()) > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
+  WHERE c.demand_period_start < c.cur_start AND c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
+    AND COALESCE(p.epoch_end, CURRENT_TIMESTAMP()) > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
 ), q0 AS (
   SELECT p.workspace_id, p.warehouse_id, p.cur_start, p.lag_min,
     GREATEST(x.start_time, p.e_start) AS s,
     LEAST(COALESCE(x.end_time, TIMESTAMPADD(MILLISECOND, x.total_duration_ms, x.start_time),
-      CASE WHEN x.start_time >= p.e_end - INTERVAL 1 DAY THEN p.e_end ELSE x.start_time END), p.e_end) AS t
+      CASE WHEN x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY THEN CURRENT_TIMESTAMP() ELSE x.start_time END), CURRENT_TIMESTAMP()) AS t
   FROM system.query.history x
   JOIN ep p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
     AND x.start_time >= p.epoch_start AND x.start_time < p.e_end
@@ -2979,7 +2984,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     carried: Dict[Tuple[str, str, str], Dict[str, Dict[str, Any]]] = {}
     for family in CARRY_PERIOD_COLUMNS:
         for r in client.query(build_carried_query_metrics_sql(family),label=f"query_metrics_carried_{family}"):
-            key = (str(r.get("workspace_id") or ""), str(r.get("warehouse_id")), iso(r.get("cur_start")) or str(r.get("cur_start")))
+            key = (str(r.get("workspace_id") or ""), str(r.get("warehouse_id") or ""), iso(r.get("cur_start")) or str(r.get("cur_start")))
             row = {k: v for k, v in r.items() if k not in {"workspace_id", "warehouse_id", "cur_start"}}
             row["period_start"] = iso(row.get("period_start")) or row.get("period_start")
             carried.setdefault(key, {})[family] = row
@@ -2993,8 +2998,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if demand is not None and scope in ("RECENT", "BUSY_START"):
             demand.setdefault("concurrency_histogram", {}).setdefault(scope, {})[str(safe_int(r.get("level")))] = safe_float(r.get("weight"))
     for key, families in carried.items():
-        if key in query_idx:
-            query_idx[key]["carried"] = families
+        # A new epoch that has not run a query yet has no query-metrics row; its carried evidence still counts.
+        query_idx.setdefault(key, {"workspace_id": key[0], "warehouse_id": key[1], "epoch_start": key[2]})["carried"] = families
     for r in client.query(CANARY_GUARD_SQL,label="canary_guard"):
         if _row_key(r) in query_idx and str(r.get("period")) in ("CURRENT", "PREVIOUS"):
             query_idx[_row_key(r)].setdefault("canary_guard", {})[str(r.get("period"))] = {k: r.get(k) for k in CANARY_GUARD_FIELDS}
@@ -3203,14 +3208,14 @@ DEMAND_CARRY_FIELDS = (
     "sql_query_source_queries_30", "power_bi_queries_30", "tableau_queries_30", "looker_queries_30",
     "databricks_sql_editor_client_queries_30", "client_applications_30", "statement_text_visible_pct_30",
     "hive_metastore_reference_queries_30", "spill_sources_30", "top_spill_source_share_pct_30",
-) + tuple(f"queries_week_{k}" for k in range(1, 9))
+)  # weekly counts reach 56 days back, beyond the 30-day carry: the growth guard stays current-epoch
 QUEUE_CARRY_FIELDS = ("queued_queries_30", "queued_query_pct_30", "p95_wait_capacity_ms_when_queued_30")
 DEMAND_CARRY_FINDINGS = frozenset({
     "spill_query_pct_30", "spill_queries_30", "p95_spill_bytes_when_spilled_30", "failure_cancel_pct_30", "p95_execution_ms_30",
     "p99_execution_ms_30", "avg_read_io_cache_percent_30", "decision_queries_30", "p95_compilation_ms_30", "p95_result_fetch_ms_30",
-    "top_spill_source_share_pct_30", "job_query_share_30", "query_volume_growth_ratio", "peak_concurrency_recent",
-    "busy_start_concurrency", "busy_minutes_recent", "busy_periods_recent", "queries_30",
-})
+    "top_spill_source_share_pct_30", "job_query_share_30", "peak_concurrency_recent", "sql_editor_queries_30",
+    "busy_start_concurrency", "busy_minutes_recent", "busy_periods_recent",
+}) | frozenset(DEMAND_CARRY_FIELDS)
 QUEUE_CARRY_FINDINGS = frozenset({"queued_query_pct_30", "queued_queries_30", "p95_wait_capacity_ms_when_queued_30"})
 
 
@@ -3221,7 +3226,7 @@ def carried_query_view(query: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[s
     demand = carried.get("demand") if isinstance(carried.get("demand"), Mapping) else None
     capacity = carried.get("capacity") if isinstance(carried.get("capacity"), Mapping) else None
     view = dict(query)
-    if demand:
+    if demand and demand.get("period_start"):
         for k in DEMAND_CARRY_FIELDS:
             if k in demand:
                 view[k] = demand[k]
@@ -3231,11 +3236,12 @@ def carried_query_view(query: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[s
             for scope in ("RECENT", "BUSY_START"):
                 hist[scope] = dict(carried_hist.get(scope) or {})  # collected over the carried window; absent = no busy minute
             view["concurrency_histogram"] = hist
-    if capacity:
+    if capacity and capacity.get("period_start"):
         for k in QUEUE_CARRY_FIELDS:
             if k in capacity:
                 view[k] = capacity[k]
-    return view, {"demand": str(demand.get("period_start")) if demand else None, "capacity": str(capacity.get("period_start")) if capacity else None}
+    start = lambda part: str(part["period_start"]) if part and part.get("period_start") else None
+    return view, {"demand": start(demand), "capacity": start(capacity)}
 
 
 def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
@@ -3249,10 +3255,13 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
     cur = e.current_epoch
     prev = next((x for x in e.epochs if not x.is_current and x.epoch_end is not None
                  and parse_datetime(x.epoch_end) == parse_datetime(cur.epoch_start)), None)
-    out: Dict[str, Any] = {"changes": {}, "guards": [], "details": {}}
-    if prev is None:
+    out: Dict[str, Any] = {"changes": {}, "guards": [], "details": {}, "previous": {}}
+    # The guard covers the canary window: a change at most 30 days old.
+    if prev is None or epoch_age_days(cur, e.analysis_time) > 30:
         return out
     pc, cc = prev.config, cur.config
+    out["previous"] = {"warehouse_size": pc.warehouse_size, "min_clusters": pc.min_clusters, "max_clusters": pc.max_clusters,
+                       "auto_stop_minutes": pc.auto_stop_minutes}
     if pc.warehouse_type == cc.warehouse_type:
         if pc.warehouse_size in SIZE_ORDER and cc.warehouse_size in SIZE_ORDER and SIZE_ORDER.index(cc.warehouse_size) < SIZE_ORDER.index(pc.warehouse_size):
             out["changes"]["warehouse_size"] = pc.warehouse_size
@@ -3463,6 +3472,7 @@ class Analyzer:
         conc_epoch = histogram_top_level((hist or {}).get("EPOCH"), self.t.peak_demand_min_minutes)
         # The recent window's peak at the same rate as the whole epoch's, for the seasonal comparison.
         recent_days = min(30.0, window_days(recent_from, None, e.analysis_time))
+        recent_covers_epoch = self._carry["demand"] is not None and window_days(ep.epoch_start, None, e.analysis_time) <= recent_days
         conc_recent_sustained = recent_peak_at_rate((hist or {}).get("RECENT"), window_days(ep.epoch_start, None, e.analysis_time), self.t, recent_days)
         conc_busy_start = histogram_percentile((hist or {}).get("BUSY_START"), self.t.min_cluster_busy_start_percentile)
         busy_minutes_recent = sum(safe_float(v) for v in ((hist or {}).get("RECENT") or {}).values()) if hist else None
@@ -3473,7 +3483,8 @@ class Analyzer:
                        "required_clusters_busy_start": clusters_for(conc_busy_start),
                        # A seasonal peak outside the recent window: the epoch's sustained peak needs more clusters than the
                        # recent window's sustained peak (same statistic on both sides).
-                       "epoch_peak_outside_recent": (conc_epoch is not None and conc_recent_sustained is not None
+                       # When carried evidence makes the recent window cover the whole epoch, no epoch peak lies outside it.
+                       "epoch_peak_outside_recent": (conc_epoch is not None and conc_recent_sustained is not None and not recent_covers_epoch
                                                      and math.ceil(conc_epoch / qpc) > math.ceil(conc_recent_sustained / qpc)), "busy_minutes_recent": busy_minutes_recent, "busy_periods_recent": busy_periods,
                        "recent_concurrency_histogram": (hist or {}).get("RECENT")}
         def concurrency_findings(knob: str) -> List[Finding]:
@@ -3640,6 +3651,23 @@ class Analyzer:
             interpretation="The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time."))
         out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,
             "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":hive_reference_count(q)})
+
+        # Canary guard evidence: the values a rollback rests on are findings of every capacity and auto-stop knob, so
+        # the package cites them and they enter the evidence fingerprint.
+        canary = common["canary"]
+        if canary.get("details"):
+            now, before = canary["details"]["current"], canary["details"]["previous"]
+            window = "the current epoch since the change (last 30 days) against the previous configuration's last 30 days"
+            specs = (("canary_failure_cancel_pct", "failure_cancel_pct", "%", self.t.failure_cancel_pct_downsize_safe),
+                     ("canary_queued_query_pct", "queued_query_pct", "%", self.t.queue_query_pct_safe),
+                     ("canary_spill_query_pct", "spill_query_pct", "%", self.t.spill_query_pct_downsize_safe),
+                     ("canary_p95_execution_ms_shared_sources", "p95_execution_ms_shared_sources", "ms", self.t.canary_p95_regression_pct),
+                     ("canary_shared_source_queries", "shared_source_queries", "queries", self.t.canary_p95_min_queries))
+            for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
+                for metric, field_name, unit, limit in specs:
+                    out[knob].findings.append(self._f(e, knob, metric, now.get(field_name), unit=unit, threshold=before.get(field_name),
+                        comparator=f"current vs previous (rollback limit {limit:g})", table="system.query.history", field=field_name, window=window,
+                        interpretation="Fail-fast canary guard after a canary-type change: the current value against the previous configuration's."))
         return out
 
 # ---------------------------------------------------------------------------
@@ -4043,9 +4071,14 @@ class Optimizer:
         canary = analyses["warehouse_size"].facts.get("canary") or {}
         if canary.get("guards"):
             why = canary_rationale(canary, self.t)
-            for knob, previous in sorted(canary["changes"].items()):
+            changes = dict(canary["changes"])
+            if changes.get("min_clusters", 0) > cfg.max_clusters:
+                # The previous floor does not fit under the current ceiling: the ceiling the change lowered comes back too.
+                changes["max_clusters"] = canary["previous"]["max_clusters"]
+            for knob, previous in sorted(changes.items()):
                 i = next(k for k, d in enumerate(out) if d.knob == knob)
-                invalidates = ["max_clusters", "min_clusters"] if knob == "warehouse_size" else []
+                # A size rollback invalidates the capacity knobs it does not restore itself.
+                invalidates = [k for k in ("max_clusters", "min_clusters") if k not in changes] if knob == "warehouse_size" else []
                 out[i] = OptimizationDecision(e.warehouse_id, knob, "PERFORMANCE", "ACTIONABLE",
                     {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
                     [], invalidates, invalidates,
@@ -4381,7 +4414,7 @@ class Estimator:
             blocker=c.metadata["estimate_blocker"]
             return {"reason_code":blocker,"status":"INSUFFICIENT_EVIDENCE","modeled_savings_365":None,"modeled_savings_range_365":None,
                     "floor_365":self.t.cost_change_min_annual_savings,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
-                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced ({DBU_BASELINE_WITHHELD[blocker][1]})"}
+                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced. {DBU_BASELINE_WITHHELD[blocker][1]}"}
         if save is None:
             return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
         floor=self.t.cost_change_min_annual_savings
@@ -4489,7 +4522,12 @@ class Reviewer:
             if c.knob=="min_clusters":
                 x=safe_int(c.recommended_config.get("min_clusters"),cfg.min_clusters)
                 if not 1 <= x <= self.t.min_clusters_supported_limit: raise ValueError("min_clusters outside supported range")
-                if x > cfg.max_clusters: raise ValueError("min_clusters exceeds current max_clusters")
+                # A rollback restores floor and ceiling together: the floor must fit under the ceiling it comes back with.
+                ceiling=cfg.max_clusters
+                if "CANARY_GUARDRAIL_BREACHED" in c.blockers:
+                    ceiling=next((safe_int(o.recommended_config.get("max_clusters"),ceiling) for o in candidates
+                                  if o.knob=="max_clusters" and "CANARY_GUARDRAIL_BREACHED" in o.blockers),ceiling)
+                if x > ceiling: raise ValueError("min_clusters exceeds current max_clusters")
             if c.knob=="max_clusters":
                 x=safe_int(c.recommended_config.get("max_clusters"),cfg.max_clusters)
                 if not 1<=x<=self.t.max_clusters_supported_limit: raise ValueError("max_clusters outside supported range")
@@ -5689,7 +5727,7 @@ def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.Candidate
         counts[c.status] += 1
     overall = _overall_status(candidates, scenarios)
 
-    q = e.current_epoch.query
+    q, _ = carried_query_view(e.current_epoch.query)
     query_ok = safe_int(q.get("queries_30")) >= t.min_query_sample_size
     cost_ok = e.cost_history_days >= t.min_cost_history_days
     epoch_ok = ready_billed_days(e) >= t.readiness_min_billed_days
@@ -5827,7 +5865,7 @@ def compute_reevaluation(e: WarehouseEvidence, thresholds: Thresholds, *, start_
         earliest_reevaluation_time=rc.expected_earliest_reevaluation_time(start_time, sorted(codes), _iso_z(e.analysis_time)),
         blocking_codes=sorted(codes),
         method=(
-            f"Later of the active gates: the next settled day, 00:00Z of the analysis date + 2 days (readiness: "
+            f"Later of the active gates: the next settled day, 00:00Z of the analysis date + 1 day (readiness: "
             f"{rc.REEVALUATION_READY_BILLED_DAYS} settled billed days in the current epoch) and 00:00Z of epoch start date + "
             f"{rc.REEVALUATION_COST_HISTORY_DAYS} days (cost-history floor). Earliest only: billing ingestion lag, days "
             "without billing and query-sample gates can delay it."
@@ -5876,7 +5914,8 @@ def _recommended_plan(
         if young:
             reason = "CURRENT_EPOCH_IMMATURE"
             summary = (
-                f"{recommended.scenario_name} has no step ready yet: the current epoch is too new for a trustworthy decision. "
+                f"{recommended.scenario_name} has no step ready yet: the current configuration is not ready (fewer than "
+                f"{rc.REEVALUATION_READY_BILLED_DAYS} settled billed days). "
                 f"Earliest re-evaluation is {reevaluation.earliest_reevaluation_time} (gates: {', '.join(reevaluation.blocking_codes)})."
             )
         else:
@@ -6954,10 +6993,10 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             i -= 1
         return at(epoch_defs[i][0])
     current_query = next(r for r in rows["query_metrics"] if r["epoch_start"] == stamp(epochs[-1][0]))
-    for family, keys in (("demand", ("warehouse_type", "warehouse_size")),
-                         ("capacity", ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters"))):
+    for family, keys in (("demand", ("warehouse_type", "warehouse_size", "warehouse_channel")),
+                         ("capacity", ("warehouse_type", "warehouse_size", "warehouse_channel", "min_clusters", "max_clusters"))):
         p_start = period_start(keys)
-        if p_start >= epochs[-1][0]:
+        if p_start >= epochs[-1][0] or epochs[-1][0] <= window_30:
             continue
         lo30 = max(p_start, window_30)
         n_q, src, day_set = queries_between(lo30, now_t)
@@ -6990,7 +7029,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": stamp(epochs[-1][0]), "scope": sc, "level": int(level), "weight": w}
                 for sc in ("RECENT", "BUSY_START") for level, w in sorted(conc.get(sc, {}).items(), key=lambda x: int(x[0])))
     # Canary guard: the current epoch against the one before it, on statement sources seen in both windows.
-    if len(epochs) > 1:
+    if len(epochs) > 1 and epochs[-1][0] >= window_30:
         cur_w, prev_w = guard_window[epochs[-1][0]], guard_window[epochs[-2][0]]
         shared = set(cur_w["src"]) & set(prev_w["src"])
         cache = max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)

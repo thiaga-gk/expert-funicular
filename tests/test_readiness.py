@@ -22,9 +22,13 @@ DAY0 = dt.date.fromisoformat(AT[:10])
 KEYMAP = {"auto_stop_minutes": "auto_stop", "max_clusters": "max", "min_clusters": "min", "warehouse_size": "size"}
 
 
-def changed(scenario, knob, value, days, t=None):
-    """Evidence and evaluation for a demo warehouse whose `knob` changed to `value` at 00:00 UTC `days` days ago."""
+def changed(scenario, knob, value, days, t=None, rows_hook=None):
+    """Evidence and evaluation for a demo warehouse whose `knob` changed to `value` at 00:00 UTC `days` days ago.
+
+    `knob` may be a dict of knob -> value for several settings changed together; `rows_hook(rows)` may edit the
+    simulated collector rows before extraction."""
     t = t or p.Thresholds()
+    changes = knob if isinstance(knob, dict) else {knob: value}
     idx, spec = next((i, s) for i, s in enumerate(p.DEMO_FLEET, start=1) if s["scenario"] == scenario)
     s2 = copy.deepcopy(spec)
     created = spec.get("created") or (spec["prior"][0]["start"] if spec.get("prior") else spec.get("epoch_start") or "2025-07-01")
@@ -33,8 +37,11 @@ def changed(scenario, knob, value, days, t=None):
     s2["prior"] = [dict(x, **{k: v for k, v in old.items() if k not in x}) for x in prior]
     s2["epoch_start"] = (DAY0 - dt.timedelta(days=days)).isoformat()
     s2["created"] = created
-    s2[KEYMAP[knob]] = value
+    for k, v in changes.items():
+        s2[KEYMAP[k]] = v
     rows = p._simulate_demo_warehouse(s2, idx, AT)
+    if rows_hook is not None:
+        rows_hook(rows)
     rows["billing_watermark"] = [{"workspace_id": p.DEMO_WORKSPACES[spec["ws"]], "billing_watermark": AT[:10] + "T06:00:00+00:00",
                                   "billing_ingested_through": AT[:10]}]
     rows["sql_sku_prices"] = [{"account_id": p.DEMO_ACCOUNT_ID, "sku_name": n, "cloud": "AWS", "currency_code": "USD", "usage_unit": "DBU",
@@ -88,10 +95,20 @@ class ReadinessTests(unittest.TestCase):
         pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
         window = pkg.recommended_plan.reevaluation
         self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", window.blocking_codes)
-        # Analysis day 2026-10-01 settles at 00:00Z on 2026-10-03; the cost-history gate (7 days) is later.
-        self.assertEqual(rc.expected_earliest_reevaluation_time(e.current_epoch.epoch_start, ["CURRENT_CONFIG_EPOCH_TOO_NEW"], AT), "2026-10-03T00:00:00Z")
+        # The settled basis ends two days before the analysis day; at 00:00Z on 2026-10-02 one more day has settled.
+        self.assertEqual(rc.expected_earliest_reevaluation_time(e.current_epoch.epoch_start, ["CURRENT_CONFIG_EPOCH_TOO_NEW"], AT), "2026-10-02T00:00:00Z")
+        e_next, by_next = changed("C06", "auto_stop_minutes", 10, 3)  # the same change seen one day later is ready
+        self.assertEqual(p.ready_billed_days(e_next), 2)
         billed = [x.value for x in pkg.evidence.values() if x.metric == "billed_cost_days"]
         self.assertEqual(billed, [1])
+
+    def test_a_dormant_warehouse_is_not_called_too_new(self):
+        e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C06")
+        e = copy.deepcopy(e)
+        e.daily_cost_365 = [dict(r, dbu_quantity=0.0, list_cost=0.0) for r in e.daily_cost_365]
+        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        self.assertNotIn("too new", pkg.recommended_plan.decision_summary)
+        self.assertIn("settled billed days", pkg.recommended_plan.decision_summary)
 
     def test_contract_constants_match_policy(self):
         t = p.Thresholds()

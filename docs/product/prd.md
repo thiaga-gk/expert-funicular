@@ -308,7 +308,7 @@ A change waits until the current configuration is ready: at least `readiness_min
 
 ### FR-EPOCH-005
 
-After a canary-type change (one size down, a lower minimum, a higher auto-stop), every run checks the new epoch's own evidence. A failure/cancel rate, queued-query share or, after a size-down, spill share above its safe level and above the previous epoch's, or a p95 execution time on statement sources seen in both epochs more than `canary_p95_regression_pct` above the previous epoch's (at least `canary_p95_min_queries` such queries), recommends restoring the previous value: `ACTIONABLE` with `CANARY_GUARDRAIL_BREACHED`, no savings claimed.
+Within 30 days after a canary-type change (one size down, a lower minimum, a higher auto-stop), every run checks the new epoch's own evidence. A failure/cancel rate, queued-query share or, after a size-down, spill share above its safe level and above the previous epoch's, or a p95 execution time on statement sources seen in both epochs more than `canary_p95_regression_pct` above the previous epoch's (at least `canary_p95_min_queries` such queries), recommends restoring the previous value: `ACTIONABLE` with `CANARY_GUARDRAIL_BREACHED`, no savings claimed.
 
 ---
 

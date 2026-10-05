@@ -343,16 +343,16 @@ def _iso_utc(value: dt.datetime) -> str:
 def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequence[str], analysis_time: str) -> str:
     """Pure function of the epoch start, the analysis time and the active gates (contract 2.0.0).
 
-    readiness gate: 00:00Z of (analysis date + 2 days), when the analysis day has settled and one more billed day can
-    count, never before the epoch start (how many more days are needed depends on future billing, so this is the next
-    chance only). cost-history gate: 00:00Z of (epoch start date + REEVALUATION_COST_HISTORY_DAYS), the earliest time
+    readiness gate: 00:00Z of (analysis date + 1 day), when one more day can have settled (the settled basis ends two
+    days before the analysis day), never before the epoch start (how many more days are needed depends on future
+    billing, so this is the next chance only). cost-history gate: 00:00Z of (epoch start date + REEVALUATION_COST_HISTORY_DAYS), the earliest time
     the last required billing day can be fully covered.  The result is the later of the active gates.
     """
     start = _parse_utc(start_time)
     times = []
     if "CURRENT_CONFIG_EPOCH_TOO_NEW" in blocking_codes:
         analysis = _parse_utc(analysis_time).replace(hour=0, minute=0, second=0, microsecond=0)
-        times.append(max(start, analysis + dt.timedelta(days=2)))
+        times.append(max(start, analysis + dt.timedelta(days=1)))
     if "COST_HISTORY_INSUFFICIENT" in blocking_codes:
         midnight = start.replace(hour=0, minute=0, second=0, microsecond=0)
         times.append(midnight + dt.timedelta(days=REEVALUATION_COST_HISTORY_DAYS))

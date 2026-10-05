@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
 from contracts import reporter_contract as rc  # noqa: E402
+from tests.test_readiness import changed  # noqa: E402
 
 
 class CanaryRollbackTests(unittest.TestCase):
@@ -96,6 +97,50 @@ class CanaryRollbackTests(unittest.TestCase):
         self.assertEqual((by["auto_stop_minutes"].status, by["auto_stop_minutes"].recommended_config["auto_stop_minutes"]), ("ACTIONABLE", 10))
         self.assertEqual((by["min_clusters"].status, by["min_clusters"].recommended_config["min_clusters"]), ("ACTIONABLE", 2))
         self.assertNotIn("CANARY_GUARDRAIL_BREACHED", by["warehouse_size"].blockers)
+
+    def previous(self, e):
+        cur = e.current_epoch
+        return next(x for x in e.epochs if not x.is_current and p.parse_datetime(x.epoch_end) == p.parse_datetime(cur.epoch_start))
+
+    def test_floor_and_ceiling_lowered_together_roll_back_together(self):
+        # Previous MEDIUM 3/4, current MEDIUM 1/2: restoring only the floor (3) would exceed the current ceiling (2).
+        e = copy.deepcopy(self.e)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, warehouse_size=e.current_epoch.config.warehouse_size, min_clusters=3, max_clusters=4)
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertEqual((by["min_clusters"].status, by["min_clusters"].recommended_config["min_clusters"]), ("ACTIONABLE", 3))
+        self.assertEqual((by["max_clusters"].status, by["max_clusters"].recommended_config["max_clusters"]), ("ACTIONABLE", 4))
+        p.build_recommendation_packages([e], self.t)  # validates
+
+    def test_every_rolled_back_knob_is_a_ready_step(self):
+        # Size down, floor down and auto-stop raised in one change: all three return together, none waits on another.
+        e = copy.deepcopy(self.e)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, min_clusters=2, max_clusters=2, auto_stop_minutes=10)
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        plan = next(s for s in pkg.scenarios if s.scenario_id == pkg.recommended_plan.scenario_id)
+        states = {st.knob.value: st.execution_state.value for st in plan.execution_plan if st.knob is not None}
+        self.assertEqual({k: states[k] for k in ("warehouse_size", "min_clusters", "auto_stop_minutes")},
+                         {"warehouse_size": "READY", "min_clusters": "READY", "auto_stop_minutes": "READY"})
+
+    def test_guard_numbers_are_package_evidence(self):
+        a = p.build_recommendation_packages([self.e], self.t)[0]
+        b = p.build_recommendation_packages([self.with_guard(p95_execution_ms_shared_sources=2500)], self.t)[0]
+        self.assertNotEqual(a.provenance.evidence_fingerprint, b.provenance.evidence_fingerprint)
+        size = next(c for c in a.candidates if c.knob.value == "warehouse_size")
+        cited = {a.evidence[ref].metric for ref in size.evidence_refs}
+        self.assertIn("canary_p95_execution_ms_shared_sources", cited)
+
+    def test_the_guard_covers_thirty_days_after_the_change(self):
+        # The same regression 45 days after the downsize is left to the size knob's normal gates.
+        e, by = changed("C55", "warehouse_size", "MEDIUM", 45)
+        self.assertNotIn("CANARY_GUARDRAIL_BREACHED", by["warehouse_size"].blockers)
+        e, by = changed("C55", "warehouse_size", "MEDIUM", 4)
+        self.assertIn("CANARY_GUARDRAIL_BREACHED", by["warehouse_size"].blockers)
+
+    def test_guard_query_scan_is_bounded(self):
+        self.assertIn("x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS", p.CANARY_GUARD_SQL)
+        self.assertIn("c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", p.CANARY_GUARD_SQL)
 
 
 if __name__ == "__main__":

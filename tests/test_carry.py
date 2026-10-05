@@ -72,6 +72,51 @@ class CarryTests(unittest.TestCase):
         self.assertIn("demand_period_start < cur_start", p.build_carried_spill_source_sql(t))
         self.assertIn("'BUSY_START' AS scope", p.build_carried_concurrency_sql(t))
 
+    def test_carry_survives_a_new_epoch_without_queries(self):
+        def drop_current_query(rows):
+            cur = rows["query_metrics_carried_demand"][0]["cur_start"]
+            rows["query_metrics"] = [r for r in rows["query_metrics"] if r["epoch_start"] != cur]
+            rows["concurrency"] = [r for r in rows["concurrency"] if r["epoch_start"] != cur]
+        e, by = changed("C11", "auto_stop_minutes", 10, 3, rows_hook=drop_current_query)
+        self.assertIn("carried", e.current_epoch.query)
+        self.assertNotIn("INSUFFICIENT_BUSY_PERIOD_SAMPLE", by["min_clusters"].blockers)
+
+    def test_source_and_mix_findings_are_labelled_carried(self):
+        e, _ = changed("C11", "auto_stop_minutes", 10, 3)
+        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        scopes = {x.metric: x.epoch_scope for x in pkg.evidence.values()}
+        for metric in ("dashboard_queries_30", "power_bi_queries_30"):
+            if metric in scopes:
+                self.assertEqual(scopes[metric], "CARRIED_ACROSS_CHANGE", metric)
+
+    def test_a_change_older_than_thirty_days_carries_nothing(self):
+        e, _ = changed("C11", "auto_stop_minutes", 10, 45)
+        self.assertNotIn("carried", e.current_epoch.query)
+
+    def test_weekly_counts_never_reach_across_the_change(self):
+        query = {"queries_week_5": None, "carried": {"demand": {"period_start": "2026-08-01T00:00:00+00:00", "queries_week_5": 900}}}
+        view, _ = p.carried_query_view(query)
+        self.assertIsNone(view["queries_week_5"])
+
+    def test_a_channel_change_breaks_the_carry(self):
+        sql = p.build_carried_query_metrics_sql("demand")
+        self.assertIn("LAG(warehouse_channel) OVER w <=> warehouse_channel", sql)
+        self.assertIn("c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", sql)
+
+    def test_carried_concurrency_clips_at_the_period_end(self):
+        sql = p.build_carried_concurrency_sql(p.Thresholds())
+        self.assertIn("CASE WHEN x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY THEN CURRENT_TIMESTAMP() ELSE x.start_time END), CURRENT_TIMESTAMP()) AS t", sql)
+
+    def test_recent_window_covering_the_epoch_is_not_a_seasonal_peak(self):
+        e, by = changed("C11", "auto_stop_minutes", 10, 3)
+        f = p.Analyzer(p.Thresholds()).analyze(e)["max_clusters"].facts
+        self.assertFalse(f.get("epoch_peak_outside_recent"))
+
+    def test_assessment_query_sample_reads_carried_evidence(self):
+        e, _ = changed("C11", "auto_stop_minutes", 10, 3)
+        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        self.assertTrue(pkg.assessment.evidence_quality.query_sample_sufficient)
+
 
 if __name__ == "__main__":
     unittest.main()
