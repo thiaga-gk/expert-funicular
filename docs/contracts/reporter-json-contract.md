@@ -278,7 +278,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | `realization` | `Realization` | Yes | No | Present from day one; initially `NOT_APPLIED` with zero records |
 | `provenance` | `Provenance` | Yes | No | Reproducibility/version/source metadata |
 | `observed_change` | `ObservedConfigChange` | Yes | **Yes** | Observed config diff at the start of the current epoch; null for a first epoch or an empty diff (section 14.2) |
-| `carried_forward_plan` | `CarriedForwardPlan` | Yes | **Yes** | Reserved for Stage 2; always null in 1.2.0 producers (section 14.3) |
+| `carried_forward_plan` | `CarriedForwardPlan` | Yes | **Yes** | Reserved for Stage 2; always null in current producers (section 14.3) |
 
 ---
 
@@ -626,7 +626,7 @@ If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it 
 | Field | Type | Nullable | Semantics |
 |---|---|---:|---|
 | `status` | enum | No | `WAITING_FOR_EVIDENCE` (the only value) |
-| `earliest_reevaluation_time` | ISO-8601 UTC | No | Later of the active gates. **Earliest only**: billing ingestion lag and query-sample gates can delay it |
+| `earliest_reevaluation_time` | ISO-8601 UTC | No | Later of the active gates. **Earliest only**: the billing settle buffer (`billing_settle_hours`), billing ingestion lag and query-sample gates can delay it |
 | `blocking_codes` | string[] | No | Non-empty, sorted, unique subset of `COST_HISTORY_INSUFFICIENT`, `CURRENT_CONFIG_EPOCH_TOO_NEW` |
 | `method` | string | No | Prose; excluded from identity |
 
@@ -658,7 +658,7 @@ A record that the authoritative configuration (`system.compute.warehouses`) chan
 
 Null when the current epoch is the first in the retained history window or the config is identical. The change can be months old; consumers should read `changed_at`.
 
-## 14.3 `carried_forward_plan` (reserved; always null in 1.2.0 producers)
+## 14.3 `carried_forward_plan` (reserved; always null in current producers)
 
 A contingent replay of the preceding epoch's plan, planned for Stage 2. Its structure and invariants are defined and validated now so the contract does not change again when it ships. It never feeds candidate, scenario or package economics (pricing basis `CONTINGENT_CARRIED_FORWARD`, which plan steps may not use). Fields: `source_epoch_id`, `as_of`, `match_policy` (`EXACT_SINGLE_KNOB`), `match_outcome` (`MATCHED` | `MISMATCH` | `NOT_REPLAYABLE`), `match_reason_code`, `replay_fingerprint`, `steps[]` (`order`, `knob`, `technique_id`, `previous_value`, `recommended_value`, `disposition` of `COMPLETED` | `PENDING_REEVALUATION` | `INVALIDATED`, `reason_code`, `rebased_running_savings_365d`), `remaining_upside_365d`, `pricing_basis`. Savings are **rebased**: running savings after the last `COMPLETED` step are subtracted track by track, so an applied step is not counted again as upside. A non-null block requires `observed_change` and an active `CURRENT_CONFIG_EPOCH_TOO_NEW` gate (the epoch is younger than the maturity gate), and `source_epoch_id` must equal `observed_change.previous_epoch_id`. The package hash covers the whole block (`carried_forward_fingerprint`); `replay_fingerprint` additionally binds it to the replay evidence. The validator applies the same patterns as the schema (uppercase hex fingerprints, `^[A-Z][A-Z0-9_]*$` codes).
 

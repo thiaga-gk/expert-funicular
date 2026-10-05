@@ -26,7 +26,7 @@
 
 ## Photon semantics
 
-`product_features.is_photon` is workload/billing attribution, not a direct config read. The result is therefore called **observed Photon state**. If enough current-epoch signed DBU is recent and >=95% of known Photon-attributed DBU is true, state is `ENABLED`; <=5% is `DISABLED`; otherwise `MIXED`. Low feature coverage, stale billing, or insufficient DBU yields `UNKNOWN`.
+`product_features.is_photon` is workload/billing attribution, not a direct config read. The result is therefore called **observed Photon state**. If enough current-epoch signed DBU is recent and at least `photon_enabled_usage_pct` of known Photon-attributed DBU is true, state is `ENABLED`; at or below `photon_disabled_usage_pct` is `DISABLED`; otherwise `MIXED`. Low feature coverage, stale billing, or insufficient DBU yields `UNKNOWN`.
 
 This gives a system-table-only deterministic Photon *observation* (reported in `current_config.photon`) while refusing to overstate ambiguous evidence. The publisher makes no Photon recommendation: Databricks publishes no Photon on/off price for SQL warehouses.
 

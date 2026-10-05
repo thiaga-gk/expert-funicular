@@ -315,7 +315,7 @@ flowchart TD
     AS[auto_stop_minutes]
 ```
 
-Auto-stop and a max-cluster ceiling cut have no upstream invalidator. Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
+Auto-stop has no upstream invalidator. A max-cluster ceiling cut and a min-cluster change invalidate nothing downstream; a size change invalidates max and min clusters, which then wait in `PENDING_REEVALUATION`. Downstream candidates remain visible but transition to `PENDING_REEVALUATION` whenever an upstream applied change invalidates their evidence; they are not erased, and stay pending until fresh evidence is collected.
 
 ### 6.9 Stateful bundle estimator
 
