@@ -66,5 +66,20 @@ class UnresolvedNoChangeTests(unittest.TestCase):
         self.assertEqual(c.blockers, [])
 
 
+
+class UnresolvedNoChangeMissingDemandTests(unittest.TestCase):
+    def test_rationale_never_prints_a_missing_demand_figure(self):
+        logging.disable(logging.CRITICAL)
+        try:
+            t = p.Thresholds()
+            e = copy.deepcopy(next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C46"))
+            e.current_epoch.query["concurrency_histogram"]["BUSY_START"] = {}
+            c = next(c for c in p.evaluate_warehouses([e], t)[0].candidates if c.knob == "max_clusters")
+            self.assertEqual(c.blockers, ["QUEUEING_BELOW_CEILING"])
+            self.assertNotIn("None", c.metadata["rationale"])
+        finally:
+            logging.disable(logging.NOTSET)
+
+
 if __name__ == "__main__":
     unittest.main()

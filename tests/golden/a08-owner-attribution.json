@@ -20,7 +20,7 @@
    }
   ]
  },
- "description": "A08 Owner attribution: billing identity_metadata.owned_by gives the owner. The latest usage row carries a redacted owner value; a redacted value is unknown, never an owner, so the latest real owner is reported and the redacted token is not listed.",
+ "description": "A08 Owner attribution: billing identity_metadata.owned_by gives the owner. A redacted owner value is unknown, never an owner: the attribution SQL drops it before picking the latest owner, and the normalizer drops any that reaches it, so here the owner is unknown and only the real owner is listed.",
  "expect": {
   "evidence_assertions": [
    {

@@ -69,5 +69,45 @@ class IoCacheWeightingTests(unittest.TestCase):
         self.assertTrue("SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND read_io_cache_percent IS NOT NULL THEN read_io_cache_percent * COALESCE(read_bytes,0) END)" in sql, "expected SQL fragment missing")
 
 
+
+class ReviewFollowUpTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        logging.disable(logging.CRITICAL)
+        cls.t = p.Thresholds()
+        cls.fleet = p.synthetic_demo_evidence()
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+
+    def scenario(self, name):
+        return copy.deepcopy(next(e for e in self.fleet if e.current_epoch.tags["golden_scenario"] == name))
+
+    def test_hive_compatibility_evidence_is_null_without_visible_text(self):
+        e = self.scenario("C01")
+        e.current_epoch.query["statement_text_visible_pct_30"] = 0.0
+        e.current_epoch.query["hive_metastore_reference_queries_30"] = 0
+        pkg = p.build_recommendation_packages([e], self.t)[0].to_dict()
+        check = next(c for s in pkg["scenarios"] for c in s["compatibility"]["checks"] if c["check"] == "legacy_hive_metastore_sql_reference")
+        self.assertEqual(check["status"], "UNKNOWN")
+        self.assertIn('"reference_queries":null', check["details"])
+
+    def test_replayed_evidence_drops_redacted_owners(self):
+        e = self.scenario("C01")
+        raw = p.as_serializable(e)
+        raw["attribution"]["owner"] = "__REDACTED__"
+        raw["attribution"]["observed_owners"] = ["ana@example.com", "<REDACTED>"]
+        back = p.evidence_from_dict(raw)
+        self.assertIsNone(back.attribution.owner)
+        self.assertEqual(back.attribution.observed_owners, ["ana@example.com"])
+
+    def test_unknown_io_cache_share_is_null_not_zero(self):
+        e = self.scenario("C06")
+        e.current_epoch.query["avg_read_io_cache_percent_30"] = None
+        findings = p.Analyzer(self.t).analyze(e)["warehouse_size"].findings
+        self.assertIsNone(next(f for f in findings if f.metric == "avg_read_io_cache_percent_30").value)
+
+
 if __name__ == "__main__":
     unittest.main()

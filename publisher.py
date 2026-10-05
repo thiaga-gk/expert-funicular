@@ -2972,7 +2972,7 @@ class Analyzer:
             self._f(e,"warehouse_size","failure_cancel_pct_30",round_or_none(failure_pct,4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on."),
             self._f(e,"warehouse_size","p95_execution_ms_30",round_or_none(p95),unit="ms",threshold=self.t.p95_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Tail execution latency guardrail."),
             self._f(e,"warehouse_size","p99_execution_ms_30",round_or_none(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
-            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="Share of bytes read served from the I/O cache (weighted by bytes read); HITL context only, not a size decision threshold."),
+            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round_or_none(optional_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="Share of bytes read served from the I/O cache (weighted by bytes read); HITL context only, not a size decision threshold."),
         ]
         decision_queries = optional_float(q.get("decision_queries_30"))
         fs.extend([
@@ -3400,9 +3400,10 @@ class Optimizer:
                 # Queueing the ceiling rule does not resolve: the warehouse rarely reaches its ceiling, so the queue
                 # forms while clusters are still being added (scale-up lag on short bursts).
                 demand = ""
-                if cfg.warehouse_type!="SERVERLESS" and f["concurrency_available"]:
-                    demand = (f" Peak demand is {f['peak_concurrency_recent']} concurrent queries ({f['required_clusters_recent']} clusters), and busy periods"
-                              f" start with {f['busy_start_concurrency']} ({f['required_clusters_busy_start']} clusters) on a floor of {cfg.min_clusters}.")
+                if cfg.warehouse_type!="SERVERLESS" and f["concurrency_available"] and f.get("peak_concurrency_recent") is not None:
+                    demand = f" Peak demand is {f['peak_concurrency_recent']} concurrent queries ({f['required_clusters_recent']} clusters)"
+                    demand += (f", and busy periods start with {f['busy_start_concurrency']} ({f['required_clusters_busy_start']} clusters) on a floor of {cfg.min_clusters}."
+                               if f.get("busy_start_concurrency") is not None else ".")
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_BELOW_CEILING"],["warehouse_size"],[],[],
                     f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
@@ -4323,8 +4324,8 @@ class ScenarioPlanner:
                 checks.append({"check":"workspace_serverless_enablement","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":api,"source":"fallback A"})
                 checks.append({"check":"external_legacy_hive_metastore_workspace_setting","status":"UNKNOWN","evidence":"Read-only compatibility API unavailable or workspace not directly connected","source":"fallback A"})
                 checks.append({"check":"s3_access_policy_compatibility","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":"No verified read-only endpoint used; HITL unless existing Serverless proves workspace eligibility","source":"fallback A"})
-            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=safe_int(hive_reference_count(q))
-            checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive>0 else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
+            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=hive_reference_count(q)
+            checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
         else:
             observed=bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))
             checks.append({"check":"workspace_pro_classic_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
@@ -4364,7 +4365,7 @@ class ScenarioPlanner:
         pe=self.bundle.estimate(e,bsteps,by_id) if bsteps else self.bundle.estimate(e,[],by_id)
         if target is None:
             plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,"Plan B — Migration not evaluated",
-                "No warehouse-type migration was evaluated: "+", ".join(type_c.blockers)+". Re-run once the evidence gates pass.",
+                "No warehouse-type migration was evaluated: "+(", ".join(type_c.blockers) or str(type_c.metadata.get("rationale") or "no target"))+". Re-run once the evidence gates pass.",
                 [],pe,list(type_c.blockers),False,{"target_warehouse_type":None,"assessment":"NOT_EVALUATED","evidence_mode":"A_HITL_FALLBACK","checks":[]},self._scenario_confidence([]))
         else:
             plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,f"Plan B — {target.title()} migration experiment",f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else list(type_c.blockers),False,self._compatibility(e,target),self._scenario_confidence(bsteps))
@@ -6484,8 +6485,8 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         compatibility_evidence=dict(x.get("compatibility_evidence") or {}),
         photon_observation=(PhotonObservation(**x["photon_observation"]) if x.get("photon_observation") else None),
         attribution=(WarehouseAttribution(
-            owner=(x.get("attribution") or {}).get("owner"),
-            observed_owners=list((x.get("attribution") or {}).get("observed_owners") or []),
+            owner=clean_owner((x.get("attribution") or {}).get("owner")),
+            observed_owners=sorted({o for o in (clean_owner(v) for v in (x.get("attribution") or {}).get("observed_owners") or []) if o is not None}),
             owner_source=str((x.get("attribution") or {}).get("owner_source") or "system.billing.usage.identity_metadata.owned_by"),
             query_source=QuerySourceProfile(**((x.get("attribution") or {}).get("query_source") or {"categories":{},"percentages":{},"primary_category":"UNATTRIBUTED","client_applications":[],"multi_label":True})),
         ) if x.get("attribution") else None),
