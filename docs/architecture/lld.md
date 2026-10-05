@@ -46,7 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `governor/` (supported-type and eligibility gates), `optimizer/` (the per-knob decisions and the candidate estimator), `publisher.py` (the facade: reviewer gates, scenario planning, stateful bundle estimation, package assembly and the CLI), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `governor/` (supported-type and eligibility gates), `optimizer/` (the per-knob decisions and the candidate estimator), `reviewer/` (the candidate and scenario gates), `packager/` (scenario planning, stateful bundle estimation, package economics and the contract adapter that assembles the public package), `publisher.py` (the facade: package writing, the CLI and the convenience entry points), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -69,10 +69,17 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/optimizer/estimator/candidate.py` | `Estimator`: prices each decision as an isolated candidate, candidate confidence and the cost-value gate | No (prices decisions, never chooses them) |
 | `src/publisher/optimizer/estimator/cost.py` | `CostModel`: per-knob cost factors, migration target costs, current-model reconciliation; `validated_size_rate_ratio`, `aws_cluster_hourly_from_evidence`, `resolve_target_sku_price` | No |
 | `src/publisher/optimizer/estimator/savings.py` | `SavingsModel`: cost ranges from cost factors and savings deltas against a baseline | No |
-| `src/publisher/reviewer/reviewer.py`, `candidate.py`, `scenario.py` | Reviewer: `Reviewer` combines the candidate gate (`CandidateGate.review`: identity, one candidate per active knob, cost, confidence, status/config consistency, knob bounds) and the scenario gate (`ScenarioGate.review_scenarios`); `review_candidates` runs the candidate gate over the optimized fleet; both gates fail fast with `ValueError` | No (gates only) |
-| `src/publisher/publisher.py` | the facade: the scenario gate call, scenario planning, stateful bundle estimation, public package assembly and writing, CLI (`main`); re-exports the moved names so `publisher.<name>` keeps resolving | Yes, deterministic only |
+| `src/publisher/reviewer/reviewer.py`, `candidate.py`, `scenario.py` | Reviewer: `Reviewer` combines the candidate gate (`CandidateGate.review`: identity, one candidate per active knob, cost, confidence, status/config consistency, knob bounds) and the scenario gate (`ScenarioGate.review_scenarios`); `review_candidates` runs the candidate gate over the optimized fleet before packaging and `review_package` runs the scenario gate over every packaged warehouse after it; both gates fail fast with `ValueError` | No (gates only) |
+| `src/publisher/packager/packager.py` | Packager boundary: `plan` (scenarios for each warehouse that passed the candidate gate), `assemble` and `run` (returns `PackagingResult`); `_build_locked_recommendation_package` assembles one frozen package (package ID and full hash, semantic `validate()`) | Yes, deterministic only |
+| `src/publisher/packager/scenarios.py`, `sequencing.py` | `ScenarioPlanner` (Plan A, Plan B and their steps); `PlanOrdering` (`_plan_order`, `PLAN_KNOB_RANK`, the rollback and canary sequencing notes) | Yes, deterministic only |
+| `src/publisher/packager/execution_plan.py`, `selection.py` | `_recommended_plan` (the recommended execution plan, next action and reevaluation) and `_overall_status` (package assessment status from candidates and scenarios) | Yes, deterministic only |
+| `src/publisher/packager/estimator/scenario.py`, `state_transition.py` | `StatefulBundleEstimator` (stateful scenario economics) and `_ChainState` (the per-track state carried along a plan) | No (prices scenarios, never chooses them) |
+| `src/publisher/packager/estimator/package.py` | `_package_economics` and `_economics_point_from_scenario`: the package-level opportunity envelope from scenario economics | No |
+| `src/publisher/packager/evidence.py` | `_add_evidence`, `_build_evidence_registry`: the public evidence registry and its `EVID-` references | No |
+| `src/publisher/packager/adapter.py` | contract adapter: maps internal candidates, scenarios, assessments and workload profiles onto the public Reporter types (`_candidate_contracts`, `_scenario_contracts`, `_assessment_contract`, `_workload_profile`, `_step_projection`, `compute_reevaluation`, `derive_observed_change`) | No |
+| `src/publisher/publisher.py` | the facade: `package_locked_contract` (writes the packages, workbook, evidence and manifest), `validate_locked_package_schema` (schema validation at write), the CLI (`parse_args`, `main`), the convenience entry points (`evaluate_analysis`, `evaluate_warehouses`, `build_packages_from_analysis`, `build_recommendation_packages`) and re-exports of the moved names so `publisher.<name>` keeps resolving | No (orchestration and writing only) |
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
-| `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) and the orchestration result (`WarehouseOptimization`) | No |
+| `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`, `package.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) the orchestration result (`WarehouseOptimization`), the reviewer results (`CandidateReviewResult`, `PackageReviewResult`) and the Packager result (`PackagingResult`) | No |
 | `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
 | `src/publisher/config/thresholds.py` | `Thresholds`: every decision default (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
 | `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
@@ -94,7 +101,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 ```mermaid
 flowchart LR
     SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
-    ANA --> PUB[src/publisher/optimizer/ and publisher.py decision engine]
+    ANA --> PUB[src/publisher/optimizer/ and packager/ decision engine]
     PUB --> RC[Reporter Contract v2.0.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
@@ -233,7 +240,7 @@ sequenceDiagram
     CLI-->>OUT: publisher.log
 ```
 
-Reviewer Gate 2 hands the reviewed candidates and scenarios (`WarehouseOptimization`) to the public contract adapter; no internal run report exists. The adapter is `build_recommendation_packages()`, which evaluates the supported warehouses and assembles each frozen package.
+The Packager (`src/publisher/packager/packager.py`) plans the scenarios for the candidates that passed the candidate gate, then its contract adapter assembles each frozen package; no internal run report exists. Reviewer Gate 2 (`review_package`) checks the planned scenarios of every packaged warehouse. `build_recommendation_packages()` in `src/publisher/publisher.py` is the convenience entry point that evaluates the supported warehouses and assembles each package.
 
 ---
 
@@ -1322,7 +1329,7 @@ The codes that explain each withheld status: [`docs/reference/blocker-codes.md`]
 - Plan A contains no warehouse-type migration,
 - Plan B contains no more than one step.
 
-Only after reviewer gate 2 may the public contract adapter run.
+A package is final only after reviewer gate 2 has passed its scenarios.
 
 ---
 
@@ -1364,7 +1371,7 @@ Top-level keys and their order: [`docs/contracts/reporter-json-contract.md`](../
 
 ### 22.4 Public candidate identity
 
-The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `src/publisher/contracts/reporter_contract.py` and are 24 hex characters; `publisher.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
+The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `src/publisher/contracts/reporter_contract.py` and are 24 hex characters; `src/publisher/common/ids.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
 
 ### 22.5 Technique IDs
 
@@ -1642,7 +1649,7 @@ The full regression suite is the validation baseline; reproduce the results with
 
 Golden cases are folders under `tests/golden/cases/<name>/`: `case.yaml` (the `expect` block), `source/` (normalized evidence or collector snapshots) and `expected/` (canonical output generated by `scripts/update_goldens.py`). The case list and layout: `tests/golden/README.md`; the assertion DSL: the docstring of `tests/golden/test_golden_publisher.py`; the scenario catalog: `docs/proposals/golden-scenarios.md`.
 
-Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), Optimizer decision and candidate-estimate tests (`tests/unit/optimizer/`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
+Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), Optimizer decision and candidate-estimate tests (`tests/unit/optimizer/`), golden-scenario tests, Reporter contract tests (`tests/unit/contracts/test_reporter_contract.py`), Packager unit and package-integration tests (`tests/unit/packager/`, which include `test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
 
 ### 32.4 Required contract assertions
 
