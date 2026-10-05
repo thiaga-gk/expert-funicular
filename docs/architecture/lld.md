@@ -1127,7 +1127,7 @@ Compatibility checks may include:
 
 Plan B is named after, and its checks run against, the type the migration was evaluated for: the recommended type, or the type a value gate held (a held migration has no steps and is named "Plan B — Pro migration experiment", for example). When no migration was evaluated (not enough evidence) Plan B is "Plan B — Migration not evaluated", has no steps and no checks, and its compatibility status is `UNKNOWN`; it is never checked against the warehouse's own type.
 
-The package maps the checks to a public compatibility status (`reporter-json-contract.md`, Compatibility): a migration whose every check is `PASS` is `COMPATIBLE` and gets no compatibility-validation step; any `UNKNOWN`, `REVIEW` or `PASS_WITH_LIMITATION` check gives `REQUIRES_VALIDATION`, which adds that step; a `FAIL` gives `INCOMPATIBLE`. A Plan B without a migration step is never `COMPATIBLE`, so its scenario ID cannot equal an empty Plan A's (Plan A is always `COMPATIBLE`).
+The package maps the checks to a public compatibility status (`reporter-json-contract.md`, Compatibility): a migration whose every check is `PASS` is `COMPATIBLE` and gets no compatibility-validation step; any `UNKNOWN`, `REVIEW`, `PASS_WITH_LIMITATION` or `PASS_BY_EXISTING_SERVERLESS` check gives `REQUIRES_VALIDATION`, which adds that step; a `FAIL` gives `INCOMPATIBLE`. A Plan B without a migration step is never `COMPATIBLE`, so its scenario ID cannot equal an empty Plan A's (Plan A is always `COMPATIBLE`).
 
 Phase 1 always keeps Plan B as `ALTERNATIVE`.
 

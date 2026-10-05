@@ -88,9 +88,11 @@ class ReviewFollowUpTests(unittest.TestCase):
         e = self.scenario("C01")
         e.current_epoch.query["statement_text_visible_pct_30"] = 0.0
         e.current_epoch.query["hive_metastore_reference_queries_30"] = 0
+        w = p.evaluate_warehouses([e], self.t)[0]
+        planner = next(c for s in w.scenarios for c in s.compatibility.get("checks", []) if c["check"] == "legacy_hive_metastore_sql_reference")
+        self.assertEqual(planner["status"], "UNKNOWN")  # not PASS_WITH_LIMITATION or REVIEW
         pkg = p.build_recommendation_packages([e], self.t)[0].to_dict()
         check = next(c for s in pkg["scenarios"] for c in s["compatibility"]["checks"] if c["check"] == "legacy_hive_metastore_sql_reference")
-        self.assertEqual(check["status"], "UNKNOWN")
         self.assertIn('"reference_queries":null', check["details"])
 
     def test_replayed_evidence_drops_redacted_owners(self):
