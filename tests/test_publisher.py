@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p
 from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
+from tests.golden import case_names, load_case  # noqa: E402
 
 
 class PublisherV27Tests(unittest.TestCase):
@@ -588,7 +589,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(finding.threshold, self.t.failure_cancel_pct_downsize_safe)
 
     def serverless_size_evidence(self, size, golden="serverless", **query):
-        payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+        payload = load_case(golden)
         ev = payload["evidence"][0]
         for ep in ev["epochs"]:
             ep["config"]["warehouse_size"] = size
@@ -643,7 +644,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def with_cost_history(self, days, golden=None):
         if golden:
-            payload = json.loads((ROOT / "tests" / "golden" / f"{golden}.json").read_text())
+            payload = load_case(golden)
             ev = [p.evidence_from_dict(payload["evidence"][0])]
         else:
             ev = copy.deepcopy(self.evidence)
@@ -933,7 +934,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIn("ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code", sql)
 
     def test_evidence_with_unpriced_rows_merges_with_itself(self):
-        payload = json.loads((ROOT / "tests" / "golden" / "c32-unpriced-sku.json").read_text())
+        payload = load_case("c32-unpriced-sku")
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
             envelope = {"evidence_format_version": p.EVIDENCE_FORMAT_VERSION, "publisher_version": p.PUBLISHER_VERSION, "warehouses": payload["evidence"]}
@@ -1048,7 +1049,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     # --- Max-cluster increase has the same maturity and sample gates as every change --------------------------
     def _queueing_at_ceiling(self, age_days, queries):
-        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        payload = load_case("concurrency-constrained")
         e = p.evidence_from_dict(payload["evidence"][0])
         start = (p.parse_datetime(e.analysis_time) - __import__("datetime").timedelta(days=age_days)).isoformat()
         move_current_epoch_start(e, start)
@@ -1339,7 +1340,7 @@ class PublisherV27Tests(unittest.TestCase):
     def auto_stop_only(self, idle_multiple):
         """Idle-expensive fixture where auto-stop is the only plan step (no size/min/max change)."""
         import dataclasses
-        payload = json.loads((ROOT / "tests" / "golden" / "idle-expensive-warehouse.json").read_text())
+        payload = load_case("idle-expensive-warehouse")
         ev = p.evidence_from_dict(payload["evidence"][0])
         ep = ev.current_epoch
         ep.config = dataclasses.replace(ep.config, min_clusters=1)
@@ -1380,12 +1381,12 @@ class PublisherV27Tests(unittest.TestCase):
                 self.assertNotEqual(c.independent_economics.estimation_status.value, "NO_DELTA_MODELED", c.knob.value)
 
     def increase_candidate_package(self):
-        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        payload = load_case("concurrency-constrained")
         pkg = p.build_recommendation_packages([p.evidence_from_dict(payload["evidence"][0])], self.t)[0]
         return next(c for c in pkg.candidates if c.knob.value == "max_clusters")
 
     def test_planner_ready_for_hitl_maps_explicitly_to_contract_ready(self):
-        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        payload = load_case("concurrency-constrained")
         ev = [p.evidence_from_dict(payload["evidence"][0])]
         w = p.evaluate_warehouses(ev, self.t)[0]
         internal = {st.knob: st.execution_state for s in w.scenarios for st in s.steps}
@@ -1395,7 +1396,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(states["max_clusters"], "READY")
 
     def test_unknown_planner_execution_state_fails_loudly_instead_of_becoming_ready(self):
-        payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+        payload = load_case("concurrency-constrained")
         ev = [p.evidence_from_dict(payload["evidence"][0])]
         real = p.ScenarioPlanner.scenarios
         def corrupt(planner, e, candidates):
@@ -1409,7 +1410,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def envelope_cases(self):
         """Serverless golden: Plan A is priced, Plan B (Pro migration) is UNAVAILABLE."""
-        payload = json.loads((ROOT / "tests" / "golden" / "serverless.json").read_text())
+        payload = load_case("serverless")
         e = p.evidence_from_dict(payload["evidence"][0])
         pkg = p.build_recommendation_packages([e], self.t)[0]
         priced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is not None)
@@ -1594,10 +1595,10 @@ class PublisherV27Tests(unittest.TestCase):
 
 class GoldenScenarioTests(unittest.TestCase):
     def setUp(self):
-        self.t=p.Thresholds(); self.golden=ROOT/"tests"/"golden"
+        self.t=p.Thresholds()
 
     def load(self,name):
-        payload=json.loads((self.golden/f"{name}.json").read_text())
+        payload=load_case(name)
         ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
         return payload,p.evaluate_warehouses(ev,self.t)
 
@@ -1605,13 +1606,13 @@ class GoldenScenarioTests(unittest.TestCase):
         return next(w for w in report if w.warehouse_id==warehouse_id)
 
     def test_all_golden_files_parse_and_are_deterministic(self):
-        files=sorted(self.golden.glob("*.json")); self.assertGreaterEqual(len(files),10)
-        for f in files:
-            payload=json.loads(f.read_text())
-            if "evidence" not in payload: continue  # collector-level fixture (raw snapshots), covered by test_golden_scenarios
+        names=case_names(); self.assertGreaterEqual(len(names),10)
+        for name in names:
+            payload=load_case(name)
+            if "evidence" not in payload: continue  # collector-level fixture (raw snapshots), covered by tests/golden/test_golden_publisher.py
             ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
             a=p.evaluate_warehouses(copy.deepcopy(ev),self.t); b=p.evaluate_warehouses(copy.deepcopy(ev),self.t)
-            self.assertEqual(p.canonical_json(a),p.canonical_json(b),f.name)
+            self.assertEqual(p.canonical_json(a),p.canonical_json(b),name)
 
     def test_idle_expensive(self):
         _,r=self.load("idle-expensive-warehouse"); w=self.warehouse(r,"wh-demo-001"); by={c.knob:c for c in w.candidates}
@@ -1624,7 +1625,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def spill_evidence(self, *, queries_30=12000, epoch_start=None):
         """Spill-constrained golden fixture with the sample size / epoch age overridden (audit H2)."""
-        payload = json.loads((self.golden / "spill-constrained.json").read_text())
+        payload = load_case("spill-constrained")
         ev = payload["evidence"][0]
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         epoch["query"]["queries_30"] = queries_30
@@ -1688,7 +1689,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def severity_evidence(self, golden, **query):
         """Golden fixture re-expressed in the conditional-severity schema, with `query` overrides."""
-        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        payload = load_case(golden)
         ev = payload["evidence"][0]
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         for legacy in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
@@ -1825,7 +1826,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def without_severity(self, golden, **query):
         """Golden fixture whose conditional-severity fields are absent (older collector), with `query` overrides."""
-        payload = json.loads((self.golden / f"{golden}.json").read_text())
+        payload = load_case(golden)
         ev = payload["evidence"][0]
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         for key in list(self.NO_SEVERITY) + ["p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"]:
@@ -1852,7 +1853,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     def test_missing_severity_evidence_fails_closed(self):
         # Older evidence without the conditional-severity fields must not be read as 'no pressure' (zero).
-        payload = json.loads((self.golden / "idle-expensive-warehouse.json").read_text())
+        payload = load_case("idle-expensive-warehouse")
         ev = payload["evidence"][0]
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         for key in list(epoch["query"]):
@@ -1868,7 +1869,7 @@ class GoldenScenarioTests(unittest.TestCase):
 
     # --- H5: a withheld estimate is null, never zero --------------------------------------------------------
     def golden_package(self, name):
-        payload = json.loads((self.golden / f"{name}.json").read_text())
+        payload = load_case(name)
         evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
         return p.build_recommendation_packages(evidence, self.t)[0].to_dict()
 
@@ -1939,14 +1940,14 @@ class GoldenScenarioTests(unittest.TestCase):
     def test_photon_is_observed_and_reported_but_never_recommended(self):
         # Databricks publishes no on/off price for Photon on SQL warehouses, so the product leaves Photon at its
         # default: the billing-derived observation stays in current_config, but no candidate or plan step exists.
-        for f in sorted(self.golden.glob("*.json")):
-            payload=json.loads(f.read_text())
+        for name in case_names():
+            payload=load_case(name)
             if "evidence" not in payload: continue  # collector-level fixture (raw snapshots)
             ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
             for w in p.evaluate_warehouses(ev,self.t):
-                self.assertNotIn("enable_photon",{c.knob for c in w.candidates},f.name)
+                self.assertNotIn("enable_photon",{c.knob for c in w.candidates},name)
                 for sc in w.scenarios:
-                    self.assertNotIn("enable_photon",[st.knob for st in sc.steps],f.name)
+                    self.assertNotIn("enable_photon",[st.knob for st in sc.steps],name)
         pkg=self.golden_package("photon-disabled")
         self.assertEqual(pkg["current_config"]["photon"]["status"],"DISABLED")
         self.assertNotIn("enable_photon",[c["knob"] for c in pkg["candidates"]])

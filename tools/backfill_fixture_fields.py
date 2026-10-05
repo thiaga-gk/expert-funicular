@@ -1,6 +1,8 @@
 """Backfill collector fields into evidence fixtures that predate them (fixtures only).
 
-Usage: python tools/backfill_fixture_fields.py tests/golden/*.json
+Usage: python tools/backfill_fixture_fields.py tests/golden/cases/*   (case folders, or case names)
+
+Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
 - Each daily cost row without `dbu_quantity` gets its list cost times its epoch's DBU-to-cost ratio (epoch
   `cost.dbu_quantity / cost.list_cost`), and each epoch without `events.event_coverage_start` is marked as covered from
@@ -16,6 +18,17 @@ Real evidence is never backfilled: missing fields fail closed.
 import json
 import sys
 from pathlib import Path
+
+
+CASES = Path(__file__).resolve().parents[1] / "tests" / "golden" / "cases"
+
+
+def _evidence_path(case):
+    """A case name or a case folder -> its source/evidence.json."""
+    folder = Path(case)
+    if not folder.is_dir():
+        folder = CASES / case
+    return folder / "source" / "evidence.json"
 
 
 def _decision(query):
@@ -54,15 +67,14 @@ def backfill(evidence):
     return changed
 
 
-def main(paths):
-    for name in paths:
-        path = Path(name)
-        payload = json.loads(path.read_text())
-        if isinstance(payload, dict) and "evidence" not in payload:
-            continue  # collector-level fixture (raw rows go through the collector)
-        evidence = payload["evidence"] if isinstance(payload, dict) else payload
+def main(cases):
+    for case in cases:
+        path = _evidence_path(case)
+        if not path.is_file():
+            continue  # collector-level case (raw rows go through the collector)
+        evidence = json.loads(path.read_text())
         if backfill(evidence):
-            path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            path.write_text(json.dumps(evidence, indent=2) + "\n")
             print(f"backfilled {path}")
 
 

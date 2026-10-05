@@ -143,4 +143,4 @@ The suite version is declared in `.claude/skills/suite.yaml`; the validator repo
 python -m unittest discover -s tests -v
 ```
 
-The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic golden-scenario fleet flow.
+The suite covers collector/normalization/model/optimizer behavior, deterministic identities, golden scenarios (`tests/golden/cases/`), Reporter Contract validation, exact workbook columns/grains, numeric economic presentation, unsupported-type fail-closed behavior and the synthetic golden-scenario fleet flow.

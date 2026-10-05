@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
+from tests.golden import load_case  # noqa: E402
 
 
 class ConcurrencyOracleTests(unittest.TestCase):
@@ -162,7 +163,7 @@ class ServerlessCeilingConfidenceTests(unittest.TestCase):
         import json
         logging.disable(logging.CRITICAL)
         try:
-            payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
+            payload = load_case("concurrency-constrained")
             e = p.evidence_from_dict(payload["evidence"][0])
             import dataclasses
             for ep in e.epochs:

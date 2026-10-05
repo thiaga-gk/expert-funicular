@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from contracts import reporter_contract as rc  # noqa: E402
 from contracts import workbook_contract as wc  # noqa: E402
 import publisher  # noqa: E402
+from tests.golden import case_names, load_case  # noqa: E402
 
 CORE = {
     "prd": ROOT / "docs/product/prd.md",
@@ -127,8 +128,8 @@ class DocsGuardTests(unittest.TestCase):
         source = read(ROOT / "publisher.py")
         self.assertEqual(sorted(c for c in documented if c not in source), [], "documented blockers the code no longer has")
         evidence = list(publisher.demo_evidence()) + list(publisher.synthetic_demo_evidence())
-        for fixture in sorted((ROOT / "tests" / "golden").glob("*.json")):
-            evidence += [publisher.evidence_from_dict(x) for x in json.loads(read(fixture)).get("evidence") or []]
+        for name in case_names():
+            evidence += [publisher.evidence_from_dict(x) for x in load_case(name).get("evidence") or []]
         emitted = set()
         # One build per evidence item: fixtures reuse warehouse identities, so they must not be merged into one run.
         for item in evidence:

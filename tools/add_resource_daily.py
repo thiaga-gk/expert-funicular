@@ -1,6 +1,8 @@
 """Backfill a synthetic daily resource series into evidence fixtures that predate it (fixtures only).
 
-Usage: python tools/add_resource_daily.py tests/golden/*.json
+Usage: python tools/add_resource_daily.py tests/golden/cases/*   (case folders, or case names)
+
+Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
 Each current epoch without `resource_daily` gets publisher.synthesize_resource_daily (its event totals spread evenly over
 its observed days), so recent-window capacity facts and AWS run rates equal the old whole-epoch values. Real evidence
@@ -14,6 +16,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import publisher as p  # noqa: E402
 
 
+CASES = Path(__file__).resolve().parents[1] / "tests" / "golden" / "cases"
+
+
+def _evidence_path(case):
+    """A case name or a case folder -> its source/evidence.json."""
+    folder = Path(case)
+    if not folder.is_dir():
+        folder = CASES / case
+    return folder / "source" / "evidence.json"
+
+
 def backfill(evidence):
     changed = 0
     for x in evidence:
@@ -25,15 +38,14 @@ def backfill(evidence):
     return changed
 
 
-def main(paths):
-    for name in paths:
-        path = Path(name)
-        payload = json.loads(path.read_text())
-        if isinstance(payload, dict) and "evidence" not in payload:
-            continue  # collector-level fixture (raw snapshots)
-        evidence = payload["evidence"] if isinstance(payload, dict) else payload
+def main(cases):
+    for case in cases:
+        path = _evidence_path(case)
+        if not path.is_file():
+            continue  # collector-level case (raw rows go through the collector)
+        evidence = json.loads(path.read_text())
         if backfill(evidence):
-            path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            path.write_text(json.dumps(evidence, indent=2) + "\n")
             print(f"backfilled {path}")
 
 
