@@ -18,7 +18,7 @@ Contract versions are declared in code (`contracts/reporter_contract.py`, `contr
 | | [`aws-cost-model.md`](reference/aws-cost-model.md) | You are working on AWS (non-DBU) economics. |
 | | [`known-limitations.md`](reference/known-limitations.md) | You need the open limitations of the current release. |
 | (root) | [`skills.md`](skills.md) | You are building a publisher for another Databricks service. |
-| `proposals/` | [`remediation-runbook.md`](proposals/remediation-runbook.md), [`golden-scenarios.md`](proposals/golden-scenarios.md), [`real-data-run.md`](proposals/real-data-run.md), [`gap-review-2.8.0.md`](proposals/gap-review-2.8.0.md) | You are resolving open findings: the process, the scenario table and the design record. |
+| `proposals/` | [`remediation-runbook.md`](proposals/remediation-runbook.md), [`golden-scenarios.md`](proposals/golden-scenarios.md), [`real-data-run.md`](proposals/real-data-run.md), [`gap-review-2.8.0.md`](proposals/gap-review-2.8.0.md), [`tracker.md`](proposals/tracker.md) | You are resolving open findings: the process, the scenario table and the design record. |
 | `archive/` | Historical designs and audits | You need the rationale behind a shipped design. Not maintained. |
 
 ## Where each topic lives
