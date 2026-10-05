@@ -165,6 +165,9 @@ Search range, restart cost, cold-start budget and the nonprod profile for the au
 | `auto_stop_near_best_pct` | `2.0` | Auto-stop values whose net saving is within this share (%) of the best count as equally good; the smallest change among them is chosen. | [LLD §15.6 Auto-stop](../architecture/lld.md) |
 | `nonprod_tag_keys` | `("env", "environment", "stage", "tier")` | Warehouse tag keys (case-insensitive) that mark the environment. | [LLD §15.6 Auto-stop](../architecture/lld.md) |
 | `nonprod_tag_values` | `("dev", "development", "test", "testing", "qa", "sandbox", "nonprod", "non-prod")` | Values of those keys that make a warehouse nonprod; staging and UAT stay production. | [LLD §15.6 Auto-stop](../architecture/lld.md) |
+| `kept_alive_flag_pct` | `10.0` | Running time after the current auto-stop with no query running, as a share of running time (%), at or above which the warehouse is flagged as kept alive by non-query activity. | [LLD §15.6 Auto-stop](../architecture/lld.md), Gates [`ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING`](blocker-codes.md) |
+| `always_on_running_pct` | `90.0` | Share of the window (%) a warehouse must run to be flagged as kept up by tiny, frequent queries. | [LLD §15.6 Auto-stop](../architecture/lld.md), Gates [`SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING`](blocker-codes.md) |
+| `always_on_busy_pct_max` | `10.0` | Largest share of running time (%) with a query running for that flag. | [LLD §15.6 Auto-stop](../architecture/lld.md), Gates [`SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING`](blocker-codes.md) |
 
 ### Confidence
 

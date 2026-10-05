@@ -188,6 +188,12 @@ class Thresholds:
     # values. Staging and UAT stay production.
     nonprod_tag_keys: Tuple[str, ...] = ("env", "environment", "stage", "tier")
     nonprod_tag_values: Tuple[str, ...] = ("dev", "development", "test", "testing", "qa", "sandbox", "nonprod", "non-prod")
+    # Non-work activity flags (observations; nothing is priced from them): running time after the current auto-stop
+    # with no query running at or above this share of running time; and a warehouse running at least this share of
+    # the clock while queries are busy at most this share of its running time, with no auto-stop value removing it.
+    kept_alive_flag_pct: float = 10.0
+    always_on_running_pct: float = 90.0
+    always_on_busy_pct_max: float = 10.0
 
     # Forecast
     forecast_recent_days: int = 28
@@ -2911,6 +2917,13 @@ class Analyzer:
         options = self._auto_stop_options(gaps, current_auto, grid, restart_cost, floor_clusters, budget) if running_available else []
         kept_alive = optional_float(gaps.get("kept_alive_wall_minutes"))
         window = "current epoch since the first retained warehouse event"
+        uptime = optional_float(ev.get("uptime_minutes"))
+        w0, w1 = parse_datetime(gaps.get("running_idle_window_start")), parse_datetime(gaps.get("running_idle_window_end"))
+        window_minutes = (w1 - w0).total_seconds() / 60.0 if w0 and w1 and w1 > w0 else None
+        running_clock_pct = None if not uptime or not window_minutes else round(100.0 * min(uptime, window_minutes) / window_minutes, 3)
+        busy_minutes = optional_float(gaps.get("busy_minutes"))
+        busy_pct = None if not uptime or busy_minutes is None else round(100.0 * min(busy_minutes, uptime) / uptime, 3)
+        kept_alive_pct = None if not uptime or kept_alive is None else round(100.0 * kept_alive / uptime, 3)
         positive = [o for o in options if o["net_cluster_minutes"] > 0]
         best_any = max(positive, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
         best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
@@ -2920,6 +2933,8 @@ class Analyzer:
             self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window=window,interpretation="Running cluster-minutes: the basis idle-time savings are a share of."),
             self._f(e,"auto_stop_minutes","running_idle_queries",None if ri_queries is None else int(ri_queries),unit="queries",table="system.query.history",field="start_time",window=window,interpretation="Queries over the running-idle window; added restarts are judged as a share of them."),
             self._f(e,"auto_stop_minutes","kept_alive_wall_minutes",round_or_none(kept_alive,2),unit="minutes",table="system.query.history + system.compute.warehouse_events",field="end_time, cluster_count",window=window,interpretation="Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it."),
+            self._f(e,"auto_stop_minutes","running_share_of_clock_pct",running_clock_pct,unit="%",threshold=self.t.always_on_running_pct,comparator=">= always-on",table="system.compute.warehouse_events",field="cluster_count",window=window,interpretation="Share of the window the warehouse was running."),
+            self._f(e,"auto_stop_minutes","busy_share_of_running_pct",busy_pct,unit="%",threshold=self.t.always_on_busy_pct_max,comparator="<= kept up by tiny queries",table="system.query.history",field="start_time/end_time",window=window,interpretation="Share of running time with a query running; a round-the-clock warehouse with a small share is kept up by frequent tiny queries (BI polling, keep-alive, dashboard refresh)."),
             self._f(e,"auto_stop_minutes","restart_cost_cluster_minutes",round(restart_cost,3),unit="cluster-minutes per restart",table="policy",field="restart cost",window="policy",interpretation="Priced cost of one restart (start time x floor clusters); Pro/Classic starting minutes are assumed billed (not documented)."),
             self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value); only effect: the larger cold-start budget."),
             self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
@@ -2928,7 +2943,8 @@ class Analyzer:
         ]
         out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
             "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
-            "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod})
+            "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod,
+            "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or []})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -3228,6 +3244,10 @@ class Optimizer:
         # Auto stop: jump to the cost-minimizing value on the type's grid.
         a=analyses["auto_stop_minutes"]; f=a.facts; cur_auto=cfg.auto_stop_minutes
         def auto_stop(status:str,target:int,blockers:List[str],rationale:str)->None:
+            # Non-work activity is reported with every outcome; no auto-stop value removes it, so nothing is priced.
+            if f.get("kept_alive_pct") is not None and f["kept_alive_pct"]>=self.t.kept_alive_flag_pct:
+                blockers=blockers+["ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING"]
+                rationale+=f" {f['kept_alive_pct']:g}% of running time came after the auto-stop should have stopped the warehouse, with no query running (open sessions, result fetching or keep-alive)."
             out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
                 {"auto_stop_minutes":cur_auto},{"auto_stop_minutes":target},sorted(set(blockers)),[],[],[],rationale))
         grid=f["grid"]; options={o["target"]:o for o in f["options"]}
@@ -3258,8 +3278,13 @@ class Optimizer:
             saving=[o for o in options.values() if o["net_cluster_minutes"]>0]
             allowed=[o for o in saving if o["within_cold_start_budget"]]
             if not allowed:
-                auto_stop("NO_CHANGE",cur_auto,["COLD_START_BUDGET_EXCEEDED"] if saving else [],
-                    "Every value that saves money adds more cold starts than the budget allows; auto-stop stays." if saving else "No auto-stop value saves money on the measured idle gaps; the current value is cost-optimal.")
+                polling=(not saving and f.get("running_clock_pct") is not None and f["running_clock_pct"]>=self.t.always_on_running_pct
+                         and f.get("busy_pct") is not None and f["busy_pct"]<=self.t.always_on_busy_pct_max)
+                clients=", ".join(f.get("client_applications") or []) or "unknown clients"
+                auto_stop("NO_CHANGE",cur_auto,(["COLD_START_BUDGET_EXCEEDED"] if saving else [])+(["SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING"] if polling else []),
+                    "Every value that saves money adds more cold starts than the budget allows; auto-stop stays." if saving else
+                    f"The warehouse runs {f['running_clock_pct']:g}% of the time while queries are busy only {f['busy_pct']:g}% of it: frequent tiny queries ({clients}) keep it up, so no auto-stop value can stop it. Review the polling, keep-alive or refresh schedule." if polling else
+                    "No auto-stop value saves money on the measured idle gaps; the current value is cost-optimal.")
             else:
                 best=max(o["net_cluster_minutes"] for o in allowed)
                 near=[o for o in allowed if o["net_cluster_minutes"]>=(1-self.t.auto_stop_near_best_pct/100.0)*best]

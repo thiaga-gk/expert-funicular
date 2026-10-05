@@ -233,6 +233,23 @@ class AutoStopDecisionTests(unittest.TestCase):
         self.assertEqual(base, {"auto_stop_minutes": 10})
         self.assertEqual(self.auto_stop(e).recommended_config, {"auto_stop_minutes": 15})
 
+    def test_running_after_the_auto_stop_without_queries_is_flagged_not_priced(self):
+        e = p.demo_evidence()[0]
+        e.current_epoch.gaps["kept_alive_wall_minutes"] = 3000.0  # 15% of the 20,000 running minutes
+        c = self.auto_stop(e)
+        self.assertEqual(c.status, "ACTIONABLE")  # the idle tails within the auto-stop are still removable
+        self.assertIn("ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING", c.blockers)
+        e.current_epoch.gaps["kept_alive_wall_minutes"] = 1000.0  # 5%: below the flag
+        self.assertNotIn("ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING", self.auto_stop(e).blockers)
+
+    def test_round_the_clock_polling_is_flagged_with_its_client(self):
+        fleet = {x.current_epoch.tags["golden_scenario"]: x for x in p.synthetic_demo_evidence()}
+        c = self.auto_stop(fleet["C04"])  # Tableau polls every 5 minutes, all day and night
+        self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING"]))
+        self.assertIn("Tableau", c.metadata["rationale"])
+        for scenario in ("C45", "C16", "C01", "C47"):  # real 24x7 work, auto-stop fixes it, or daytime BI
+            self.assertNotIn("SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING", self.auto_stop(fleet[scenario]).blockers, scenario)
+
     def test_reviewer_rejects_a_pro_classic_auto_stop_below_ten(self):
         e = p.demo_evidence()[0]
         w = p.evaluate_warehouses([e], self.t)[0]
