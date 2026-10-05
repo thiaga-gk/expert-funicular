@@ -47,6 +47,7 @@ from publisher.governor import governor
 from publisher.optimizer import optimizer
 from publisher.reviewer import reviewer
 from publisher.packager import packager
+from publisher.reporter import reporter
 from publisher.contracts.review import CandidateReviewResult
 from publisher.contracts.request import MODE_REPLAY, PublisherRequest
 from publisher.contracts.candidate import OptimizationResult
@@ -208,6 +209,9 @@ from publisher.packager.packager import (  # noqa: F401
 from publisher.reviewer.package import (  # noqa: F401
     validate_locked_package_schema,
 )
+from publisher.reporter.json_reporter import (  # noqa: F401
+    _safe_artifact_name, package_locked_contract,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -285,86 +289,6 @@ def build_recommendation_packages(
     return build_packages_from_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
 
 
-def _safe_artifact_name(value: str) -> str:
-    text = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in str(value))
-    return text or "unknown"
-
-
-def package_locked_contract(
-    output_dir: Path,
-    packages: Sequence[rc.RecommendationPackage],
-    evidence: Sequence[WarehouseEvidence],
-    *,
-    generate_workbook: bool = True,
-    unseen_billed_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
-) -> Dict[str, str]:
-    """Write locked JSON packages plus the Workbook Contract projection.
-
-    Every packages/*.json file remains the source of truth. workbook.xlsx is a
-    presentation-only projection and is never read back into the decision engine.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    packages_dir = output_dir / "packages"
-    packages_dir.mkdir(parents=True, exist_ok=True)
-    LOGGER.info("contract.v1.package.start output_dir=%s packages=%d", output_dir, len(packages))
-    entries = []
-    result: Dict[str, str] = {}
-    for package in packages:
-        payload = package.to_dict()
-        validate_locked_package_schema(payload)
-        name = f"{_safe_artifact_name(package.warehouse.workspace_id)}__{_safe_artifact_name(package.warehouse.warehouse_id)}.json"
-        path = packages_dir / name
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        entries.append({
-            "recommendation_package_id": package.recommendation_package_id,
-            "workspace_id": package.warehouse.workspace_id,
-            "warehouse_id": package.warehouse.warehouse_id,
-            "warehouse_name": package.warehouse.warehouse_name,
-            "epoch_id": package.warehouse.current_epoch.epoch_id,
-            "package_hash_full_sha256": package.provenance.package_hash_full_sha256,
-            "path": f"packages/{name}",
-        })
-        result[f"package:{package.warehouse.workspace_id}:{package.warehouse.warehouse_id}"] = str(path)
-
-    evidence_path = output_dir / "evidence.json"
-    save_evidence(evidence_path, evidence)
-    from publisher.contracts import workbook_contract as wc
-    workbook_path: Optional[Path] = None
-    if generate_workbook:
-        LOGGER.info("workbook.v1.start packages=%d", len(packages))
-        try:
-            from publisher.reporter.workbook_reporter import write_workbook
-        except ImportError as exc:
-            raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
-        workbook_path = write_workbook(output_dir / "workbook.xlsx", packages, unsupported_warehouse_exclusions(evidence))
-        result["workbook"] = str(workbook_path)
-        LOGGER.info("workbook.v1.done path=%s", workbook_path)
-    manifest_path = output_dir / "manifest.json"
-    exclusions = unsupported_warehouse_exclusions(evidence)
-    manifest = {
-        "publisher_version": PUBLISHER_VERSION,
-        "reporter_contract_version": rc.CONTRACT_VERSION,
-        "generated_at": max((p.provenance.generated_at for p in packages), default=dt.datetime.now(dt.timezone.utc).isoformat()),
-        "package_count": len(packages),
-        "packages": entries,
-        "excluded_warehouse_count": len(exclusions),
-        "excluded_warehouses": exclusions,
-        # Live runs only: billed warehouses with no configuration snapshot (None = not checked: demo or replay).
-        "unseen_billed_warehouse_check": "NOT_CHECKED" if unseen_billed_warehouses is None else "CHECKED",
-        "unseen_billed_warehouse_count": None if unseen_billed_warehouses is None else len(unseen_billed_warehouses),
-        "unseen_billed_warehouses": [dict(x) for x in unseen_billed_warehouses or []],
-        "canonical_json_semantics": f"Each packages/*.json file is exactly one Reporter JSON Contract v{rc.CONTRACT_VERSION} RecommendationPackage.",
-        "workbook_contract_version": wc.WORKBOOK_CONTRACT_VERSION,
-        "workbook_status": "GENERATED" if workbook_path is not None else "SKIPPED",
-        "workbook_file": None if workbook_path is None else workbook_path.name,
-        "evidence_file": evidence_path.name,
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    result["manifest"] = str(manifest_path)
-    result["evidence"] = str(evidence_path)
-    LOGGER.info("contract.v1.package.done packages=%d", len(packages))
-    return result
-
 # ---------------------------------------------------------------------------
 # Demo / evidence persistence / merge
 # ---------------------------------------------------------------------------
@@ -415,19 +339,16 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     optimization=optimizer.run(context,analysis,governance)
     reviewed=reviewer.review_candidates(context,analysis,governance,optimization)
     packaging=packager.run(context,analysis,governance,reviewed)
-    packages=reviewer.review_package(context,analysis,governance,packaging).packages
-    files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
-    candidate_count=sum(len(pkg.candidates) for pkg in packages)
-    scenario_count=sum(len(pkg.scenarios) for pkg in packages)
-    excluded_count=len(governance.exclusions)
-    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",len(evidence)-excluded_count,excluded_count,len(packages),candidate_count,scenario_count,log_path)
+    report=reporter.run(context,analysis,governance,reviewer.review_package(context,analysis,governance,packaging))
+    packages=report.packages
+    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",report.analyzed_count,report.excluded_count,len(packages),report.candidate_count,report.scenario_count,log_path)
     if args.print_json:
         if len(packages) != 1:
             raise SystemExit("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
         print(json.dumps(packages[0].to_dict(),indent=2,sort_keys=True))
     else:
-        print(f"Analyzed {len(evidence)-excluded_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v{rc.CONTRACT_VERSION} package(s), {candidate_count} candidates, and {scenario_count} scenarios; excluded {excluded_count} unsupported warehouse(s) (see manifest).")
-        for k,v in files.items(): print(f"{k}: {v}")
+        print(f"Analyzed {report.analyzed_count} warehouse(s); emitted {len(packages)} locked Reporter Contract v{rc.CONTRACT_VERSION} package(s), {report.candidate_count} candidates, and {report.scenario_count} scenarios; excluded {report.excluded_count} unsupported warehouse(s) (see manifest).")
+        for k,v in report.files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
     return 0
 
