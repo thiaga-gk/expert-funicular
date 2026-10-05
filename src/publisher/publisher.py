@@ -205,6 +205,9 @@ from publisher.packager.adapter import (  # noqa: F401
 from publisher.packager.packager import (  # noqa: F401
     _build_locked_recommendation_package,
 )
+from publisher.reviewer.package import (  # noqa: F401
+    validate_locked_package_schema,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -280,16 +283,6 @@ def build_recommendation_packages(
 ) -> List[rc.RecommendationPackage]:
     """Analyze evidence already in hand and assemble locked public packages (the CLI runs analyzer.run first)."""
     return build_packages_from_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
-
-
-def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
-    """Validate the serialized package against the locked Draft 2020-12 schema."""
-    try:
-        import jsonschema  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(f"jsonschema>=4.23 is required to validate Reporter Contract v{rc.CONTRACT_VERSION} output") from exc
-    schema = json.loads(_CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
-    jsonschema.Draft202012Validator(schema).validate(dict(payload))
 
 
 def _safe_artifact_name(value: str) -> str:

@@ -9,6 +9,7 @@ from publisher.contracts.package import PackagingResult
 from publisher.contracts.request import RunContext
 from publisher.contracts.review import CandidateReviewResult, PackageReviewResult
 from publisher.reviewer.candidate import CandidateGate
+from publisher.reviewer.package import review_contract
 from publisher.reviewer.scenario import ScenarioGate
 
 
@@ -28,7 +29,11 @@ def review_candidates(context: RunContext, analysis: FleetAnalysis, governance: 
 
 def review_package(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult,
                    package: PackagingResult) -> PackageReviewResult:
-    """Package gate for every packaged warehouse, in order; raises ValueError on the first violated invariant."""
-    for w in package.warehouses:
+    """Package gate for every packaged warehouse, in order: the scenario gate, then report-contract consistency.
+
+    Raises on the first violated invariant (ValueError, or a schema ValidationError).
+    """
+    for w, p in zip(package.warehouses, package.packages):
         Reviewer(context.thresholds).review_scenarios(w.evidence, w.candidates, w.scenarios, w.recommended_scenario_id)
+        review_contract(p)
     return PackageReviewResult(list(package.packages))
