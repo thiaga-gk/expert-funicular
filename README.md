@@ -102,12 +102,13 @@ Run the publisher once a week as a Databricks job: a Python task or a notebook t
 What each run shows, per warehouse package:
 
 - `observed_change`: the configuration change since the previous epoch, that is, a plan step that was applied;
-- steps that became ready as their evidence matured (`execution_state` `READY` or `READY_FOR_CANARY` in `recommended_plan`);
-- `recommended_plan.reevaluation` with `earliest_reevaluation_time` while nothing is ready yet and the plan is waiting for the stability period or cost history to clear.
+- steps that became ready once the new configuration was ready, that is, had enough settled billed days (`execution_state` `READY` or `READY_FOR_CANARY` in `recommended_plan`);
+- canary guards and rollback recommendations: after a canary-type change (one size down, a lower minimum, a higher auto-stop), a candidate with `CANARY_GUARDRAIL_BREACHED` restores the previous value when the new epoch's own evidence trips a guard;
+- `recommended_plan.reevaluation` with `earliest_reevaluation_time` while nothing is ready yet and the plan is waiting for the configuration to be ready or for cost history to clear.
 
 `carried_forward_plan` (the earlier epoch's plan carried forward) is reserved in the contract and not produced yet ([`docs/reference/known-limitations.md`](docs/reference/known-limitations.md)).
 
-Weekly is enough: every gate measured in days (the stability period, the cost history) clears within a week, and a canary's result is read on the first run after its stability period. The job is read-only and never applies a change: owners apply approved steps in the Databricks UI or API themselves, and the next run measures the epoch that follows.
+Weekly is enough: readiness needs only a few settled billed days (`readiness_min_billed_days`), the cost history clears within a week, and a canary's guards are read on every run, so a rollback recommendation appears on the first run after the evidence trips one. The job is read-only and never applies a change: owners apply approved steps in the Databricks UI or API themselves, and the next run measures the epoch that follows.
 
 ## Source policy
 

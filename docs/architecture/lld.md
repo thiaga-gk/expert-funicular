@@ -309,6 +309,14 @@ The normalizer stores them as `gaps.running_idle_*` keys and the sparse `gaps.ru
 
 `build_spill_source_sql()` sums, for the current epoch over the last 30 days, the spilled bytes of non-result-cache queries per statement source (saved query ID, dashboard ID, legacy dashboard ID, job ID, notebook ID, otherwise a hash of the statement text; a redacted or null text counts by its statement ID and is never merged) and returns `query.spill_sources_30` (the number of sources that spilled) and `query.top_spill_source_share_pct_30` (the share of spilled bytes carried by the top `spill_concentration_top_sources`). The statement text is hashed in the query and never exported.
 
+#### Carried-evidence SQL
+
+`PERIODS_CTE` derives from the configuration history, per epoch, the start of its demand period (the last size or type change) and of its capacity period (the last size, type, min- or max-cluster change). Four collectors read the current epoch's evidence over those periods, only inside the last 30 days and only when the period started before the current epoch: `build_carried_query_metrics_sql()` (the epoch query-metrics collector over the period; labels `query_metrics_carried_demand` and `query_metrics_carried_capacity`), `build_carried_spill_source_sql()` (spill concentration over the demand period; label `spill_sources_carried`) and `build_carried_concurrency_sql()` (recent and busy-start concurrency histograms over the demand period; label `concurrency_carried`, minutes merged across the period's epochs, so a boundary minute is counted once). Which evidence carries across which change: 10.2. The rows are stored under the current epoch's `query.carried` ([`evidence-format.md`](../contracts/evidence-format.md)).
+
+#### Canary guard SQL
+
+`CANARY_GUARD_SQL` (label `canary_guard`) compares, for a current epoch that has an immediately preceding epoch, the current epoch's last 30 days (`CURRENT`) with the preceding epoch's last 30 days (`PREVIOUS`): queries, failed or cancelled share, queued queries and share, executed queries (not served from the result cache), spilled executed queries and share, and the executed queries on statement sources seen in both epochs with their p95 execution time. The statement source key is the one of the spill-source SQL, and the statement text is hashed in the query and never exported. The guard rules: 15.9.
+
 #### `EPOCH_DAILY_COST_SQL`
 
 Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Each daily row also carries the retracted and restated DBU quantities (`retracted_dbu_quantity`, `restated_dbu_quantity`; `docs/reference/source-mapping.md`); every record type stays in the signed cost sums.
@@ -462,9 +470,20 @@ flowchart TD
     P -. prohibited .-> D
 ```
 
-Only current-epoch findings may satisfy active optimizer decisions. Reviewer gate 1 rejects decision findings from historical epochs except explicitly non-decision historical coverage evidence.
+Only current-epoch findings may satisfy active optimizer decisions, with the one carry exception below. Reviewer gate 1 rejects decision findings from historical epochs except explicitly non-decision historical coverage evidence.
 
-Older epochs have one decision use: they can hold a capacity cut. A size reduction, a lower max clusters or a lower min clusters is held (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`) when any older epoch of the same warehouse within the last 365 days peaked at more clusters of demand than the current recent window (15). Both peaks are read at the same rate: the older epoch's is the per-minute concurrency level reached in at least `peak_demand_min_minutes` busy minutes of its `query.concurrency_histogram.EPOCH`; the recent window's is the level reached in `peak_demand_min_minutes` × (recent days) / (older epoch days) of its `RECENT` busy minutes (at least one; recent days = 30, or the current epoch's age when younger), so the same spike rate compares equal over windows of different length. An older epoch with fewer busy minutes than the threshold has no peak and holds nothing; a recent window too quiet to reach its threshold counts at its highest level (0 with no busy minute), so a quiet present never hides a busier past. Older concurrency depends on that epoch's configuration (a smaller size shows more concurrency), so it is used only to hold, never to choose a change, its target or its economics. After a heavy team leaves, the hold lasts until the older epoch ages past 365 days; the blocker stays visible for a human override.
+Older epochs have three decision uses: the older-epoch peak hold, carried evidence and the canary rollback (15.9). First, they can hold a capacity cut. A size reduction, a lower max clusters or a lower min clusters is held (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`) when any older epoch of the same warehouse within the last 365 days peaked at more clusters of demand than the current recent window (15). Both peaks are read at the same rate: the older epoch's is the per-minute concurrency level reached in at least `peak_demand_min_minutes` busy minutes of its `query.concurrency_histogram.EPOCH`; the recent window's is the level reached in `peak_demand_min_minutes` × (recent days) / (older epoch days) of its `RECENT` busy minutes (at least one; recent days = 30, or the current epoch's age when younger), so the same spike rate compares equal over windows of different length. An older epoch with fewer busy minutes than the threshold has no peak and holds nothing; a recent window too quiet to reach its threshold counts at its highest level (0 with no busy minute), so a quiet present never hides a busier past. Older concurrency depends on that epoch's configuration (a smaller size shows more concurrency), so it is used only to hold, never to choose a change, its target or its economics. After a heavy team leaves, the hold lasts until the older epoch ages past 365 days; the blocker stays visible for a human override.
+
+Second, evidence a configuration change cannot affect carries across that change. Demand (how many queries, which sources) does not depend on auto-stop, min clusters or max clusters; per-query behavior (execution time, spill, failures) does not depend on the cluster count. Capacity queueing does not depend on auto-stop. The carry periods come from the configuration history (`PERIODS_CTE`): the demand period runs from the last size or type change, the capacity period from the last size, type, min- or max-cluster change. Evidence is read only inside the last 30 days and only when the period started before the current epoch. Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch.
+
+| Change applied | Carries | Resets |
+|---|---|---|
+| auto-stop | demand, per-query evidence, capacity queueing | running time, idle gaps, restarts, cold-start wait, time at min and at max, cluster-minutes, billing |
+| max clusters | demand, per-query evidence | queueing, time at max, cluster-minutes, billing, running time and idle |
+| min clusters | demand, per-query evidence | queueing, time at min, cluster-minutes, billing, running time and idle |
+| size or type | nothing | everything |
+
+`carried_query_view()` lays the demand-period fields over the current epoch's query evidence: query counts and mix, the decision sample, execution p95 and p99, spill and its source concentration, failures, the weekly counts and the recent and busy-start concurrency histograms. It lays the capacity-period queue fields (queued share, queued count, capacity wait) over it as well. The current epoch's whole-epoch concurrency histogram (`EPOCH`), cold-start wait, total latency, resource-window shares, running idle, cluster-minutes and billing stay the current epoch's. A finding read across a change has `epoch_scope = CARRIED_ACROSS_CHANGE` and the window "last 30 days since <date> (carried across a configuration change that does not affect it)"; every other finding has `epoch_scope = CURRENT`. The recent concurrency window then spans the demand period rather than the epoch start.
 
 ### 10.3 Supported-Type Gate
 
@@ -652,7 +671,7 @@ The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_
 
 Rules shared by several knobs:
 
-- **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW`. A max-cluster reduction carries it only when the recent window would otherwise allow a cut (15.4).
+- **Readiness.** A change is decided once the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch (`ready_billed_days`: the settled days of the forecast basis, never before the epoch's own start, with billed DBU on the current epoch's own billing rows), plus the knob's own evidence sample and, for a capacity cut, the older-epoch peak hold. Otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW`, which means "not ready". A max-cluster reduction carries it only when the recent window would otherwise allow a cut (15.4).
 - **Reliability guard** for every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above `failure_cancel_pct_downsize_safe` holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
 - **Growth guard** for the size downsize, the max-cluster reduction and the min-cluster reduction: the query-volume growth ratio is the smallest of the last four complete weekly query counts divided by the median of the four weeks before. At or above `growth_hold_weekly_ratio` the cut is `NO_CHANGE` with `QUERY_VOLUME_GROWING`. Using every recent week keeps one month-, quarter- or year-end burst week from looking like growth. The ratio is unknown, and holds nothing, when the epoch has fewer than eight complete weeks or the earlier median is zero. Auto-stop and increases are not held by it.
 - **Older-epoch hold** for the size downsize, the max-cluster reduction and the min-cluster reduction: the cut is `NO_CHANGE` with `OLDER_EPOCH_PEAK_DEMAND_HIGHER` when an earlier configuration of the warehouse within the last 365 days peaked at more clusters of demand than the recent window (10.2). Older epochs never choose a change, its target or its economics.
@@ -676,7 +695,7 @@ A size outside the known size ordering is `BLOCKED` with `UNKNOWN_WAREHOUSE_SIZE
 Upsize one nominal size when spill is both frequent and severe: the share of spilled queries reaches `spill_query_pct_upsize` and the p95 spilled bytes among spilled queries reach `spill_p95_bytes_upsize`. Outcomes:
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
-- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), a missing decision-population query count (`DECISION_QUERY_EVIDENCE_UNAVAILABLE`), fewer than `min_query_sample_size` decision-population queries in the 30-day window (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
+- both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are a configuration that is not ready (`CURRENT_CONFIG_EPOCH_TOO_NEW`), a missing decision-population query count (`DECISION_QUERY_EVIDENCE_UNAVAILABLE`), fewer than `min_query_sample_size` decision-population queries in the 30-day window (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
 - both signals reached, a larger size exists, no gate holds and the share of spilled bytes carried by the top `spill_concentration_top_sources` statement sources reaches `spill_concentration_hold_pct`: `NO_CHANGE` with `SPILL_CONCENTRATED_IN_FEW_STATEMENTS`, because a few statements are better rewritten than every query moved to a larger size; a missing share (older evidence) is `INSUFFICIENT_EVIDENCE` with `SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE`;
 - both signals reached, a larger size exists, no gate holds and the spill is spread across statements: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max and min clusters;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
@@ -685,7 +704,7 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 
 Every case that is not an upsize is evaluated for a downsize of exactly one size. It is proposed only when a smaller size exists and none of these blockers applies:
 
-- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
+- configuration not ready, fewer than `readiness_min_billed_days` settled billed days (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
 - a missing decision-population query count (`DECISION_QUERY_EVIDENCE_UNAVAILABLE`), or fewer than `strong_query_sample_size` decision-population queries in the 30-day window (`INSUFFICIENT_STRONG_QUERY_SAMPLE`); a batch warehouse uses run days instead (below);
 - spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
@@ -729,7 +748,7 @@ Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 
 - queue share and saturation reached but the capacity wait was not reported: `INSUFFICIENT_EVIDENCE` with `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`;
 - all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
-- all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (epoch younger than `current_config_stability_days`), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
+- all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (configuration not ready), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
 - Pro/Classic with no concurrency evidence: `INSUFFICIENT_EVIDENCE` with `CONCURRENCY_EVIDENCE_UNAVAILABLE`; with fewer than `concurrency_min_busy_minutes` busy minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_BUSY_MINUTE_SAMPLE`;
 - Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE` with `QUEUEING_WITH_DEMAND_WITHIN_CEILING`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
 - Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `max_clusters_supported_limit`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
@@ -743,7 +762,7 @@ A lower max-cluster guardrail is considered only when all of these hold:
 
 - the recent resource window is known and the observed peak is above zero;
 - `max_clusters` is above `min_clusters`;
-- the epoch is at least `current_config_stability_days` old and at least `min_query_sample_size` queries were seen in the 30-day window;
+- the configuration is ready (`readiness_min_billed_days` settled billed days) and at least `min_query_sample_size` queries were seen in the 30-day window;
 - time at the configured maximum is at most `time_at_max_pct_safe_reduce`;
 - the target below is lower than the current maximum.
 
@@ -760,7 +779,7 @@ target   = max(min_clusters, peak + headroom)
 
 `recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum. In both cases a seasonal peak outside the recent window is not cut away: when the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
-The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. A cut the recent window would allow, held because the epoch is younger than `current_config_stability_days`, is `NO_CHANGE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, followed by the evidence codes above that would also hold it, `CONCURRENCY_EVIDENCE_UNAVAILABLE` or `INSUFFICIENT_BUSY_MINUTE_SAMPLE` when that demand evidence is missing, and `PEAK_OUTSIDE_RECENT_WINDOW` when the epoch's peak keeps the ceiling. Queueing above `queue_query_pct_safe` holds the cut at any age, so it is not reported as an age hold. A young epoch with nothing to cut carries no code. Any other ineligible ceiling is `NO_CHANGE` without a code.
+The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. A cut the recent window would allow, held because the configuration is not ready, is `NO_CHANGE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, followed by the evidence codes above that would also hold it, `CONCURRENCY_EVIDENCE_UNAVAILABLE` or `INSUFFICIENT_BUSY_MINUTE_SAMPLE` when that demand evidence is missing, and `PEAK_OUTSIDE_RECENT_WINDOW` when the epoch's peak keeps the ceiling. Queueing above `queue_query_pct_safe` holds the cut at any age, so it is not reported as an age hold. A configuration that is not ready and has nothing to cut carries no code. Any other ineligible ceiling is `NO_CHANGE` without a code.
 
 An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates nothing: the new ceiling stays above the observed peak, so no other knob's evidence changes.
 
@@ -783,7 +802,7 @@ A floor is lowered, in one canary, only when the target is below the current min
 
 A reduction is held when any of these blockers applies:
 
-- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), or fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
+- configuration not ready (`CURRENT_CONFIG_EPOCH_TOO_NEW`), or fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
 - queued-query share not reported (`QUEUE_EVIDENCE_UNAVAILABLE`), above `queue_query_pct_safe`, or a known p95 capacity wait above `queue_wait_p95_ms_safe` (`QUEUE_PRESSURE_PRESENT`);
 - capacity wait not reported (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`);
 - recent resource window unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`) or idle (`NO_RECENT_RUNNING_TIME`);
@@ -821,10 +840,10 @@ The restart cost is the documented start time (about 4 minutes on Pro and Classi
 **Outcomes**, in the order the optimizer checks them:
 
 - Serverless value below its floor: `NO_CHANGE`, left alone;
-- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`, except for a zero-query warehouse that billing shows ran every day: when the epoch is at least `current_config_stability_days` old, no query ran in the last 30 days, the warehouse was billed on every one of the last `pressure_window_days` settled days of the current epoch's forecast basis (at least `current_config_stability_days` of them), the forward DBU cost is known and auto-stop is off or the lowest auto-stop on the type's grid is below the current value, the decision is `REVIEW` with `NO_QUERIES_WHILE_RUNNING` at that lowest value. The rationale gives the billed days, their billed cost and the forward annual cost. No saving is priced: without a retained warehouse event there is no running time to measure, so the candidate economics are null and the bundle effect is withheld (the plan's economics are null, not zero). The analyzer emits `billed_days_of_settled_days_recent` (billed days, settled days) for this rule;
+- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`, except for a zero-query warehouse that billing shows ran every day: when the configuration is ready, no query ran in the last 30 days, the warehouse was billed on every one of the last `pressure_window_days` settled days of the current epoch's forecast basis (at least `min_economics_cost_history_days` of them), the forward DBU cost is known and auto-stop is off or the lowest auto-stop on the type's grid is below the current value, the decision is `REVIEW` with `NO_QUERIES_WHILE_RUNNING` at that lowest value. The rationale gives the billed days, their billed cost and the forward annual cost. No saving is priced: without a retained warehouse event there is no running time to measure, so the candidate economics are null and the bundle effect is withheld (the plan's economics are null, not zero). The analyzer emits `billed_days_of_settled_days_recent` (billed days, settled days) for this rule;
 - fewer than `min_cluster_minutes_for_cost_model` running cluster-minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`;
 - a lower value removes more running cluster-minutes than the events recorded: `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price;
-- epoch younger than `current_config_stability_days`: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`;
+- configuration not ready: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`;
 - no queries while running: `REVIEW` at the floor value when it removes running time (`NO_QUERIES_WHILE_RUNNING`), otherwise `NO_CHANGE` with the same code;
 - no value saves money: `NO_CHANGE` (the current value is cost-optimal), with `SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING` when the warehouse runs at least `always_on_running_pct` of the window while queries are busy at most `always_on_busy_pct_max` of its running time (frequent tiny queries such as BI polling or dashboard refresh keep it up; the rationale names the client applications);
 - every value that saves money is over the cold-start budget: `NO_CHANGE` with `COLD_START_BUDGET_EXCEEDED`;
@@ -869,6 +888,24 @@ flowchart LR
 ```
 
 A max-cluster ceiling cut, a min-cluster change and an auto-stop change invalidate nothing. Plan order is by value within these edges (19.1).
+
+### 15.9 Canary rollback
+
+After a canary-type change, every run checks the new epoch's own evidence and recommends restoring the previous value when a fail-fast guard trips (requirement: [PRD FR-EPOCH-005](../product/prd.md)). The collector is the canary guard SQL (7.2); `canary_observation` is the rule.
+
+- **Canary-type change.** The current epoch differs from the immediately preceding one, with the same warehouse type, by one size down, a lower minimum or a higher auto-stop (turning auto-stop off, 0, counts as higher). Any other change, a missing previous epoch or missing guard rows: no guard is evaluated.
+- **Guards.** Each trips only when the current value is above its safe level and above the previous epoch's, with a minimum sample behind the current value:
+
+  | Code | Evidence | Safe level | Minimum sample |
+  |---|---|---|---|
+  | `CANARY_FAILURES_ABOVE_SAFE` | failed or cancelled share | `failure_cancel_pct_downsize_safe` | `min_query_sample_size` queries |
+  | `CANARY_QUEUE_ABOVE_SAFE` | queued share | `queue_query_pct_safe` | `severity_min_affected_queries` queued queries |
+  | `CANARY_SPILL_AFTER_DOWNSIZE` (size change only) | spilled share of executed queries | `spill_query_pct_downsize_safe` | `severity_min_affected_queries` spilled queries |
+  | `CANARY_P95_REGRESSION` | p95 execution time on statement sources seen in both epochs | the previous epoch's p95 times (1 + `canary_p95_regression_pct` / 100) | `canary_p95_min_queries` executed queries on those sources |
+
+- **Window.** Each side is the epoch's last 30 days, so the guard reads the whole epoch after the change for as long as the epoch is at most 30 days old.
+- **Decision.** Each changed knob becomes `ACTIONABLE` back to its previous value with the objective performance, the blocker `CANARY_GUARDRAIL_BREACHED` plus the tripped guard codes, and a rationale that states the numbers. A size rollback invalidates max and min clusters like any size change. The rollback replaces the knob's other decision, whatever it was.
+- **Economics and order.** The candidate's and the plan's economics are withheld (null; 17.2). The rollback step is first in the plan (19.1).
 
 ---
 
@@ -921,13 +958,14 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 `Range3(low, base, high)` represents ordered annual cost or savings outcomes. Candidate status may have no available estimate.
 
-Value gate: a change whose objective is cost (a size reduction, a lower minimum or an auto-stop change) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld. A warehouse-type migration has its own gate: when even the best case of its total savings range is not above 0 it is held (no gate when the total is unknown) as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, and the modeled economics are recorded the same way.
+Value gate: a change whose objective is cost (a size reduction, a lower minimum or an auto-stop change) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives. An approval-only cost change (`ACTIONABLE`, no canary) whose economics are withheld because the forward baseline is unknown (`estimate_blocker` set) is held as `INSUFFICIENT_EVIDENCE` with that blocker (`COST_HISTORY_INSUFFICIENT`, `BILLED_COST_DAYS_INSUFFICIENT` or `DBU_COST_UNAVAILABLE`): it has no canary to validate it, so it waits until its own savings can be priced. A canary (`TEST_REQUIRED`) with withheld economics is not held by this, because the canary measures the effect. A warehouse-type migration has its own gate: when even the best case of its total savings range is not above 0 it is held (no gate when the total is unknown) as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, and the modeled economics are recorded the same way.
 
 ### 17.2 No-change/guardrail candidates
 
 - `NO_CHANGE` candidates use factor `1.0` (a known no-change), as does a max-cluster ceiling reduction, which receives **no direct savings**.
 - `BLOCKED` and `INSUFFICIENT_EVIDENCE` candidates are not priced: no counterfactual is attempted and their economics are null, never zero.
 - With a null forward DBU baseline (11.4) every other candidate that needs a priced counterfactual is withheld the same way, and `estimate_blocker` names the reason.
+- A canary rollback (15.9) is not priced either: the restored configuration's cost is not estimated, so the candidate's economics are null and its bundle effect is withheld (the plan's economics are null, not zero).
 
 ### 17.3 Auto-stop estimator
 
@@ -1083,7 +1121,8 @@ priority = base_savings_365 * confidence_score / risk
 risk     = plan_risk_hitl_change     (ACTIONABLE: human approval)
          | plan_risk_canary_change   (TEST_REQUIRED: A/B canary)
 key      = (group, -round(priority, 2), knob_rank)
-group    = 0 if base_savings_365 > 0
+group    = -1 if the candidate is a canary rollback (CANARY_GUARDRAIL_BREACHED)
+           0 if base_savings_365 > 0
            1 if base_savings_365 is unavailable (a canary prices it)
            2 if base_savings_365 <= 0 (guardrail or performance fix)
 knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
@@ -1091,7 +1130,7 @@ knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 
 `base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
 
-**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) after they have run for the epoch-maturity re-evaluation length, so the canary's cost reading is not mixed with their savings. The sentence is text only: step order, `next_action` and savings are unchanged.
+**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. The sentence is text only: step order, `next_action` and savings are unchanged.
 
 ### 19.2 Invalidation behavior
 
@@ -1152,6 +1191,10 @@ Plan B is named after, and its checks run against, the type the migration was ev
 The package maps the checks to a public compatibility status (`reporter-json-contract.md`, Compatibility): a migration whose every check is `PASS` is `COMPATIBLE` and gets no compatibility-validation step; any `UNKNOWN`, `REVIEW`, `PASS_WITH_LIMITATION` or `PASS_BY_EXISTING_SERVERLESS` check gives `REQUIRES_VALIDATION`, which adds that step; a `FAIL` gives `INCOMPATIBLE`. A Plan B without a migration step is never `COMPATIBLE`, so its scenario ID cannot equal an empty Plan A's (Plan A is always `COMPATIBLE`).
 
 Phase 1 always keeps Plan B as `ALTERNATIVE`.
+
+### 19.5 Re-evaluation window
+
+`recommended_plan.reevaluation` (`compute_reevaluation`) is non-null exactly while a time-clearable gate hides the next step. The gates are readiness (`CURRENT_CONFIG_EPOCH_TOO_NEW`: fewer than `readiness_min_billed_days` settled billed days in the current epoch) and cost history (`COST_HISTORY_INSUFFICIENT`: fewer than `min_economics_cost_history_days` settled basis days). The earliest time is the later of the active gates: for readiness, 00:00Z of the analysis date plus 2 days (the analysis day has then settled and one more billed day can count), never before the epoch start; for cost history, 00:00Z of the epoch start date plus `min_economics_cost_history_days` days. It is the next chance only: billing ingestion lag, days without billing and query-sample gates can delay it. The method text says so. The gate lengths are embedded in the Reporter contract validator, so changing them is a contract version change ([`reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 14.1).
 
 ---
 

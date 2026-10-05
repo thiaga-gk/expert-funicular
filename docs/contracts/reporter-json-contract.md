@@ -447,7 +447,7 @@ All are required non-negative integers:
 | `confidence` | Confidence | No | Standard confidence rules |
 | `query_sample_sufficient` | bool | No | Explicit decision evidence flag |
 | `cost_history_sufficient` | bool | No | Explicit economic evidence flag |
-| `epoch_mature` | bool | No | Explicit current-epoch maturity flag |
+| `epoch_mature` | bool | No | Explicit current-configuration readiness flag: at least `readiness_min_billed_days` settled billed days in the current epoch (the field name is kept) |
 | `source_coverage_pct` | number | No | `0..100` |
 
 ---
@@ -464,7 +464,7 @@ All are required non-negative integers:
 | `unit` | string | Yes | No | e.g. `percent`, `ms`, `bytes`, `clusters`, `boolean` |
 | `source` | string | Yes | No | System table / compatibility evidence / `derived` |
 | `source_field` | string | Yes | No | Physical field or deterministic derivation name |
-| `epoch_scope` | string | Yes | No | Normally `CURRENT`; explicit if historical calibration evidence |
+| `epoch_scope` | string | Yes | No | `CURRENT`, or `CARRIED_ACROSS_CHANGE` for evidence read across a configuration change that cannot affect it (observation window: last 30 days since the carry period start; [LLD §10.2](../architecture/lld.md)) |
 | `observation_window` | string | Yes | No | e.g. `30d`, `current_epoch`, `point_in_time` |
 | `threshold` | JSON value | Yes | Yes | Policy threshold where applicable |
 | `comparator` | string | Yes | No | Human/audit comparator representation |
@@ -618,7 +618,7 @@ Validation type:
 | `selection_reason_code` | code | Yes | No | Stable machine-readable reason |
 | `next_action` | string | Yes | No | Next HITL/workflow action |
 | `requires_hitl` | bool | Yes | No | Explicit approval/validation flag |
-| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity. When the recommended plan has both `READY` approval-only steps and `READY_FOR_CANARY` steps it ends with a sequencing sentence: apply the ready no-canary steps first and start the canary after they have run for the epoch-maturity gate length ([LLD §19.1](../architecture/lld.md)). |
+| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity. When the recommended plan has both `READY` approval-only steps and `READY_FOR_CANARY` steps it ends with a sequencing sentence: apply the ready no-canary steps first and start the canary once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days; [LLD §19.1](../architecture/lld.md)). |
 | `reevaluation` | `ReevaluationWindow` | Yes | **Yes** | Time-clearable gates that currently hide the next step; null once both are clear |
 
 If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it must match this ID.
@@ -632,7 +632,7 @@ If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it 
 | `blocking_codes` | string[] | No | Non-empty, sorted, unique subset of `COST_HISTORY_INSUFFICIENT`, `CURRENT_CONFIG_EPOCH_TOO_NEW` |
 | `method` | string | No | Prose; excluded from identity |
 
-`earliest_reevaluation_time` is a lower bound rounded up to the next second. When the only active gate is `COST_HISTORY_INSUFFICIENT` on a mature epoch, the missing billing days have already elapsed but are not yet ingested (the billing watermark counts only covered days), so the time can already be in the past; the next run after ingestion clears the gate. The publisher then uses `selection_reason_code = BILLING_HISTORY_ACCRUING` instead of `CURRENT_EPOCH_IMMATURE`.
+`earliest_reevaluation_time` is a lower bound rounded up to the next second. When the only active gate is `COST_HISTORY_INSUFFICIENT` on a ready configuration, the missing billing days have already elapsed but are not yet ingested (the billing watermark counts only covered days), so the time can already be in the past; the next run after ingestion clears the gate. The publisher then uses `selection_reason_code = BILLING_HISTORY_ACCRUING` instead of `CURRENT_EPOCH_IMMATURE`.
 
 Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the package's `billed_cost_days` evidence value is `< 2` (the current configuration is not ready: fewer than two settled billed days; a missing record counts as not ready); `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`. The window is non-null exactly when at least one gate is active, and `blocking_codes` equals the active gates.
 
@@ -644,7 +644,7 @@ earliest_reevaluation_time = max(t_x for each active gate)
 
 The analysis time is `provenance.generated_at`. `t_ready` is the next chance only: how many more days the configuration needs depends on future billing. Example: epoch start `2026-09-29T00:00:00Z`, analysis `2026-10-01T12:00:00Z`, readiness gate only, gives `2026-10-03T00:00:00Z`; with both gates active, `2026-10-06T00:00:00Z`.
 
-`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the epoch is mature and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A young epoch can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the readiness or cost-history gate lengths in the publisher policy requires a contract version bump.
+`next_action = WAIT_FOR_REEVALUATION` (with `selection_reason_code = CURRENT_EPOCH_IMMATURE` while `CURRENT_CONFIG_EPOCH_TOO_NEW` is active, and `BILLING_HISTORY_ACCRUING` once the configuration is ready and only billing history is short) is used only when `reevaluation` is non-null **and** the recommended scenario has no step in `READY` or `READY_FOR_CANARY`. A configuration that is not ready can still carry a ready step (for example a max-cluster increase for queueing); the usual next action then applies. Changing the readiness or cost-history gate lengths in the publisher policy requires a contract version bump.
 
 ## 14.2 `observed_change` (new in 1.2.0)
 
@@ -659,6 +659,8 @@ A record that the authoritative configuration (`system.compute.warehouses`) chan
 | `measurement_status` | enum | No | `NOT_MEASURED` (the only value) |
 
 Null when the current epoch is the first in the retained history window or the config is identical. The change can be months old; consumers should read `changed_at`.
+
+A canary rollback ([LLD §15.9](../architecture/lld.md)) is expressed with the existing fields: a candidate whose `blockers` include `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change.changes` lists its knob, and its `recommended_value` equals that change's `previous_value`. Its economics are null.
 
 ## 14.3 `carried_forward_plan` (reserved; always null in current producers)
 
@@ -826,12 +828,13 @@ JSON Schema enforces shape, types, enums, nullability, patterns, and basic numer
 20. package low/base/high envelope source scenarios are verified;
 21. currency mixing is rejected;
 22. `NOT_APPLIED` realization cannot carry measurement records;
-23. `reevaluation` is non-null exactly when a gate is active, `blocking_codes` equals the active gates, and `earliest_reevaluation_time` recomputes from the epoch start and gates (never before the epoch start);
+23. `reevaluation` is non-null exactly when a gate is active, `blocking_codes` equals the active gates, and `earliest_reevaluation_time` recomputes from the epoch start, the analysis time (`provenance.generated_at`) and the gates (never before the epoch start);
 24. `next_action = WAIT_FOR_REEVALUATION` requires a `reevaluation` window and no `READY`/`READY_FOR_CANARY` step in the recommended scenario;
 25. `observed_change.changed_at` equals the current epoch start, its `previous_epoch_id` differs from the current epoch, and its entries are sorted, unique and differ;
 26. `carried_forward_plan` (when present) satisfies the structural rules in section 14.3 and the cross-references to `observed_change` and `reevaluation`;
 27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis;
-28. `step_savings_365d` null parity, first-step equality and authoritative-chain bracketing (section 13).
+28. `step_savings_365d` null parity, first-step equality and authoritative-chain bracketing (section 13);
+29. a candidate with `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change` lists its knob, and its `recommended_value` equals that change's `previous_value` (section 14.2).
 
 ---
 

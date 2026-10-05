@@ -220,7 +220,7 @@ A configuration epoch is a period of unchanged decision fields (warehouse type, 
 
 Only one current epoch may exist for a warehouse in a valid normalized evidence object.
 
-Older epochs are calibration/backtest only, with one exception: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
+Older epochs are calibration/backtest only, with three exceptions: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days, never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence. The map and the guard rules are in the LLD (10.2, 15.9). Otherwise older epochs never choose a change, its target or its economics.
 
 ### 6.3 Supported-Type Gate
 

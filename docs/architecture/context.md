@@ -216,7 +216,7 @@ Historical epochs may be used for:
 - backtesting;
 - realized-outcome comparison.
 
-They may not be used to pass current-state safety gates. The one decision use is a hold: a capacity cut waits when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
+They may not be used to pass current-state safety gates. They have three decision uses. A capacity cut waits when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change; running time, idle time, cluster-minutes and billing never carry (the map: [LLD 10.2](lld.md)). A canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence (LLD 15.9). Otherwise older epochs never choose a change, its target or its economics.
 
 ### 7.2 Photon and epoch identity
 
@@ -778,7 +778,7 @@ A candidate confidence may reflect deterministic components such as:
 
 - source coverage;
 - sample size;
-- epoch maturity/stability;
+- configuration readiness and epoch maturity;
 - signal strength;
 - freshness;
 - feature-specific evidence quality.
@@ -1123,7 +1123,7 @@ These are non-negotiable unless the PRD/contract is explicitly revised.
 
 1. One public package = one warehouse + one current config epoch.
 2. Current-state decisions use current-epoch evidence only.
-3. Older epochs may calibrate but may not satisfy current safety thresholds; their only decision use is holding a capacity cut when they peaked higher.
+3. Older epochs may calibrate but may not satisfy current safety thresholds; their decision uses are the capacity-cut hold, carried evidence a change cannot affect, and the canary rollback (7.1).
 4. System tables are authoritative for supported tunable config/evidence.
 5. Unsupported warehouse types fail closed / remain non-optimizable.
 6. Candidate economics are independent and non-additive.

@@ -61,7 +61,7 @@ The product should be usable by platform engineering, FinOps, SRE, product leade
 ## 4. Product principles
 
 1. **Deterministic decisions** — identical normalized evidence plus identical policy/model versions must produce identical decisions, IDs, confidence values, scenarios, and economics.
-2. **Current-epoch authority** — only evidence belonging to the current warehouse configuration epoch may satisfy decision thresholds. Older epochs are calibration/backtest only, with one exception: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
+2. **Current-epoch authority** — only evidence belonging to the current warehouse configuration epoch may satisfy decision thresholds. Older epochs are calibration/backtest only, with three exceptions: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence. Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch. Otherwise older epochs never choose a change, its target or its economics.
 3. **System-table first** — source configuration and optimization telemetry come from Databricks system tables. Read-only APIs are limited to execution-target resolution/validation and compatibility evidence.
 4. **Read-only by default** — the product generates recommendations; it does not apply warehouse configuration changes.
 5. **HITL mandatory** — configuration changes require human review; materially behavior-changing recommendations require canary validation.
@@ -300,11 +300,15 @@ A configuration change shall invalidate prior current-epoch decision evidence wh
 
 ### FR-EPOCH-003
 
-Older epochs are calibration/backtest only, with one exception: a capacity cut (size down, lower max clusters, lower min clusters) is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics. Calibration and backtesting use older epochs only when configuration compatibility is explicitly satisfied.
+Older epochs are calibration/backtest only, with three exceptions: a capacity cut (size down, lower max clusters, lower min clusters) is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence (FR-EPOCH-005). Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch. Otherwise older epochs never choose a change, its target or its economics. Calibration and backtesting use older epochs only when configuration compatibility is explicitly satisfied.
 
 ### FR-EPOCH-004
 
-Recommendations requiring a minimum stable configuration age shall be blocked/no-change until the configured policy age (`current_config_stability_days`) is satisfied. Default: `docs/reference/thresholds.md`.
+A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/thresholds.md`.
+
+### FR-EPOCH-005
+
+After a canary-type change (one size down, a lower minimum, a higher auto-stop), every run checks the new epoch's own evidence. A failure/cancel rate, queued-query share or, after a size-down, spill share above its safe level and above the previous epoch's, or a p95 execution time on statement sources seen in both epochs more than `canary_p95_regression_pct` above the previous epoch's (at least `canary_p95_min_queries` such queries), recommends restoring the previous value: `ACTIONABLE` with `CANARY_GUARDRAIL_BREACHED`, no savings claimed.
 
 ---
 
@@ -362,7 +366,7 @@ Photon is observed and never recommended; no Photon recommendation is produced f
 
 A one-size down canary may be proposed only when all of the following hold:
 
-- the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`strong_query_sample_size`); a batch warehouse (job queries at least `batch_job_query_share_pct` of its queries) instead needs enough run days (`batch_min_active_days`);
+- the current configuration is ready (`readiness_min_billed_days`) and the 30-day query sample is large enough (`strong_query_sample_size`); a batch warehouse (job queries at least `batch_job_query_share_pct` of its queries) instead needs enough run days (`batch_min_active_days`);
 - spill frequency is known and not above the downsize-safe level (`spill_query_pct_downsize_safe`);
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
@@ -382,7 +386,7 @@ An upsize canary may be proposed only when all of the following hold:
 
 - spill frequency is at or above the upsize level (`spill_query_pct_upsize`) and p95 spill among spilled queries is at or above the upsize severity level (`spill_p95_bytes_upsize`);
 - enough queries spilled for the p95 to be meaningful (`severity_min_affected_queries`);
-- the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration epoch is old enough (`current_config_stability_days`);
+- the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration is ready (`readiness_min_billed_days`);
 - a larger known size exists;
 - the spilled bytes are not concentrated in a few statement sources (`spill_concentration_top_sources`, `spill_concentration_hold_pct`): when a few statements carry most of the spill the candidate is `NO_CHANGE` (rewrite those statements rather than size every query up), and unreported concentration is `INSUFFICIENT_EVIDENCE`.
 
@@ -397,7 +401,7 @@ An increase may be proposed only when all of the following hold:
 - queue frequency is at or above the increase level (`queue_query_pct_increase_max`);
 - p95 capacity wait among queued queries is at or above the increase level (`queue_wait_p95_ms_increase_max`);
 - time at the configured maximum is saturated over the recent resource window (`time_at_max_pct_saturated`, `pressure_window_days`); saturation and queueing are required together but are not proven to coincide (`docs/reference/known-limitations.md`);
-- enough queries queued for the p95 to be meaningful (`severity_min_affected_queries`), the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration epoch is old enough (`current_config_stability_days`);
+- enough queries queued for the p95 to be meaningful (`severity_min_affected_queries`), the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration is ready (`readiness_min_billed_days`);
 - the configured maximum is below the supported limit (`max_clusters_supported_limit`);
 - for Pro and Classic, peak query concurrency was collected and covers enough busy minutes (`concurrency_min_busy_minutes`).
 
@@ -410,7 +414,7 @@ When the frequency and saturation signals are present but capacity wait is unrep
 A reduction may be proposed only when the configured maximum is demonstrably unused and queue pressure is known to be low:
 
 - the recent resource window is available and the warehouse ran in it;
-- the configured maximum is above the minimum, the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
+- the configured maximum is above the minimum, the current configuration is ready (`readiness_min_billed_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
 - time at the configured maximum is low (`time_at_max_pct_safe_reduce`);
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
@@ -426,7 +430,7 @@ This candidate is primarily a cost/operational guardrail; the system shall not f
 
 A reduction may be proposed only when current-epoch evidence demonstrates substantial time at minimum capacity with low queue/scale pressure, and the floor needed by the demand busy periods start with is below the current floor:
 
-- the configured minimum is above 1, the current configuration epoch is old enough (`current_config_stability_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
+- the configured minimum is above 1, the current configuration is ready (`readiness_min_billed_days`) and the 30-day query sample is large enough (`min_query_sample_size`);
 - time at the configured minimum is high enough (`time_at_min_pct_reduce`) and time at the configured maximum is below the blocking level (`time_at_max_pct_block_min_reduce`), both over the recent resource window;
 - queue frequency is known and not above the safe level (`queue_query_pct_safe`), and p95 capacity wait among queued queries is known and not above the safe level (`queue_wait_p95_ms_safe`);
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
@@ -454,7 +458,7 @@ Statuses:
 - `TEST_REQUIRED` canary for a higher value (its saving is restarts avoided under the billing assumption);
 - `NO_CHANGE` when no value saves money, when every saving value is over the cold-start budget, or for a Serverless value below its floor;
 - `REVIEW` when the warehouse ran with no queries in the window and a lower value removes that running time;
-- `INSUFFICIENT_EVIDENCE` when running idle time was not collected, when too few cluster-minutes were observed (`min_cluster_minutes_for_cost_model`), when idle time contradicts recorded running time, or when the configuration epoch is too young (`current_config_stability_days`).
+- `INSUFFICIENT_EVIDENCE` when running idle time was not collected, when too few cluster-minutes were observed (`min_cluster_minutes_for_cost_model`), when idle time contradicts recorded running time, or when the current configuration is not ready (`readiness_min_billed_days`).
 
 Two advisory flags describe non-work activity: running time kept alive by something other than queries (`kept_alive_flag_pct`), and a warehouse that runs around the clock while queries are busy only a small share of its running time, so frequent tiny queries (BI polling, dashboard refresh) keep it up (`always_on_running_pct`, `always_on_busy_pct_max`). Blocker meanings: `docs/reference/blocker-codes.md`.
 
