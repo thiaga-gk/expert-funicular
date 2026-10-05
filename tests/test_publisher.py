@@ -10,6 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p
+from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
 
 
 class PublisherV27Tests(unittest.TestCase):
@@ -1050,7 +1051,7 @@ class PublisherV27Tests(unittest.TestCase):
         payload = json.loads((ROOT / "tests" / "golden" / "concurrency-constrained.json").read_text())
         e = p.evidence_from_dict(payload["evidence"][0])
         start = (p.parse_datetime(e.analysis_time) - __import__("datetime").timedelta(days=age_days)).isoformat()
-        e.current_epoch.epoch_start = start
+        move_current_epoch_start(e, start)
         e.current_epoch.query.update(queries_30=queries)
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
 
@@ -1109,7 +1110,10 @@ class PublisherV27Tests(unittest.TestCase):
         e = self._sparse(30)
         by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
         self.assertEqual(by["warehouse_type"].blockers, ["BILLED_COST_DAYS_INSUFFICIENT"])
-        self.assertEqual(by["auto_stop_minutes"].metadata["estimate_blocker"], "BILLED_COST_DAYS_INSUFFICIENT")
+        # An approval-only cost change waits for its own price: held with the same code.
+        self.assertEqual(by["auto_stop_minutes"].status, "INSUFFICIENT_EVIDENCE")
+        self.assertIn("BILLED_COST_DAYS_INSUFFICIENT", by["auto_stop_minutes"].blockers)
+        self.assertEqual(by["auto_stop_minutes"].metadata["value_gate"]["reason_code"], "BILLED_COST_DAYS_INSUFFICIENT")
         pkg = p.build_recommendation_packages([e], self.t)[0].to_dict()
         methods = " ".join(sc["portfolio_economics"].get("method") or "" for sc in pkg["scenarios"])
         self.assertNotIn("no list price", methods)
@@ -1297,7 +1301,8 @@ class PublisherV27Tests(unittest.TestCase):
         e = copy.deepcopy(self.evidence[0])
         e.cost_history_days = 3
         win = p.compute_reevaluation(e, self.t, start_time="2026-09-29T00:00:00Z", epoch_age=2)
-        self.assertIn("24-hour billing settle buffer", win.method)
+        self.assertIn("billing ingestion lag", win.method)
+        self.assertIn("next settled day", win.method)
 
     def test_ingestion_cutoff_pins_every_billing_query(self):
         billing = ("billing_daily_cost", "billing_watermark", "billing_features", "billing_attribution_photon_owner")
@@ -1543,7 +1548,7 @@ class PublisherV27Tests(unittest.TestCase):
             files = p.package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
             self.assertEqual(manifest["publisher_version"], p.PUBLISHER_VERSION)
-            self.assertEqual(manifest["reporter_contract_version"], "1.3.0")
+            self.assertEqual(manifest["reporter_contract_version"], "2.0.0")
             self.assertEqual(manifest["workbook_contract_version"], "1.4.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertEqual(manifest["package_count"], 1)
@@ -1624,9 +1629,10 @@ class GoldenScenarioTests(unittest.TestCase):
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         epoch["query"]["queries_30"] = queries_30
         epoch["query"]["decision_queries_30"] = queries_30  # spill and latency are judged on executed queries
+        e = p.evidence_from_dict(ev)
         if epoch_start is not None:
-            epoch["epoch_start"] = epoch_start
-        return [p.evidence_from_dict(ev)]
+            move_current_epoch_start(e, epoch_start)
+        return [e]
 
     def size_candidate(self, evidence):
         w = p.evaluate_warehouses(evidence, self.t)[0]
@@ -1642,19 +1648,19 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertNotIn("warehouse_size", [s.knob for s in plan.steps])
 
     def test_upsize_requires_mature_config_epoch(self):
-        # Analysis time is 2026-10-01T12:00Z, so this epoch is 2 days old (< 7).
-        _, c = self.size_candidate(self.spill_evidence(epoch_start="2026-09-29T12:00:00+00:00"))
+        # Analysis time is 2026-10-01T12:00Z: an epoch started the day before has no two settled billed days yet.
+        _, c = self.size_candidate(self.spill_evidence(epoch_start="2026-09-30T12:00:00+00:00"))
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
         self.assertEqual(c.recommended_config, c.current_config)
 
     def test_upsize_reports_every_missing_evidence_requirement(self):
-        _, c = self.size_candidate(self.spill_evidence(queries_30=1, epoch_start="2026-09-29T12:00:00+00:00"))
+        _, c = self.size_candidate(self.spill_evidence(queries_30=1, epoch_start="2026-09-30T12:00:00+00:00"))
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertEqual(set(c.blockers), {"INSUFFICIENT_QUERY_SAMPLE", "CURRENT_CONFIG_EPOCH_TOO_NEW"})
 
     def test_upsize_canary_exactly_at_evidence_boundaries(self):
-        # 100 queries and exactly 7 days of epoch age are sufficient.
+        # 100 queries and a configuration with settled billed days (ready) are sufficient.
         _, c = self.size_candidate(self.spill_evidence(queries_30=100, epoch_start="2026-09-24T12:00:00+00:00"))
         self.assertEqual(c.status, "TEST_REQUIRED")
         self.assertEqual(c.recommended_config["warehouse_size"], "X_LARGE")

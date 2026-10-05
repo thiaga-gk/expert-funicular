@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v1.3.0.
+"""Build the locked Reporter Contract JSON Schema v2.0.0.
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.

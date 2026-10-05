@@ -38,19 +38,20 @@ def build(evidence):
 
 class ContractConstantsTests(unittest.TestCase):
     def test_versions_and_gate_constants_match_policy(self):
-        self.assertEqual(rc.CONTRACT_VERSION, "1.3.0")
+        self.assertEqual(rc.CONTRACT_VERSION, "2.0.0")
         self.assertEqual(wc.WORKBOOK_CONTRACT_VERSION, "1.4.0")
         t = p.Thresholds()
         # The validator embeds these gates; changing the policy thresholds therefore requires a contract bump.
-        self.assertEqual(rc.REEVALUATION_EPOCH_MATURITY_DAYS, t.current_config_stability_days)
+        self.assertEqual(rc.REEVALUATION_READY_BILLED_DAYS, t.readiness_min_billed_days)
         self.assertEqual(rc.REEVALUATION_COST_HISTORY_DAYS, t.min_economics_cost_history_days)
 
     def test_earliest_reevaluation_arithmetic(self):
-        start = "2026-10-01T15:00:00Z"
+        start, at = "2026-10-01T15:00:00Z", "2026-10-01T18:00:00Z"
         both = ["COST_HISTORY_INSUFFICIENT", "CURRENT_CONFIG_EPOCH_TOO_NEW"]
-        self.assertEqual(rc.expected_earliest_reevaluation_time(start, both), "2026-10-08T15:00:00Z")
-        self.assertEqual(rc.expected_earliest_reevaluation_time(start, ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), "2026-10-08T15:00:00Z")
-        self.assertEqual(rc.expected_earliest_reevaluation_time(start, ["COST_HISTORY_INSUFFICIENT"]), "2026-10-08T00:00:00Z")
+        self.assertEqual(rc.expected_earliest_reevaluation_time(start, both, at), "2026-10-08T00:00:00Z")
+        # Readiness: one more day can have settled at 00:00Z the next day.
+        self.assertEqual(rc.expected_earliest_reevaluation_time(start, ["CURRENT_CONFIG_EPOCH_TOO_NEW"], at), "2026-10-02T00:00:00Z")
+        self.assertEqual(rc.expected_earliest_reevaluation_time(start, ["COST_HISTORY_INSUFFICIENT"], at), "2026-10-08T00:00:00Z")
 
     def test_reevaluation_window_validation(self):
         ok = rc.ReevaluationWindow(rc.ReevaluationStatus.WAITING_FOR_EVIDENCE, "2026-10-08T15:00:00Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"], "m")
@@ -83,11 +84,11 @@ class ContractConstantsTests(unittest.TestCase):
 
 class ReevaluationFromPublisherTests(unittest.TestCase):
     def test_young_epoch_waits_with_exact_earliest_time_and_observed_change(self):
-        pkg = build(golden_evidence("newly-changed-config"))  # epoch 2026-09-29T00:00Z, analysis 2026-10-01
+        pkg = build(golden_evidence("newly-changed-config"))  # epoch 2026-09-29T00:00Z, analysis 2026-10-01: one settled day
         re = pkg.recommended_plan.reevaluation
         self.assertIsNotNone(re)
         self.assertEqual(re.blocking_codes, ["CURRENT_CONFIG_EPOCH_TOO_NEW"])
-        self.assertEqual(re.earliest_reevaluation_time, "2026-10-06T00:00:00Z")
+        self.assertEqual(re.earliest_reevaluation_time, "2026-10-02T00:00:00Z")  # one more day can have settled
         self.assertEqual(pkg.recommended_plan.next_action, "WAIT_FOR_REEVALUATION")
         self.assertEqual(pkg.recommended_plan.selection_reason_code, "CURRENT_EPOCH_IMMATURE")
         oc = pkg.observed_change
@@ -288,8 +289,9 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertEqual(young.recommended_plan.selection_reason_code, "CURRENT_EPOCH_IMMATURE")
 
     def test_earliest_time_rounds_up_to_the_next_second(self):
-        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-09-24T12:00:00.600000Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), "2026-10-01T12:00:01Z")
-        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-09-24T12:00:00Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), "2026-10-01T12:00:00Z")
+        # Never before the epoch start; rounded up to the next second.
+        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-10-05T12:00:00.600000Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"], "2026-10-01T12:00:00Z"), "2026-10-05T12:00:01Z")
+        self.assertEqual(rc.expected_earliest_reevaluation_time("2026-09-24T12:00:00Z", ["CURRENT_CONFIG_EPOCH_TOO_NEW"], "2026-10-01T12:00:00Z"), "2026-10-02T00:00:00Z")
 
     def test_carried_forward_requires_a_young_epoch_not_just_any_window(self):
         mature_cost_only = build(golden_evidence("spill-constrained", cost_history_days=3))
@@ -329,7 +331,7 @@ class SchemaAndWorkbookTests(unittest.TestCase):
             self.assertIn(key, schema["required"])
             self.assertIn(key, payload)
         self.assertIn("reevaluation", payload["recommended_plan"])
-        self.assertEqual(schema["properties"]["contract_version"], {"const": "1.3.0"})
+        self.assertEqual(schema["properties"]["contract_version"], {"const": "2.0.0"})
 
     def test_schema_rejects_savings_on_observed_change_and_unknown_gate_codes(self):
         import jsonschema
@@ -355,7 +357,7 @@ class SchemaAndWorkbookTests(unittest.TestCase):
         self.assertEqual(group.end_key, "observed_change")
         young = build(golden_evidence("newly-changed-config"))
         row = wc.project_warehouse_portfolio(young)
-        self.assertEqual(row["earliest_reevaluation_time"], "2026-10-06T00:00:00Z")
+        self.assertEqual(row["earliest_reevaluation_time"], "2026-10-02T00:00:00Z")
         self.assertEqual(row["reevaluation_blockers"], "CURRENT_CONFIG_EPOCH_TOO_NEW")
         self.assertEqual(row["observed_change"], "warehouse_size MEDIUM→LARGE (2026-09-29)")
         mature = wc.project_warehouse_portfolio(build(golden_evidence("spill-constrained")))

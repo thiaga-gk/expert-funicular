@@ -1,4 +1,4 @@
-"""Reporter contract v1.3.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v2.0.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from publisher.py.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -31,10 +31,11 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "1.3.0"
-# Re-evaluation gates (contract 1.2.0). The validator embeds them, so changing the matching publisher policy
-# thresholds (current_config_stability_days, min_economics_cost_history_days) requires a contract version bump.
-REEVALUATION_EPOCH_MATURITY_DAYS = 7
+CONTRACT_VERSION = "2.0.0"
+# Re-evaluation gates (contract 2.0.0: readiness replaces the 1.2.0 epoch-age gate). The validator embeds them, so
+# changing the matching publisher policy thresholds (readiness_min_billed_days, min_economics_cost_history_days)
+# requires a contract version bump.
+REEVALUATION_READY_BILLED_DAYS = 2
 REEVALUATION_COST_HISTORY_DAYS = 7
 REEVALUATION_BLOCKING_CODES = ("COST_HISTORY_INSUFFICIENT", "CURRENT_CONFIG_EPOCH_TOO_NEW")
 HASH_HEX_LENGTH = 24  # 96-bit display identifier; full SHA-256 remains available in provenance.
@@ -339,17 +340,19 @@ def _iso_utc(value: dt.datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequence[str]) -> str:
-    """Pure function of the epoch start and the active gates (contract 1.2.0).
+def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequence[str], analysis_time: str) -> str:
+    """Pure function of the epoch start, the analysis time and the active gates (contract 2.0.0).
 
-    maturity gate: epoch start + REEVALUATION_EPOCH_MATURITY_DAYS.
-    cost-history gate: 00:00Z of (epoch start date + REEVALUATION_COST_HISTORY_DAYS), the earliest time the last
-    required billing day can be fully covered.  The result is the later of the active gates.
+    readiness gate: 00:00Z of (analysis date + 1 day), when one more day can have settled (the settled basis ends two
+    days before the analysis day), never before the epoch start (how many more days are needed depends on future
+    billing, so this is the next chance only). cost-history gate: 00:00Z of (epoch start date + REEVALUATION_COST_HISTORY_DAYS), the earliest time
+    the last required billing day can be fully covered.  The result is the later of the active gates.
     """
     start = _parse_utc(start_time)
     times = []
     if "CURRENT_CONFIG_EPOCH_TOO_NEW" in blocking_codes:
-        times.append(start + dt.timedelta(days=REEVALUATION_EPOCH_MATURITY_DAYS))
+        analysis = _parse_utc(analysis_time).replace(hour=0, minute=0, second=0, microsecond=0)
+        times.append(max(start, analysis + dt.timedelta(days=1)))
     if "COST_HISTORY_INSUFFICIENT" in blocking_codes:
         midnight = start.replace(hour=0, minute=0, second=0, microsecond=0)
         times.append(midnight + dt.timedelta(days=REEVALUATION_COST_HISTORY_DAYS))
@@ -1834,12 +1837,19 @@ class RecommendationPackage:
                 return float(item.value)
         return None
 
+    def _evidence_value(self, metric: str) -> Optional[float]:
+        for item in self.evidence.values():
+            if item.metric == metric and isinstance(item.value, (int, float)) and not isinstance(item.value, bool):
+                return float(item.value)
+        return None
+
     def active_reevaluation_codes(self) -> List[str]:
         codes = []
         days = self._cost_history_days_evidence()
         if days is not None and days < REEVALUATION_COST_HISTORY_DAYS:
             codes.append("COST_HISTORY_INSUFFICIENT")
-        if self.warehouse.current_epoch.age_days < REEVALUATION_EPOCH_MATURITY_DAYS:
+        billed = self._evidence_value("billed_cost_days")
+        if billed is None or billed < REEVALUATION_READY_BILLED_DAYS:  # missing record: not ready (fail closed)
             codes.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
         return sorted(codes)
 
@@ -1852,8 +1862,8 @@ class RecommendationPackage:
         else:
             _require(list(window.blocking_codes) == active, "reevaluation.blocking_codes must equal the gates that are currently active")
             _require(
-                window.earliest_reevaluation_time == expected_earliest_reevaluation_time(start_time, window.blocking_codes),
-                "reevaluation.earliest_reevaluation_time does not match the epoch start and active gates",
+                window.earliest_reevaluation_time == expected_earliest_reevaluation_time(start_time, window.blocking_codes, self.provenance.generated_at),
+                "reevaluation.earliest_reevaluation_time does not match the epoch start, analysis time and active gates",
             )
             _require(_parse_utc(window.earliest_reevaluation_time) >= _parse_utc(start_time), "reevaluation time must not precede the epoch start")
         if self.recommended_plan.next_action == "WAIT_FOR_REEVALUATION":
@@ -1869,6 +1879,14 @@ class RecommendationPackage:
             change.validate()
             _require(change.changed_at == start_time, "observed_change.changed_at must equal the current epoch start")
             _require(change.previous_epoch_id != self.warehouse.current_epoch.epoch_id, "observed_change.previous_epoch_id must differ from the current epoch")
+        for candidate in self.candidates:
+            if "CANARY_GUARDRAIL_BREACHED" in candidate.blockers:
+                # A canary rollback restores the value the observed change replaced (contract 2.0.0).
+                _require(candidate.status == RecommendationStatus.ACTIONABLE, "a CANARY_GUARDRAIL_BREACHED candidate must be ACTIONABLE")
+                _require(change is not None, "a CANARY_GUARDRAIL_BREACHED candidate requires observed_change")
+                previous = next((c.previous_value for c in change.changes if c.knob == candidate.knob), None) if change is not None else None
+                _require(previous is not None and candidate.recommended_value == previous,
+                         "a CANARY_GUARDRAIL_BREACHED candidate must restore observed_change.previous_value of its knob")
         carried = self.carried_forward_plan
         if carried is not None:
             carried.validate()
@@ -1876,7 +1894,7 @@ class RecommendationPackage:
             _require(carried.source_epoch_id == change.previous_epoch_id, "carried_forward.source_epoch_id must equal observed_change.previous_epoch_id")
             _require(
                 window is not None and "CURRENT_CONFIG_EPOCH_TOO_NEW" in window.blocking_codes,
-                "carried_forward_plan is only valid while the current epoch is younger than the maturity gate",
+                "carried_forward_plan is only valid while the current configuration is not ready (readiness gate active)",
             )
             current = {(c.knob, repr(c.current_value)) for c in change.changes}
             for step in carried.steps:

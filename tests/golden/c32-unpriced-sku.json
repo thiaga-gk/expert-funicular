@@ -4797,7 +4797,7 @@
         "path": "package_economics.baseline_365d.dbu_cost"
       },
       {
-        "equals": "ACTIONABLE",
+        "equals": "INSUFFICIENT_EVIDENCE",
         "path": "candidates[knob=auto_stop_minutes].status"
       },
       {
@@ -4817,6 +4817,12 @@
           "DBU_COST_UNAVAILABLE"
         ],
         "path": "candidates[knob=warehouse_type].blockers"
+      },
+      {
+        "includes": [
+          "DBU_COST_UNAVAILABLE"
+        ],
+        "path": "candidates[knob=auto_stop_minutes].blockers"
       }
     ],
     "scenario": "C32",

@@ -60,6 +60,7 @@ def build_package() -> RecommendationPackage:
         ("max_observed_clusters", 2, "clusters", "system.compute.warehouse_events", "cluster_count", "current_epoch", 4, "< configured_max", "Configured maximum has not been required"),
         ("estimated_avoidable_idle_minutes", 9000, "minutes", "derived", "query_gap_model", "current_epoch", 0, "> opportunity", "Material idle-running opportunity"),
         ("photon_enabled_usage_pct", 100.0, "percent", "system.billing.usage", "product_features.is_photon", "current_epoch", 95.0, ">= enabled", "Billing evidence consistently observes Photon-enabled SQL DBUs"),
+        ("billed_cost_days", 120, "days", "system.billing.usage", "usage_date/usage_quantity", "current_epoch", 2, ">= readiness", "Settled days of the current epoch with billed usage: the current configuration is ready"),
         ("serverless_workspace_eligibility", True, "boolean", "workspace compatibility evidence", "enable_serverless_compute", "point_in_time", True, "==", "Workspace reports Serverless enabled; remaining compatibility checks still require validation"),
     ]
 

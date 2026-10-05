@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import publisher as p  # noqa: E402
+from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
 
 
 class UnresolvedNoChangeTests(unittest.TestCase):
@@ -62,16 +63,15 @@ class UnresolvedNoChangeTests(unittest.TestCase):
         self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["QUEUEING_WITH_DEMAND_WITHIN_CEILING"]))
 
     def test_ceiling_cut_held_on_a_young_configuration_is_named(self):
-        # C06 a few days after another setting changed: the 4 -> 2 ceiling cut waits for the stability period, and the
-        # hold says so instead of leaving the blocker list empty.
+        # C06 just after another setting changed: the 4 -> 2 ceiling cut waits until the new configuration is ready
+        # (two settled billed days), and the hold says so instead of leaving the blocker list empty.
         self.assertEqual(self.cands["C06"]["max_clusters"].status, "ACTIONABLE")
-        for days in (2, 5):
+        for days in (2,):  # one settled day: the resource window exists, the configuration is not ready
             e = copy.deepcopy(self.by["C06"])
-            start = p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=days)
-            e.current_epoch.epoch_start = start.isoformat()
+            move_current_epoch_start(e, (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=days)).replace(hour=0, minute=0).isoformat())
             c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
             self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), days)
-            self.assertIn("too new", c.metadata["rationale"])
+            self.assertIn("not ready yet", c.metadata["rationale"])
 
     def test_young_hold_names_the_evidence_a_mature_epoch_would_also_need(self):
         e = copy.deepcopy(self.by["C06"])

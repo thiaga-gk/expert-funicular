@@ -207,3 +207,73 @@ Carry only inside the last 30 days, never across a size or type change:
 CLAUDE.md, Source authority (approved replacement): "The current epoch controls recommendations; older epochs are calibration/backtest only, with two exceptions: a capacity cut is held when <unchanged>; and evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change. Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch." Reviewer gate 1 accepts carried findings (`epoch_scope` `CARRIED_ACROSS_CHANGE`); LLD §10.2 gets the map; the PRD epoch FR the same rule.
 
 Floor/ceiling decision days after an auto-stop change (today / G50 N=2 / G50 + G49): daily BI 7/2/2; weekdays BI 7/4/4; weekly job 11/11/11; bi-weekly 25/25/25; month-end only 27/28/28; light daily + month-end 27/27/4; BI + quarter-end peak 89/89/4; ad hoc 7/3/2. Demo C11 floor cut after auto-stop 30 -> 10: today about day 28 (20 fresh busy periods), with carry day 2. Simulation script: session scratchpad `g50sim.py`.
+
+## Batch 9 gate decisions (2026-10-05)
+
+All four approved as recommended: Reporter 2.0.0 (MAJOR per §19), CLAUDE.md/PRD texts, G50 values, G49 implementation with evidence format 1.0.0 kept.
+
+
+
+### A. Reporter contract diff (sign-off before contract code)
+
+Version: §19 classifies a gate whose meaning changes as MAJOR -> **2.0.0** (recommended). Alternative: 1.4.0 with a §19 amendment (the 1.2.0/1.3.0 precedent stretched further). Either way `contract_version` is in every hash, so every public ID changes, as with every bump. No field is added, removed or renamed; the schema changes only its `contract_version` const.
+
+contracts/reporter_contract.py
+```
+-CONTRACT_VERSION = "1.3.0"
+-REEVALUATION_EPOCH_MATURITY_DAYS = 7
++CONTRACT_VERSION = "2.0.0"
++REEVALUATION_READY_BILLED_DAYS = 2      # readiness: settled billed days in the current epoch
+ REEVALUATION_COST_HISTORY_DAYS = 7
+
+-def expected_earliest_reevaluation_time(start_time, blocking_codes)
+-    TOO_NEW: epoch start + 7 days
++def expected_earliest_reevaluation_time(start_time, blocking_codes, analysis_time)
++    TOO_NEW: 00:00Z of (analysis date + 2 days)  # the next day after the analysis day has settled
++             never before the epoch start
+     COST_HISTORY_INSUFFICIENT: unchanged (00:00Z of epoch start date + 7 days)
+
+ active_reevaluation_codes():
+-    TOO_NEW while warehouse.current_epoch.age_days < 7
++    TOO_NEW while the package's `billed_cost_days` evidence value < 2 (missing record: active, fail closed)
+```
+New required package evidence record (like `cost_history_days`): metric `billed_cost_days`, unit days, source `system.billing.usage`, window `current_epoch`: settled days of the current epoch's forecast basis with positive billed DBU.
+
+New semantic invariant: a candidate whose blockers contain `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change` is non-null and lists its knob, and its `recommended_value` equals that change's `previous_value`.
+
+Documented (no schema change; `epoch_scope` is a free string): evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`.
+
+docs/contracts/reporter-json-contract.md §14.1, replacement text:
+> Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the package's `billed_cost_days` evidence value is `< 2` (the current configuration is not ready: fewer than two settled billed days); `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`.
+> `t_ready = 00:00Z of (analysis date + 2 days)` (the analysis day has then settled), never before the epoch start; `t_cost = 00:00Z of (epoch start date + 7 days)`; `earliest_reevaluation_time = max(t_x for each active gate)`.
+> Changing the readiness or cost-history gate lengths requires a contract version bump.
+
+Workbook: no column, row or sheet change; Workbook stays 1.4.0 (its doc header names the Reporter version it projects).
+
+### B. CLAUDE.md and PRD exact text
+
+CLAUDE.md, Source authority (first bullet), replacement:
+> Config snapshots: `system.compute.warehouses`. The current epoch controls recommendations; older epochs are calibration/backtest only, with three exceptions: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days (demand and per-query evidence across auto-stop, max- and min-cluster changes; capacity queueing across auto-stop changes), never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence. Running time, idle time, cluster-minutes and billing never carry, so economics stay current-epoch. Otherwise older epochs never choose a change, its target or its economics.
+
+PRD principle 2 (line 64) and FR-EPOCH-003: the same three-exception sentence.
+
+PRD FR-EPOCH-004, replacement:
+> A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/thresholds.md`.
+
+PRD new FR-EPOCH-005:
+> After a canary-type change (one size down, a lower minimum, a higher auto-stop), every run checks the new epoch's own evidence. A failure/cancel rate, queued-query share or, after a size-down, spill share above its safe level and above the previous epoch's, or a p95 execution time on statement sources seen in both epochs more than `canary_p95_regression_pct` above the previous epoch's (at least `canary_p95_min_queries` such queries), recommends restoring the previous value: `ACTIONABLE` with `CANARY_GUARDRAIL_BREACHED`, no savings claimed.
+
+### C. G50 values to confirm
+
+- Readiness day = settled billed day (`readiness_min_billed_days` = 2), not query day: a zero-query warehouse still bills, so it stays decidable. Replaces `current_config_stability_days` (7). The zero-query billing review keeps its 7-day minimum via `min_economics_cost_history_days`.
+- Canary guards trip only when worse than the previous epoch AND above the safe level, with minimum samples: failures >= `min_query_sample_size` (100) queries; queue/spill >= `severity_min_affected_queries` (20) affected queries; p95 >= `canary_p95_min_queries` (300) on shared sources, `canary_p95_regression_pct` = 25.
+- Guard window: the whole epoch that follows the canary-type change.
+- Rollback economics: null (restoring the previous configuration; its cost is the previous epoch's), READY step first in the plan.
+- Plan sequencing sentence: "start the <knob> canary once the next run shows their new configuration ready (2 settled billed days)".
+
+### D. G49 implementation
+
+- Periods per warehouse from the config history: demand period = since the last size or type change; capacity period = since the last size, type, min- or max-cluster change; read only inside the last 30 days.
+- Carried (demand period): query counts and mix, decision sample, spill and spill concentration, execution p95/p99, failures, weekly counts (growth guard), concurrency histograms (recent peak, busy minutes, busy periods, busy-start demand). Carried (capacity period): queued share and capacity wait.
+- Never carried: resource window shares (time at min/max), running idle, cold-start wait, cluster-minutes, billing.
+- Evidence format stays 1.0.0: the carried metrics are additive keys inside the free `query` object; evidence without them (older files, golden fixtures) is read as "not collected" and uses the current epoch only, as today.

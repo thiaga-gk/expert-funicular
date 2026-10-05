@@ -2,7 +2,7 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v1.3.0 (locked)  
+**Reporter JSON Contract:** v2.0.0 (locked)  
 **Workbook Contract:** v1.4.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
@@ -220,7 +220,7 @@ A configuration epoch is a period of unchanged decision fields (warehouse type, 
 
 Only one current epoch may exist for a warehouse in a valid normalized evidence object.
 
-Older epochs are calibration/backtest only, with one exception: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
+Older epochs are calibration/backtest only, with three exceptions: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window; evidence a configuration change cannot affect carries across that change inside the last 30 days, never across a size or type change; and a canary rollback restores the previous epoch's value when a fail-fast guard trips on the new epoch's own evidence. The map and the guard rules are in the LLD (10.2, 15.9). Otherwise older epochs never choose a change, its target or its economics.
 
 ### 6.3 Supported-Type Gate
 
@@ -355,7 +355,7 @@ It verifies, at minimum:
 
 ### 6.11 Public contract adapter
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v1.3.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v2.0.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
@@ -632,7 +632,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v1.3.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v2.0.0:
 
 - Python dataclasses: `contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
