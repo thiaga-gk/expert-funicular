@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import EPOCH_QUERY_METRICS_SQL  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 POPULATION = "COALESCE(x.from_result_cache, FALSE) = FALSE"
 
@@ -22,8 +25,8 @@ POPULATION = "COALESCE(x.from_result_cache, FALSE) = FALSE"
 class DecisionPopulationTests(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
-        self.t = p.Thresholds()
-        self.e = copy.deepcopy(p.demo_evidence()[0])
+        self.t = Thresholds()
+        self.e = copy.deepcopy(demo_evidence()[0])
 
     def tearDown(self):
         logging.disable(logging.NOTSET)
@@ -32,7 +35,7 @@ class DecisionPopulationTests(unittest.TestCase):
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["warehouse_size"]
 
     def test_latency_and_spill_use_finished_non_cache_queries(self):
-        sql = p.EPOCH_QUERY_METRICS_SQL
+        sql = EPOCH_QUERY_METRICS_SQL
         self.assertIn(f"{POPULATION} AS in_decision_population", sql)
         for metric in ("p95_execution_ms_30", "p99_execution_ms_30", "max_execution_ms_30", "spill_queries_30", "p95_spill_bytes_when_spilled_30"):
             line = next(x for x in sql.splitlines() if x.rstrip(",").endswith(f"AS {metric}"))
@@ -55,7 +58,7 @@ class DecisionPopulationTests(unittest.TestCase):
         self.assertNotIn(size.status, {"ACTIONABLE", "TEST_REQUIRED"})
 
     def test_compilation_and_result_fetch_are_evidence_only(self):
-        sql = p.EPOCH_QUERY_METRICS_SQL
+        sql = EPOCH_QUERY_METRICS_SQL
         self.assertIn("AS p95_compilation_ms_30", sql)
         self.assertIn("AS p95_result_fetch_ms_30", sql)
         decisions = []

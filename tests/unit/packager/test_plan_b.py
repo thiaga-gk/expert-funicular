@@ -17,14 +17,16 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 
 class PlanBTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        fleet = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        fleet = synthetic_demo_evidence()
         cls.by = {e.current_epoch.tags["golden_scenario"]: e for e in fleet}
         # The whole fleet at once: workspace-level evidence (other warehouses' types) feeds the compatibility checks.
         cls.warehouses = {w.warehouse_id: w for w in p.evaluate_warehouses(fleet, cls.t)}

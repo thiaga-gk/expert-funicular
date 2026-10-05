@@ -18,7 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
-from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.metrics import auto_stop_targets  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 from tests.golden import evidence_source_path  # noqa: E402
 
 LEGACY = "saved_idle_minutes_if_"
@@ -40,7 +41,7 @@ def _interpolate(points, x):
 
 def backfill(evidence):
     changed = 0
-    targets = p.auto_stop_targets(p.Thresholds())
+    targets = auto_stop_targets(Thresholds())
     for x in evidence:
         for ep in x["epochs"]:
             gaps = ep.get("gaps") or {}

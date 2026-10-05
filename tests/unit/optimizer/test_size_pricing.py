@@ -16,6 +16,14 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.queries.events import build_epoch_gap_metrics_sql  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import build_spill_source_sql  # noqa: E402
+from publisher.analyzer.metrics import size_busy_share  # noqa: E402
+from publisher.config.defaults import GIB, SQL_DBU_PER_CLUSTER_HOUR  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.optimizer.estimator.candidate import Estimator  # noqa: E402
+from publisher.optimizer.estimator.cost import validated_size_rate_ratio  # noqa: E402
 
 
 def candidates_by_scenario(evidence, t):
@@ -30,23 +38,23 @@ class SizeRateValidationTests(unittest.TestCase):
     RATES = {"SMALL": 12.1, "MEDIUM": 23.8, "LARGE": 40.5}
 
     def test_validated_ratio_uses_observed_rates(self):
-        ratio, reason = p.validated_size_rate_ratio(self.RATES, "LARGE", "MEDIUM", 0.25)
+        ratio, reason = validated_size_rate_ratio(self.RATES, "LARGE", "MEDIUM", 0.25)
         self.assertEqual(reason, "VALIDATED")
         self.assertAlmostEqual(ratio, 23.8 / 40.5, places=6)
 
     def test_rates_that_do_not_rise_with_size_are_rejected(self):
         # Billing-observed MEDIUM 245 above LARGE 198: a downsize would be priced as a bigger cluster.
-        ratio, reason = p.validated_size_rate_ratio({"SMALL": 164.0, "MEDIUM": 245.0, "LARGE": 198.0}, "LARGE", "MEDIUM", 0.25)
+        ratio, reason = validated_size_rate_ratio({"SMALL": 164.0, "MEDIUM": 245.0, "LARGE": 198.0}, "LARGE", "MEDIUM", 0.25)
         self.assertIsNone(ratio)
         self.assertEqual(reason, "RATES_NOT_RISING_WITH_SIZE")
 
     def test_unobserved_target_size_is_rejected(self):
-        self.assertEqual(p.validated_size_rate_ratio(self.RATES, "SMALL", "X_SMALL", 0.25), (None, "SIZE_RATE_NOT_OBSERVED"))
+        self.assertEqual(validated_size_rate_ratio(self.RATES, "SMALL", "X_SMALL", 0.25), (None, "SIZE_RATE_NOT_OBSERVED"))
 
     def test_pair_outside_the_band_of_the_published_ratio_is_rejected(self):
         # Published MEDIUM/SMALL = 0.5; observed 16/24 = 0.667 is 33% off.
-        self.assertEqual(p.validated_size_rate_ratio({"SMALL": 16.0, "MEDIUM": 24.0}, "MEDIUM", "SMALL", 0.25), (None, "OUTSIDE_PUBLISHED_RATIO_BAND"))
-        ratio, reason = p.validated_size_rate_ratio({"SMALL": 14.0, "MEDIUM": 24.0}, "MEDIUM", "SMALL", 0.25)  # 17% off: inside
+        self.assertEqual(validated_size_rate_ratio({"SMALL": 16.0, "MEDIUM": 24.0}, "MEDIUM", "SMALL", 0.25), (None, "OUTSIDE_PUBLISHED_RATIO_BAND"))
+        ratio, reason = validated_size_rate_ratio({"SMALL": 14.0, "MEDIUM": 24.0}, "MEDIUM", "SMALL", 0.25)  # 17% off: inside
         self.assertEqual(reason, "VALIDATED")
 
 
@@ -54,8 +62,8 @@ class SizePricingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        cls.fleet = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        cls.fleet = synthetic_demo_evidence()
         cls.by = candidates_by_scenario(cls.fleet, cls.t)
 
     @classmethod
@@ -66,7 +74,7 @@ class SizePricingTests(unittest.TestCase):
         # Demo billing follows cluster-hours at the published rate (+-3%), so measured rates match the table.
         for e in self.fleet:
             for size, rate in (e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}).items():
-                self.assertLess(abs(rate / p.SQL_DBU_PER_CLUSTER_HOUR[size] - 1.0), 0.03, (e.workspace_id, size))
+                self.assertLess(abs(rate / SQL_DBU_PER_CLUSTER_HOUR[size] - 1.0), 0.03, (e.workspace_id, size))
 
     def test_downsize_uses_downsize_multipliers_and_the_validated_ratio(self):
         size = self.by["C06"]["warehouse_size"]  # LARGE -> MEDIUM, both sizes run in the workspace
@@ -103,16 +111,16 @@ class SizePricingTests(unittest.TestCase):
 
     def test_size_price_ignores_historical_epochs(self):
         # The core fixture has a matched prior MEDIUM epoch; its cost per 1,000 queries no longer enters the price.
-        size = {c.knob: c for c in p.evaluate_warehouses(p.demo_evidence(), self.t)[0].candidates}["warehouse_size"]
+        size = {c.knob: c for c in p.evaluate_warehouses(demo_evidence(), self.t)[0].candidates}["warehouse_size"]
         self.assertNotIn("historical_epoch_calibration", size.metadata)
-        self.assertFalse(hasattr(p.Estimator, "_matched_epoch_factor"))
+        self.assertFalse(hasattr(Estimator, "_matched_epoch_factor"))
 
 
 class CostValueGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.fleet = p.synthetic_demo_evidence()
+        cls.fleet = synthetic_demo_evidence()
 
     @classmethod
     def tearDownClass(cls):
@@ -121,7 +129,7 @@ class CostValueGateTests(unittest.TestCase):
     def test_cost_change_with_negative_savings_does_not_ship(self):
         # A downsize that runs so much slower it costs more: the change is held, the modeled loss stays visible.
         # (Busy time is about 30% of C06's running time, so queries must run 5x slower to outweigh the 0.6 price ratio.)
-        t = dataclasses.replace(p.Thresholds(), downsize_runtime_multiplier_optimistic=5.0, downsize_runtime_multiplier_base=5.0, downsize_runtime_multiplier_conservative=5.0)
+        t = dataclasses.replace(Thresholds(), downsize_runtime_multiplier_optimistic=5.0, downsize_runtime_multiplier_base=5.0, downsize_runtime_multiplier_conservative=5.0)
         size = candidates_by_scenario(self.fleet, t)["C06"]["warehouse_size"]
         self.assertEqual(size.status, "NO_CHANGE")
         self.assertEqual(size.recommended_config, size.current_config)
@@ -130,7 +138,7 @@ class CostValueGateTests(unittest.TestCase):
         self.assertIn(size.estimated_savings_365, (None, 0, 0.0))
 
     def test_cost_change_below_the_materiality_floor_does_not_ship(self):
-        t = dataclasses.replace(p.Thresholds(), cost_change_min_annual_savings=10 ** 9)
+        t = dataclasses.replace(Thresholds(), cost_change_min_annual_savings=10 ** 9)
         by = candidates_by_scenario(self.fleet, t)
         held = [(s, k) for s, cands in by.items() for k, c in cands.items() if "COST_SAVINGS_BELOW_MATERIALITY" in c.blockers]
         self.assertTrue(held)
@@ -140,29 +148,29 @@ class CostValueGateTests(unittest.TestCase):
                     self.assertNotIn(c.status, {"ACTIONABLE", "TEST_REQUIRED"} if c.estimated_savings_365 is not None else set(), (s, c.knob))
 
     def test_gate_leaves_non_cost_and_unpriced_changes_alone(self):
-        t = dataclasses.replace(p.Thresholds(), cost_change_min_annual_savings=10 ** 9)
+        t = dataclasses.replace(Thresholds(), cost_change_min_annual_savings=10 ** 9)
         by = candidates_by_scenario(self.fleet, t)
         self.assertEqual(by["C09"]["max_clusters"].status, "ACTIONABLE")  # ceiling cut: guardrail, no priced saving
         self.assertEqual(by["C30"]["warehouse_size"].status, "TEST_REQUIRED")  # unpriced canary: nothing to gate on
 
     def test_default_floor_is_500(self):
-        self.assertEqual(p.Thresholds().cost_change_min_annual_savings, 500.0)
-        self.assertEqual(p.Thresholds().size_rate_published_band, 0.25)
+        self.assertEqual(Thresholds().cost_change_min_annual_savings, 500.0)
+        self.assertEqual(Thresholds().size_rate_published_band, 0.25)
 
 
 class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
     """An upsize is a canary, and the size speed-up (or slow-down) applies to busy running time only."""
 
     def setUp(self):
-        self.t = p.Thresholds()
+        self.t = Thresholds()
 
     def spill_serverless(self, busy_minutes):
         # Core fixture as Serverless LARGE with spill: one size up (X_LARGE) at the published 2.0 DBU ratio.
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS", min_clusters=1)
         q = e.current_epoch.query
-        q.update({"spill_query_pct_30": 6.0, "spill_queries_30": 300, "p95_spill_bytes_when_spilled_30": 4 * p.GIB})
+        q.update({"spill_query_pct_30": 6.0, "spill_queries_30": 300, "p95_spill_bytes_when_spilled_30": 4 * GIB})
         if busy_minutes is None:
             e.current_epoch.gaps.pop("busy_minutes", None)
         else:
@@ -174,15 +182,15 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
 
     def test_busy_share_of_cluster_time(self):
         # Single cluster, 20,000 running minutes of which 10,000 busy: half the cluster time is busy.
-        self.assertAlmostEqual(p.size_busy_share(10000.0, 20000.0, 20000.0, 1), 0.5)
+        self.assertAlmostEqual(size_busy_share(10000.0, 20000.0, 20000.0, 1), 0.5)
         # Two-cluster floor: idle time runs min clusters, so 10,000 idle wall minutes are 20,000 idle cluster-minutes.
-        self.assertAlmostEqual(p.size_busy_share(10000.0, 20000.0, 50000.0, 2), 0.6)
+        self.assertAlmostEqual(size_busy_share(10000.0, 20000.0, 50000.0, 2), 0.6)
         # Busy time above running time (inconsistent sources) counts as all busy; unknown stays unknown.
-        self.assertEqual(p.size_busy_share(25000.0, 20000.0, 20000.0, 1), 1.0)
-        self.assertIsNone(p.size_busy_share(None, 20000.0, 20000.0, 1))
-        self.assertIsNone(p.size_busy_share(100.0, 0.0, 0.0, 1))
+        self.assertEqual(size_busy_share(25000.0, 20000.0, 20000.0, 1), 1.0)
+        self.assertIsNone(size_busy_share(None, 20000.0, 20000.0, 1))
+        self.assertIsNone(size_busy_share(100.0, 0.0, 0.0, 1))
         # Cluster count below the floor (sources disagree): busy cluster-minutes are never below busy wall-minutes.
-        self.assertAlmostEqual(p.size_busy_share(100.0, 1000.0, 1500.0, 2), 100.0 / 1500.0, places=6)
+        self.assertAlmostEqual(size_busy_share(100.0, 1000.0, 1500.0, 2), 100.0 / 1500.0, places=6)
 
     def test_upsize_is_a_canary_not_actionable(self):
         size = self.size(self.spill_serverless(5000.0))
@@ -206,7 +214,7 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         self.assertAlmostEqual(m["runtime_multiplier_range"]["base"], 0.70)
 
     def test_downsize_slow_down_applies_to_busy_time_only(self):
-        e = p.demo_evidence()[0]  # LARGE -> MEDIUM canary, min 2 clusters
+        e = demo_evidence()[0]  # LARGE -> MEDIUM canary, min 2 clusters
         e.current_epoch.gaps["busy_minutes"] = 12000.0
         m = self.size(e).metadata
         share = m["busy_share"]
@@ -214,7 +222,7 @@ class UpsizeCanaryAndBusyTimeTests(unittest.TestCase):
         self.assertAlmostEqual(m["runtime_multiplier_range"]["base"], share * 1.30 + (1 - share), places=6)
 
     def test_gap_collector_reports_busy_wall_minutes_for_every_epoch_with_queries(self):
-        sql = p.build_epoch_gap_metrics_sql(self.t)
+        sql = build_epoch_gap_metrics_sql(self.t)
         self.assertIn("AS busy_minutes", sql)
         self.assertIn("LEFT JOIN gap_stats", sql)
         # Whole-second TIMESTAMPDIFF would drop most of every sub-second query's contribution.
@@ -231,9 +239,9 @@ class DownsizeScaleOutTests(unittest.TestCase):
         # (and the conservative bound, a fully linear slowdown: one size down halves the workers, 1 - 0.6 x 2.0 = -20%).
         logging.disable(logging.CRITICAL)
         try:
-            e = p.demo_evidence()[0]
+            e = demo_evidence()[0]
             e.current_epoch.gaps["busy_minutes"] = e.current_epoch.events["uptime_minutes"]
-            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+            c = next(c for c in p.evaluate_warehouses([e], Thresholds())[0].candidates if c.knob == "warehouse_size")
         finally:
             logging.disable(logging.NOTSET)
         self.assertEqual(c.metadata["busy_share"], 1.0)
@@ -246,9 +254,9 @@ class BatchProfileTests(unittest.TestCase):
     def test_weekly_job_has_too_few_run_days_for_a_downsize_canary(self):
         logging.disable(logging.CRITICAL)
         try:
-            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C05")
+            e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C05")
             e.current_epoch.query["active_days_30"] = 4
-            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+            c = next(c for c in p.evaluate_warehouses([e], Thresholds())[0].candidates if c.knob == "warehouse_size")
         finally:
             logging.disable(logging.NOTSET)
         self.assertEqual(c.status, "NO_CHANGE")
@@ -257,7 +265,7 @@ class BatchProfileTests(unittest.TestCase):
 
 class SpillConcentrationTests(unittest.TestCase):
     def test_sql_ranks_sources_and_never_merges_redacted_statements(self):
-        sql = p.build_spill_source_sql(p.Thresholds())
+        sql = build_spill_source_sql(Thresholds())
         self.assertIn("rn <= 3", sql)
         self.assertIn("WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id", sql)
         self.assertIn("SHA2(x.statement_text, 256)", sql)
@@ -266,9 +274,9 @@ class SpillConcentrationTests(unittest.TestCase):
     def test_missing_concentration_evidence_fails_closed_for_an_upsize(self):
         logging.disable(logging.CRITICAL)
         try:
-            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C07")
+            e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C07")
             e.current_epoch.query.pop("top_spill_source_share_pct_30")
-            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "warehouse_size")
+            c = next(c for c in p.evaluate_warehouses([e], Thresholds())[0].candidates if c.knob == "warehouse_size")
         finally:
             logging.disable(logging.NOTSET)
         self.assertEqual((c.status, c.blockers), ("INSUFFICIENT_EVIDENCE", ["SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE"]))

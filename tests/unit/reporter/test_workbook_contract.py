@@ -8,6 +8,10 @@ ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT / "src"))
 from publisher import publisher as p
+from publisher.analyzer.collector.demo import DEMO_FLEET, demo_evidence, synthetic_demo_evidence  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.reporter.json_reporter import package_locked_contract  # noqa: E402
+from publisher.contracts import reporter_contract as rc  # noqa: E402
 from publisher.contracts import workbook_contract as wc
 from publisher.reporter import workbook_reporter as wr
 
@@ -15,14 +19,14 @@ from publisher.reporter import workbook_reporter as wr
 class WorkbookContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.t=p.Thresholds()
-        cls.evidence=p.synthetic_demo_evidence()
+        cls.t=Thresholds()
+        cls.evidence=synthetic_demo_evidence()
         cls.packages=p.build_recommendation_packages(cls.evidence,cls.t)
         cls.projection=wc.project_workbook(cls.packages)
 
     def test_four_locked_sheet_grains(self):
         self.assertEqual(wc.SHEET_NAMES,("Executive Summary","Warehouse Portfolio","Scenario Plans","Recommendation Registry"))
-        n=len(p.DEMO_FLEET)
+        n=len(DEMO_FLEET)
         self.assertEqual(len(self.packages),n)
         self.assertEqual(len(self.projection.warehouse_portfolio),n)
         self.assertEqual(len(self.projection.scenario_plans),2*n)
@@ -157,7 +161,7 @@ class WorkbookContractTests(unittest.TestCase):
 
     def test_package_writer_places_workbook_in_output_dir(self):
         with tempfile.TemporaryDirectory() as td:
-            files=p.package_locked_contract(Path(td),self.packages[:2],self.evidence[:2])
+            files=package_locked_contract(Path(td),self.packages[:2],self.evidence[:2])
             self.assertEqual(Path(files["workbook"]).name,"workbook.xlsx")
             self.assertTrue(Path(files["workbook"]).exists())
             manifest=json.loads(Path(files["manifest"]).read_text())
@@ -172,15 +176,15 @@ class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.t=p.Thresholds()
-        cls.packages=p.build_recommendation_packages(p.synthetic_demo_evidence(),cls.t)
+        cls.t=Thresholds()
+        cls.packages=p.build_recommendation_packages(synthetic_demo_evidence(),cls.t)
 
     def test_step_savings_are_ordered_and_add_up_along_the_authoritative_chain(self):
         checked=0
         for pkg in self.packages:
-            plan=next(s for s in pkg.scenarios if s.status==p.rc.ScenarioStatus.RECOMMENDED)
+            plan=next(s for s in pkg.scenarios if s.status==rc.ScenarioStatus.RECOMMENDED)
             auth=[x.projected_economics for x in plan.execution_plan if x.projected_economics is not None
-                  and x.projected_economics.pricing_basis==p.rc.PricingBasis.AUTHORITATIVE and x.projected_economics.step_savings_365d is not None]
+                  and x.projected_economics.pricing_basis==rc.PricingBasis.AUTHORITATIVE and x.projected_economics.step_savings_365d is not None]
             for pe in auth:
                 total=pe.step_savings_365d.total
                 if total is not None:
@@ -234,11 +238,11 @@ class PlanStepSavingsAndExecutiveRowsTests(unittest.TestCase):
         self.assertTrue(any("; step saves " in t for t in texts))
 
     def test_incompatible_migration_is_not_experiment_upside(self):
-        e=p.demo_evidence()[0]
+        e=demo_evidence()[0]
         e.compatibility_evidence={"mode":"B_READ_ONLY_API","status":"AVAILABLE","enable_serverless_compute":False,"external_legacy_hive_metastore_detected":True}
         pkgs=p.build_recommendation_packages([e],self.t)
-        plan_b=next(s for s in pkgs[0].scenarios if s.scenario_type==p.rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION)
-        self.assertEqual(plan_b.compatibility.status,p.rc.CompatibilityStatus.INCOMPATIBLE)
+        plan_b=next(s for s in pkgs[0].scenarios if s.scenario_type==rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION)
+        self.assertEqual(plan_b.compatibility.status,rc.CompatibilityStatus.INCOMPATIBLE)
         self.assertGreater(plan_b.portfolio_economics.savings_365d.total.high,0)
         row={m["metric"]:m for m in wc.project_workbook(pkgs,[]).executive_metrics}["Migration experiment high"]
         self.assertEqual(row["value"],0)

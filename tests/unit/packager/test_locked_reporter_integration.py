@@ -16,14 +16,21 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from publisher import publisher
+from publisher.common import ids  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_FLEET, demo_evidence, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.common.ids import epoch_id  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.reporter.json_reporter import package_locked_contract  # noqa: E402
+from publisher.reviewer.package import validate_locked_package_schema  # noqa: E402
 from tests.golden import case_names, load_case
 from publisher.contracts import reporter_contract as rc
 
 
 class LockedReporterIntegrationTests(unittest.TestCase):
     def _packages(self):
-        evidence = publisher.demo_evidence()
-        thresholds = publisher.Thresholds()
+        evidence = demo_evidence()
+        thresholds = Thresholds()
         packages = publisher.build_recommendation_packages(evidence, thresholds)
         return evidence, thresholds, packages
 
@@ -33,7 +40,7 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         package = packages[0]
         package.validate()
         payload = package.to_dict()
-        publisher.validate_locked_package_schema(payload)
+        validate_locked_package_schema(payload)
         self.assertEqual(
             set(payload),
             {
@@ -65,7 +72,7 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         self.assertGreater(econ.contingent_savings_365d.total.base, econ.savings_365d.total.base)
         # Round-trips through JSON and the committed Draft 2020-12 schema.
         payload = package.to_dict()
-        publisher.validate_locked_package_schema(payload)
+        validate_locked_package_schema(payload)
         plan_json = next(x for x in payload["scenarios"] if x["scenario_id"] == plan.scenario_id)
         self.assertIsNotNone(plan_json["portfolio_economics"]["contingent_savings_365d"])
         self.assertTrue(any(
@@ -84,8 +91,8 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         self.assertTrue(all(k.startswith("EVID-") for k in package.evidence))
 
     def test_same_evidence_produces_identical_locked_package(self):
-        evidence = publisher.demo_evidence()
-        thresholds = publisher.Thresholds()
+        evidence = demo_evidence()
+        thresholds = Thresholds()
         a = publisher.build_recommendation_packages(evidence, thresholds)[0]
         b = publisher.build_recommendation_packages(evidence, thresholds)[0]
         self.assertEqual(a.to_dict(), b.to_dict())
@@ -120,11 +127,11 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         evidence, thresholds, packages = self._packages()
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)
-            paths = publisher.package_locked_contract(out, packages, evidence)
+            paths = package_locked_contract(out, packages, evidence)
             package_files = sorted((out / "packages").glob("*.json"))
             self.assertEqual(len(package_files), 1)
             payload = json.loads(package_files[0].read_text())
-            publisher.validate_locked_package_schema(payload)
+            validate_locked_package_schema(payload)
             self.assertNotIn("report.json", {p.name for p in out.iterdir()})
             self.assertIn("workbook.xlsx", {p.name for p in out.iterdir()})
             manifest = json.loads((out / "manifest.json").read_text())
@@ -135,26 +142,26 @@ class LockedReporterIntegrationTests(unittest.TestCase):
             self.assertIn("manifest", paths)
 
     def test_multiwarehouse_run_emits_one_contract_package_per_identity(self):
-        base = publisher.demo_evidence()[0]
+        base = demo_evidence()[0]
         second = replace(
             base,
             workspace_id="9999999999999999",
             warehouse_id="wh-demo-002",
             warehouse_name="BI - Marketing",
-            current_epoch_id=publisher.epoch_id("9999999999999999", "wh-demo-002", base.current_epoch.epoch_start),
+            current_epoch_id=epoch_id("9999999999999999", "wh-demo-002", base.current_epoch.epoch_start),
             epochs=[
                 replace(
                     ep,
                     workspace_id="9999999999999999",
                     warehouse_id="wh-demo-002",
                     warehouse_name="BI - Marketing",
-                    epoch_id=publisher.epoch_id("9999999999999999", "wh-demo-002", ep.epoch_start),
+                    epoch_id=epoch_id("9999999999999999", "wh-demo-002", ep.epoch_start),
                 )
                 for ep in base.epochs
             ],
         )
         evidence = [base, second]
-        thresholds = publisher.Thresholds()
+        thresholds = Thresholds()
         packages = publisher.build_recommendation_packages(evidence, thresholds)
         self.assertEqual(len(packages), 2)
         self.assertEqual(len({p.recommendation_package_id for p in packages}), 2)
@@ -168,13 +175,13 @@ class LockedReporterIntegrationTests(unittest.TestCase):
             payload = load_case(name)
             if "evidence" not in payload:
                 continue  # collector-level fixture (raw snapshots), covered by tests/golden/test_golden_publisher.py
-            evidence = [publisher.evidence_from_dict(x) for x in payload["evidence"]]
-            thresholds = publisher.Thresholds()
+            evidence = [evidence_from_dict(x) for x in payload["evidence"]]
+            thresholds = Thresholds()
             packages = publisher.build_recommendation_packages(evidence, thresholds)
             self.assertGreaterEqual(len(packages), 1, name)
             for package in packages:
                 package.validate()
-                publisher.validate_locked_package_schema(package.to_dict())
+                validate_locked_package_schema(package.to_dict())
 
 
 class PublicIdentityTests(unittest.TestCase):
@@ -188,8 +195,8 @@ class PublicIdentityTests(unittest.TestCase):
 
     @staticmethod
     def _fleet():
-        evidence = publisher.demo_evidence() + publisher.synthetic_demo_evidence()
-        packages = publisher.build_recommendation_packages(evidence, publisher.Thresholds())
+        evidence = demo_evidence() + synthetic_demo_evidence()
+        packages = publisher.build_recommendation_packages(evidence, Thresholds())
         return evidence, [package.to_dict() for package in packages]
 
     def test_public_ids_ignore_internal_join_keys(self):
@@ -198,7 +205,7 @@ class PublicIdentityTests(unittest.TestCase):
             mocks = []
             for name, prefix in self.INTERNAL_KEYS:
                 mock = MagicMock(side_effect=self._unrelated(prefix))
-                original = getattr(publisher, name)
+                original = getattr(ids, name)
                 # Patch the key wherever a publisher module imported it, not only in the facade.
                 for module in [m for k, m in sorted(sys.modules.items()) if k == "publisher" or k.startswith("publisher.")]:
                     if getattr(module, name, None) is original:
@@ -209,7 +216,7 @@ class PublicIdentityTests(unittest.TestCase):
         self.assertTrue(all(m.called for m in mocks))
         self.assertFalse(any(e.current_epoch_id.startswith("ZZ") for e in baseline_evidence))
         self.assertTrue(all(e.current_epoch_id.startswith("ZZEPOCH-") for e in scrambled_evidence))
-        self.assertEqual(len(baseline), 1 + len(publisher.DEMO_FLEET))
+        self.assertEqual(len(baseline), 1 + len(DEMO_FLEET))
         self.assertEqual(scrambled, baseline)
 
 

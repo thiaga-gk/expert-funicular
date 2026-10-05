@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence  # noqa: E402
+from publisher.analyzer.collector.pricing import model_aws_baseline_cost  # noqa: E402
+from publisher.analyzer.collector.queries.billing import EPOCH_BILLING_ATTRIBUTION_SQL  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 REGISTRY = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
 
@@ -23,17 +28,17 @@ REGISTRY = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
 class BillingTopologyTests(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
-        self.t = p.Thresholds()
-        self.e = copy.deepcopy(p.demo_evidence()[0])  # PRO LARGE: driver i3.8xlarge, workers i3.2xlarge
+        self.t = Thresholds()
+        self.e = copy.deepcopy(demo_evidence()[0])  # PRO LARGE: driver i3.8xlarge, workers i3.2xlarge
 
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
     def aws(self, node_types):
-        return p.model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, REGISTRY, self.t, observed_node_types=node_types)
+        return model_aws_baseline_cost(self.e.current_epoch, "us-east-1", self.e.analysis_time, self.e.forecast_metadata, REGISTRY, self.t, observed_node_types=node_types)
 
     def test_attribution_sql_collects_node_types_and_sql_tier(self):
-        sql = p.EPOCH_BILLING_ATTRIBUTION_SQL
+        sql = EPOCH_BILLING_ATTRIBUTION_SQL
         self.assertIn("usage_metadata.node_type AS node_type", sql)
         self.assertIn("product_features.sql_tier AS sql_tier", sql)
         self.assertIn("ARRAY_SORT(COLLECT_SET(u.node_type)) AS observed_node_types", sql)
@@ -56,7 +61,7 @@ class BillingTopologyTests(unittest.TestCase):
         self.assertEqual(meta["observed_node_types"], ["r5d.4xlarge"])
 
     def test_collector_wires_node_types_and_sql_tier(self):
-        rows = p._demo_fleet_rows(1, p.DEMO_ANALYSIS_TIME)  # Pro MEDIUM
+        rows = _demo_fleet_rows(1, DEMO_ANALYSIS_TIME)  # Pro MEDIUM
         rows = copy.deepcopy(rows)
         for r in rows["billing_attribution_photon_owner"]:
             r["observed_node_types"] = ["m5.large"]
@@ -66,7 +71,7 @@ class BillingTopologyTests(unittest.TestCase):
             def query(self, statement, *, label="collector_sql"):
                 return [dict(x) for x in rows.get(label, [])]
 
-        e = p.extract_evidence(Client(), self.t, "us-east-1", REGISTRY, analysis_time=p.DEMO_ANALYSIS_TIME)[0]
+        e = extract_evidence(Client(), self.t, "us-east-1", REGISTRY, analysis_time=DEMO_ANALYSIS_TIME)[0]
         self.assertIsNone(e.aws_baseline_cost_365)
         self.assertEqual(e.aws_cost_model["blocker"], "AWS_NODE_TYPE_MISMATCH")
         self.assertEqual(e.billing_features["current_epoch_sql_tiers"], ["CLASSIC"])

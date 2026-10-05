@@ -11,21 +11,61 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p
+from publisher.analyzer.collector.queries import billing as billing_queries  # noqa: E402
+from publisher.analyzer.blockers import dbu_baseline_blocker  # noqa: E402
+from publisher.analyzer.collector.billing import billing_check_through, effective_billing_watermark  # noqa: E402
+from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence, synthesize_resource_daily, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.pricing import load_aws_price_registry  # noqa: E402
+from publisher.analyzer.collector.queries.billing import BILLING_WATERMARK_SQL, EPOCH_DAILY_COST_SQL  # noqa: E402
+from publisher.analyzer.collector.queries.events import EPOCH_EVENT_METRICS_SQL, build_epoch_gap_metrics_sql  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import EPOCH_QUERY_METRICS_SQL  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict, load_evidence_files, save_evidence  # noqa: E402
+from publisher.analyzer.collector.sql_executor import SqlClient  # noqa: E402
+from publisher.analyzer.collector.workspace_api import AuthContext, _load_profile_host, collect_workspace_compatibility_evidence, resolve_cli_oauth  # noqa: E402
+from publisher.analyzer.findings import Analyzer  # noqa: E402
+from publisher.analyzer.forecast import Modeler  # noqa: E402
+from publisher.analyzer.metrics import blended_daily_rate, query_volume_growth_ratio  # noqa: E402
+from publisher.analyzer.normalizer import infer_photon_observation  # noqa: E402
+from publisher.common.hashing import canonical_json  # noqa: E402
+from publisher.common.ids import epoch_id  # noqa: E402
+from publisher.common.logging import LOGGER, setup_logging  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.common.utils import optional_float, safe_float  # noqa: E402
+from publisher.config.defaults import ACTIVE_KNOBS, SUPPORTED_WAREHOUSE_TYPES  # noqa: E402
+from publisher.config.versions import EVIDENCE_FORMAT_VERSION, PUBLISHER_VERSION  # noqa: E402
+from publisher.contracts.analysis import AnalysisResult  # noqa: E402
+from publisher.contracts.candidate import CandidateRecommendation, OptimizationDecision  # noqa: E402
+from publisher.contracts.review import WarehouseOptimization  # noqa: E402
+from publisher.contracts.scenario import PlanStep, Scenario  # noqa: E402
+from publisher.contracts.source import EpochEvidence, PhotonObservation, QuerySourceProfile, WarehouseAttribution, WarehouseConfig  # noqa: E402
+from publisher.governor.constraints import aws_region_price_guard  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.packager.adapter import _forecast_confidence, compute_reevaluation  # noqa: E402
+from publisher.packager.estimator.package import _package_economics  # noqa: E402
+from publisher.packager.estimator.scenario import StatefulBundleEstimator  # noqa: E402
+from publisher.packager.scenarios import ScenarioPlanner  # noqa: E402
+from publisher.packager.selection import _overall_status  # noqa: E402
+from publisher.reporter.json_reporter import package_locked_contract  # noqa: E402
+from publisher.reviewer.package import validate_locked_package_schema  # noqa: E402
+from publisher.reviewer.reviewer import Reviewer  # noqa: E402
+from publisher.contracts import reporter_contract as rc  # noqa: E402
+import datetime as dt  # noqa: E402
 from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
 
 
 class PublisherV27Tests(unittest.TestCase):
     def setUp(self):
-        self.t = p.Thresholds()
-        self.evidence = p.demo_evidence()
+        self.t = Thresholds()
+        self.evidence = demo_evidence()
         self.results = p.evaluate_warehouses(self.evidence, self.t)
         self.w = self.results[0]
         self.by_knob = {c.knob: c for c in self.w.candidates}
         self.packages = p.build_recommendation_packages(self.evidence, self.t)
 
     def test_five_deterministic_candidates_and_no_photon_or_channel_recommendation(self):
-        self.assertEqual(set(self.by_knob), set(p.ACTIVE_KNOBS))
+        self.assertEqual(set(self.by_knob), set(ACTIVE_KNOBS))
         self.assertEqual(len(self.w.candidates), 5)
         self.assertNotIn("warehouse_channel", self.by_knob)
         self.assertNotIn("enable_photon", self.by_knob)
@@ -40,19 +80,19 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(self.by_knob["warehouse_type"].recommended_config, {"warehouse_type": "SERVERLESS"})
 
     def test_recommendation_ids_are_deterministic_and_include_current_config(self):
-        r2 = p.evaluate_warehouses(p.demo_evidence(), self.t)
+        r2 = p.evaluate_warehouses(demo_evidence(), self.t)
         self.assertEqual([c.recommendation_id for c in self.w.candidates], [c.recommendation_id for c in r2[0].candidates])
         old = self.by_knob["warehouse_size"].recommendation_id
-        changed = p.demo_evidence()
-        changed[0].current_epoch.config = p.WarehouseConfig("PRO", "CURRENT", "X_LARGE", 2, 4, 120)
+        changed = demo_evidence()
+        changed[0].current_epoch.config = WarehouseConfig("PRO", "CURRENT", "X_LARGE", 2, 4, 120)
         new = next(c for c in p.evaluate_warehouses(changed, self.t)[0].candidates if c.knob == "warehouse_size").recommendation_id
         self.assertNotEqual(old, new)
 
     def test_analysis_time_makes_decision_semantics_repeatable(self):
-        first = p.evaluate_warehouses(p.demo_evidence(), self.t)[0]
-        second = p.evaluate_warehouses(p.demo_evidence(), self.t)[0]
-        self.assertEqual(p.canonical_json(first.candidates), p.canonical_json(second.candidates))
-        self.assertEqual(p.canonical_json(first.scenarios), p.canonical_json(second.scenarios))
+        first = p.evaluate_warehouses(demo_evidence(), self.t)[0]
+        second = p.evaluate_warehouses(demo_evidence(), self.t)[0]
+        self.assertEqual(canonical_json(first.candidates), canonical_json(second.candidates))
+        self.assertEqual(canonical_json(first.scenarios), canonical_json(second.scenarios))
 
     def test_current_epoch_drives_findings_and_history_only_measures_size_rates(self):
         current = self.evidence[0].current_epoch_id
@@ -111,9 +151,9 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_bundle_prices_min_cluster_with_the_same_realization_as_the_candidate(self):
         c = self.by_knob["min_clusters"]
-        step = p.PlanStep(1, c.recommendation_id, "min_clusters", c.current_config, c.recommended_config,
+        step = PlanStep(1, c.recommendation_id, "min_clusters", c.current_config, c.recommended_config,
                           c.status, "A_B_CANARY", 7, [], [])
-        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [step], {c.recommendation_id: c})
+        port = StatefulBundleEstimator(self.t).estimate(self.evidence[0], [step], {c.recommendation_id: c})
         got, want = port.estimated_savings_range_365, c.estimated_savings_range_365
         for g, w in ((got.low, want.low), (got.base, want.base), (got.high, want.high)):
             self.assertAlmostEqual(g, w, delta=1.0)
@@ -152,14 +192,14 @@ class PublisherV27Tests(unittest.TestCase):
 
     def step_for(self, knob, state):
         c = self.by_knob[knob]
-        return p.PlanStep(1, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status,
+        return PlanStep(1, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status,
                           "GATE", 0, c.invalidates, c.dependencies, state), c
 
     def test_authoritative_chain_skips_pending_effects_even_when_a_later_step_is_ready(self):
         pending, pc = self.step_for("min_clusters", "PENDING_REEVALUATION")
         ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
         by_id = {pc.recommendation_id: pc, rcand.recommendation_id: rcand}
-        est = p.StatefulBundleEstimator(self.t)
+        est = StatefulBundleEstimator(self.t)
         both = est.estimate(self.evidence[0], [pending, ready], by_id)
         only_ready = est.estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
         # Authoritative: auto-stop is priced on the *unchanged* floor because the min-cluster step is pending.
@@ -170,7 +210,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_no_contingent_economics_when_nothing_is_pending(self):
         ready, c = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
-        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready], {c.recommendation_id: c})
+        port = StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready], {c.recommendation_id: c})
         self.assertIsNone(port.contingent)
         self.assertEqual(ready.pricing_basis, "AUTHORITATIVE")
         plan_b = next(s for s in self.w.scenarios if s.name.startswith("Plan B"))
@@ -179,14 +219,14 @@ class PublisherV27Tests(unittest.TestCase):
     def test_unpriceable_pending_step_does_not_poison_authoritative_economics(self):
         ready, rcand = self.step_for("auto_stop_minutes", "READY_FOR_HITL")
         # A pending step whose effect only a canary can measure withholds only the contingent chain.
-        photon = p.PlanStep(2, "REC-UNMEASURABLE", "max_clusters", {"max_clusters": 4}, {"max_clusters": 3},
+        photon = PlanStep(2, "REC-UNMEASURABLE", "max_clusters", {"max_clusters": 4}, {"max_clusters": 3},
                             "TEST_REQUIRED", "GATE", 0, [], [], "PENDING_REEVALUATION")
         photon_c = copy.deepcopy(self.by_knob["max_clusters"])
         photon_c.recommendation_id = "REC-UNMEASURABLE"
         photon_c.metadata = {**photon_c.metadata, "bundle_effect": {"type": "requires_canary"}}
         by_id = {rcand.recommendation_id: rcand, "REC-UNMEASURABLE": photon_c}
-        port = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready, photon], by_id)
-        only_ready = p.StatefulBundleEstimator(self.t).estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
+        port = StatefulBundleEstimator(self.t).estimate(self.evidence[0], [ready, photon], by_id)
+        only_ready = StatefulBundleEstimator(self.t).estimate(self.evidence[0], [self.step_for("auto_stop_minutes", "READY_FOR_HITL")[0]], by_id)
         self.assertEqual(port.estimate_status, only_ready.estimate_status)
         self.assertAlmostEqual(port.estimated_savings_range_365.base, only_ready.estimated_savings_range_365.base, places=2)
         self.assertIsNone(port.contingent)  # contingent cannot be priced, so it is withheld rather than guessed
@@ -197,18 +237,18 @@ class PublisherV27Tests(unittest.TestCase):
         plan = next(s for s in w.scenarios if s.recommended)
         next(x for x in plan.steps if x.execution_state == "PENDING_REEVALUATION").pricing_basis = "AUTHORITATIVE"
         with self.assertRaisesRegex(ValueError, "pricing basis"):
-            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+            Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
 
     def test_reviewer_gate_2_rejects_contingent_upside_leaking_into_authoritative_savings(self):
         w = copy.deepcopy(self.w)
         plan = next(s for s in w.scenarios if s.recommended)
         plan.portfolio_estimate.estimated_savings_range_365 = plan.portfolio_estimate.contingent.estimated_savings_range_365
         with self.assertRaisesRegex(ValueError, "Authoritative scenario savings"):
-            p.Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
+            Reviewer(self.t).review_scenarios(self.evidence[0], w.candidates, w.scenarios, plan.scenario_id)
 
     def test_reviewer_gate_2_accepts_the_unmodified_plan(self):
         plan = next(s for s in self.w.scenarios if s.recommended)
-        p.Reviewer(self.t).review_scenarios(self.evidence[0], self.w.candidates, self.w.scenarios, plan.scenario_id)
+        Reviewer(self.t).review_scenarios(self.evidence[0], self.w.candidates, self.w.scenarios, plan.scenario_id)
 
     def test_scenario_contract_and_order(self):
         self.assertEqual([s.name for s in self.w.scenarios], [
@@ -234,7 +274,7 @@ class PublisherV27Tests(unittest.TestCase):
         from openpyxl import load_workbook
         with tempfile.TemporaryDirectory() as td:
             packages = self.packages
-            files = p.package_locked_contract(Path(td), packages, self.evidence)
+            files = package_locked_contract(Path(td), packages, self.evidence)
             payload = json.loads(Path(files[f"package:{self.evidence[0].workspace_id}:{self.evidence[0].warehouse_id}"]).read_text())
             for field in ("candidates", "scenarios", "recommended_plan", "package_economics", "evidence", "workload_profile", "realization"):
                 self.assertIn(field, payload)
@@ -247,7 +287,7 @@ class PublisherV27Tests(unittest.TestCase):
         return {f.metric: f.value for f in by[knob].findings}.get("task_minutes_per_cluster_minute")
 
     def test_query_sql_collects_epoch_task_time(self):
-        self.assertIn("SUM(total_task_duration_ms) AS epoch_task_duration_ms", p.EPOCH_QUERY_METRICS_SQL)
+        self.assertIn("SUM(total_task_duration_ms) AS epoch_task_duration_ms", EPOCH_QUERY_METRICS_SQL)
 
     def test_utilization_is_reported_on_size_and_floor(self):
         e = copy.deepcopy(self.evidence[0])
@@ -304,7 +344,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIsNone(values[("warehouse_size", "spill_query_pct_30")])
         self.assertIsNone(values[("warehouse_size", "queued_query_pct_30")])
         pkg = p.build_recommendation_packages([self._without_pressure_evidence()], self.t)[0]
-        p.validate_locked_package_schema(pkg.to_dict())
+        validate_locked_package_schema(pkg.to_dict())
 
     def test_each_missing_pressure_field_blocks_the_cuts_that_depend_on_it(self):
         cases = {
@@ -323,9 +363,9 @@ class PublisherV27Tests(unittest.TestCase):
                     self.assertNotEqual(by[knob].recommended_config, by[knob].current_config, knob)
 
     def test_unparseable_pressure_value_is_unknown(self):
-        self.assertIsNone(p.optional_float("n/a"))
-        self.assertIsNone(p.optional_float(None))
-        self.assertEqual(p.optional_float("1.5"), 1.5)
+        self.assertIsNone(optional_float("n/a"))
+        self.assertIsNone(optional_float(None))
+        self.assertEqual(optional_float("1.5"), 1.5)
 
     def test_known_queue_pressure_is_not_reported_as_missing_evidence(self):
         e = copy.deepcopy(self.evidence[0])
@@ -355,15 +395,15 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", by["max_clusters"].blockers)
 
     def test_read_only_api_scope_and_supported_type_gate_are_explicit(self):
-        self.assertEqual(p.SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
+        self.assertEqual(SUPPORTED_WAREHOUSE_TYPES, {"CLASSIC", "PRO", "SERVERLESS"})
         source = "\n".join(path.read_text() for path in sorted(Path(p.__file__).parent.rglob("*.py")))
         self.assertIn("/api/2.0/sql/config/warehouses", source)
         self.assertIn("/api/2.1/clusters/get", source)
         self.assertNotIn("/api/2.0/sql/warehouses/{id}", source)
 
     def _fleet_with_one_unsupported(self):
-        fleet = p.synthetic_demo_evidence(3)
-        fleet[1].current_epoch.config = p.WarehouseConfig("LAKEHOUSE_REAL_TIME", "CURRENT", "MEDIUM", 1, 1, 10)
+        fleet = synthetic_demo_evidence(3)
+        fleet[1].current_epoch.config = WarehouseConfig("LAKEHOUSE_REAL_TIME", "CURRENT", "MEDIUM", 1, 1, 10)
         return fleet
 
     def test_unsupported_type_is_excluded_per_warehouse_not_whole_run(self):
@@ -373,7 +413,7 @@ class PublisherV27Tests(unittest.TestCase):
         keys = {(pkg.warehouse.workspace_id, pkg.warehouse.warehouse_id) for pkg in packages}
         self.assertEqual(len(packages), 2)
         self.assertNotIn((fleet[1].workspace_id, fleet[1].warehouse_id), keys)
-        supported_only = [e for i, e in enumerate(p.synthetic_demo_evidence(3)) if i != 1]
+        supported_only = [e for i, e in enumerate(synthetic_demo_evidence(3)) if i != 1]
         expected = p.build_recommendation_packages(supported_only, self.t)
         self.assertEqual(
             sorted(pkg.recommendation_package_id for pkg in packages),
@@ -382,26 +422,26 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_unsupported_type_never_reaches_the_analyzer(self):
         seen = []
-        original = p.Analyzer.analyze
+        original = Analyzer.analyze
 
         def spy(analyzer, e):
             seen.append(e.current_epoch.config.warehouse_type)
             return original(analyzer, e)
 
-        with patch.object(p.Analyzer, "analyze", spy):
+        with patch.object(Analyzer, "analyze", spy):
             p.evaluate_warehouses(self._fleet_with_one_unsupported(), self.t)
         self.assertTrue(seen)
-        self.assertTrue(set(seen) <= p.SUPPORTED_WAREHOUSE_TYPES)
+        self.assertTrue(set(seen) <= SUPPORTED_WAREHOUSE_TYPES)
 
     def test_unsupported_warehouse_does_not_feed_workspace_calibration(self):
-        fleet = p.synthetic_demo_evidence(2)
+        fleet = synthetic_demo_evidence(2)
         unsupported = fleet[1]
         prior = copy.deepcopy(unsupported.current_epoch)
         prior.is_current = False
         prior.epoch_id = prior.epoch_id + "-prior"
-        prior.config = p.WarehouseConfig("SERVERLESS", "CURRENT", "MEDIUM", 1, 1, 10)
+        prior.config = WarehouseConfig("SERVERLESS", "CURRENT", "MEDIUM", 1, 1, 10)
         unsupported.epochs.insert(0, prior)
-        unsupported.current_epoch.config = p.WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
+        unsupported.current_epoch.config = WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
         self.assertFalse(any(ep.config.warehouse_type == "SERVERLESS" for ep in fleet[0].epochs))
         p.evaluate_warehouses(fleet, self.t)
         self.assertFalse(fleet[0].billing_features["workspace_serverless_observed_from_system_compute_warehouses"])
@@ -410,7 +450,7 @@ class PublisherV27Tests(unittest.TestCase):
         fleet = self._fleet_with_one_unsupported()
         packages = p.build_recommendation_packages(fleet, self.t)
         with tempfile.TemporaryDirectory() as td:
-            files = p.package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
+            files = package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
             manifest = json.loads(Path(files["manifest"]).read_text())
         self.assertEqual(manifest["package_count"], 2)
         self.assertEqual(manifest["excluded_warehouse_count"], 1)
@@ -423,20 +463,20 @@ class PublisherV27Tests(unittest.TestCase):
         }])
 
     def test_all_unsupported_fleet_emits_no_packages_and_records_every_exclusion(self):
-        fleet = p.synthetic_demo_evidence(2)
+        fleet = synthetic_demo_evidence(2)
         for e in fleet:
-            e.current_epoch.config = p.WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
+            e.current_epoch.config = WarehouseConfig("FUTURE_TYPE", "CURRENT", "MEDIUM", 1, 1, 10)
         packages = p.build_recommendation_packages(fleet, self.t)
         self.assertEqual(packages, [])
         with tempfile.TemporaryDirectory() as td:
-            files = p.package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
+            files = package_locked_contract(Path(td), packages, fleet, generate_workbook=False)
             manifest = json.loads(Path(files["manifest"]).read_text())
         self.assertEqual(manifest["package_count"], 0)
         self.assertEqual([x["warehouse_type"] for x in manifest["excluded_warehouses"]], ["FUTURE_TYPE", "FUTURE_TYPE"])
 
     def test_supported_manifest_has_empty_exclusions(self):
         with tempfile.TemporaryDirectory() as td:
-            files = p.package_locked_contract(Path(td), self.packages, self.evidence, generate_workbook=False)
+            files = package_locked_contract(Path(td), self.packages, self.evidence, generate_workbook=False)
             manifest = json.loads(Path(files["manifest"]).read_text())
         self.assertEqual(manifest["excluded_warehouse_count"], 0)
         self.assertEqual(manifest["excluded_warehouses"], [])
@@ -449,32 +489,32 @@ class PublisherV27Tests(unittest.TestCase):
     def test_identical_evidence_merge_deduplicates(self):
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
-            p.save_evidence(a, self.evidence)
-            p.save_evidence(b, self.evidence)
-            merged = p.load_evidence_files([str(a), str(b)])
+            save_evidence(a, self.evidence)
+            save_evidence(b, self.evidence)
+            merged = load_evidence_files([str(a), str(b)])
             self.assertEqual(len(merged), 1)
             self.assertEqual(len(merged[0].epochs), 2)
 
     def test_same_warehouse_id_in_different_workspaces_is_not_collapsed(self):
         other = copy.deepcopy(self.evidence[0])
         other.workspace_id = "9999999999999999"
-        other.current_epoch_id = p.epoch_id(other.workspace_id, other.warehouse_id, other.current_epoch.epoch_start)
+        other.current_epoch_id = epoch_id(other.workspace_id, other.warehouse_id, other.current_epoch.epoch_start)
         for ep in other.epochs:
             ep.workspace_id = other.workspace_id
-            ep.epoch_id = p.epoch_id(other.workspace_id, other.warehouse_id, ep.epoch_start)
+            ep.epoch_id = epoch_id(other.workspace_id, other.warehouse_id, ep.epoch_start)
             if ep.is_current:
                 other.current_epoch_id = ep.epoch_id
         for row in other.daily_cost_365:
             row["workspace_id"] = other.workspace_id
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
-            p.save_evidence(a, self.evidence)
-            p.save_evidence(b, [other])
-            merged = p.load_evidence_files([str(a), str(b)])
+            save_evidence(a, self.evidence)
+            save_evidence(b, [other])
+            merged = load_evidence_files([str(a), str(b)])
             self.assertEqual(len(merged), 2)
 
     def test_mixed_currency_rejected(self):
-        model = p.Modeler(self.t)
+        model = Modeler(self.t)
         rows = [
             {"usage_date": "2026-01-01", "list_cost": 1, "currency_code": "USD"},
             {"usage_date": "2026-01-02", "list_cost": 1, "currency_code": "EUR"},
@@ -483,7 +523,7 @@ class PublisherV27Tests(unittest.TestCase):
             model.forecast_from_daily_cost(rows, "2025-01-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
 
     def test_forecast_zero_fills_calendar_days(self):
-        model = p.Modeler(self.unsettled())
+        model = Modeler(self.unsettled())
         # 15-day epoch with no billing on 09-25 and 09-28: those count as $0 days. The rate uses the last two whole weeks.
         rows = [{"usage_date": f"2026-09-{d:02d}", "list_cost": 100, "currency_code": "USD"} for d in range(16, 31) if d not in (25, 28)]
         out = model.forecast_from_daily_cost(rows, "2026-09-16T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
@@ -500,22 +540,22 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_cv_is_unknown_when_history_is_too_short(self):
         # 4 days < forecast_cv_min_days (7): the old code published CV 0.0 = "perfectly stable".
-        model = p.Modeler(self.t)
+        model = Modeler(self.t)
         out = model.forecast_from_daily_cost(self._cost_rows(4, "2026-09-26"), "2026-09-26T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
         self.assertIsNone(out["cost_cv_84"])
 
     def test_cv_is_unknown_without_any_cost_basis(self):
-        model = p.Modeler(self.t)
+        model = Modeler(self.t)
         out = model.forecast_from_daily_cost([], "2026-10-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
         self.assertIsNone(out["cost_cv_84"])
 
     def test_cv_is_unknown_when_mean_cost_is_zero(self):
-        model = p.Modeler(self.t)
+        model = Modeler(self.t)
         out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 0.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
         self.assertIsNone(out["cost_cv_84"])
 
     def test_cv_is_computed_when_history_is_sufficient(self):
-        model = p.Modeler(self.unsettled())
+        model = Modeler(self.unsettled())
         out = model.forecast_from_daily_cost(self._cost_rows(30, cost=lambda i: 50.0 if i % 2 else 150.0), "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
         self.assertAlmostEqual(out["cost_cv_84"], 0.5, places=3)
 
@@ -529,12 +569,12 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(c_known.confidence["components"]["stability"], 1.0)
         self.assertIsNone(c_unknown.confidence["components"]["stability"])
         # Unknown stability earns no credit, so confidence can only go down (some candidates sit at a cap).
-        scores = [(self.candidate_of(known, k).confidence["score"], self.candidate_of(unknown, k).confidence["score"]) for k in p.ACTIVE_KNOBS]
+        scores = [(self.candidate_of(known, k).confidence["score"], self.candidate_of(unknown, k).confidence["score"]) for k in ACTIVE_KNOBS]
         self.assertTrue(all(u <= k for k, u in scores))
         self.assertTrue(any(u < k for k, u in scores))
-        fc = p._forecast_confidence(unknown[0], self.t)
+        fc = _forecast_confidence(unknown[0], self.t)
         self.assertIsNone(fc.components["cost_stability"])
-        self.assertLess(fc.score, p._forecast_confidence(known[0], self.t).score)
+        self.assertLess(fc.score, _forecast_confidence(known[0], self.t).score)
 
     def candidate_of(self, evidence, knob):
         return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
@@ -543,10 +583,10 @@ class PublisherV27Tests(unittest.TestCase):
         self.evidence[0].cost_cv_84 = None
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
-            p.save_evidence(a, self.evidence)
-            p.save_evidence(b, self.evidence)
-            self.assertIsNone(p.load_evidence_files([str(a)])[0].cost_cv_84)
-            merged = p.load_evidence_files([str(a), str(b)])
+            save_evidence(a, self.evidence)
+            save_evidence(b, self.evidence)
+            self.assertIsNone(load_evidence_files([str(a)])[0].cost_cv_84)
+            merged = load_evidence_files([str(a), str(b)])
             self.assertIsNone(merged[0].cost_cv_84)
 
     def test_unknown_cv_packages_validate(self):
@@ -584,7 +624,7 @@ class PublisherV27Tests(unittest.TestCase):
     def test_failure_cancel_rate_is_reported_as_a_size_finding(self):
         ev = copy.deepcopy(self.evidence)
         ev[0].current_epoch.query["failure_cancel_pct_30"] = 8.0
-        analysis = p.Analyzer(self.t).analyze(ev[0])["warehouse_size"]
+        analysis = Analyzer(self.t).analyze(ev[0])["warehouse_size"]
         finding = next(f for f in analysis.findings if f.metric == "failure_cancel_pct_30")
         self.assertEqual(finding.value, 8.0)
         self.assertEqual(finding.threshold, self.t.failure_cancel_pct_downsize_safe)
@@ -596,7 +636,7 @@ class PublisherV27Tests(unittest.TestCase):
             ep["config"]["warehouse_size"] = size
             ep["config"]["warehouse_type"] = "SERVERLESS"
         next(x for x in ev["epochs"] if x["is_current"])["query"].update(query)
-        return [p.evidence_from_dict(ev)]
+        return [evidence_from_dict(ev)]
 
     def test_serverless_5x_large_downsize_is_not_priced_from_a_nominal_ratio(self):
         # 5X-Large has no published Serverless DBU/hour. Before: 5X->4X was priced at a guessed 0.5 ratio (~$9,450).
@@ -646,7 +686,7 @@ class PublisherV27Tests(unittest.TestCase):
     def with_cost_history(self, days, golden=None):
         if golden:
             payload = load_case(golden)
-            ev = [p.evidence_from_dict(payload["evidence"][0])]
+            ev = [evidence_from_dict(payload["evidence"][0])]
         else:
             ev = copy.deepcopy(self.evidence)
         ev[0].cost_history_days = days
@@ -697,7 +737,7 @@ class PublisherV27Tests(unittest.TestCase):
     def forecast(self, rows, watermark="UNSET", start="2026-09-01T00:00:00+00:00"):
         # Window/watermark semantics are tested without the settle buffer; the buffer has its own tests.
         kwargs = {} if watermark == "UNSET" else {"billing_watermark": watermark}
-        return p.Modeler(self.unsettled()).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
+        return Modeler(self.unsettled()).forecast_from_daily_cost(rows, start, self.ANALYSIS, **kwargs)
 
     def unsettled(self):
         import dataclasses
@@ -705,7 +745,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_billing_sql_uses_an_exact_half_open_window_that_excludes_today(self):
         for name in ("EPOCH_DAILY_COST_SQL", "BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
-            sql = getattr(p, name)
+            sql = getattr(billing_queries, name)
             self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),365)", sql, name)
             self.assertIn("usage_date<CURRENT_DATE()", sql, name)
 
@@ -713,8 +753,8 @@ class PublisherV27Tests(unittest.TestCase):
         # RETRACTION (negative) and RESTATEMENT rows net out original usage; filtering to ORIGINAL would overstate cost.
         # record_type may only label correction quantities, never filter rows out of a sum.
         for name in ("BILLING_FEATURE_SQL", "EPOCH_BILLING_ATTRIBUTION_SQL"):
-            self.assertNotIn("record_type", getattr(p, name).lower(), name)
-        sql = p.EPOCH_DAILY_COST_SQL
+            self.assertNotIn("record_type", getattr(billing_queries, name).lower(), name)
+        sql = EPOCH_DAILY_COST_SQL
         allowed = (
             "CASE WHEN u.record_type='RETRACTION' THEN -CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS retracted_dbu_quantity,",
             "CASE WHEN u.record_type='RESTATEMENT' THEN CAST(u.usage_quantity AS DOUBLE) ELSE 0.0 END AS restated_dbu_quantity,",
@@ -746,7 +786,7 @@ class PublisherV27Tests(unittest.TestCase):
         return rows
 
     def test_cost_sql_collects_retracted_and_restated_dbu(self):
-        sql = p.EPOCH_DAILY_COST_SQL
+        sql = EPOCH_DAILY_COST_SQL
         self.assertIn("u.record_type='RETRACTION'", sql)
         self.assertIn("u.record_type='RESTATEMENT'", sql)
         self.assertIn("SUM(c.retracted_dbu_quantity) AS retracted_dbu_quantity", sql)
@@ -813,7 +853,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(decisions[0], decisions[2])
 
     def test_billing_watermark_sql_is_read_only_and_bounded(self):
-        sql = p.BILLING_WATERMARK_SQL
+        sql = BILLING_WATERMARK_SQL
         self.assertIn("MAX(usage_end_time)", sql)
         self.assertIn("system.billing.usage", sql)
         self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE()", sql)
@@ -860,7 +900,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     # --- G2: usage with no list_prices row is unavailable cost, never silently dropped ------------------------
     def test_cost_sql_keeps_unpriced_usage_and_one_price_per_usage_record(self):
-        sql = p.EPOCH_DAILY_COST_SQL
+        sql = EPOCH_DAILY_COST_SQL
         self.assertIn("LEFT JOIN system.billing.list_prices", sql)
         self.assertNotRegex(sql, r"\)\s*JOIN system\.billing\.list_prices|\bu\s+JOIN system\.billing\.list_prices")
         self.assertIn("unpriced_dbu_quantity", sql)
@@ -908,7 +948,7 @@ class PublisherV27Tests(unittest.TestCase):
                     return [dict(r, workspace_id="1", warehouse_id="w", epoch_start="2026-09-01T00:00:00+00:00")
                             for r in self._rows_with_unpriced(["2026-09-20"])]
                 return []
-        e = p.extract_evidence(Client(), self.t, "us-east-1")[0]
+        e = extract_evidence(Client(), self.t, "us-east-1")[0]
         self.assertIsNone(e.baseline_forecast_cost_365)
         self.assertIsNone(e.current_cost_365)
         self.assertIsNone(e.current_epoch.cost["list_cost"])
@@ -930,7 +970,7 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertIsNone(out["cost_cv_84"])
 
     def test_cost_sql_treats_a_null_list_price_as_unpriced_and_breaks_price_ties(self):
-        sql = p.EPOCH_DAILY_COST_SQL
+        sql = EPOCH_DAILY_COST_SQL
         self.assertIn("p.pricing.effective_list.default IS NULL", sql)
         self.assertIn("ORDER BY p.price_start_time DESC NULLS LAST, p.currency_code", sql)
 
@@ -938,10 +978,10 @@ class PublisherV27Tests(unittest.TestCase):
         payload = load_case("c32-unpriced-sku")
         with tempfile.TemporaryDirectory() as td:
             a, b = Path(td) / "a.json", Path(td) / "b.json"
-            envelope = {"evidence_format_version": p.EVIDENCE_FORMAT_VERSION, "publisher_version": p.PUBLISHER_VERSION, "warehouses": payload["evidence"]}
+            envelope = {"evidence_format_version": EVIDENCE_FORMAT_VERSION, "publisher_version": PUBLISHER_VERSION, "warehouses": payload["evidence"]}
             for path in (a, b):
                 path.write_text(json.dumps(envelope))
-            merged = p.load_evidence_files([str(a), str(b)])
+            merged = load_evidence_files([str(a), str(b)])
         self.assertEqual(len(merged), 1)
         self.assertEqual(len(merged[0].daily_cost_365), len(payload["evidence"][0]["daily_cost_365"]))
 
@@ -951,8 +991,8 @@ class PublisherV27Tests(unittest.TestCase):
         e.baseline_forecast_cost_365 = None
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "e.json"
-            p.save_evidence(path, [e])
-            back = p.load_evidence_files([str(path)])[0]
+            save_evidence(path, [e])
+            back = load_evidence_files([str(path)])[0]
         self.assertIsNone(back.current_cost_365)
         self.assertIsNone(back.baseline_forecast_cost_365)
 
@@ -969,17 +1009,17 @@ class PublisherV27Tests(unittest.TestCase):
             if c.status not in {"NO_CHANGE"}:
                 self.assertIsNone(c.estimated_savings_range_365, c.knob)
         pkg = p.build_recommendation_packages([e], self.t)[0].to_dict()
-        p.validate_locked_package_schema(pkg)
+        validate_locked_package_schema(pkg)
         self.assertIsNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
         self.assertEqual(pkg["cost_baseline"]["forward_365d"]["availability"], "PARTIAL")
 
     # --- Collector determinism: tie-broken window ordering and UTC session dates ---------------------------------
     def test_gap_sql_orders_the_busy_window_with_a_unique_tie_breaker(self):
-        sql = p.build_epoch_gap_metrics_sql(self.t)
+        sql = build_epoch_gap_metrics_sql(self.t)
         self.assertIn("ORDER BY x.start_time, x.end_time, x.statement_id", sql)
 
     def test_event_sql_orders_tied_events_deterministically(self):
-        self.assertIn("ORDER BY event_time, event_type, cluster_count", p.EPOCH_EVENT_METRICS_SQL)
+        self.assertIn("ORDER BY event_time, event_type, cluster_count", EPOCH_EVENT_METRICS_SQL)
 
     def _fake_connector(self, timezone):
         import types
@@ -1005,12 +1045,12 @@ class PublisherV27Tests(unittest.TestCase):
         return calls, {"databricks": pkg, "databricks.sql": sql_mod}
 
     def _auth(self):
-        return p.AuthContext("DEFAULT", "host", "/sql/1.0/warehouses/x", "token", None, "warehouse", "x")
+        return AuthContext("DEFAULT", "host", "/sql/1.0/warehouses/x", "token", None, "warehouse", "x")
 
     def test_sql_session_is_pinned_and_verified_to_utc(self):
         calls, modules = self._fake_connector("Etc/UTC")
         with patch.dict(sys.modules, modules):
-            with p.SqlClient(self._auth()):
+            with SqlClient(self._auth()):
                 pass
         self.assertEqual(calls["connect"]["session_configuration"], {"TIMEZONE": "UTC"})
         self.assertIn("current_timezone()", calls["statements"][0])
@@ -1019,7 +1059,7 @@ class PublisherV27Tests(unittest.TestCase):
         calls, modules = self._fake_connector("America/Los_Angeles")
         with patch.dict(sys.modules, modules):
             with self.assertRaises(SystemExit):
-                with p.SqlClient(self._auth()):
+                with SqlClient(self._auth()):
                     pass
         self.assertTrue(calls.get("closed"))
 
@@ -1051,8 +1091,8 @@ class PublisherV27Tests(unittest.TestCase):
     # --- Max-cluster increase has the same maturity and sample gates as every change --------------------------
     def _queueing_at_ceiling(self, age_days, queries):
         payload = load_case("concurrency-constrained")
-        e = p.evidence_from_dict(payload["evidence"][0])
-        start = (p.parse_datetime(e.analysis_time) - __import__("datetime").timedelta(days=age_days)).isoformat()
+        e = evidence_from_dict(payload["evidence"][0])
+        start = (parse_datetime(e.analysis_time) - __import__("datetime").timedelta(days=age_days)).isoformat()
         move_current_epoch_start(e, start)
         e.current_epoch.query.update(queries_30=queries)
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["max_clusters"]
@@ -1124,8 +1164,8 @@ class PublisherV27Tests(unittest.TestCase):
     def test_blocker_follows_the_configured_cost_history_floor(self):
         import dataclasses
         t14 = dataclasses.replace(self.t, min_economics_cost_history_days=14)
-        self.assertEqual(p.dbu_baseline_blocker(self._sparse(10), t14), "COST_HISTORY_INSUFFICIENT")
-        self.assertEqual(p.dbu_baseline_blocker(self._sparse(10), self.t), "BILLED_COST_DAYS_INSUFFICIENT")
+        self.assertEqual(dbu_baseline_blocker(self._sparse(10), t14), "COST_HISTORY_INSUFFICIENT")
+        self.assertEqual(dbu_baseline_blocker(self._sparse(10), self.t), "BILLED_COST_DAYS_INSUFFICIENT")
 
     def test_young_epoch_keeps_the_time_gate_code(self):
         by = {c.knob: c for c in p.evaluate_warehouses([self._sparse(3)], self.t)[0].candidates}
@@ -1154,44 +1194,44 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_short_epochs_forecast_without_day_of_week_bias(self):
         # Weekday-only $100/day: the true annual run rate is 100 x 5/7 x 365 = 26,071.43 whatever the epoch length.
-        model = p.Modeler(self.unsettled())
+        model = Modeler(self.unsettled())
         for days in (14, 15, 20, 30, 40, 90):
             with self.subTest(days=days):
-                start = (p.dt.date(2026, 10, 1) - p.dt.timedelta(days=days)).isoformat()
+                start = (dt.date(2026, 10, 1) - dt.timedelta(days=days)).isoformat()
                 out = model.forecast_from_daily_cost(self._weekday_only(start, days), start + "T00:00:00+00:00", self.ANALYSIS)
                 self.assertAlmostEqual(out["forecast_cost_365"], 26071.43, places=2)
                 self.assertEqual(out["rate_basis_days"] % 7, 0)
                 self.assertLessEqual(out["rate_basis_days"], 84)
 
     def test_billed_day_gate_counts_the_days_the_rate_uses(self):
-        model = p.Modeler(self.unsettled())
+        model = Modeler(self.unsettled())
         # Weekday-only, 9-12 days: the last whole week holds 5 billed days, below the 7-day floor: unknown, not guessed.
         for days in (9, 12):
             with self.subTest(days=days):
-                start = (p.dt.date(2026, 10, 1) - p.dt.timedelta(days=days)).isoformat()
+                start = (dt.date(2026, 10, 1) - dt.timedelta(days=days)).isoformat()
                 out = model.forecast_from_daily_cost(self._weekday_only(start, days), start + "T00:00:00+00:00", self.ANALYSIS)
                 self.assertIsNone(out["forecast_cost_365"])
                 self.assertEqual(out["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS")
         # 13 days billed on days 1-6 and 13: 7 billed days overall, but the rate's week holds only one.
         start = "2026-09-18"
-        rows = [{"usage_date": (p.dt.date(2026, 9, 18) + p.dt.timedelta(days=i)).isoformat(), "list_cost": 100.0 if (i < 6 or i == 12) else 0.0,
+        rows = [{"usage_date": (dt.date(2026, 9, 18) + dt.timedelta(days=i)).isoformat(), "list_cost": 100.0 if (i < 6 or i == 12) else 0.0,
                  "currency_code": "USD"} for i in range(13)]
         out = model.forecast_from_daily_cost(rows, start + "T00:00:00+00:00", self.ANALYSIS)
         self.assertIsNone(out["forecast_cost_365"])
 
     def test_resource_blend_uses_whole_weeks_too(self):
         values = [100.0 if i % 7 < 5 else 0.0 for i in range(10)]
-        self.assertAlmostEqual(p.blended_daily_rate(values, self.t) * 365, 26071.43, places=2)
+        self.assertAlmostEqual(blended_daily_rate(values, self.t) * 365, 26071.43, places=2)
 
     def test_a_day_counts_only_after_the_settle_buffer(self):
-        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-01T12:00:00+00:00")
+        out = Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-01T12:00:00+00:00")
         self.assertEqual(out["billing_complete_through"], "2026-09-29")  # 09-30 ends 10-01 00:00; settles 10-02 00:00
         self.assertEqual(out["billing_settle_hours"], 24)
-        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-02T00:30:00+00:00")
+        out = Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-02T00:30:00+00:00")
         self.assertEqual(out["billing_complete_through"], "2026-09-30")
 
     def test_watermark_still_limits_settled_days(self):
-        out = p.Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-03T12:00:00+00:00",
+        out = Modeler(self.t).forecast_from_daily_cost(self._daily(), "2026-09-01T00:00:00+00:00", "2026-10-03T12:00:00+00:00",
                                                          billing_watermark="2026-09-28T06:00:00+00:00")
         self.assertEqual(out["billing_complete_through"], "2026-09-27")
 
@@ -1221,7 +1261,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_billing_completeness_is_judged_per_workspace(self):
         seen = {}
-        ev = {e.workspace_id: e for e in p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1",
+        ev = {e.workspace_id: e for e in extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1",
                                                             analysis_time="2026-10-03T12:00:00+00:00")}
         self.assertEqual(ev["ws-fresh"].forecast_metadata["billing_complete_through"], "2026-10-01")
         self.assertEqual(ev["ws-lagging"].forecast_metadata["billing_complete_through"], "2026-09-24")
@@ -1250,7 +1290,7 @@ class PublisherV27Tests(unittest.TestCase):
                     return [{"workspace_id": "quiet", "billing_watermark": "2026-09-20T18:00:00+00:00", "billing_ingested_through": "2026-09-21"},
                             {"workspace_id": "busy", "billing_watermark": "2026-10-03T06:00:00+00:00", "billing_ingested_through": "2026-10-03"}]
                 return {"billing_daily_cost": cost, "resource_daily": resource}.get(label, [])
-        ev = p.extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-04T12:00:00+00:00")
+        ev = extract_evidence(Client(), self.t, "us-east-1", analysis_time="2026-10-04T12:00:00+00:00")
         return next(e for e in ev if e.workspace_id == "quiet")
 
     def test_an_idle_workspace_is_not_mistaken_for_lagging_billing(self):
@@ -1270,58 +1310,58 @@ class PublisherV27Tests(unittest.TestCase):
         # Midnight watermark, any running that day; 10:00 watermark, running until 23:00 (780 minutes > 600 before it).
         for wm, minutes in (("2026-09-28T00:00:00+00:00", 60.0), ("2026-09-28T10:00:00+00:00", 780.0)):
             with self.subTest(watermark=wm):
-                _, source = p.effective_billing_watermark(wm, "2026-10-04T08:00:00+00:00", [{"usage_day": "2026-09-28", "uptime_minutes": minutes}],
+                _, source = effective_billing_watermark(wm, "2026-10-04T08:00:00+00:00", [{"usage_day": "2026-09-28", "uptime_minutes": minutes}],
                                                           check_through=dt.date(2026, 10, 2))
                 self.assertEqual(source, "WORKSPACE_LAGGING")
         # 18:00 watermark with one hour of running that day: it may all precede the watermark, so it is not lag.
-        _, source = p.effective_billing_watermark("2026-09-28T18:00:00+00:00", "2026-10-04T08:00:00+00:00",
+        _, source = effective_billing_watermark("2026-09-28T18:00:00+00:00", "2026-10-04T08:00:00+00:00",
                                                   [{"usage_day": "2026-09-28", "uptime_minutes": 60.0}], check_through=dt.date(2026, 10, 2))
         self.assertEqual(source, "ACCOUNT_IDLE_WAREHOUSE")
 
     def test_running_on_days_not_yet_billable_does_not_count_as_lag(self):
         import datetime as dt
         # Idle since 09-20; the only run is on 10-03, which the settle buffer has not released yet.
-        wm, source = p.effective_billing_watermark("2026-09-20T18:00:00+00:00", "2026-10-04T08:00:00+00:00", self._ran("2026-10-03"),
+        wm, source = effective_billing_watermark("2026-09-20T18:00:00+00:00", "2026-10-04T08:00:00+00:00", self._ran("2026-10-03"),
                                                    check_through=dt.date(2026, 10, 2))
         self.assertEqual(source, "ACCOUNT_IDLE_WAREHOUSE")
         self.assertEqual(wm, "2026-10-04T08:00:00+00:00")
 
     def test_check_window_ends_at_the_earliest_billable_bound(self):
         import datetime as dt
-        bound = p.billing_check_through("2026-10-14T12:00:00+00:00", "2026-10-14T08:00:00+00:00", ingestion_cutoff="2026-10-04", settle_hours=24)
+        bound = billing_check_through("2026-10-14T12:00:00+00:00", "2026-10-14T08:00:00+00:00", ingestion_cutoff="2026-10-04", settle_hours=24)
         self.assertEqual(bound, dt.date(2026, 10, 2))  # same as the original 10-04 run: settle applied at the cut-off day
-        self.assertEqual(p.billing_check_through("2026-10-04T12:00:00+00:00", "2026-10-04T08:00:00+00:00", None, 24), dt.date(2026, 10, 2))
+        self.assertEqual(billing_check_through("2026-10-04T12:00:00+00:00", "2026-10-04T08:00:00+00:00", None, 24), dt.date(2026, 10, 2))
 
     def test_pinned_recollection_reproduces_the_original_basis_end(self):
         rows = self._daily("2026-10-03")
-        original = p.Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-04T23:00:00+00:00")
-        pinned = p.Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-14T12:00:00+00:00", ingestion_cutoff="2026-10-04")
+        original = Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-04T23:00:00+00:00")
+        pinned = Modeler(self.t).forecast_from_daily_cost(rows, "2026-09-01T00:00:00+00:00", "2026-10-14T12:00:00+00:00", ingestion_cutoff="2026-10-04")
         self.assertEqual(original["billing_complete_through"], "2026-10-02")
         self.assertEqual(pinned["billing_complete_through"], "2026-10-02")
 
     def test_reevaluation_method_names_the_settle_buffer(self):
         e = copy.deepcopy(self.evidence[0])
         e.cost_history_days = 3
-        win = p.compute_reevaluation(e, self.t, start_time="2026-09-29T00:00:00Z", epoch_age=2)
+        win = compute_reevaluation(e, self.t, start_time="2026-09-29T00:00:00Z", epoch_age=2)
         self.assertIn("billing ingestion lag", win.method)
         self.assertIn("next settled day", win.method)
 
     def test_ingestion_cutoff_pins_every_billing_query(self):
         billing = ("billing_daily_cost", "billing_watermark", "billing_features", "billing_attribution_photon_owner")
         seen = {}
-        p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1", ingestion_cutoff="2026-09-30")
+        extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1", ingestion_cutoff="2026-09-30")
         for label in billing:
             self.assertIn("ingestion_date <= DATE'2026-09-30'", seen[label], label)
         seen = {}
-        p.extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1")
+        extract_evidence(self._two_workspace_client(seen), self.t, "us-east-1")
         for label in billing:
             self.assertIn("CAST(NULL AS DATE)", seen[label], label)
         with self.assertRaises(SystemExit):
-            p.extract_evidence(self._two_workspace_client({}), self.t, "us-east-1", ingestion_cutoff="30/09/2026")
+            extract_evidence(self._two_workspace_client({}), self.t, "us-east-1", ingestion_cutoff="30/09/2026")
 
     def test_collector_passes_the_billing_watermark_to_the_forecast(self):
         seen = {}
-        real = p.Modeler.forecast_from_daily_cost
+        real = Modeler.forecast_from_daily_cost
         def spy(model, rows, start, analysis_time, **kw):
             seen.update(kw)
             return real(model, rows, start, analysis_time, **kw)
@@ -1334,15 +1374,15 @@ class PublisherV27Tests(unittest.TestCase):
                              "warehouse_channel": "CHANNEL_NAME_CURRENT", "warehouse_size": "MEDIUM", "min_clusters": 1, "max_clusters": 2,
                              "auto_stop_minutes": 10, "epoch_start": "2026-09-01T00:00:00+00:00", "epoch_end": None, "is_current": True, "tags": {}}]
                 return []
-        with patch.object(p.Modeler, "forecast_from_daily_cost", spy):
-            p.extract_evidence(Client(), self.t, "us-east-1")
-        self.assertEqual(p.parse_datetime(seen["billing_watermark"]).isoformat(), "2026-09-30T20:00:00+00:00")
+        with patch.object(Modeler, "forecast_from_daily_cost", spy):
+            extract_evidence(Client(), self.t, "us-east-1")
+        self.assertEqual(parse_datetime(seen["billing_watermark"]).isoformat(), "2026-09-30T20:00:00+00:00")
 
     def auto_stop_only(self, idle_multiple):
         """Idle-expensive fixture where auto-stop is the only plan step (no size/min/max change)."""
         import dataclasses
         payload = load_case("idle-expensive-warehouse")
-        ev = p.evidence_from_dict(payload["evidence"][0])
+        ev = evidence_from_dict(payload["evidence"][0])
         ep = ev.current_epoch
         ep.config = dataclasses.replace(ep.config, min_clusters=1)
         ep.query.update(queued_query_pct_30=0.6, queued_queries_30=72, p95_wait_capacity_ms_when_queued_30=1000)
@@ -1383,12 +1423,12 @@ class PublisherV27Tests(unittest.TestCase):
 
     def increase_candidate_package(self):
         payload = load_case("concurrency-constrained")
-        pkg = p.build_recommendation_packages([p.evidence_from_dict(payload["evidence"][0])], self.t)[0]
+        pkg = p.build_recommendation_packages([evidence_from_dict(payload["evidence"][0])], self.t)[0]
         return next(c for c in pkg.candidates if c.knob.value == "max_clusters")
 
     def test_planner_ready_for_hitl_maps_explicitly_to_contract_ready(self):
         payload = load_case("concurrency-constrained")
-        ev = [p.evidence_from_dict(payload["evidence"][0])]
+        ev = [evidence_from_dict(payload["evidence"][0])]
         w = p.evaluate_warehouses(ev, self.t)[0]
         internal = {st.knob: st.execution_state for s in w.scenarios for st in s.steps}
         self.assertEqual(internal["max_clusters"], "READY_FOR_HITL")
@@ -1398,13 +1438,13 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_unknown_planner_execution_state_fails_loudly_instead_of_becoming_ready(self):
         payload = load_case("concurrency-constrained")
-        ev = [p.evidence_from_dict(payload["evidence"][0])]
-        real = p.ScenarioPlanner.scenarios
+        ev = [evidence_from_dict(payload["evidence"][0])]
+        real = ScenarioPlanner.scenarios
         def corrupt(planner, e, candidates):
             scenarios, recommended = real(planner, e, candidates)
             scenarios[0].steps[0].execution_state = "NOT_A_STATE"
             return scenarios, recommended
-        with patch.object(p.ScenarioPlanner, "scenarios", corrupt):
+        with patch.object(ScenarioPlanner, "scenarios", corrupt):
             with self.assertRaises(ValueError) as ctx:
                 p.build_recommendation_packages(ev, self.t)
         self.assertIn("NOT_A_STATE", str(ctx.exception))
@@ -1412,14 +1452,14 @@ class PublisherV27Tests(unittest.TestCase):
     def envelope_cases(self):
         """Serverless golden: Plan A is priced, Plan B (Pro migration) is UNAVAILABLE."""
         payload = load_case("serverless")
-        e = p.evidence_from_dict(payload["evidence"][0])
+        e = evidence_from_dict(payload["evidence"][0])
         pkg = p.build_recommendation_packages([e], self.t)[0]
         priced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is not None)
         unpriced = next(s for s in pkg.scenarios if s.portfolio_economics.savings_365d.total is None)
         return e, pkg.scenarios, priced, unpriced
 
     def reasons(self, e, scenarios, recommended):
-        econ = p._package_economics(e, scenarios, recommended.scenario_id if recommended else None)
+        econ = _package_economics(e, scenarios, recommended.scenario_id if recommended else None)
         return {x.scenario_id: x.reason_code for x in econ.excluded_scenarios}, econ
 
     def test_unpriced_alternative_is_not_blamed_on_the_recommended_scenario(self):
@@ -1445,17 +1485,17 @@ class PublisherV27Tests(unittest.TestCase):
         self.assertEqual(why[unpriced.scenario_id], "SCENARIO_ECONOMICS_UNAVAILABLE")
 
     def test_watermark_sql_looks_back_far_enough_to_catch_a_stalled_feed_and_is_sql_scoped(self):
-        sql = p.BILLING_WATERMARK_SQL
+        sql = BILLING_WATERMARK_SQL
         self.assertIn("usage_date>=DATE_SUB(CURRENT_DATE(),30)", sql)
         self.assertIn("billing_origin_product='SQL'", sql)
 
     def test_demo_cv_is_unknown_for_a_warehouse_with_too_little_history(self):
-        for e in p.synthetic_demo_evidence():
+        for e in synthetic_demo_evidence():
             if e.cost_history_days < self.t.forecast_cv_min_days:
                 self.assertIsNone(e.cost_cv_84, e.warehouse_name)
 
     def test_gap_collector_handles_overlapping_queries_in_milliseconds(self):
-        sql = p.build_epoch_gap_metrics_sql(self.t)
+        sql = build_epoch_gap_metrics_sql(self.t)
         self.assertIn("MAX(x.end_time) OVER", sql)
         self.assertNotIn("TIMESTAMPDIFF(SECOND", sql)
         self.assertNotIn("saved_idle", sql)  # auto-stop savings come from the running-idle collector
@@ -1464,11 +1504,11 @@ class PublisherV27Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / ".databrickscfg"
             cfg.write_text("[WHOPT]\nhost = https://dbc.example.cloud.databricks.com\n")
-            self.assertEqual(p._load_profile_host("WHOPT", str(cfg)), "dbc.example.cloud.databricks.com")
+            self.assertEqual(_load_profile_host("WHOPT", str(cfg)), "dbc.example.cloud.databricks.com")
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
             with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()) as run:
-                auth = p.resolve_cli_oauth("WHOPT", "abc123", str(cfg))
+                auth = resolve_cli_oauth("WHOPT", "abc123", str(cfg))
                 self.assertEqual(auth.http_path, "/sql/1.0/warehouses/abc123")
                 self.assertEqual(auth.access_token, "short-lived")
                 run.assert_called_once()
@@ -1483,20 +1523,20 @@ class PublisherV27Tests(unittest.TestCase):
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
             with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()), patch("publisher.analyzer.collector.workspace_api._validate_all_purpose_cluster", return_value={"cluster_source":"UI"}), patch("publisher.analyzer.collector.workspace_api._current_workspace_id", return_value="123456789"):
-                auth = p.resolve_cli_oauth("WHOPT", "cluster", "1234-567890-demo123", str(cfg))
+                auth = resolve_cli_oauth("WHOPT", "cluster", "1234-567890-demo123", str(cfg))
                 self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/1234-567890-demo123")
                 self.assertEqual(auth.execution_kind, "cluster")
 
     def test_compatibility_api_b_and_fallback_a(self):
-        auth=p.AuthContext("WHOPT","dbc.example.cloud.databricks.com","/sql/1.0/warehouses/x","tok",None,"warehouse","x","123")
+        auth=AuthContext("WHOPT","dbc.example.cloud.databricks.com","/sql/1.0/warehouses/x","tok",None,"warehouse","x","123")
         payload={"enable_serverless_compute":True,"enabled_warehouse_types":[{"warehouse_type":"PRO","enabled":True}],"data_access_config":[],"security_policy":"NONE"}
         with patch("publisher.analyzer.collector.workspace_api._api_get", return_value=payload):
-            ev=p.collect_workspace_compatibility_evidence(auth,"auto")
+            ev=collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"B_READ_ONLY_API")
             self.assertTrue(ev["enable_serverless_compute"])
             self.assertFalse(ev["external_legacy_hive_metastore_detected"])
         with patch("publisher.analyzer.collector.workspace_api._api_get", side_effect=RuntimeError("denied")):
-            ev=p.collect_workspace_compatibility_evidence(auth,"auto")
+            ev=collect_workspace_compatibility_evidence(auth,"auto")
             self.assertEqual(ev["mode"],"A_HITL_FALLBACK")
 
     def test_candidate_and_recommended_plan_views(self):
@@ -1512,8 +1552,8 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_logging_file_is_created(self):
         with tempfile.TemporaryDirectory() as td:
-            log=p.setup_logging(Path(td),"INFO")
-            p.LOGGER.info("test.event value=%s","ok")
+            log=setup_logging(Path(td),"INFO")
+            LOGGER.info("test.event value=%s","ok")
             self.assertTrue(log.exists())
             self.assertIn("test.event",log.read_text())
 
@@ -1522,23 +1562,23 @@ class PublisherV27Tests(unittest.TestCase):
             cfg = Path(td) / ".databrickscfg"
             cfg.write_text("[PAT]\nhost = https://dbc.example.cloud.databricks.com\ntoken = secret\n")
             with self.assertRaises(SystemExit):
-                p.resolve_cli_oauth("PAT", "abc123", str(cfg))
+                resolve_cli_oauth("PAT", "abc123", str(cfg))
 
     def test_same_evidence_produces_identical_locked_json_and_workbook_projection(self):
         from publisher.contracts import workbook_contract as wc
-        ea = p.demo_evidence(); eb = p.demo_evidence()
+        ea = demo_evidence(); eb = demo_evidence()
         pa = p.build_recommendation_packages(ea, self.t)
         pb = p.build_recommendation_packages(eb, self.t)
         self.assertEqual([x.to_dict() for x in pa], [x.to_dict() for x in pb])
         self.assertEqual(wc.project_workbook(pa), wc.project_workbook(pb))
     def test_auto_stop_fails_closed_without_running_idle_or_event_evidence(self):
-        ev = p.demo_evidence()
+        ev = demo_evidence()
         ev[0].current_epoch.gaps = {}  # evidence collected before running-idle evidence existed
         auto = next(c for c in p.evaluate_warehouses(ev, self.t)[0].candidates if c.knob == "auto_stop_minutes")
         self.assertEqual(auto.status, "INSUFFICIENT_EVIDENCE")
         self.assertEqual(auto.blockers, ["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"])
         self.assertIsNone(auto.estimated_savings_365)
-        ev = p.demo_evidence()
+        ev = demo_evidence()
         ev[0].current_epoch.events["cluster_minutes"] = 0
         auto = next(c for c in p.evaluate_warehouses(ev, self.t)[0].candidates if c.knob == "auto_stop_minutes")
         self.assertEqual(auto.status, "INSUFFICIENT_EVIDENCE")
@@ -1547,9 +1587,9 @@ class PublisherV27Tests(unittest.TestCase):
     def test_manifest_carries_locked_contract_and_workbook_metadata(self):
         with tempfile.TemporaryDirectory() as td:
             packages = self.packages
-            files = p.package_locked_contract(Path(td), packages, self.evidence)
+            files = package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
-            self.assertEqual(manifest["publisher_version"], p.PUBLISHER_VERSION)
+            self.assertEqual(manifest["publisher_version"], PUBLISHER_VERSION)
             self.assertEqual(manifest["reporter_contract_version"], "2.0.0")
             self.assertEqual(manifest["workbook_contract_version"], "1.4.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
@@ -1561,16 +1601,16 @@ class PublisherV27Tests(unittest.TestCase):
         bad.workspace_id = "wrong"
         candidates[0] = bad
         with self.assertRaises(ValueError):
-            p.Reviewer(self.t).review(self.evidence[0], candidates)
+            Reviewer(self.t).review(self.evidence[0], candidates)
 
 
     def test_photon_inference_uses_coverage_freshness_and_signed_dbu(self):
         row={"photon_true_dbu":950.0,"photon_false_dbu":50.0,"photon_null_dbu":0.0,"latest_usage_time":"2026-09-30T12:00:00+00:00"}
-        obs=p.infer_photon_observation(row,"2026-10-01T12:00:00+00:00",self.t)
+        obs=infer_photon_observation(row,"2026-10-01T12:00:00+00:00",self.t)
         self.assertEqual(obs.status,"ENABLED")
         self.assertEqual(obs.enabled_usage_pct,95.0)
         row["photon_null_dbu"]=500.0
-        obs=p.infer_photon_observation(row,"2026-10-01T12:00:00+00:00",self.t)
+        obs=infer_photon_observation(row,"2026-10-01T12:00:00+00:00",self.t)
         self.assertEqual(obs.status,"UNKNOWN")
 
     def test_owner_query_source_and_scenario_confidence_are_reported(self):
@@ -1584,7 +1624,7 @@ class PublisherV27Tests(unittest.TestCase):
 
     def test_normalized_domain_contracts_are_dataclasses(self):
         from dataclasses import is_dataclass
-        for cls in (p.WarehouseConfig,p.EpochEvidence,p.PhotonObservation,p.QuerySourceProfile,p.WarehouseAttribution,p.AnalysisResult,p.OptimizationDecision,p.CandidateRecommendation,p.PlanStep,p.Scenario,p.WarehouseOptimization):
+        for cls in (WarehouseConfig,EpochEvidence,PhotonObservation,QuerySourceProfile,WarehouseAttribution,AnalysisResult,OptimizationDecision,CandidateRecommendation,PlanStep,Scenario,WarehouseOptimization):
             self.assertTrue(is_dataclass(cls),cls.__name__)
 
     def test_pro_size_estimator_does_not_reuse_serverless_dbu_curve(self):
@@ -1596,11 +1636,11 @@ class PublisherV27Tests(unittest.TestCase):
 
 class GoldenScenarioTests(unittest.TestCase):
     def setUp(self):
-        self.t=p.Thresholds()
+        self.t=Thresholds()
 
     def load(self,name):
         payload=load_case(name)
-        ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+        ev=[evidence_from_dict(x) for x in payload["evidence"]]
         return payload,p.evaluate_warehouses(ev,self.t)
 
     def warehouse(self,report,warehouse_id):
@@ -1611,9 +1651,9 @@ class GoldenScenarioTests(unittest.TestCase):
         for name in names:
             payload=load_case(name)
             if "evidence" not in payload: continue  # collector-level fixture (raw snapshots), covered by tests/golden/test_golden_publisher.py
-            ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            ev=[evidence_from_dict(x) for x in payload["evidence"]]
             a=p.evaluate_warehouses(copy.deepcopy(ev),self.t); b=p.evaluate_warehouses(copy.deepcopy(ev),self.t)
-            self.assertEqual(p.canonical_json(a),p.canonical_json(b),name)
+            self.assertEqual(canonical_json(a),canonical_json(b),name)
 
     def test_idle_expensive(self):
         _,r=self.load("idle-expensive-warehouse"); w=self.warehouse(r,"wh-demo-001"); by={c.knob:c for c in w.candidates}
@@ -1631,7 +1671,7 @@ class GoldenScenarioTests(unittest.TestCase):
         epoch = next(x for x in ev["epochs"] if x["is_current"])
         epoch["query"]["queries_30"] = queries_30
         epoch["query"]["decision_queries_30"] = queries_30  # spill and latency are judged on executed queries
-        e = p.evidence_from_dict(ev)
+        e = evidence_from_dict(ev)
         if epoch_start is not None:
             move_current_epoch_start(e, epoch_start)
         return [e]
@@ -1675,7 +1715,7 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertIsNone(c.estimated_savings_365)
         packages = p.build_recommendation_packages(ev, self.t)  # runs semantic validation
         pkg = packages[0]
-        pkg_dict = pkg if isinstance(pkg, dict) else json.loads(p.canonical_json(pkg))
+        pkg_dict = pkg if isinstance(pkg, dict) else json.loads(canonical_json(pkg))
         size = next(x for x in pkg_dict["candidates"] if x["knob"] == "warehouse_size")
         self.assertEqual(size["status"], "INSUFFICIENT_EVIDENCE")
         self.assertEqual(size["independent_economics"]["estimation_status"], "UNAVAILABLE")
@@ -1697,7 +1737,7 @@ class GoldenScenarioTests(unittest.TestCase):
             epoch["query"].pop(legacy, None)
         epoch["query"].update(self.NO_SEVERITY)
         epoch["query"].update(query)
-        return [p.evidence_from_dict(ev)]
+        return [evidence_from_dict(ev)]
 
     def candidate(self, evidence, knob):
         return next(c for c in p.evaluate_warehouses(evidence, self.t)[0].candidates if c.knob == knob)
@@ -1767,12 +1807,12 @@ class GoldenScenarioTests(unittest.TestCase):
         if max_clusters is not None:
             ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
         ep.events.update(events)
-        uptime = p.safe_float(ep.events.get("uptime_minutes"))
+        uptime = safe_float(ep.events.get("uptime_minutes"))
         for pct, minutes in (("time_at_max_pct", "minutes_at_max"), ("time_at_min_pct", "minutes_at_min")):
             if pct in events and minutes not in events:
                 ep.events[minutes] = uptime * events[pct] / 100.0
         # Capacity rules read the recent daily resource window: rebuild it from the overridden totals.
-        ep.resource_daily = p.synthesize_resource_daily(ep, ev[0].analysis_time)
+        ep.resource_daily = synthesize_resource_daily(ep, ev[0].analysis_time)
         return ev
 
     def queued(self, **overrides):
@@ -1833,7 +1873,7 @@ class GoldenScenarioTests(unittest.TestCase):
         for key in list(self.NO_SEVERITY) + ["p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"]:
             epoch["query"].pop(key, None)
         epoch["query"].update(query)
-        return [p.evidence_from_dict(ev)]
+        return [evidence_from_dict(ev)]
 
     def test_upsize_with_unknown_spill_severity_is_insufficient_evidence_not_a_silent_no_change(self):
         # Review finding: spill frequency crosses the threshold but severity is unknown. The decision must say so.
@@ -1860,7 +1900,7 @@ class GoldenScenarioTests(unittest.TestCase):
         for key in list(epoch["query"]):
             if key in self.NO_SEVERITY or key in ("p95_spill_bytes_30", "p95_wait_capacity_ms_30", "p95_wait_compute_ms_30"):
                 del epoch["query"][key]
-        evidence = [p.evidence_from_dict(ev)]
+        evidence = [evidence_from_dict(ev)]
         minc = self.candidate(evidence, "min_clusters")
         self.assertEqual(minc.status, "NO_CHANGE")
         self.assertIn("QUEUE_WAIT_EVIDENCE_UNAVAILABLE", minc.blockers)
@@ -1871,7 +1911,7 @@ class GoldenScenarioTests(unittest.TestCase):
     # --- H5: a withheld estimate is null, never zero --------------------------------------------------------
     def golden_package(self, name):
         payload = load_case(name)
-        evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
+        evidence = [evidence_from_dict(x) for x in payload["evidence"]]
         return p.build_recommendation_packages(evidence, self.t)[0].to_dict()
 
     @staticmethod
@@ -1903,7 +1943,7 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(econ["savings_365d"]["total"], {"low": 0.0, "base": 0.0, "high": 0.0})
 
     def test_halted_scenario_economics_are_null_and_excluded_from_the_package(self):
-        evidence = p.demo_evidence()
+        evidence = demo_evidence()
         evidence[0].sql_sku_prices = {}  # no target SQL price: the migration has no deterministic DBU counterfactual
         pkg = p.build_recommendation_packages(evidence, self.t)[0].to_dict()
         plan_b = next(s for s in pkg["scenarios"] if s["scenario_name"].startswith("Plan B"))
@@ -1944,7 +1984,7 @@ class GoldenScenarioTests(unittest.TestCase):
         for name in case_names():
             payload=load_case(name)
             if "evidence" not in payload: continue  # collector-level fixture (raw snapshots)
-            ev=[p.evidence_from_dict(x) for x in payload["evidence"]]
+            ev=[evidence_from_dict(x) for x in payload["evidence"]]
             for w in p.evaluate_warehouses(ev,self.t):
                 self.assertNotIn("enable_photon",{c.knob for c in w.candidates},name)
                 for sc in w.scenarios:
@@ -1974,8 +2014,8 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
     """Live runs refuse to publish Pro/Classic economics for a region the AWS price registry does not cover."""
 
     def setUp(self):
-        self.evidence = p.demo_evidence()  # one Pro warehouse
-        self.registry = p.load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
+        self.evidence = demo_evidence()  # one Pro warehouse
+        self.registry = load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
 
     def _serverless_only(self):
         ev = copy.deepcopy(self.evidence)
@@ -1986,21 +2026,21 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
 
     def test_unknown_or_unregistered_region_with_pro_warehouse_is_refused(self):
         for region in ("unknown", "eu-west-1", ""):
-            msg = p.aws_region_price_guard(self.evidence, region, self.registry, allow_missing=False)
+            msg = aws_region_price_guard(self.evidence, region, self.registry, allow_missing=False)
             self.assertIsNotNone(msg, region)
             self.assertIn("--allow-missing-aws-price", msg)
             self.assertIn("1 Pro/Classic", msg)
 
     def test_registered_region_escape_flag_and_serverless_only_fleet_pass(self):
-        self.assertIsNone(p.aws_region_price_guard(self.evidence, "us-east-1", self.registry, allow_missing=False))
-        self.assertIsNone(p.aws_region_price_guard(self.evidence, "unknown", self.registry, allow_missing=True))
-        self.assertIsNone(p.aws_region_price_guard(self._serverless_only(), "unknown", self.registry, allow_missing=False))
+        self.assertIsNone(aws_region_price_guard(self.evidence, "us-east-1", self.registry, allow_missing=False))
+        self.assertIsNone(aws_region_price_guard(self.evidence, "unknown", self.registry, allow_missing=True))
+        self.assertIsNone(aws_region_price_guard(self._serverless_only(), "unknown", self.registry, allow_missing=False))
 
     def test_unsupported_types_do_not_trigger_the_guard(self):
         ev = copy.deepcopy(self.evidence)
         for ep in ev[0].epochs:
             ep.config = dataclasses.replace(ep.config, warehouse_type="LAKEHOUSE_REALTIME")
-        self.assertIsNone(p.aws_region_price_guard(ev, "unknown", self.registry, allow_missing=False))
+        self.assertIsNone(aws_region_price_guard(ev, "unknown", self.registry, allow_missing=False))
 
     def test_live_main_refuses_before_writing_packages(self):
         import contextlib, io
@@ -2023,10 +2063,10 @@ class ServerlessRegionCheckTests(unittest.TestCase):
     """No verified per-region Serverless list exists: a region label alone never passes the check."""
 
     def _check(self, observed, region="us-east-1"):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         e.billing_features["workspace_serverless_observed_from_system_compute_warehouses"] = observed
         e = dataclasses.replace(e, source_region=region)
-        planner = p.ScenarioPlanner(p.Thresholds())
+        planner = ScenarioPlanner(Thresholds())
         compat = planner._compatibility(e, "SERVERLESS")
         return next(c for c in compat["checks"] if c["check"] == "aws_region_serverless_availability")
 
@@ -2045,9 +2085,9 @@ class OverallStatusTests(unittest.TestCase):
     def setUpClass(cls):
         import logging
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        cls.pkg = p.build_recommendation_packages(p.demo_evidence(), cls.t)[0]
-        cls.fleet = p.build_recommendation_packages(p.synthetic_demo_evidence(), cls.t)
+        cls.t = Thresholds()
+        cls.pkg = p.build_recommendation_packages(demo_evidence(), cls.t)[0]
+        cls.fleet = p.build_recommendation_packages(synthetic_demo_evidence(), cls.t)
 
     @classmethod
     def tearDownClass(cls):
@@ -2055,7 +2095,6 @@ class OverallStatusTests(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def with_plans(self, plan_a_steps=None, plan_b_total="keep"):
-        rc = p.rc
         scenarios = []
         for s in self.pkg.scenarios:
             if s.status == rc.ScenarioStatus.RECOMMENDED and plan_a_steps is not None:
@@ -2064,34 +2103,33 @@ class OverallStatusTests(unittest.TestCase):
                 econ = s.portfolio_economics
                 s = dataclasses.replace(s, portfolio_economics=dataclasses.replace(econ, savings_365d=dataclasses.replace(econ.savings_365d, total=plan_b_total)))
             scenarios.append(s)
-        return p._overall_status(self.pkg.candidates, scenarios)
+        return _overall_status(self.pkg.candidates, scenarios)
 
     def test_recommended_plan_with_steps_is_optimization_available(self):
-        self.assertEqual(self.pkg.assessment.overall_status, p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE)
+        self.assertEqual(self.pkg.assessment.overall_status, rc.AssessmentStatus.OPTIMIZATION_AVAILABLE)
 
     def test_empty_plan_with_priced_positive_experiment_needs_review(self):
-        self.assertEqual(self.with_plans([], p.rc.Range3(-500.0, 1200.0, 4000.0)), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+        self.assertEqual(self.with_plans([], rc.Range3(-500.0, 1200.0, 4000.0)), rc.AssessmentStatus.REVIEW_REQUIRED)
 
     def test_empty_plan_with_negative_or_unpriced_experiment_is_not_an_optimization(self):
-        for total in (p.rc.Range3(-3000.0, -1443.0, -200.0), None):
+        for total in (rc.Range3(-3000.0, -1443.0, -200.0), None):
             status = self.with_plans([], total)
-            self.assertNotIn(status, {p.rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, p.rc.AssessmentStatus.REVIEW_REQUIRED}, total)
+            self.assertNotIn(status, {rc.AssessmentStatus.OPTIMIZATION_AVAILABLE, rc.AssessmentStatus.REVIEW_REQUIRED}, total)
 
     def test_incompatible_experiment_is_not_a_reason_to_review(self):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "enable_serverless_compute": False,
                                     "external_legacy_hive_metastore_detected": True}
         pkg = p.build_recommendation_packages([e], self.t)[0]
-        plan_b = next(s for s in pkg.scenarios if s.status == p.rc.ScenarioStatus.ALTERNATIVE)
-        self.assertEqual(plan_b.compatibility.status, p.rc.CompatibilityStatus.INCOMPATIBLE)
+        plan_b = next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.ALTERNATIVE)
+        self.assertEqual(plan_b.compatibility.status, rc.CompatibilityStatus.INCOMPATIBLE)
         migration = [x for x in plan_b.execution_plan if x.candidate_id]
-        self.assertEqual([x.execution_state for x in migration], [p.rc.ExecutionState.BLOCKED])
-        scenarios = [dataclasses.replace(s, execution_plan=[]) if s.status == p.rc.ScenarioStatus.RECOMMENDED else s for s in pkg.scenarios]
+        self.assertEqual([x.execution_state for x in migration], [rc.ExecutionState.BLOCKED])
+        scenarios = [dataclasses.replace(s, execution_plan=[]) if s.status == rc.ScenarioStatus.RECOMMENDED else s for s in pkg.scenarios]
         self.assertGreater(plan_b.portfolio_economics.savings_365d.total.base, 0)
-        self.assertNotEqual(p._overall_status(pkg.candidates, scenarios), p.rc.AssessmentStatus.REVIEW_REQUIRED)
+        self.assertNotEqual(_overall_status(pkg.candidates, scenarios), rc.AssessmentStatus.REVIEW_REQUIRED)
 
     def test_fleet_status_matches_the_recommended_plan(self):
-        rc = p.rc
         for pkg in self.fleet:
             plan = next(s for s in pkg.scenarios if s.status == rc.ScenarioStatus.RECOMMENDED)
             if not plan.execution_plan:
@@ -2103,10 +2141,10 @@ class SeasonalCeilingTests(unittest.TestCase):
     """A ceiling cut never goes below the peak demand of the whole current epoch (Pro/Classic: concurrency)."""
 
     def setUp(self):
-        self.t = p.Thresholds()
+        self.t = Thresholds()
 
     def max_candidate(self, epoch_peak_clusters):
-        e = p.demo_evidence()[0]  # recent P99.5 = 20 queries (2 clusters) -> ceiling 3; widen the ceiling to 8
+        e = demo_evidence()[0]  # recent P99.5 = 20 queries (2 clusters) -> ceiling 3; widen the ceiling to 8
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         hist = e.current_epoch.query["concurrency_histogram"]
@@ -2129,9 +2167,9 @@ class SeasonalCeilingTests(unittest.TestCase):
 
     def test_recycling_transients_above_the_ceiling_are_not_a_peak(self):
         # The epoch peak is measured within the ceiling, like the recent window's: counts above max are not demand.
-        sql = p.EPOCH_EVENT_METRICS_SQL.replace(" ", "")
+        sql = EPOCH_EVENT_METRICS_SQL.replace(" ", "")
         self.assertIn("MAX(CASEWHENcluster_count<=max_clustersTHENcluster_countEND)ASmax_observed_clusters_within_ceiling", sql)
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         e.current_epoch.events["max_observed_clusters"] = 12
@@ -2140,7 +2178,7 @@ class SeasonalCeilingTests(unittest.TestCase):
         self.assertEqual((c.status, c.recommended_config["max_clusters"]), ("ACTIONABLE", 3))
 
     def test_held_cut_still_names_queue_evidence_gaps(self):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         e.current_epoch.events["max_observed_clusters_within_ceiling"] = 8
@@ -2160,21 +2198,21 @@ class ChannelObservedOnlyTests(unittest.TestCase):
     """The warehouse channel is reported, never recommended: no candidate, plan step or invalidation."""
 
     def preview(self):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, warehouse_channel="PREVIEW")
         return e
 
     def test_five_candidates_and_no_channel_knob(self):
-        self.assertNotIn("warehouse_channel", p.ACTIVE_KNOBS)
-        w = p.evaluate_warehouses([self.preview()], p.Thresholds())[0]
+        self.assertNotIn("warehouse_channel", ACTIVE_KNOBS)
+        w = p.evaluate_warehouses([self.preview()], Thresholds())[0]
         self.assertEqual(len(w.candidates), 5)
         self.assertNotIn("warehouse_channel", {c.knob for c in w.candidates})
         for c in w.candidates:
             self.assertNotIn("warehouse_channel", c.dependencies)
 
     def test_preview_channel_blocks_nothing_and_is_reported(self):
-        pkg = p.build_recommendation_packages([self.preview()], p.Thresholds())[0].to_dict()
+        pkg = p.build_recommendation_packages([self.preview()], Thresholds())[0].to_dict()
         self.assertEqual(pkg["current_config"]["warehouse_channel"], "PREVIEW")
         plan_a = next(s for s in pkg["scenarios"] if s["status"] == "RECOMMENDED")
         self.assertNotIn("warehouse_channel", [s["knob"] for s in plan_a["execution_plan"]])
@@ -2186,7 +2224,7 @@ class ChannelObservedOnlyTests(unittest.TestCase):
         self.assertEqual(note[0]["value"], "PREVIEW")
 
     def test_current_channel_has_no_note(self):
-        pkg = p.build_recommendation_packages(p.demo_evidence(), p.Thresholds())[0].to_dict()
+        pkg = p.build_recommendation_packages(demo_evidence(), Thresholds())[0].to_dict()
         evidence = pkg["evidence"].values() if isinstance(pkg["evidence"], dict) else pkg["evidence"]
         self.assertFalse([x for x in evidence if x["metric"] == "warehouse_channel"])
 
@@ -2196,7 +2234,7 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
     """Only true invalidations hold a step; steps run in order of value, never before their invalidator."""
 
     def setUp(self):
-        self.t = p.Thresholds()
+        self.t = Thresholds()
 
     def plan(self, evidence):
         w = p.evaluate_warehouses(evidence, self.t)[0]
@@ -2204,7 +2242,7 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
         return w, plan_a
 
     def test_only_true_invalidations_remain(self):
-        w, _ = self.plan(p.demo_evidence())
+        w, _ = self.plan(demo_evidence())
         by = {c.knob: c for c in w.candidates}
         self.assertEqual(sorted(by["warehouse_size"].invalidates), ["max_clusters", "min_clusters"])
         self.assertEqual(by["max_clusters"].invalidates, [])  # a ceiling cut above the peak changes nothing observed
@@ -2214,14 +2252,14 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
     def test_plan_runs_by_value_and_respects_invalidations(self):
         # BI - Sales: auto-stop 10,933 x 0.93 / 1 ranks first; min (6,074 x 0.78 / 2) outranks size (5,345 x 0.78 / 2)
         # but size invalidates it, so size comes first; the zero-value ceiling cut comes last.
-        _, plan_a = self.plan(p.demo_evidence())
+        _, plan_a = self.plan(demo_evidence())
         self.assertEqual([s.knob for s in plan_a.steps], ["auto_stop_minutes", "warehouse_size", "min_clusters", "max_clusters"])
         self.assertEqual([s.execution_state for s in plan_a.steps], ["READY_FOR_HITL", "READY_FOR_CANARY", "PENDING_REEVALUATION", "PENDING_REEVALUATION"])
         pe = plan_a.portfolio_estimate
         self.assertGreater(pe.total_365d_savings_range.base, 13000)  # auto-stop + size are both authoritative now
 
     def test_auto_stop_then_min_never_removes_more_than_recorded(self):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         _, plan_a = self.plan([e])
         contingent = plan_a.portfolio_estimate.contingent
         self.assertIsNotNone(contingent)
@@ -2233,7 +2271,7 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
         self.assertLess(added, 0.5 * standalone)
 
     def test_reviewer_rejects_a_step_before_its_invalidator(self):
-        w, plan_a = self.plan(p.demo_evidence())
+        w, plan_a = self.plan(demo_evidence())
         steps = list(plan_a.steps)
         size = next(i for i, s in enumerate(steps) if s.knob == "warehouse_size")
         mn = next(i for i, s in enumerate(steps) if s.knob == "min_clusters")
@@ -2241,7 +2279,7 @@ class PlanOrderAndInvalidationTests(unittest.TestCase):
         broken = dataclasses.replace(plan_a, steps=steps)
         others = [s for s in w.scenarios if not s.recommended]
         with self.assertRaises(ValueError):
-            p.Reviewer(self.t).review_scenarios(p.demo_evidence()[0], w.candidates, [broken] + others, broken.scenario_id)
+            Reviewer(self.t).review_scenarios(demo_evidence()[0], w.candidates, [broken] + others, broken.scenario_id)
 
     def test_risk_thresholds_default(self):
         self.assertEqual((self.t.plan_risk_hitl_change, self.t.plan_risk_canary_change), (1.0, 2.0))
@@ -2252,10 +2290,10 @@ class GrowthAndSeasonalHoldTests(unittest.TestCase):
     """Capacity cuts are held while query volume grows week over week, and a downsize is held for a seasonal peak."""
 
     def setUp(self):
-        self.t = p.Thresholds()
+        self.t = Thresholds()
 
     def evidence(self, weeks, max_clusters=None, epoch_peak=None):
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         if max_clusters is not None:
             for ep in e.epochs:
                 ep.config = dataclasses.replace(ep.config, max_clusters=max_clusters)
@@ -2272,15 +2310,15 @@ class GrowthAndSeasonalHoldTests(unittest.TestCase):
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
 
     def test_weekly_counts_are_collected_for_complete_weeks_in_the_epoch(self):
-        sql = p.EPOCH_QUERY_METRICS_SQL
+        sql = EPOCH_QUERY_METRICS_SQL
         for k in range(1, 9):
             self.assertIn(f"AS queries_week_{k}", sql)
         self.assertIn("WHEN epoch_start <= CAST(CURRENT_DATE() AS TIMESTAMP) - INTERVAL 56 DAYS", sql)
 
     def test_growth_ratio(self):
-        self.assertAlmostEqual(p.query_volume_growth_ratio([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]), 1.2)
-        self.assertIsNone(p.query_volume_growth_ratio([1200, None, 1250, 1400, 1000, 950, 1050, 1000]))
-        self.assertIsNone(p.query_volume_growth_ratio([5, 5, 5, 5, 0, 0, 0, 0]))  # no prior volume: unknown
+        self.assertAlmostEqual(query_volume_growth_ratio([1200, 1300, 1250, 1400, 1000, 950, 1050, 1000]), 1.2)
+        self.assertIsNone(query_volume_growth_ratio([1200, None, 1250, 1400, 1000, 950, 1050, 1000]))
+        self.assertIsNone(query_volume_growth_ratio([5, 5, 5, 5, 0, 0, 0, 0]))  # no prior volume: unknown
 
     def test_growing_volume_holds_every_capacity_cut(self):
         # Every one of the last 4 weeks >= 1.10 x the prior 4-week median (1,000): the downsize and the ceiling cut wait.

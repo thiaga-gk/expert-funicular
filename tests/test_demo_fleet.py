@@ -14,6 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, DEMO_FLEET, DEMO_SKU_BY_TYPE, DEMO_SKU_PRICES, _DEMO_ROWS_CACHE, synthetic_demo_evidence  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.config.defaults import GIB, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 GOLDEN_TABLE = ROOT / "docs" / "proposals" / "golden-scenarios.md"
 CAPACITY_CUT = {"warehouse_size", "max_clusters", "min_clusters"}
@@ -23,8 +27,8 @@ class DemoFleetTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        cls.evidence = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        cls.evidence = synthetic_demo_evidence()
         cls.packages = [pkg.to_dict() for pkg in p.build_recommendation_packages(cls.evidence, cls.t)]
         cls.by_scenario = {}
         for e, pkg in zip(sorted(cls.evidence, key=lambda x: (x.workspace_id, x.warehouse_id)),
@@ -41,23 +45,23 @@ class DemoFleetTests(unittest.TestCase):
     # --- Fleet shape -------------------------------------------------------------------------------------------
     def test_every_warehouse_is_one_golden_scenario(self):
         rows = set(re.findall(r"^\| ([CA]\d{2}) \|", GOLDEN_TABLE.read_text(), re.M))
-        scenarios = [s["scenario"] for s in p.DEMO_FLEET]
+        scenarios = [s["scenario"] for s in DEMO_FLEET]
         self.assertEqual(len(scenarios), len(set(scenarios)), "one warehouse per scenario")
         self.assertTrue(set(scenarios) <= rows, sorted(set(scenarios) - rows))
-        self.assertEqual(len(self.packages), len(p.DEMO_FLEET))
+        self.assertEqual(len(self.packages), len(DEMO_FLEET))
         self.assertEqual(set(self.by_scenario), set(scenarios))
 
     def test_fleet_is_deterministic(self):
-        p._DEMO_ROWS_CACHE.clear()  # re-simulate, not just re-read the memo
-        again = [pkg.to_dict() for pkg in p.build_recommendation_packages(p.synthetic_demo_evidence(), self.t)]
+        _DEMO_ROWS_CACHE.clear()  # re-simulate, not just re-read the memo
+        again = [pkg.to_dict() for pkg in p.build_recommendation_packages(synthetic_demo_evidence(), self.t)]
         self.assertEqual(sorted(x["recommendation_package_id"] for x in again), sorted(x["recommendation_package_id"] for x in self.packages))
 
     # --- Physical consistency ----------------------------------------------------------------------------------
     def test_billing_follows_simulated_cluster_hours_and_list_prices(self):
         for scenario, (e, _) in self.by_scenario.items():
             ep = e.current_epoch
-            rate = p.SQL_DBU_PER_CLUSTER_HOUR[ep.config.warehouse_size]
-            price = p.DEMO_SKU_PRICES[p.DEMO_SKU_BY_TYPE[ep.config.warehouse_type]]
+            rate = SQL_DBU_PER_CLUSTER_HOUR[ep.config.warehouse_size]
+            price = DEMO_SKU_PRICES[DEMO_SKU_BY_TYPE[ep.config.warehouse_type]]
             billed = {r["usage_date"]: r for r in e.daily_cost_365 if r["epoch_start"][:10] == ep.epoch_start[:10]}
             with self.subTest(scenario=scenario):
                 checked = 0
@@ -74,7 +78,7 @@ class DemoFleetTests(unittest.TestCase):
                     self.assertGreater(checked, 0)
 
     def test_billing_matches_warehouse_events_in_every_epoch(self):
-        analysis_day = p.DEMO_ANALYSIS_TIME[:10]
+        analysis_day = DEMO_ANALYSIS_TIME[:10]
         for scenario, (e, _) in self.by_scenario.items():
             for ep in e.epochs:
                 rows = [r for r in e.daily_cost_365 if r["epoch_start"] == ep.epoch_start]
@@ -84,7 +88,7 @@ class DemoFleetTests(unittest.TestCase):
                     continue  # short epochs: events include the unbilled part of today
                 # Events cover the time after the warehouse's first retained event; compare billing over the same days.
                 covered_from = ep.events["event_coverage_start"][:10]
-                expected = ep.events["cluster_minutes"] / 60.0 * p.SQL_DBU_PER_CLUSTER_HOUR[ep.config.warehouse_size]
+                expected = ep.events["cluster_minutes"] / 60.0 * SQL_DBU_PER_CLUSTER_HOUR[ep.config.warehouse_size]
                 billed = sum(r["dbu_quantity"] + r["retracted_dbu_quantity"] - r["restated_dbu_quantity"] for r in rows if r["usage_date"] >= covered_from)
                 with self.subTest(scenario=scenario, epoch=ep.epoch_start):
                     self.assertLess(abs(billed / expected - 1.0), 0.035)
@@ -94,7 +98,7 @@ class DemoFleetTests(unittest.TestCase):
 
         def always_up(v):
             # Running the whole time events can see: from the first retained event to the analysis time.
-            covered = (p.parse_datetime(p.DEMO_ANALYSIS_TIME) - p.parse_datetime(v["event_coverage_start"])).total_seconds() / 60.0
+            covered = (parse_datetime(DEMO_ANALYSIS_TIME) - parse_datetime(v["event_coverage_start"])).total_seconds() / 60.0
             return v["uptime_minutes"] > 0.99 * covered
 
         def last30_uptime(e):
@@ -124,7 +128,7 @@ class DemoFleetTests(unittest.TestCase):
             "C16": lambda e, c, q, v: c.warehouse_type == "SERVERLESS" and always_up(v),
             "C18": lambda e, c, q, v: c.warehouse_channel == "PREVIEW",
             "C21": lambda e, c, q, v: q["result_cache_pct_30"] >= 50,
-            "C22": lambda e, c, q, v: q["spill_query_pct_30"] <= 5 and q["p95_spill_bytes_when_spilled_30"] >= 4 * p.GIB,
+            "C22": lambda e, c, q, v: q["spill_query_pct_30"] <= 5 and q["p95_spill_bytes_when_spilled_30"] >= 4 * GIB,
             "C25": lambda e, c, q, v: c.auto_stop_minutes == 0 and q["active_days_30"] <= 23,
             "C26": lambda e, c, q, v: q["failure_cancel_pct_30"] >= 10,
             "C30": lambda e, c, q, v: any(r["retracted_dbu_quantity"] > 0 for r in e.daily_cost_365),
@@ -159,7 +163,7 @@ class DemoFleetTests(unittest.TestCase):
         # Billed DBU per cluster-hour follows the published size table, so observed rates rise with size.
         for e in self.evidence:
             rates = e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-            ordered = [rates[s] for s in p.SIZE_ORDER if s in rates]
+            ordered = [rates[s] for s in SIZE_ORDER if s in rates]
             self.assertEqual(ordered, sorted(ordered), e.workspace_id)
 
     # --- Golden rows that pass ---------------------------------------------------------------------------------
@@ -226,7 +230,7 @@ class DemoFleetTests(unittest.TestCase):
             if c["knob"] not in CAPACITY_CUT or c["status"] not in {"ACTIONABLE", "TEST_REQUIRED"}:
                 continue
             if c["knob"] == "warehouse_size":
-                self.assertGreater(p.SIZE_ORDER.index(c["recommended_value"]), p.SIZE_ORDER.index(c["current_value"]))
+                self.assertGreater(SIZE_ORDER.index(c["recommended_value"]), SIZE_ORDER.index(c["current_value"]))
             else:
                 self.assertGreaterEqual(c["recommended_value"], c["current_value"], c["knob"])
         self.assertIn("FAILURE_CANCEL_RATE_HIGH", self.candidate("C26", "warehouse_size")["blockers"])

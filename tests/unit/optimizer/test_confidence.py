@@ -14,14 +14,18 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.findings import Analyzer  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.optimizer.estimator.candidate import Estimator  # noqa: E402
 
 
 class ConfidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        fleet = p.synthetic_demo_evidence()
+        cls.t = Thresholds()
+        fleet = synthetic_demo_evidence()
         cls.by = {e.current_epoch.tags["golden_scenario"]: e for e in fleet}
         scenario_of = {e.warehouse_id: e.current_epoch.tags["golden_scenario"] for e in fleet}
         cls.cands = {scenario_of[w.warehouse_id]: {c.knob: c for c in w.candidates} for w in p.evaluate_warehouses(fleet, cls.t)}
@@ -77,8 +81,8 @@ class ConfidenceTests(unittest.TestCase):
         import copy
         e = copy.deepcopy(self.by["C06"])
         e.current_epoch.query["decision_queries_30"] = None
-        a = p.Analyzer(self.t).analyze(e)["warehouse_size"]
-        self.assertEqual(p.Estimator(self.t)._confidence(e, a)["components"]["sample"], 0.0)
+        a = Analyzer(self.t).analyze(e)["warehouse_size"]
+        self.assertEqual(Estimator(self.t)._confidence(e, a)["components"]["sample"], 0.0)
 
     def test_empty_scenario_has_no_score(self):
         pkg = self.packages["C19"]  # configuration too new: Plan A has no steps

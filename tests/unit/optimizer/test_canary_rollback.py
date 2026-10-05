@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import CANARY_GUARD_SQL  # noqa: E402
+from publisher.analyzer.findings import canary_observation  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.packager.scenarios import ScenarioPlanner  # noqa: E402
 from publisher.contracts import reporter_contract as rc  # noqa: E402
 from tests.test_readiness import changed  # noqa: E402
 
@@ -25,8 +31,8 @@ class CanaryRollbackTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
-        cls.e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C55")
+        cls.t = Thresholds()
+        cls.e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C55")
 
     @classmethod
     def tearDownClass(cls):
@@ -110,7 +116,7 @@ class CanaryRollbackTests(unittest.TestCase):
 
     def previous(self, e):
         cur = e.current_epoch
-        return next(x for x in e.epochs if not x.is_current and p.parse_datetime(x.epoch_end) == p.parse_datetime(cur.epoch_start))
+        return next(x for x in e.epochs if not x.is_current and parse_datetime(x.epoch_end) == parse_datetime(cur.epoch_start))
 
     def test_floor_and_ceiling_lowered_together_roll_back_together(self):
         # Previous MEDIUM 3/4, current MEDIUM 1/2: restoring only the floor (3) would exceed the current ceiling (2).
@@ -151,8 +157,8 @@ class CanaryRollbackTests(unittest.TestCase):
         self.assertIn("CANARY_GUARDRAIL_BREACHED", by["warehouse_size"].blockers)
 
     def test_guard_query_scan_is_bounded(self):
-        self.assertIn("x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS", p.CANARY_GUARD_SQL)
-        self.assertIn("c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", p.CANARY_GUARD_SQL)
+        self.assertIn("x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS", CANARY_GUARD_SQL)
+        self.assertIn("c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", CANARY_GUARD_SQL)
 
     def plan_states(self, e):
         pkg = p.build_recommendation_packages([e], self.t)[0]
@@ -184,7 +190,7 @@ class CanaryRollbackTests(unittest.TestCase):
         e = copy.deepcopy(self.e)
         from decimal import Decimal
         e.current_epoch.query["canary_guard"]["CURRENT"]["failure_cancel_pct"] = Decimal("0.30")
-        obs = p.canary_observation(e, self.t)
+        obs = canary_observation(e, self.t)
         self.assertIsInstance(obs["details"]["current"]["failure_cancel_pct"], float)
 
     def queueing_with_floor_cut(self, days=4):
@@ -228,16 +234,16 @@ class CanaryRollbackTests(unittest.TestCase):
 
     def test_reviewer_requires_every_rollback_to_be_a_first_ready_step(self):
         e = self.queueing_with_floor_cut()
-        original = p.ScenarioPlanner._plan_order
+        original = ScenarioPlanner._plan_order
         def rollbacks_last(planner, eligible):
             ordered = original(planner, eligible)
             return [c for c in ordered if "CANARY_GUARDRAIL_BREACHED" not in c.blockers] + [c for c in ordered if "CANARY_GUARDRAIL_BREACHED" in c.blockers]
-        p.ScenarioPlanner._plan_order = rollbacks_last
+        ScenarioPlanner._plan_order = rollbacks_last
         try:
             with self.assertRaisesRegex(ValueError, "Canary rollback must be a first, ready step"):
                 p.build_recommendation_packages([e], self.t)
         finally:
-            p.ScenarioPlanner._plan_order = original
+            ScenarioPlanner._plan_order = original
 
     def test_summary_says_to_apply_the_rollback_before_other_steps(self):
         pkg, steps = self.plan_states(self.queueing_with_floor_cut())

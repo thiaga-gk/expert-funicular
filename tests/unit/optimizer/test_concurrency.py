@@ -13,31 +13,37 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.queries.query_history import CONCURRENCY_SCOPES, build_concurrency_sql  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.analyzer.metrics import concurrency_histograms, histogram_percentile  # noqa: E402
+from publisher.common.time import parse_datetime  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 from tests.golden import load_case  # noqa: E402
 
 
 class ConcurrencyOracleTests(unittest.TestCase):
     def test_minutes_are_time_weighted_and_rounded_up(self):
         # 3 queries for 10 minutes, a 20-query burst for one minute inside them, one query 100-103.
-        h = p.concurrency_histograms([(0, 10, 3), (5, 6, 20), (100, 103, 1)], (0, 200), 0, 5)
+        h = concurrency_histograms([(0, 10, 3), (5, 6, 20), (100, 103, 1)], (0, 200), 0, 5)
         self.assertEqual(h["EPOCH"], {"3": 9.0, "23": 1.0, "1": 3.0})
         self.assertEqual(h["RECENT"], h["EPOCH"])
         # Two busy periods (idle more than 5 minutes between them); peaks in their first 5 minutes are 3 and 1.
         self.assertEqual(h["BUSY_START"], {"3": 1.0, "1": 1.0})
 
     def test_sub_minute_queries_count_as_a_fraction_of_the_minute(self):
-        h = p.concurrency_histograms([(0.0, 0.1, 1), (0.5, 0.6, 1)], (0, 60), None, 5)
+        h = concurrency_histograms([(0.0, 0.1, 1), (0.5, 0.6, 1)], (0, 60), None, 5)
         self.assertEqual(h, {"EPOCH": {"1": 1.0}})  # 0.2 query-minutes -> level 1; no recent window for older epochs
 
     def test_percentile_reads_the_histogram(self):
-        self.assertEqual(p.histogram_percentile({"1": 990, "20": 10}, 99.5), 20)
-        self.assertEqual(p.histogram_percentile({"1": 996, "20": 4}, 99.5), 1)
-        self.assertIsNone(p.histogram_percentile({}, 99.5))
-        self.assertIsNone(p.histogram_percentile(None, 99.5))
+        self.assertEqual(histogram_percentile({"1": 990, "20": 10}, 99.5), 20)
+        self.assertEqual(histogram_percentile({"1": 996, "20": 4}, 99.5), 1)
+        self.assertIsNone(histogram_percentile({}, 99.5))
+        self.assertIsNone(histogram_percentile(None, 99.5))
 
     def test_sql_shape(self):
-        sql = p.build_concurrency_sql(p.Thresholds())
-        for scope in p.CONCURRENCY_SCOPES:
+        sql = build_concurrency_sql(Thresholds())
+        for scope in CONCURRENCY_SCOPES:
             self.assertIn(f"'{scope}' AS scope", sql)
         self.assertIn("TIMESTAMPDIFF(MILLISECOND", sql)
         self.assertIn("INTERVAL 30 DAYS", sql)
@@ -48,9 +54,9 @@ class ClusterTargetDemoTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.disable(logging.CRITICAL)
-        cls.t = p.Thresholds()
+        cls.t = Thresholds()
         cls.by = {}
-        for e in p.synthetic_demo_evidence():
+        for e in synthetic_demo_evidence():
             cls.by[e.current_epoch.tags["golden_scenario"]] = {c.knob: c for c in p.evaluate_warehouses([e], cls.t)[0].candidates}
 
     @classmethod
@@ -89,14 +95,14 @@ class OlderEpochHoldTests(unittest.TestCase):
 
     def setUp(self):
         logging.disable(logging.CRITICAL)
-        self.t = p.Thresholds()
+        self.t = Thresholds()
 
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
     def evidence(self, older_epoch_hist=None, current_epoch_hist=None):
         import dataclasses
-        e = p.demo_evidence()[0]
+        e = demo_evidence()[0]
         for ep in e.epochs:
             ep.config = dataclasses.replace(ep.config, max_clusters=8)
         if older_epoch_hist is not None:
@@ -144,7 +150,7 @@ class OlderEpochHoldTests(unittest.TestCase):
         # 15-day current epoch whose recent window and epoch are the same 15 days: the epoch peak is not "outside".
         import datetime as dt
         e = self.evidence()
-        start = (p.parse_datetime(e.analysis_time) - dt.timedelta(days=15)).isoformat()
+        start = (parse_datetime(e.analysis_time) - dt.timedelta(days=15)).isoformat()
         e.current_epoch.epoch_start = start
         e.epochs[0].epoch_end = start
         e.epochs[0].query.pop("concurrency_histogram", None)
@@ -165,11 +171,11 @@ class ServerlessCeilingConfidenceTests(unittest.TestCase):
         logging.disable(logging.CRITICAL)
         try:
             payload = load_case("concurrency-constrained")
-            e = p.evidence_from_dict(payload["evidence"][0])
+            e = evidence_from_dict(payload["evidence"][0])
             import dataclasses
             for ep in e.epochs:
                 ep.config = dataclasses.replace(ep.config, warehouse_type="SERVERLESS")
-            c = next(c for c in p.evaluate_warehouses([e], p.Thresholds())[0].candidates if c.knob == "max_clusters")
+            c = next(c for c in p.evaluate_warehouses([e], Thresholds())[0].candidates if c.knob == "max_clusters")
         finally:
             logging.disable(logging.NOTSET)
         self.assertEqual(c.status, "ACTIONABLE")

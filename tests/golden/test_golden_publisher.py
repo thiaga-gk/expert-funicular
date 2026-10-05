@@ -35,6 +35,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
+from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
+from publisher.common.utils import as_serializable  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
+from publisher.reviewer.package import validate_locked_package_schema  # noqa: E402
 from tests.golden import case_dir, case_names, load_case  # noqa: E402
 from tests.golden.harness import check, collector_evidence, recompute_forecast  # noqa: E402
 from tests.regression import canonical  # noqa: E402
@@ -60,7 +64,7 @@ class GoldenScenarioTests(unittest.TestCase):
             expect = payload["expect"]
             with self.subTest(scenario=expect.get("scenario"), case=name):
                 evidence = {e.warehouse_id: e for e in collector_evidence(p, payload)}
-                serialized = p.as_serializable(evidence[expect["warehouse"]])
+                serialized = as_serializable(evidence[expect["warehouse"]])
                 failures = [msg for msg in (check(serialized, a) for a in expect["evidence_assertions"]) if msg]
                 self.assertEqual(failures, [], f"{expect.get('scenario')} {name}")
 
@@ -71,13 +75,13 @@ class GoldenScenarioTests(unittest.TestCase):
                 continue
             expect = payload["expect"]
             with self.subTest(scenario=expect.get("scenario"), case=name):
-                evidence = [p.evidence_from_dict(x) for x in payload["evidence"]]
+                evidence = [evidence_from_dict(x) for x in payload["evidence"]]
                 if expect.get("recompute_forecast"):
                     for e in evidence:
                         recompute_forecast(p, e)
-                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, p.Thresholds())}
+                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, Thresholds())}
                 package = packages[expect["warehouse"]].to_dict()
-                p.validate_locked_package_schema(package)
+                validate_locked_package_schema(package)
                 failures = [msg for msg in (check(package, a) for a in expect["assertions"]) if msg]
                 self.assertEqual(failures, [], f"{expect.get('scenario')} {name}")
 
