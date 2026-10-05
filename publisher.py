@@ -733,7 +733,9 @@ SELECT
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
   SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) ELSE 0 END)/POW(1024,3) AS total_spill_gib_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(read_bytes,0) END,0.95) AS p95_read_bytes_30,
-  AVG(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN read_io_cache_percent END) AS avg_read_io_cache_percent_30,
+  -- I/O cache share of bytes read (weighted by read_bytes), not a per-query average that small reads would dominate.
+  SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND read_io_cache_percent IS NOT NULL THEN read_io_cache_percent * COALESCE(read_bytes,0) END)
+    / NULLIF(SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND read_io_cache_percent IS NOT NULL THEN COALESCE(read_bytes,0) END),0) AS avg_read_io_cache_percent_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND execution_status IN ('FAILED','CANCELED'))
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS failure_cancel_pct_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND from_result_cache = TRUE)
@@ -751,7 +753,7 @@ SELECT
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(client_application,'')) LIKE '%looker%') AS looker_queries_30,
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(client_application,'')) LIKE '%databricks sql editor%') AS databricks_sql_editor_client_queries_30,
   ARRAY_SORT(COLLECT_SET(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND client_application IS NOT NULL THEN client_application END)) AS client_applications_30,
-  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND statement_text IS NOT NULL AND statement_text <> '<REDACTED>')
+  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND statement_text IS NOT NULL AND TRIM(statement_text) <> '' AND statement_text <> '<REDACTED>')
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS statement_text_visible_pct_30,
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(statement_text,'')) LIKE '%hive_metastore.%') AS hive_metastore_reference_queries_30,
   PERCENTILE_APPROX(execution_duration_ms,0.95) AS epoch_p95_execution_ms,
@@ -1504,7 +1506,9 @@ usage AS (
     usage_end_time,
     CAST(usage_quantity AS DOUBLE) AS dbu_quantity,
     product_features.is_photon AS is_photon,
-    identity_metadata.owned_by AS owned_by,
+    -- A redacted or blank owner is unknown, never an owner, so it cannot win the latest-owner pick.
+    CASE WHEN UPPER(TRIM(identity_metadata.owned_by)) IN ('__REDACTED__','<REDACTED>','REDACTED') OR TRIM(identity_metadata.owned_by)=''
+         THEN NULL ELSE identity_metadata.owned_by END AS owned_by,
     usage_metadata.node_type AS node_type,
     product_features.sql_tier AS sql_tier
   FROM system.billing.usage
@@ -1661,19 +1665,53 @@ def normalize_size(value: Any) -> str:
     return "UNKNOWN" if value is None else str(value).strip().upper().replace("-", "_")
 
 
+def _map_pairs(value: Any) -> Optional[Dict[str, str]]:
+    """A MAP column as a mapping or, as some connectors return it, a list of [key, value] pairs or key/value entries."""
+    if isinstance(value, Mapping):
+        return {str(k): str(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        out: Dict[str, str] = {}
+        for item in value:
+            if isinstance(item, Mapping) and "key" in item and "value" in item:
+                out[str(item["key"])] = str(item["value"])
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                out[str(item[0])] = str(item[1])
+            else:
+                return None
+        return out
+    return None
+
+
 def normalize_map(value: Any) -> Dict[str, str]:
     if value is None:
         return {}
-    if isinstance(value, Mapping):
-        return {str(k): str(v) for k, v in value.items()}
     if isinstance(value, str):
         try:
             obj = json.loads(value)
-            if isinstance(obj, Mapping):
-                return {str(k): str(v) for k, v in obj.items()}
         except Exception:
             return {"raw": value}
-    return {"raw": str(value)}
+        decoded = _map_pairs(obj)
+        return decoded if decoded is not None else {"raw": value}
+    decoded = _map_pairs(value)
+    return decoded if decoded is not None else {"raw": str(value)}
+
+
+def hive_reference_count(q: Mapping[str, Any]) -> Optional[int]:
+    """Queries naming hive_metastore, or None when no statement text was visible (a zero would claim a clean scan)."""
+    if safe_float(q.get("statement_text_visible_pct_30")) <= 0:
+        return None
+    return safe_int(q.get("hive_metastore_reference_queries_30"))
+
+
+REDACTED_OWNER_VALUES = frozenset({"__REDACTED__", "<REDACTED>", "REDACTED"})
+
+
+def clean_owner(value: Any) -> Optional[str]:
+    """An owner identity, or None when it is blank or a redaction token (unknown, never an owner)."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return None if not text or text.upper() in REDACTED_OWNER_VALUES else text
 
 
 def classify_sql_sku(sku_name: str) -> str:
@@ -2767,8 +2805,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         query_source = derive_query_source_profile(current.query)
         owners = as_string_list(attribution_row.get("observed_owners")) or []
         attribution = WarehouseAttribution(
-            owner=(str(attribution_row.get("latest_owner")) if attribution_row.get("latest_owner") else None),
-            observed_owners=sorted({str(x) for x in owners if x is not None}),
+            owner=clean_owner(attribution_row.get("latest_owner")),
+            observed_owners=sorted({o for o in (clean_owner(x) for x in owners) if o is not None}),
             owner_source="system.billing.usage.identity_metadata.owned_by",
             query_source=query_source,
         )
@@ -2930,7 +2968,7 @@ class Analyzer:
             self._f(e,"warehouse_size","failure_cancel_pct_30",round_or_none(failure_pct,4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on."),
             self._f(e,"warehouse_size","p95_execution_ms_30",round_or_none(p95),unit="ms",threshold=self.t.p95_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Tail execution latency guardrail."),
             self._f(e,"warehouse_size","p99_execution_ms_30",round_or_none(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
-            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
+            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="Share of bytes read served from the I/O cache (weighted by bytes read); HITL context only, not a size decision threshold."),
         ]
         decision_queries = optional_float(q.get("decision_queries_30"))
         fs.extend([
@@ -3092,7 +3130,7 @@ class Analyzer:
             self._f(e,"warehouse_type","power_bi_queries_30",safe_int(q.get("power_bi_queries_30")),unit="queries",table="system.query.history",field="client_application",window="last 30 days within current epoch",interpretation="Power BI client workload mix context."),
             self._f(e,"warehouse_type","tableau_queries_30",safe_int(q.get("tableau_queries_30")),unit="queries",table="system.query.history",field="client_application",window="last 30 days within current epoch",interpretation="Tableau client workload mix context."),
             self._f(e,"warehouse_type","statement_text_visible_pct_30",round(safe_float(q.get("statement_text_visible_pct_30")),4),unit="%",table="system.query.history",field="statement_text",window="last 30 days within current epoch",interpretation="Coverage available for deterministic pattern checks. Raw SQL text is not exported."),
-            self._f(e,"warehouse_type","hive_metastore_reference_queries_30",safe_int(q.get("hive_metastore_reference_queries_30")),unit="queries",table="system.query.history",field="statement_text (aggregated pattern only)",window="last 30 days within current epoch",interpretation="Potential migration-review signal only; this does not prove an external legacy Hive metastore is configured."),
+            self._f(e,"warehouse_type","hive_metastore_reference_queries_30",hive_reference_count(q),unit="queries",table="system.query.history",field="statement_text (aggregated pattern only)",window="last 30 days within current epoch",interpretation="Potential migration-review signal only; this does not prove an external legacy Hive metastore is configured."),
         ]
         # The migration target runs at its own best auto-stop (Serverless: 5-minute floor, starts in seconds, no
         # cold-start budget; Pro: 10-minute floor, 4-minute starts, the cold-start budget), measured on the same
@@ -3135,7 +3173,7 @@ class Analyzer:
         fs.append(self._f(e,"warehouse_type","migration_target_running_fraction",running_fraction,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,
             interpretation="The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time."))
         out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,
-            "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":safe_int(q.get("hive_metastore_reference_queries_30"))})
+            "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":hive_reference_count(q)})
         return out
 
 # ---------------------------------------------------------------------------
@@ -4255,7 +4293,7 @@ class ScenarioPlanner:
                 checks.append({"check":"workspace_serverless_enablement","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":api,"source":"fallback A"})
                 checks.append({"check":"external_legacy_hive_metastore_workspace_setting","status":"UNKNOWN","evidence":"Read-only compatibility API unavailable or workspace not directly connected","source":"fallback A"})
                 checks.append({"check":"s3_access_policy_compatibility","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":"No verified read-only endpoint used; HITL unless existing Serverless proves workspace eligibility","source":"fallback A"})
-            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=safe_int(q.get("hive_metastore_reference_queries_30"))
+            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=safe_int(hive_reference_count(q))
             checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive>0 else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
         else:
             observed=bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))

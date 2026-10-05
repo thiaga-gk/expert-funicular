@@ -1,0 +1,59 @@
+{
+ "collector_rows": {
+  "billing_attribution_photon_owner": [
+   {
+    "epoch_start": "2026-03-01 00:00:00",
+    "latest_owner": "__REDACTED__",
+    "latest_usage_time": "2026-09-30 23:00:00",
+    "observed_node_types": [],
+    "observed_owners": [
+     "__REDACTED__",
+     "ana@example.com",
+     "redacted"
+    ],
+    "observed_sql_tiers": [],
+    "photon_false_dbu": 120.0,
+    "photon_null_dbu": 0.0,
+    "photon_true_dbu": 0.0,
+    "warehouse_id": "wh-a08",
+    "workspace_id": "1234567890123456"
+   }
+  ]
+ },
+ "description": "A08 Owner attribution: billing identity_metadata.owned_by gives the owner. The latest usage row carries a redacted owner value; a redacted value is unknown, never an owner, so the latest real owner is reported and the redacted token is not listed.",
+ "expect": {
+  "evidence_assertions": [
+   {
+    "equals": null,
+    "path": "attribution.owner"
+   },
+   {
+    "equals": [
+     "ana@example.com"
+    ],
+    "path": "attribution.observed_owners"
+   }
+  ],
+  "scenario": "A08",
+  "warehouse": "wh-a08"
+ },
+ "name": "a08-owner-attribution",
+ "now": "2026-10-01 12:00:00",
+ "snapshots": [
+  {
+   "account_id": "acct-demo",
+   "auto_stop_minutes": 10,
+   "change_time": "2026-03-01 00:00:00",
+   "delete_time": null,
+   "max_clusters": 2,
+   "min_clusters": 1,
+   "tags": "{\"team\": \"bi\"}",
+   "warehouse_channel": "CHANNEL_NAME_CURRENT",
+   "warehouse_id": "wh-a08",
+   "warehouse_name": "Owner Attribution",
+   "warehouse_size": "SMALL",
+   "warehouse_type": "PRO",
+   "workspace_id": "1234567890123456"
+  }
+ ]
+}
