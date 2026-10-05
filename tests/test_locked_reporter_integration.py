@@ -8,7 +8,7 @@ import unittest
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -178,7 +178,7 @@ class LockedReporterIntegrationTests(unittest.TestCase):
 
 
 class PublicIdentityTests(unittest.TestCase):
-    """Public IDs come only from the contract helpers, never from publisher.py's internal join keys."""
+    """Public IDs come only from the contract helpers, never from the internal join keys (publisher.common.ids)."""
 
     INTERNAL_KEYS = (("epoch_id", "ZZEPOCH-"), ("finding_id", "ZZFND-"), ("recommendation_id", "ZZREC-"), ("scenario_id", "ZZSCN-"))
 
@@ -195,8 +195,15 @@ class PublicIdentityTests(unittest.TestCase):
     def test_public_ids_ignore_internal_join_keys(self):
         baseline_evidence, baseline = self._fleet()
         with ExitStack() as stack:
-            mocks = [stack.enter_context(patch.object(publisher, name, side_effect=self._unrelated(prefix)))
-                     for name, prefix in self.INTERNAL_KEYS]
+            mocks = []
+            for name, prefix in self.INTERNAL_KEYS:
+                mock = MagicMock(side_effect=self._unrelated(prefix))
+                original = getattr(publisher, name)
+                # Patch the key wherever a publisher module imported it, not only in the facade.
+                for module in [m for k, m in sorted(sys.modules.items()) if k == "publisher" or k.startswith("publisher.")]:
+                    if getattr(module, name, None) is original:
+                        stack.enter_context(patch.object(module, name, mock))
+                mocks.append(mock)
             scrambled_evidence, scrambled = self._fleet()
         # The patch must really have changed the internal keys, or this test proves nothing.
         self.assertTrue(all(m.called for m in mocks))
