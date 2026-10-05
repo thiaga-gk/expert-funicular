@@ -216,7 +216,7 @@ Historical epochs may be used for:
 - backtesting;
 - realized-outcome comparison.
 
-They may not be used to pass current-state safety gates.
+They may not be used to pass current-state safety gates. The one decision use is a hold: a capacity cut waits when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
 
 ### 7.2 Photon and epoch identity
 
@@ -421,7 +421,7 @@ Examples (finding metrics):
 - `spill_query_pct_30`, read against the upsize spill share;
 - `time_at_max_pct`, read against the reduce-safe share of time at the maximum.
 
-Blocker codes such as `COLD_START_SENSITIVE` and `INSUFFICIENT_QUERY_SAMPLE` are not findings: the optimizer places them on a decision or candidate (section 26.1). Meanings: `docs/reference/blocker-codes.md`.
+Blocker codes such as `COLD_START_BUDGET_EXCEEDED` and `INSUFFICIENT_QUERY_SAMPLE` are not findings: the optimizer places them on a decision or candidate (section 26.1). Meanings: `docs/reference/blocker-codes.md`.
 
 ### 13.3 Analysis result
 
@@ -818,7 +818,7 @@ Example:
 
 - compatibility requirement cannot be satisfied (for example `PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`);
 - insufficient source coverage for a required decision (`INSUFFICIENT_QUERY_SAMPLE`);
-- a lower auto-stop would cause frequent, long cold starts (`COLD_START_SENSITIVE`);
+- every auto-stop value that saves money would add more cold starts than the budget allows (`COLD_START_BUDGET_EXCEEDED`);
 - unsupported warehouse type (`UNSUPPORTED_WAREHOUSE_TYPE`).
 
 Meaning, trigger and gating parameter of every code: `docs/reference/blocker-codes.md`.
@@ -1123,7 +1123,7 @@ These are non-negotiable unless the PRD/contract is explicitly revised.
 
 1. One public package = one warehouse + one current config epoch.
 2. Current-state decisions use current-epoch evidence only.
-3. Historical epochs may calibrate but may not satisfy current safety thresholds.
+3. Older epochs may calibrate but may not satisfy current safety thresholds; their only decision use is holding a capacity cut when they peaked higher.
 4. System tables are authoritative for supported tunable config/evidence.
 5. Unsupported warehouse types fail closed / remain non-optimizable.
 6. Candidate economics are independent and non-additive.
@@ -1211,7 +1211,7 @@ low queueing
 negligible spill
 safe p95/p99 latency
 warehouse spends significant time at minimum clusters
-material avoidable idle gaps
+material idle running time
 ```
 
 The product may produce:

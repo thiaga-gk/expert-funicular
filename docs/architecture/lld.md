@@ -216,7 +216,7 @@ Reviewer Gate 2 hands the reviewed candidates and scenarios (`WarehouseOptimizat
 |---|---|---|
 | `system.compute.warehouses` | warehouse configuration snapshots | authoritative configuration + epoch boundaries |
 | `system.compute.warehouse_events` | warehouse event stream aggregated to epoch | resource minutes, scale-state, starts |
-| `system.query.history` | query history aggregated to epoch/30d | queue, spill, latency, source, cache, tags, gaps |
+| `system.query.history` | query history aggregated to epoch/30d | queue, spill, latency, source, cache, tags, running idle gaps, concurrency, spill sources |
 | `system.billing.usage` | daily/epoch usage | DBU cost, Photon observation, owner, serverless evidence |
 | `system.billing.list_prices` | active SQL DBU price rows | list-cost and migration pricing |
 | versioned AWS registry | region + instance family | Pro/Classic customer EC2 model |
@@ -290,7 +290,24 @@ Reads a daily resource series for the current epoch over the last `RESOURCE_DAIL
 
 #### Idle-gap SQL
 
-`build_epoch_gap_metrics_sql()` derives inter-query idle gaps within each epoch and materializes projected removable idle minutes for all configured deterministic auto-stop targets. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps. A `retained` CTE (the warehouse's first `warehouse_events` event in the last 365 days) restricts the sample to queries after that event, so the gap sample covers the same period as the event totals it is divided by. The query returns one row per epoch with queries, also carrying `busy_minutes`: the wall-clock minutes with at least one query running (the length of the union of the query intervals) over the same period. The gap columns are null (`gap_count` 0) when an epoch has no gaps.
+`build_epoch_gap_metrics_sql()` returns, per epoch, the busy minutes (wall-clock minutes with at least one query running: the length of the union of the query intervals) and the inter-query gap count with its median and 90th percentile. The running maximum of prior query end times orders by `start_time`, `end_time`, `statement_id`, so queries with equal start times produce deterministic gaps. A `retained` CTE (the warehouse's first `warehouse_events` event in the last 365 days) restricts the sample to queries after that event, so it covers the same period as the event totals it is divided by. The gap columns are null (`gap_count` 0) when an epoch has no gaps. The busy minutes feed the size estimate; the auto-stop decision does not read the gap count.
+
+#### Running-idle SQL
+
+Auto-stop is priced on idle time the warehouse actually ran. `build_running_idle_sql()` and `build_running_idle_targets_sql()` build, for the current epoch only, the idle gaps (the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now, or from the window start when there is no query) and intersect them with the `RUNNING` segments of `system.compute.warehouse_events`. The period is the same as the event totals (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision. Two queries share one set of CTEs:
+
+- one row per warehouse: the window, the query count, the running segment count, the observed running cluster-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive);
+- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `auto_stop_max_minutes`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
+
+The normalizer stores them as `gaps.running_idle_*` keys and the sparse `gaps.running_idle_by_target` map keyed by minutes; a value without a row is a known zero, while missing keys mean the evidence was not collected (auto-stop then fails closed, 15.6). `running_idle_metrics()` is the Python reference of the same arithmetic and is what the tests pin. A value covers a gap only when it is `auto_stop_bridge_margin_pct` longer than the gap, and a gap counts as running throughout when the warehouse ran at least `running_idle_full_window_fraction` of it.
+
+#### Concurrency SQL
+
+`build_concurrency_sql()` measures per UTC minute the time-weighted number of running plus queued queries (a query occupies `[start_time, end_time)`, millisecond precision); the level of a minute is that number rounded up. It writes histograms (level to number of minutes) per epoch for the last 365 days under `query.concurrency_histogram`: `EPOCH` (busy minutes) for every epoch, and for the current epoch also `RECENT` (the last 30 days) and `BUSY_START` (for each busy period that starts after more than the scale-up lag of idle minutes, its highest level in its first lag minutes, so the weight is the number of periods). The lag is `scale_up_lag_minutes_pro_classic` or `scale_up_lag_minutes_serverless`. A missing histogram means it was not collected and every rule that needs it fails closed. `concurrency_histograms()` is the Python reference.
+
+#### Spill-source SQL
+
+`build_spill_source_sql()` sums, for the current epoch over the last 30 days, the spilled bytes of non-result-cache queries per statement source (saved query ID, dashboard ID, legacy dashboard ID, job ID, notebook ID, otherwise a hash of the statement text; a redacted or null text counts by its statement ID and is never merged) and returns `query.spill_sources_30` (the number of sources that spilled) and `query.top_spill_source_share_pct_30` (the share of spilled bytes carried by the top `spill_concentration_top_sources`). The statement text is hashed in the query and never exported.
 
 #### `EPOCH_DAILY_COST_SQL`
 
@@ -447,6 +464,8 @@ flowchart TD
 
 Only current-epoch findings may satisfy active optimizer decisions. Reviewer gate 1 rejects decision findings from historical epochs except explicitly non-decision historical coverage evidence.
 
+Older epochs have one decision use: they can hold a capacity cut. A size reduction, a lower max clusters or a lower min clusters is held (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`) when any older epoch of the same warehouse within the last 365 days peaked at more clusters of demand than the current recent window (15). The older peak is the per-minute concurrency level reached in at least `peak_demand_min_minutes` busy minutes of that epoch (`query.concurrency_histogram.EPOCH`). Older concurrency depends on that epoch's configuration (a smaller size shows more concurrency), so it is used only to hold, never to choose a change, its target or its economics. After a heavy team leaves, the hold lasts until the older epoch ages past 365 days; the blocker stays visible for a human override.
+
 ### 10.3 Supported-Type Gate
 
 Immediately after normalization and before analyzer invocation:
@@ -602,11 +621,11 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | Candidate | Principal analyzer evidence |
 |---|---|
 | ~~`enable_photon`~~ | retired; the observation (state, enabled %, coverage, freshness) is still collected for `current_config.photon` |
-| `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, queue %, p95/p99 execution, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization, query-volume growth ratio |
-| `max_clusters` | max config, observed max clusters, whole-epoch peak, queue %, queued-query count, p95 capacity wait among queued queries, time at max, query-volume growth ratio |
-| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization, query-volume growth ratio |
-| `auto_stop_minutes` | current auto-stop, queries/day, gap sample, projected saved idle minutes, cluster-minutes, cold-start metrics |
-| `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), source/compatibility evidence |
+| `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, share of spilled bytes from the top statement sources, queue %, p95/p99 execution, job-query share (batch profile), active days, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization, query-volume growth ratio, older-epoch peak concurrency |
+| `max_clusters` | max config, observed max clusters, whole-epoch peak, queue %, queued-query count, p95 capacity wait among queued queries, time at max, peak query concurrency (recent window and whole epoch), busy minutes, query-volume growth ratio, older-epoch peak concurrency |
+| `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization, busy-period start concurrency and busy periods, query-volume growth ratio, older-epoch peak concurrency |
+| `auto_stop_minutes` | current auto-stop, the type's auto-stop values with their net saving, added restarts and added cold-start share (from running idle time), observed running cluster-minutes, kept-alive minutes, running share of the clock, busy share of running time, restart cost, nonprod profile |
+| `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), the target type's own best auto-stop and running fraction, source/compatibility evidence |
 
 Common facts include query count, active days, queries per active day, epoch age, epoch query count, cost-history days, and cost variability.
 
@@ -623,6 +642,7 @@ Rules shared by several knobs:
 - **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW` (max-cluster reduction applies the same test without a code).
 - **Reliability guard** for every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above `failure_cancel_pct_downsize_safe` holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
 - **Growth guard** for the size downsize, the max-cluster reduction and the min-cluster reduction: the query-volume growth ratio is the smallest of the last four complete weekly query counts divided by the median of the four weeks before. At or above `growth_hold_weekly_ratio` the cut is `NO_CHANGE` with `QUERY_VOLUME_GROWING`. Using every recent week keeps one month-, quarter- or year-end burst week from looking like growth. The ratio is unknown, and holds nothing, when the epoch has fewer than eight complete weeks or the earlier median is zero. Auto-stop and increases are not held by it.
+- **Older-epoch hold** for the size downsize, the max-cluster reduction and the min-cluster reduction: the cut is `NO_CHANGE` with `OLDER_EPOCH_PEAK_DEMAND_HIGHER` when an earlier configuration of the warehouse within the last 365 days peaked at more clusters of demand than the recent window (10.2). Older epochs never choose a change, its target or its economics.
 - **Missing evidence is never read as zero.** An unreported spill, queue, latency or severity value holds the change with an `*_EVIDENCE_UNAVAILABLE` code.
 - **Recent capacity facts** (time at max, time at min, observed peak) come from the last `pressure_window_days` of the daily resource window, not the whole epoch. When the series was not collected the max/min-cluster change is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`; when it was collected but the warehouse did not run in the window, it is held with `NO_RECENT_RUNNING_TIME`.
 
@@ -644,7 +664,8 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 
 - the spill share reaches `spill_query_pct_upsize` but the p95 spill severity was not reported: `INSUFFICIENT_EVIDENCE` with `SPILL_SEVERITY_EVIDENCE_UNAVAILABLE`, and no resize;
 - both signals reached, a larger size exists, and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with the matching codes and no resize. The gates are an epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), fewer than `min_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_QUERY_SAMPLE`), and fewer than `severity_min_affected_queries` spilled queries (`INSUFFICIENT_AFFECTED_QUERY_SAMPLE`);
-- both signals reached, a larger size exists and no gate holds: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max and min clusters;
+- both signals reached, a larger size exists, no gate holds and the share of spilled bytes carried by the top `spill_concentration_top_sources` statement sources reaches `spill_concentration_hold_pct`: `NO_CHANGE` with `SPILL_CONCENTRATED_IN_FEW_STATEMENTS`, because a few statements are better rewritten than every query moved to a larger size; a missing share (older evidence) is `INSUFFICIENT_EVIDENCE` with `SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE`;
+- both signals reached, a larger size exists, no gate holds and the spill is spread across statements: `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`, one size up; the speed-up and its cost are modeled, not observed, so an A/B canary is mandatory. The change invalidates max and min clusters;
 - both signals reached and the warehouse is already at the largest known size: `BLOCKED` with `ALREADY_AT_MAX_KNOWN_SIZE`.
 
 #### Downsize
@@ -652,12 +673,13 @@ Upsize one nominal size when spill is both frequent and severe: the share of spi
 Every case that is not an upsize is evaluated for a downsize of exactly one size. It is proposed only when a smaller size exists and none of these blockers applies:
 
 - epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
-- fewer than `strong_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_STRONG_QUERY_SAMPLE`);
+- fewer than `strong_query_sample_size` decision-population queries in the 30-day window, or a missing count (`INSUFFICIENT_STRONG_QUERY_SAMPLE`); a batch warehouse uses run days instead (below);
 - spilled-query share above `spill_query_pct_downsize_safe` (`SPILL_PRESENT`), or not reported (`SPILL_EVIDENCE_UNAVAILABLE`);
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
 - the growth guard (`QUERY_VOLUME_GROWING`);
-- the whole current epoch's peak cluster count above the recent window's ceiling (recent peak plus headroom, 15.4), so the 30-day canary evidence cannot see a seasonal peak the epoch reached (`PEAK_OUTSIDE_RECENT_WINDOW`; skipped when either peak is unknown);
+- the whole current epoch's peak cluster count above the recent window's ceiling (recent peak plus headroom), so the 30-day canary evidence cannot see a seasonal peak the epoch reached (`PEAK_OUTSIDE_RECENT_WINDOW`; skipped when either peak is unknown);
+- the older-epoch hold (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`);
 - p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
 The decision population is the non-result-cache queries (7.2), so latency and spill are not loosened by cache hits; failed and cancelled queries (timeouts included) stay in the tail. Spill frequency, queue frequency and p95/p99 execution latency must be known: a value the collector did not report stays null (never read as 0 / no pressure) and holds the downsize.
@@ -666,11 +688,25 @@ With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_R
 
 Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
+**Batch profile.** A warehouse is a batch warehouse when job queries are at least `batch_job_query_share_pct` of its last-30-day queries. Its downsize is still a canary only, but a ten-minute ETL query is normal for it, so the p95/p99 latency gates (and `LATENCY_EVIDENCE_UNAVAILABLE`) do not apply and the sample is at least `batch_min_active_days` active days in 30 (`INSUFFICIENT_BATCH_RUN_DAYS`) instead of `strong_query_sample_size` non-cache queries. The spill, queue, failure, growth, seasonal and older-epoch holds, the epoch-maturity gate and the canary are unchanged, and the rationale says the canary measures job run times.
+
 ### 15.4 Max clusters
+
+Pro/Classic ceilings follow query concurrency. The collector measures the running plus queued queries of every busy UTC minute (7.2, Concurrency SQL); one Pro/Classic cluster serves `queries_per_cluster_pro_classic` concurrent queries, so peak demand in queries becomes clusters. Two peaks are used:
+
+- the recent peak: the `max_cluster_target_percentile` percentile of the busy minutes of the last 30 days (needs at least `concurrency_min_busy_minutes` busy minutes);
+- the epoch peak: the level reached in at least `peak_demand_min_minutes` busy minutes of the whole current epoch. A long window uses this instead of a percentile because a two-hour quarter-end peak is a tiny share of months of busy minutes.
+
+```text
+target(peak_clusters) = min(max_clusters_supported_limit,
+                            max(min_clusters, peak_clusters + max_cluster_target_headroom_clusters))
+```
+
+Serverless scales differently and keeps its own rules (queue-based one-step increase, peak-plus-headroom reduction, below).
 
 #### Increase
 
-An increase of one cluster is considered when all of these hold:
+An increase is considered when all of these hold:
 
 - the queued-query share is known and reaches `queue_query_pct_increase_max`;
 - the p95 capacity wait among queued queries reaches `queue_wait_p95_ms_increase_max`;
@@ -681,7 +717,10 @@ Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 - queue share and saturation reached but the capacity wait was not reported: `INSUFFICIENT_EVIDENCE` with `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`;
 - all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
 - all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (epoch younger than `current_config_stability_days`), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
-- all signals reached and no gate holds: `ACTIONABLE`, one cluster more; the change invalidates min clusters.
+- Pro/Classic with no concurrency evidence: `INSUFFICIENT_EVIDENCE` with `CONCURRENCY_EVIDENCE_UNAVAILABLE`; with fewer than `concurrency_min_busy_minutes` busy minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_BUSY_MINUTE_SAMPLE`;
+- Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
+- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters;
+- Serverless: `ACTIONABLE`, one cluster more, at low confidence; the change invalidates min clusters.
 
 When the recent resource window is unavailable, saturation cannot be judged and the decision is `NO_CHANGE` with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected but the warehouse did not run in the window).
 
@@ -695,7 +734,9 @@ A lower max-cluster guardrail is considered only when all of these hold:
 - time at the configured maximum is at most `time_at_max_pct_safe_reduce`;
 - the target below is lower than the current maximum.
 
-Target:
+Pro/Classic target: `target()` of the larger of the recent peak and the epoch peak, in clusters. Concurrency evidence missing is `CONCURRENCY_EVIDENCE_UNAVAILABLE` and too few busy minutes `INSUFFICIENT_BUSY_MINUTE_SAMPLE`, each holding the cut as `NO_CHANGE`.
+
+Serverless target:
 
 ```text
 peak     = max(recent_window_peak, epoch_max_observed_clusters)
@@ -704,9 +745,9 @@ headroom = max(max_cluster_headroom_clusters,
 target   = max(min_clusters, peak + headroom)
 ```
 
-`recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum (as the recent window does), so a seasonal peak outside the recent window is not cut away. When the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
+`recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum. In both cases a seasonal peak outside the recent window is not cut away: when the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
-The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard and the growth guard apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes or `QUERY_VOLUME_GROWING`. An ineligible ceiling is `NO_CHANGE` without a code.
+The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. An ineligible ceiling is `NO_CHANGE` without a code.
 
 An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates nothing: the new ceiling stays above the observed peak, so no other knob's evidence changes.
 
@@ -714,47 +755,68 @@ An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct sav
 
 If the current minimum is 1 or lower, return `NO_CHANGE`.
 
-Otherwise reduce by exactly one cluster only when none of these blockers applies:
+The floor carries the demand a busy period starts with until the autoscaler adds clusters (the scale-up lag, 7.2). The target is the smallest floor that covers that demand:
+
+```text
+floor_target = max(1, ceil(P(min_cluster_busy_start_percentile) of busy-period start demand
+                           / queries_per_cluster_pro_classic))
+```
+
+A floor is lowered, in one canary, only when the target is below the current minimum; a floor raise is never recommended. A target at or above the current minimum is `NO_CHANGE` (the current floor is needed). It applies to every supported type, so a Serverless floor is judged on the same demand with its shorter lag.
+
+A reduction is held when any of these blockers applies:
 
 - epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`), or fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
 - queued-query share not reported (`QUEUE_EVIDENCE_UNAVAILABLE`), above `queue_query_pct_safe`, or a known p95 capacity wait above `queue_wait_p95_ms_safe` (`QUEUE_PRESSURE_PRESENT`);
 - capacity wait not reported (`QUEUE_WAIT_EVIDENCE_UNAVAILABLE`);
 - recent resource window unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`) or idle (`NO_RECENT_RUNNING_TIME`);
-- time at the configured maximum at or above `time_at_max_pct_block_min_reduce` (`SUSTAINED_SCALE_PRESSURE`);
+- time at the configured maximum at or above `time_at_max_pct_block_min_reduce` (`SUSTAINED_SCALE_PRESSURE`); a pinned warehouse (minimum equal to maximum) always runs at its maximum, so this blocker does not apply and pressure is judged on queueing;
 - time at the configured minimum below `time_at_min_pct_reduce` (`WAREHOUSE_RARELY_AT_MINIMUM`);
-- the reliability guard;
-- the growth guard (`QUERY_VOLUME_GROWING`).
+- the reliability guard, the growth guard (`QUERY_VOLUME_GROWING`) and the older-epoch hold (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`);
+- busy-start concurrency not collected (`CONCURRENCY_EVIDENCE_UNAVAILABLE`), or fewer than `min_cluster_min_busy_periods` busy periods in the recent window (`INSUFFICIENT_BUSY_PERIOD_SAMPLE`).
 
 `time_at_min` and `time_at_max` are measured over the last `pressure_window_days` of the daily resource window. An unreported value is held as a blocker, never read as 0.
 
-With no blocker the status is `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates nothing: auto-stop is evaluated independently of the floor, and the bundle estimator keeps the two from claiming the same cluster-minute (20.3). Otherwise the result is `NO_CHANGE` with the blockers preserved.
+With no blocker and a target below the current minimum the status is `TEST_REQUIRED` (a canary with blockers `A_B_PERFORMANCE_VALIDATION_REQUIRED` and `SPARE_FLOOR_CAPACITY_UNPROVEN`: time at the floor does not prove a floor cluster was spare). It invalidates nothing: auto-stop is evaluated independently of the floor, and the bundle estimator keeps the two from claiming the same cluster-minute (20.3). Otherwise the result is `NO_CHANGE` with the blockers preserved.
 
 ### 15.6 Auto-stop
 
-The target is deterministic by workload activity (queries per active day in the 30-day window):
+Auto-stop is not a fixed target by workload class: it jumps to the value that costs least on the warehouse's own measured running idle time (7.2, Running-idle SQL). Idle time is only a cost while the warehouse runs, and a lower value saves idle minutes but adds restarts for the gaps it no longer bridges.
+
+**Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`auto_stop_floor_pro_classic` for Pro and Classic, `auto_stop_floor_serverless` for standard Serverless) up to `auto_stop_max_minutes`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
+
+**Objective per value**, in cluster-minutes (the floor cluster count is the current minimum, at least 1):
 
 ```text
-SERVERLESS                                       -> serverless_auto_stop_target_minutes
-< low_activity_queries_per_day                   -> low_activity_auto_stop_target_minutes
-< medium_activity_queries_per_day                -> medium_activity_auto_stop_target_minutes
-otherwise                                        -> high_activity_auto_stop_target_minutes
+lowering:  net = removable running cluster-minutes
+                 - additional restarts * restart_cost
+raising:   net = restarts avoided * restart_cost
+                 - added idle wall minutes * floor clusters
+restart_cost = restart_cost_cluster_minutes_{pro_classic|serverless} * floor clusters
 ```
 
-No change when the current non-zero auto-stop is already at or below the target (an auto-stop of 0 is evaluated).
+The restart cost is the documented start time (about 4 minutes on Pro and Classic, 2 to 6 seconds on Serverless, priced at the upper end). Databricks does not document whether starting minutes are billed, so on Pro and Classic the restart cost is a priced assumption: a raise, whose saving is entirely avoided restarts, is therefore always a canary. Running time past the current auto-stop (kept-alive time: open sessions, result fetching) is reported and never removable by a lower value; added restarts are counted only in gaps within the current setting.
 
-Otherwise the recommendation is `BLOCKED` when any of these hold, each with its code:
+**Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries over the same window, must stay within `cold_start_added_share_max_pct`, or `cold_start_added_share_max_pct_nonprod` for a warehouse tagged nonprod. Nonprod means a tag whose key is one of `nonprod_tag_keys` (case-insensitive) with a value in `nonprod_tag_values`; staging and UAT stay production, and the only effect of nonprod is the larger budget.
 
-- epoch younger than `current_config_stability_days` (`CURRENT_CONFIG_EPOCH_TOO_NEW`);
-- fewer than `min_query_sample_size` queries (`INSUFFICIENT_QUERY_SAMPLE`);
-- fewer than `min_idle_gap_sample_size` measured idle gaps (`INSUFFICIENT_IDLE_GAP_SAMPLE`);
-- fewer than `min_cluster_minutes_for_cost_model` cluster-minutes (`INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`);
-- compute-wait severity not reported (`COLD_START_EVIDENCE_UNAVAILABLE`);
-- p95 compute wait among queries that waited at or above `cold_start_p95_ms_block` and starts per active day at or above `cold_starts_per_active_day_block` (`COLD_START_SENSITIVE`);
-- the reliability guard.
+**Choice.** Among the values within budget that save money, the best net wins; among values whose net is within `auto_stop_near_best_pct` of the best, the smallest change from the current value wins (an always-on value of 0 counts as infinitely long, so the largest such value is the smallest change). The candidate is priced at its net divided by the observed running cluster-minutes, scaled by the realization tracks (17.3).
 
-With none of them the status is `ACTIONABLE`. Auto-stop is evaluated independently of size and min clusters: no other change invalidates it.
+**Outcomes**, in the order the optimizer checks them:
 
-Before that, when the idle time a lower auto-stop would remove (saved idle minutes times the current minimum clusters) exceeds the running cluster-minutes the events recorded (both above 0), the two sources contradict each other: the decision is `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price, instead of clamping to `auto_stop_savings_cap`.
+- Serverless value below its floor: `NO_CHANGE`, left alone;
+- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`;
+- fewer than `min_cluster_minutes_for_cost_model` running cluster-minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`;
+- a lower value removes more running cluster-minutes than the events recorded: `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price;
+- epoch younger than `current_config_stability_days`: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`;
+- no queries while running: `REVIEW` at the floor value when it removes running time (`NO_QUERIES_WHILE_RUNNING`), otherwise `NO_CHANGE` with the same code;
+- no value saves money: `NO_CHANGE` (the current value is cost-optimal), with `SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING` when the warehouse runs at least `always_on_running_pct` of the window while queries are busy at most `always_on_busy_pct_max` of its running time (frequent tiny queries such as BI polling or dashboard refresh keep it up; the rationale names the client applications);
+- every value that saves money is over the cold-start budget: `NO_CHANGE` with `COLD_START_BUDGET_EXCEEDED`;
+- the chosen value lowers auto-stop: `ACTIONABLE`, unless the reliability guard holds the cut, which makes it `BLOCKED`;
+- the chosen value raises auto-stop: `TEST_REQUIRED` with `RESTART_BILLING_UNVERIFIED`, a canary that measures billed cost after the change.
+
+**Non-work activity.** With any outcome, when kept-alive minutes are at least `kept_alive_flag_pct` of running time the decision also carries the advisory `ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING` and its rationale states the share; that time is never priced as removable. The analyzer emits `running_share_of_clock_pct` and `busy_share_of_running_pct` findings for the flags above.
+
+Auto-stop is evaluated independently of size and min clusters: no other change invalidates it. The size canary does not sequence it either: a size change alters idle gaps only by the change in query durations, and auto-stop is priced on measured gaps.
 
 ### 15.7 Warehouse type
 
@@ -770,6 +832,10 @@ flowchart LR
 ```
 
 Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observed workspace capability is retained as a blocker/HITL condition (`PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`, `SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`) rather than removing the branch. When the forward DBU baseline is unknown, or `cost_history_days` is below `min_economics_cost_history_days`, the migration candidate is `INSUFFICIENT_EVIDENCE` with the DBU baseline code instead (11.4).
+
+The target type is priced at its own cost-minimizing auto-stop on the same running-idle evidence as 15.6, with the target's floor, restart cost and cold-start budget (Serverless: its floor, a very small restart cost and no budget; Pro: its floor, the long restart cost and the budget). If no value saves money and the current value is valid for the target, the target keeps the current value; if the current value is below the target's floor (a Serverless value under the Pro floor), it takes the best allowed value even when that adds running time. The result is the target's running fraction (17.7). Without running-idle evidence the migration estimate is withheld (`RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`).
+
+Value gate: a migration whose savings range high bound (total, else DBU) is at or below 0 is held as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, the modeled economics stay in `metadata.value_gate`, and no Plan B scenario is built for it (17.1).
 
 ### 15.8 Dependency graph
 
@@ -823,7 +889,7 @@ Candidate economics are standalone counterfactuals and are explicitly non-additi
 
 `Range3(low, base, high)` represents ordered annual cost or savings outcomes. Candidate status may have no available estimate.
 
-Value gate: a change whose objective is cost (a size reduction, a lower minimum or a lower auto-stop) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld.
+Value gate: a change whose objective is cost (a size reduction, a lower minimum or a lower auto-stop) that is `ACTIONABLE` or `TEST_REQUIRED` and priced is held as `NO_CHANGE` when its own base savings are not positive (`COST_CHANGE_NOT_COST_EFFECTIVE`) or below `cost_change_min_annual_savings` (`COST_SAVINGS_BELOW_MATERIALITY`). The candidate carries the code as a blocker and `metadata.value_gate` records the modeled savings and range, the floor, the held change and the original status. The gate does not apply to performance, guardrail or compatibility objectives, or to a change whose estimate is withheld. A warehouse-type migration has its own gate: when even the best case of its savings range is not above 0 it is held as `NO_CHANGE` with `MIGRATION_NOT_COST_EFFECTIVE`, and the modeled economics are recorded the same way.
 
 ### 17.2 No-change/guardrail candidates
 
@@ -833,15 +899,13 @@ Value gate: a change whose objective is cost (a size reduction, a lower minimum 
 
 ### 17.3 Auto-stop estimator
 
-```text
-theoretical_removed_cluster_minutes
-  = saved_idle_minutes * current_min_clusters
+The estimator prices the recommended value from the option the optimizer chose (15.6), not from a generic cap:
 
-raw_savings_fraction
-  = clamp(theoretical_removed / current_cluster_minutes, 0, auto_stop_savings_cap)
+```text
+raw_savings_fraction = clamp(net_cluster_minutes / observed_running_cluster_minutes, 0, 1)
 ```
 
-The cap is a bound on a consistent estimate only: idle time above the recorded running time is not clamped but rejected upstream (15.6). Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings); the same cap bounds the removable minutes in the bundle.
+`net_cluster_minutes` is idle running time removed minus restarts added (or restarts saved minus idle added when raising), and the denominator is the running cluster-minutes the events recorded over the same period, so the ratio covers one period. Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings). There is no separate savings cap: only idle time the warehouse actually ran can be removed. The candidate metadata records the chosen option and the restart-cost assumption (Pro and Classic starting minutes are assumed billed; Databricks does not document it). Idle time above the recorded running time is rejected upstream (15.6), not clamped.
 
 ### 17.4 Min-cluster estimator
 
@@ -853,7 +917,7 @@ raw_fraction
   = clamp(theoretical_removed / current_cluster_minutes, 0, min_cluster_savings_fraction_cap)
 ```
 
-Both terms use whole-epoch event totals, so the ratio covers one period. The same applies to the auto-stop estimator (17.3) with whole-epoch idle minutes.
+Both terms use whole-epoch event totals, so the ratio covers one period.
 
 The realization tracks are `min_cluster_realization_optimistic`, `min_cluster_realization_base` and `min_cluster_realization_conservative` (high, base and low savings), not the auto-stop `realization_*` tracks: time at the floor does not prove a floor cluster was spare, so the high track is an upper bound and the low track assumes no savings.
 
@@ -893,22 +957,34 @@ cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, 
 
 The best case is no added cost (factor 1.0). Direct savings are not expected; the range represents a cost increase for performance.
 
+For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / queries_per_cluster_pro_classic), target)` clusters instead of `min(ceil(level / queries_per_cluster_pro_classic), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
+
 ### 17.7 Migration estimator
 
-Migration uses a structural annualized resource-time range:
+Migration uses a structural annualized resource-time range of the current warehouse:
 
 ```text
-low  = annualized uptime minutes
-base = annualized cluster-minutes
-high = max(base, annualized uptime * max_observed_clusters)
+today_low  = annualized uptime minutes
+today_base = annualized cluster-minutes
+today_high = max(today_base, annualized uptime * max_observed_clusters)
 ```
 
 Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and recent/long-window blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
+The target runs at its own cost-minimizing auto-stop (15.7). Its running fraction is `f = 1 - net(T*) / observed running cluster-minutes`, clamped to [0, `cost_factor_ceiling`], where `net(T*)` is that value's net cluster-minutes saving (zero when the current value is kept). The target's resource range is:
+
+```text
+base         = today_base * f
+optimistic   = busy cluster-time share * today_base, never above base
+conservative = today_high, never below base
+```
+
+Without running-idle evidence the migration estimate is withheld (`RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`).
+
 For target Serverless:
 
 ```text
-DBU cost = annualized resource minutes / 60
+DBU cost = target resource minutes / 60
            * published Serverless DBU/hour for size
            * target SQL DBU list price
 AWS cost = 0
@@ -917,14 +993,14 @@ AWS cost = 0
 For target Pro/Classic:
 
 ```text
-DBU cost = annualized resource minutes / 60
+DBU cost = target resource minutes / 60
            * observed same-workspace Pro/Classic DBU/cluster-hour
            * target SQL DBU list price
-AWS cost = annualized resource minutes / 60
+AWS cost = target resource minutes / 60
            * regional modeled EC2 cluster hourly cost
 ```
 
-Migration is priced relative to billing. The same formula applied to the current warehouse (running cluster-hours at the base bound, times its current DBU per cluster-hour, times its current SKU price; Serverless uses the published table, Pro/Classic the workspace's measured rate) gives a modeled current DBU cost. The reconciliation ratio is that cost over the billed DBU forecast. A ratio outside [`migration_reconciliation_min`, `migration_reconciliation_max`], or an unavailable current rate or price, withholds the estimate (`MIGRATION_MODEL_NOT_RECONCILED`). Inside the band, the target DBU cost is scaled by billed over modeled so systematic model error cancels; the AWS target cost stays modeled. The reconciliation is recorded in the estimate metadata (`reconciliation`, `reconciliation_ratio`).
+Migration is priced relative to billing. The same formula applied to the current warehouse (running cluster-hours at today's base bound, times its current DBU per cluster-hour, times its current SKU price; Serverless uses the published table, Pro/Classic the workspace's measured rate) gives a modeled current DBU cost. The reconciliation ratio is that cost over the billed DBU forecast. A ratio outside [`migration_reconciliation_min`, `migration_reconciliation_max`], or an unavailable current rate or price, withholds the estimate (`MIGRATION_MODEL_NOT_RECONCILED`). Inside the band, the target DBU cost is scaled by billed over modeled so systematic model error cancels; the AWS target cost stays modeled. The reconciliation is recorded in the estimate metadata (`reconciliation`, `reconciliation_ratio`).
 
 Missing resource bounds, target DBU rate, list price, or AWS registry evidence makes migration economics unavailable rather than guessed.
 
@@ -949,7 +1025,7 @@ It validates:
 - warehouse-size target belongs to known size order,
 - min/max cluster target bounds,
 - `min <= max` consistency against current config,
-- nonnegative auto-stop,
+- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `auto_stop_floor_pro_classic`,
 - package currency consistency.
 
 ```mermaid
@@ -978,7 +1054,7 @@ group    = 0 if base_savings_365 > 0
 knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 ```
 
-`base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed.
+`base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
 
 ### 19.2 Invalidation behavior
 
@@ -1081,7 +1157,7 @@ flowchart LR
     REM2 --> COST[Scenario DBU/AWS costs]
 ```
 
-Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. When auto-stop is applied first, the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (current_min − target_min))`: a stopped warehouse has no floor cluster to remove.
+Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by the chain's current floor. When a lowering auto-stop is applied first (a raise removes no idle time), the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (current_min − target_min))`: a stopped warehouse has no floor cluster to remove.
 
 ### 20.4 Scenario estimate statuses
 

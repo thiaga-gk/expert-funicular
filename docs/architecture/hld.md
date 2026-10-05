@@ -189,6 +189,7 @@ It must:
 - preserve regional source context,
 - preserve signed billing corrections,
 - read a daily resource series for the current epoch on the same window and calendar as the DBU forecast,
+- measure per-minute query concurrency per epoch, idle gaps intersected with the warehouse's running time, and spilled bytes per statement source, as bounded aggregates (never raw query rows),
 - judge billing completeness per workspace, using a settle buffer (`billing_settle_hours`) and that workspace's billing watermark, and optionally pin billing reads to an ingestion date so a re-collection reproduces an earlier run,
 - run in a UTC-pinned SQL session, verified at connect (fails closed otherwise), so date logic matches UTC billing dates,
 - order window functions with deterministic tie-breakers,
@@ -219,7 +220,7 @@ A configuration epoch is a period of unchanged decision fields (warehouse type, 
 
 Only one current epoch may exist for a warehouse in a valid normalized evidence object.
 
-Historical epochs are retained for model calibration/backtesting but cannot satisfy active decision thresholds.
+Older epochs are calibration/backtest only, with one exception: a capacity cut is held when an older epoch of the same warehouse within the last 365 days had higher peak query concurrency than the current recent window. Older epochs never choose a change, its target or its economics.
 
 ### 6.3 Supported-Type Gate
 
@@ -247,7 +248,9 @@ Analyzer outputs contain observations such as:
 - execution latency percentiles,
 - time at minimum/maximum scale,
 - observed maximum clusters,
-- idle-gap opportunity,
+- running idle time and the restarts an auto-stop value would add or avoid,
+- peak query concurrency and busy-period starts,
+- spill concentration by statement source,
 - Photon observation quality,
 - workload/query-source mix,
 - compatibility signals.
