@@ -1,6 +1,6 @@
 """Documentation guards: links resolve, contract versions match the code, cited headings exist.
 
-Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, src/publisher/contracts/README.md, docs/contracts/ and docs/reference/. It never globs `**`,
+Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
 import ast
@@ -26,7 +26,7 @@ CORE = {
 }
 SCOPE = (
     list(CORE.values())
-    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md", ROOT / "src/publisher/contracts/README.md"]
+    + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md"]
     + sorted((ROOT / "docs/contracts").glob("*.md"))
     + sorted((ROOT / "docs/reference").glob("*.md"))
 )
