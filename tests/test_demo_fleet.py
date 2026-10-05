@@ -242,6 +242,21 @@ class DemoFleetTests(unittest.TestCase):
         self.assertLess(abs(-savings["base"] / cost - 1.0), 0.05)
         self.assertLess(abs(-savings["low"] / cost - 2.0), 0.05)
 
+    def test_c42_queue_flood_ceiling_from_concurrency_capped_at_the_limit_and_no_upsize_without_spill(self):
+        c = self.candidate("C42", "max_clusters")
+        self.assertEqual((c["status"], c["recommended_value"], c["blockers"]), ("ACTIONABLE", 40, ["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"]))
+        self.assertEqual(self.candidate("C42", "warehouse_size")["status"], "NO_CHANGE")
+
+    def test_c46_queueing_below_the_ceiling_has_a_reason_code(self):
+        c = self.candidate("C46", "max_clusters")
+        self.assertEqual((c["status"], c["blockers"]), ("NO_CHANGE", ["QUEUEING_BELOW_CEILING"]))
+        self.assertIn("scale-up lag", c["rationale"])
+        self.assertIn("floor", c["rationale"])
+
+    def test_c47_smallest_size_has_an_explicit_reason(self):
+        c = self.candidate("C47", "warehouse_size")
+        self.assertEqual((c["status"], c["blockers"]), ("NO_CHANGE", ["ALREADY_AT_SMALLEST_SIZE"]))
+
     # --- Auto-stop: cost-minimizing value on measured running idle time ----------------------------------------
     def auto_stop(self, scenario):
         c = self.candidate(scenario, "auto_stop_minutes")

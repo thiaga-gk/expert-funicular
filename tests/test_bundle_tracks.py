@@ -1,0 +1,68 @@
+"""The stateful bundle keeps each pricing track's own state.
+
+A minimum-cluster cut realizes a different share of its removable floor on each track (all of it on the optimistic
+track, none on the conservative one), so a later auto-stop step scales its idle saving by that track's own floor, not
+by the target floor on every track.
+"""
+import logging
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import publisher as p  # noqa: E402
+
+
+class BundleTrackFloorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        logging.disable(logging.CRITICAL)
+        cls.t = p.Thresholds()
+        # Pinned Capacity: Pro MEDIUM pinned at 3 clusters; the floor cut 3 -> 1 is a canary, auto-stop is actionable.
+        cls.e = next(e for e in p.synthetic_demo_evidence() if e.current_epoch.tags["golden_scenario"] == "C11")
+        cls.by_knob = {c.knob: c for c in p.evaluate_warehouses([cls.e], cls.t)[0].candidates}
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+
+    def step(self, n, knob, state):
+        c = self.by_knob[knob]
+        return p.PlanStep(n, c.recommendation_id, knob, c.current_config, c.recommended_config, c.status, "GATE", 0, [], [], state)
+
+    def plan(self, *knobs):
+        steps = [self.step(i + 1, k, "READY_FOR_CANARY" if k == "min_clusters" else "READY_FOR_HITL") for i, k in enumerate(knobs)]
+        by_id = {c.recommendation_id: c for c in self.by_knob.values()}
+        return p.StatefulBundleEstimator(self.t).estimate(self.e, steps, by_id), steps
+
+    def test_preconditions(self):
+        self.assertEqual((self.by_knob["min_clusters"].current_config["min_clusters"], self.by_knob["min_clusters"].recommended_config["min_clusters"]), (3, 1))
+        self.assertEqual(self.by_knob["min_clusters"].total_365d_savings_range.low, 0.0)
+        self.assertGreater(self.by_knob["auto_stop_minutes"].total_365d_savings_range.low, 0.0)
+
+    def test_conservative_track_keeps_the_floor_the_min_cut_did_not_realize(self):
+        # Conservative track: the floor cut realizes nothing, so the floor stays at 3 and auto-stop removes exactly what
+        # it removes on its own. Before the fix every track used floor 1 and the low was a third of that.
+        port, _ = self.plan("min_clusters", "auto_stop_minutes")
+        alone = self.by_knob["auto_stop_minutes"].total_365d_savings_range
+        self.assertAlmostEqual(port.total_365d_savings_range.low, alone.low, delta=1.0)
+
+    def test_auto_stop_step_on_each_track_scales_with_that_tracks_floor(self):
+        _, steps = self.plan("min_clusters", "auto_stop_minutes")
+        own = steps[1].step_dbu_savings_range_365
+        alone = self.by_knob["auto_stop_minutes"].dbu_365d_savings_range
+        # Optimistic track: the floor is 1 of 3 after the cut, so auto-stop removes a third of what it removes alone; the
+        # conservative track keeps floor 3 (same as alone), and the base track the midpoint floor 2.
+        self.assertAlmostEqual(own.low, alone.high / 3, delta=1.0)
+        self.assertAlmostEqual(own.base, alone.base * 2 / 3, delta=1.0)
+        self.assertAlmostEqual(own.high, alone.low, delta=1.0)
+
+    def test_order_does_not_change_the_conservative_low(self):
+        first, _ = self.plan("min_clusters", "auto_stop_minutes")
+        second, _ = self.plan("auto_stop_minutes", "min_clusters")
+        self.assertAlmostEqual(first.total_365d_savings_range.low, second.total_365d_savings_range.low, delta=1.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

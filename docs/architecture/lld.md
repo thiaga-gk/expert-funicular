@@ -252,13 +252,13 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - p99 and max execution duration,
 - queued-query percentage,
 - spill frequency, spilled-query count, p95 spill bytes, total spill GiB,
-- read bytes and IO-cache percentage,
+- read bytes and the IO-cache percentage (the share of bytes read, weighted by read bytes; evidence only),
 - failed/cancelled percentage,
 - result-cache percentage,
 - query-tag coverage,
 - Databricks source counts for dashboard/job/notebook/Genie/alert/SQL query,
 - external/client application counts for Power BI/Tableau/Looker/Databricks SQL Editor,
-- statement-text visibility and legacy Hive metastore reference count,
+- statement-text visibility (a statement counts as visible only when its text is non-null, not blank and not `<REDACTED>`) and the legacy Hive metastore reference count (null, not 0, when no statement text is visible; the compatibility check that reads it is then `UNKNOWN`),
 - epoch-level p95 execution, queue and spill percentages,
 - epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`),
 - queries per complete UTC week (`queries_week_1` to `queries_week_8`; week 1 is the seven days before the analysis day), null for a week not wholly inside the current epoch, which feed the growth guard (15.3),
@@ -326,7 +326,7 @@ Produces current/historical epoch attribution evidence:
 - signed Photon-null DBUs,
 - latest usage timestamp,
 - latest owner,
-- observed owners,
+- observed owners (a blank or redacted owner is dropped in the SQL before the latest owner is picked and again in the normalizer, so it is unknown rather than an owner),
 - observed billed node types (`usage_metadata.node_type`, non-Serverless warehouses) and SQL tiers (`product_features.sql_tier`).
 
 #### `SQL_SKU_PRICE_SQL`
@@ -686,7 +686,7 @@ The decision population is the non-result-cache queries (7.2), so latency and sp
 
 With no blocker the status is `TEST_REQUIRED` with `A_B_PERFORMANCE_VALIDATION_REQUIRED`: an A/B performance canary is mandatory. The change invalidates max and min clusters.
 
-Otherwise the result is `NO_CHANGE` with the blockers preserved.
+Otherwise the result is `NO_CHANGE` with the blockers preserved. At the smallest size there is no smaller size to propose, so the blockers include `ALREADY_AT_SMALLEST_SIZE`; when that is the only code, the rationale says the warehouse is already at the smallest size.
 
 **Batch profile.** A warehouse is a batch warehouse when job queries are at least `batch_job_query_share_pct` of its last-30-day queries. Its downsize is still a canary only, but a ten-minute ETL query is normal for it, so the p95/p99 latency gates (and `LATENCY_EVIDENCE_UNAVAILABLE`) do not apply and the sample is at least `batch_min_active_days` active days in 30 (`INSUFFICIENT_BATCH_RUN_DAYS`) instead of `strong_query_sample_size` non-cache queries. The spill, queue, failure, growth, seasonal and older-epoch holds, the epoch-maturity gate and the canary are unchanged, and the rationale says the canary measures job run times.
 
@@ -718,8 +718,8 @@ Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 - all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
 - all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (epoch younger than `current_config_stability_days`), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
 - Pro/Classic with no concurrency evidence: `INSUFFICIENT_EVIDENCE` with `CONCURRENCY_EVIDENCE_UNAVAILABLE`; with fewer than `concurrency_min_busy_minutes` busy minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_BUSY_MINUTE_SAMPLE`;
-- Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
-- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters;
+- Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE` with `QUEUEING_WITH_DEMAND_WITHIN_CEILING`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
+- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `max_clusters_supported_limit`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
 - Serverless: `ACTIONABLE`, one cluster more, at low confidence; the change invalidates min clusters.
 
 When the recent resource window is unavailable, saturation cannot be judged and the decision is `NO_CHANGE` with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected but the warehouse did not run in the window).
@@ -750,6 +750,10 @@ target   = max(min_clusters, peak + headroom)
 The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. An ineligible ceiling is `NO_CHANGE` without a code.
 
 An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates nothing: the new ceiling stays above the observed peak, so no other knob's evidence changes.
+
+#### Queueing below the ceiling
+
+When neither an increase nor a cut applies, the queued-query share reaches `queue_query_pct_increase_max`, the p95 capacity wait is unknown or reaches `queue_wait_p95_ms_increase_max`, and the time at the configured maximum is below `time_at_max_pct_saturated`, the result is `NO_CHANGE` with `QUEUEING_BELOW_CEILING`: the ceiling is not what limits the warehouse. The rationale gives the queued share and the time at the ceiling and, for Pro/Classic with concurrency evidence, the peak and busy-start demand in clusters against the current floor. It explains that clusters are added minutes after a burst starts, so short bursts queue before the ceiling is reached, and that a higher floor is a human decision: the publisher never raises the floor (15.5).
 
 ### 15.5 Min clusters
 
@@ -859,7 +863,8 @@ Components (parameters: [`docs/reference/thresholds.md`](../reference/thresholds
 
 ```text
 coverage       = clamp(cost_history_days / confidence_coverage_days, 0, 1)
-sample         = clamp(queries_30 / strong_query_sample_size, 0, 1)
+sample         = clamp(decision_sample / strong_sample, 0, 1)   # the sample the knob's decision is made on;
+                                                                  # an unknown sample earns no credit
 stability      = clamp(1 - cost_cv_84 / 2, 0, 1)          # unknown cv earns no credit
 epoch_maturity = clamp(epoch_age_days / confidence_epoch_maturity_days, 0, 1)
 signal         = confidence_signal_change for ACTIONABLE / TEST_REQUIRED,
@@ -877,7 +882,17 @@ score = confidence_base_weight
       + confidence_signal_weight    * signal
 ```
 
-The score is clamped to a cap by candidate status (`confidence_cap_test_required`, `confidence_cap_actionable`, `confidence_cap_default`) and mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences.
+Decision sample by knob:
+
+| Knob | `decision_sample` | `strong_sample` |
+|---|---|---|
+| Size | queries not served from the result cache, last 30 days | `strong_query_sample_size` |
+| Max clusters | busy minutes in the recent window | `confidence_strong_busy_minutes` |
+| Min clusters | busy periods in the recent window | `confidence_strong_busy_periods` |
+| Auto-stop | queries over the running-idle window | `strong_query_sample_size` |
+| Migration | queries, last 30 days | `strong_query_sample_size` |
+
+The score is clamped to a cap by candidate status: `confidence_cap_actionable` for `ACTIONABLE`, `confidence_cap_test_required` for `TEST_REQUIRED`, `confidence_cap_insufficient_evidence` for `INSUFFICIENT_EVIDENCE` (below the MEDIUM cut-off) and `confidence_cap_default` for every other status (below the HIGH cut-off): a candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`. The score is mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences; a scenario with no steps has no score (`UNKNOWN`).
 
 ---
 
@@ -1110,6 +1125,10 @@ Compatibility checks may include:
 - legacy Hive metastore references observed in SQL history,
 - regional AWS price registry for Pro/Classic target.
 
+Plan B is named after, and its checks run against, the type the migration was evaluated for: the recommended type, or the type a value gate held (a held migration has no steps and is named "Plan B — Pro migration experiment", for example). When no migration was evaluated (not enough evidence) Plan B is "Plan B — Migration not evaluated", has no steps and no checks, and its compatibility status is `UNKNOWN`; it is never checked against the warehouse's own type.
+
+The package maps the checks to a public compatibility status (`reporter-json-contract.md`, Compatibility): a migration whose every check is `PASS` is `COMPATIBLE` and gets no compatibility-validation step; any `UNKNOWN`, `REVIEW`, `PASS_WITH_LIMITATION` or `PASS_BY_EXISTING_SERVERLESS` check gives `REQUIRES_VALIDATION`, which adds that step; a `FAIL` gives `INCOMPATIBLE`. A Plan B without a migration step is never `COMPATIBLE`, so its scenario ID cannot equal an empty Plan A's (Plan A is always `COMPATIBLE`).
+
 Phase 1 always keeps Plan B as `ALTERNATIVE`.
 
 ---
@@ -1132,7 +1151,10 @@ Each track carries:
 
 - DBU cost,
 - AWS cost when available,
-- remaining resource cluster-minutes.
+- remaining resource cluster-minutes,
+- the floor (min clusters) the track has reached.
+
+The floor is kept per track because a min-cluster cut is realized differently on each: all of its reduction on the optimistic track, the base share on the base track and none on the conservative track (`min_cluster_realization_optimistic`, `_base`, `_conservative`), and each track's floor moves by its own realized share. A later step reads the floor of the track it prices, so a plan that cuts the floor and then changes auto-stop does not credit the conservative track with a floor it never reached.
 
 ### 20.2 Effect types
 
@@ -1157,7 +1179,7 @@ flowchart LR
     REM2 --> COST[Scenario DBU/AWS costs]
 ```
 
-Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by the chain's current floor. When a lowering auto-stop is applied first (a raise removes no idle time), the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (current_min − target_min))`: a stopped warehouse has no floor cluster to remove.
+Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by that track's current floor. When a lowering auto-stop is applied first (a raise removes no idle time), the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (track_floor − target_min))`: a stopped warehouse has no floor cluster to remove.
 
 ### 20.4 Scenario estimate statuses
 

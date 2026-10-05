@@ -264,7 +264,11 @@ class Thresholds:
     confidence_signal_no_change: float = 0.70
     confidence_cap_test_required: float = 0.78
     confidence_cap_actionable: float = 0.93
-    confidence_cap_default: float = 0.80
+    confidence_cap_default: float = 0.79  # every status but ACTIONABLE/TEST_REQUIRED: a decision that changes nothing is never HIGH
+    confidence_cap_insufficient_evidence: float = 0.59  # below the MEDIUM cut-off: a candidate without enough evidence is LOW
+    # Full credit of the sample component for the knobs that do not decide on a query count (5x their evidence minimum).
+    confidence_strong_busy_minutes: int = 1000
+    confidence_strong_busy_periods: int = 100
     # Serverless scales differently from the documented Pro/Classic rule, so its queue-based ceiling increase is shown
     # at low confidence (below confidence_medium_threshold).
     confidence_cap_serverless_ceiling_increase: float = 0.59
@@ -733,7 +737,9 @@ SELECT
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND in_decision_population AND spilled_local_bytes > 0 THEN spilled_local_bytes END,0.95) AS p95_spill_bytes_when_spilled_30,
   SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(spilled_local_bytes,0) ELSE 0 END)/POW(1024,3) AS total_spill_gib_30,
   PERCENTILE_APPROX(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN COALESCE(read_bytes,0) END,0.95) AS p95_read_bytes_30,
-  AVG(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS THEN read_io_cache_percent END) AS avg_read_io_cache_percent_30,
+  -- I/O cache share of bytes read (weighted by read_bytes), not a per-query average that small reads would dominate.
+  SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND read_io_cache_percent IS NOT NULL THEN read_io_cache_percent * COALESCE(read_bytes,0) END)
+    / NULLIF(SUM(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND read_io_cache_percent IS NOT NULL THEN COALESCE(read_bytes,0) END),0) AS avg_read_io_cache_percent_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND execution_status IN ('FAILED','CANCELED'))
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS failure_cancel_pct_30,
   100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND from_result_cache = TRUE)
@@ -751,7 +757,7 @@ SELECT
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(client_application,'')) LIKE '%looker%') AS looker_queries_30,
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(client_application,'')) LIKE '%databricks sql editor%') AS databricks_sql_editor_client_queries_30,
   ARRAY_SORT(COLLECT_SET(CASE WHEN start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND client_application IS NOT NULL THEN client_application END)) AS client_applications_30,
-  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND statement_text IS NOT NULL AND statement_text <> '<REDACTED>')
+  100.0 * COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND statement_text IS NOT NULL AND TRIM(statement_text) <> '' AND statement_text <> '<REDACTED>')
     / NULLIF(COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),0) AS statement_text_visible_pct_30,
   COUNT_IF(start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS AND LOWER(COALESCE(statement_text,'')) LIKE '%hive_metastore.%') AS hive_metastore_reference_queries_30,
   PERCENTILE_APPROX(execution_duration_ms,0.95) AS epoch_p95_execution_ms,
@@ -1504,7 +1510,9 @@ usage AS (
     usage_end_time,
     CAST(usage_quantity AS DOUBLE) AS dbu_quantity,
     product_features.is_photon AS is_photon,
-    identity_metadata.owned_by AS owned_by,
+    -- A redacted or blank owner is unknown, never an owner, so it cannot win the latest-owner pick.
+    CASE WHEN UPPER(TRIM(identity_metadata.owned_by)) IN ('__REDACTED__','<REDACTED>','REDACTED') OR TRIM(identity_metadata.owned_by)=''
+         THEN NULL ELSE identity_metadata.owned_by END AS owned_by,
     usage_metadata.node_type AS node_type,
     product_features.sql_tier AS sql_tier
   FROM system.billing.usage
@@ -1661,19 +1669,53 @@ def normalize_size(value: Any) -> str:
     return "UNKNOWN" if value is None else str(value).strip().upper().replace("-", "_")
 
 
+def _map_pairs(value: Any) -> Optional[Dict[str, str]]:
+    """A MAP column as a mapping or, as some connectors return it, a list of [key, value] pairs or key/value entries."""
+    if isinstance(value, Mapping):
+        return {str(k): str(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        out: Dict[str, str] = {}
+        for item in value:
+            if isinstance(item, Mapping) and "key" in item and "value" in item:
+                out[str(item["key"])] = str(item["value"])
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                out[str(item[0])] = str(item[1])
+            else:
+                return None
+        return out
+    return None
+
+
 def normalize_map(value: Any) -> Dict[str, str]:
     if value is None:
         return {}
-    if isinstance(value, Mapping):
-        return {str(k): str(v) for k, v in value.items()}
     if isinstance(value, str):
         try:
             obj = json.loads(value)
-            if isinstance(obj, Mapping):
-                return {str(k): str(v) for k, v in obj.items()}
         except Exception:
             return {"raw": value}
-    return {"raw": str(value)}
+        decoded = _map_pairs(obj)
+        return decoded if decoded is not None else {"raw": value}
+    decoded = _map_pairs(value)
+    return decoded if decoded is not None else {"raw": str(value)}
+
+
+def hive_reference_count(q: Mapping[str, Any]) -> Optional[int]:
+    """Queries naming hive_metastore, or None when no statement text was visible (a zero would claim a clean scan)."""
+    if safe_float(q.get("statement_text_visible_pct_30")) <= 0:
+        return None
+    return safe_int(q.get("hive_metastore_reference_queries_30"))
+
+
+REDACTED_OWNER_VALUES = frozenset({"__REDACTED__", "<REDACTED>", "REDACTED"})
+
+
+def clean_owner(value: Any) -> Optional[str]:
+    """An owner identity, or None when it is blank or a redaction token (unknown, never an owner)."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return None if not text or text.upper() in REDACTED_OWNER_VALUES else text
 
 
 def classify_sql_sku(sku_name: str) -> str:
@@ -2767,8 +2809,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         query_source = derive_query_source_profile(current.query)
         owners = as_string_list(attribution_row.get("observed_owners")) or []
         attribution = WarehouseAttribution(
-            owner=(str(attribution_row.get("latest_owner")) if attribution_row.get("latest_owner") else None),
-            observed_owners=sorted({str(x) for x in owners if x is not None}),
+            owner=clean_owner(attribution_row.get("latest_owner")),
+            observed_owners=sorted({o for o in (clean_owner(x) for x in owners) if o is not None}),
             owner_source="system.billing.usage.identity_metadata.owned_by",
             query_source=query_source,
         )
@@ -2930,7 +2972,7 @@ class Analyzer:
             self._f(e,"warehouse_size","failure_cancel_pct_30",round_or_none(failure_pct,4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on."),
             self._f(e,"warehouse_size","p95_execution_ms_30",round_or_none(p95),unit="ms",threshold=self.t.p95_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Tail execution latency guardrail."),
             self._f(e,"warehouse_size","p99_execution_ms_30",round_or_none(p99),unit="ms",threshold=self.t.p99_execution_ms_downsize_safe,comparator="<= downsize-safe",table="system.query.history",field="execution_duration_ms",window="last 30 days within current epoch",interpretation="Extreme tail execution latency guardrail."),
-            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round(safe_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="I/O cache evidence for HITL context; not a v2 size decision threshold."),
+            self._f(e,"warehouse_size","avg_read_io_cache_percent_30",round_or_none(optional_float(q.get("avg_read_io_cache_percent_30")),4),unit="%",table="system.query.history",field="read_io_cache_percent",window="last 30 days within current epoch",interpretation="Share of bytes read served from the I/O cache (weighted by bytes read); HITL context only, not a size decision threshold."),
         ]
         decision_queries = optional_float(q.get("decision_queries_30"))
         fs.extend([
@@ -3092,7 +3134,7 @@ class Analyzer:
             self._f(e,"warehouse_type","power_bi_queries_30",safe_int(q.get("power_bi_queries_30")),unit="queries",table="system.query.history",field="client_application",window="last 30 days within current epoch",interpretation="Power BI client workload mix context."),
             self._f(e,"warehouse_type","tableau_queries_30",safe_int(q.get("tableau_queries_30")),unit="queries",table="system.query.history",field="client_application",window="last 30 days within current epoch",interpretation="Tableau client workload mix context."),
             self._f(e,"warehouse_type","statement_text_visible_pct_30",round(safe_float(q.get("statement_text_visible_pct_30")),4),unit="%",table="system.query.history",field="statement_text",window="last 30 days within current epoch",interpretation="Coverage available for deterministic pattern checks. Raw SQL text is not exported."),
-            self._f(e,"warehouse_type","hive_metastore_reference_queries_30",safe_int(q.get("hive_metastore_reference_queries_30")),unit="queries",table="system.query.history",field="statement_text (aggregated pattern only)",window="last 30 days within current epoch",interpretation="Potential migration-review signal only; this does not prove an external legacy Hive metastore is configured."),
+            self._f(e,"warehouse_type","hive_metastore_reference_queries_30",hive_reference_count(q),unit="queries",table="system.query.history",field="statement_text (aggregated pattern only)",window="last 30 days within current epoch",interpretation="Potential migration-review signal only; this does not prove an external legacy Hive metastore is configured."),
         ]
         # The migration target runs at its own best auto-stop (Serverless: 5-minute floor, starts in seconds, no
         # cold-start budget; Pro: 10-minute floor, 4-minute starts, the cold-start budget), measured on the same
@@ -3135,7 +3177,7 @@ class Analyzer:
         fs.append(self._f(e,"warehouse_type","migration_target_running_fraction",running_fraction,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,
             interpretation="The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time."))
         out["warehouse_type"] = AnalysisResult(e.warehouse_id,"warehouse_type",ep.epoch_id,fs,{**common,"warehouse_type":cfg.warehouse_type,
-            "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":safe_int(q.get("hive_metastore_reference_queries_30"))})
+            "migration_target_option":target_option,"migration_running_fraction":running_fraction,"busy_share":busy_share,"serverless_observed":serverless_observed,"pro_classic_observed":pro_classic_observed,"statement_text_visible_pct_30":safe_float(q.get("statement_text_visible_pct_30")),"hive_metastore_reference_queries_30":hive_reference_count(q)})
         return out
 
 # ---------------------------------------------------------------------------
@@ -3204,6 +3246,7 @@ class Optimizer:
         else:
             target = previous_size(cfg.warehouse_size)
             batch = f.get("batch_profile")
+            if target is None: blockers.append("ALREADY_AT_SMALLEST_SIZE")
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if batch:
                 # Batch: one run a day is enough evidence; the canary measures job run time instead of interactive latency.
@@ -3236,6 +3279,7 @@ class Optimizer:
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
+                    f"Already at the smallest size ({cfg.warehouse_size}); nothing calls for a larger one." if blockers==["ALREADY_AT_SMALLEST_SIZE"] else
                     "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
 
         # Max clusters
@@ -3272,17 +3316,19 @@ class Optimizer:
             else:
                 # Pro/Classic: one move to the demand-derived ceiling (peak running + queued queries per cluster, plus
                 # headroom). Serverless scales differently, so it keeps one step at a time (at low confidence).
-                target = (min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters))
-                          if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1)
+                demand = max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters)
+                target = min(self.t.max_clusters_supported_limit, demand) if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1
+                capped = cfg.warehouse_type!="SERVERLESS" and demand > self.t.max_clusters_supported_limit
                 if target <= cfg.max_clusters:
                     out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},[],["warehouse_size"],[],[],
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_WITH_DEMAND_WITHIN_CEILING"],["warehouse_size"],[],[],
                         f"Queries queue, but peak demand ({f['peak_concurrency_recent']} concurrent queries) fits the current ceiling: the queueing is not caused by the ceiling."))
                 else:
                     out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
-                        "Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
-                        "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"] if capped else [],["warehouse_size"],["min_clusters"],["min_clusters"],
+                        ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
+                         "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
+                        + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
         elif not window_known:
             # Without recent resource time neither saturation nor the unused ceiling can be judged.
             missing = f["resource_window_state"] == "MISSING"
@@ -3349,6 +3395,20 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
                     f"The recent window would allow a lower ceiling, but the current configuration has peaked at {epoch_peak_label}; the ceiling is kept for that peak."))
+            elif (not evidence_blockers and not saturated and queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max
+                  and not (f["wait_capacity"] is not None and f["wait_capacity"] < self.t.queue_wait_p95_ms_increase_max)):
+                # Queueing the ceiling rule does not resolve: the warehouse rarely reaches its ceiling, so the queue
+                # forms while clusters are still being added (scale-up lag on short bursts).
+                demand = ""
+                if cfg.warehouse_type!="SERVERLESS" and f["concurrency_available"] and f.get("peak_concurrency_recent") is not None:
+                    demand = f" Peak demand is {f['peak_concurrency_recent']} concurrent queries ({f['required_clusters_recent']} clusters)"
+                    demand += (f", and busy periods start with {f['busy_start_concurrency']} ({f['required_clusters_busy_start']} clusters) on a floor of {cfg.min_clusters}."
+                               if f.get("busy_start_concurrency") is not None else ".")
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_BELOW_CEILING"],["warehouse_size"],[],[],
+                    f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
+                    " Clusters are added minutes after a burst starts (scale-up lag), so short bursts queue before the ceiling is reached;"
+                    " a higher floor would absorb burst starts at the cost of running those clusters all the time, which is a human decision."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -3495,8 +3555,14 @@ class Estimator:
     def __init__(self, thresholds: Thresholds):
         self.t=thresholds
 
+    # The sample each knob's decision is made on and its full-credit size; an unknown sample earns no credit.
+    _DECISION_SAMPLE={"warehouse_size":("decision_queries","strong_query_sample_size"),"max_clusters":("busy_minutes_recent","confidence_strong_busy_minutes"),
+                      "min_clusters":("busy_periods_recent","confidence_strong_busy_periods"),"auto_stop_minutes":("running_idle_queries","strong_query_sample_size"),
+                      "warehouse_type":("queries_30","strong_query_sample_size")}
+
     def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
-        q=safe_float(a.facts.get("queries_30")); coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(q/self.t.strong_query_sample_size,0,1)
+        fact,strong=self._DECISION_SAMPLE[a.knob]
+        coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(safe_float(a.facts.get(fact))/getattr(self.t,strong),0,1)
         stability=cost_stability(e.cost_cv_84); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
         score=clamp(
             self.t.confidence_base_weight
@@ -3839,7 +3905,8 @@ class Estimator:
                 aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
             est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
         signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
-        cap=self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE" else self.t.confidence_cap_default
+        cap=(self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE"
+             else self.t.confidence_cap_insufficient_evidence if d.status=="INSUFFICIENT_EVIDENCE" else self.t.confidence_cap_default)
         if (d.knob=="max_clusters" and e.current_epoch.config.warehouse_type=="SERVERLESS"
                 and safe_int(d.recommended_config.get("max_clusters"))>safe_int(d.current_config.get("max_clusters"))):
             cap=min(cap,self.t.confidence_cap_serverless_ceiling_increase)
@@ -3931,7 +3998,7 @@ class Reviewer:
             raise ValueError(f"Expected exactly one recommended scenario for {e.workspace_id}/{e.warehouse_id}")
         for sc in scenarios:
             sc_score=safe_float(sc.confidence.get("score"),-1)
-            if not 0<=sc_score<=1:
+            if not (0<=sc_score<=1 or (not sc.steps and sc.confidence.get("score") is None)):
                 raise ValueError(f"Scenario confidence out of range: {sc.scenario_id}")
             seen_steps=set(); invalidated=set()
             for st in sc.steps:
@@ -3997,7 +4064,9 @@ class _ChainState:
     dbu_tracks: List[float]
     aws_tracks: Optional[List[float]]
     resource_tracks: List[float]
-    current_min: int
+    # Floor clusters per track: a minimum-cluster cut realizes a different share of its reduction on each track (none on
+    # the conservative one), so later steps scale with that track's own floor.
+    floor_tracks: List[float]
     halt: Optional[Tuple[str, str]] = None
     # Wall-clock idle minutes a lower auto-stop already removed, per track: a later minimum-cluster cut has no floor
     # cluster to remove while the warehouse is stopped.
@@ -4094,34 +4163,34 @@ class StatefulBundleEstimator:
                 for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
         elif typ=="idle_cluster_minute_reduction":
             # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
-            # measured at the floor the candidate saw; both terms scale with the chain's current floor.
-            scale=st.current_min/max(1,safe_int(effect.get("floor_clusters"),1))
-            net=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))*scale
+            # measured at the floor the candidate saw; both terms scale with the track's current floor.
+            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/max(1,safe_int(effect.get("floor_clusters"),1))
             for i,realization in enumerate(realizations):
-                before=st.resource_tracks[i]
+                before=st.resource_tracks[i]; net=unit*st.floor_tracks[i]
                 if before<=0 or net<=0: continue
                 removed=min(before,net*realization)
                 if effect.get("removes_idle"):
-                    st.idle_wall_minutes[i]+=removed/max(1,st.current_min)
+                    st.idle_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=before-removed
         elif typ=="min_cluster_reduction":
             theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
-            target_min=max(1,safe_int(effect.get("target_min_clusters"),st.current_min))
+            target_min=max(1,safe_int(effect.get("target_min_clusters"),1))
             effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
             for i,realization in enumerate(effect_realizations):
-                before=st.resource_tracks[i]
+                before=st.resource_tracks[i]; floor=st.floor_tracks[i]
+                # The track keeps the share of the floor reduction it did not realize.
+                st.floor_tracks[i]=floor-max(0.0,floor-target_min)*realization
                 if before<=0: continue
-                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0,st.current_min-target_min))
+                claim=max(0.0,theoretical-st.idle_wall_minutes[i]*max(0.0,floor-target_min))
                 removed=min(before,claim*realization)
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=after
-            st.current_min=target_min
         elif typ=="estimate_withheld":
             st.halt=(str(effect.get("status") or "UNAVAILABLE"),str(effect.get("reason") or "Estimate withheld."))
         elif typ=="requires_canary":
@@ -4145,7 +4214,7 @@ class StatefulBundleEstimator:
 
         original_resource=max(0.0,safe_float(e.current_epoch.events.get("cluster_minutes")))
         def fresh()->_ChainState:
-            st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,max(1,e.current_epoch.config.min_clusters))
+            st=_ChainState([dbu_base]*3,[aws_base]*3 if aws_base is not None else None,[original_resource]*3,[float(max(1,e.current_epoch.config.min_clusters))]*3)
             if dbu_base is None:
                 st.halt=DBU_BASELINE_WITHHELD[dbu_baseline_blocker(e,self.t)]
             return st
@@ -4199,7 +4268,7 @@ class ScenarioPlanner:
     def _scenario_confidence(self, steps: Sequence[PlanStep]) -> Dict[str, Any]:
         scores=[safe_float(s.confidence.get("score"),0.0) for s in steps if s.confidence]
         if not scores:
-            return {"score":1.0,"level":"HIGH","method":"no-change/empty scenario"}
+            return {"score":None,"level":"UNKNOWN","method":"no steps: nothing to be confident about"}
         score=min(scores)
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW","method":"bottleneck minimum of step confidences"}
 
@@ -4255,8 +4324,8 @@ class ScenarioPlanner:
                 checks.append({"check":"workspace_serverless_enablement","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":api,"source":"fallback A"})
                 checks.append({"check":"external_legacy_hive_metastore_workspace_setting","status":"UNKNOWN","evidence":"Read-only compatibility API unavailable or workspace not directly connected","source":"fallback A"})
                 checks.append({"check":"s3_access_policy_compatibility","status":"PASS_BY_EXISTING_SERVERLESS" if observed else "UNKNOWN","evidence":"No verified read-only endpoint used; HITL unless existing Serverless proves workspace eligibility","source":"fallback A"})
-            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=safe_int(q.get("hive_metastore_reference_queries_30"))
-            checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive>0 else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
+            visible=safe_float(q.get("statement_text_visible_pct_30")); hive=hive_reference_count(q)
+            checks.append({"check":"legacy_hive_metastore_sql_reference","status":"REVIEW" if hive else "PASS_WITH_LIMITATION" if visible>0 else "UNKNOWN","evidence":{"visible_pct":visible,"reference_queries":hive},"source":"system.query.history"})
         else:
             observed=bool(e.billing_features.get("workspace_pro_classic_observed_from_system_compute_warehouses"))
             checks.append({"check":"workspace_pro_classic_observed","status":"PASS" if observed else "UNKNOWN","evidence":observed,"source":"system.compute.warehouses"})
@@ -4287,12 +4356,19 @@ class ScenarioPlanner:
         type_c=by_knob["warehouse_type"]; bsteps=[]
         if type_c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"}:
             bsteps=[PlanStep(1,type_c.recommendation_id,type_c.knob,type_c.current_config,type_c.recommended_config,type_c.status,self._gate(type_c),self.t.remeasure_days_after_invalidating_change,type_c.invalidates,type_c.dependencies,"READY_FOR_CANARY","Run a compatibility-gated A/B canary; successful migration invalidates current-type tuning and requires re-analysis.",confidence=dict(type_c.confidence))]
-        target=str(type_c.recommended_config.get("warehouse_type") or "UNKNOWN").upper()
-        plan_b_name=f"Plan B — {target.title()} migration experiment"
+        # The type the migration was evaluated against: the recommended type, or the one a value gate held. A migration
+        # that was never evaluated (too little evidence) has no target, so no checks run against the current type.
+        held=(type_c.metadata.get("value_gate") or {}).get("held_change") or {}
+        evaluated=type_c.recommended_config.get("warehouse_type") if bsteps else held.get("warehouse_type")
+        target=str(evaluated).upper() if evaluated else None
         plan_b_id=scenario_id(e.workspace_id,e.warehouse_id,"Plan B",[s.recommendation_id for s in bsteps])
-        compat=self._compatibility(e,target)
         pe=self.bundle.estimate(e,bsteps,by_id) if bsteps else self.bundle.estimate(e,[],by_id)
-        plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,plan_b_name,f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else [],False,compat,self._scenario_confidence(bsteps))
+        if target is None:
+            plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,"Plan B — Migration not evaluated",
+                "No warehouse-type migration was evaluated: "+(", ".join(type_c.blockers) or str(type_c.metadata.get("rationale") or "no target").rstrip("."))+". Re-run once the evidence gates pass.",
+                [],pe,list(type_c.blockers),False,{"target_warehouse_type":None,"assessment":"NOT_EVALUATED","evidence_mode":"A_HITL_FALLBACK","checks":[]},self._scenario_confidence([]))
+        else:
+            plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,f"Plan B — {target.title()} migration experiment",f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else list(type_c.blockers),False,self._compatibility(e,target),self._scenario_confidence(bsteps))
         return [plan_a,plan_b],plan_a.scenario_id
 
 
@@ -4822,12 +4898,16 @@ def _compatibility_contract(
 ) -> rc.Compatibility:
     comp = s.compatibility or {}
     assessment = str(comp.get("assessment") or "CURRENT_TYPE")
-    # A planner FAIL (a check failed) is incompatible; its PASS stays REQUIRES_VALIDATION for now: an empty
-    # alternative marked COMPATIBLE would hash to the same scenario ID as an empty recommended plan.
-    if assessment in {"CURRENT_TYPE", "COMPATIBLE"}:
+    # A planner FAIL (a check failed) is incompatible and a migration whose every check passed is compatible. An empty
+    # alternative (no migration step) is never COMPATIBLE: it would hash to the same scenario ID as an empty recommended
+    # plan, which is always COMPATIBLE. A migration that was not evaluated has no checks: UNKNOWN.
+    migrates = any(st.knob == "warehouse_type" for st in s.steps)
+    if assessment in {"CURRENT_TYPE", "COMPATIBLE"} or (assessment == "PASS" and migrates):
         status = rc.CompatibilityStatus.COMPATIBLE
     elif assessment in {"INCOMPATIBLE", "BLOCKED", "FAIL"}:
         status = rc.CompatibilityStatus.INCOMPATIBLE
+    elif assessment == "NOT_EVALUATED":
+        status = rc.CompatibilityStatus.UNKNOWN
     else:
         status = rc.CompatibilityStatus.REQUIRES_VALIDATION
     mode_raw = str(comp.get("evidence_mode") or ("SYSTEM_TABLE_ONLY" if assessment == "CURRENT_TYPE" else "A_HITL_FALLBACK"))
@@ -6405,8 +6485,8 @@ def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
         compatibility_evidence=dict(x.get("compatibility_evidence") or {}),
         photon_observation=(PhotonObservation(**x["photon_observation"]) if x.get("photon_observation") else None),
         attribution=(WarehouseAttribution(
-            owner=(x.get("attribution") or {}).get("owner"),
-            observed_owners=list((x.get("attribution") or {}).get("observed_owners") or []),
+            owner=clean_owner((x.get("attribution") or {}).get("owner")),
+            observed_owners=sorted({o for o in (clean_owner(v) for v in (x.get("attribution") or {}).get("observed_owners") or []) if o is not None}),
             owner_source=str((x.get("attribution") or {}).get("owner_source") or "system.billing.usage.identity_metadata.owned_by"),
             query_source=QuerySourceProfile(**((x.get("attribution") or {}).get("query_source") or {"categories":{},"percentages":{},"primary_category":"UNATTRIBUTED","client_applications":[],"multi_label":True})),
         ) if x.get("attribution") else None),
