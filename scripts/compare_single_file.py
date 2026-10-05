@@ -104,7 +104,7 @@ def main(argv=None) -> int:
             for label, cli in jobs:
                 outs = {}
                 for side, tree in (("oracle", oracle), ("working", ROOT)):
-                    out = tmp_path / side / label.replace(":", "_")
+                    out = tmp_path / "out" / side / label.replace(":", "_")
                     stdout = run(tree, cli, out)
                     log = (out / "publisher.log").read_text(encoding="utf-8")
                     outs[side] = (canonical.output_dir_canonical(out), non_canonical(stdout, out), non_canonical(log, out))

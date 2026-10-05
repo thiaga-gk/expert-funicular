@@ -15,16 +15,8 @@ import json
 import sys
 from pathlib import Path
 
-
-CASES = Path(__file__).resolve().parents[1] / "tests" / "golden" / "cases"
-
-
-def _evidence_path(case):
-    """A case name or a case folder -> its source/evidence.json."""
-    folder = Path(case)
-    if not folder.is_dir():
-        folder = CASES / case
-    return folder / "source" / "evidence.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tests.golden import evidence_source_path  # noqa: E402
 
 
 def _hist(busy, peak_clusters):
@@ -57,7 +49,7 @@ def backfill(evidence):
 
 def main(cases):
     for case in cases:
-        path = _evidence_path(case)
+        path = evidence_source_path(case)
         if not path.is_file():
             continue  # collector-level case (raw rows go through the collector)
         evidence = json.loads(path.read_text())

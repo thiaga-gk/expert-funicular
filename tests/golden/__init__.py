@@ -35,6 +35,14 @@ def case_dir(name: str) -> Path:
     return path
 
 
+def evidence_source_path(case: str) -> Path:
+    """A case name or a case folder -> its ``source/evidence.json`` (may not exist for collector-level cases)."""
+    folder = Path(case)
+    if not folder.is_dir():
+        folder = CASES / case
+    return folder / "source" / "evidence.json"
+
+
 def load_case(name: str) -> Dict[str, Any]:
     path = case_dir(name)
     payload = yaml.safe_load((path / "case.yaml").read_text(encoding="utf-8"))
