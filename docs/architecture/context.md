@@ -790,7 +790,7 @@ Levels:
 - `LOW`
 - `UNKNOWN` where a score is unavailable by contract.
 
-Scenario confidence uses a conservative bottleneck concept: a weak material step should not disappear inside several strong steps.
+Scenario confidence uses a conservative bottleneck concept: a weak material step should not disappear inside several strong steps. A scenario with no steps has `UNKNOWN` confidence and no score. A candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`; the formula and caps are in `docs/architecture/lld.md`, section 16.
 
 Do not interpret:
 

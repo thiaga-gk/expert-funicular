@@ -247,7 +247,7 @@ canonical applied_config
 | `< 0.60` | `LOW` |
 | `null` | `UNKNOWN` only |
 
-Confidence measures evidence quality / decision support, **not probability of achieving the modeled savings**.
+Confidence measures evidence quality / decision support, **not probability of achieving the modeled savings**. A scenario with no steps has nothing to be confident about: its confidence is `UNKNOWN` with a null score. How a candidate score is built (and capped by status) is in `architecture/lld.md`, section 16.
 
 ### Estimation status
 
@@ -552,7 +552,7 @@ Scenarios are mutually exclusive/alternative execution strategies, not candidate
 
 Check status: `PASS | FAIL | UNKNOWN | NOT_APPLICABLE`.
 
-The recommended (current-type) scenario is `COMPATIBLE`. A migration scenario is `INCOMPATIBLE` when any check fails; its migration step is then `BLOCKED`. Otherwise it is `REQUIRES_VALIDATION`, even when every check passes, and its plan opens with a compatibility-validation step.
+The recommended (current-type) scenario is `COMPATIBLE`. A migration scenario is `INCOMPATIBLE` when any check fails; its migration step is then `BLOCKED`. It is `COMPATIBLE` when it has a migration step and every check passes, and its plan then has no compatibility-validation step. Otherwise (any check `UNKNOWN`, needing review or passing with a limitation) it is `REQUIRES_VALIDATION`, and its plan opens with a compatibility-validation step. An alternative with no migration step is never `COMPATIBLE`, so its scenario ID cannot equal that of an empty recommended scenario. When no migration was evaluated (too little evidence) the alternative has no steps and no checks, and its status is `UNKNOWN`.
 
 ### Scenario economics
 
