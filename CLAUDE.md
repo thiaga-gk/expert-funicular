@@ -18,7 +18,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 2. Compile check, then all tests.
 3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
 4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
-5. A decision-affecting change bumps the affected component versions in `src/publisher/publisher.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
+5. A decision-affecting change bumps the affected component versions in `src/publisher/config/versions.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
 6. A new `Thresholds` field needs a row in `docs/reference/thresholds.md`, and a new blocker code a row in `docs/reference/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
 7. Update the docs that describe the changed behavior in the same change. Each topic has one home (`docs/README.md`); `tests/test_docs.py` must pass.
 
@@ -45,7 +45,7 @@ Collector → Normalizer → Supported-Type Gate → Analyzer → Optimizer → 
 - Workbook annual impact is numeric and signed (positive = savings, negative = cost increase) with explicit currency and impact type. No strings like `Save USD ...` in economic cells.
 
 ## Identity and package write order
-- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `src/publisher/contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `src/publisher/publisher.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/test_locked_reporter_integration.py` pins that packages ignore them).
+- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `src/publisher/contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `src/publisher/common/ids.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/test_locked_reporter_integration.py` pins that packages ignore them).
 - Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
 - Write order (`_build_locked_recommendation_package`, `package_locked_contract`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
 

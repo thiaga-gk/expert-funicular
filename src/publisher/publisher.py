@@ -41,6 +41,7 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENCE_SCHEMA_PATH  # noqa: F401
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts.analysis import AnalysisResult, Finding
 from publisher.contracts.candidate import CandidateRecommendation, OptimizationDecision, Range3
@@ -49,64 +50,32 @@ from publisher.contracts.scenario import PlanStep, PortfolioEstimate, Scenario
 from publisher.contracts.source import (
     EpochEvidence, PhotonObservation, QuerySourceProfile, WarehouseAttribution, WarehouseConfig, WarehouseEvidence,
 )
+from publisher.config.versions import (  # noqa: F401
+    ANALYZER_VERSION, BUNDLE_MODEL_VERSION, CONTRACT_VERSION, DECISION_VERSION, ESTIMATOR_VERSION, EVIDENCE_FORMAT_VERSION,
+    MODEL_VERSION, OPTIMIZER_VERSION, POLICY_VERSION, PUBLISHER_VERSION, REVIEWER_VERSION, TECHNIQUE_CATALOG_VERSION,
+)
+from publisher.config.defaults import (  # noqa: F401
+    ACTIVE_KNOBS, AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR,
+)
+from publisher.common.utils import (  # noqa: F401
+    _map_pairs, as_serializable, as_string_list, clamp, normalize_map, optional_float, round_or_none, safe_float, safe_int,
+)
+from publisher.common.time import (  # noqa: F401
+    _iso_z, iso, parse_datetime,
+)
+from publisher.common.hashing import (  # noqa: F401
+    canonical_json,
+)
+from publisher.common.ids import (  # noqa: F401
+    epoch_id, finding_id, recommendation_id, scenario_id,
+)
+from publisher.common.logging import (  # noqa: F401
+    LOGGER, setup_logging,
+)
 
-PUBLISHER_VERSION = "2.10.0"
-CONTRACT_VERSION = rc.CONTRACT_VERSION
-POLICY_VERSION = "sql-warehouse-policy-v2.10.0"
-ANALYZER_VERSION = "sql-warehouse-analyzer-v2.10.0"
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.10.0"
-MODEL_VERSION = "epoch-runrate-v2.10.0"
-ESTIMATOR_VERSION = "counterfactual-v2.10.0"
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
-REVIEWER_VERSION = "recommendation-reviewer-v2.10.0"
-DECISION_VERSION = "warehouse-decision-graph-v2.10.0"
-TECHNIQUE_CATALOG_VERSION = "technique-catalog-v2"
-GIB = 1024 ** 3
-LOGGER = logging.getLogger("publisher")
-# Repository root: the committed schema/ and pricing/ directories are resolved from it, so the package runs from a
-# checkout (pip install -e .), never from a copied site-packages install.
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if not (REPO_ROOT / "schema").is_dir():
-    raise ImportError(f"publisher must run from a repository checkout (pip install -e .): no schema/ under {REPO_ROOT}")
-
-SIZE_ORDER = [
-    "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",
-    "2X_LARGE", "3X_LARGE", "4X_LARGE", "5X_LARGE",
-]
-
-# Published SQL Serverless DBU/hour schedule by nominal warehouse size. The
-# production cost model uses account pricing from system.billing.list_prices;
-# this table is only the documented DBU consumption rate per cluster-hour.
-SQL_DBU_PER_CLUSTER_HOUR = {
-    "2X_SMALL": 4.0, "X_SMALL": 6.0, "SMALL": 12.0, "MEDIUM": 24.0,
-    "LARGE": 40.0, "X_LARGE": 80.0, "2X_LARGE": 144.0,
-    "3X_LARGE": 272.0, "4X_LARGE": 528.0,
-}
-
-# Databricks-documented AWS topology for Pro/Classic SQL warehouses. All workers
-# use i3.2xlarge; the driver type and worker count vary by warehouse size.
-AWS_SQL_WAREHOUSE_TOPOLOGY = {
-    "2X_SMALL": {"driver": "i3.2xlarge", "workers": 1},
-    "X_SMALL": {"driver": "i3.2xlarge", "workers": 2},
-    "SMALL": {"driver": "i3.4xlarge", "workers": 4},
-    "MEDIUM": {"driver": "i3.8xlarge", "workers": 8},
-    "LARGE": {"driver": "i3.8xlarge", "workers": 16},
-    "X_LARGE": {"driver": "i3.16xlarge", "workers": 32},
-    "2X_LARGE": {"driver": "i3.16xlarge", "workers": 64},
-    "3X_LARGE": {"driver": "i3.16xlarge", "workers": 128},
-    "4X_LARGE": {"driver": "i3.16xlarge", "workers": 256},
-    "5X_LARGE": {"driver": "i3.16xlarge", "workers": 512},
-}
 
 SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
 
-ACTIVE_KNOBS = (
-    "warehouse_size",
-    "max_clusters",
-    "min_clusters",
-    "auto_stop_minutes",
-    "warehouse_type",
-)
 
 @dataclass(frozen=True)
 class Thresholds:
@@ -1491,34 +1460,9 @@ DBU_BASELINE_WITHHELD = {
 }
 
 
-def optional_float(value: Any) -> Optional[float]:
-    """Float or None when the source did not report a usable value; unknown evidence must not read as zero."""
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if math.isfinite(out) else None
-
-
-def safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return default if value is None else float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def cost_stability(cv: Optional[float]) -> Optional[float]:
     """Cost-stability confidence component in [0, 1]; None when the coefficient of variation is unknown."""
     return None if cv is None else clamp(1.0 - safe_float(cv) / 2.0, 0.0, 1.0)
-
-
-def safe_int(value: Any, default: int = 0) -> int:
-    try:
-        return default if value is None else int(value)
-    except (TypeError, ValueError):
-        return default
 
 
 def conditional_severity(q: Dict[str, Any], count_key: str, p95_key: str) -> Tuple[Optional[float], int]:
@@ -1535,68 +1479,8 @@ def conditional_severity(q: Dict[str, Any], count_key: str, p95_key: str) -> Tup
     return (None if q.get(p95_key) is None else safe_float(q.get(p95_key))), n
 
 
-def round_or_none(value: Optional[float], digits: int = 0) -> Optional[float]:
-    return None if value is None else (round(value) if digits == 0 else round(value, digits))
-
-
-def clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
-
-
-def parse_datetime(value: Any) -> Optional[dt.datetime]:
-    if value is None:
-        return None
-    if isinstance(value, dt.datetime):
-        return value if value.tzinfo else value.replace(tzinfo=dt.timezone.utc)
-    if isinstance(value, dt.date):
-        return dt.datetime.combine(value, dt.time.min, tzinfo=dt.timezone.utc)
-    if isinstance(value, str):
-        try:
-            parsed = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
-        except ValueError:
-            return None
-    return None
-
-
-def iso(value: Any) -> Optional[str]:
-    parsed = parse_datetime(value)
-    return parsed.astimezone(dt.timezone.utc).isoformat() if parsed else None
-
-
 def normalize_size(value: Any) -> str:
     return "UNKNOWN" if value is None else str(value).strip().upper().replace("-", "_")
-
-
-def _map_pairs(value: Any) -> Optional[Dict[str, str]]:
-    """A MAP column as a mapping or, as some connectors return it, a list of [key, value] pairs or key/value entries."""
-    if isinstance(value, Mapping):
-        return {str(k): str(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        out: Dict[str, str] = {}
-        for item in value:
-            if isinstance(item, Mapping) and "key" in item and "value" in item:
-                out[str(item["key"])] = str(item["value"])
-            elif isinstance(item, (list, tuple)) and len(item) == 2:
-                out[str(item[0])] = str(item[1])
-            else:
-                return None
-        return out
-    return None
-
-
-def normalize_map(value: Any) -> Dict[str, str]:
-    if value is None:
-        return {}
-    if isinstance(value, str):
-        try:
-            obj = json.loads(value)
-        except Exception:
-            return {"raw": value}
-        decoded = _map_pairs(obj)
-        return decoded if decoded is not None else {"raw": value}
-    decoded = _map_pairs(value)
-    return decoded if decoded is not None else {"raw": str(value)}
 
 
 def hive_reference_count(q: Mapping[str, Any]) -> Optional[int]:
@@ -1689,61 +1573,6 @@ def resolve_target_sku_price(sql_sku_prices: Mapping[str, Any], target_type: str
     if len(distinct) != 1:
         return None, {"status": "UNAVAILABLE", "blocker": "AMBIGUOUS_TARGET_SQL_SKU_PRICE", "target_type": target, "candidates": candidates}
     return distinct[0], {"status": "RESOLVED", "target_type": target, "unit_price_per_dbu": distinct[0], "sku_names": [n for n, _ in candidates]}
-
-
-def canonical_json(value: Any) -> str:
-    return json.dumps(as_serializable(value), sort_keys=True, separators=(",", ":"), default=str)
-
-
-def as_serializable(value: Any) -> Any:
-    if is_dataclass(value):
-        return as_serializable(asdict(value))
-    if isinstance(value, Mapping):
-        return {str(k): as_serializable(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [as_serializable(v) for v in value]
-    if isinstance(value, (dt.datetime, dt.date)):
-        return value.isoformat()
-    return value
-
-
-# Internal join keys. They tie findings, decisions and plan steps together while a run is in memory, and `epoch_id` also
-# keys epochs in evidence.json. They are not public identities: packages carry only the contract IDs from
-# contracts/reporter_contract.py (make_epoch_id, make_evidence_id, make_candidate_id, make_scenario_id), which never read
-# these. tests/test_locked_reporter_integration.py pins that.
-def epoch_id(workspace_id: str, warehouse_id: str, start: str) -> str:
-    """Internal epoch key: 16 hex over workspace, warehouse and start time. Not the public EPOCH- identity."""
-    raw = f"{workspace_id}|{warehouse_id}|{start}"
-    return "EPOCH-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
-
-
-def finding_id(workspace_id: str, warehouse_id: str, knob: str, epoch: str, metric: str) -> str:
-    """Internal finding key, mapped to a public EVID- identity when the package is built."""
-    raw = f"{ANALYZER_VERSION}|{workspace_id}|{warehouse_id}|{knob}|{epoch}|{metric}"
-    return "FND-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
-
-
-def recommendation_id(workspace_id: str, warehouse_id: str, knob: str, epoch: str, current: Mapping[str, Any], recommended: Mapping[str, Any]) -> str:
-    """Internal decision key, mapped to a public CAND- identity when the package is built."""
-    raw = canonical_json({
-        "contract_version": CONTRACT_VERSION,
-        "policy_version": POLICY_VERSION,
-        "decision_version": DECISION_VERSION,
-        "estimator_version": ESTIMATOR_VERSION,
-        "workspace_id": workspace_id,
-        "warehouse_id": warehouse_id,
-        "knob": knob,
-        "epoch": epoch,
-        "current": current,
-        "recommended": recommended,
-    })
-    return f"WHOPT-{knob.upper()}-{hashlib.sha256(raw.encode()).hexdigest()[:16].upper()}"
-
-
-def scenario_id(workspace_id: str, warehouse_id: str, name: str, recommendation_ids: Sequence[str]) -> str:
-    """Internal plan key, mapped to a public SCN- identity when the package is built."""
-    raw = canonical_json({"v": DECISION_VERSION, "workspace": workspace_id, "warehouse": warehouse_id, "name": name, "ids": list(recommendation_ids)})
-    return "SCN-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
 
 
 # Why a ceiling increase's best case is zero added cost, stated with the candidate and its pricing method.
@@ -1866,22 +1695,6 @@ def infer_photon_observation(row: Mapping[str, Any], analysis_time: str, thresho
         freshness_days=freshness_days,
         confidence=confidence,
     )
-
-
-def as_string_list(value: Any) -> Optional[List[str]]:
-    """A collector array column as sorted distinct strings: a list, a JSON array string, or a Spark array rendered as
-    text ("[a, b]"). None stays None (not collected)."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except Exception:
-            text = value.strip()
-            value = [v.strip().strip('"') for v in text[1:-1].split(",")] if text.startswith("[") and text.endswith("]") else [text]
-        if not isinstance(value, list):
-            value = [value]
-    return sorted({str(x) for x in value if x not in (None, "")})
 
 
 def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
@@ -4738,19 +4551,8 @@ def _scalar_config(d: Mapping[str, Any]) -> Any:
     return dict(d)
 
 
-_CONTRACT_SCHEMA_PATH = REPO_ROOT / "schema" / "recommendation-package.schema.json"
-EVIDENCE_FORMAT_VERSION = "1.0.0"
-_EVIDENCE_SCHEMA_PATH = REPO_ROOT / "schema" / "evidence.schema.json"
 _ENTITY_QUERY_SOURCE_CATEGORIES = {"DASHBOARD", "JOB", "NOTEBOOK", "GENIE", "ALERT", "SQL_EDITOR", "OTHER", "UNKNOWN"}
 _CLIENT_QUERY_SOURCE_CATEGORIES = {"POWER_BI", "TABLEAU", "LOOKER", "SQL_EDITOR"}
-
-
-def _iso_z(value: Any) -> str:
-    """Normalize an observed timestamp to an offset-independent UTC ISO-8601 string."""
-    parsed = parse_datetime(value)
-    if parsed is None:
-        raise ValueError(f"Expected ISO-8601 timestamp, got {value!r}")
-    return parsed.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _contract_confidence(value: Optional[Mapping[str, Any]], *, method: Optional[str] = None) -> rc.Confidence:
@@ -6282,7 +6084,6 @@ def demo_evidence() -> List[WarehouseEvidence]:
     return [e]
 
 
-
 DEMO_ANALYSIS_TIME = "2026-10-01T12:00:00+00:00"
 DEMO_ACCOUNT_ID = "acct-demo"
 DEMO_WORKSPACES = ("1234567890123456", "2234567890123456", "3234567890123456")
@@ -7066,18 +6867,6 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
 # CLI
 # ---------------------------------------------------------------------------
 
-def setup_logging(output_dir: Path, level: str = "INFO") -> Path:
-    output_dir.mkdir(parents=True,exist_ok=True)
-    log_path=output_dir/"publisher.log"
-    logger=logging.getLogger("publisher")
-    logger.setLevel(getattr(logging,str(level).upper(),logging.INFO))
-    logger.handlers.clear()
-    fmt=logging.Formatter("%(asctime)sZ %(levelname)s %(message)s",datefmt="%Y-%m-%dT%H:%M:%S")
-    sh=logging.StreamHandler(sys.stderr); sh.setFormatter(fmt); logger.addHandler(sh)
-    fh=logging.FileHandler(log_path,encoding="utf-8"); fh.setFormatter(fmt); logger.addHandler(fh)
-    logger.propagate=False
-    logger.info("publisher.start version=%s",PUBLISHER_VERSION)
-    return log_path
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     from publisher.contracts import workbook_contract as wc

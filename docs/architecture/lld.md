@@ -46,7 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `publisher.py` (the facade and pipeline, which still carries most of the logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `publisher.py` (the facade and pipeline, which still carries most of the logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, repository-relative settings), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -55,6 +55,8 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/publisher.py` | collection, normalization, model/analyze/optimize/estimate/review/scenario orchestration, public package adaptation, CLI (`main`) | Yes, deterministic only |
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) and the orchestration result (`WarehouseOptimization`) | No |
+| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs; repository root and committed schema paths | No |
+| `src/publisher/common/logging.py`, `ids.py`, `hashing.py`, `time.py`, `utils.py` | run logging; internal 16-hex join keys (never public IDs); canonical JSON; timestamp parsing; value coercion and serialization | No |
 | `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
 | `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
 | `src/publisher/contracts/workbook_contract.py` | pure JSON-package-to-workbook row projection | No |
@@ -85,7 +87,7 @@ The workbook layer cannot call optimizer/estimator logic. It may only project al
 
 ## 4. Runtime constants and version boundaries
 
-The publisher declares independent version identifiers for deterministic replay. Values: `src/publisher/publisher.py` (`PUBLISHER_VERSION` and the other `*_VERSION` constants).
+The publisher declares independent version identifiers for deterministic replay. Values: `src/publisher/config/versions.py` (`PUBLISHER_VERSION` and the other `*_VERSION` constants).
 
 | Constant | Purpose |
 |---|---|

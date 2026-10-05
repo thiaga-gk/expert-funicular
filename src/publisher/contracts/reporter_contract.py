@@ -1,6 +1,6 @@
 """Reporter contract v2.0.0 for Databricks SQL Warehouse Optimization.
 
-This module is intentionally independent from publisher.py.  It defines the stable,
+This module is intentionally independent from the publisher pipeline.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
 Presentation artifacts (workbooks, markdown, UI) consume this contract; they do not
 change its semantics.
