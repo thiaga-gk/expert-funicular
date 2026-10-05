@@ -893,8 +893,8 @@ A max-cluster ceiling cut, a min-cluster change and an auto-stop change invalida
 
 After a canary-type change, every run checks the new epoch's own evidence and recommends restoring the previous value when a fail-fast guard trips (requirement: [PRD FR-EPOCH-005](../product/prd.md)). The collector is the canary guard SQL (7.2); `canary_observation` is the rule.
 
-- **Canary-type change.** The current epoch differs from the immediately preceding one, with the same warehouse type, by one size down, a lower minimum or a higher auto-stop (turning auto-stop off, 0, counts as higher). Any other change, a missing previous epoch or missing guard rows: no guard is evaluated.
-- **Guards.** Each trips only when the current value is above its safe level and above the previous epoch's, with a minimum sample behind the current value:
+- **Canary-type change.** The current epoch differs from the immediately preceding one, with the same warehouse type, by one size down or a lower minimum. A higher auto-stop is not a canary-type change: it changes running time and cold starts only, which no guard reads (its restart-billing assumption is a cost reading). Any other change, a missing previous epoch or missing guard rows: no guard is evaluated.
+- **Guards.** Each trips only when the current value is above its safe level and more than `canary_p95_regression_pct` above the previous epoch's (the p95 guard: the relative rise alone), with a minimum sample behind the current value:
 
   | Code | Evidence | Safe level | Minimum sample |
   |---|---|---|---|
@@ -905,7 +905,7 @@ After a canary-type change, every run checks the new epoch's own evidence and re
 
 - **Window.** The guard runs while the change is at most 30 days old (the canary window); after that the knob's normal decisions apply. The current side is the epoch since the change; the previous side is the previous epoch's last 30 days. The guard query reads at most the last 60 days of query history.
 - **Decision.** Each changed knob becomes `ACTIONABLE` back to its previous value with the objective performance, the blocker `CANARY_GUARDRAIL_BREACHED` plus the tripped guard codes, and a rationale that states the numbers. A size rollback invalidates the max and min clusters it does not restore itself; when the restored floor exceeds the current ceiling, the ceiling the same change lowered is restored too (with the same codes), and the reviewer judges the restored floor against it. The rollback replaces the knob's other decision, whatever it was.
-- **Other capacity changes.** While a rollback is pending, any other size, max- or min-cluster change is held `NO_CHANGE` with `CANARY_ROLLBACK_PENDING`: its evidence was measured on the configuration being rolled back.
+- **Other capacity changes.** While a rollback is pending, changes that conflict with it are held `NO_CHANGE` with `CANARY_ROLLBACK_PENDING`: after a size rollback every other size and cluster change (its evidence was measured at the size being rolled back), after a floor rollback a lower ceiling or a smaller size. An increase for queueing or spill is never held.
 - **Economics and order.** The candidate's and the plan's economics are withheld (null; 17.2). The rollback step is first in the plan (19.1).
 
 ---

@@ -3267,16 +3267,17 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
             out["changes"]["warehouse_size"] = pc.warehouse_size
         if cc.min_clusters < pc.min_clusters:
             out["changes"]["min_clusters"] = pc.min_clusters
-        raised = (cc.auto_stop_minutes == 0 and pc.auto_stop_minutes > 0) or (pc.auto_stop_minutes > 0 and cc.auto_stop_minutes > pc.auto_stop_minutes)
-        if raised:
-            out["changes"]["auto_stop_minutes"] = pc.auto_stop_minutes
+        # A higher auto-stop is not a canary here: it changes running time and cold starts only, which no guard reads.
     guard = cur.query.get("canary_guard") if isinstance(cur.query.get("canary_guard"), Mapping) else {}
     now, before = guard.get("CURRENT") or {}, guard.get("PREVIOUS") or {}
     if not out["changes"] or not now or not before:
         return out
+    margin = 1 + t.canary_p95_regression_pct / 100.0
     def worse(field: str, safe: float, count_field: str, min_count: float) -> bool:
+        # Above the safe level AND clearly worse than before (the same relative margin as the p95 guard), so window
+        # noise on a warehouse that already queued or failed does not roll a change back.
         a, b = optional_float(now.get(field)), optional_float(before.get(field))
-        return a is not None and b is not None and a > safe and a > b and safe_float(now.get(count_field)) >= min_count
+        return a is not None and b is not None and a > safe and a > b * margin and safe_float(now.get(count_field)) >= min_count
     if worse("failure_cancel_pct", t.failure_cancel_pct_downsize_safe, "queries", t.min_query_sample_size):
         out["guards"].append("CANARY_FAILURES_ABOVE_SAFE")
     if worse("queued_query_pct", t.queue_query_pct_safe, "queued_queries", t.severity_min_affected_queries):
@@ -3287,8 +3288,10 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
     if (p_now is not None and p_before and safe_float(now.get("shared_source_queries")) >= t.canary_p95_min_queries
             and p_now > p_before * (1 + t.canary_p95_regression_pct / 100.0)):
         out["guards"].append("CANARY_P95_REGRESSION")
-    out["details"] = {"current": {k: optional_float(now.get(k)) for k in CANARY_GUARD_FIELDS},
-                      "previous": {k: optional_float(before.get(k)) for k in CANARY_GUARD_FIELDS}}
+    counts = {"queries", "queued_queries", "decision_queries", "spill_queries", "shared_source_queries"}
+    num = lambda k, v: (None if optional_float(v) is None else int(optional_float(v))) if k in counts else optional_float(v)
+    out["details"] = {"current": {k: num(k, now.get(k)) for k in CANARY_GUARD_FIELDS},
+                      "previous": {k: num(k, before.get(k)) for k in CANARY_GUARD_FIELDS}}
     return out
 
 
@@ -3664,12 +3667,12 @@ class Analyzer:
         if canary.get("details"):
             now, before = canary["details"]["current"], canary["details"]["previous"]
             window = "the current epoch since the change (last 30 days) against the previous configuration's last 30 days"
-            specs = [("canary_failure_cancel_pct", "failure_cancel_pct", "%", f"rollback above previous and above {self.t.failure_cancel_pct_downsize_safe:g}%"),
-                     ("canary_queued_query_pct", "queued_query_pct", "%", f"rollback above previous and above {self.t.queue_query_pct_safe:g}%"),
+            specs = [("canary_failure_cancel_pct", "failure_cancel_pct", "%", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g} and above {self.t.failure_cancel_pct_downsize_safe:g}%"),
+                     ("canary_queued_query_pct", "queued_query_pct", "%", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g} and above {self.t.queue_query_pct_safe:g}%"),
                      ("canary_p95_execution_ms_shared_sources", "p95_execution_ms_shared_sources", "ms", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g}"),
-                     ("canary_shared_source_queries", "shared_source_queries", "queries", f"p95 guard needs >= {self.t.canary_p95_min_queries}")]
+                     ("canary_shared_source_queries", "shared_source_queries", "queries", f"current (value) vs previous (threshold); the p95 guard needs >= {self.t.canary_p95_min_queries} current")]
             if "warehouse_size" in canary["changes"]:
-                specs.append(("canary_spill_query_pct", "spill_query_pct", "%", f"rollback above previous and above {self.t.spill_query_pct_downsize_safe:g}%"))
+                specs.append(("canary_spill_query_pct", "spill_query_pct", "%", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g} and above {self.t.spill_query_pct_downsize_safe:g}%"))
             for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
                 for metric, field_name, unit, comparator in specs:
                     out[knob].findings.append(self._f(e, knob, metric, now.get(field_name), unit=unit, threshold=before.get(field_name),
@@ -4090,9 +4093,23 @@ class Optimizer:
                     {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
                     [], invalidates, invalidates,
                     f"Roll back the {knob} change to {previous}: since the change, {why}. The previous value is restored; no saving is claimed.")
-            # No other size or cluster change rides along: its evidence was measured on the configuration being rolled back.
+            # Changes that conflict with the rollback wait for it: after a size rollback every other size and cluster
+            # change (its evidence was measured at the size being rolled back); after a floor rollback a lower ceiling
+            # or a smaller size (the floor comes back). An increase for queueing or spill is never held.
+            def conflicts(d: OptimizationDecision) -> bool:
+                if d.knob in changes or d.status not in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW"):
+                    return False
+                if "warehouse_size" in changes:
+                    return d.knob in ("max_clusters", "min_clusters")
+                if "min_clusters" in changes:
+                    if d.knob == "max_clusters":
+                        return safe_int(d.recommended_config.get("max_clusters")) < safe_int(d.current_config.get("max_clusters"))
+                    if d.knob == "warehouse_size":
+                        return (d.recommended_config.get("warehouse_size") in SIZE_ORDER and d.current_config.get("warehouse_size") in SIZE_ORDER
+                                and SIZE_ORDER.index(d.recommended_config["warehouse_size"]) < SIZE_ORDER.index(d.current_config["warehouse_size"]))
+                return False
             for i, d in enumerate(out):
-                if d.knob in ("warehouse_size", "max_clusters", "min_clusters") and d.knob not in changes and d.status in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW"):
+                if conflicts(d):
                     out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
                         ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
                         f"Held while the canary rollback is pending: this {d.knob} change rests on evidence measured on the configuration being rolled back.")

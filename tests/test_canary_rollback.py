@@ -88,15 +88,24 @@ class CanaryRollbackTests(unittest.TestCase):
         prev.config = dataclasses.replace(prev.config, warehouse_size="SMALL")
         self.assertNotIn("CANARY_GUARDRAIL_BREACHED", self.size(e).blockers)
 
-    def test_a_raised_auto_stop_and_a_lower_minimum_are_canaries(self):
+    def test_a_lower_minimum_is_a_canary_and_a_raised_auto_stop_is_not(self):
+        # By the carry map a higher auto-stop changes running time and cold starts only: no guard can read it.
         e = copy.deepcopy(self.e)
         prev = next(x for x in e.epochs if not x.is_current)
         prev.config = dataclasses.replace(prev.config, warehouse_size="MEDIUM", auto_stop_minutes=10, min_clusters=2)
         e.current_epoch.config = dataclasses.replace(e.current_epoch.config, max_clusters=2)
         by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
-        self.assertEqual((by["auto_stop_minutes"].status, by["auto_stop_minutes"].recommended_config["auto_stop_minutes"]), ("ACTIONABLE", 10))
         self.assertEqual((by["min_clusters"].status, by["min_clusters"].recommended_config["min_clusters"]), ("ACTIONABLE", 2))
+        self.assertNotIn("CANARY_GUARDRAIL_BREACHED", by["auto_stop_minutes"].blockers)
         self.assertNotIn("CANARY_GUARDRAIL_BREACHED", by["warehouse_size"].blockers)
+
+    def test_noise_on_chronic_queueing_does_not_roll_back(self):
+        # Previous 10.27% queued, now 10.79%: above safe and above before, but within the relative margin.
+        e = self.with_guard(p95_execution_ms_shared_sources=2500, queued_query_pct=10.79, queued_queries=500)
+        e.current_epoch.query["canary_guard"]["PREVIOUS"].update(queued_query_pct=10.27, queued_queries=600)
+        self.assertNotIn("CANARY_GUARDRAIL_BREACHED", self.size(e).blockers)
+        e.current_epoch.query["canary_guard"]["CURRENT"].update(queued_query_pct=14.0)
+        self.assertEqual(self.size(e).blockers, ["CANARY_GUARDRAIL_BREACHED", "CANARY_QUEUE_ABOVE_SAFE"])
 
     def previous(self, e):
         cur = e.current_epoch
@@ -113,15 +122,17 @@ class CanaryRollbackTests(unittest.TestCase):
         p.build_recommendation_packages([e], self.t)  # validates
 
     def test_every_rolled_back_knob_is_a_ready_step(self):
-        # Size down, floor down and auto-stop raised in one change: all three return together, none waits on another.
+        # Size down, floor down and auto-stop raised in one change: size and floor return together (a higher auto-stop
+        # is not a canary-type change), neither waits on the other.
         e = copy.deepcopy(self.e)
         prev = self.previous(e)
         prev.config = dataclasses.replace(prev.config, min_clusters=2, max_clusters=2, auto_stop_minutes=10)
         pkg = p.build_recommendation_packages([e], self.t)[0]
         plan = next(s for s in pkg.scenarios if s.scenario_id == pkg.recommended_plan.scenario_id)
         states = {st.knob.value: st.execution_state.value for st in plan.execution_plan if st.knob is not None}
-        self.assertEqual({k: states[k] for k in ("warehouse_size", "min_clusters", "auto_stop_minutes")},
-                         {"warehouse_size": "READY", "min_clusters": "READY", "auto_stop_minutes": "READY"})
+        self.assertEqual({k: states[k] for k in ("warehouse_size", "min_clusters")}, {"warehouse_size": "READY", "min_clusters": "READY"})
+        auto = next(c for c in pkg.candidates if c.knob.value == "auto_stop_minutes")
+        self.assertNotIn("CANARY_GUARDRAIL_BREACHED", auto.blockers)
 
     def test_guard_numbers_are_package_evidence(self):
         a = p.build_recommendation_packages([self.e], self.t)[0]
@@ -174,6 +185,15 @@ class CanaryRollbackTests(unittest.TestCase):
         e.current_epoch.query["canary_guard"]["CURRENT"]["failure_cancel_pct"] = Decimal("0.30")
         obs = p.canary_observation(e, self.t)
         self.assertIsInstance(obs["details"]["current"]["failure_cancel_pct"], float)
+
+    def test_a_floor_rollback_keeps_a_ceiling_increase_for_queueing(self):
+        # Floor 2 -> 1 rolled back; queueing at the ceiling still raises max (an increase is never held).
+        e = copy.deepcopy(self.e)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, warehouse_size=e.current_epoch.config.warehouse_size, min_clusters=2, max_clusters=2)
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertEqual(by["min_clusters"].status, "ACTIONABLE")
+        self.assertNotEqual(by["max_clusters"].blockers, ["CANARY_ROLLBACK_PENDING"])
 
 
 if __name__ == "__main__":
