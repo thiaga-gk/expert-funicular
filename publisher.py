@@ -3242,6 +3242,7 @@ class Optimizer:
         else:
             target = previous_size(cfg.warehouse_size)
             batch = f.get("batch_profile")
+            if target is None: blockers.append("ALREADY_AT_SMALLEST_SIZE")
             if age < self.t.current_config_stability_days: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
             if batch:
                 # Batch: one run a day is enough evidence; the canary measures job run time instead of interactive latency.
@@ -3274,6 +3275,7 @@ class Optimizer:
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
                     {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
+                    f"Already at the smallest size ({cfg.warehouse_size}); nothing calls for a larger one." if blockers==["ALREADY_AT_SMALLEST_SIZE"] else
                     "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
 
         # Max clusters
@@ -3310,17 +3312,19 @@ class Optimizer:
             else:
                 # Pro/Classic: one move to the demand-derived ceiling (peak running + queued queries per cluster, plus
                 # headroom). Serverless scales differently, so it keeps one step at a time (at low confidence).
-                target = (min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters))
-                          if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1)
+                demand = max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters)
+                target = min(self.t.max_clusters_supported_limit, demand) if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1
+                capped = cfg.warehouse_type!="SERVERLESS" and demand > self.t.max_clusters_supported_limit
                 if target <= cfg.max_clusters:
                     out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},[],["warehouse_size"],[],[],
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_WITH_DEMAND_WITHIN_CEILING"],["warehouse_size"],[],[],
                         f"Queries queue, but peak demand ({f['peak_concurrency_recent']} concurrent queries) fits the current ceiling: the queueing is not caused by the ceiling."))
                 else:
                     out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],["min_clusters"],["min_clusters"],
-                        "Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
-                        "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity."))
+                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"] if capped else [],["warehouse_size"],["min_clusters"],["min_clusters"],
+                        ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
+                         "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
+                        + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
         elif not window_known:
             # Without recent resource time neither saturation nor the unused ceiling can be judged.
             missing = f["resource_window_state"] == "MISSING"
@@ -3387,6 +3391,19 @@ class Optimizer:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
                     f"The recent window would allow a lower ceiling, but the current configuration has peaked at {epoch_peak_label}; the ceiling is kept for that peak."))
+            elif (not evidence_blockers and not saturated and queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max
+                  and not (f["wait_capacity"] is not None and f["wait_capacity"] < self.t.queue_wait_p95_ms_increase_max)):
+                # Queueing the ceiling rule does not resolve: the warehouse rarely reaches its ceiling, so the queue
+                # forms while clusters are still being added (scale-up lag on short bursts).
+                demand = ""
+                if cfg.warehouse_type!="SERVERLESS" and f["concurrency_available"]:
+                    demand = (f" Peak demand is {f['peak_concurrency_recent']} concurrent queries ({f['required_clusters_recent']} clusters), and busy periods"
+                              f" start with {f['busy_start_concurrency']} ({f['required_clusters_busy_start']} clusters) on a floor of {cfg.min_clusters}.")
+                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
+                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_BELOW_CEILING"],["warehouse_size"],[],[],
+                    f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
+                    " Clusters are added minutes after a burst starts (scale-up lag), so short bursts queue before the ceiling is reached;"
+                    " a higher floor would absorb burst starts at the cost of running those clusters all the time, which is a human decision."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
@@ -4336,7 +4353,7 @@ class ScenarioPlanner:
         pe=self.bundle.estimate(e,bsteps,by_id) if bsteps else self.bundle.estimate(e,[],by_id)
         if target is None:
             plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,"Plan B — Migration not evaluated",
-                "No warehouse-type migration was evaluated: "+", ".join(type_c.blockers or ["NO_MIGRATION_TARGET"])+". Re-run once the evidence gates pass.",
+                "No warehouse-type migration was evaluated: "+", ".join(type_c.blockers)+". Re-run once the evidence gates pass.",
                 [],pe,list(type_c.blockers),False,{"target_warehouse_type":None,"assessment":"NOT_EVALUATED","evidence_mode":"A_HITL_FALLBACK","checks":[]},self._scenario_confidence([]))
         else:
             plan_b=Scenario(plan_b_id,e.warehouse_id,e.workspace_id,f"Plan B — {target.title()} migration experiment",f"Canary {target} as a separate branch. The pre-canary cost range uses current-epoch resource bounds and target DBU/AWS pricing; successful migration invalidates current-type tuning and triggers re-analysis.",bsteps,pe,type_c.blockers if bsteps else list(type_c.blockers),False,self._compatibility(e,target),self._scenario_confidence(bsteps))
