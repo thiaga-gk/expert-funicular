@@ -1879,6 +1879,14 @@ class RecommendationPackage:
             change.validate()
             _require(change.changed_at == start_time, "observed_change.changed_at must equal the current epoch start")
             _require(change.previous_epoch_id != self.warehouse.current_epoch.epoch_id, "observed_change.previous_epoch_id must differ from the current epoch")
+        for candidate in self.candidates:
+            if "CANARY_GUARDRAIL_BREACHED" in candidate.blockers:
+                # A canary rollback restores the value the observed change replaced (contract 2.0.0).
+                _require(candidate.status == RecommendationStatus.ACTIONABLE, "a CANARY_GUARDRAIL_BREACHED candidate must be ACTIONABLE")
+                _require(change is not None, "a CANARY_GUARDRAIL_BREACHED candidate requires observed_change")
+                previous = next((c.previous_value for c in change.changes if c.knob == candidate.knob), None) if change is not None else None
+                _require(previous is not None and candidate.recommended_value == previous,
+                         "a CANARY_GUARDRAIL_BREACHED candidate must restore observed_change.previous_value of its knob")
         carried = self.carried_forward_plan
         if carried is not None:
             carried.validate()

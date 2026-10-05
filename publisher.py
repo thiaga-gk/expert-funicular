@@ -112,6 +112,8 @@ class Thresholds:
     forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
     forecast_run_bridge_days: int = 3  # billed days this close belong to one run (a weekend inside a month-end close)
     readiness_min_billed_days: int = 2  # settled billed days the current configuration needs before a change is decided
+    canary_p95_regression_pct: float = 25.0  # p95 execution rise on shared statement sources that rolls a canary back
+    canary_p95_min_queries: int = 300  # executed queries on shared sources the p95 rollback guard needs
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
     photon_min_feature_coverage_pct: float = 90.0
@@ -811,6 +813,49 @@ src AS (
 SELECT workspace_id, warehouse_id, epoch_start, COUNT(*) AS spill_sources_30,
   100.0 * SUM(CASE WHEN rn <= __TOP_SOURCES__ THEN spilled_bytes ELSE 0 END) / MAX(total_bytes) AS top_spill_source_share_pct_30
 FROM ranked GROUP BY workspace_id, warehouse_id, epoch_start
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
+
+# Fail-fast canary guard: the current epoch (last 30 days) against the immediately preceding epoch's last 30 days, on the
+# same statement sources (saved query, dashboard, job, notebook, else a hash of the statement text; a redacted statement
+# counts on its own). The statement text itself is never exported.
+CANARY_GUARD_FIELDS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
+                       "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
+CANARY_GUARD_SQL = r"""
+WITH __CONFIG_EPOCHS__,
+cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs WHERE epoch_end IS NULL),
+prv AS (
+  SELECT c.workspace_id, c.warehouse_id, c.epoch_start, h.epoch_start AS prev_start, h.epoch_end AS prev_end
+  FROM cur c JOIN config_epochs h ON h.workspace_id = c.workspace_id AND h.warehouse_id = c.warehouse_id AND h.epoch_end = c.epoch_start
+), q AS (
+  SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
+    CASE WHEN x.start_time >= p.epoch_start THEN 'CURRENT' ELSE 'PREVIOUS' END AS period,
+    COALESCE(x.query_source.sql_query_id, x.query_source.dashboard_id, x.query_source.legacy_dashboard_id,
+      CAST(x.query_source.job_info.job_id AS STRING), x.query_source.notebook_id,
+      CASE WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id ELSE SHA2(x.statement_text, 256) END) AS source_key,
+    x.execution_duration_ms, x.execution_status,
+    COALESCE(x.waiting_at_capacity_duration_ms, 0) > 0 AS queued,
+    COALESCE(x.from_result_cache, FALSE) = FALSE AS executed,
+    COALESCE(x.spilled_local_bytes, 0) > 0 AS spilled
+  FROM system.query.history x
+  JOIN prv p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
+  WHERE x.compute.type = 'WAREHOUSE'
+    AND ((x.start_time >= p.epoch_start AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS)
+      OR (x.start_time >= p.prev_start AND x.start_time < p.prev_end AND x.start_time >= p.prev_end - INTERVAL 30 DAYS))
+), shared AS (
+  SELECT workspace_id, warehouse_id, source_key FROM q WHERE executed GROUP BY 1, 2, 3 HAVING COUNT(DISTINCT period) = 2
+)
+SELECT q.workspace_id, q.warehouse_id, q.epoch_start, q.period,
+  COUNT(*) AS queries,
+  100.0 * COUNT_IF(q.execution_status IN ('FAILED','CANCELED')) / NULLIF(COUNT(*), 0) AS failure_cancel_pct,
+  COUNT_IF(q.queued) AS queued_queries,
+  100.0 * COUNT_IF(q.queued) / NULLIF(COUNT(*), 0) AS queued_query_pct,
+  COUNT_IF(q.executed) AS decision_queries,
+  COUNT_IF(q.executed AND q.spilled) AS spill_queries,
+  100.0 * COUNT_IF(q.executed AND q.spilled) / NULLIF(COUNT_IF(q.executed), 0) AS spill_query_pct,
+  COUNT_IF(q.executed AND s.source_key IS NOT NULL) AS shared_source_queries,
+  PERCENTILE_APPROX(CASE WHEN q.executed AND s.source_key IS NOT NULL THEN q.execution_duration_ms END, 0.95) AS p95_execution_ms_shared_sources
+FROM q LEFT JOIN shared s ON q.workspace_id = s.workspace_id AND q.warehouse_id = s.warehouse_id AND q.source_key = s.source_key
+GROUP BY q.workspace_id, q.warehouse_id, q.epoch_start, q.period
 """.replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
 
 EPOCH_EVENT_METRICS_SQL = r"""
@@ -2816,6 +2861,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     for r in client.query(build_spill_source_sql(thresholds),label="spill_sources"):
         if _row_key(r) in query_idx:
             query_idx[_row_key(r)].update({"spill_sources_30": safe_int(r.get("spill_sources_30")), "top_spill_source_share_pct_30": optional_float(r.get("top_spill_source_share_pct_30"))})
+    for r in client.query(CANARY_GUARD_SQL,label="canary_guard"):
+        if _row_key(r) in query_idx and str(r.get("period")) in ("CURRENT", "PREVIOUS"):
+            query_idx[_row_key(r)].setdefault("canary_guard", {})[str(r.get("period"))] = {k: r.get(k) for k in CANARY_GUARD_FIELDS}
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
     running_idle_idx = _index_epoch_rows(client.query(build_running_idle_sql(thresholds),label="running_idle"))
@@ -3010,6 +3058,67 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
 # Analyzer: facts and evidence only; no config recommendations.
 # ---------------------------------------------------------------------------
 
+def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
+    """Fail-fast guard after a canary-type change (one size down, a lower minimum, a higher auto-stop).
+
+    Compares the current epoch with the immediately preceding one on the canary guard collector's rows. A guard trips when
+    the current value is above its safe level AND above the previous epoch's, with a minimum sample; the p95 guard
+    compares execution time on statement sources seen in both epochs. Returns {"changes": {knob: previous value},
+    "guards": [codes], "details": {...}}; no change or no rows: no guards.
+    """
+    cur = e.current_epoch
+    prev = next((x for x in e.epochs if not x.is_current and x.epoch_end is not None
+                 and parse_datetime(x.epoch_end) == parse_datetime(cur.epoch_start)), None)
+    out: Dict[str, Any] = {"changes": {}, "guards": [], "details": {}}
+    if prev is None:
+        return out
+    pc, cc = prev.config, cur.config
+    if pc.warehouse_type == cc.warehouse_type:
+        if pc.warehouse_size in SIZE_ORDER and cc.warehouse_size in SIZE_ORDER and SIZE_ORDER.index(cc.warehouse_size) < SIZE_ORDER.index(pc.warehouse_size):
+            out["changes"]["warehouse_size"] = pc.warehouse_size
+        if cc.min_clusters < pc.min_clusters:
+            out["changes"]["min_clusters"] = pc.min_clusters
+        raised = (cc.auto_stop_minutes == 0 and pc.auto_stop_minutes > 0) or (pc.auto_stop_minutes > 0 and cc.auto_stop_minutes > pc.auto_stop_minutes)
+        if raised:
+            out["changes"]["auto_stop_minutes"] = pc.auto_stop_minutes
+    guard = cur.query.get("canary_guard") if isinstance(cur.query.get("canary_guard"), Mapping) else {}
+    now, before = guard.get("CURRENT") or {}, guard.get("PREVIOUS") or {}
+    if not out["changes"] or not now or not before:
+        return out
+    def worse(field: str, safe: float, count_field: str, min_count: float) -> bool:
+        a, b = optional_float(now.get(field)), optional_float(before.get(field))
+        return a is not None and b is not None and a > safe and a > b and safe_float(now.get(count_field)) >= min_count
+    if worse("failure_cancel_pct", t.failure_cancel_pct_downsize_safe, "queries", t.min_query_sample_size):
+        out["guards"].append("CANARY_FAILURES_ABOVE_SAFE")
+    if worse("queued_query_pct", t.queue_query_pct_safe, "queued_queries", t.severity_min_affected_queries):
+        out["guards"].append("CANARY_QUEUE_ABOVE_SAFE")
+    if "warehouse_size" in out["changes"] and worse("spill_query_pct", t.spill_query_pct_downsize_safe, "spill_queries", t.severity_min_affected_queries):
+        out["guards"].append("CANARY_SPILL_AFTER_DOWNSIZE")
+    p_now, p_before = optional_float(now.get("p95_execution_ms_shared_sources")), optional_float(before.get("p95_execution_ms_shared_sources"))
+    if (p_now is not None and p_before and safe_float(now.get("shared_source_queries")) >= t.canary_p95_min_queries
+            and p_now > p_before * (1 + t.canary_p95_regression_pct / 100.0)):
+        out["guards"].append("CANARY_P95_REGRESSION")
+    out["details"] = {"current": {k: now.get(k) for k in CANARY_GUARD_FIELDS}, "previous": {k: before.get(k) for k in CANARY_GUARD_FIELDS}}
+    return out
+
+
+def canary_rationale(obs: Mapping[str, Any], t: Thresholds) -> str:
+    now, before = obs["details"]["current"], obs["details"]["previous"]
+    parts = []
+    fmt = lambda v: "unknown" if v is None else f"{safe_float(v):.1f}"
+    if "CANARY_FAILURES_ABOVE_SAFE" in obs["guards"]:
+        parts.append(f"failed or cancelled queries {fmt(now.get('failure_cancel_pct'))}% (before {fmt(before.get('failure_cancel_pct'))}%, safe {t.failure_cancel_pct_downsize_safe:g}%)")
+    if "CANARY_QUEUE_ABOVE_SAFE" in obs["guards"]:
+        parts.append(f"queued queries {fmt(now.get('queued_query_pct'))}% (before {fmt(before.get('queued_query_pct'))}%, safe {t.queue_query_pct_safe:g}%)")
+    if "CANARY_SPILL_AFTER_DOWNSIZE" in obs["guards"]:
+        parts.append(f"spilling queries {fmt(now.get('spill_query_pct'))}% (before {fmt(before.get('spill_query_pct'))}%, safe {t.spill_query_pct_downsize_safe:g}%)")
+    if "CANARY_P95_REGRESSION" in obs["guards"]:
+        parts.append(f"p95 execution on the same statement sources {safe_float(now.get('p95_execution_ms_shared_sources')):,.0f} ms vs "
+                     f"{safe_float(before.get('p95_execution_ms_shared_sources')):,.0f} ms before (more than +{t.canary_p95_regression_pct:g}%, "
+                     f"{safe_int(now.get('shared_source_queries')):,} queries)")
+    return "; ".join(parts)
+
+
 class Analyzer:
     """Convert normalized warehouse evidence into per-knob facts and findings only."""
     def __init__(self, thresholds: Thresholds):
@@ -3085,6 +3194,7 @@ class Analyzer:
         spill_pct = optional_float(q.get("spill_query_pct_30")); spill_p95, spill_n = conditional_severity(q, "spill_queries_30", "p95_spill_bytes_when_spilled_30")
         failure_pct = optional_float(q.get("failure_cancel_pct_30"))
         common["failure_pct"] = failure_pct  # reliability guard shared by every capacity cut
+        common["canary"] = canary_observation(e, self.t)  # fail-fast guard after a canary-type change
         growth_ratio = query_volume_growth_ratio([q.get(f"queries_week_{k}") for k in range(1, 9)])
         common["growth_ratio"] = growth_ratio  # growth guard shared by every capacity cut
         # Older-epoch hold (the one use of older epochs in decisions): peak demand of each older epoch of this
@@ -3739,6 +3849,18 @@ class Optimizer:
                 ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
                 ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
                 "Serverless is evaluated as a separate migration experiment with a pre-canary DBU/AWS counterfactual and deterministic compatibility gate."))
+        # Fail-fast canary rollback: a guard tripped on the new epoch's own evidence after a canary-type change restores
+        # the previous value of the changed knob (the one decision an older epoch's configuration sets).
+        canary = analyses["warehouse_size"].facts.get("canary") or {}
+        if canary.get("guards"):
+            why = canary_rationale(canary, self.t)
+            for knob, previous in sorted(canary["changes"].items()):
+                i = next(k for k, d in enumerate(out) if d.knob == knob)
+                invalidates = ["max_clusters", "min_clusters"] if knob == "warehouse_size" else []
+                out[i] = OptimizationDecision(e.warehouse_id, knob, "PERFORMANCE", "ACTIONABLE",
+                    {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
+                    [], invalidates, invalidates,
+                    f"Roll back the {knob} change to {previous}: since the change, {why}. The previous value is restored; no saving is claimed.")
         return out
 
 
@@ -3784,6 +3906,9 @@ class Estimator:
             return None,{"method":"estimate withheld: the candidate is blocked or lacks the evidence to be priced","bundle_effect":{"type":"no_cost_change"},**meta}
         if d.status=="NO_CHANGE":
             return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
+        if "CANARY_GUARDRAIL_BREACHED" in d.blockers:
+            reason="A rollback restores the previous configuration; its cost is the previous configuration's, which this estimate does not price."
+            return None,{"method":"estimate withheld: canary rollback","bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
         if knob=="max_clusters" and d.objective=="COST_GUARDRAIL":
             return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
         if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
@@ -4498,7 +4623,7 @@ class ScenarioPlanner:
         def key(c:CandidateRecommendation)->Tuple[int,float,int]:
             base=c.estimated_savings_365
             risk=self.t.plan_risk_canary_change if c.status=="TEST_REQUIRED" else self.t.plan_risk_hitl_change
-            group=1 if base is None else 0 if base>0 else 2
+            group=-1 if "CANARY_GUARDRAIL_BREACHED" in c.blockers else 1 if base is None else 0 if base>0 else 2
             value=0.0 if base is None else round(base*safe_float(c.confidence.get("score"),0.0)/risk,2)
             return (group,-value,PLAN_KNOB_RANK[c.knob])
         remaining=sorted(eligible,key=key); ordered:List[CandidateRecommendation]=[]
@@ -6229,6 +6354,9 @@ DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C54", "name": "Morning Batch Pair", "ws": 1, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 365,
      "work": [{"days": "weekdays", "start": "06:00", "end": "06:20", "conc": 2, "q_min": 2.0, "src": "JOB"},
               {"days": "weekdays", "start": "09:30", "end": "09:50", "conc": 2, "q_min": 2.0, "src": "JOB"}]},
+    {"scenario": "C55", "name": "Downsized Dashboards", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 2, "auto_stop": 15, "epoch_start": "2026-09-27",
+     "prior": [{"start": "2025-10-01", "size": "LARGE"}], "after_change": {"p95_factor": 1.6},
+     "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 2, "dur": 0.3, "conc": 1, "src": "DASHBOARD", "client": "Power BI"}]},
     {"scenario": "A01", "name": "Serverless Fast Stop", "ws": 0, "type": "SERVERLESS", "size": "SMALL", "min": 1, "max": 2, "auto_stop": 1,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 10, "dur": 1.0, "conc": 1, "src": "DASHBOARD"}]},
 )
@@ -6438,7 +6566,10 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
 
-    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "concurrency", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "canary_guard", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "concurrency", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    # Behaviour after the last configuration change (spec after_change): the current epoch's latency and failure rate.
+    after = spec.get("after_change") or {}
+    guard_window: Dict[float, Dict[str, Any]] = {}  # per epoch: its last 30 days, for the canary guard
     tags = {"environment": spec.get("env", "production"), "team": spec["name"].lower().replace(" ", "-"), "golden_scenario": spec["scenario"]}
     dbu_rate = SQL_DBU_PER_CLUSTER_HOUR[spec["size"]]
     owner = f"{tags['team']}@databricks.example"
@@ -6470,6 +6601,16 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         n30 = int(round(q30))
         decision30 = int(round(n30 * max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)))  # not result-cache hits
         p95, p99 = spec.get("p95", 2500), spec.get("p99", 9000)
+        failure = spec.get("failure_pct", 0.3)
+        if ep_end is None and len(epochs) > 1:
+            p95, p99 = round(p95 * after.get("p95_factor", 1.0)), round(p99 * after.get("p95_factor", 1.0))
+            failure = after.get("failure_pct", failure)
+        # The canary guard reads each epoch's last 30 days (the current epoch's are its 30-day window).
+        g_lo = max(ep_start, hi_t - 30 * 1440.0)
+        g_n, g_src, _ = queries_between(g_lo, hi_t)
+        g_queued = min(g_n, queued(g_lo))
+        g_decision = g_n * max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)
+        guard_window[ep_start] = {"n": g_n, "src": g_src, "queued": g_queued, "decision": g_decision, "failure": failure, "p95": p95}
         rows["query_metrics"].append({
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
             "epoch_queries": int(round(epoch_q)), "epoch_active_days": epoch_days, "queries_30": n30, "active_days_30": days30,
@@ -6488,7 +6629,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "p95_spill_bytes_when_spilled_30": spec.get("spill_p95_bytes") if spill_pct and n30 else None,
             "total_spill_gib_30": round(n30 * spill_pct / 100.0 * spec.get("spill_p95_bytes", 0) / 2 / GIB, 2),
             "p95_read_bytes_30": 50 * 1024 ** 2, "avg_read_io_cache_percent_30": 35.0 if n30 else None,
-            "failure_cancel_pct_30": spec.get("failure_pct", 0.3) if n30 else None, "result_cache_pct_30": spec.get("cache_pct", 10.0) if n30 else None,
+            "failure_cancel_pct_30": failure if n30 else None, "result_cache_pct_30": spec.get("cache_pct", 10.0) if n30 else None,
             "tagged_query_pct_30": 60.0 if n30 else None,
             "dashboard_queries_30": src_count("DASHBOARD"), "job_queries_30": src_count("JOB"), "notebook_queries_30": src_count("NOTEBOOK"),
             "genie_queries_30": src_count("GENIE"), "alert_queries_30": 0, "sql_query_source_queries_30": src_count("SQL"),
@@ -6615,6 +6756,22 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "observed_node_types": [] if cfg["warehouse_type"] == "SERVERLESS" else sorted({AWS_SQL_WAREHOUSE_TOPOLOGY[cfg["warehouse_size"]]["driver"], "i3.2xlarge"}),
             "observed_sql_tiers": [] if cfg["warehouse_type"] == "SERVERLESS" else [cfg["warehouse_type"]],
         })
+    # Canary guard: the current epoch against the one before it, on statement sources seen in both windows.
+    if len(epochs) > 1:
+        cur_w, prev_w = guard_window[epochs[-1][0]], guard_window[epochs[-2][0]]
+        shared = set(cur_w["src"]) & set(prev_w["src"])
+        cache = max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)
+        for period, w in (("CURRENT", cur_w), ("PREVIOUS", prev_w)):
+            n, dec = int(round(w["n"])), int(round(w["decision"]))
+            spill_n = int(round(dec * spec.get("spill_pct", 0.0) / 100.0))
+            shared_n = int(round(sum(v for k, v in w["src"].items() if k in shared) * cache))
+            rows["canary_guard"].append({
+                "workspace_id": workspace, "warehouse_id": wh, "epoch_start": stamp(epochs[-1][0]), "period": period,
+                "queries": n, "failure_cancel_pct": w["failure"] if n else None,
+                "queued_queries": int(round(w["queued"])), "queued_query_pct": round(100.0 * round(w["queued"]) / n, 4) if n else None,
+                "decision_queries": dec, "spill_queries": spill_n, "spill_query_pct": round(100.0 * spill_n / dec, 4) if dec else None,
+                "shared_source_queries": shared_n, "p95_execution_ms_shared_sources": w["p95"] if shared_n else None,
+            })
     total_dbu = sum(r["dbu_quantity"] for r in rows["billing_daily_cost"])
     photon_dbu = total_dbu if spec.get("photon", "ENABLED") == "ENABLED" else 0.0
     rows["billing_features"].append({
