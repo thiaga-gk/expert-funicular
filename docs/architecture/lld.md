@@ -534,6 +534,7 @@ The forward DBU cost (`forecast_cost_365`) is published only when it is known. O
 
 - `COMPLETE`: published;
 - `INSUFFICIENT_ACTIVE_COST_DAYS`: fewer than `min_economics_cost_history_days` billed days, including an empty basis;
+- `INSUFFICIENT_BILLING_CYCLES`: a periodic workload with fewer than `forecast_min_cycles` whole billing cycles (cadence model above);
 - `UNPRICED_USAGE`: unpriced DBU inside the basis (11.4);
 - `NON_POSITIVE_RUN_RATE`: net billing corrections leave a run rate at or below zero.
 
@@ -561,7 +562,7 @@ Unpriced DBU is unknown cost, never zero:
 - an epoch whose usage includes unpriced DBU has a null list cost;
 - forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
 
-With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
+With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` or `INSUFFICIENT_BILLING_CYCLES` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
 
 ---
 
@@ -576,6 +577,8 @@ Standard Serverless SQL warehouses model no separate customer AWS EC2 cost; Data
 For Pro/Classic, annual AWS cost is the annualized recent cluster-minutes (daily resource series on the DBU forecast's window, calendar and recent/long-window blend (`forecast_recent_days`, `forecast_long_days`), times the forecast trend adjustment and 365) divided by 60 and priced at the modeled cluster hourly price from the versioned regional registry. Formula, topology and registry rules: [`docs/reference/aws-cost-model.md`](../reference/aws-cost-model.md).
 
 The resource window is the last `forecast_long_days` complete days ending at the billing basis end, clipped to the epoch start, with missing days zero-filled (days before the collected range are unknown, so the window shrinks), so DBU and AWS describe the same period.
+
+Under the cadence model (11.2) the cluster-minutes are annualized over the same whole billing cycles, from the first to the last run start inside event coverage, with no trend adjustment. When events cover fewer than `forecast_min_cycles` whole cycles the AWS baseline is unavailable (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`).
 
 The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE`, and billed node types outside the modeled topology (the size's driver instance and the `i3.2xlarge` worker; billing does not distinguish driver from worker) give `AWS_NODE_TYPE_MISMATCH`. `aws_cost_model.node_type_check` records `VERIFIED` or `UNVERIFIED` (no billed node type) (meanings: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)).
 
@@ -632,7 +635,7 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, share of spilled bytes from the top statement sources, queue %, p95/p99 execution, job-query share (batch profile), active days, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization, query-volume growth ratio, older-epoch peak concurrency |
 | `max_clusters` | max config, observed max clusters, whole-epoch peak, queue %, queued-query count, p95 capacity wait among queued queries, time at max, peak query concurrency (recent window and whole epoch), busy minutes, query-volume growth ratio, older-epoch peak concurrency |
 | `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization, busy-period start concurrency and busy periods, query-volume growth ratio, older-epoch peak concurrency |
-| `auto_stop_minutes` | current auto-stop, the type's auto-stop values with their net saving, added restarts and added cold-start share (from running idle time), observed running cluster-minutes, kept-alive minutes, running share of the clock, busy share of running time, restart cost, nonprod profile |
+| `auto_stop_minutes` | current auto-stop, the type's auto-stop values with their net saving, added restarts and added cold-start share (from running idle time), observed running cluster-minutes, kept-alive minutes, running share of the clock, busy share of running time, billed days among the recent settled days (billing only, used when no running intervals exist), restart cost, nonprod profile |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), the target type's own best auto-stop and running fraction, source/compatibility evidence |
 
 Common facts include query count, active days, queries per active day, epoch age, epoch query count, cost-history days, and cost variability.
@@ -647,7 +650,7 @@ The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_
 
 Rules shared by several knobs:
 
-- **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW` (max-cluster reduction applies the same test without a code).
+- **Epoch maturity.** A change needs a current epoch at least `current_config_stability_days` old; otherwise the decision carries `CURRENT_CONFIG_EPOCH_TOO_NEW`. A max-cluster reduction carries it only when the recent window would otherwise allow a cut (15.4).
 - **Reliability guard** for every capacity cut (one size down, lower max clusters, lower min clusters, lower auto-stop): a failed/cancelled query share above `failure_cancel_pct_downsize_safe` holds the cut with `FAILURE_CANCEL_RATE_HIGH`, and an unreported share holds it with `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`. Increases are not held by it.
 - **Growth guard** for the size downsize, the max-cluster reduction and the min-cluster reduction: the query-volume growth ratio is the smallest of the last four complete weekly query counts divided by the median of the four weeks before. At or above `growth_hold_weekly_ratio` the cut is `NO_CHANGE` with `QUERY_VOLUME_GROWING`. Using every recent week keeps one month-, quarter- or year-end burst week from looking like growth. The ratio is unknown, and holds nothing, when the epoch has fewer than eight complete weeks or the earlier median is zero. Auto-stop and increases are not held by it.
 - **Older-epoch hold** for the size downsize, the max-cluster reduction and the min-cluster reduction: the cut is `NO_CHANGE` with `OLDER_EPOCH_PEAK_DEMAND_HIGHER` when an earlier configuration of the warehouse within the last 365 days peaked at more clusters of demand than the recent window (10.2). Older epochs never choose a change, its target or its economics.
@@ -755,7 +758,7 @@ target   = max(min_clusters, peak + headroom)
 
 `recent_window_peak` is the highest scale level over the last `pressure_window_days`. `epoch_max_observed_clusters` is the highest scale level over the whole current epoch (`warehouse_events`, retained 365 days), excluding cluster-recycling transients above the configured maximum. In both cases a seasonal peak outside the recent window is not cut away: when the recent window alone would allow a lower ceiling but the epoch peak does not, the ceiling is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW`.
 
-The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. An ineligible ceiling is `NO_CHANGE` without a code.
+The queued-query share must be known and at most `queue_query_pct_safe`, and when some queries queued their capacity wait must be known too; the reliability guard, the growth guard and the older-epoch hold apply. Otherwise the ceiling is held as `NO_CHANGE` with `QUEUE_EVIDENCE_UNAVAILABLE` (queue frequency not reported), `QUEUE_WAIT_EVIDENCE_UNAVAILABLE` (queries queued but capacity wait not reported), the `FAILURE_CANCEL_*` codes, `QUERY_VOLUME_GROWING` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`. A cut the recent window would allow, held only because the epoch is younger than `current_config_stability_days`, is `NO_CHANGE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`, plus `CONCURRENCY_EVIDENCE_UNAVAILABLE` or `INSUFFICIENT_BUSY_MINUTE_SAMPLE` when that demand evidence is also missing. A young epoch with nothing to cut carries no code. Any other ineligible ceiling is `NO_CHANGE` without a code.
 
 An eligible reduction is `ACTIONABLE` as a `COST_GUARDRAIL`, but **no direct savings are assigned**. It invalidates nothing: the new ceiling stays above the observed peak, so no other knob's evidence changes.
 
@@ -816,7 +819,7 @@ The restart cost is the documented start time (about 4 minutes on Pro and Classi
 **Outcomes**, in the order the optimizer checks them:
 
 - Serverless value below its floor: `NO_CHANGE`, left alone;
-- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`;
+- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`, except for a zero-query warehouse that billing shows ran every day: when the epoch is at least `current_config_stability_days` old, no query ran in the last 30 days, the warehouse was billed on every one of the last `pressure_window_days` settled days of the current epoch's forecast basis (at least `current_config_stability_days` of them), the forward DBU cost is known and the lowest auto-stop on the type's grid is below the current value, the decision is `REVIEW` with `NO_QUERIES_WHILE_RUNNING` at that lowest value. The rationale gives the billed days, their billed cost and the forward annual cost. No saving is priced: without a retained warehouse event there is no running time to measure, so the candidate economics are null and the bundle effect is withheld (the plan's economics are null, not zero). The analyzer emits `billed_days_of_settled_days_recent` (billed days, settled days) for this rule;
 - fewer than `min_cluster_minutes_for_cost_model` running cluster-minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`;
 - a lower value removes more running cluster-minutes than the events recorded: `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price;
 - epoch younger than `current_config_stability_days`: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`;
@@ -827,6 +830,8 @@ The restart cost is the documented start time (about 4 minutes on Pro and Classi
 - the chosen value raises auto-stop: `TEST_REQUIRED` with `RESTART_BILLING_UNVERIFIED`, a canary that measures billed cost after the change.
 
 **Non-work activity.** With any outcome, when kept-alive minutes are at least `kept_alive_flag_pct` of running time the decision also carries the advisory `ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING` and its rationale states the share; that time is never priced as removable. The analyzer emits `running_share_of_clock_pct` and `busy_share_of_running_pct` findings for the flags above.
+
+A warehouse whose auto-stop decision carries `NO_QUERIES_WHILE_RUNNING` (either case above) is probably not needed at all, so its warehouse-type migration is `NO_CHANGE` with the same code and no Plan B experiment is built until a review decides whether the warehouse is still needed (15.7).
 
 Auto-stop is evaluated independently of size and min clusters: no other change invalidates it. The size canary does not sequence it either: a size change alters idle gaps only by the change in query durations, and auto-stop is priced on measured gaps.
 
@@ -844,6 +849,8 @@ flowchart LR
 ```
 
 Both directions carry `A_B_COST_PERFORMANCE_VALIDATION_REQUIRED`. Missing observed workspace capability is retained as a blocker/HITL condition (`PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`, `SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES`) rather than removing the branch. When the forward DBU baseline is unknown, or `cost_history_days` is below `min_economics_cost_history_days`, the migration candidate is `INSUFFICIENT_EVIDENCE` with the DBU baseline code instead (11.4).
+
+When the auto-stop decision carries `NO_QUERIES_WHILE_RUNNING` (15.6), the migration is `NO_CHANGE` with that code and no migration is evaluated; Plan B is then "Migration not evaluated" (19.4).
 
 The target type is priced at its own cost-minimizing auto-stop on the same running-idle evidence as 15.6, with the target's floor, restart cost and cold-start budget (Serverless: its floor, a very small restart cost and no budget; Pro: its floor, the long restart cost and the budget). If no value saves money and the current value is valid for the target, the target keeps the current value; if the current value is below the target's floor (a Serverless value under the Pro floor), it takes the best allowed value even when that adds running time. The result is the target's running fraction (17.7). Without running-idle evidence the migration estimate is withheld (`RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`).
 
@@ -980,7 +987,7 @@ raw_uplift = max(0, minutes_at_max * (target_max - current_max) / cluster_minute
 cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, high = 1 + raw_uplift
 ```
 
-The best case is no added cost (factor 1.0). Direct savings are not expected; the range represents a cost increase for performance.
+The best case is no added cost (factor 1.0): the same queries run on more clusters at once, so total running time does not grow. The worst case runs every added cluster whenever the warehouse sat at its ceiling. Direct savings are not expected; the range represents a cost increase for performance.
 
 For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / queries_per_cluster_pro_classic), target)` clusters instead of `min(ceil(level / queries_per_cluster_pro_classic), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
 
@@ -994,7 +1001,7 @@ today_base = annualized cluster-minutes
 today_high = max(today_base, annualized uptime * max_observed_clusters)
 ```
 
-Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and recent/long-window blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
+Uptime and cluster-minutes are annualized from the daily resource series on the DBU forecast's window and recent/long-window blend (`max_observed_clusters` is the window peak excluding recycling transients). All tracks include the baseline forecast trend adjustment. Under the cadence model (11.2) they are annualized over the same whole billing cycles inside event coverage with no trend, and are unavailable (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`) when events cover fewer than `forecast_min_cycles` cycles. Without the series the bounds are unavailable (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`).
 
 The target runs at its own cost-minimizing auto-stop (15.7). Its running fraction is `f = 1 - net(T*) / observed running cluster-minutes`, clamped to [0, `cost_factor_ceiling`], where `net(T*)` is that value's net cluster-minutes saving (zero when the current value is kept). The target's resource range is:
 
@@ -1080,6 +1087,8 @@ knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 ```
 
 `base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). The sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
+
+**Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) after they have run for the epoch-maturity re-evaluation length, so the canary's cost reading is not mixed with their savings. The sentence is text only: step order, `next_action` and savings are unchanged.
 
 ### 19.2 Invalidation behavior
 
@@ -1189,7 +1198,7 @@ flowchart LR
     REM2 --> COST[Scenario DBU/AWS costs]
 ```
 
-Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by that track's current floor. When a lowering auto-stop is applied first (a raise removes no idle time), the chain records the wall-clock idle minutes it removed, and a later min-cluster reduction removes only `max(0, removable_floor_minutes − removed_idle_minutes × (track_floor − target_min))`: a stopped warehouse has no floor cluster to remove.
+Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by that track's current floor. Each auto-stop step records, per track, the net running wall-clock minutes per floor cluster it removed: for a lower auto-stop the idle time removed minus the restarts added, for a higher one the restarts saved minus the idle time added. A later min-cluster reduction removes only `max(0, removable_floor_minutes − auto_stop_wall_minutes × (track_floor − target_min))`: a stopped warehouse has no floor cluster to remove, and the auto-stop effect re-scales to the lower floor. The plan total is the same in either step order on all three tracks.
 
 ### 20.4 Scenario estimate statuses
 

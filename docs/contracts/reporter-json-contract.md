@@ -406,7 +406,7 @@ Cost basis enum:
 
 - `model`: required non-empty string.
 - `confidence`: standard Confidence object.
-- `assumptions`: unique string list; factual/modeling assumptions only.
+- `assumptions`: unique string list; factual/modeling assumptions only. It always states the pricing basis (DBU at the account's list price, AWS at on-demand EC2 rates; *Price semantics* above) and names the DBU forecast model in use: a run rate, or for a periodic workload the average over whole run-to-run billing cycles ([LLD §11.2](../architecture/lld.md)).
 
 ---
 
@@ -616,7 +616,7 @@ Validation type:
 | `selection_reason_code` | code | Yes | No | Stable machine-readable reason |
 | `next_action` | string | Yes | No | Next HITL/workflow action |
 | `requires_hitl` | bool | Yes | No | Explicit approval/validation flag |
-| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity |
+| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity. When the recommended plan has both `READY` approval-only steps and `READY_FOR_CANARY` steps it ends with a sequencing sentence: apply the ready no-canary steps first and start the canary after they have run for the epoch-maturity gate length ([LLD §19.1](../architecture/lld.md)). |
 | `reevaluation` | `ReevaluationWindow` | Yes | **Yes** | Time-clearable gates that currently hide the next step; null once both are clear |
 
 If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it must match this ID.

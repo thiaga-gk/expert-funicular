@@ -561,7 +561,7 @@ Expected next-365-day cost if the current configuration remains unchanged.
 
 This is the primary comparison basis for counterfactual recommendations.
 
-It is published only when known: every day in the current-epoch basis priced, enough billed days in the current epoch (`min_economics_cost_history_days`, see `docs/reference/thresholds.md`), and a positive run rate. Otherwise it is unavailable (null), never $0 or a run rate guessed from a few days, and savings estimates are withheld until it can be forecast.
+It is published only when known: every day in the current-epoch basis priced, enough billed days in the current epoch (`min_economics_cost_history_days`, see `docs/reference/thresholds.md`), and a positive run rate. Otherwise it is unavailable (null), never $0 or a run rate guessed from a few days, and savings estimates are withheld until it can be forecast. A workload that bills only periodically is forecast over whole billing cycles instead of a daily run rate (`docs/architecture/lld.md` section 11.2).
 
 ### 18.3 Candidate counterfactual
 
