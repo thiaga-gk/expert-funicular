@@ -1779,18 +1779,21 @@ def review_and_plan(optimization: OptimizationResult, thresholds: Thresholds) ->
     return results
 
 
-def evaluate_analysis(
-    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
-) -> List[WarehouseOptimization]:
-    """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
-    evidence = analysis.evidence
-    governance = governance if governance is not None else governor.govern(analysis)
-    LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(evidence), batch_size)
+def log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
+    LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(analysis.evidence), batch_size)
     for excluded in governance.exclusions:
         LOGGER.warning(
             "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
+
+
+def evaluate_analysis(
+    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
+) -> List[WarehouseOptimization]:
+    """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
+    governance = governance if governance is not None else governor.govern(analysis)
+    log_pipeline_start(analysis, governance, batch_size)
     return review_and_plan(optimizer.optimize_eligible(governance.eligible, thresholds, batch_size), thresholds)
 
 
@@ -1805,8 +1808,14 @@ def build_packages_from_analysis(
     analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
 ) -> List[rc.RecommendationPackage]:
     """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
+    return build_packages(analysis, evaluate_analysis(analysis, thresholds, batch_size, governance), thresholds)
+
+
+def build_packages(
+    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
+) -> List[rc.RecommendationPackage]:
+    """Assemble one locked public package per reviewed, planned warehouse."""
     evidence = analysis.evidence
-    optimizations = evaluate_analysis(analysis, thresholds, batch_size, governance)
     evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
@@ -1967,7 +1976,9 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     analysis=analyzer.run(context)
     evidence=analysis.evidence; unseen=analysis.unseen_billed_warehouses
     governance=governor.run(context,analysis)
-    packages=build_packages_from_analysis(analysis,t,args.batch_size,governance)
+    log_pipeline_start(analysis,governance,args.batch_size)
+    optimization=optimizer.run(context,analysis,governance)
+    packages=build_packages(analysis,review_and_plan(optimization,t),t)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
