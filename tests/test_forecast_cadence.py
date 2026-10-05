@@ -87,7 +87,7 @@ class CadenceForecastTests(unittest.TestCase):
 
     def test_bi_weekly_and_monthly_forecast_from_whole_cycles(self):
         self.check("bi-weekly", 90, 2607, "CADENCE")  # true 2,623
-        self.check("monthly", 365, 1199, "CADENCE")   # true 1,199
+        self.check("monthly", 365, 1200.66, "CADENCE")  # true 1,199 (the 1 October run starts the basis: not an anchor)
         f = self.check("monthly", 180, 1187, "CADENCE")
         self.assertEqual((f["billing_runs"], f["billing_cycles"]), (5, 4))  # 1 May .. 1 September
         self.assertIsNone(f["cost_cv_84"])
@@ -106,13 +106,51 @@ class CadenceForecastTests(unittest.TestCase):
         for name, age in (("yearly", 365), ("quarterly", 180)):
             f = self.check(name, age, None, "RUN_RATE")
             self.assertEqual(f["dbu_forecast_status"], "INSUFFICIENT_ACTIVE_COST_DAYS", (name, age))
-        self.check("quarterly", 365, 401, "CADENCE")  # true 400, only once the epoch is about a year old
+        self.check("quarterly", 365, 403.31, "CADENCE")  # true 400, only once the epoch is about a year old
 
     def test_unknown_cadence_forecast_withholds_economics_as_too_few_billed_days(self):
         e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C06")
         e.forecast_metadata = dict(e.forecast_metadata, dbu_forecast_status="INSUFFICIENT_BILLING_CYCLES")
         self.assertEqual(p.dbu_baseline_blocker(e, p.Thresholds()), "BILLED_COST_DAYS_INSUFFICIENT")
 
+
+def forecast_fn(fn, age):
+    start = TODAY - dt.timedelta(days=age)
+    rows = []
+    for i in range(age, 0, -1):
+        d = TODAY - dt.timedelta(days=i)
+        c = fn(d, i)
+        if c:
+            rows.append({"usage_date": d.isoformat(), "list_cost": c, "dbu_quantity": c / 0.55, "retracted_dbu_quantity": 0.0,
+                         "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"})
+    return p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), AT)
+
+
+class CadenceClassificationTests(unittest.TestCase):
+    """Only short runs repeating on a current cadence are periodic; long runs with pauses keep the run rate."""
+
+    def test_daily_warehouse_with_a_pause_keeps_the_run_rate(self):
+        for fn, age in ((lambda d, i: 0 if 60 <= i < 70 else 100, 120),        # one 10-day holiday
+                        (lambda d, i: 0 if 270 <= i < 284 else 100, 365),      # two-week year-end shutdown
+                        (lambda d, i: 0 if (100 <= i < 110 or 50 <= i < 60) else (300 if i < 50 else 100), 150),
+                        (lambda d, i: 100 if i == 100 or i <= 60 else 0, 100)):  # one test day, then daily
+            f = forecast_fn(fn, age)
+            self.assertEqual(f["forecast_model"], "RUN_RATE")
+            self.assertIsNotNone(f["forecast_cost_365"])
+
+    def test_a_cadence_that_stopped_is_not_forecast_from_old_cycles(self):
+        # Monthly job last billed on 1 May; the basis ends 29 September: five missed cycles.
+        f = forecast_fn(lambda d, i: 100 if d.day == 1 and d <= dt.date(2026, 5, 1) else 0, 365)
+        self.assertEqual(f["forecast_model"], "RUN_RATE")
+        self.assertIsNone(f["forecast_cost_365"])
+
+    def test_a_run_cut_by_the_basis_start_is_not_a_cycle_anchor(self):
+        # Two-day runs on the 1st and 2nd of each month; the epoch starts on 2 June, inside a run. Anchoring on that
+        # cut run would count half a run for a whole cycle (2,005/yr); whole cycles from 1 July give 2,355 (true 2,400).
+        f = forecast_fn(lambda d, i: 100 if d.day in (1, 2) else 0, (TODAY - dt.date(2026, 6, 2)).days)
+        self.assertEqual(f["forecast_model"], "CADENCE")
+        self.assertEqual(f["cadence_window_start"], "2026-07-01")
+        self.assertAlmostEqual(f["forecast_cost_365"], 400 / 62 * 365, delta=1.0)
 
 class CadenceDemoTests(unittest.TestCase):
     @classmethod

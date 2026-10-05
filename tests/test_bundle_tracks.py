@@ -90,6 +90,22 @@ class BundleTrackFloorTests(unittest.TestCase):
             self.by_knob["auto_stop_minutes"] = saved
         self.assert_same_range(first.total_365d_savings_range, second.total_365d_savings_range)
 
+    def test_order_does_not_matter_when_auto_stop_removes_most_running_time(self):
+        # Auto-stop removing 85% of running cluster-minutes leaves the floor cut little running time to act on: the
+        # overlap is bounded by what the floor cut removes, in either order.
+        a = self.by_knob["auto_stop_minutes"]
+        cm = float(self.e.current_epoch.events["cluster_minutes"])
+        for frac in (0.3, 0.6, 0.85):
+            big = copy.copy(a)
+            big.metadata = dict(a.metadata, bundle_effect=dict(a.metadata["bundle_effect"], gain_cluster_minutes=frac * cm, loss_cluster_minutes=0.0))
+            self.by_knob["auto_stop_minutes"] = big
+            try:
+                first, _ = self.plan("min_clusters", "auto_stop_minutes")
+                second, _ = self.plan("auto_stop_minutes", "min_clusters")
+            finally:
+                self.by_knob["auto_stop_minutes"] = a
+            self.assert_same_range(first.total_365d_savings_range, second.total_365d_savings_range)
+
 
 if __name__ == "__main__":
     unittest.main()

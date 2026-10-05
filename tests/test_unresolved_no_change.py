@@ -73,6 +73,20 @@ class UnresolvedNoChangeTests(unittest.TestCase):
             self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["CURRENT_CONFIG_EPOCH_TOO_NEW"]), days)
             self.assertIn("too new", c.metadata["rationale"])
 
+    def test_young_hold_names_the_evidence_a_mature_epoch_would_also_need(self):
+        e = copy.deepcopy(self.by["C06"])
+        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.query["queued_query_pct_30"] = None  # queue frequency not reported
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+        self.assertEqual(c.blockers, ["CURRENT_CONFIG_EPOCH_TOO_NEW", "QUEUE_EVIDENCE_UNAVAILABLE"])
+
+    def test_young_epoch_whose_queueing_holds_the_cut_anyway_gets_no_age_code(self):
+        e = copy.deepcopy(self.by["C06"])
+        e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()
+        e.current_epoch.query["queued_query_pct_30"] = self.t.queue_query_pct_safe + 1.0  # above safe, below increase
+        c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "max_clusters")
+        self.assertNotIn("CURRENT_CONFIG_EPOCH_TOO_NEW", c.blockers)
+
     def test_young_configuration_with_nothing_to_cut_invents_no_code(self):
         e = copy.deepcopy(self.by["C47"])  # max clusters already at the floor: no cut to hold
         e.current_epoch.epoch_start = (p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=2)).isoformat()

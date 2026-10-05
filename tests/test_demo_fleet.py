@@ -184,6 +184,7 @@ class DemoFleetTests(unittest.TestCase):
         self.assertGreaterEqual(e.forecast_metadata["billing_cycles"], 2)
         self.assertIsNotNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
         self.assertIn("billing cycles", " ".join(pkg["cost_baseline"]["forecast"]["assumptions"]))
+        self.assertEqual(pkg["cost_baseline"]["forecast"]["confidence"]["method"], "current_epoch_billing_cycle_evidence")
 
     def test_plan_summary_puts_no_canary_steps_before_canaries(self):
         # C06: auto-stop (approval only) and a size canary are both ready; applied together, the canary's cost

@@ -322,3 +322,10 @@ class ZeroQueryBilledWithoutEventsTests(unittest.TestCase):
         e = copy.deepcopy(self.e)
         e.current_epoch.query["queries_30"] = 12
         self.assertEqual(self.candidates(e)["auto_stop_minutes"].status, "INSUFFICIENT_EVIDENCE")
+
+    def test_auto_stop_off_is_flagged_too(self):
+        e = copy.deepcopy(self.e)
+        e.current_epoch.config = dataclasses.replace(e.current_epoch.config, auto_stop_minutes=0)
+        by = self.candidates(e)
+        self.assertEqual((by["auto_stop_minutes"].status, by["auto_stop_minutes"].blockers), ("REVIEW", ["NO_QUERIES_WHILE_RUNNING"]))
+        self.assertEqual(by["warehouse_type"].status, "NO_CHANGE")

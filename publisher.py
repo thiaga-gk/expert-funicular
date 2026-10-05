@@ -1867,10 +1867,13 @@ def billed_days_recent(e: "WarehouseEvidence", window_days: int) -> Optional[Dic
         return None
     first = max(start.date(), end.date() - dt.timedelta(days=window_days - 1))
     dbu: Dict[str, float] = {}; cost = 0.0; unpriced = False
+    current_start = e.current_epoch.epoch_start
     for r in e.daily_cost_365:
         day = parse_datetime(r.get("usage_date"))
         if not day or not first <= day.date() <= end.date():
             continue
+        if r.get("epoch_start") is not None and parse_datetime(r.get("epoch_start")) != parse_datetime(current_start):
+            continue  # an older epoch's usage on the current epoch's first day
         key = day.date().isoformat()
         dbu[key] = dbu.get(key, 0.0) + safe_float(r.get("dbu_quantity")) + safe_float(r.get("unpriced_dbu_quantity"))
         cost += safe_float(r.get("list_cost")); unpriced = unpriced or safe_float(r.get("unpriced_dbu_quantity")) > 0
@@ -2278,10 +2281,13 @@ def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
 def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds) -> Dict[str, Any]:
     """Runs of consecutive billed days in a zero-filled daily cost series and their run-to-run cycles.
 
-    periodic: the longest gap between billed days and the median cycle both exceed forecast_cadence_gap_days (with
-    fewer than three runs there is no median, so the gap alone decides). weekly: on that boundary (the gap or the
-    median cycle equals it), where the cadence model is used only when the run rate has no number. The cycle cost is
-    the cost from the first run's first day up to the last run's first day: whole cycles only.
+    periodic: short runs (median run length at most forecast_cadence_gap_days) repeating on a current cadence, with the
+    longest gap between billed days and the median cycle both above forecast_cadence_gap_days (with fewer than three
+    runs there is no median, so the gap alone decides). weekly: on that boundary (the gap or the median cycle equals
+    it), where the cadence model is used only when the run rate has no number. A cadence is current when the last run
+    started no more than one reference cycle (the median, or the only cycle) plus forecast_cadence_gap_days before the
+    basis end. A run that starts on the basis's first day may be cut by it, so it is not a cycle anchor. The cycle cost
+    is the cost from the first anchor run's first day up to the last run's first day: whole cycles only.
     """
     gap_limit = t.forecast_cadence_gap_days
     billed = [i for i, x in enumerate(series) if x > 1e-12]
@@ -2295,16 +2301,21 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
     gap = max((b - a for a, b in zip(billed, billed[1:])), default=None)
     cycles = [b - a for a, b in zip(starts, starts[1:])]
     median = statistics.median(cycles) if len(starts) >= 3 else None
-    periodic = gap is not None and gap > gap_limit and (median is None or median > gap_limit)
-    weekly = (gap is not None and not periodic and gap >= gap_limit and (median is None or median >= gap_limit))
+    short_runs = bool(runs) and statistics.median(len(r) for r in runs) <= gap_limit
+    reference = median if median is not None else (cycles[0] if cycles else None)
+    current = reference is not None and (len(series) - 1 - starts[-1]) <= reference + gap_limit
+    shape = short_runs and current
+    periodic = shape and gap is not None and gap > gap_limit and (median is None or median > gap_limit)
+    weekly = (shape and gap is not None and not periodic and gap >= gap_limit and (median is None or median >= gap_limit))
+    anchors = starts[1:] if starts and starts[0] == 0 else starts
     day = lambda i: (basis_start + dt.timedelta(days=i)).isoformat()
     return {
-        "periodic": periodic, "weekly": weekly, "runs": len(runs), "cycles": max(0, len(runs) - 1),
+        "periodic": periodic, "weekly": weekly, "runs": len(runs), "cycles": max(0, len(anchors) - 1),
         "median_cycle_days": median,
-        "cycle_cost": sum(series[starts[0]:starts[-1]]) if len(starts) >= 2 else 0.0,
-        "cycle_days": (starts[-1] - starts[0]) if len(starts) >= 2 else 0,
-        "window_start": day(starts[0]) if starts else None, "window_end": day(starts[-1]) if starts else None,
-        "run_starts": [day(i) for i in starts],
+        "cycle_cost": sum(series[anchors[0]:anchors[-1]]) if len(anchors) >= 2 else 0.0,
+        "cycle_days": (anchors[-1] - anchors[0]) if len(anchors) >= 2 else 0,
+        "window_start": day(anchors[0]) if anchors else None, "window_end": day(anchors[-1]) if anchors else None,
+        "run_starts": [day(i) for i in anchors],
     }
 
 
@@ -3500,14 +3511,16 @@ class Optimizer:
             )
             base_eligible = cut_shape and age >= self.t.current_config_stability_days
             # A cut the recent window would allow, held only because the configuration is younger than the stability period.
+            # Queueing above the safe level would hold the cut at any age, so it is not an age hold.
             young_hold = (cut_shape and not base_eligible
-                          and (demand_blocker is not None or recent_max < cfg.max_clusters))
+                          and (demand_blocker is not None or recent_max < cfg.max_clusters)
+                          and not (queue_known and f["queue_pct"] > self.t.queue_query_pct_safe))
             eligible = base_eligible and demand_blocker is None and reduced_max < cfg.max_clusters
             held_by_epoch_peak = base_eligible and demand_blocker is None and not eligible and recent_max < cfg.max_clusters
             # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
             # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
             # A cut held for the epoch's peak still names these, so the holds stay visible together.
-            considered = eligible or held_by_epoch_peak
+            considered = eligible or held_by_epoch_peak or young_hold
             evidence_blockers: List[str] = []
             if considered and not queue_known:
                 evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
@@ -3548,7 +3561,8 @@ class Optimizer:
             elif young_hold:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},
-                    ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+([demand_blocker] if demand_blocker else []),["warehouse_size"],[],[],
+                    ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+evidence_blockers+([demand_blocker] if demand_blocker else [])
+                    +(["PEAK_OUTSIDE_RECENT_WINDOW"] if demand_blocker is None and reduced_max >= cfg.max_clusters else []),["warehouse_size"],[],[],
                     f"The current configuration is too new ({age} of {self.t.current_config_stability_days} days) to cut the ceiling; it is re-evaluated once the configuration has run for the stability period."))
             else:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
@@ -3617,7 +3631,7 @@ class Optimizer:
             billed=f.get("billed_recent")
             if (billed and f["queries_30"]==0 and age>=self.t.current_config_stability_days
                     and billed["settled_days"]>=self.t.current_config_stability_days and billed["billed_days"]==billed["settled_days"]
-                    and e.baseline_forecast_cost_365 is not None and min(grid)<cur_auto):
+                    and e.baseline_forecast_cost_365 is not None and (cur_auto==0 or min(grid)<cur_auto)):
                 # Billing shows it ran every settled day with no query, but without retained running intervals no
                 # running hours or idle saving can be measured: a human decides first, and nothing is priced.
                 spent="" if billed["billed_cost"] is None else f" ({billed['billed_cost']:,.0f} {e.currency})"
@@ -4234,6 +4248,10 @@ class _ChainState:
     # idle removed minus restarts added; a higher one: restarts saved minus idle added). A later minimum-cluster cut
     # re-scales that effect to the lower floor, so the plan total does not depend on step order.
     auto_stop_wall_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    # Cluster-minutes an earlier minimum-cluster cut removed, per track: a later auto-stop's saving at the lower floor
+    # gives back at most this much (the overlap of the two is bounded by what the floor cut removed), so the plan total
+    # does not depend on step order even when the floor cut's claim is clamped at zero.
+    floor_cut_minutes: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 class StatefulBundleEstimator:
@@ -4327,11 +4345,17 @@ class StatefulBundleEstimator:
         elif typ=="idle_cluster_minute_reduction":
             # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
             # measured at the floor the candidate saw; both terms scale with the track's current floor.
-            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/max(1,safe_int(effect.get("floor_clusters"),1))
+            floor0=max(1,safe_int(effect.get("floor_clusters"),1))
+            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/floor0
             for i,realization in enumerate(realizations):
-                before=st.resource_tracks[i]; net=unit*st.floor_tracks[i]
-                if before<=0 or net<=0: continue
-                removed=min(before,net*realization)
+                before=st.resource_tracks[i]
+                if before<=0 or unit<=0: continue
+                # The saving at the floor the candidate saw, less its overlap with an earlier floor cut (the floor
+                # clusters that cut already removed), never more than that cut removed.
+                overlap=min(unit*realization*max(0.0,floor0-st.floor_tracks[i]),st.floor_cut_minutes[i])
+                st.floor_cut_minutes[i]-=overlap
+                removed=min(before,unit*floor0*realization-overlap)
+                if removed<=0: continue
                 st.auto_stop_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
@@ -4348,6 +4372,7 @@ class StatefulBundleEstimator:
                 if before<=0: continue
                 claim=max(0.0,theoretical-st.auto_stop_wall_minutes[i]*max(0.0,floor-target_min))
                 removed=min(before,claim*realization)
+                st.floor_cut_minutes[i]+=removed
                 after=max(0.0,before-removed)
                 ratio=after/before
                 st.dbu_tracks[i]*=ratio
@@ -4650,7 +4675,7 @@ def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
     score = round(0.65 * coverage + 0.35 * (stability or 0.0), 6)  # unknown stability earns no credit
     return _contract_confidence(
         {"score": score, "components": {"history_coverage": coverage, "cost_stability": stability}},
-        method="current_epoch_runrate_evidence",
+        method="current_epoch_billing_cycle_evidence" if (e.forecast_metadata or {}).get("forecast_model") == "CADENCE" else "current_epoch_runrate_evidence",
     )
 
 
