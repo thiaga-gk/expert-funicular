@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from publisher.analyzer import analyzer  # noqa: E402
 from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
 from publisher.analyzer.collector.replay import save_evidence  # noqa: E402
-from publisher.config.thresholds import Thresholds  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.contracts.request import MODE_REPLAY, PublisherRequest, RunContext  # noqa: E402
 from publisher.governor import governor  # noqa: E402
 

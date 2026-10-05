@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from publisher.analyzer.epochs import ready_billed_days
 from publisher.common.logging import LOGGER
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import AnalysisResult, FleetAnalysis, WarehouseAnalysis
 from publisher.contracts.candidate import OptimizationDecision, OptimizationResult, WarehouseCandidates
 from publisher.contracts.governance import GovernanceResult

@@ -9,7 +9,7 @@ from publisher.common.hashing import canonical_json
 from publisher.common.time import _iso_z, parse_datetime
 from publisher.common.utils import clamp, optional_float, safe_float, safe_int
 from publisher.config.defaults import SIZE_ORDER
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import (
     ANALYZER_VERSION,
     BUNDLE_MODEL_VERSION,

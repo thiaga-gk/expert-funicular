@@ -9,7 +9,7 @@ from publisher.analyzer.collector.billing import _is_unpriced_only_row, settle_r
 from publisher.analyzer.metrics import whole_weeks
 from publisher.common.time import parse_datetime
 from publisher.common.utils import clamp, optional_float, round_or_none, safe_float
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import MODEL_VERSION
 
 

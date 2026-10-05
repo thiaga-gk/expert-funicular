@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from publisher.analyzer import analyzer  # noqa: E402
 from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
 from publisher.config.defaults import ACTIVE_KNOBS  # noqa: E402
-from publisher.config.thresholds import Thresholds  # noqa: E402
+from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.optimizer import conflicts, optimizer  # noqa: E402
 
 

@@ -82,7 +82,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`, `package.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) the orchestration result (`WarehouseOptimization`), the reviewer results (`CandidateReviewResult`, `PackageReviewResult`) and the Packager result (`PackagingResult`) | No |
 | `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
-| `src/publisher/config/thresholds.py` | `Thresholds`: every decision default (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
+| `src/publisher/governor/thresholds.py` | `Thresholds`: every decision default; the Governor owns the policy parameters because they change what is recommended (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
 | `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
 | `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
 | `src/publisher/contracts/governance.py` | `GovernanceResult`: the eligible analyzed warehouses and the per-warehouse exclusions | No |
@@ -441,7 +441,7 @@ Unknown compatibility evidence is represented as `UNKNOWN` / HITL-required, not 
 
 ## 9. Normalized internal domain contracts
 
-Internal dataclasses are implementation contracts, not public API contracts. They live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`), except `Thresholds`, which lives in `src/publisher/config/thresholds.py`, and `PublisherRequest` and `RunContext`, in `request.py`.
+Internal dataclasses are implementation contracts, not public API contracts. They live in `src/publisher/contracts/` (`source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`), except `Thresholds`, which lives in `src/publisher/governor/thresholds.py`, and `PublisherRequest` and `RunContext`, in `request.py`.
 
 | Contract | Role | Key invariants |
 |---|---|---|

@@ -9,7 +9,7 @@ from publisher.analyzer.epochs import epoch_age_days
 from publisher.analyzer.metrics import cost_stability
 from publisher.common.ids import recommendation_id
 from publisher.common.utils import as_serializable, clamp, round_or_none, safe_float, safe_int
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import ANALYZER_VERSION, OPTIMIZER_VERSION, POLICY_VERSION
 from publisher.contracts.analysis import AnalysisResult
 from publisher.contracts.candidate import CandidateRecommendation, OptimizationDecision, Range3

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from publisher.analyzer.metrics import resource_window
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import EpochEvidence, WarehouseEvidence
 
 

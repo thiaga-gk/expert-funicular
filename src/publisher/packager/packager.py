@@ -8,7 +8,7 @@ from publisher.analyzer.epochs import epoch_age_days
 from publisher.common.hashing import canonical_json
 from publisher.common.logging import LOGGER
 from publisher.common.time import _iso_z
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import (
     ANALYZER_VERSION,
     BUNDLE_MODEL_VERSION,

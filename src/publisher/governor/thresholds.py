@@ -1,4 +1,4 @@
-"""Policy parameters (Thresholds): every decision default, documented in docs/reference/thresholds.md."""
+"""Policy parameters (Thresholds): every decision default the policy engine applies, documented in docs/reference/thresholds.md."""
 from __future__ import annotations
 
 from dataclasses import dataclass

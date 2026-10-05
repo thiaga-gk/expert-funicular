@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 
 MODE_DEMO = "demo"
 MODE_REPLAY = "replay"

@@ -52,7 +52,7 @@ from publisher.common.ids import epoch_id
 from publisher.common.logging import LOGGER
 from publisher.common.time import iso, parse_datetime
 from publisher.common.utils import as_string_list, normalize_map, optional_float, safe_float, safe_int
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import EpochEvidence, WarehouseAttribution, WarehouseConfig, WarehouseEvidence
 
 

@@ -1,7 +1,7 @@
 """Reviewer: one capability with a candidate gate and a scenario/package gate."""
 from __future__ import annotations
 
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.candidate import OptimizationResult
 from publisher.contracts.governance import GovernanceResult

@@ -35,7 +35,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/reporter-json-contract.md`](contracts/reporter-json-contract.md) and `src/publisher/contracts/reporter_contract.py` |
 | Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `src/publisher/contracts/workbook_contract.py` |
 | Replay evidence | [`contracts/evidence-format.md`](contracts/evidence-format.md) |
-| Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `src/publisher/config/thresholds.py` |
+| Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `src/publisher/governor/thresholds.py` |
 | Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/blocker-codes.md`](reference/blocker-codes.md) |
 | Technique IDs | [`reference/technique-catalog.md`](reference/technique-catalog.md) |
 | Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
@@ -53,5 +53,5 @@ For behavior, the code and its tests are authoritative, then the locked contract
 - State a topic once, in its home, and point to it from everywhere else with one sentence.
 - Move a block into its home before replacing it with a pointer.
 - Never delete or renumber a numbered heading that other files cite; replace its body with a pointer.
-- Numbers come from `Thresholds` in `src/publisher/config/thresholds.py` and live only in `reference/thresholds.md`; prose names the parameter.
+- Numbers come from `Thresholds` in `src/publisher/governor/thresholds.py` and live only in `reference/thresholds.md`; prose names the parameter.
 - Describe the current state in generic wording; keep finding and decision IDs out of these documents.

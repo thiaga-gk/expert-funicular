@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from publisher.analyzer.blockers import DBU_BASELINE_WITHHELD, dbu_baseline_blocker
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 from publisher.contracts.candidate import CandidateRecommendation, Range3
 from publisher.contracts.scenario import PRICING_AUTHORITATIVE, PRICING_CONTINGENT, PlanStep, PortfolioEstimate
 from publisher.contracts.source import WarehouseEvidence

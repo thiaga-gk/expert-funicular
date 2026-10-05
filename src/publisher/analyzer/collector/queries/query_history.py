@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE
-from publisher.config.thresholds import Thresholds
+from publisher.governor.thresholds import Thresholds
 
 
 EPOCH_QUERY_METRICS_SQL = r"""
