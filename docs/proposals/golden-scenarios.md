@@ -44,7 +44,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C31 | Multi-region account | Workspaces in several regions | Per-region collection merged by id; billing completeness judged per workspace. | yes | covered | pass | G21 |
 | C32 | Unpriced / promotional SKU | `sku_name` with no `list_prices` row | Cost unavailable (null), never silently dropped. | yes | covered | pass | G2 |
 | C33 | Photon | `product_features.is_photon` | Observe only. | no | covered | pass | — |
-| C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | fail | G28, G24 |
+| C34 | 5X-Large | `cluster_size` 5X-Large (Public Preview) | Never priced without a published rate; an upsize to it is a canary at most. | yes | covered | pass | G28, G24 |
 | C35 | Spot policy | REST `spot_instance_policy` | Not modeled; AWS cost labeled as an on-demand upper bound. | no | covered | pass | S6 |
 | C36 | Tag / rename churn | Snapshot rows with only `tags` or name changed | No new configuration period, no reset of maturity gates or cost history. | yes | covered | pass | G3 |
 | C37 | Month / quarter-end seasonality | Peaks outside the 30-day window | Capacity cuts held when longer-window or prior-period pressure shows a peak. Constructed run: max 8 → 3 proposed weeks before a known quarter-end peak. | yes | covered | pass | G33 |
@@ -52,12 +52,12 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | C39 | Dev / test warehouses | Tags or owner mark nonprod | Versioned tag-based policy profile (for example a relaxed cold-start budget). | yes | covered | pass | G38 |
 | C40 | Serverless budget / usage policies | `usage_policy_id` | Attribution only; not evaluated. | no | not covered | pass | — |
 | C41 | Genie / AI-BI dashboards | `query_source.genie_space_id`, dashboard ids | Never propose a type Genie cannot use (only Pro or Serverless targets). | yes | covered | pass | — |
-| C42 | Queue near the 1,000 limit | Very high queued counts | Max from concurrency; size only if spill is also present. | yes | covered | fail | K2, G39 |
+| C42 | Queue near the 1,000 limit | Very high queued counts | Max from concurrency; size only if spill is also present. | yes | covered | pass | K2, G39 |
 | C43 | Serverless networking / egress | Billing network usage | Excluded from economics and stated as excluded. | no | not covered | fail | OOS |
 | C44 | Result fetch / open sessions keep warehouse active | Activity after query end | Flag the client; idle measured on actual running time. | yes | covered | pass | G40, M1 |
 | C45 | Steady 24/7 Pro at high utilization | `cluster_count` steady at 2, continuous queries, 100% of time at min | No floor cut (load needs about 1.6 clusters); no auto-stop change with zero savings; Serverless canary plausible. | yes | covered | pass | K3, S1, G26 |
-| C46 | Queueing below the ceiling | High queue %, long capacity wait, time at max just under 5% | A reason code for unresolved queueing; floor or scale-up lag evaluated. Constructed run: 40% queued with 4% time at max gives a silent no-change. | yes | covered | fail | G39, M3b, K3 |
-| C47 | Already at the smallest size | 2X_SMALL, low latency, no spill | No-change with an explicit "already smallest" reason. | yes | covered | fail | G39 |
+| C46 | Queueing below the ceiling | High queue %, long capacity wait, time at max just under 5% | A reason code for unresolved queueing; floor or scale-up lag evaluated. Constructed run: 47.5% queued with 4.9% time at max gives no-change with a queueing-below-the-ceiling code and the burst demand against the floor. | yes | covered | pass | G39, M3b, K3 |
+| C47 | Already at the smallest size | 2X_SMALL, low latency, no spill | No-change with an explicit "already smallest" reason. | yes | covered | pass | G39 |
 | C48 | Long-unchanged warehouse | Last configuration change over 365 days ago | Still discovered and analyzed. | yes | covered | pass | G4 |
 | C49 | Auto-stop too low | Pro auto-stop 10, many starts, long compute waits | Auto-stop raised when the restarts it saves outweigh the idle time added. | yes | covered | pass | K1 |
 | C50 | Single-cluster warehouse with heavy queueing | `max_clusters = 1`, 40% queued | Max set to peak demand + 1 in one move (about 19 concurrent queries: 1 → 3); base cost about double (demand fills a second cluster all day), worst case about triple. | yes | covered | pass | G35 |
@@ -72,7 +72,7 @@ The `--demo` fleet has one simulated warehouse per scenario listed in `publisher
 | A05 | Region or networking blocks Serverless | No Serverless in region; custom networking | No migration proposed; region check unknown unless verified. | yes | covered | pass | G41 |
 | A06 | Starter warehouse left running | Auto-created default warehouse idle | Treated as always-on or zero-query idle. | yes | covered | pass | G8, K1 |
 | A07 | Billing freshness | Last day partially ingested | Days used only once settled (24 h after the day ends and past the workspace watermark). | yes | covered | pass | G21, S2 |
-| A08 | Owner attribution | `identity_metadata.owned_by` | Owner reported; redacted values become unknown. | yes | covered | fail | G13 |
+| A08 | Owner attribution | `identity_metadata.owned_by` | Owner reported; redacted values become unknown. | yes | covered | pass | G13 |
 | A09 | Statement-timeout change restarts warehouse | — | Never touched. | no | not covered | pass | — |
 | A10 | Scheduled dashboard refresh keeps warehouse alive | Regular dashboard-sourced queries | Refresh schedule flagged. | yes | covered | pass | G40 |
 | A11 | Cache warm-up after stop | Slow first queries after restart | Restart cost includes warm-up. | yes | covered | pass | K1 |
