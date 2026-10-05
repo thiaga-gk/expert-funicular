@@ -44,6 +44,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENCE_SCHEMA_PATH  # noqa: F401
 from publisher.analyzer import analyzer
 from publisher.governor import governor
+from publisher.optimizer import optimizer
+from publisher.contracts.candidate import OptimizationResult
 from publisher.governor.compatibility import migration_compatibility
 from publisher.contracts.governance import GovernanceResult
 from publisher.config.loader import _resolve_execution_args, request_from_args  # noqa: F401
@@ -148,6 +150,21 @@ from publisher.governor.eligibility import (  # noqa: F401
 from publisher.governor.constraints import (  # noqa: F401
     aws_region_price_guard,
 )
+from publisher.optimizer.optimizer import (  # noqa: F401
+    Optimizer,
+)
+from publisher.optimizer.techniques.size import (  # noqa: F401
+    next_size, previous_size,
+)
+from publisher.optimizer.techniques.scaling import (  # noqa: F401
+    MAX_INCREASE_COST_BOUNDS,
+)
+from publisher.optimizer.estimator.cost import (  # noqa: F401
+    aws_cluster_hourly_from_evidence, resolve_target_sku_price, validated_size_rate_ratio,
+)
+from publisher.optimizer.estimator.candidate import (  # noqa: F401
+    Estimator,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -160,75 +177,6 @@ from publisher.governor.constraints import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-def aws_cluster_hourly_from_evidence(e: WarehouseEvidence, size: str) -> Tuple[Optional[float], Dict[str, Any]]:
-    topology = AWS_SQL_WAREHOUSE_TOPOLOGY.get(size)
-    prices = e.aws_cost_model.get("region_instance_prices") if isinstance(e.aws_cost_model, Mapping) else None
-    if not topology or not isinstance(prices, Mapping):
-        return None, {"status": "UNAVAILABLE", "blocker": "AWS_PRICE_EVIDENCE_NOT_AVAILABLE", "warehouse_size": size, "region": e.source_region}
-    driver = str(topology["driver"]); worker_type = "i3.2xlarge"; workers = int(topology["workers"])
-    if driver not in prices or worker_type not in prices:
-        return None, {"status": "UNAVAILABLE", "blocker": "AWS_INSTANCE_PRICE_MISSING", "driver": driver, "worker": worker_type, "region": e.source_region}
-    hourly = safe_float(prices[driver]) + workers * safe_float(prices[worker_type])
-    return round(hourly, 6), {"status": "MODELED", "region": e.source_region, "warehouse_size": size, "driver": driver, "workers": workers, "worker_type": worker_type, "cluster_hourly_price": round(hourly, 6)}
-
-
-def resolve_target_sku_price(sql_sku_prices: Mapping[str, Any], target_type: str) -> Tuple[Optional[float], Dict[str, Any]]:
-    target = str(target_type).upper()
-    candidates: List[Tuple[str, float]] = []
-    for name, payload in sql_sku_prices.items():
-        if classify_sql_sku(name) != target:
-            continue
-        price = payload.get("effective_list_price") if isinstance(payload, Mapping) else payload
-        if price is not None:
-            candidates.append((name, safe_float(price)))
-    distinct = sorted({round(v, 10) for _, v in candidates})
-    if not candidates:
-        return None, {"status": "UNAVAILABLE", "blocker": "TARGET_SQL_SKU_PRICE_NOT_FOUND", "target_type": target}
-    if len(distinct) != 1:
-        return None, {"status": "UNAVAILABLE", "blocker": "AMBIGUOUS_TARGET_SQL_SKU_PRICE", "target_type": target, "candidates": candidates}
-    return distinct[0], {"status": "RESOLVED", "target_type": target, "unit_price_per_dbu": distinct[0], "sku_names": [n for n, _ in candidates]}
-
-
-# Why a ceiling increase's best case is zero added cost, stated with the candidate and its pricing method.
-MAX_INCREASE_COST_BOUNDS = ("Cost: the best case adds no cost, because the same queries run on more clusters at once and the "
-                            "total running time does not grow; the worst case runs every added cluster whenever the warehouse "
-                            "sat at its current ceiling.")
-
-
-def previous_size(size: str) -> Optional[str]:
-    if size not in SIZE_ORDER:
-        return None
-    i = SIZE_ORDER.index(size)
-    return SIZE_ORDER[i - 1] if i > 0 else None
-
-
-def next_size(size: str) -> Optional[str]:
-    if size not in SIZE_ORDER:
-        return None
-    i = SIZE_ORDER.index(size)
-    return SIZE_ORDER[i + 1] if i < len(SIZE_ORDER) - 1 else None
-
-
-def validated_size_rate_ratio(rates: Mapping[str, float], current: str, target: str, band: float) -> Tuple[Optional[float], str]:
-    """Target/current DBU-per-cluster-hour ratio from a workspace's billed rates, or None with the reason it is unusable.
-
-    Usable only when the observed rates rise with size and the pair ratio is within `band` of the published size
-    ratio; otherwise a guessed ratio could price a downsize as an upsize.
-    """
-    observed = sorted((SIZE_ORDER.index(s), safe_float(r)) for s, r in rates.items() if s in SIZE_ORDER and safe_float(r) > 0)
-    if any(later <= earlier for (_, earlier), (_, later) in zip(observed, observed[1:])):
-        return None, "RATES_NOT_RISING_WITH_SIZE"
-    if safe_float(rates.get(current)) <= 0 or safe_float(rates.get(target)) <= 0:
-        return None, "SIZE_RATE_NOT_OBSERVED"
-    published_cur, published_target = SQL_DBU_PER_CLUSTER_HOUR.get(current), SQL_DBU_PER_CLUSTER_HOUR.get(target)
-    if not (published_cur and published_target):
-        return None, "NO_PUBLISHED_SIZE_RATE"
-    ratio = safe_float(rates[target]) / safe_float(rates[current])
-    if abs(ratio / (published_target / published_cur) - 1.0) > band:
-        return None, "OUTSIDE_PUBLISHED_RATIO_BAND"
-    return ratio, "VALIDATED"
-
-
 # ---------------------------------------------------------------------------
 # Analyzer: facts and evidence only; no config recommendations.
 # ---------------------------------------------------------------------------
@@ -238,835 +186,11 @@ def validated_size_rate_ratio(rates: Mapping[str, float], current: str, target: 
 # Optimizer: config decisions only. No cost arithmetic.
 # ---------------------------------------------------------------------------
 
-class Optimizer:
-    """Apply deterministic policy thresholds to analyzer facts and propose config decisions."""
-    def __init__(self, thresholds: Thresholds):
-        self.t = thresholds
-
-    def _ceiling_for(self, level: int, min_clusters: int) -> int:
-        """Ceiling for an observed peak: the peak plus headroom, never below the minimum."""
-        headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
-        return max(min_clusters, level + headroom)
-
-    def _growing(self, facts: Mapping[str, Any]) -> bool:
-        ratio = facts.get("growth_ratio")
-        return ratio is not None and ratio >= self.t.growth_hold_weekly_ratio
-
-    def optimize(self, e: WarehouseEvidence, analyses: Dict[str, AnalysisResult]) -> List[OptimizationDecision]:
-        cfg = e.current_epoch.config
-        # Readiness: the current configuration has run for enough settled billed days (not a fixed calendar age).
-        billed_days = ready_billed_days(e)
-        young = billed_days < self.t.readiness_min_billed_days
-        out: List[OptimizationDecision] = []
-
-        # Size
-        a = analyses["warehouse_size"]; f=a.facts
-        blockers: List[str] = []
-        if cfg.warehouse_size not in SIZE_ORDER:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","BLOCKED",
-                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["UNKNOWN_WAREHOUSE_SIZE"],
-                [],[],[],"Warehouse size is outside the known deterministic ordering."))
-        elif f["spill_pct"] is not None and f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] is None:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_SEVERITY_EVIDENCE_UNAVAILABLE"],[],[],[],
-                "Spill frequency crosses the upsize threshold, but spill severity was not reported (older collector evidence); no resize is recommended."))
-        elif f["spill_pct"] is not None and f["spill_pct"] >= self.t.spill_query_pct_upsize and f["spill_p95"] >= self.t.spill_p95_bytes_upsize:
-            target = next_size(cfg.warehouse_size)
-            # Spill frequency/severity are only trustworthy with a minimum sample from a mature config epoch.
-            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            # Spill and latency are measured on executed queries (not result-cache hits); so is the sample.
-            if f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
-            elif f["decision_queries"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
-            if f["spill_n"] < self.t.severity_min_affected_queries: blockers.append("INSUFFICIENT_AFFECTED_QUERY_SAMPLE")
-            concentrated = f.get("top_spill_share") is not None and f["top_spill_share"] >= self.t.spill_concentration_hold_pct
-            if not blockers and f.get("top_spill_share") is None:
-                blockers.append("SPILL_CONCENTRATION_EVIDENCE_UNAVAILABLE")
-            if target and not blockers and concentrated:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","NO_CHANGE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["SPILL_CONCENTRATED_IN_FEW_STATEMENTS"],[],[],[],
-                    f"{f['top_spill_share']:g}% of spilled bytes come from {self.t.spill_concentration_top_sources} or fewer statement sources ({f['spill_sources']} spilled in all): rewrite those statements; a larger size for every query is the expensive fix."))
-            elif target and blockers:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
-                    "Spill crosses the upsize thresholds, but the query sample, spilled-query count or config epoch is too small/new to act on; no resize is recommended."))
-            elif target:
-                # The speed-up and its cost are modeled, not observed: one size up is a latency/cost canary.
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","TEST_REQUIRED",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],[],
-                    ["max_clusters","min_clusters"],["max_clusters","min_clusters"],
-                    "Spill frequency and severity both cross the deterministic upsize thresholds; one size up as a canary validates the speed-up and its cost."))
-            else:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","PERFORMANCE","BLOCKED",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},["ALREADY_AT_MAX_KNOWN_SIZE"],
-                    [],[],[],"Spill pressure exists but the warehouse is already at the largest known size."))
-        else:
-            target = previous_size(cfg.warehouse_size)
-            batch = f.get("batch_profile")
-            if target is None: blockers.append("ALREADY_AT_SMALLEST_SIZE")
-            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if batch:
-                # Batch: one run a day is enough evidence; the canary measures job run time instead of interactive latency.
-                if f["active_days_30"] < self.t.batch_min_active_days: blockers.append("INSUFFICIENT_BATCH_RUN_DAYS")
-            elif f["decision_queries"] is None: blockers.append("DECISION_QUERY_EVIDENCE_UNAVAILABLE")
-            elif f["decision_queries"] < self.t.strong_query_sample_size: blockers.append("INSUFFICIENT_STRONG_QUERY_SAMPLE")
-            if f["spill_pct"] is None: blockers.append("SPILL_EVIDENCE_UNAVAILABLE")
-            elif f["spill_pct"] > self.t.spill_query_pct_downsize_safe: blockers.append("SPILL_PRESENT")
-            if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
-            elif f["queue_pct"] > self.t.queue_query_pct_safe: blockers.append("QUEUE_PRESSURE_PRESENT")
-            blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            if not batch:
-                if f["p95_exec"] is None or f["p99_exec"] is None: blockers.append("LATENCY_EVIDENCE_UNAVAILABLE")
-                if f["p95_exec"] is not None and f["p95_exec"] > self.t.p95_execution_ms_downsize_safe: blockers.append("P95_LATENCY_TOO_HIGH")
-                if f["p99_exec"] is not None and f["p99_exec"] > self.t.p99_execution_ms_downsize_safe: blockers.append("P99_LATENCY_TOO_HIGH")
-            # Seasonality: the canary's 30-day evidence cannot see a peak the epoch reached beyond the recent ceiling.
-            mf = analyses["max_clusters"].facts
-            if mf.get("max_observed") is not None and mf.get("epoch_max_observed") is not None \
-                    and safe_int(mf["epoch_max_observed"]) > self._ceiling_for(safe_int(mf["max_observed"]), cfg.min_clusters):
-                blockers.append("PEAK_OUTSIDE_RECENT_WINDOW")
-            if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
-            if f.get("older_epoch_demand_higher"): blockers.append("OLDER_EPOCH_PEAK_DEMAND_HIGHER")
-            if target and not blockers:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST","TEST_REQUIRED",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":target},["A_B_PERFORMANCE_VALIDATION_REQUIRED"],
-                    [],["max_clusters","min_clusters"],
-                    ["max_clusters","min_clusters"],
-                    ("A batch warehouse (mostly job queries) with no spill or queueing: one size down is a canary that measures job run times; absence of pressure is not proof the jobs still finish in their windows." if batch else
-                     "Low spill, queueing, and latency make one-size down a controlled canary candidate; absence of pressure is not proof of SLA safety.")))
-            else:
-                out.append(OptimizationDecision(e.warehouse_id,"warehouse_size","COST_AND_PERFORMANCE","NO_CHANGE",
-                    {"warehouse_size":cfg.warehouse_size},{"warehouse_size":cfg.warehouse_size},blockers,[],[],[],
-                    f"Already at the smallest size ({cfg.warehouse_size}); nothing calls for a larger one." if blockers==["ALREADY_AT_SMALLEST_SIZE"] else
-                    "No deterministic upsize signal and downsize safety criteria are not all satisfied."))
-
-        # Max clusters
-        a=analyses["max_clusters"]; f=a.facts
-        window_known = f["at_max_pct"] is not None and f["max_observed"] is not None
-        saturated = window_known and f["at_max_pct"] >= self.t.time_at_max_pct_saturated
-        queue_known = f["queue_pct"] is not None
-        if queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is None and saturated:
-            out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"],
-                ["warehouse_size"],[],[],"Queueing and saturation cross the increase thresholds, but capacity-wait severity was not reported (older collector evidence); no change is recommended."))
-        elif queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and saturated:
-            if cfg.max_clusters >= self.t.max_clusters_supported_limit:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
-                    ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
-            elif f["queue_n"] < self.t.severity_min_affected_queries or young or f["queries_30"] < self.t.min_query_sample_size:
-                # Like every other change: a mature configuration epoch, a query sample and enough queued queries.
-                gates=[code for code,hit in (
-                    ("CURRENT_CONFIG_EPOCH_TOO_NEW",young),
-                    ("INSUFFICIENT_QUERY_SAMPLE",f["queries_30"] < self.t.min_query_sample_size),
-                    ("INSUFFICIENT_AFFECTED_QUERY_SAMPLE",f["queue_n"] < self.t.severity_min_affected_queries)) if hit]
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},gates,
-                    ["warehouse_size"],[],[],"Queueing crosses the increase thresholds, but the configuration epoch, query sample or queued-query count is too new/small to act on; no change is recommended."))
-            elif cfg.warehouse_type!="SERVERLESS" and not f["concurrency_available"]:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["CONCURRENCY_EVIDENCE_UNAVAILABLE"],["warehouse_size"],[],[],
-                    "Queueing crosses the increase thresholds, but per-minute concurrency was not collected (older evidence), so the target cannot be derived."))
-            elif cfg.warehouse_type!="SERVERLESS" and safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","INSUFFICIENT_EVIDENCE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["INSUFFICIENT_BUSY_MINUTE_SAMPLE"],["warehouse_size"],[],[],
-                    "Queueing crosses the increase thresholds, but too few busy minutes support a peak-concurrency target."))
-            else:
-                # Pro/Classic: one move to the demand-derived ceiling (peak running + queued queries per cluster, plus
-                # headroom). Serverless scales differently, so it keeps one step at a time (at low confidence).
-                demand = max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters)
-                target = min(self.t.max_clusters_supported_limit, demand) if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1
-                capped = cfg.warehouse_type!="SERVERLESS" and demand > self.t.max_clusters_supported_limit
-                if target <= cfg.max_clusters:
-                    out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_WITH_DEMAND_WITHIN_CEILING"],["warehouse_size"],[],[],
-                        f"Queries queue, but peak demand ({f['peak_concurrency_recent']} concurrent queries) fits the current ceiling: the queueing is not caused by the ceiling."))
-                else:
-                    out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","ACTIONABLE",
-                        {"max_clusters":cfg.max_clusters},{"max_clusters":target},["PEAK_DEMAND_ABOVE_CLUSTER_LIMIT"] if capped else [],["warehouse_size"],["min_clusters"],["min_clusters"],
-                        ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
-                         "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
-                        + " " + MAX_INCREASE_COST_BOUNDS
-                        + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
-        elif not window_known:
-            # Without recent resource time neither saturation nor the unused ceiling can be judged.
-            missing = f["resource_window_state"] == "MISSING"
-            out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},[RESOURCE_WINDOW_BLOCKERS[f["resource_window_state"]]],["warehouse_size"],[],[],
-                "The recent resource window was not collected (or has no settled day yet), so the ceiling is not changed." if missing else
-                "The warehouse did not run in the recent window, so the ceiling is not changed."))
-        else:
-            peak = safe_int(f["max_observed"])
-            epoch_peak = f.get("epoch_max_observed")
-            demand_blocker: Optional[str] = None
-            if cfg.warehouse_type!="SERVERLESS":
-                # Pro/Classic: the ceiling is the demand-derived target; the whole current epoch's peak demand keeps it
-                # for a seasonal peak outside the recent window.
-                def target_for(clusters: Optional[int]) -> int:
-                    return min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
-                if not f["concurrency_available"]:
-                    demand_blocker = "CONCURRENCY_EVIDENCE_UNAVAILABLE"
-                elif safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:
-                    demand_blocker = "INSUFFICIENT_BUSY_MINUTE_SAMPLE"
-                recent_max = target_for(f["required_clusters_recent"])
-                reduced_max = (target_for(max(safe_int(f["required_clusters_recent"]), safe_int(f["required_clusters_epoch"])))
-                               if f.get("epoch_peak_outside_recent") else recent_max)
-                epoch_peak_label = f"{f['peak_concurrency_epoch']} concurrent queries"
-            else:
-                def ceiling_for(level: int) -> int:
-                    return self._ceiling_for(level, cfg.min_clusters)
-                # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent
-                # window, so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
-                recent_max = ceiling_for(peak)
-                reduced_max = ceiling_for(max(peak, safe_int(epoch_peak)) if epoch_peak is not None else peak)
-                epoch_peak_label = f"{safe_int(epoch_peak)} cluster(s)"
-            cut_shape = (
-                window_known and cfg.max_clusters > cfg.min_clusters
-                and f["queries_30"] >= self.t.min_query_sample_size
-                and f["at_max_pct"] <= self.t.time_at_max_pct_safe_reduce and peak > 0
-            )
-            base_eligible = cut_shape and not young
-            # A cut the recent window would allow, held only because the configuration is younger than the stability period.
-            # Queueing above the safe level would hold the cut at any age, so it is not an age hold.
-            young_hold = (cut_shape and not base_eligible
-                          and (demand_blocker is not None or recent_max < cfg.max_clusters)
-                          and not (queue_known and f["queue_pct"] > self.t.queue_query_pct_safe))
-            eligible = base_eligible and demand_blocker is None and reduced_max < cfg.max_clusters
-            held_by_epoch_peak = base_eligible and demand_blocker is None and not eligible and recent_max < cfg.max_clusters
-            # Missing evidence is named only when it is what holds an otherwise eligible cut: queueing must be known to
-            # be low, and when queries did queue (within the safe level) their capacity wait must be known too.
-            # A cut held for the epoch's peak still names these, so the holds stay visible together.
-            considered = eligible or held_by_epoch_peak or young_hold
-            evidence_blockers: List[str] = []
-            if considered and not queue_known:
-                evidence_blockers = ["QUEUE_EVIDENCE_UNAVAILABLE"]
-            elif considered and 0 < f["queue_pct"] <= self.t.queue_query_pct_safe and f["wait_capacity"] is None:
-                evidence_blockers = ["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"]
-            if considered and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe:
-                evidence_blockers = evidence_blockers + failure_blockers(f["failure_pct"], self.t)
-            if considered and self._growing(f):
-                evidence_blockers = evidence_blockers + ["QUERY_VOLUME_GROWING"]
-            if considered and f.get("older_epoch_demand_higher"):
-                evidence_blockers = evidence_blockers + ["OLDER_EPOCH_PEAK_DEMAND_HIGHER"]
-            if base_eligible and demand_blocker is not None:
-                evidence_blockers = evidence_blockers + [demand_blocker]
-            reduce_ok = eligible and queue_known and f["queue_pct"] <= self.t.queue_query_pct_safe and not evidence_blockers
-            if reduce_ok:
-                target=reduced_max
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],[],[],
-                    "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
-            elif held_by_epoch_peak:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],
-                    f"The recent window would allow a lower ceiling, but the current configuration has peaked at {epoch_peak_label}; the ceiling is kept for that peak."))
-            elif (not evidence_blockers and not saturated and queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max
-                  and not (f["wait_capacity"] is not None and f["wait_capacity"] < self.t.queue_wait_p95_ms_increase_max)):
-                # Queueing the ceiling rule does not resolve: the warehouse rarely reaches its ceiling, so the queue
-                # forms while clusters are still being added (scale-up lag on short bursts).
-                demand = ""
-                if cfg.warehouse_type!="SERVERLESS" and f["concurrency_available"] and f.get("peak_concurrency_recent") is not None:
-                    demand = f" Peak demand is {f['peak_concurrency_recent']} concurrent queries ({f['required_clusters_recent']} clusters)"
-                    demand += (f", and busy periods start with {f['busy_start_concurrency']} ({f['required_clusters_busy_start']} clusters) on a floor of {cfg.min_clusters}."
-                               if f.get("busy_start_concurrency") is not None else ".")
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_BELOW_CEILING"],["warehouse_size"],[],[],
-                    f"{f['queue_pct']:.1f}% of queries queued, but the warehouse was at its ceiling of {cfg.max_clusters} clusters only {f['at_max_pct']:.1f}% of the time.{demand}"
-                    " Clusters are added minutes after a burst starts (scale-up lag), so short bursts queue before the ceiling is reached;"
-                    " a higher floor would absorb burst starts at the cost of running those clusters all the time, which is a human decision."))
-            elif young_hold:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},
-                    ["CURRENT_CONFIG_EPOCH_TOO_NEW"]+evidence_blockers+([demand_blocker] if demand_blocker else [])
-                    +(["PEAK_OUTSIDE_RECENT_WINDOW"] if demand_blocker is None and reduced_max >= cfg.max_clusters else []),["warehouse_size"],[],[],
-                    f"The current configuration is not ready yet ({billed_days} of {self.t.readiness_min_billed_days} settled billed days) to cut the ceiling; it is re-evaluated once it is."))
-            else:
-                out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
-                    {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers,["warehouse_size"],[],[],
-                    "Queue, failure or growth evidence holds the ceiling cut." if evidence_blockers else
-                    "No sustained saturation requiring an increase and no strong evidence for a lower ceiling."))
-
-        # Min clusters
-        a=analyses["min_clusters"]; f=a.facts
-        if cfg.min_clusters <= 1:
-            out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
-                {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},[],["warehouse_size","max_clusters"],[],[],"Minimum is already 1."))
-        else:
-            blockers=[]
-            if young: blockers.append("CURRENT_CONFIG_EPOCH_TOO_NEW")
-            if f["queries_30"] < self.t.min_query_sample_size: blockers.append("INSUFFICIENT_QUERY_SAMPLE")
-            if f["queue_pct"] is None: blockers.append("QUEUE_EVIDENCE_UNAVAILABLE")
-            elif f["queue_pct"] > self.t.queue_query_pct_safe or (f["wait_capacity"] is not None and f["wait_capacity"] > self.t.queue_wait_p95_ms_safe): blockers.append("QUEUE_PRESSURE_PRESENT")
-            if f["wait_capacity"] is None: blockers.append("QUEUE_WAIT_EVIDENCE_UNAVAILABLE")
-            if f["at_max_pct"] is None or f["at_min_pct"] is None: blockers.append(RESOURCE_WINDOW_BLOCKERS.get(f["resource_window_state"], "RECENT_RESOURCE_WINDOW_UNAVAILABLE"))
-            else:
-                # A pinned warehouse (min = max) always runs at its maximum: fixed capacity, so pressure is judged on
-                # queueing only.
-                if f["at_max_pct"] >= self.t.time_at_max_pct_block_min_reduce and cfg.min_clusters < cfg.max_clusters: blockers.append("SUSTAINED_SCALE_PRESSURE")
-                if f["at_min_pct"] < self.t.time_at_min_pct_reduce: blockers.append("WAREHOUSE_RARELY_AT_MINIMUM")
-            blockers.extend(failure_blockers(f["failure_pct"], self.t))
-            if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
-            if f.get("older_epoch_demand_higher"): blockers.append("OLDER_EPOCH_PEAK_DEMAND_HIGHER")
-            # The floor carries busy-period starts until the autoscaler adds clusters (scale-up lag): the smallest
-            # floor covering the P95 busy-start demand, in one canary.
-            floor_target = None
-            if not f["concurrency_available"]:
-                blockers.append("CONCURRENCY_EVIDENCE_UNAVAILABLE")
-            elif safe_float(f["busy_periods_recent"]) < self.t.min_cluster_min_busy_periods:
-                blockers.append("INSUFFICIENT_BUSY_PERIOD_SAMPLE")
-            else:
-                floor_target = max(1, safe_int(f["required_clusters_busy_start"], 1))
-            if not blockers and floor_target is not None and floor_target < cfg.min_clusters:
-                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","TEST_REQUIRED",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":floor_target},
-                    ["A_B_PERFORMANCE_VALIDATION_REQUIRED","SPARE_FLOOR_CAPACITY_UNPROVEN"],["warehouse_size","max_clusters"],
-                    [],[],
-                    f"Busy periods start with at most {f['busy_start_concurrency']} concurrent queries (P{self.t.min_cluster_busy_start_percentile:g}), which {floor_target} cluster(s) carry until the autoscaler adds more; the floor moves there in one canary and its savings are an upper-bound range."))
-            elif not blockers:
-                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},[],["warehouse_size","max_clusters"],[],[],
-                    f"Busy periods start with {f['busy_start_concurrency']} concurrent queries (P{self.t.min_cluster_busy_start_percentile:g}), which needs the current floor."))
-            else:
-                out.append(OptimizationDecision(e.warehouse_id,"min_clusters","COST","NO_CHANGE",
-                    {"min_clusters":cfg.min_clusters},{"min_clusters":cfg.min_clusters},blockers,["warehouse_size","max_clusters"],[],[],
-                    "Minimum-cluster reduction is not sufficiently supported by current-epoch evidence."))
-
-        # Auto stop: jump to the cost-minimizing value on the type's grid.
-        a=analyses["auto_stop_minutes"]; f=a.facts; cur_auto=cfg.auto_stop_minutes
-        def auto_stop(status:str,target:int,blockers:List[str],rationale:str)->None:
-            # Non-work activity is reported with every outcome; no auto-stop value removes it, so nothing is priced.
-            if f.get("kept_alive_pct") is not None and f["kept_alive_pct"]>=self.t.kept_alive_flag_pct:
-                blockers=blockers+["ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING"]
-                rationale+=f" {f['kept_alive_pct']:g}% of running time came after the auto-stop should have stopped the warehouse, with no query running (open sessions, result fetching or keep-alive)."
-            out.append(OptimizationDecision(e.warehouse_id,"auto_stop_minutes","COST",status,
-                {"auto_stop_minutes":cur_auto},{"auto_stop_minutes":target},sorted(set(blockers)),[],[],[],rationale))
-        grid=f["grid"]; options={o["target"]:o for o in f["options"]}
-        if cfg.warehouse_type=="SERVERLESS" and 0<cur_auto<min(grid):
-            auto_stop("NO_CHANGE",cur_auto,[],"Serverless auto-stop is below the lowest value the console offers (set through the API); it is left alone.")
-        elif not f["running_available"]:
-            billed=f.get("billed_recent")
-            if (billed and f["queries_30"]==0 and not young
-                    and billed["settled_days"]>=self.t.min_economics_cost_history_days and billed["billed_days"]==billed["settled_days"]
-                    and e.baseline_forecast_cost_365 is not None and (cur_auto==0 or min(grid)<cur_auto)):
-                # Billing shows it ran every settled day with no query, but without retained running intervals no
-                # running hours or idle saving can be measured: a human decides first, and nothing is priced.
-                spent="" if billed["billed_cost"] is None else f" ({billed['billed_cost']:,.0f} {e.currency})"
-                auto_stop("REVIEW",min(grid),["NO_QUERIES_WHILE_RUNNING"],
-                    f"The warehouse was billed on {billed['billed_days']} of the last {billed['settled_days']} settled days{spent} with no query in the last 30 days; "
-                    f"its forward cost is {e.baseline_forecast_cost_365:,.0f} {e.currency} a year. Review whether it is still needed or what keeps it running "
-                    f"(open sessions, keep-alive, a connected tool). If it stays, {min(grid)} minutes is the lowest auto-stop; no saving is priced because "
-                    "no retained warehouse event gives its running time.")
-            else:
-                auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
-                    "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
-        elif safe_float(f.get("cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["INSUFFICIENT_EVENT_RESOURCE_EVIDENCE"],"The warehouse recorded too little running time to price an auto-stop change.")
-        elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes"]>safe_float(f.get("cluster_minutes"))+0.01 for o in options.values()):
-            # Running idle time is part of running time by construction; more of it than the events recorded means the
-            # two collectors saw different periods or data, so nothing can be priced.
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["IDLE_EVIDENCE_EXCEEDS_RUNTIME"],
-                "Removable idle time exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced.")
-        elif young:
-            auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["CURRENT_CONFIG_EPOCH_TOO_NEW"],"The current configuration is not ready yet (too few settled billed days) to measure its idle gaps; auto-stop is re-evaluated once it is.")
-        elif not f.get("running_idle_queries"):
-            # No queries but running time: a human decides whether the warehouse is still needed or what keeps it up.
-            floor=min(grid); o=options.get(floor)
-            if o is not None and o["direction"]=="LOWER" and o["net_cluster_minutes"]>0:
-                auto_stop("REVIEW",floor,["NO_QUERIES_WHILE_RUNNING"],
-                    "The warehouse ran with no queries in the window; review whether it is still needed. The lowest auto-stop value is priced on its measured idle time.")
-            else:
-                auto_stop("NO_CHANGE",cur_auto,["NO_QUERIES_WHILE_RUNNING"],
-                    "The warehouse ran with no queries in the window, and no lower auto-stop removes that running time; review whether it is still needed or what keeps it running.")
-        else:
-            saving=[o for o in options.values() if o["net_cluster_minutes"]>0]
-            allowed=[o for o in saving if o["within_cold_start_budget"]]
-            if not allowed:
-                polling=(not saving and f.get("running_clock_pct") is not None and f["running_clock_pct"]>=self.t.always_on_running_pct
-                         and f.get("busy_pct") is not None and f["busy_pct"]<=self.t.always_on_busy_pct_max)
-                clients=", ".join(f.get("client_applications") or []) or "unknown clients"
-                auto_stop("NO_CHANGE",cur_auto,(["COLD_START_BUDGET_EXCEEDED"] if saving else [])+(["SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING"] if polling else []),
-                    "Every value that saves money adds more cold starts than the budget allows; auto-stop stays." if saving else
-                    f"The warehouse runs {f['running_clock_pct']:g}% of the time while queries are busy only {f['busy_pct']:g}% of it: frequent tiny queries ({clients}) keep it up, so no auto-stop value can stop it. Review the polling, keep-alive or refresh schedule." if polling else
-                    "No auto-stop value saves money on the measured idle gaps; the current value is cost-optimal.")
-            else:
-                best=max(o["net_cluster_minutes"] for o in allowed)
-                near=[o for o in allowed if o["net_cluster_minutes"]>=(1-self.t.auto_stop_near_best_pct/100.0)*best]
-                # The smallest change among near-best values (an always-on warehouse changes least at the largest value).
-                pick=min(near,key=lambda o:((abs(o["target"]-cur_auto) if cur_auto>0 else -o["target"]),o["target"]))
-                blockers=failure_blockers(f["failure_pct"], self.t) if pick["direction"]=="LOWER" else []
-                if blockers:
-                    auto_stop("BLOCKED",pick["target"],blockers,"A cheaper auto-stop exists but guardrails block the recommendation.")
-                elif pick["direction"]=="RAISE":
-                    # The saving is entirely restarts avoided, priced on the assumption that starting minutes are billed.
-                    auto_stop("TEST_REQUIRED",pick["target"],["RESTART_BILLING_UNVERIFIED"],
-                        "A higher auto-stop saves more restart cost than the idle time it adds; the restart cost is an assumption (starting minutes billed), so billed cost is measured after the change.")
-                else:
-                    auto_stop("ACTIONABLE",pick["target"],[],
-                        "The cost-minimizing auto-stop on measured running idle time, counting the restarts it adds, within the cold-start budget.")
-
-        # Warehouse-type migration is always a separate scenario branch.
-        a=analyses["warehouse_type"]; f=a.facts
-        blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]
-        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","INSUFFICIENT_EVIDENCE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},[dbu_baseline_blocker(e,self.t)],[],[],[],
-                MIGRATION_BASELINE_RATIONALE[dbu_baseline_blocker(e,self.t)]))
-        elif any(d.knob=="auto_stop_minutes" and "NO_QUERIES_WHILE_RUNNING" in d.blockers for d in out):
-            # A warehouse that ran with no query may not be needed at all: the review comes before any migration.
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","NO_CHANGE",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":cfg.warehouse_type},["NO_QUERIES_WHILE_RUNNING"],[],[],[],
-                "The warehouse ran with no queries; no migration experiment is proposed until a review decides whether it is still needed."))
-        elif cfg.warehouse_type == "SERVERLESS":
-            if not f.get("pro_classic_observed"):
-                blockers.append("PRO_CLASSIC_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","COST_AND_COMPATIBILITY","TEST_REQUIRED",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":"PRO"},blockers,[],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                "Pro is evaluated as an alternate migration experiment for Serverless warehouses. The estimate is pre-canary and compatibility remains a deterministic gate."))
-        else:
-            if not f.get("serverless_observed"):
-                blockers.append("SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES")
-            out.append(OptimizationDecision(e.warehouse_id,"warehouse_type","PERFORMANCE_AND_OPERATIONS","TEST_REQUIRED",
-                {"warehouse_type":cfg.warehouse_type},{"warehouse_type":"SERVERLESS"},blockers,[],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                ["warehouse_size","max_clusters","min_clusters","auto_stop_minutes"],
-                "Serverless is evaluated as a separate migration experiment with a pre-canary DBU/AWS counterfactual and deterministic compatibility gate."))
-        # Fail-fast canary rollback: a guard tripped on the new epoch's own evidence after a canary-type change restores
-        # the previous value of the changed knob (the one decision an older epoch's configuration sets).
-        canary = analyses["warehouse_size"].facts.get("canary") or {}
-        if canary.get("guards"):
-            why = canary_rationale(canary, self.t)
-            changes = dict(canary["changes"])
-            if changes.get("min_clusters", 0) > cfg.max_clusters:
-                # The previous floor does not fit under the current ceiling: the ceiling the change lowered comes back too.
-                changes["max_clusters"] = canary["previous"]["max_clusters"]
-            for knob, previous in sorted(changes.items()):
-                i = next(k for k, d in enumerate(out) if d.knob == knob)
-                # A size rollback invalidates the capacity knobs it does not restore itself.
-                invalidates = [k for k in ("max_clusters", "min_clusters") if k not in changes] if knob == "warehouse_size" else []
-                out[i] = OptimizationDecision(e.warehouse_id, knob, "PERFORMANCE", "ACTIONABLE",
-                    {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
-                    [], invalidates, invalidates,
-                    f"Roll back the {knob} change to {previous}: since the change, {why}. The previous value is restored; no saving is claimed.")
-            # Changes that conflict with the rollback wait for it: after a size rollback the other size and cluster
-            # cuts (their evidence was measured at the size being rolled back), after a floor rollback a lower ceiling
-            # or a smaller size (the floor comes back). An increase for queueing or spill is never held; after a size
-            # rollback it waits behind it (the size rollback invalidates it).
-            def lower(d: OptimizationDecision) -> bool:
-                cur, rec = d.current_config.get(d.knob), d.recommended_config.get(d.knob)
-                if d.knob == "warehouse_size":
-                    return cur in SIZE_ORDER and rec in SIZE_ORDER and SIZE_ORDER.index(rec) < SIZE_ORDER.index(cur)
-                return safe_int(rec) < safe_int(cur)
-            def conflicts(d: OptimizationDecision) -> bool:
-                if d.knob in changes or d.status not in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW") or not lower(d):
-                    return False
-                if "warehouse_size" in changes:
-                    return d.knob in ("max_clusters", "min_clusters")
-                return "min_clusters" in changes and d.knob in ("max_clusters", "warehouse_size")
-            for i, d in enumerate(out):
-                if conflicts(d):
-                    out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
-                        ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
-                        f"Held while the canary rollback is pending: this {d.knob} change conflicts with restoring the previous configuration.")
-        return out
-
 
 # ---------------------------------------------------------------------------
 # Estimator: independent candidate counterfactuals, then stateful bundle.
 # ---------------------------------------------------------------------------
 
-class Estimator:
-    """Price independent candidate counterfactuals and attach deterministic confidence."""
-    def __init__(self, thresholds: Thresholds):
-        self.t=thresholds
-
-    # The sample each knob's decision is made on and its full-credit size; an unknown sample earns no credit.
-    _DECISION_SAMPLE={"warehouse_size":("decision_queries","strong_query_sample_size"),"max_clusters":("busy_minutes_recent","confidence_strong_busy_minutes"),
-                      "min_clusters":("busy_periods_recent","confidence_strong_busy_periods"),"auto_stop_minutes":("running_idle_queries","strong_query_sample_size"),
-                      "warehouse_type":("queries_30","strong_query_sample_size")}
-
-    def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
-        fact,strong=self._DECISION_SAMPLE[a.knob]
-        coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(safe_float(a.facts.get(fact))/getattr(self.t,strong),0,1)
-        stability=cost_stability(e.cost_cv_84); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
-        score=clamp(
-            self.t.confidence_base_weight
-            + self.t.confidence_coverage_weight*coverage
-            + self.t.confidence_sample_weight*sample
-            + self.t.confidence_stability_weight*(stability or 0.0)  # unknown stability earns no credit
-            + self.t.confidence_epoch_weight*epoch
-            + self.t.confidence_signal_weight*clamp(signal,0,1),
-            0,cap)
-        return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW",
-                "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":None if stability is None else round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
-
-    def _range_from_factor(self,baseline:float,factors:Range3)->Tuple[Range3,Range3]:
-        costs=Range3(baseline*factors.low,baseline*factors.base,baseline*factors.high).rounded()
-        savings=Range3(max(0,baseline-costs.high),max(0,baseline-costs.base),max(0,baseline-costs.low)).rounded()
-        return costs,savings
-
-    def _factors(self,e:WarehouseEvidence,d:OptimizationDecision,a:AnalysisResult)->Tuple[Optional[Range3],Dict[str,Any]]:
-        knob=d.knob
-        meta:Dict[str,Any]={"estimator_version":ESTIMATOR_VERSION}
-        if d.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"}:
-            # No counterfactual is attempted for a candidate the constraints reject: unknown cost is null, never zero.
-            return None,{"method":"estimate withheld: the candidate is blocked or lacks the evidence to be priced","bundle_effect":{"type":"no_cost_change"},**meta}
-        if d.status=="NO_CHANGE":
-            return Range3(1.0,1.0,1.0),{"method":"no modeled change","bundle_effect":{"type":"no_cost_change"},**meta}
-        if "CANARY_GUARDRAIL_BREACHED" in d.blockers:
-            reason="A rollback restores the previous configuration; its cost is the previous configuration's, which this estimate does not price."
-            return None,{"method":"estimate withheld: canary rollback","bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
-        if knob=="max_clusters" and d.objective=="COST_GUARDRAIL":
-            return Range3(1.0,1.0,1.0),{"method":"guardrail/stability change; no direct savings assigned","bundle_effect":{"type":"no_cost_change"},**meta}
-        if e.baseline_forecast_cost_365 is None or e.cost_history_days < self.t.min_economics_cost_history_days:
-            # Every estimate below scales the forward DBU cost, which is unknown (unpriced usage, too few billed days, a
-            # non-positive run rate) or not trustworthy on a young epoch, even when replayed evidence carries a number.
-            blocker=dbu_baseline_blocker(e,self.t); status,reason=DBU_BASELINE_WITHHELD[blocker]
-            return None,{
-                "method":f"estimate withheld: {reason}",
-                "estimate_blocker":blocker,
-                "bundle_effect":{"type":"estimate_withheld","status":status,"reason":reason},**meta}
-        if knob=="warehouse_type":
-            return None,{"method":"warehouse-type migration uses explicit DBU + AWS pre-canary cost model","bundle_effect":{"type":"migration_cost_override"},**meta}
-
-        if knob=="auto_stop_minutes":
-            target=safe_int(d.recommended_config.get("auto_stop_minutes"))
-            opt=next((o for o in a.facts.get("options") or [] if o["target"]==target),None)
-            cluster=safe_float(a.facts.get("cluster_minutes"))
-            if opt is None or cluster<=0:
-                reason="The auto-stop step cannot be priced without the warehouse's running time (no retained warehouse event); economics are withheld."
-                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop",
-                             "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
-            # Net cluster-minutes saved (idle removed minus restarts added, or restarts saved minus idle added) as a share
-            # of running cluster-minutes over the same period; the realization range applies to that net.
-            raw=clamp(opt["net_cluster_minutes"]/cluster,0,1)
-            factors=Range3(1-raw*self.t.realization_optimistic,1-raw*self.t.realization_base,1-raw*self.t.realization_conservative)
-            return factors,{
-                "method":"running idle time (idle gaps intersected with observed RUNNING time) at the recommended auto-stop, net of priced restarts",
-                "raw_savings_fraction":round(raw,4),"auto_stop_option":dict(opt),
-                "restart_cost_assumption":"Pro/Classic starting minutes are assumed billed at the floor cluster count (start time about 4 minutes, documented; billing not documented); Serverless restarts cost about nothing.",
-                "bundle_effect":{"type":"idle_cluster_minute_reduction","gain_cluster_minutes":opt["gain_cluster_minutes"],"loss_cluster_minutes":opt["loss_cluster_minutes"],
-                                 "floor_clusters":safe_int(a.facts.get("floor_clusters"),1)},
-                **meta,
-            }
-
-        if knob=="min_clusters":
-            minutes_at_min=safe_float(a.facts.get("minutes_at_min"))
-            cluster=safe_float(a.facts.get("cluster_minutes"))
-            current=safe_int(d.current_config.get("min_clusters"),1)
-            target=safe_int(d.recommended_config.get("min_clusters"),current)
-            delta=max(0,current-target)
-            theoretical_removed=minutes_at_min*delta
-            raw=clamp(theoretical_removed/cluster,0,self.t.min_cluster_savings_fraction_cap) if cluster>0 else 0
-            realization=[self.t.min_cluster_realization_optimistic,self.t.min_cluster_realization_base,self.t.min_cluster_realization_conservative]
-            factors=Range3(*(1-raw*r for r in realization))
-            return factors,{
-                "method":"cluster-minutes observed at the minimum are an upper bound on removable capacity (the floor may have been needed); high savings is that upper bound, low is no savings, base is the policy midpoint; canary required",
-                "raw_savings_fraction":round(raw,4),
-                "savings_high_is_upper_bound":True,
-                # The capped removable minutes (not the raw time-at-min) feed the stateful bundle so both models agree.
-                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":raw*cluster,"target_min_clusters":target,"realization":realization},
-                **meta,
-            }
-
-        if knob=="warehouse_size":
-            cur=str(d.current_config.get("warehouse_size")); target=str(d.recommended_config.get("warehouse_size"))
-            warehouse_type=str(e.current_epoch.config.warehouse_type or "").upper()
-            if warehouse_type=="SERVERLESS":
-                cur_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(cur); target_dbu=SQL_DBU_PER_CLUSTER_HOUR.get(target)
-                if not (cur_dbu and target_dbu):
-                    # No published Serverless DBU/hour for one side (5X-Large): a nominal ratio would be a guess, so the
-                    # candidate keeps its decision but is not priced, and any plan containing it needs a canary to price.
-                    unpriced=[x for x in (cur,target) if not SQL_DBU_PER_CLUSTER_HOUR.get(x)]
-                    return None,{
-                        "method":"estimate withheld: no published Serverless DBU/hour for "+"/".join(unpriced)+"; a nominal size ratio would be a guess",
-                        "estimate_blocker":"SERVERLESS_DBU_RATE_NOT_PUBLISHED","unpublished_sizes":unpriced,
-                        "bundle_effect":{"type":"requires_canary"},**meta,
-                    }
-                capacity=target_dbu/cur_dbu
-                capacity_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR_RATIO"
-            else:
-                # Pro/Classic DBU per size is not documented first-party: price only on the workspace's billed rates
-                # when they are consistent with the published size table; otherwise withhold (never a guessed ratio).
-                empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-                ratio,check=validated_size_rate_ratio(empirical if isinstance(empirical,Mapping) else {},cur,target,self.t.size_rate_published_band)
-                if ratio is None:
-                    return None,{
-                        "method":"estimate withheld: the workspace's billed DBU per cluster-hour by size does not validate this size change",
-                        "estimate_blocker":"PRO_CLASSIC_SIZE_RATE_UNVERIFIED","size_rate_check":check,
-                        "bundle_effect":{"type":"requires_canary"},**meta,
-                    }
-                capacity=ratio
-                capacity_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR_RATIO"
-            # Speed-up multipliers follow the decided direction, never the price ratio.
-            if SIZE_ORDER.index(target)<SIZE_ORDER.index(cur):
-                busy_runtime=Range3(self.t.downsize_runtime_multiplier_optimistic,self.t.downsize_runtime_multiplier_base,self.t.downsize_runtime_multiplier_conservative)
-            else:
-                busy_runtime=Range3(self.t.upsize_runtime_multiplier_optimistic,self.t.upsize_runtime_multiplier_base,self.t.upsize_runtime_multiplier_conservative)
-            # The multiplier changes query execution time only; idle running time is unchanged. Unknown busy share:
-            # all running time is treated as busy.
-            busy_share=a.facts.get("busy_share")
-            share=1.0 if busy_share is None else float(busy_share)
-            runtime=Range3(*(round(share*x+(1.0-share),6) for x in (busy_runtime.low,busy_runtime.base,busy_runtime.high)))
-            factors=Range3(capacity*runtime.low,capacity*runtime.base,capacity*runtime.high)
-            vals=sorted([
-                clamp(factors.low,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
-                clamp(factors.base,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
-                clamp(factors.high,self.t.cost_factor_floor,self.t.cost_factor_ceiling),
-            ])
-            factors=Range3(vals[0],vals[1],vals[2])
-            return factors,{
-                "method":"capacity ratio × runtime elasticity on busy running time",
-                "capacity_ratio":capacity,
-                "capacity_ratio_source":capacity_source,
-                "busy_share":busy_share,
-                "busy_runtime_multiplier_range":as_serializable(busy_runtime),
-                "runtime_multiplier_range":as_serializable(runtime),
-                "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(runtime)},
-                **meta,
-            }
-
-        if knob=="max_clusters" and d.recommended_config.get("max_clusters",0)>d.current_config.get("max_clusters",0):
-            at=safe_float(a.facts.get("minutes_at_max")); cluster=safe_float(a.facts.get("cluster_minutes"))
-            current=safe_int(d.current_config.get("max_clusters"),1); target=safe_int(d.recommended_config.get("max_clusters"),current)
-            delta=max(0,target-current)
-            # Worst case: the added clusters run whenever the warehouse sat at its ceiling. No cap: a single-cluster
-            # warehouse at its ceiling all the time doubles its cost with a second cluster.
-            raw=max(0.0,(at*delta)/cluster) if cluster>0 else 0
-            hist=a.facts.get("recent_concurrency_histogram")
-            if e.current_epoch.config.warehouse_type!="SERVERLESS" and hist and cluster>0:
-                # Base: each busy minute runs only the clusters its running + queued queries need under the new ceiling
-                # (one per documented queries-per-cluster), never more than the worst case.
-                qpc=self.t.queries_per_cluster_pro_classic
-                added=sum(safe_float(w)*(min(math.ceil(int(level)/qpc),target)-min(math.ceil(int(level)/qpc),current)) for level,w in hist.items())
-                base=min(raw,max(0.0,added/cluster)); method="cost uplift from the clusters peak demand needs under the new ceiling (base) up to the added clusters running whenever the warehouse sat at its ceiling (worst case)"
-            else:
-                base=raw*self.t.max_cluster_base_uplift_weight; method="upper-bound cost uplift from additional clusters during observed saturation"
-            factors=Range3(1.0,1+base,1+raw)
-            return factors,{
-                "method":method+". "+MAX_INCREASE_COST_BOUNDS,
-                "raw_uplift_fraction":round(raw,4),"base_uplift_fraction":round(base,4),
-                "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(factors)},
-                **meta,
-            }
-
-        return Range3(1,1,1),{"method":"no direct modeled cost delta","bundle_effect":{"type":"no_cost_change"},**meta}
-
-    @staticmethod
-    def _delta_range(baseline: float, costs: Range3) -> Range3:
-        return Range3(round(baseline-costs.high,2), round(baseline-costs.base,2), round(baseline-costs.low,2))
-
-    def _aws_factor_range(self,e:WarehouseEvidence,d:OptimizationDecision,dbu_factors:Optional[Range3],meta:Mapping[str,Any])->Optional[Range3]:
-        if e.aws_baseline_cost_365 is None:
-            return None
-        if e.current_epoch.config.warehouse_type == "SERVERLESS":
-            return Range3(1.0,1.0,1.0)
-        if dbu_factors is None:
-            return None
-        if d.knob != "warehouse_size":
-            return dbu_factors
-        current=str(d.current_config.get("warehouse_size")); target=str(d.recommended_config.get("warehouse_size"))
-        cur_hourly,_=aws_cluster_hourly_from_evidence(e,current); target_hourly,_=aws_cluster_hourly_from_evidence(e,target)
-        rr=meta.get("runtime_multiplier_range")
-        if cur_hourly is None or target_hourly is None or not isinstance(rr,Mapping) or cur_hourly<=0:
-            return None
-        ratio=target_hourly/cur_hourly
-        vals=sorted([ratio*safe_float(rr.get("low"),1.0),ratio*safe_float(rr.get("base"),1.0),ratio*safe_float(rr.get("high"),1.0)])
-        return Range3(vals[0],vals[1],vals[2])
-
-    def _annualized_resource_bounds(self,e:WarehouseEvidence)->Tuple[Optional[Range3],Dict[str,Any]]:
-        # Same window and model as the DBU forecast (run-rate blend, or whole billing cycles): AWS/resource bounds and
-        # DBU describe the same year.
-        rates,info=annualized_resource_rates(e.current_epoch,e.forecast_metadata or {},self.t,("uptime_minutes","cluster_minutes"))
-        if rates is None:
-            return None,{"status":"UNAVAILABLE",**info}
-        cluster_minutes=info["window_cluster_minutes"]; uptime=info["window_uptime_minutes"]; max_obs=max(1,int(info["max_observed_clusters"] or 1))
-        if cluster_minutes<=0 or uptime<=0:
-            return None,{"status":"UNAVAILABLE","blocker":"INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE","resource_window_days":info["resource_window_days"],"cluster_minutes":cluster_minutes,"uptime_minutes":uptime}
-        trend=info["trend_adjustment_factor"]
-        low=rates["uptime_minutes"]
-        base=rates["cluster_minutes"]
-        high=max(base,low*max_obs)
-        vals=sorted([low,base,high])
-        return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and model, annualized forward","resource_window_start":info["resource_window_start"],"resource_window_end":info["resource_window_end"],"resource_window_days":info["resource_window_days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
-
-    def _current_model_reconciliation(self,e:WarehouseEvidence,resources:Range3)->Dict[str,Any]:
-        """Modeled current DBU cost (running cluster-hours x current DBU/hour x current price) over the billed forecast."""
-        cfg=e.current_epoch.config
-        if cfg.warehouse_type=="SERVERLESS":
-            rate=SQL_DBU_PER_CLUSTER_HOUR.get(cfg.warehouse_size)
-        else:
-            empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-            rate=(safe_float(empirical.get(cfg.warehouse_size),0.0) if isinstance(empirical,Mapping) else 0.0) or None
-        price,_=resolve_target_sku_price(e.sql_sku_prices,cfg.warehouse_type)
-        billed=e.baseline_forecast_cost_365
-        if not rate or price is None or not billed:
-            return {"blocker":"MIGRATION_MODEL_NOT_RECONCILED","reason":"CURRENT_RATE_OR_PRICE_UNAVAILABLE","ratio":None}
-        modeled=resources.base/60.0*rate*price
-        ratio=round(modeled/billed,6)
-        out={"ratio":ratio,"modeled_current_dbu_cost_365":round(modeled,2),"billed_dbu_forecast_365":round(billed,2),"current_dbu_per_cluster_hour":rate,"current_unit_price":price,
-             "band":[self.t.migration_reconciliation_min,self.t.migration_reconciliation_max]}
-        if not self.t.migration_reconciliation_min<=ratio<=self.t.migration_reconciliation_max:
-            out["blocker"]="MIGRATION_MODEL_NOT_RECONCILED"
-        return out
-
-    def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision,facts:Optional[Mapping[str,Any]]=None)->Dict[str,Any]:
-        target=str(d.recommended_config.get("warehouse_type") or "").upper()
-        size=e.current_epoch.config.warehouse_size
-        current_resources,resource_meta=self._annualized_resource_bounds(e)
-        if current_resources is None:
-            return {"available":False,"blocker":resource_meta.get("blocker"),"resource_model":resource_meta}
-        fraction=(facts or {}).get("migration_running_fraction")
-        if fraction is None:
-            return {"available":False,"blocker":"RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE","resource_model":resource_meta}
-        # The target runs at its own best auto-stop: base = today's annualized cluster-minutes x its running fraction;
-        # optimistic = busy cluster-time only (it never runs idle); conservative = today's structural upper bound
-        # (every running minute at the peak cluster count), never below the base.
-        busy_share=(facts or {}).get("busy_share")
-        base_t=current_resources.base*fraction
-        low_t=min(base_t,current_resources.base*float(busy_share)) if busy_share is not None else base_t
-        resources=Range3(round(low_t,3),round(base_t,3),round(max(base_t,current_resources.high),3))
-        resource_meta={**resource_meta,"target_running_fraction":fraction,"target_auto_stop_option":as_serializable((facts or {}).get("migration_target_option")),
-                       "busy_share":busy_share,"target_annualized_cluster_minutes_range":as_serializable(resources),
-                       "target_method":"target at its own cost-minimizing auto-stop (base), busy cluster-time only (optimistic), today's running time at the peak cluster count (conservative)"}
-        if target=="SERVERLESS":
-            dbu_per_hour=SQL_DBU_PER_CLUSTER_HOUR.get(size)
-            rate_source="DATABRICKS_PUBLISHED_SQL_SERVERLESS_DBU_PER_HOUR"
-        else:
-            empirical=e.billing_features.get("workspace_pro_dbu_per_cluster_hour_by_size") or {}
-            dbu_per_hour=safe_float(empirical.get(size),0.0) if isinstance(empirical,Mapping) else 0.0
-            dbu_per_hour=dbu_per_hour or None
-            rate_source="WORKSPACE_SYSTEM_TABLE_EMPIRICAL_PRO_CLASSIC_DBU_PER_CLUSTER_HOUR"
-        if dbu_per_hour is None:
-            return {"available":False,"blocker":"TARGET_DBU_PER_CLUSTER_HOUR_NOT_AVAILABLE","warehouse_size":size,"target_type":target,"resource_model":resource_meta,"rate_source":rate_source}
-        unit_price,price_meta=resolve_target_sku_price(e.sql_sku_prices,target)
-        if unit_price is None:
-            return {"available":False,"blocker":price_meta.get("blocker"),"sku_price_model":price_meta,"resource_model":resource_meta}
-        # Reconcile: the same formula on the current warehouse must reproduce its billed DBU forecast; the target is then
-        # priced relative to billing (scaled by billed / modeled), so systematic model error cancels out.
-        reconciliation=self._current_model_reconciliation(e,current_resources)
-        if reconciliation.get("blocker"):
-            return {"available":False,"blocker":reconciliation["blocker"],"reconciliation_ratio":reconciliation.get("ratio"),"reconciliation":reconciliation,"resource_model":resource_meta,"sku_price_model":price_meta}
-        scale=1.0/reconciliation["ratio"]
-        dbu_cost=Range3(*(round(x/60.0*dbu_per_hour*unit_price*scale,2) for x in (resources.low,resources.base,resources.high)))
-        if target=="SERVERLESS":
-            aws_cost=Range3(0.0,0.0,0.0)
-            aws_meta={"status":"NOT_CUSTOMER_BILLED","reason":"Serverless SQL infrastructure is Databricks-managed; no separate customer EC2 line is modeled."}
-        elif target in {"PRO","CLASSIC"}:
-            hourly,aws_meta=aws_cluster_hourly_from_evidence(e,size)
-            if hourly is None:
-                return {"available":False,"blocker":aws_meta.get("blocker"),"sku_price_model":price_meta,"resource_model":resource_meta,"aws_model":aws_meta}
-            aws_cost=Range3(*(round(x/60.0*hourly,2) for x in (resources.low,resources.base,resources.high)))
-        else:
-            return {"available":False,"blocker":"UNSUPPORTED_TARGET_WAREHOUSE_TYPE","target_type":target}
-        total_cost=Range3(round(dbu_cost.low+aws_cost.low,2),round(dbu_cost.base+aws_cost.base,2),round(dbu_cost.high+aws_cost.high,2))
-        return {"available":True,"target_type":target,"warehouse_size":size,"reconciliation_ratio":reconciliation["ratio"],"reconciliation":reconciliation,"dbu_cost_range":dbu_cost,"aws_cost_range":aws_cost,"total_cost_range":total_cost,"dbu_per_cluster_hour":dbu_per_hour,"dbu_rate_source":rate_source,"unit_price_per_dbu":unit_price,"resource_model":resource_meta,"sku_price_model":price_meta,"aws_model":aws_meta,"estimate_status":"PRE_CANARY_MODELED_RANGE"}
-
-    def candidates(self,e:WarehouseEvidence,analyses:Dict[str,AnalysisResult],decisions:Sequence[OptimizationDecision])->List[CandidateRecommendation]:
-        out=[]; ep=e.current_epoch
-        dbu_baseline=round_or_none(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
-        total_baseline=None if aws_baseline is None or dbu_baseline is None else round(dbu_baseline+aws_baseline,2)
-        for d in decisions:
-            a=analyses[d.knob]
-            out.append(self._candidate(e,ep,a,d,dbu_baseline,aws_baseline,total_baseline))
-            gate=self._value_gate(d,out[-1])
-            if gate:
-                # A change made to save money ships only when its own modeled savings clear the floor; the modeled
-                # economics stay on the held candidate so the reason is visible.
-                held=dataclasses.replace(d,status=gate.get("status","NO_CHANGE"),recommended_config=dict(d.current_config),blockers=sorted(set(d.blockers)|{gate["reason_code"]}),
-                    invalidates=[],reanalysis_required=[],rationale=gate["rationale"])
-                out[-1]=self._candidate(e,ep,a,held,dbu_baseline,aws_baseline,total_baseline)
-                out[-1].metadata["value_gate"]=gate
-        return out
-
-    def _value_gate(self,d:OptimizationDecision,c:"CandidateRecommendation")->Optional[Dict[str,Any]]:
-        if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED"} and d.current_config!=d.recommended_config:
-            # A migration whose best case still costs more is not worth a canary (it may still be wanted for other
-            # reasons, which is a human decision outside this cost model).
-            # Total only: DBU alone is not comparable across types (Serverless DBU includes compute that Pro/Classic
-            # pays as AWS), and unknown AWS cost is not a loss.
-            r=c.total_365d_savings_range
-            if r is None or r.high>0:
-                return None
-            return {"reason_code":"MIGRATION_NOT_COST_EFFECTIVE","modeled_savings_365":c.estimated_savings_365,"modeled_savings_range_365":as_serializable(r),
-                    "floor_365":0.0,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
-                    "rationale":f"Held: even the best case of the {d.recommended_config.get('warehouse_type')} migration costs more than today."}
-        if d.objective!="COST" or d.status not in {"ACTIONABLE","TEST_REQUIRED"} or d.current_config==d.recommended_config:
-            return None
-        save=c.estimated_savings_365
-        if save is None and d.status=="ACTIONABLE" and c.metadata.get("estimate_blocker"):
-            # A cost change applied without a canary has nothing else to validate it: it waits for its own price.
-            blocker=c.metadata["estimate_blocker"]
-            return {"reason_code":blocker,"status":"INSUFFICIENT_EVIDENCE","modeled_savings_365":None,"modeled_savings_range_365":None,
-                    "floor_365":self.t.cost_change_min_annual_savings,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
-                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced. {DBU_BASELINE_WITHHELD[blocker][1]}"}
-        if save is None:
-            return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
-        floor=self.t.cost_change_min_annual_savings
-        if save<=0:
-            code,why="COST_CHANGE_NOT_COST_EFFECTIVE","its own modeled savings are not positive"
-        elif save<floor:
-            code,why="COST_SAVINGS_BELOW_MATERIALITY",f"its own modeled savings are below the {floor:,.0f} a year materiality floor"
-        else:
-            return None
-        return {"reason_code":code,"modeled_savings_365":save,"modeled_savings_range_365":as_serializable(c.estimated_savings_range_365),
-                "floor_365":floor,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
-                "rationale":f"Held: the {d.knob} change was proposed to save money but {why}."}
-
-    def _candidate(self,e:WarehouseEvidence,ep:EpochEvidence,a:AnalysisResult,d:OptimizationDecision,dbu_baseline:Optional[float],aws_baseline:Optional[float],total_baseline:Optional[float])->"CandidateRecommendation":
-        factors,meta=self._factors(e,d,a)
-        dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
-        est=save=None
-        if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and d.current_config!=d.recommended_config:
-            migration=self._migration_costs(e,d,a.facts); meta={**meta,"migration_model":as_serializable(migration),"bundle_effect":{"type":"migration_cost_override"}}
-            if migration.get("available"):
-                dbu_costs=migration["dbu_cost_range"]; aws_costs=migration["aws_cost_range"]; total_costs=migration["total_cost_range"]
-                dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-                if aws_baseline is not None:
-                    aws_savings=self._delta_range(aws_baseline,aws_costs)
-                if total_baseline is not None:
-                    total_savings=self._delta_range(total_baseline,total_costs); est=total_costs.base; save=total_savings.base
-            else:
-                meta["estimate_blocker"]=migration.get("blocker")
-        elif factors is not None and dbu_baseline is not None:
-            dbu_costs=Range3(round(dbu_baseline*factors.low,2),round(dbu_baseline*factors.base,2),round(dbu_baseline*factors.high,2))
-            dbu_savings=self._delta_range(dbu_baseline,dbu_costs)
-            aws_factors=self._aws_factor_range(e,d,factors,meta)
-            meta={**meta,"aws_cost_factor_range":as_serializable(aws_factors) if aws_factors else None}
-            if aws_baseline is not None and aws_factors is not None:
-                aws_costs=Range3(round(aws_baseline*aws_factors.low,2),round(aws_baseline*aws_factors.base,2),round(aws_baseline*aws_factors.high,2))
-                aws_savings=self._delta_range(aws_baseline,aws_costs)
-                total_costs=Range3(round(dbu_costs.low+aws_costs.low,2),round(dbu_costs.base+aws_costs.base,2),round(dbu_costs.high+aws_costs.high,2))
-                if total_baseline is not None: total_savings=self._delta_range(total_baseline,total_costs)
-            elif e.current_epoch.config.warehouse_type=="SERVERLESS":
-                aws_costs=Range3(0,0,0); aws_savings=Range3(0,0,0); total_costs=dbu_costs; total_savings=dbu_savings
-            est=(total_costs.base if total_costs else dbu_costs.base); save=(total_savings.base if total_savings else dbu_savings.base)
-        signal=self.t.confidence_signal_change if d.status in {"ACTIONABLE","TEST_REQUIRED"} else self.t.confidence_signal_no_change
-        cap=(self.t.confidence_cap_test_required if d.status=="TEST_REQUIRED" else self.t.confidence_cap_actionable if d.status=="ACTIONABLE"
-             else self.t.confidence_cap_insufficient_evidence if d.status=="INSUFFICIENT_EVIDENCE" else self.t.confidence_cap_default)
-        if (d.knob=="max_clusters" and e.current_epoch.config.warehouse_type=="SERVERLESS"
-                and safe_int(d.recommended_config.get("max_clusters"))>safe_int(d.current_config.get("max_clusters"))):
-            cap=min(cap,self.t.confidence_cap_serverless_ceiling_increase)
-        confidence=self._confidence(e,a,signal=signal,cap=cap)
-        current=d.current_config; recommended=d.recommended_config
-        rid=recommendation_id(e.workspace_id,e.warehouse_id,d.knob,ep.epoch_id,current,recommended)
-        return CandidateRecommendation(
-            recommendation_id=rid,warehouse_id=e.warehouse_id,workspace_id=e.workspace_id,warehouse_name=e.warehouse_name,knob=d.knob,objective=d.objective,status=d.status,
-            current_config=current,recommended_config=recommended,current_cost_365=round_or_none(e.current_cost_365,2),
-            baseline_forecast_cost_365=dbu_baseline,estimated_cost_365=est,
-            estimated_cost_range_365=total_costs or dbu_costs,estimated_savings_365=save,estimated_savings_range_365=total_savings or dbu_savings,
-            confidence=confidence,findings=a.findings,blockers=d.blockers,dependencies=d.dependencies,invalidates=d.invalidates,
-            reanalysis_required=d.reanalysis_required,metadata={
-                **meta,"cost_factor_range":as_serializable(factors) if factors else None,"estimate_is_independent_scenario":True,
-                "candidate_savings_must_not_be_summed":True,"current_epoch_id":ep.epoch_id,"currency":e.currency,
-                "rationale":d.rationale,"policy_version":POLICY_VERSION,"analyzer_version":ANALYZER_VERSION,"optimizer_version":OPTIMIZER_VERSION,
-                "cost_scope":"DBU at published list price (observed system.billing usage x system.billing.list_prices, not contract-effective) plus modeled customer AWS EC2 at on-demand list price for Pro/Classic (Spot not modeled); Serverless cloud infrastructure is embedded in the Serverless DBU line.",
-                "aws_cost_model":e.aws_cost_model,
-            },
-            dbu_365d_baseline_cost=dbu_baseline,aws_365d_baseline_cost=aws_baseline,total_365d_baseline_cost=total_baseline,
-            dbu_365d_savings_estimate=(dbu_savings.base if dbu_savings else None),aws_365d_savings_estimate=(aws_savings.base if aws_savings else None),
-            total_365d_savings_estimate=(total_savings.base if total_savings else None),dbu_365d_savings_range=dbu_savings,aws_365d_savings_range=aws_savings,
-            total_365d_savings_range=total_savings,dbu_365d_estimated_cost_range=dbu_costs,aws_365d_estimated_cost_range=aws_costs,total_365d_estimated_cost_range=total_costs,
-        )
 
 class Reviewer:
     """Fail-fast invariant gate for identity, evidence epoch, config, cost, and confidence contracts."""
@@ -2634,56 +1758,43 @@ def _build_locked_recommendation_package(
     return package
 
 
-def optimize_warehouse(w: WarehouseAnalysis, thresholds: Thresholds) -> Tuple[List[CandidateRecommendation], List[Scenario], Optional[str]]:
-    """Run the deterministic decision pipeline for one analyzed, supported warehouse."""
-    e, analyses = w.evidence, w.analyses
-    optimizer = Optimizer(thresholds)
-    estimator = Estimator(thresholds)
-    reviewer = Reviewer(thresholds)
-    planner = ScenarioPlanner(thresholds)
-    decisions = optimizer.optimize(e, analyses)
-    candidates = estimator.candidates(e, analyses, decisions)
-    reviewer.review(e, candidates)
-    scenarios, recommended = planner.scenarios(e, candidates)
-    reviewer.review_scenarios(e, candidates, scenarios, recommended)
-    return candidates, scenarios, recommended
+def review_and_plan(optimization: OptimizationResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
+    """Reviewer candidate gate, scenario planning and the scenario gate for each optimized warehouse, in order."""
+    results: List[WarehouseOptimization] = []
+    for w in optimization.warehouses:
+        e, candidates = w.evidence, w.candidates
+        reviewer = Reviewer(thresholds)
+        planner = ScenarioPlanner(thresholds)
+        reviewer.review(e, candidates)
+        scenarios, recommended = planner.scenarios(e, candidates)
+        reviewer.review_scenarios(e, candidates, scenarios, recommended)
+        status_counts: Dict[str, int] = {}
+        for candidate in candidates:
+            status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
+        LOGGER.info(
+            "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
+            e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
+        )
+        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
+    return results
+
+
+def log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
+    LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(analysis.evidence), batch_size)
+    for excluded in governance.exclusions:
+        LOGGER.warning(
+            "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
+            excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
+        )
 
 
 def evaluate_analysis(
     analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
 ) -> List[WarehouseOptimization]:
     """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
-    evidence = analysis.evidence
     governance = governance if governance is not None else governor.govern(analysis)
-    LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(evidence), batch_size)
-    for excluded in governance.exclusions:
-        LOGGER.warning(
-            "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
-            excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
-        )
-    ordered = governance.eligible
-    results: List[WarehouseOptimization] = []
-    batch = max(1, int(batch_size))
-    for offset in range(0, len(ordered), batch):
-        chunk = ordered[offset:offset + batch]
-        LOGGER.info("pipeline.batch.start batch_index=%d start=%d size=%d", offset // batch + 1, offset, len(chunk))
-        for w in chunk:
-            e = w.evidence
-            LOGGER.info(
-                "warehouse.start workspace_id=%s warehouse_id=%s name=%s epoch_id=%s",
-                e.workspace_id, e.warehouse_id, e.warehouse_name, e.current_epoch_id,
-            )
-            candidates, scenarios, recommended = optimize_warehouse(w, thresholds)
-            status_counts: Dict[str, int] = {}
-            for candidate in candidates:
-                status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
-            LOGGER.info(
-                "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
-                e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
-            )
-            results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
-        LOGGER.info("pipeline.batch.done batch_index=%d processed=%d", offset // batch + 1, len(chunk))
-    return results
+    log_pipeline_start(analysis, governance, batch_size)
+    return review_and_plan(optimizer.optimize_eligible(governance.eligible, thresholds, batch_size), thresholds)
 
 
 def evaluate_warehouses(
@@ -2697,8 +1808,14 @@ def build_packages_from_analysis(
     analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100, governance: Optional[GovernanceResult] = None
 ) -> List[rc.RecommendationPackage]:
     """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
+    return build_packages(analysis, evaluate_analysis(analysis, thresholds, batch_size, governance), thresholds)
+
+
+def build_packages(
+    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
+) -> List[rc.RecommendationPackage]:
+    """Assemble one locked public package per reviewed, planned warehouse."""
     evidence = analysis.evidence
-    optimizations = evaluate_analysis(analysis, thresholds, batch_size, governance)
     evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
@@ -2859,7 +1976,9 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     analysis=analyzer.run(context)
     evidence=analysis.evidence; unseen=analysis.unseen_billed_warehouses
     governance=governor.run(context,analysis)
-    packages=build_packages_from_analysis(analysis,t,args.batch_size,governance)
+    log_pipeline_start(analysis,governance,args.batch_size)
+    optimization=optimizer.run(context,analysis,governance)
+    packages=build_packages(analysis,review_and_plan(optimization,t),t)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)

@@ -1357,7 +1357,7 @@ class PublisherV27Tests(unittest.TestCase):
     def test_single_step_auto_stop_scenario_matches_the_candidate(self):
         # Running idle worth 90% of all cluster-minutes is priced in full (it is measured running time, so no cap), and
         # the one-step plan claims exactly what its own step does.
-        # (Idle above 100% of running time is contradictory evidence and is not priced at all: test_auto_stop_evidence.)
+        # (Idle above 100% of running time is contradictory evidence and is not priced at all: tests/unit/optimizer/test_auto_stop_evidence.)
         for multiple in (0.2, 0.9):
             cand, plan = self.auto_stop_only(multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)

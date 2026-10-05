@@ -46,7 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `publisher.py` (the facade and the pipeline stages downstream of the analyzer, which still carries their logic), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is `python -m publisher`, entry `src/publisher/__main__.py`). It holds `analyzer/` (collection, normalization, epochs, derived metrics, the forecast and findings), `governor/` (supported-type and eligibility gates), `optimizer/` (the per-knob decisions and the candidate estimator), `publisher.py` (the facade: reviewer gates, scenario planning, stateful bundle estimation, package assembly and the CLI), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries), `config/` (version identifiers, product defaults, the `Thresholds` policy, repository-relative settings, request loading), `common/` (logging, internal join keys, canonical hashing, time and value helpers) and `reporter/` (workbook rendering). Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit, golden and contract tests) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -63,7 +63,13 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/analyzer/blockers.py` | evidence-level blockers and the withheld-baseline rationale | No |
 | `src/publisher/analyzer/calibration.py` | workspace calibration: observed warehouse types and billed Pro/Classic DBU rates per size | No |
 | `src/publisher/analyzer/findings.py` | `Analyzer`: per-knob facts and findings, never a recommendation; `canary_observation` | No |
-| `src/publisher/publisher.py` | optimize/estimate/review/scenario orchestration, public package adaptation, CLI (`main`); re-exports the moved names so `publisher.<name>` keeps resolving | Yes, deterministic only |
+| `src/publisher/optimizer/optimizer.py` | `Optimizer`: `optimize()` returns one decision per active knob; module functions `optimize`, `optimize_eligible` (batched) and `run` (the Optimizer boundary: eligible analyses in, `OptimizationResult` out) | Yes, deterministic only |
+| `src/publisher/optimizer/techniques/` (`size.py`, `scaling.py`, `autostop.py`, `migration.py`) | one module per active knob: size (`decide`, `previous_size`, `next_size`), max and min clusters (`decide_max_clusters`, `decide_min_clusters`, the cost bounds of a ceiling increase), auto-stop, warehouse-type migration | Yes, deterministic only |
+| `src/publisher/optimizer/conflicts.py` | `apply_canary_rollback`: when a fail-fast canary guard trips, rewrites the decisions to restore the previous value of each knob the canary-type change moved | Yes, deterministic only |
+| `src/publisher/optimizer/estimator/candidate.py` | `Estimator`: prices each decision as an isolated candidate, candidate confidence and the cost-value gate | No (prices decisions, never chooses them) |
+| `src/publisher/optimizer/estimator/cost.py` | `CostModel`: per-knob cost factors, migration target costs, current-model reconciliation; `validated_size_rate_ratio`, `aws_cluster_hourly_from_evidence`, `resolve_target_sku_price` | No |
+| `src/publisher/optimizer/estimator/savings.py` | `SavingsModel`: cost ranges from cost factors and savings deltas against a baseline | No |
+| `src/publisher/publisher.py` | the facade: Reviewer gates 1 and 2, scenario planning, stateful bundle estimation, public package assembly and writing, CLI (`main`); re-exports the moved names so `publisher.<name>` keeps resolving | Yes, deterministic only |
 | `src/publisher/__main__.py` | `python -m publisher` entry point | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) and the orchestration result (`WarehouseOptimization`) | No |
 | `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
@@ -71,6 +77,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/config/loader.py` | turns parsed CLI arguments into a `PublisherRequest` (`request_from_args`, execution-target resolution) | No |
 | `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
 | `src/publisher/contracts/governance.py` | `GovernanceResult`: the eligible analyzed warehouses and the per-warehouse exclusions | No |
+| `src/publisher/contracts/candidate.py` (Optimizer boundary types) | `WarehouseCandidates`: one warehouse's analyses, decisions and candidates; `OptimizationResult`: the fleet-level result that `optimizer.run` returns | No |
 | `src/publisher/common/logging.py`, `ids.py`, `hashing.py`, `time.py`, `utils.py` | run logging; internal 16-hex join keys (never public IDs); canonical JSON; timestamp parsing; value coercion and serialization | No |
 | `src/publisher/contracts/reporter_contract.py` | immutable public dataclasses, enums, hash construction, semantic validation | No |
 | `src/publisher/contracts/reporter_schema.py` | JSON Schema generation/support | No |
@@ -86,7 +93,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 ```mermaid
 flowchart LR
     SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
-    ANA --> PUB[src/publisher/publisher.py decision engine]
+    ANA --> PUB[src/publisher/optimizer/ and publisher.py decision engine]
     PUB --> RC[Reporter Contract v2.0.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
@@ -1634,7 +1641,7 @@ The full regression suite is the validation baseline; reproduce the results with
 
 Golden cases are folders under `tests/golden/cases/<name>/`: `case.yaml` (the `expect` block), `source/` (normalized evidence or collector snapshots) and `expected/` (canonical output generated by `scripts/update_goldens.py`). The case list and layout: `tests/golden/README.md`; the assertion DSL: the docstring of `tests/golden/test_golden_publisher.py`; the scenario catalog: `docs/proposals/golden-scenarios.md`.
 
-Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
+Test layers: algorithm and integration tests (`tests/test_publisher.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), Optimizer decision and candidate-estimate tests (`tests/unit/optimizer/`), golden-scenario tests, Reporter contract and package-integration tests (`tests/test_reporter_contract.py`, `tests/test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/test_demo_fleet.py`), workbook contract tests (`tests/test_workbook_contract.py`) and documentation guards (`tests/test_docs.py`).
 
 ### 32.4 Required contract assertions
 

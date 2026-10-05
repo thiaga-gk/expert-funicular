@@ -968,4 +968,4 @@ Product acceptance criteria: `docs/product/prd.md` section 23. The architecture 
 
 External platform references: `docs/product/prd.md` section 28.
 
-Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/analyzer/`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.
+Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/analyzer/`, `src/publisher/governor/`, `src/publisher/optimizer/`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.
