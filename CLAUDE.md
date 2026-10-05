@@ -22,6 +22,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 7. Update the docs that describe the changed behavior in the same change. Each topic has one home (`docs/README.md`); `tests/test_docs.py` must pass.
 
 ## Invariants
+These summarize `docs/product/prd.md` (scope and requirements) and `docs/architecture/context.md` (domain semantics); on a conflict the PRD governs scope (`docs/README.md`).
 - IMPORTANT: `RecommendationPackage` (Reporter JSON Contract) is the public machine source of truth. The workbook is projection-only: never put optimization, estimation, confidence, ID/hash or selection logic in Excel.
 - IMPORTANT: identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
 - `SUPPORTED_WAREHOUSE_TYPES` (`CLASSIC`, `PRO`, standard `SERVERLESS`) is fail-closed: never route unknown or future types into existing algorithms.
