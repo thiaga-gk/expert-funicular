@@ -162,7 +162,7 @@ class CadenceClassificationTests(unittest.TestCase):
         closes = {d for y in (2025, 2026) for m in (3, 6, 9, 12) for d in last_bdays(y, m, 5)}
         f = forecast_fn(lambda d, i: 100 if d in closes else 0, 365)
         self.assertEqual(f["forecast_model"], "CADENCE")
-        self.assertAlmostEqual(f["forecast_cost_365"], 2000, delta=0.2 * 2000)
+        self.assertAlmostEqual(f["forecast_cost_365"], 2000, delta=0.03 * 2000)
 
     def test_long_runs_keep_the_run_rate(self):
         # Ten days on, twenty off: runs longer than a week are not a periodic burst.
