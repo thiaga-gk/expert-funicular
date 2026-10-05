@@ -2006,10 +2006,10 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
         import contextlib, io
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), \
-                patch.object(p, "resolve_cli_oauth", return_value=MagicMock()), \
-                patch.object(p, "collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
-                patch.object(p, "SqlClient", MagicMock()), \
-                patch.object(p, "extract_evidence", return_value=self.evidence):
+                patch("publisher.analyzer.analyzer.resolve_cli_oauth", return_value=MagicMock()), \
+                patch("publisher.analyzer.analyzer.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "OFF"}), \
+                patch("publisher.analyzer.analyzer.SqlClient", MagicMock()), \
+                patch("publisher.analyzer.analyzer.extract_evidence", return_value=self.evidence):
             with self.assertRaises(SystemExit) as cm:
                 p.main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
             self.assertIn("--allow-missing-aws-price", str(cm.exception.code))

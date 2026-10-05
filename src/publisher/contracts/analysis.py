@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from publisher.contracts.source import WarehouseEvidence
 
 
 @dataclass(frozen=True)
@@ -31,3 +33,23 @@ class AnalysisResult:
     current_epoch_id: str
     findings: List[Finding]
     facts: Dict[str, Any]
+
+
+@dataclass
+class WarehouseAnalysis:
+    """Per-knob findings for one supported, calibrated warehouse."""
+    evidence: WarehouseEvidence
+    analyses: Dict[str, AnalysisResult]
+
+
+@dataclass
+class FleetAnalysis:
+    """Analyzer output for one run: every collected warehouse's evidence, and findings for the supported ones.
+
+    ``warehouses`` holds only supported types, in deterministic (workspace, name, id) order; unsupported types are in
+    ``evidence`` but never analyzed. ``unseen_billed_warehouses`` is None when the check did not run (demo, replay).
+    """
+    evidence: List[WarehouseEvidence]
+    warehouses: List[WarehouseAnalysis]
+    unseen_billed_warehouses: Optional[List[Dict[str, Any]]] = None
+    aws_price_registry: Optional[Dict[str, Any]] = None

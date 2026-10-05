@@ -42,7 +42,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENCE_SCHEMA_PATH  # noqa: F401
+from publisher.analyzer import analyzer
+from publisher.config.loader import _resolve_execution_args, request_from_args  # noqa: F401
 from publisher.contracts import reporter_contract as rc
+from publisher.contracts.analysis import FleetAnalysis, WarehouseAnalysis
+from publisher.contracts.request import MODE_LIVE, RunContext
 from publisher.contracts.analysis import AnalysisResult, Finding
 from publisher.contracts.candidate import CandidateRecommendation, OptimizationDecision, Range3
 from publisher.contracts.review import WarehouseOptimization
@@ -131,6 +135,9 @@ from publisher.analyzer.findings import (  # noqa: F401
 )
 from publisher.analyzer.collector.demo import (  # noqa: F401
     DEMO_ACCOUNT_ID, DEMO_ANALYSIS_TIME, DEMO_FLEET, DEMO_SCALE_UP_LAG_MINUTES, DEMO_SKU_BY_TYPE, DEMO_SKU_PRICES, DEMO_START_LATENCY_MS, DEMO_UNPRICED_SKU, DEMO_WORKSPACES, _DEMO_ROWS_CACHE, _demo_config_at, _demo_daily, _demo_day_matches, _demo_fleet_rows, _demo_interp, _demo_minutes, _demo_unit, _simulate_demo_warehouse, demo_evidence, synthesize_resource_daily, synthetic_demo_evidence,
+)
+from publisher.analyzer.analyzer import (  # noqa: F401
+    _is_supported_warehouse,
 )
 
 
@@ -2650,10 +2657,6 @@ def _build_locked_recommendation_package(
     return package
 
 
-def _is_supported_warehouse(e: WarehouseEvidence) -> bool:
-    return e.current_epoch.config.warehouse_type in SUPPORTED_WAREHOUSE_TYPES
-
-
 def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> List[Dict[str, str]]:
     """Supported-type gate: list warehouses that fail closed, one entry each, in deterministic order.
 
@@ -2673,14 +2676,13 @@ def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> L
     ]
 
 
-def optimize_warehouse(e: WarehouseEvidence, thresholds: Thresholds) -> Tuple[List[CandidateRecommendation], List[Scenario], Optional[str]]:
-    """Run the deterministic decision pipeline for one normalized, supported warehouse."""
-    analyzer = Analyzer(thresholds)
+def optimize_warehouse(w: WarehouseAnalysis, thresholds: Thresholds) -> Tuple[List[CandidateRecommendation], List[Scenario], Optional[str]]:
+    """Run the deterministic decision pipeline for one analyzed, supported warehouse."""
+    e, analyses = w.evidence, w.analyses
     optimizer = Optimizer(thresholds)
     estimator = Estimator(thresholds)
     reviewer = Reviewer(thresholds)
     planner = ScenarioPlanner(thresholds)
-    analyses = analyzer.analyze(e)
     decisions = optimizer.optimize(e, analyses)
     candidates = estimator.candidates(e, analyses, decisions)
     reviewer.review(e, candidates)
@@ -2689,30 +2691,28 @@ def optimize_warehouse(e: WarehouseEvidence, thresholds: Thresholds) -> Tuple[Li
     return candidates, scenarios, recommended
 
 
-def evaluate_warehouses(
-    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
-) -> List[WarehouseOptimization]:
-    """Evaluate supported warehouses through both reviewer gates without constructing reporter objects."""
+def evaluate_analysis(analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100) -> List[WarehouseOptimization]:
+    """Evaluate the analyzed supported warehouses through both reviewer gates without constructing reporter objects."""
+    evidence = analysis.evidence
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(evidence), batch_size)
     for excluded in unsupported_warehouse_exclusions(evidence):
         LOGGER.warning(
             "warehouse.excluded workspace_id=%s warehouse_id=%s warehouse_type=%s reason=%s",
             excluded["workspace_id"], excluded["warehouse_id"], excluded["warehouse_type"], excluded["reason_code"],
         )
-    supported = [e for e in evidence if _is_supported_warehouse(e)]
-    _prepare_workspace_calibration(supported, thresholds)
-    ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
+    ordered = analysis.warehouses
     results: List[WarehouseOptimization] = []
     batch = max(1, int(batch_size))
     for offset in range(0, len(ordered), batch):
         chunk = ordered[offset:offset + batch]
         LOGGER.info("pipeline.batch.start batch_index=%d start=%d size=%d", offset // batch + 1, offset, len(chunk))
-        for e in chunk:
+        for w in chunk:
+            e = w.evidence
             LOGGER.info(
                 "warehouse.start workspace_id=%s warehouse_id=%s name=%s epoch_id=%s",
                 e.workspace_id, e.warehouse_id, e.warehouse_name, e.current_epoch_id,
             )
-            candidates, scenarios, recommended = optimize_warehouse(e, thresholds)
+            candidates, scenarios, recommended = optimize_warehouse(w, thresholds)
             status_counts: Dict[str, int] = {}
             for candidate in candidates:
                 status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
@@ -2725,11 +2725,19 @@ def evaluate_warehouses(
     return results
 
 
-def build_recommendation_packages(
+def evaluate_warehouses(
     evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
+) -> List[WarehouseOptimization]:
+    """Analyze and evaluate warehouses from evidence already in hand (the CLI runs analyzer.run first)."""
+    return evaluate_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
+
+
+def build_packages_from_analysis(
+    analysis: FleetAnalysis, thresholds: Thresholds, batch_size: int = 100
 ) -> List[rc.RecommendationPackage]:
-    """Run the deterministic decision pipeline and directly assemble locked public packages."""
-    optimizations = evaluate_warehouses(evidence, thresholds, batch_size)
+    """Run the deterministic decision pipeline on an analyzed fleet and directly assemble locked public packages."""
+    evidence = analysis.evidence
+    optimizations = evaluate_analysis(analysis, thresholds, batch_size)
     evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
@@ -2745,6 +2753,13 @@ def build_recommendation_packages(
         len(evidence), len(packages), sum(len(p.candidates) for p in packages), sum(len(p.scenarios) for p in packages),
     )
     return packages
+
+
+def build_recommendation_packages(
+    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
+) -> List[rc.RecommendationPackage]:
+    """Analyze evidence already in hand and assemble locked public packages (the CLI runs analyzer.run first)."""
+    return build_packages_from_analysis(FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds)), thresholds, batch_size)
 
 
 def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
@@ -2894,46 +2909,21 @@ def aws_region_price_guard(evidence: Sequence[WarehouseEvidence], source_region:
             "registry, or pass --allow-missing-aws-price to publish with AWS cost unavailable.")
 
 
-def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
-    supplied=[("warehouse",args.serverless_warehouse_id),("warehouse",args.sql_warehouse_id),("cluster",args.all_purpose_cluster_id)]
-    supplied=[x for x in supplied if x[1]]
-    if args.execution_id:
-        if supplied: raise SystemExit("Use either --execution-id/--execution-kind or one convenience execution-ID flag, not both.")
-        if not args.execution_kind: raise SystemExit("--execution-kind is required with --execution-id")
-        return args.execution_kind,str(args.execution_id)
-    if len(supplied)>1: raise SystemExit("Supply exactly one execution target: serverless/sql warehouse ID or all-purpose cluster ID.")
-    if supplied: return supplied[0][0],str(supplied[0][1])
-    raise SystemExit("Execution target required: --serverless-warehouse-id, --sql-warehouse-id, --all-purpose-cluster-id, or --execution-kind/--execution-id")
-
-
 def main(argv:Optional[Sequence[str]]=None)->int:
     args=parse_args(argv); t=Thresholds(); out=Path(args.output_dir)
     log_path=setup_logging(out,args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",POLICY_VERSION,ANALYZER_VERSION,OPTIMIZER_VERSION,ESTIMATOR_VERSION,BUNDLE_MODEL_VERSION)
-    unseen=None
-    if args.demo:
-        if not (1 <= args.demo_count <= len(DEMO_FLEET)):
-            raise SystemExit(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
-        LOGGER.info("mode.demo synthetic_collector_warehouses=%d", args.demo_count)
-        evidence=synthetic_demo_evidence(args.demo_count)
-    elif args.from_evidence:
-        LOGGER.info("mode.from_evidence files=%d",len(args.from_evidence))
-        evidence=load_evidence_files(args.from_evidence)
-    else:
-        kind,eid=_resolve_execution_args(args)
-        auth=resolve_cli_oauth(args.profile,kind,eid,args.config_file,args.workspace_id)
-        compat=collect_workspace_compatibility_evidence(auth,args.compatibility_api_mode)
-        LOGGER.info("compatibility.mode=%s status=%s workspace_id=%s",compat.get("mode"),compat.get("status"),compat.get("workspace_id"))
-        registry=load_aws_price_registry(args.aws_price_registry)
-        with SqlClient(auth) as client:
-            evidence=extract_evidence(client,t,args.source_region,registry,compat,ingestion_cutoff=args.billing_ingested_through)
-            unseen=collect_unseen_billed_warehouses(client,ingestion_cutoff=args.billing_ingested_through)
+    context=RunContext(request=request_from_args(args),thresholds=t)
+    analysis=analyzer.run(context)
+    evidence=analysis.evidence; unseen=analysis.unseen_billed_warehouses
+    if context.request.mode==MODE_LIVE:
+        registry=analysis.aws_price_registry
         refusal=aws_region_price_guard(evidence,args.source_region,registry,allow_missing=args.allow_missing_aws_price)
         if refusal:
             raise SystemExit(refusal)
         if args.allow_missing_aws_price and args.source_region not in (registry.get("regions") or {}):
             LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)",args.source_region)
-    packages=build_recommendation_packages(evidence,t,args.batch_size)
+    packages=build_packages_from_analysis(analysis,t,args.batch_size)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)

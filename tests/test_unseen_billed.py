@@ -106,11 +106,11 @@ class UnseenBilledWarehouseTests(unittest.TestCase):
             evidence = p.synthetic_demo_evidence(1)
             client = FakeClient({"unseen_billed_warehouses": UNSEEN})
             with tempfile.TemporaryDirectory() as td, \
-                    patch("publisher.publisher._resolve_execution_args", return_value=("warehouse", "abc")), \
-                    patch("publisher.publisher.resolve_cli_oauth", return_value=object()), \
-                    patch("publisher.publisher.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "UNAVAILABLE"}), \
-                    patch("publisher.publisher.SqlClient", return_value=client), \
-                    patch("publisher.publisher.extract_evidence", return_value=evidence):
+                    patch("publisher.config.loader._resolve_execution_args", return_value=("warehouse", "abc")), \
+                    patch("publisher.analyzer.analyzer.resolve_cli_oauth", return_value=object()), \
+                    patch("publisher.analyzer.analyzer.collect_workspace_compatibility_evidence", return_value={"mode": "A_HITL_FALLBACK", "status": "UNAVAILABLE"}), \
+                    patch("publisher.analyzer.analyzer.SqlClient", return_value=client), \
+                    patch("publisher.analyzer.analyzer.extract_evidence", return_value=evidence):
                 with contextlib.redirect_stdout(io.StringIO()):
                     code = p.main(["--profile", "X", "--sql-warehouse-id", "abc", "--source-region", "us-east-1", "--output-dir", td, "--no-workbook"])
                 self.assertEqual(code, 0)
