@@ -49,5 +49,24 @@ class MigrationOwnOptimumTests(unittest.TestCase):
         self.assertFalse([s for s in w.scenarios if any(st.knob == "warehouse_type" for st in s.steps)])
 
 
+class MigrationTargetBudgetTests(unittest.TestCase):
+    def test_target_auto_stop_respects_the_target_cold_start_budget(self):
+        # Serverless at 30 -> Pro: every lower Pro value adds restarts for 50% of queries (over the 2% budget), so the
+        # Pro alternative keeps 30 (no saving from auto-stop) instead of being priced at a value the policy rejects.
+        logging.disable(logging.CRITICAL)
+        try:
+            e = next(x for x in p.synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C02")
+            q = e.current_epoch.gaps["running_idle_queries"]
+            for t in p.auto_stop_candidates(p.Thresholds(), "PRO"):
+                if t < 30:
+                    row = e.current_epoch.gaps["running_idle_by_target"].setdefault(str(t), dict.fromkeys(p.RUNNING_IDLE_TARGET_FIELDS, 0))
+                    row["additional_starts"] = q // 2
+            a = p.Analyzer(p.Thresholds()).analyze(e)["warehouse_type"].facts
+        finally:
+            logging.disable(logging.NOTSET)
+        self.assertEqual(a["migration_target_option"]["target"], 30)
+        self.assertEqual(a["migration_running_fraction"], 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

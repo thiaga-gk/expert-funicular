@@ -3026,7 +3026,8 @@ class Analyzer:
         if running_available:
             target_options = self._auto_stop_options(gaps, current_auto, target_values, target_restart, floor_clusters, target_budget)
             current_valid = current_auto == 0 or current_auto >= target_values[0]
-            within = [o for o in target_options if o["within_cold_start_budget"]] or target_options
+            # Only values within the target's cold-start budget (a raise never adds restarts, so it always qualifies).
+            within = [o for o in target_options if o["within_cold_start_budget"]]
             best = max(within, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
             if best is not None and (best["net_cluster_minutes"] > 0 or not current_valid):
                 target_option = best
