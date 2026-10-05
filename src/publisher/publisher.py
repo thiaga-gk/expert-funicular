@@ -45,6 +45,9 @@ from publisher.config.settings import REPO_ROOT, _CONTRACT_SCHEMA_PATH, _EVIDENC
 from publisher.analyzer import analyzer
 from publisher.governor import governor
 from publisher.optimizer import optimizer
+from publisher.reviewer import reviewer
+from publisher.contracts.review import CandidateReviewResult
+from publisher.contracts.request import MODE_REPLAY, PublisherRequest
 from publisher.contracts.candidate import OptimizationResult
 from publisher.governor.compatibility import migration_compatibility
 from publisher.contracts.governance import GovernanceResult
@@ -165,6 +168,12 @@ from publisher.optimizer.estimator.cost import (  # noqa: F401
 from publisher.optimizer.estimator.candidate import (  # noqa: F401
     Estimator,
 )
+from publisher.reviewer.reviewer import (  # noqa: F401
+    Reviewer,
+)
+from publisher.contracts.scenario import (  # noqa: F401
+    PRICING_AUTHORITATIVE, PRICING_CONTINGENT,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -192,139 +201,7 @@ from publisher.optimizer.estimator.candidate import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-class Reviewer:
-    """Fail-fast invariant gate for identity, evidence epoch, config, cost, and confidence contracts."""
-    def __init__(self, thresholds: Thresholds):
-        self.t = thresholds
-
-    def review(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->None:
-        seen=set(); cfg=e.current_epoch.config
-        knobs=[c.knob for c in candidates]
-        if set(knobs) != set(ACTIVE_KNOBS) or len(knobs) != len(ACTIVE_KNOBS):
-            raise ValueError(f"Expected exactly one candidate per active knob for {e.workspace_id}/{e.warehouse_id}: {knobs}")
-        for c in candidates:
-            if c.workspace_id != e.workspace_id or c.warehouse_id != e.warehouse_id:
-                raise ValueError(f"Candidate identity mismatch: {c.recommendation_id}")
-            if c.recommendation_id in seen: raise ValueError(f"Duplicate recommendation id: {c.recommendation_id}")
-            seen.add(c.recommendation_id)
-            if any(x is not None and x<0 for x in (c.current_cost_365,c.baseline_forecast_cost_365)): raise ValueError(f"Negative cost: {c.recommendation_id}")
-            score=safe_float(c.confidence.get("score"),-1)
-            if not 0<=score<=1: raise ValueError(f"Confidence out of range: {c.recommendation_id}")
-            if c.status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"} and c.current_config==c.recommended_config:
-                raise ValueError(f"Change status without config change: {c.recommendation_id}")
-            if c.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"} and not c.blockers: raise ValueError(f"{c.status} without blockers: {c.recommendation_id}")
-            if c.status=="INSUFFICIENT_EVIDENCE" and c.current_config!=c.recommended_config: raise ValueError(f"INSUFFICIENT_EVIDENCE with config change: {c.recommendation_id}")
-            if c.status=="NO_CHANGE" and c.estimated_savings_365 not in (None,0,0.0): raise ValueError(f"NO_CHANGE with savings: {c.recommendation_id}")
-            if c.estimated_cost_range_365:
-                r=c.estimated_cost_range_365
-                if not (0<=r.low<=r.base<=r.high): raise ValueError(f"Invalid cost range: {c.recommendation_id}")
-            if c.estimated_savings_range_365:
-                r=c.estimated_savings_range_365
-                if not (r.low<=r.base<=r.high): raise ValueError(f"Invalid savings range: {c.recommendation_id}")
-            for f in c.findings:
-                if f.epoch_id!=e.current_epoch_id and f.metric not in {"serverless_usage_pct_365"}:
-                    raise ValueError(f"Decision finding not current epoch: {c.recommendation_id} {f.finding_id}")
-            if c.knob=="warehouse_size":
-                x=c.recommended_config.get("warehouse_size")
-                if x not in SIZE_ORDER and x!=cfg.warehouse_size: raise ValueError(f"Invalid size: {x}")
-            if c.knob=="min_clusters":
-                x=safe_int(c.recommended_config.get("min_clusters"),cfg.min_clusters)
-                if not 1 <= x <= self.t.min_clusters_supported_limit: raise ValueError("min_clusters outside supported range")
-                # A rollback restores floor and ceiling together: the floor must fit under the ceiling it comes back with.
-                ceiling=cfg.max_clusters
-                if "CANARY_GUARDRAIL_BREACHED" in c.blockers:
-                    ceiling=next((safe_int(o.recommended_config.get("max_clusters"),ceiling) for o in candidates
-                                  if o.knob=="max_clusters" and "CANARY_GUARDRAIL_BREACHED" in o.blockers),ceiling)
-                if x > ceiling: raise ValueError("min_clusters exceeds current max_clusters")
-            if c.knob=="max_clusters":
-                x=safe_int(c.recommended_config.get("max_clusters"),cfg.max_clusters)
-                if not 1<=x<=self.t.max_clusters_supported_limit: raise ValueError("max_clusters outside supported range")
-                if x < cfg.min_clusters: raise ValueError("max_clusters below current min_clusters")
-            if c.knob=="auto_stop_minutes":
-                x=safe_int(c.recommended_config.get("auto_stop_minutes"),cfg.auto_stop_minutes)
-                if x < 0: raise ValueError("auto_stop_minutes < 0")
-                if x != cfg.auto_stop_minutes and cfg.warehouse_type != "SERVERLESS" and x < self.t.auto_stop_floor_pro_classic:
-                    raise ValueError("auto_stop_minutes below the Pro/Classic minimum")
-            if str(c.metadata.get("currency"))!=e.currency: raise ValueError("Currency mismatch")
-
-    def review_scenarios(
-        self,
-        e: WarehouseEvidence,
-        candidates: Sequence[CandidateRecommendation],
-        scenarios: Sequence[Scenario],
-        recommended_scenario_id: Optional[str],
-    ) -> None:
-        """Validate dependency ordering, confidence propagation, and portfolio ranges."""
-        by_id={c.recommendation_id:c for c in candidates}
-        ids={s.scenario_id for s in scenarios}
-        if recommended_scenario_id not in ids:
-            raise ValueError(f"Recommended scenario missing for {e.workspace_id}/{e.warehouse_id}: {recommended_scenario_id}")
-        if sum(1 for s in scenarios if s.recommended)!=1:
-            raise ValueError(f"Expected exactly one recommended scenario for {e.workspace_id}/{e.warehouse_id}")
-        for sc in scenarios:
-            sc_score=safe_float(sc.confidence.get("score"),-1)
-            if not (0<=sc_score<=1 or (not sc.steps and sc.confidence.get("score") is None)):
-                raise ValueError(f"Scenario confidence out of range: {sc.scenario_id}")
-            seen_steps=set(); invalidated=set()
-            for st in sc.steps:
-                if st.recommendation_id not in by_id:
-                    raise ValueError(f"Scenario references unknown recommendation: {st.recommendation_id}")
-                if st.recommendation_id in seen_steps:
-                    raise ValueError(f"Scenario duplicates recommendation: {st.recommendation_id}")
-                seen_steps.add(st.recommendation_id)
-                c=by_id[st.recommendation_id]
-                if st.knob!=c.knob or st.current_config!=c.current_config or st.recommended_config!=c.recommended_config:
-                    raise ValueError(f"Scenario step diverges from candidate contract: {st.recommendation_id}")
-                step_score=safe_float(st.confidence.get("score"),-1)
-                if not 0<=step_score<=1:
-                    raise ValueError(f"Plan-step confidence out of range: {st.recommendation_id}")
-                if abs(step_score-safe_float(c.confidence.get("score"),-2))>1e-9:
-                    raise ValueError(f"Plan-step confidence does not match candidate: {st.recommendation_id}")
-                if st.knob in invalidated and st.execution_state!="PENDING_REEVALUATION":
-                    raise ValueError(f"Invalidated downstream step must be pending reevaluation: {st.recommendation_id}")
-                invalidated.update(st.invalidates)
-            # A canary rollback is a first, ready step and restores its knob regardless of what later steps invalidate.
-            rollbacks=[i for i,st in enumerate(sc.steps) if "CANARY_GUARDRAIL_BREACHED" in by_id[st.recommendation_id].blockers]
-            if rollbacks!=list(range(len(rollbacks))) or any(sc.steps[i].execution_state=="PENDING_REEVALUATION" for i in rollbacks):
-                raise ValueError(f"Canary rollback must be a first, ready step: {sc.scenario_id}")
-            for i,st in enumerate(sc.steps):
-                if i not in rollbacks and any(st.knob in later.invalidates for later in sc.steps[i+1:]):
-                    raise ValueError(f"Plan step precedes a step that invalidates it: {st.recommendation_id}")
-            pe=sc.portfolio_estimate
-            for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
-                if r is not None and not (r.low<=r.base<=r.high):
-                    raise ValueError(f"Scenario range is not ordered: {sc.scenario_id}")
-            # Authoritative economics may not include steps whose evidence was invalidated upstream (audit H1).
-            for st in sc.steps:
-                pending=st.execution_state=="PENDING_REEVALUATION"
-                if pending != (st.pricing_basis==PRICING_CONTINGENT):
-                    raise ValueError(f"Plan-step pricing basis must match its execution state: {st.recommendation_id}")
-            authoritative=[st for st in sc.steps if st.pricing_basis==PRICING_AUTHORITATIVE]
-            contingent_steps=[st for st in sc.steps if st.pricing_basis==PRICING_CONTINGENT]
-            if pe.contingent is not None:
-                if not contingent_steps:
-                    raise ValueError(f"Contingent economics without a pending step: {sc.scenario_id}")
-                for r in (pe.contingent.estimated_cost_range_365, pe.contingent.estimated_savings_range_365):
-                    if r is not None and not (r.low<=r.base<=r.high):
-                        raise ValueError(f"Contingent range is not ordered: {sc.scenario_id}")
-                last=contingent_steps[-1].running_estimated_savings_range_365
-                got=pe.contingent.estimated_savings_range_365
-                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
-                    raise ValueError(f"Contingent savings must equal the last pending step's running savings: {sc.scenario_id}")
-            if authoritative and pe.estimate_status not in {"REQUIRES_CANARY","REQUIRES_COST_MODEL"}:
-                last=authoritative[-1].running_estimated_savings_range_365
-                got=pe.estimated_savings_range_365
-                if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
-                    raise ValueError(f"Authoritative scenario savings must equal the last authoritative step's running savings: {sc.scenario_id}")
-            if sc.name.startswith("Plan A") and any(st.knob=="warehouse_type" for st in sc.steps):
-                raise ValueError(f"Current-type Plan A cannot contain warehouse_type migration: {sc.scenario_id}")
-            if sc.name.startswith("Plan B") and len(sc.steps)>1:
-                raise ValueError(f"Migration Plan B must remain a separate one-step branch: {sc.scenario_id}")
-
-
-PRICING_AUTHORITATIVE = "AUTHORITATIVE"
 PLAN_KNOB_RANK = {"warehouse_size": 0, "max_clusters": 1, "min_clusters": 2, "auto_stop_minutes": 3}  # plan-order tie-break
-PRICING_CONTINGENT = "CONTINGENT_PENDING_REEVALUATION"
 
 
 @dataclass
@@ -1758,16 +1635,15 @@ def _build_locked_recommendation_package(
     return package
 
 
-def review_and_plan(optimization: OptimizationResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
-    """Reviewer candidate gate, scenario planning and the scenario gate for each optimized warehouse, in order."""
+def review_and_plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
+    """Scenario planning and the scenario gate for each warehouse whose candidates passed the candidate gate, in order."""
     results: List[WarehouseOptimization] = []
-    for w in optimization.warehouses:
+    for w in reviewed.accepted:
         e, candidates = w.evidence, w.candidates
-        reviewer = Reviewer(thresholds)
+        gate = Reviewer(thresholds)
         planner = ScenarioPlanner(thresholds)
-        reviewer.review(e, candidates)
         scenarios, recommended = planner.scenarios(e, candidates)
-        reviewer.review_scenarios(e, candidates, scenarios, recommended)
+        gate.review_scenarios(e, candidates, scenarios, recommended)
         status_counts: Dict[str, int] = {}
         for candidate in candidates:
             status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
@@ -1794,7 +1670,10 @@ def evaluate_analysis(
     """Evaluate the eligible warehouses through both reviewer gates without constructing reporter objects."""
     governance = governance if governance is not None else governor.govern(analysis)
     log_pipeline_start(analysis, governance, batch_size)
-    return review_and_plan(optimizer.optimize_eligible(governance.eligible, thresholds, batch_size), thresholds)
+    # Evidence already in hand is a replay: the context carries only the policy and the batch size.
+    context = RunContext(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
+    optimization = optimizer.run(context, analysis, governance)
+    return review_and_plan(reviewer.review_candidates(context, analysis, governance, optimization), thresholds)
 
 
 def evaluate_warehouses(
@@ -1978,7 +1857,8 @@ def main(argv:Optional[Sequence[str]]=None)->int:
     governance=governor.run(context,analysis)
     log_pipeline_start(analysis,governance,args.batch_size)
     optimization=optimizer.run(context,analysis,governance)
-    packages=build_packages(analysis,review_and_plan(optimization,t),t)
+    reviewed=reviewer.review_candidates(context,analysis,governance,optimization)
+    packages=build_packages(analysis,review_and_plan(reviewed,t),t)
     files=package_locked_contract(out,packages,evidence,generate_workbook=not args.no_workbook,unseen_billed_warehouses=unseen)
     candidate_count=sum(len(pkg.candidates) for pkg in packages)
     scenario_count=sum(len(pkg.scenarios) for pkg in packages)
