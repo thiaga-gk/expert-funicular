@@ -185,6 +185,15 @@ class DemoFleetTests(unittest.TestCase):
         self.assertIsNotNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
         self.assertIn("billing cycles", " ".join(pkg["cost_baseline"]["forecast"]["assumptions"]))
 
+    def test_plan_summary_puts_no_canary_steps_before_canaries(self):
+        # C06: auto-stop (approval only) and a size canary are both ready; applied together, the canary's cost
+        # reading would include the auto-stop saving.
+        summary = self.by_scenario["C06"][1]["recommended_plan"]["decision_summary"]
+        self.assertIn("Apply the ready no-canary steps (auto_stop_minutes) first", summary)
+        self.assertIn("start the warehouse_size canary after they have run for 7 days", summary)
+        quiet = self.by_scenario["C47"][1]["recommended_plan"]["decision_summary"]
+        self.assertNotIn("no-canary steps", quiet)
+
     def test_c19_newly_changed_config_waits_with_a_reevaluation_time(self):
         _, pkg = self.by_scenario["C19"]
         self.assertEqual(pkg["assessment"]["overall_status"], "INSUFFICIENT_EVIDENCE")

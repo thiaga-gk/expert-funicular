@@ -5533,9 +5533,22 @@ def _recommended_plan(
         selection_reason_code=reason,
         next_action=next_action,
         requires_hitl=True,
-        decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
+        decision_summary=f"{recommended.scenario_name} is the deterministic execution path; apply validation gates and regenerate after invalidating changes."
+                         + _canary_sequencing_note(recommended),
         reevaluation=reevaluation,
     )
+
+
+def _canary_sequencing_note(scenario: rc.Scenario) -> str:
+    """When approval-only steps and canaries are both ready: approval-only steps go first, canaries start once those
+    have run for the stability period, so a canary's cost reading is not mixed with another change's saving."""
+    steps = [x for x in scenario.execution_plan if x.step_type == rc.PlanStepType.CANDIDATE and x.knob is not None]
+    hitl = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY]
+    canary = [x.knob.value for x in steps if x.execution_state == rc.ExecutionState.READY_FOR_CANARY]
+    if not hitl or not canary:
+        return ""
+    return (f" Apply the ready no-canary steps ({', '.join(hitl)}) first; start the {', '.join(canary)} canary after they have run for "
+            f"{rc.REEVALUATION_EPOCH_MATURITY_DAYS} days, so the canary's cost reading is not mixed with their savings.")
 
 
 def _build_locked_recommendation_package(
