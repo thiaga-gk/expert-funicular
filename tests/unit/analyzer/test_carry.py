@@ -20,7 +20,7 @@ from publisher.analyzer.findings import Analyzer  # noqa: E402
 from publisher.common.time import parse_datetime  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 import datetime as dt  # noqa: E402
-from tests.test_readiness import changed  # noqa: E402
+from tests.unit.optimizer.test_readiness import changed  # noqa: E402
 
 
 class CarryTests(unittest.TestCase):

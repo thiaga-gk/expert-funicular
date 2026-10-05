@@ -24,7 +24,7 @@ from publisher.common.time import parse_datetime  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.packager.scenarios import ScenarioPlanner  # noqa: E402
 from publisher.contracts import reporter_contract as rc  # noqa: E402
-from tests.test_readiness import changed  # noqa: E402
+from tests.unit.optimizer.test_readiness import changed  # noqa: E402
 
 
 class CanaryRollbackTests(unittest.TestCase):

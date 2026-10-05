@@ -24,7 +24,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 0. **Once, before the first issue:** in the main checkout on `master`, commit the untracked `docs/proposals/gap-review-2.8.0.md`, `docs/proposals/golden-scenarios.md` and this runbook in one commit. Create the worktree: `git worktree add .worktrees/gap-fixes -b fix/<first-id> master`, then create a venv inside it and `pip install -r requirements.txt`.
 1. **Start:** in the worktree, `git switch -c fix/<id> master` (after the first issue). Set the tracker row to *In progress*.
 2. **Red:** write the failing tests first.
-   - Unit tests for the defect in `tests/test_publisher.py` (or the contract/workbook test file it belongs to).
+   - Unit tests for the defect in the capability test folder it belongs to (`tests/unit/<capability>/`, or `tests/unit/contracts/`, `tests/unit/reporter/` for the contract/workbook test files).
    - For every golden scenario row whose Tracker cell lists this finding: a case folder `tests/golden/cases/<cXX>-<slug>/` (`case.yaml` with the `expect` block and `source/` normalized evidence, same shape as the existing cases; `expected/` comes from `scripts/update_goldens.py`) and a test asserting the row's Expected behavior. Reuse an existing fixture when it already represents the scenario.
    - Run the tests and confirm they fail **for the reason the finding describes**. Paste the failing assertion into the issue summary.
 3. **Green:** make the smallest layer-local change that passes (analyzer observes, optimizer decides, candidate estimator prices one change, bundle estimator prices scenarios). Unknown stays null, never zero. Keep determinism.

@@ -16,7 +16,7 @@ cases/<name>/
 
 Every case is checked twice by `tests/golden/test_golden_publisher.py`: its `expected/` output must equal what the publisher produces now (the behavioral baseline), and a scenario case (`c<NN>-` / `a<NN>-`, the number is the catalog row) must also pass the assertions in its `case.yaml` `expect` block. The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length` / `between`, collector-level `snapshots` cases) is documented in the docstring of `tests/golden/test_golden_publisher.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
 
-Core cases (also used by `tests/test_publisher.py`):
+Core cases (also used by `tests/golden/test_golden_expectations.py`):
 - idle-expensive-warehouse
 - spill-constrained
 - concurrency-constrained
@@ -47,7 +47,7 @@ Scenario cases (`c*` and `a*`):
 - c48-long-unchanged-warehouse
 - c50-single-cluster-queueing (demo fleet evidence)
 
-The `--demo` fleet is separate from these cases: the cases are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/test_demo_fleet.py`).
+The `--demo` fleet is separate from these cases: the cases are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/golden/test_demo_fleet.py`).
 
 Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance.
 

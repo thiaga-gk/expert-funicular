@@ -6,7 +6,7 @@ Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, 
 Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`.
 - Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
-- One test: `python -m unittest tests.test_publisher.<Class>.<test_name> -v` (or a module: `tests.test_workbook_contract`)
+- One test: `python -m unittest tests.unit.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.reporter.test_workbook_contract`)
 - Demo (one warehouse per golden scenario): `python -m publisher --demo --output-dir ./demo_out`
 - Workbook validator: `python scripts/validate_workbook.py ./demo_out`
 - Contract example: `python scripts/validate_contracts.py`
