@@ -117,6 +117,30 @@ class CarryTests(unittest.TestCase):
         pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
         self.assertTrue(pkg.assessment.evidence_quality.query_sample_sufficient)
 
+    def test_older_epoch_inside_the_carried_window_does_not_hold(self):
+        # An older epoch that lies wholly inside the carried 30 days is part of the recent window, not "older".
+        import copy
+        e, _ = changed("C11", "auto_stop_minutes", 10, 3)
+        cur = e.current_epoch
+        recent = cur.query["carried"]["demand"]["concurrency_histogram"]["RECENT"]
+        top = max(int(k) for k in recent)
+        start = p.parse_datetime(e.analysis_time) - p.dt.timedelta(days=10)
+        inside = copy.deepcopy(next(x for x in e.epochs if not x.is_current))
+        inside.epoch_id, inside.epoch_start, inside.epoch_end = "inside", start.isoformat(), cur.epoch_start
+        inside.query = {"concurrency_histogram": {"EPOCH": {str(top): 400}}}
+        e.epochs.append(inside)
+        f = p.Analyzer(p.Thresholds()).analyze(e)["min_clusters"].facts
+        self.assertFalse(f["older_epoch_demand_higher"])
+
+    def test_workload_profile_and_attribution_read_the_carried_view(self):
+        def drop_current_query(rows):
+            cur = rows["query_metrics_carried_demand"][0]["cur_start"]
+            rows["query_metrics"] = [r for r in rows["query_metrics"] if r["epoch_start"] != cur]
+        e, _ = changed("C11", "auto_stop_minutes", 10, 3, rows_hook=drop_current_query)
+        pkg = p.build_recommendation_packages([e], p.Thresholds())[0]
+        self.assertGreater(pkg.workload_profile.activity.queries_30d, 1000)
+        self.assertEqual(getattr(pkg.workload_profile.primary_query_source, "value", pkg.workload_profile.primary_query_source), "DASHBOARD")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -581,7 +581,7 @@ class WarehouseOptimization:
     @property
     def query_source_profile(self) -> Dict[str, Any]:
         attribution = self.evidence.attribution
-        profile = attribution.query_source if attribution else derive_query_source_profile(self.evidence.current_epoch.query)
+        profile = attribution.query_source if attribution else derive_query_source_profile(carried_query_view(self.evidence.current_epoch.query)[0])
         return as_serializable(profile)
 
     @property
@@ -3151,7 +3151,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         sql_tiers = as_string_list(attribution_row.get("observed_sql_tiers"))
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
         photon_observation = infer_photon_observation(attribution_row, analysis_time, thresholds)
-        query_source = derive_query_source_profile(current.query)
+        query_source = derive_query_source_profile(carried_query_view(current.query)[0])
         owners = as_string_list(attribution_row.get("observed_owners")) or []
         attribution = WarehouseAttribution(
             owner=clean_owner(attribution_row.get("latest_owner")),
@@ -3287,7 +3287,8 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
     if (p_now is not None and p_before and safe_float(now.get("shared_source_queries")) >= t.canary_p95_min_queries
             and p_now > p_before * (1 + t.canary_p95_regression_pct / 100.0)):
         out["guards"].append("CANARY_P95_REGRESSION")
-    out["details"] = {"current": {k: now.get(k) for k in CANARY_GUARD_FIELDS}, "previous": {k: before.get(k) for k in CANARY_GUARD_FIELDS}}
+    out["details"] = {"current": {k: optional_float(now.get(k)) for k in CANARY_GUARD_FIELDS},
+                      "previous": {k: optional_float(before.get(k)) for k in CANARY_GUARD_FIELDS}}
     return out
 
 
@@ -3406,8 +3407,13 @@ class Analyzer:
         qpc_all = self.t.queries_per_cluster_pro_classic
         older_peak: Optional[int] = None; recent_peak: Optional[int] = None; held = False
         cur_recent_days = min(30.0, window_days(recent_from, None, e.analysis_time))
+        # With carried evidence the recent window reaches back across the change: an older epoch wholly inside it is
+        # part of the recent window, not an older peak.
+        recent_start = max(parse_datetime(recent_from), parse_datetime(e.analysis_time) - dt.timedelta(days=30)) if self._carry["demand"] else None
         for x in e.epochs:
             if x.is_current or not isinstance(x.query.get("concurrency_histogram"), Mapping) or (x.epoch_end is not None and parse_datetime(x.epoch_end) <= horizon):
+                continue
+            if recent_start is not None and parse_datetime(x.epoch_start) >= recent_start:
                 continue
             peak = histogram_top_level(x.query["concurrency_histogram"].get("EPOCH"), self.t.peak_demand_min_minutes)
             recent_at = recent_peak_at_rate(cur_hist.get("RECENT"), window_days(x.epoch_start, x.epoch_end, e.analysis_time), self.t, cur_recent_days)
@@ -3658,16 +3664,17 @@ class Analyzer:
         if canary.get("details"):
             now, before = canary["details"]["current"], canary["details"]["previous"]
             window = "the current epoch since the change (last 30 days) against the previous configuration's last 30 days"
-            specs = (("canary_failure_cancel_pct", "failure_cancel_pct", "%", self.t.failure_cancel_pct_downsize_safe),
-                     ("canary_queued_query_pct", "queued_query_pct", "%", self.t.queue_query_pct_safe),
-                     ("canary_spill_query_pct", "spill_query_pct", "%", self.t.spill_query_pct_downsize_safe),
-                     ("canary_p95_execution_ms_shared_sources", "p95_execution_ms_shared_sources", "ms", self.t.canary_p95_regression_pct),
-                     ("canary_shared_source_queries", "shared_source_queries", "queries", self.t.canary_p95_min_queries))
+            specs = [("canary_failure_cancel_pct", "failure_cancel_pct", "%", f"rollback above previous and above {self.t.failure_cancel_pct_downsize_safe:g}%"),
+                     ("canary_queued_query_pct", "queued_query_pct", "%", f"rollback above previous and above {self.t.queue_query_pct_safe:g}%"),
+                     ("canary_p95_execution_ms_shared_sources", "p95_execution_ms_shared_sources", "ms", f"rollback above previous x {1 + self.t.canary_p95_regression_pct / 100:g}"),
+                     ("canary_shared_source_queries", "shared_source_queries", "queries", f"p95 guard needs >= {self.t.canary_p95_min_queries}")]
+            if "warehouse_size" in canary["changes"]:
+                specs.append(("canary_spill_query_pct", "spill_query_pct", "%", f"rollback above previous and above {self.t.spill_query_pct_downsize_safe:g}%"))
             for knob in ("warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes"):
-                for metric, field_name, unit, limit in specs:
+                for metric, field_name, unit, comparator in specs:
                     out[knob].findings.append(self._f(e, knob, metric, now.get(field_name), unit=unit, threshold=before.get(field_name),
-                        comparator=f"current vs previous (rollback limit {limit:g})", table="system.query.history", field=field_name, window=window,
-                        interpretation="Fail-fast canary guard after a canary-type change: the current value against the previous configuration's."))
+                        comparator=comparator, table="system.query.history", field=field_name, window=window,
+                        interpretation="Fail-fast canary guard after a canary-type change: the current value (value) against the previous configuration's (threshold)."))
         return out
 
 # ---------------------------------------------------------------------------
@@ -4083,6 +4090,12 @@ class Optimizer:
                     {knob: out[i].current_config[knob]}, {knob: previous}, ["CANARY_GUARDRAIL_BREACHED"] + sorted(canary["guards"]),
                     [], invalidates, invalidates,
                     f"Roll back the {knob} change to {previous}: since the change, {why}. The previous value is restored; no saving is claimed.")
+            # No other size or cluster change rides along: its evidence was measured on the configuration being rolled back.
+            for i, d in enumerate(out):
+                if d.knob in ("warehouse_size", "max_clusters", "min_clusters") and d.knob not in changes and d.status in ("ACTIONABLE", "TEST_REQUIRED", "REVIEW"):
+                    out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
+                        ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
+                        f"Held while the canary rollback is pending: this {d.knob} change rests on evidence measured on the configuration being rolled back.")
         return out
 
 
@@ -4873,7 +4886,7 @@ class ScenarioPlanner:
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
     def _compatibility(self,e:WarehouseEvidence,target_type:str)->Dict[str,Any]:
-        q=e.current_epoch.query; checks=[]
+        q=carried_query_view(e.current_epoch.query)[0]; checks=[]
         target=target_type.upper(); api=dict(e.compatibility_evidence or {})
         if target=="SERVERLESS":
             region=(e.source_region or "").split(",")[0]
@@ -5062,7 +5075,7 @@ def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
 
 def _workload_profile(e: WarehouseEvidence, t: Thresholds) -> rc.WorkloadProfile:
     ep = e.current_epoch
-    q = ep.query
+    q, _ = carried_query_view(ep.query)  # the same query evidence the decisions read
     profile = e.attribution.query_source if e.attribution else None
     categories = dict(profile.categories) if profile else {}
     percentages = dict(profile.percentages) if profile else {}
@@ -6461,7 +6474,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
         attribution=WarehouseAttribution(
             owner="sales-bi@databricks.example", observed_owners=["sales-bi@databricks.example"],
             owner_source="system.billing.usage.identity_metadata.owned_by",
-            query_source=derive_query_source_profile(cur.query),
+            query_source=derive_query_source_profile(carried_query_view(cur.query)[0]),
         ),
     )
     return [e]
@@ -7017,8 +7030,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "dashboard_queries_30": count("DASHBOARD"), "job_queries_30": count("JOB"), "notebook_queries_30": count("NOTEBOOK"),
             "genie_queries_30": count("GENIE"), "sql_query_source_queries_30": count("SQL"), "power_bi_queries_30": count(client="Power BI"),
             "tableau_queries_30": count(client="Tableau"), "databricks_sql_editor_client_queries_30": count(client="Databricks SQL Editor"),
-            **{f"queries_week_{k}": (int(round(queries_between(max(day0 - 7 * k * 1440.0, p_start), day0 - 7 * (k - 1) * 1440.0)[0]))
-                                     if p_start <= day0 - 7 * k * 1440.0 else None) for k in range(1, 9)},
+            "p95_wait_capacity_ms_when_queued_30": spec.get("queue_wait_ms", 120000) if queued_n >= 0.5 else None,
         })
         key = {"workspace_id": workspace, "warehouse_id": wh, "cur_start": stamp(epochs[-1][0])}
         rows.setdefault(f"query_metrics_carried_{family}", []).append({**key, **row})

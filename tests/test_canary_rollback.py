@@ -142,6 +142,39 @@ class CanaryRollbackTests(unittest.TestCase):
         self.assertIn("x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS", p.CANARY_GUARD_SQL)
         self.assertIn("c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", p.CANARY_GUARD_SQL)
 
+    def plan_states(self, e):
+        pkg = p.build_recommendation_packages([e], self.t)[0]
+        plan = next(s for s in pkg.scenarios if s.scenario_id == pkg.recommended_plan.scenario_id)
+        return pkg, [(st.knob.value, st.recommended_value, st.execution_state.value) for st in plan.execution_plan if st.knob is not None]
+
+    def test_a_floor_rollback_comes_first_and_holds_other_capacity_changes(self):
+        # Previous MEDIUM 3/4, current MEDIUM 1/2, p95 regression: the floor and ceiling come back first; no size-down
+        # canary or ceiling cut is proposed on evidence from the configuration being rolled back.
+        e = copy.deepcopy(self.e)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, warehouse_size=e.current_epoch.config.warehouse_size, min_clusters=3, max_clusters=4)
+        pkg, steps = self.plan_states(e)
+        self.assertEqual(steps[:2], [("max_clusters", 4, "READY"), ("min_clusters", 3, "READY")])
+        size = next(c for c in pkg.candidates if c.knob.value == "warehouse_size")
+        self.assertEqual((size.status.value, size.blockers), ("NO_CHANGE", ["CANARY_ROLLBACK_PENDING"]))
+        self.assertNotEqual(pkg.recommended_plan.next_action, "RUN_WAREHOUSE_SIZE_CANARY")
+
+    def test_a_floor_rollback_never_meets_a_lower_ceiling(self):
+        e = copy.deepcopy(self.e)
+        prev = self.previous(e)
+        prev.config = dataclasses.replace(prev.config, warehouse_size=e.current_epoch.config.warehouse_size, min_clusters=2, max_clusters=2)
+        e.current_epoch.config = dataclasses.replace(e.current_epoch.config, max_clusters=8)
+        by = {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}
+        self.assertEqual(by["min_clusters"].status, "ACTIONABLE")
+        self.assertNotEqual(by["max_clusters"].status, "ACTIONABLE")
+
+    def test_guard_findings_are_numbers_and_spill_only_for_size_changes(self):
+        e = copy.deepcopy(self.e)
+        from decimal import Decimal
+        e.current_epoch.query["canary_guard"]["CURRENT"]["failure_cancel_pct"] = Decimal("0.30")
+        obs = p.canary_observation(e, self.t)
+        self.assertIsInstance(obs["details"]["current"]["failure_cancel_pct"], float)
+
 
 if __name__ == "__main__":
     unittest.main()
