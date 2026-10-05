@@ -957,6 +957,8 @@ effective_multiplier    = busy_cluster_time_share * runtime_multiplier + (1 - bu
 cost_factor             = capacity_ratio * effective_multiplier
 ```
 
+The conservative downsize multiplier is a fully linear slowdown: one size down halves the workers per cluster, so query execution time at most doubles; the base and optimistic multipliers assume part of the work does not scale with workers.
+
 `busy_cluster_time_share` is the analyzer's size finding over the whole current epoch (`uptime` and `cluster_minutes` from the event totals, `busy` from the idle-gap query); it is null when any input is unknown, and an unknown share treats all running time as busy. Candidate metadata records `busy_share`, `busy_runtime_multiplier_range` (the policy multipliers) and `runtime_multiplier_range` (the effective range). Example: Serverless LARGE to X_LARGE (DBU ratio 2.0) with half of the cluster time busy has a base factor of 2.0 x (0.5 x 0.70 + 0.5) = 1.70, not 1.40.
 
 The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No historical epoch enters the size factor. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).

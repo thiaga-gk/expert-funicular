@@ -232,7 +232,7 @@ class Thresholds:
     min_cluster_realization_base: float = 0.50
     min_cluster_realization_conservative: float = 0.00
     max_cluster_base_uplift_weight: float = 0.50
-    downsize_runtime_multiplier_conservative: float = 1.55
+    downsize_runtime_multiplier_conservative: float = 2.0  # fully linear slowdown: one size down halves the workers
     downsize_runtime_multiplier_base: float = 1.30
     downsize_runtime_multiplier_optimistic: float = 1.10
     upsize_runtime_multiplier_conservative: float = 1.00
