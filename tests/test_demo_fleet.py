@@ -178,6 +178,13 @@ class DemoFleetTests(unittest.TestCase):
         migration = self.candidate("C03", "warehouse_type")
         self.assertEqual((migration["status"], migration["blockers"]), ("NO_CHANGE", ["NO_QUERIES_WHILE_RUNNING"]))
 
+    def test_c52_month_end_close_forecast_comes_from_whole_billing_cycles(self):
+        e, pkg = self.by_scenario["C52"]
+        self.assertEqual(e.forecast_metadata["forecast_model"], "CADENCE")
+        self.assertGreaterEqual(e.forecast_metadata["billing_cycles"], 2)
+        self.assertIsNotNone(pkg["cost_baseline"]["forward_365d"]["dbu_cost"])
+        self.assertIn("billing cycles", " ".join(pkg["cost_baseline"]["forecast"]["assumptions"]))
+
     def test_c19_newly_changed_config_waits_with_a_reevaluation_time(self):
         _, pkg = self.by_scenario["C19"]
         self.assertEqual(pkg["assessment"]["overall_status"], "INSUFFICIENT_EVIDENCE")

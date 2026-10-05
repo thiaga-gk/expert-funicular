@@ -1,5 +1,5 @@
 {
-  "description": "C20 Sparse / new warehouse: a mature 30-day epoch billed on only 4 days. The forward DBU cost is unknown (too few active cost days to forecast), never $0 or a guessed run rate; savings estimates and the migration comparison abstain.",
+  "description": "C20 Sparse / new warehouse: a mature 30-day epoch billed on only 4 days, three days apart (no weekly or slower cadence to average). The forward DBU cost is unknown (too few active cost days to forecast), never $0 or a guessed run rate; savings estimates and the migration comparison abstain.",
   "evidence": [
     {
       "account_id": "acct-demo",
@@ -88,7 +88,7 @@
           "epoch_start": "2026-09-01T00:00:00+00:00",
           "list_cost": 200.0,
           "unpriced_dbu_quantity": 0.0,
-          "usage_date": "2026-09-05",
+          "usage_date": "2026-09-17",
           "warehouse_id": "wh-demo-001",
           "workspace_id": "1234567890123456"
         },
@@ -98,7 +98,7 @@
           "epoch_start": "2026-09-01T00:00:00+00:00",
           "list_cost": 200.0,
           "unpriced_dbu_quantity": 0.0,
-          "usage_date": "2026-09-12",
+          "usage_date": "2026-09-20",
           "warehouse_id": "wh-demo-001",
           "workspace_id": "1234567890123456"
         },
@@ -108,7 +108,7 @@
           "epoch_start": "2026-09-01T00:00:00+00:00",
           "list_cost": 200.0,
           "unpriced_dbu_quantity": 0.0,
-          "usage_date": "2026-09-19",
+          "usage_date": "2026-09-23",
           "warehouse_id": "wh-demo-001",
           "workspace_id": "1234567890123456"
         },

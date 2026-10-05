@@ -108,6 +108,8 @@ class Thresholds:
     # wait between plan steps (cost history restarts with each applied change). It can trail epoch age by up to a day
     # when the billing watermark has not yet covered the latest day.
     min_economics_cost_history_days: int = 7
+    forecast_cadence_gap_days: int = 7  # billing with a longer gap (and median cycle) is a periodic workload
+    forecast_min_cycles: int = 2  # whole run-to-run cycles the cadence forecast needs
     current_config_stability_days: int = 7
 
     # Photon inference from signed DBU billing evidence in the current warehouse epoch.
@@ -1575,7 +1577,7 @@ def dbu_baseline_blocker(e: "WarehouseEvidence", t: "Thresholds") -> str:
     if e.cost_history_days < t.min_economics_cost_history_days:
         return "COST_HISTORY_INSUFFICIENT"
     status = (e.forecast_metadata or {}).get("dbu_forecast_status")
-    return "BILLED_COST_DAYS_INSUFFICIENT" if status == "INSUFFICIENT_ACTIVE_COST_DAYS" else "DBU_COST_UNAVAILABLE"
+    return "BILLED_COST_DAYS_INSUFFICIENT" if status in ("INSUFFICIENT_ACTIVE_COST_DAYS", "INSUFFICIENT_BILLING_CYCLES") else "DBU_COST_UNAVAILABLE"
 
 
 MIGRATION_BASELINE_RATIONALE = {
@@ -2273,6 +2275,39 @@ def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
     return row.get("currency_code") is None and row.get("list_cost") is None and safe_float(row.get("unpriced_dbu_quantity")) > 0
 
 
+def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds) -> Dict[str, Any]:
+    """Runs of consecutive billed days in a zero-filled daily cost series and their run-to-run cycles.
+
+    periodic: the longest gap between billed days and the median cycle both exceed forecast_cadence_gap_days (with
+    fewer than three runs there is no median, so the gap alone decides). weekly: on that boundary (the gap or the
+    median cycle equals it), where the cadence model is used only when the run rate has no number. The cycle cost is
+    the cost from the first run's first day up to the last run's first day: whole cycles only.
+    """
+    gap_limit = t.forecast_cadence_gap_days
+    billed = [i for i, x in enumerate(series) if x > 1e-12]
+    runs: List[List[int]] = []
+    for i in billed:
+        if runs and i - runs[-1][-1] <= 1:
+            runs[-1].append(i)
+        else:
+            runs.append([i])
+    starts = [r[0] for r in runs]
+    gap = max((b - a for a, b in zip(billed, billed[1:])), default=None)
+    cycles = [b - a for a, b in zip(starts, starts[1:])]
+    median = statistics.median(cycles) if len(starts) >= 3 else None
+    periodic = gap is not None and gap > gap_limit and (median is None or median > gap_limit)
+    weekly = (gap is not None and not periodic and gap >= gap_limit and (median is None or median >= gap_limit))
+    day = lambda i: (basis_start + dt.timedelta(days=i)).isoformat()
+    return {
+        "periodic": periodic, "weekly": weekly, "runs": len(runs), "cycles": max(0, len(runs) - 1),
+        "median_cycle_days": median,
+        "cycle_cost": sum(series[starts[0]:starts[-1]]) if len(starts) >= 2 else 0.0,
+        "cycle_days": (starts[-1] - starts[0]) if len(starts) >= 2 else 0,
+        "window_start": day(starts[0]) if starts else None, "window_end": day(starts[-1]) if starts else None,
+        "run_starts": [day(i) for i in starts],
+    }
+
+
 class Modeler:
     """Forward-looking baseline model using zero-filled calendar-day cost history."""
     def __init__(self, thresholds: Thresholds):
@@ -2383,6 +2418,7 @@ class Modeler:
                 "cost_cv_84": None,
                 **completeness_meta,
                 "forecast_method": MODEL_VERSION,
+                "forecast_model": "RUN_RATE",
                 "forecast_basis_start": None,
                 "forecast_basis_end": None,
             }
@@ -2421,6 +2457,25 @@ class Modeler:
             forecast_status = "NON_POSITIVE_RUN_RATE"
         else:
             forecast_status = "COMPLETE"
+        forecast_365 = round(daily * 365, 2) if forecast_status == "COMPLETE" else None
+        cadence = billing_cadence(series, basis_start, self.t)
+        model = "RUN_RATE"
+        if cadence["periodic"] or (cadence["weekly"] and forecast_365 is None):
+            # Periodic workload (billing gaps and cycles longer than a week; weekly only when the run rate has no
+            # number): average whole run-to-run cycles, with no trend; fewer than forecast_min_cycles cycles is unknown.
+            model = "CADENCE"
+            ratio = None
+            trend_adjustment_factor = 1.0
+            cv = None
+            if unpriced_in_basis > 0:
+                forecast_status = "UNPRICED_USAGE"
+            elif cadence["cycles"] < self.t.forecast_min_cycles:
+                forecast_status = "INSUFFICIENT_BILLING_CYCLES"
+            elif cadence["cycle_cost"] <= 0:
+                forecast_status = "NON_POSITIVE_RUN_RATE"
+            else:
+                forecast_status = "COMPLETE"
+            forecast_365 = round(cadence["cycle_cost"] / cadence["cycle_days"] * 365, 2) if forecast_status == "COMPLETE" else None
         if unpriced_in_basis > 0:
             # Unpriced days look like $0 days in the cost series: trend, run rates and stability are unknown, and the
             # AWS model gets no trend adjustment instead of a spurious downward one.
@@ -2429,7 +2484,14 @@ class Modeler:
             cv = None
         return {
             "current_cost_365": actual,
-            "forecast_cost_365": round(daily * 365, 2) if forecast_status == "COMPLETE" else None,
+            "forecast_cost_365": forecast_365,
+            "forecast_model": model,
+            "billing_runs": cadence["runs"],
+            "billing_cycles": cadence["cycles"],
+            "median_cycle_days": cadence["median_cycle_days"],
+            "cadence_window_start": cadence["window_start"] if model == "CADENCE" else None,
+            "cadence_window_end": cadence["window_end"] if model == "CADENCE" else None,
+            "cadence_run_starts": cadence["run_starts"] if model == "CADENCE" else None,
             "dbu_forecast_status": forecast_status,
             "currency": currency,
             "cost_history_days": len(series),
@@ -2464,16 +2526,16 @@ def observed_epoch_calendar_days(epoch_start: str, epoch_end: Optional[str], ana
 RESOURCE_SERIES_FIELDS = ("uptime_minutes", "cluster_minutes", "minutes_at_min", "minutes_at_max", "recycle_minutes", "max_cluster_count", "starts")
 
 
-def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thresholds) -> Optional[Dict[str, Any]]:
-    """The current epoch's daily resource series on the DBU forecast's calendar: the last forecast_long_days complete
-    days ending at the billing basis end, clipped to the epoch start, missing days zero-filled. None when the series was
-    not collected or no basis day exists."""
+def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thresholds, days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """The current epoch's daily resource series on the DBU forecast's calendar: the last forecast_long_days (or `days`)
+    complete days ending at the billing basis end, clipped to the epoch start, missing days zero-filled. None when the
+    series was not collected or no basis day exists."""
     end = parse_datetime(basis_end) if basis_end else None
     start_dt = parse_datetime(epoch.epoch_start)
     if epoch.resource_daily is None or end is None or start_dt is None:
         return None
     end_day = end.date()
-    start_day = max(start_dt.astimezone(dt.timezone.utc).date(), end_day - dt.timedelta(days=t.forecast_long_days - 1))
+    start_day = max(start_dt.astimezone(dt.timezone.utc).date(), end_day - dt.timedelta(days=(days or t.forecast_long_days) - 1))
     collected_from = parse_datetime(epoch.events.get("resource_daily_from"))
     if collected_from is not None:
         # Days before the collected range are unknown, never zero: the window shrinks rather than invents idle days.
@@ -2498,6 +2560,38 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
 def resource_window(e: "WarehouseEvidence", t: Thresholds) -> Optional[Dict[str, Any]]:
     meta = e.forecast_metadata or {}
     return resource_window_from(e.current_epoch, meta.get("forecast_basis_end") or meta.get("billing_complete_through"), t)
+
+
+def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: Thresholds, fields: Sequence[str]) -> Tuple[Optional[Dict[str, float]], Dict[str, Any]]:
+    """Annual totals of daily resource series on the DBU forecast's model, so AWS and DBU describe the same year.
+
+    Run-rate model: the forecast's window and recent-weighted blend, times its trend adjustment. Cadence model: the same
+    whole run-to-run cycles over the latest runs warehouse events cover (at least forecast_min_cycles of them), with no
+    trend. Returns (None, info with a blocker) when the window is missing or holds too few covered cycles.
+    """
+    end = meta.get("forecast_basis_end") or meta.get("billing_complete_through")
+    if meta.get("forecast_model") == "CADENCE":
+        window = resource_window_from(epoch, end, t, days=365)
+        if window is None:
+            return None, {"blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
+        first = dt.date.fromisoformat(window["start"])
+        starts = [x for x in (meta.get("cadence_run_starts") or []) if x >= window["start"]]
+        if len(starts) < t.forecast_min_cycles + 1:
+            return None, {"blocker": "CADENCE_CYCLES_NOT_COVERED_BY_EVENTS", "cadence_cycles": max(0, len(starts) - 1),
+                          "resource_window_start": window["start"], "resource_window_end": window["end"]}
+        i0, i1 = ((dt.date.fromisoformat(x) - first).days for x in (starts[0], starts[-1]))
+        rates = {f: sum(window[f][i0:i1]) / (i1 - i0) * 365.0 for f in fields}
+        return rates, {"model": "CADENCE", "cadence_cycles": len(starts) - 1, "trend_adjustment_factor": 1.0, "window_cluster_minutes": sum(window["cluster_minutes"][i0:i1]),
+                       "window_uptime_minutes": sum(window["uptime_minutes"][i0:i1]), "max_observed_clusters": max(window["max_cluster_count"][i0:i1], default=0.0),
+                       "resource_window_start": starts[0], "resource_window_end": (dt.date.fromisoformat(starts[-1]) - dt.timedelta(days=1)).isoformat(), "resource_window_days": i1 - i0}
+    window = resource_window_from(epoch, end, t)
+    if window is None:
+        return None, {"blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
+    trend = safe_float(meta.get("trend_adjustment_factor"), 1.0)
+    rates = {f: blended_daily_rate(window[f], t) * 365.0 * trend for f in fields}
+    return rates, {"model": "RUN_RATE", "trend_adjustment_factor": trend, "window_cluster_minutes": sum(window["cluster_minutes"]),
+                   "window_uptime_minutes": sum(window["uptime_minutes"]), "max_observed_clusters": max(window["max_cluster_count"], default=0.0),
+                   "resource_window_start": window["start"], "resource_window_end": window["end"], "resource_window_days": window["days"]}
 
 
 def whole_weeks(values: Sequence[float]) -> List[float]:
@@ -2592,20 +2686,23 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
                       "expected_node_types": sorted({topo["driver_instance"], topo["worker_instance"]})}
     topo = {**topo, "node_type_check": "VERIFIED" if billed_nodes else "UNVERIFIED", "observed_node_types": billed_nodes}
     t = thresholds or Thresholds()
-    window = resource_window_from(current, forecast_metadata.get("forecast_basis_end") or forecast_metadata.get("billing_complete_through"), t)
-    if window is None:
-        return None, {**topo, "status": "UNAVAILABLE", "blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
-    cluster_minutes = sum(window["cluster_minutes"])
+    rates, info = annualized_resource_rates(current, forecast_metadata, t, ("cluster_minutes",))
+    if rates is None:
+        return None, {**topo, "status": "UNAVAILABLE", **info}
+    cluster_minutes = info["window_cluster_minutes"]
     if cluster_minutes <= 0:
-        return None, {**topo, "status": "UNAVAILABLE", "blocker": "INSUFFICIENT_WAREHOUSE_EVENT_CLUSTER_MINUTES", "cluster_minutes": cluster_minutes, "resource_window_days": window["days"]}
-    trend = safe_float(forecast_metadata.get("trend_adjustment_factor"), 1.0)
-    annual_cluster_minutes = blended_daily_rate(window["cluster_minutes"], t) * 365.0 * trend
+        return None, {**topo, "status": "UNAVAILABLE", "blocker": "INSUFFICIENT_WAREHOUSE_EVENT_CLUSTER_MINUTES", "cluster_minutes": cluster_minutes, "resource_window_days": info["resource_window_days"]}
+    annual_cluster_minutes = rates["cluster_minutes"]
     cost = annual_cluster_minutes / 60.0 * hourly
+    cadence = info["model"] == "CADENCE"
     return round(cost, 2), {
-        **topo, "status": "MODELED", "method": "cluster-minute run rate on the DBU forecast's window and blend × documented SQL warehouse AWS topology × versioned regional EC2 price registry",
-        "observed_cluster_minutes": round(cluster_minutes, 3), "resource_window_start": window["start"], "resource_window_end": window["end"],
-        "resource_window_days": window["days"], "trend_adjustment_factor": round(trend, 6), "annualized_cluster_minutes": round(annual_cluster_minutes, 3),
+        **topo, "status": "MODELED",
+        "method": ("cluster-minutes over the DBU forecast's whole billing cycles" if cadence else "cluster-minute run rate on the DBU forecast's window and blend")
+                  + " × documented SQL warehouse AWS topology × versioned regional EC2 price registry",
+        "observed_cluster_minutes": round(cluster_minutes, 3), "resource_window_start": info["resource_window_start"], "resource_window_end": info["resource_window_end"],
+        "resource_window_days": info["resource_window_days"], "trend_adjustment_factor": round(info["trend_adjustment_factor"], 6), "annualized_cluster_minutes": round(annual_cluster_minutes, 3),
         "annualized_cluster_hours": round(annual_cluster_minutes / 60.0, 3),
+        **({"cadence_cycles": info["cadence_cycles"]} if cadence else {}),
     }
 
 
@@ -3809,19 +3906,20 @@ class Estimator:
         return Range3(vals[0],vals[1],vals[2])
 
     def _annualized_resource_bounds(self,e:WarehouseEvidence)->Tuple[Optional[Range3],Dict[str,Any]]:
-        window=resource_window(e,self.t)
-        if window is None:
-            return None,{"status":"UNAVAILABLE","blocker":"RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
-        cluster_minutes=sum(window["cluster_minutes"]); uptime=sum(window["uptime_minutes"]); max_obs=max(1,int(max(window["max_cluster_count"],default=1)))
+        # Same window and model as the DBU forecast (run-rate blend, or whole billing cycles): AWS/resource bounds and
+        # DBU describe the same year.
+        rates,info=annualized_resource_rates(e.current_epoch,e.forecast_metadata or {},self.t,("uptime_minutes","cluster_minutes"))
+        if rates is None:
+            return None,{"status":"UNAVAILABLE",**info}
+        cluster_minutes=info["window_cluster_minutes"]; uptime=info["window_uptime_minutes"]; max_obs=max(1,int(info["max_observed_clusters"] or 1))
         if cluster_minutes<=0 or uptime<=0:
-            return None,{"status":"UNAVAILABLE","blocker":"INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE","resource_window_days":window["days"],"cluster_minutes":cluster_minutes,"uptime_minutes":uptime}
-        trend=safe_float(e.forecast_metadata.get("trend_adjustment_factor"),1.0)
-        # Same window and blend as the DBU forecast: AWS/resource bounds and DBU describe the same year.
-        low=blended_daily_rate(window["uptime_minutes"],self.t)*365.0*trend
-        base=blended_daily_rate(window["cluster_minutes"],self.t)*365.0*trend
+            return None,{"status":"UNAVAILABLE","blocker":"INSUFFICIENT_CURRENT_EPOCH_RESOURCE_EVIDENCE","resource_window_days":info["resource_window_days"],"cluster_minutes":cluster_minutes,"uptime_minutes":uptime}
+        trend=info["trend_adjustment_factor"]
+        low=rates["uptime_minutes"]
+        base=rates["cluster_minutes"]
         high=max(base,low*max_obs)
         vals=sorted([low,base,high])
-        return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and blend, annualized forward","resource_window_start":window["start"],"resource_window_end":window["end"],"resource_window_days":window["days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
+        return Range3(vals[0],vals[1],vals[2]),{"status":"MODELED","method":"recent resource-time structural bounds on the DBU forecast's window and model, annualized forward","resource_window_start":info["resource_window_start"],"resource_window_end":info["resource_window_end"],"resource_window_days":info["resource_window_days"],"trend_adjustment_factor":trend,"window_cluster_minutes":cluster_minutes,"window_uptime_minutes":uptime,"max_observed_clusters":max_obs,"annualized_cluster_minutes_range":as_serializable(Range3(vals[0],vals[1],vals[2]))}
 
     def _current_model_reconciliation(self,e:WarehouseEvidence,resources:Range3)->Dict[str,Any]:
         """Modeled current DBU cost (running cluster-hours x current DBU/hour x current price) over the billed forecast."""
@@ -5476,7 +5574,9 @@ def _build_locked_recommendation_package(
     forward = _forward_cost_breakdown(e)
     forecast_assumptions = [
         "Current configuration epoch is the decision baseline.",
-        "Forward DBU cost uses the deterministic current-epoch run-rate model.",
+        ("Forward DBU cost averages whole run-to-run billing cycles of this periodic current-epoch workload."
+         if (e.forecast_metadata or {}).get("forecast_model") == "CADENCE" else
+         "Forward DBU cost uses the deterministic current-epoch run-rate model."),
         "AWS forward cost is modeled from observed current-epoch resource time and the configured regional price registry when available.",
         "DBU cost is priced at the account's list price; negotiated discounts lower real savings in proportion.",
         "AWS cost is priced at on-demand EC2 rates; Spot, Reserved Instances and Savings Plans are not modeled.",
