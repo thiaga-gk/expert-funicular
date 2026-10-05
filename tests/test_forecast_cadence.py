@@ -169,6 +169,53 @@ class CadenceClassificationTests(unittest.TestCase):
         f = forecast_fn(lambda d, i: 100 if i % 30 < 10 else 0, 180)
         self.assertEqual(f["forecast_model"], "RUN_RATE")
 
+    def test_two_runs_a_month_stay_current_between_them(self):
+        # Billed on the 1st and the 8th: cycles alternate 7 and 23-24 days. Recency on the median (7) once called the
+        # cadence stopped for about eight days a month; the upper quartile keeps it current (true 2,400/yr).
+        for k in range(30):
+            today = dt.date(2026, 6, 1) + dt.timedelta(days=k)
+            start = today - dt.timedelta(days=365)
+            rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
+                     "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                    for d in (start + dt.timedelta(days=j) for j in range(365)) if d.day in (1, 8)]
+            f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
+            self.assertEqual(f["forecast_model"], "CADENCE", today)
+            self.assertAlmostEqual(f["forecast_cost_365"], 2400, delta=0.05 * 2400, msg=today)
+
+    def test_frequent_ad_hoc_use_keeps_the_run_rate_and_its_trend(self):
+        # Random billing on about 30% of days bridges into short runs, but they rest less than a week: not periodic.
+        rnd = random.Random(1)
+        days = {i for i in range(1, 366) if rnd.random() < 0.3}
+        f = forecast_fn(lambda d, i: 100 if i in days else 0, 365)
+        self.assertEqual(f["forecast_model"], "RUN_RATE")
+
+    def test_a_run_bridged_across_the_basis_start_is_not_an_anchor(self):
+        # Four-day month-end close; the basis starts on Saturday 29 August 2026 inside the August close, whose
+        # Monday 31 August piece is index 2. Anchoring there gave 3,202/yr against a true 4,800.
+        closes = {d for y in (2025, 2026) for m in range(1, 13) for d in last_bdays(y, m, 4)}
+        today = dt.date(2026, 11, 2)
+        start = today - dt.timedelta(days=65)
+        rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
+                 "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                for d in (start + dt.timedelta(days=k) for k in range(65)) if d in closes]
+        f = p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), "2026-11-02T12:00:00+00:00")
+        self.assertNotEqual(f["cadence_window_start"], "2026-08-31")
+        if f["forecast_cost_365"] is not None:
+            self.assertAlmostEqual(f["forecast_cost_365"], 4800, delta=0.06 * 4800)
+
+    def test_a_stopped_monthly_job_lapses_within_about_forty_days(self):
+        # Billed on the 1st until 1 May 2026: still current on 5 June, lapsed (run rate, too few billed days) by 15 June.
+        def at(today):
+            start = today - dt.timedelta(days=365)
+            rows = [{"usage_date": d.isoformat(), "list_cost": 100, "dbu_quantity": 100 / 0.55, "retracted_dbu_quantity": 0.0,
+                     "restated_dbu_quantity": 0.0, "unpriced_dbu_quantity": 0.0, "currency_code": "USD"}
+                    for d in (start + dt.timedelta(days=j) for j in range(365)) if d.day == 1 and d <= dt.date(2026, 5, 1)]
+            return p.Modeler(p.Thresholds()).forecast_from_daily_cost(rows, start.isoformat(), f"{today.isoformat()}T12:00:00+00:00")
+        self.assertEqual(at(dt.date(2026, 6, 5))["forecast_model"], "CADENCE")
+        late = at(dt.date(2026, 6, 15))
+        self.assertEqual(late["forecast_model"], "RUN_RATE")
+        self.assertIsNone(late["forecast_cost_365"])
+
     def test_a_run_cut_by_the_basis_start_is_not_a_cycle_anchor(self):
         # Two-day runs on the 1st and 2nd of each month; the epoch starts on 2 June, inside a run. Anchoring on that
         # cut run would count half a run for a whole cycle (2,005/yr); whole cycles from 1 July give 2,355 (true 2,400).

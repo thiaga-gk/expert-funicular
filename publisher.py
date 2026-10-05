@@ -2284,10 +2284,9 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
 
     Billed days at most forecast_run_bridge_days apart form one run, so a weekend does not split a month-end close.
     periodic: short runs (median calendar length at most forecast_cadence_gap_days) with long rests between them (median
-    idle gap above it), the longest gap between billed days and the median cycle both above it (with fewer than three
-    runs there is no median, so the gap alone decides), on a current cadence: the last run started no more than one
-    reference cycle (the median, or the only cycle) plus forecast_cadence_gap_days before the basis end. weekly: the
-    same shape on the boundary (the rest, the gap or the median cycle equals the limit), where the cadence model is used only
+    idle gap from one run's last day to the next run's first day above it) on a current cadence: the last run started
+    no more than one reference cycle (the upper quartile of cycles, or the only cycle) plus forecast_cadence_gap_days
+    before the basis end. weekly: the same shape with a rest of exactly the limit, where the cadence model is used only
     when the run rate has no number. A run starting within forecast_run_bridge_days of the basis start may continue
     before it, so it is not a cycle anchor. The cycle cost is the cost from the first anchor run's first day up to the
     last run's first day: whole cycles only.
@@ -2301,7 +2300,6 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
         else:
             runs.append([i])
     starts = [r[0] for r in runs]
-    gap = max((b - a for a, b in zip(billed, billed[1:])), default=None)
     cycles = [b - a for a, b in zip(starts, starts[1:])]
     median = statistics.median(cycles) if len(starts) >= 3 else None
     short_runs = bool(runs) and statistics.median(r[-1] - r[0] + 1 for r in runs) <= gap_limit
@@ -2309,11 +2307,14 @@ def billing_cadence(series: Sequence[float], basis_start: dt.date, t: Thresholds
     # than a week between bursts; frequent ad hoc use bridged into short runs does not.
     idle = [b[0] - a[-1] for a, b in zip(runs, runs[1:])]
     rest = statistics.median(idle) if idle else None
-    reference = median if median is not None else (cycles[0] if cycles else None)
+    # Recency reference: the upper quartile of cycles, so a stable two-runs-a-month cadence (7 and 24 days) stays
+    # current between its runs while a stopped job still lapses about one cycle after its last run.
+    reference = statistics.quantiles(cycles, n=4, method="inclusive")[-1] if len(cycles) >= 2 else (cycles[0] if cycles else None)
     current = reference is not None and (len(series) - 1 - starts[-1]) <= reference + gap_limit
     shape = short_runs and current and rest is not None
-    periodic = shape and rest > gap_limit and gap > gap_limit and (median is None or median > gap_limit)
-    weekly = (shape and not periodic and rest >= gap_limit and gap >= gap_limit and (median is None or median >= gap_limit))
+    # Every cycle and the longest gap are at least the rest, so the rest alone decides.
+    periodic = shape and rest > gap_limit
+    weekly = shape and rest == gap_limit
     # A run within forecast_run_bridge_days of the basis start may continue before it (cut by the epoch or window
     # start), so it is not a cycle anchor.
     anchors = starts[1:] if starts and starts[0] < t.forecast_run_bridge_days else starts
