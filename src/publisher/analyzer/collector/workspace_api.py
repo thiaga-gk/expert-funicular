@@ -3,140 +3,53 @@
 Only GET requests are issued; there is no mutation or apply API. Authentication is an OAuth U2M token minted by the
 Databricks CLI for a profile; a profile holding a static PAT is rejected. Tokens, Authorization headers and
 data-access config values are never logged or reported; logs carry the REST path, status and exception class only.
+
+The OAuth, REST GET and profile helpers are the shared read-only access layer (``workflow_shared.databricks.access``)
+bound to the publisher's identity, ``PUBLISHER_ACCESS``: the ``publisher`` logger, the
+``sql-warehouse-optimizer/<version>`` user agent and ``PublisherError``. They stay module globals here, so the
+functions below resolve them by name and a patch of one of them applies to those functions. The shared functions call
+each other directly: a patch of ``_api_get`` does not reach ``_current_workspace_id``, and a patch of
+``_load_profile_values`` does not reach ``_resolve_cli_token``.
 """
 from __future__ import annotations
 
-import configparser
-import json
 import os
-import subprocess
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from pathlib import Path
-from dataclasses import dataclass
+import subprocess  # noqa: F401  (the shared token helper runs subprocess.run; tests patch it through this module)
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.config.versions import PUBLISHER_VERSION
+from workflow_shared.databricks import access
+from workflow_shared.databricks.access import AccessConfig, AuthContext
 
 
-@dataclass(frozen=True)
-class AuthContext:
-    """Resolved local OAuth authentication context; token is never reported or logged.
-
-    ``http_path`` is the SQL connector path for ``execution_kind`` ("warehouse" or "cluster") and ``execution_id``.
-    ``workspace_id`` is None when it could not be resolved (a warehouse target does not need it to connect).
-    """
-    profile: str
-    host: str
-    http_path: str
-    access_token: str
-    token_expiry: Optional[str]
-    execution_kind: str
-    execution_id: str
-    workspace_id: Optional[str] = None
+PUBLISHER_ACCESS = AccessConfig(logger=LOGGER, user_agent=f"sql-warehouse-optimizer/{PUBLISHER_VERSION}", error_type=PublisherError)
 
 
 def _load_profile_values(profile: str, config_file: Optional[str] = None) -> Dict[str, str]:
-    """Raw key/values of a Databricks CLI profile (config_file, DATABRICKS_CONFIG_FILE or ~/.databrickscfg).
-
-    May contain secrets, so callers read only the keys they need and nothing here is logged. Raises PublisherError
-    when the file or profile is missing ("DEFAULT" reads the file's defaults section).
-    """
-    path = Path(config_file or os.getenv("DATABRICKS_CONFIG_FILE") or Path.home() / ".databrickscfg")
-    if not path.exists():
-        raise PublisherError(f"Databricks CLI config not found: {path}")
-    parser = configparser.ConfigParser()
-    parser.read(path)
-    if profile == "DEFAULT":
-        section: Mapping[str, str] = parser.defaults()
-    elif parser.has_section(profile):
-        section = parser[profile]
-    else:
-        raise PublisherError(f"Databricks CLI profile not found: {profile} in {path}")
-    return {str(k): str(v) for k, v in section.items()}
+    """Raw key/values of a Databricks CLI profile; PublisherError when the file or profile is missing."""
+    return access.load_profile_values(PUBLISHER_ACCESS, profile, config_file)
 
 
 def _load_profile_host(profile: str, config_file: Optional[str] = None) -> str:
     """Workspace host of the profile without scheme or trailing slash; PublisherError when the profile has none."""
-    section = _load_profile_values(profile, config_file)
-    host = str(section.get("host") or "").strip()
-    if not host:
-        raise PublisherError(f"Databricks host is missing from CLI profile: {profile}")
-    return host.replace("https://", "").replace("http://", "").rstrip("/")
+    return access.load_profile_host(PUBLISHER_ACCESS, profile, config_file)
 
 
 def _resolve_cli_token(profile: str, config_file: Optional[str] = None) -> Tuple[str, str, Optional[str]]:
-    """Mint an OAuth access token through ``databricks auth token`` and return ``(host, token, expiry)``.
-
-    Fails closed (PublisherError) when the profile carries a static PAT, the CLI is missing or fails, or it returns no
-    token. DATABRICKS_TOKEN is removed from the child environment so an ambient PAT can never be used.
-    """
-    values = _load_profile_values(profile, config_file)
-    if values.get("token"):
-        raise PublisherError(f"Profile {profile} contains a PAT token. Use an OAuth U2M Databricks CLI profile.")
-    host = _load_profile_host(profile, config_file)
-    cmd = ["databricks", "auth", "token", profile, "-o", "json"]
-    clean_env = dict(os.environ)
-    clean_env.pop("DATABRICKS_TOKEN", None)
-    if config_file:
-        clean_env["DATABRICKS_CONFIG_FILE"] = str(config_file)
-    LOGGER.info("auth.resolve profile=%s host=%s", profile, host)
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=clean_env)
-    except FileNotFoundError as exc:
-        raise PublisherError("Databricks CLI is not installed or not on PATH.") from exc
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or "").strip()
-        raise PublisherError(f"Unable to resolve OAuth token for profile {profile}: {detail}") from exc
-    payload = json.loads(result.stdout)
-    token = str(payload.get("access_token") or "")
-    if not token:
-        raise PublisherError(f"Databricks CLI returned no access token for profile {profile}")
-    return host, token, str(payload.get("expiry") or "") or None
+    """``(host, token, expiry)`` from ``databricks auth token``; PublisherError for a PAT profile or a CLI failure."""
+    return access.resolve_cli_token(PUBLISHER_ACCESS, profile, config_file)
 
 
 def _api_get(host: str, token: str, path: str, params: Optional[Mapping[str, Any]] = None, *, return_headers: bool = False) -> Any:
-    """GET ``path`` with the bearer token and return the parsed JSON (plus response headers when asked).
-
-    Network, HTTP and JSON errors are logged by class and re-raised unchanged; the caller decides whether to fall back.
-    Only the path is logged: query parameters and the Authorization header are not.
-    """
-    url = f"https://{host.rstrip('/')}{path}"
-    if params:
-        url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": f"sql-warehouse-optimizer/{PUBLISHER_VERSION}"}, method="GET")
-    started = time.monotonic()
-    LOGGER.info("api.get start path=%s", path)
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            body = response.read().decode("utf-8")
-            payload = json.loads(body) if body.strip() else {}
-            LOGGER.info("api.get done path=%s status=%s elapsed_ms=%d", path, getattr(response, "status", 200), int((time.monotonic()-started)*1000))
-            return (payload, dict(response.headers.items())) if return_headers else payload
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        LOGGER.warning("api.get failed path=%s error=%s", path, type(exc).__name__)
-        raise
+    """GET ``path`` and return the parsed JSON (plus response headers when asked); errors are logged and re-raised."""
+    return access.api_get(PUBLISHER_ACCESS, host, token, path, params, return_headers=return_headers)
 
 
 def _current_workspace_id(host: str, token: str) -> Optional[str]:
-    """Workspace ID from the ``x-databricks-org-id`` header of a SCIM ``Me`` call, or None when it cannot be read.
-
-    Best effort by design: any failure yields None (logged as a warning) and the caller decides what that means.
-    """
-    try:
-        _payload, headers = _api_get(host, token, "/api/2.0/preview/scim/v2/Me", return_headers=True)
-        for key, value in headers.items():
-            if key.lower() == "x-databricks-org-id" and str(value).strip():
-                return str(value).strip()
-    except Exception as exc:
-        LOGGER.warning("auth.workspace_id_unavailable reason=WORKSPACE_ID_LOOKUP_FAILED error=%s", type(exc).__name__)
-        return None
-    LOGGER.warning("auth.workspace_id_unavailable reason=ORG_ID_HEADER_MISSING")
-    return None
+    """Workspace ID from the SCIM ``Me`` response header, or None when it cannot be read (best effort)."""
+    return access.current_workspace_id(PUBLISHER_ACCESS, host, token)
 
 
 def _validate_all_purpose_cluster(host: str, token: str, cluster_id: str) -> Dict[str, Any]:
