@@ -1,0 +1,58 @@
+{
+  "realization_summary": [
+    {
+      "annualized_realized_savings": null,
+      "application_json": "{\"active_episode_id\":null,\"actor\":null,\"application_scope\":null,\"applied_step_refs\":[],\"effective_from_utc\":null,\"effective_time_quality\":null,\"effective_to_utc\":null,\"implementation_conformance\":\"NOT_APPLIED\",\"intent_state\":\"UNKNOWN\",\"knob\":null,\"modification_relation\":null,\"observed_applied_value\":null,\"observed_config\":null,\"plan_progress\":{\"applied_steps\":0,\"authoritative_actionable_steps\":1,\"pending_reevaluation_steps\":3,\"state\":\"NOT_STARTED\"},\"recommended_value\":null,\"scenario_id\":null,\"source_value\":null,\"state\":\"NOT_APPLIED\",\"step\":null}",
+      "application_scope": null,
+      "application_state": "NOT_APPLIED",
+      "as_of_utc": "2026-10-01T12:00:00Z",
+      "attribution_claim_status": "NOT_ATTRIBUTABLE",
+      "attribution_json": "{\"attribution_claim_status\":\"NOT_ATTRIBUTABLE\",\"attribution_state\":\"NOT_ATTRIBUTABLE\",\"origin_attribution\":\"UNKNOWN\",\"recommendation_attributed_realized_savings\":\"0.00\",\"validated_observed_realization\":null}",
+      "denominator_source": null,
+      "economic_basis": null,
+      "economics_json": "{\"annualized_realized_savings\":null,\"available\":false,\"expected_same_scope_annual_savings\":null,\"mature_ttm_realized_savings\":null,\"observed_economic_delta\":null,\"realization_ratio\":null,\"successful_realized_savings\":null}",
+      "expected_same_scope_annual_savings": null,
+      "implementation_conformance": "NOT_APPLIED",
+      "intent_state": "UNKNOWN",
+      "mature_ttm_realized_savings": null,
+      "maturity_state": "NOT_APPLIED",
+      "observed_applied_value": null,
+      "observed_realized_savings": null,
+      "origin_attribution": "UNKNOWN",
+      "plan_progress": "NOT_STARTED",
+      "realization_package_id": "RPKG-9BCA3C3DFB12CC37AA7CA775",
+      "realization_ratio": null,
+      "realization_state": "NOT_APPLIED",
+      "recommendation_attributed_savings": 0.0,
+      "recommendation_package_id": "PKG-C1928BFAD6E14C166A0F518D",
+      "recommended_value": null,
+      "regeneration_status": "NOT_REQUIRED",
+      "replacement_package_id": null,
+      "snapshot_id": "RSNAP-FF710CE066DA00D4BEED88E4",
+      "source_package_disposition": "ACTIVE",
+      "validation_json": "{\"readiness\":null,\"rules\":[],\"state\":\"NOT_READY\"}",
+      "validation_state": "NOT_READY",
+      "warehouse_id": "wh-synth-001",
+      "warehouse_name": "BI - Sales",
+      "workspace_id": "1234567890123456"
+    }
+  ],
+  "realization_timeline": [
+    {
+      "application_episode_id": null,
+      "corrects_entry_id": null,
+      "effective_at_utc": "2026-10-01T12:00:00Z",
+      "event_type": "REALIZATION_CREATED",
+      "evidence_refs": "[]",
+      "ledger_entry_id": "RLE-6B7C42D2B96436035A636C5A",
+      "measurement_id": null,
+      "payload_json": "{\"recommendation_package_id\":\"PKG-C1928BFAD6E14C166A0F518D\"}",
+      "realization_package_id": "RPKG-9BCA3C3DFB12CC37AA7CA775",
+      "recommendation_package_id": "PKG-C1928BFAD6E14C166A0F518D",
+      "recorded_at_utc": "2026-10-01T12:00:00Z",
+      "validation_episode_id": null,
+      "warehouse_id": "wh-synth-001",
+      "workspace_id": "1234567890123456"
+    }
+  ]
+}
