@@ -1,6 +1,8 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-10 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager; extract reporter; reduce the engine to orchestration with a CLI adapter). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Complete** (Phases 0-11). Phases 0-10 extracted the single-file Realizer into `src/realizer`, with the single-file implementation as the behavioral oracle; Phase 11 retired the oracle on fixture parity. The oracle is the git tag `realizer-reorg-oracle-1.0.0` (last single-file commit `f5ab82f`) plus the stored canonical outputs; no in-tree copy remains. Design, phases and implementation rules: [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) sections 21.4, 22, 24 and 27.
+
+The sections for Phases 0-10 below are the record as written at the time: the oracle paths they cite (`legacy/realizer_single_file/...`), the facade re-exports, `scripts/compare_realizer_single_file.py` and `tests/unit/realizer/parity.py` no longer exist; Phase 11 says what replaced them.
 
 ## Phase 0: what is frozen
 
@@ -407,3 +409,95 @@ Both are recorded for a separately reviewed change.
 ### Behavior differences
 
 None known. The only observable change is an addition: the `realizer` console script, `python -m realizer` and `scripts/run_realizer.py`. All 41 scenarios, the CLI modes and every compared malformed case behave identically to the oracle.
+
+## Phase 11: oracle retired
+
+### Decision
+
+The oracle is retired on 1:1 fixture parity, as the Publisher's was ([`repo-reorg-parity.md`](../repo-reorg-parity.md) and design section 21.5 there). That replaces the design's condition (section 22, Phase 11) that representative real source-system runs pass first. The condition cannot be met yet, for two reasons that Phase 11 did not change:
+
+- the Realizer accepts only Publisher packages with `contract_version` 1.0.0 (`validate_package_shape`), while the current Publisher emits a later contract version, so a package from today's Publisher cannot be realized;
+- the Realizer has no live collector: it consumes a normalized observation file or the synthetic demo observation (`collector.py` holds only `load_observation` and `demo_observation`), so there is nothing to run against a live source.
+
+Both are semantic changes, outside a behavior-preserving reorganization. A real source-system run is therefore an open item, not a retirement condition.
+
+### Deleted, moved and dropped
+
+| Item | Disposition |
+|---|---|
+| `legacy/realizer_single_file/realizer.py` and its `contracts/realizer_*.py` | Deleted. Reachable as `git show realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/realizer.py`; `scripts/compare_realizer_with_ref.py --ref realizer-reorg-oracle-1.0.0` runs it |
+| `legacy/realizer_single_file/docs/realizer/*.md` (12 documents) | Moved with `git mv`, content kept, a note added naming `src/realizer`: product requirements to `docs/product/realizer/`, context, HLD and LLD to `docs/architecture/realizer/`, the four contracts to `docs/contracts/realizer/`, golden scenarios, release plan, release evidence and readiness review to `docs/proposals/realizer/` (version suffixes dropped from the names) |
+| `legacy/realizer_single_file/schema/realization-*.schema.json` | Moved to `schema/`; the unit test pins the builders in `src/realizer/contracts/realization_schema.py` to these files byte for byte |
+| `examples/realizer_jsons/` (exact, modified) and `examples/realizer_demo/` | Dropped. No README or document uses them as user-facing examples, and `tests/fixtures/realizer/` holds byte-identical copies: the two example scenarios (`example-exact`, `example-modified`) store the same RPKG, RSNAP, REVID and RERUN files, the Publisher package fixture is the example's `source-package.json`, and `test_example_scenarios_keep_the_documented_identities` pins the documented IDs. Verified equal at the start of this phase by `test_example_scenarios_match_committed_examples` (the 1225-test run) |
+| `README.md`, `RELEASE_STATUS.md`, `VERSION` (2.8.0), `requirements.txt` of the oracle | Dropped. The still-true facts are in the main `README.md` "Realizer" section (the command, options, output tree, the contract-1.0.0 and no-live-collector limits) and in `docs/proposals/realizer/release-evidence.md` (the release status and open gates as of v1.0.0). `jsonschema` is in the repository's own `requirements.txt` |
+| `pricing/` and the frozen Publisher-1.0.0 copies `contracts/reporter_contract.py`, `workbook_contract.py`, `reporter_schema.py`, `reporters/workbook_reporter.py` | Dropped: the Realizer reads its package as plain JSON and never imported them on the realize path |
+| `reporters/realizer_workbook_reporter.py` (the `.xlsx` renderer) | Dropped. It needs the `artifact_tool` runtime, nothing on the realize path calls it, and the workbook projection stays in `src/realizer/contracts/report.py`. Its only test, which skipped when `artifact_tool` was absent, is removed (skipped tests 4 to 3) |
+| `tests/regression/realizer/oracle.py`, `altered_engines.py`, `tests/unit/realizer/parity.py` oracle halves | Deleted; `parity.py` became `tests/unit/realizer/helpers.py` (values that cannot be serialized, run trees, staged scenario runs), modular only |
+| `scripts/compare_realizer_single_file.py` | Replaced by `scripts/compare_realizer_with_ref.py` |
+| Facade compatibility namespace in `src/realizer/realizer.py` | Pruned (below) |
+
+### Tests without the oracle
+
+Every test that loaded the oracle was kept, converted or dropped. Counted over the test methods of the 38 Realizer test files that existed at the start of the phase (403 methods; 381 remain, in the moved files too):
+
+- **Converted (158 test methods).** The comparison with the oracle is replaced by a stored expectation (`tests/realizer_expect.py`, `tests/fixtures/realizer/expectations/<test module>.json`): a short value is stored whole and a long one (the 11,088-case economics grid, the 25,920-case attribution grid, the 4,096-triple relation grid, the 1,440-input downstream rule, the ledger-prefix projections) as its SHA-256 and length plus a few readable spot values. They cover what the 41-scenario baseline cannot: malformed-input exception types and messages for every moved function, the half-written ledger of every failed-run and crash-window case (stored as outcomes, ledger event order and file digests), lazy and `Deferred` behavior, replay cuts, the CLI option table, help text and behavior per mode, and the grids. 664 expectations in 28 files, 302,011 bytes in all (the largest, the analyzer's, is 55 KB).
+- **Kept (223 test methods).** Tests that never needed the oracle (pinned values, behavior, mutation checks, the GR-001..GR-040 scenarios, the core suite) or whose oracle half was only a second assertion on a value the test already pinned. The four oracle suites (core, contract, GR-001..GR-040, workbook projection) ran once per engine as a base class and a modular subclass; they now run once.
+- **Dropped (22 methods net).** Source-text and signature equality with the oracle, "same object as the facade re-export" checks, the pin of the 101 names of the old engine namespace, oracle-vs-modular duplicates of what the stored baseline already checks (byte-identical output trees and log lines over the 41 scenarios, the oracle's own baseline run, the oracle half of the idempotency and determinism checks, the subprocess determinism runs of the oracle), the `.xlsx` renderer test, and the compare script's oracle mode (`--oracle-only`, `--candidate`, the altered-engine fixtures).
+
+Run count: 1225 tests (4 skipped) before this phase, 1152 now (3 skipped). The change of 73:
+
+| Group | Before | After | Change | Reason |
+|---|---:|---:|---:|---|
+| Oracle suites (core, contract, GR-001..GR-040, workbook projection) | 110 | 55 | -55 | each ran on both engines; the oracle copy and the renderer skip are gone |
+| `test_single_file_compatibility` to `test_stored_baseline` | 14 | 8 | -6 | the oracle's run and the byte-for-byte oracle comparison are gone; the example check pins identities |
+| `test_subprocess_determinism` | 6 | 5 | -1 | the oracle runs are gone |
+| `test_compare_script` | 12 | 11 | -1 | the oracle mode is gone; the new tests cover refs, difference reporting and the oracle tag |
+| `test_update_script` (new) | 0 | 4 | +4 | approved-change guard, expectation module list, size bound |
+| Unit tests under `tests/unit/realizer/` | | | -17 | facade re-export, source-text, namespace and oracle-baseline tests |
+| `tests/test_docs.py` | 16 | 19 | +3 | links, repo paths and map entries of the Realizer documents |
+
+(The oracle suites include the moved `test_contract_helpers` and `test_workbook_projection`; GR-001..GR-040 are `tests/golden/realizer/test_golden_realization.py`, the core suite is `tests/component/realizer/test_realizer_core.py`.)
+
+Where the stored values came from: before the oracle was deleted, the converted tests were run in a one-off substitution run that replaced every moved function, class and constant by the oracle's same-named object (with oracle-backed stand-ins for the functions only the modular code has, such as the stage `run`s) and recorded their results. All 664 expectations are identical to those results, none is "modular only", and the committed files were recorded from the engine. The scenario baseline `tests/fixtures/realizer/expected/` is unchanged (`git diff master -- tests/fixtures/realizer/expected` is empty). Stored messages that name types in set-iteration order and Python-version-dependent text are normalized in the tests, and the unit tests pass under several `PYTHONHASHSEED` values.
+
+Regeneration, deliberately: `python scripts/update_realizer_goldens.py --approved-change "<why>"` rebuilds the scenario baseline from the engine, and `--expectations` re-runs the converted tests in record mode (deleting the old files first). Review the diff, and bump the Realizer versions in `src/realizer/config/settings.py` when a change affects decisions.
+
+### Facade
+
+`src/realizer/realizer.py` is now 81 lines: `build_context`, `realize_request`, `realize` (the positional entry point) and the policy type and the demo and replay observation loaders that the CLI reaches through it. Removed: the block of re-exports of every name the single-file engine had, `review()`, and the module `__getattr__` that forwarded `parse_args` and `main`. The test that pinned the 101 names is replaced by one that pins the facade's public names. Tests import from the capability modules. `legacy_compatibility` keeps its name (a Reporter v1.0.0 projection, not oracle code) and lost its unused `actor` local. Its output for every snapshot the engine produces is unchanged (the 41 scenarios' stored `runs.json` and the state, actor and conformance grid); the one input whose behavior differs is a malformed snapshot with a state that has no legacy mapping and no application mapping, which used to raise at the unused read and now returns UNREPRESENTABLE (pinned by `test_a_state_without_a_legacy_mapping_does_not_read_the_application`).
+
+### Scripts
+
+`scripts/compare_realizer_with_ref.py --ref <git ref> [--scenario <name>]` checks the ref out into a temporary worktree, runs its Realizer and the working tree's over every scenario in `tests/fixtures/realizer/observations/` in fresh interpreters, and diffs the canonical outputs aspect by aspect. Exit 0 identical, 1 a difference or a crashed run, 2 a bad ref, an unknown scenario or invalid arguments. It runs whichever engine the ref has, so `--ref realizer-reorg-oracle-1.0.0` runs the single-file Realizer (`legacy/realizer_single_file/` in the tag) against the working tree; the manual route is `git worktree add <dir> realizer-reorg-oracle-1.0.0` and `PYTHONPATH=<dir>/legacy/realizer_single_file:<dir>/src python -c "import realizer"`.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| Compile check (`src tests scripts examples`) | pass |
+| Test suite | 1152 tests (1225 before, see above), 3 skipped, all pass |
+| `tests/test_docs.py` | pass |
+| `git diff master -- tests/fixtures/realizer/expected` | empty (the stored baseline is not regenerated) |
+| `scripts/compare_realizer_with_ref.py --ref master` | 41 scenarios identical |
+| `scripts/compare_realizer_with_ref.py --ref realizer-reorg-oracle-1.0.0` | 41 scenarios identical to the single-file Realizer |
+| Demo `python -m realizer --package PKG-C1928BFAD6E14C166A0F518D.json --demo` | prints `.../realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json`, the committed example ID |
+| Oracle verification of the stored expectations | 664 of 664 identical to a run of the oracle, 0 differences |
+| pyflakes `src/realizer` | clean |
+| `scripts/validate_contracts.py`, `scripts/validate_skill_suite.py` | pass |
+
+### Definition of done (design section 25)
+
+| Item | Status |
+|---|---|
+| Architecture: `realizer.py` orchestrates only; one package per capability; Reporter projects only | Met (the facade holds only stage calls, checked on the source) |
+| Maintainability: no one-function files, cohesive modules | Met |
+| Determinism: same inputs reproduce the same result; replay reproduces the snapshot; duplicate evidence is idempotent | Met, with the recorded exception of a billing restatement reprocessed once (kept from the single-file release, pinned) |
+| Lifecycle golden coverage (full and partial application, invalidation, re-evaluation, validation success and failure, drift, rollback, supersession, overlap) | Met by GR-001..GR-040 |
+| Economics: no summation across overlap; authoritative package realized value; expected versus realized reconciles; annualization policy-controlled | Met as the single-file release defined them (the cumulative helper `authoritative_cumulative_realization` is off the realize path) |
+| Section 10 step, plan and package realization levels | Not met, deliberately: the single-file release has none, and inventing them would be new behavior. The measurement per application episode (candidate or scenario scope) is the closest thing |
+| Section 11 reviewer checks (evidence completeness, lifecycle, baseline, attribution, overlap, no-double-count, annualization, consistency) | Not met, deliberately: the Reviewer assembles what the single-file release decided and adds no check that can reject |
+| Unit, component, golden and compatibility tests pass | Met |
+| Integration tests (collector SQL, source schema, full run against configured source systems) | Not met: there is no live collector and no integration test against a live source |
+| Real source-system run | Not met: blocked by the contract-1.0.0 package and the missing live collector (Decision above) |
+| Code review completes | Run per phase on the branches before merge; Phase 11 review pending with the merge |
+| Release evidence captured | This record, the stored baseline and `docs/proposals/realizer/release-evidence.md` (frozen at v1.0.0) |

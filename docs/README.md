@@ -49,6 +49,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
 | AWS cost formulas | [`reference/aws-cost-model.md`](reference/aws-cost-model.md) |
 | Known limitations | [`reference/known-limitations.md`](reference/known-limitations.md) |
+| Realizer: scope and requirements, domain language, architecture, ledger/policy/observation/workbook-compatibility contracts, golden scenarios, the reorganization and its parity record | [`product/realizer/prd.md`](product/realizer/prd.md), [`architecture/realizer/`](architecture/realizer/context.md), [`contracts/realizer/`](contracts/realizer/ledger-contract.md), [`proposals/realizer/`](proposals/realizer/golden-scenarios.md); code in `src/realizer/`, schemas `schema/realization-package.schema.json` and `schema/realization-ledger-entry.schema.json` |
 | Quickstart, install, output tree (run folders), run-scope examples | [`../README.md`](../README.md) |
 | Precedence and documentation rules | this file |
 

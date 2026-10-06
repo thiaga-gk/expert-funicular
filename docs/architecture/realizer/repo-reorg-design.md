@@ -1704,3 +1704,31 @@ Packager
 The intended result is:
 
 > one deterministic Realizer, modular enough to test and evolve safely, but not fragmented into dozens of tiny files.
+
+---
+
+# 27. Outcome and decisions
+
+All phases are complete and the single-file oracle is retired. The parity record and its evidence are in [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+
+## 27.1 Oracle retirement (decided with the owner)
+
+- The single-file Realizer is the git tag `realizer-reorg-oracle-1.0.0` on the last single-file commit, plus the stored canonical outputs (`tests/fixtures/realizer/expected/` for the 41 scenarios and `tests/fixtures/realizer/expectations/` for the unit-level results). `scripts/compare_realizer_with_ref.py --ref realizer-reorg-oracle-1.0.0` re-runs it in a temporary worktree when a diff needs diagnosis. No in-tree copy is kept, as for the Publisher (the single-file oracle decision in [`../repo-reorg-design.md`](../repo-reorg-design.md) section 21.3).
+- Phase 11 retires the oracle on 1:1 fixture parity. This replaces the Phase 11 condition above that representative real source-system runs pass first. The real-run condition has two blockers that a behavior-preserving reorganization cannot remove: the Realizer accepts only Publisher packages with `contract_version` 1.0.0 while the Publisher emits a later one, and there is no live collector. Adapting the Realizer to the current contract and adding a collector are semantic changes, so a real source-system run is open.
+- Section 22's other retirement criteria are met: golden tests are stable, modular and reference outputs match, no discrepancy is unresolved, release evidence is the parity record.
+
+## 27.2 Where things went
+
+- The Realizer product documents (PRD, context, HLD, LLD, the four contracts, golden scenarios, release plan, release evidence, readiness review) moved from the oracle folder into the type-first documentation folders under `docs/<type>/realizer/`, content kept, with a note naming `src/realizer`; the release records are marked frozen at v1.0.0. The two reorganization documents moved beside them. The documentation map is `docs/README.md`.
+- The two committed JSON Schemas moved to `schema/` (`realization-package.schema.json`, `realization-ledger-entry.schema.json`), next to the Publisher's.
+- The oracle's examples were not kept: `tests/fixtures/realizer/` already holds them byte for byte. Its README, release status, version file, requirements, pricing registry, frozen Publisher-1.0.0 contract copies and the `.xlsx` renderer were dropped; the workbook projection is `src/realizer/contracts/report.py`.
+
+## 27.3 Tests
+
+- The suites follow the layout of section 5: `tests/golden/realizer/` (GR-001..GR-040), `tests/component/realizer/` (the core suite), the contract and workbook-projection suites in `tests/unit/realizer/contracts` and `tests/unit/realizer/reporter`, and the stored baseline, determinism and subprocess determinism in `tests/regression/realizer/`. They run the modular engine only.
+- Results that used to be compared with the oracle (grids, malformed-input exceptions, failed-run and crash-window trees, lazy behavior, replay cuts, the CLI) are stored expectations (`tests/realizer_expect.py`) generated once from the oracle and rebuilt, from the engine and with an approved-change note, by `scripts/update_realizer_goldens.py`.
+- Tests import from the capability modules. The facade `src/realizer/realizer.py` holds `build_context`, `realize_request`, `realize` and the CLI's pass-throughs, and no compatibility re-exports.
+
+## 27.4 Not done, on purpose
+
+The section 10 step, plan and package realization levels and the section 11 reviewer checks were not invented: the single-file release has neither, and adding them is new behavior (section 24). Integration tests against a live source need the collector and are open with it. The definition of done in section 25 is checked item by item in the parity record.

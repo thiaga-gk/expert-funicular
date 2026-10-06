@@ -4,7 +4,7 @@ Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.14.0, 
 
 ## Commands
 Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`.
-- Compile check: `python -m compileall -q src tests scripts examples legacy`
+- Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
 - One test: `python -m unittest tests.unit.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.reporter.test_workbook_contract`)
 - Demo (one warehouse per golden scenario): `publisher --demo --output-dir ./demo_out` (same as `publisher publish ...` or `python -m publisher ...`), or without an install `python scripts/run_demo.py [output_dir]`
@@ -12,6 +12,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 - Contract example: `python scripts/validate_contracts.py`
 - Skill suite: `python scripts/validate_skill_suite.py`
 - Output diff against a git ref (canonical packages, evidence, manifest, workbook cells): `python scripts/compare_with_ref.py --ref master`
+- Realizer (offline, one PKG in, ledger and RPKG out): `realizer --package <PKG.json> --demo --output-dir ./realizer_out` (or `python -m realizer`). Stored outputs: `python scripts/update_realizer_goldens.py --approved-change "<why>"` (scenario baseline) and `... --expectations` (unit-test expectations). Ref diff over every scenario: `python scripts/compare_realizer_with_ref.py --ref master`; the retired single-file oracle is the tag `realizer-reorg-oracle-1.0.0`.
 
 ## Change loop
 1. Make the smallest layer-local change.
