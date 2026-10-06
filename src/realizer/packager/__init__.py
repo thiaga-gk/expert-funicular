@@ -1,5 +1,2 @@
-"""Packager capability: the append-only realization ledger and the snapshot projection (extracted phase by phase).
-
-So far only the read side of the ledger lives here: the path layout, loading and the latest-event lookup the Analyzer
-needs to know the history a run starts from.
-"""
+"""Packager capability: the append-only realization ledger and the snapshot projection. It records what the other
+capabilities decided, in the order the single-file Realizer recorded it, and projects the realization state."""

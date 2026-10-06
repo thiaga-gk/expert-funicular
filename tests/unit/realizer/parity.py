@@ -109,7 +109,7 @@ def run_sequence(module: Any, package: Mapping[str, Any], observations: Sequence
         return outcomes, tree(out)
 
 
-STAGES = ("reconciler", "estimator", "reviewer")
+STAGES = ("reconciler", "estimator", "reviewer", "packager")
 
 
 @dataclasses.dataclass
@@ -124,6 +124,7 @@ class StagedRun:
     calls: Dict[str, List[Any]]
     modular_tree: Dict[str, Optional[str]]
     oracle_tree: Dict[str, Optional[str]]
+    replay_through: Optional[str] = None
 
 
 def _capturing(original: Callable[..., Any], calls: List[Any]) -> Callable[..., Any]:
@@ -155,7 +156,7 @@ def staged_scenario_runs() -> Iterator[StagedRun]:
                         stack.enter_context(mock.patch.object(module, "run", _capturing(module.run, calls[stage])))
                     engine.realize(copy.deepcopy(package), copy.deepcopy(observation), modular_out, replay_through=step.get("replay_through"),
                                    policy=None if policy is None else engine.RealizerPolicy.from_mapping(policy))
-                yield StagedRun(name, index, observation, before, appended, calls, tree(modular_out), tree(oracle_out))
+                yield StagedRun(name, index, observation, before, appended, calls, tree(modular_out), tree(oracle_out), step.get("replay_through"))
 
 
 VALIDATION_SLOTS = ("VALIDATION_READY", "VALIDATION_STARTED", "VALIDATION_COMPLETED")
