@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Sequence
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 from realizer.contracts import realization as rrc
 
@@ -16,6 +17,19 @@ REALIZER_WORKBOOK_EXTENSION_VERSION = "1.0.0"
 SHEET_REALIZATION_SUMMARY = "Realization Summary"
 SHEET_REALIZATION_TIMELINE = "Realization Timeline"
 SHEET_NAMES = (SHEET_REALIZATION_SUMMARY, SHEET_REALIZATION_TIMELINE)
+
+
+@dataclass(frozen=True)
+class RealizationReport:
+    """Reporter output: the realization package a run projected and the files the Reporter wrote for it.
+
+    ``realization`` is the RealizationPackage (RPKG-*) body the package and the snapshot file both hold. ``files`` are
+    the paths written, in write order: ``realization/packages/<RPKG>.json``, then ``realization/snapshots/<RSNAP>.json``
+    (the evidence and regeneration files are the Packager's, in ``PackagingResult.written``). An internal hand-off, not
+    part of the public contract surface.
+    """
+    realization: rrc.RealizationPackage
+    files: Tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
