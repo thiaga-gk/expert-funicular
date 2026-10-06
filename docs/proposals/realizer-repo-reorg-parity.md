@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-5 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-7 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 
@@ -197,6 +197,67 @@ Left in the engine for later phases: the validation and measurement section of `
 - `compare_step` compares the normalized observed value with the package's raw values, so a package value with different spelling or spacing matches differently than its normalized form would.
 
 Both are recorded for a separately reviewed change.
+
+### Behavior differences
+
+None known. All 41 scenarios and every compared malformed case behave identically to the oracle.
+
+## Phases 6 and 7: estimator and reviewer
+
+When validation is due, `process_observation` now runs `estimator.run` and then `reviewer.run` and records the facts they decide: the validation episode (VALIDATION_READY, VALIDATION_STARTED, VALIDATION_COMPLETED), then COUNTERFACTUAL_RECORDED, ECONOMIC_MEASUREMENT_RECORDED and BILLING_CORRECTION_RECORDED, in the oracle's order, and then forces the downstream regeneration and appends it. The ledger appends stay in the engine for Phase 8. The oracle is unchanged.
+
+### Where the moved names live
+
+Every name keeps its spelling, signature, messages and values; `realizer.realizer.<name>` still resolves for each one, and so does every other name the engine had (the helpers it imported for them).
+
+| Module | Names | From |
+|---|---|---|
+| `src/realizer/estimator/economics.py` | `make_cf_id` (same signature and content dict), `expected_annual_for_exact_step`, `calculate_economics` | `realizer.py` |
+| `src/realizer/estimator/economics.py` | `counterfactual_record` (the CF id and the COUNTERFACTUAL_RECORDED payload), `measurement_facts` (the MEAS id and the measurement payload fields), `correction_facts` (the BILLING_CORRECTION_RECORDED payload and the entry it corrects) | `process_observation` |
+| `src/realizer/estimator/attribution.py` | `attribution_result`, `authoritative_cumulative_realization` (not on the realize path) | `realizer.py` |
+| `src/realizer/estimator/estimator.py` | `run(context, analysis, governance, reconciliation) -> RealizationEstimate` | new |
+| `src/realizer/reviewer/validation.py` | `plan_episode` (the VAL id and the ready, started and completed payloads from the readiness and performance verdicts) | `process_observation` |
+| `src/realizer/reviewer/economics.py` | `recognition_status` (CONFIRMED, REJECTED or PROVISIONAL, the measurement payload's expression) | `process_observation` |
+| `src/realizer/reviewer/reviewer.py` | `run(context, analysis, governance, reconciliation, estimate) -> ReviewResult` | new |
+| `src/realizer/contracts/realization.py` | `CounterfactualRecord`, `MeasurementFacts`, `CorrectionFacts`, `RealizationEstimate`, `ValidationEpisode`, `ReviewResult` (internal hand-offs, after the public types and outside `__all__`) | new |
+
+Left in the engine for Phase 8: `make_ledger_entry`, `ledger_business_key`, `append_if_absent`, `ledger_checkpoint`, `append_regeneration`, `request_regeneration`, the evidence-file write, the slot-by-slot commit in `process_observation` (lifecycle, validation, measurement and regeneration slots) and `project_snapshot`; for Phases 9 and 10, `realize`, `build_context`, `legacy_compatibility`, `parse_args` and `main`.
+
+### Decisions
+
+- **Failed runs keep their half-written ledger (Option A): `halt` per stage.** Both stages run before the engine records any validation entry, but the oracle raised between those entries. `estimator.run` and `reviewer.run` never raise: each decides its facts in recording order and, if a step raises, keeps the exception as `halt` together with the facts decided before it, as the Reconciler does. The engine records the episode's payloads present and raises the review's `halt`; then records the counterfactual, the measurement and the correction present and raises the estimate's `halt`; then forces the downstream regeneration. Since the episode is recorded before every estimator slot, its failure is raised first, which is the oracle's order: the only estimator step that precedes VALIDATION_COMPLETED in the oracle is the performance verdict, and the completed payload reads the same verdict, so the review halts with the same exception. Entry construction (`make_ledger_entry`, including the `corrects_entry_id` check) still happens in the engine immediately before each append, so its failures land where they always did.
+- **Where each window now raises.** Before VALIDATION_READY: the episode id (the policy snapshot, values the id hashes). After VALIDATION_STARTED: the performance verdict. After VALIDATION_COMPLETED: counterfactual eligibility, the counterfactual id and `money` of its cost. After COUNTERFACTUAL_RECORDED (or after the completed validation when there is no counterfactual cost): `calculate_economics`, the financial-quality gates, the attribution (`int` of the overlap count) and the measurement id and payload. After ECONOMIC_MEASUREMENT_RECORDED: the correction payload and the `corrects_entry_id` check. After the measurement or the correction: the downstream regeneration's remeasurement windows. A failure of the started payload alone after the ready entry is not reachable from input: every value it records is part of the episode id.
+- **Policy checks stay lazy.** The Estimator reads the governor's `Deferred` checks at the oracle's points: performance, then counterfactual eligibility, then (only for available economics, after `calculate_economics`) the quality gates. Unavailable economics never read the gates, the attribution inputs or the correction; a run that is not validated reads none of them.
+- **Economics are a new mapping.** The oracle added `quality_gates` to the economics in place before attribution read it. The Estimator builds `{**economics, "quality_gates": gates}` instead: the same keys in the same order (the gates last) and the same values, and every serialization sorts keys. Nothing else held the first mapping, and the gates mapping is shared by the economics and the attribution's `economic_quality_gates` exactly as before (it is deep-copied into the ledger payload).
+- **The Reviewer assembles only.** The oracle has no review gate, so the Reviewer adds no check that can reject or alter an outcome: it builds the episode payloads from the governor's verdicts, takes the recognition status from the estimate's verdicts, and passes the estimate through as it is. The design's reviewer checks (evidence completeness, lifecycle, rollback and drift validation, baseline, actual-cost, attribution, overlap, no-double-count, annualization and expected-versus-realized consistency) would be new behavior and are not added.
+- **No step, plan or package realization levels.** The oracle measures once per active application episode: a candidate-scope application is the closest thing to a step realization, a scenario-scope application to a plan realization, and the snapshot's latest measurement to a package realization; `authoritative_cumulative_realization` is the only package-level helper and is off the realize path. The design's three realization levels would be new behavior and are not invented here.
+- **Measurement payload assembly.** The Estimator returns the measurement fields and the Reviewer the recognition status; the engine joins them into the ECONOMIC_MEASUREMENT_RECORDED payload in the oracle's key order. That join moves to the Packager in Phase 8.
+- **Contracts.** The hand-offs live in `contracts/realization.py`, after the public types and outside `__all__` (design section 14 places the realization estimate and review result there); the earlier capabilities' hand-offs are imported there only under `TYPE_CHECKING`. Payload mappings are passed through unchanged, so their content and key order match what the oracle hashed.
+- **Shared test helpers.** `Unprintable`, `Untestable`, `events`, `files`, `ledger_lines`, a side-by-side run of every scenario with each modular stage's calls captured, and an independent assembly of the validation and measurement entries moved to `tests/unit/realizer/parity.py`, so no test module imports another.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `scripts/compare_realizer_single_file.py` (candidate `realizer.realizer`, through the shadowing guard) | 41 scenarios: oracle = stored baseline = modular engine |
+| Unnormalized output trees and log lines of every scenario, oracle against modular (`test_single_file_compatibility`), and subprocess determinism | byte-identical, 41/41; identical across hash seeds and time zones |
+| Moved functions (`test_economics.py`, `test_attribution.py`): source text and signature identical to the oracle's; `make_cf_id` over stored applications, scenario observations and policies; `expected_annual_for_exact_step` over every plan step of both packages and nine candidate-economics shapes; `calculate_economics` over 11,088 combinations (applications, economics, readiness, verdicts, policies) and `attribution_result` over 25,920; malformed input raises the oracle's exception | pass |
+| Economics cases pinned to values: ratio classes (realized, under-realized, re-optimization, unclassified), every denominator source, period and annualization fallbacks, separate DBU and AWS components with unknown values null, trailing-twelve-month savings, cost increase, unavailable economics, guardrail failure, a counterfactual that cannot support a claim, billing correction fallbacks, overlap never claimed, each quality gate's disqualifier, and the cumulative realization measured against the original counterfactual (no double count) | pass |
+| `estimator.run` and `reviewer.run` over every run of every scenario (`test_estimator.py`, `test_reviewer.py`): the episode, counterfactual, measurement and correction entries assembled from their results, with duplicate suppression, are exactly the oracle's entries for those slots; both run only when validation is due; realized, under-realized, failed-validation, blocked and monitoring states, confirmed, rejected and provisional recognition, and billing corrections all occur | pass |
+| Failed runs (`estimator/test_failed_runs.py`, `reviewer/test_failed_runs.py`): the episode id, the performance verdict, counterfactual eligibility, cost and id, economics, quality gates, attribution, measurement id and payload, the correction (`corrects_entry_id`, payload values), and the downstream regeneration after the measurement and after the correction; failures that compete (performance and economics, economics and gates, gates and attribution); unreached inputs; recovery | same outcome and same output tree as the oracle |
+| Mutation checks (automated) | an Estimator or a Reviewer that raises at once, and an Estimator that reads the quality gates eagerly, each fail their mutation test |
+| Mutation checks (source edits, realizer unit suites) | the Estimator raising at once fails 51 test cases; the Reviewer raising at once 17; reading the quality gates before the economics 6; reading them for unavailable economics 4; raising the estimate's failure before the episode 38; forcing the downstream regeneration before the episode 2; raising the correction's failure before the measurement is recorded 3 |
+| Test suite | 1136 tests (1073 before: plus 63 estimator and reviewer unit tests; 4 skip as before), all pass |
+
+### Known oracle behavior kept for parity
+
+- The measurement's `correction_status` is the observation's raw correction type (`ORIGINAL` when absent, the spelling as given otherwise), while the BILLING_CORRECTION_RECORDED payload upper-cases the type and defaults it to `RESTATEMENT`.
+- The counterfactual id hashes the observation's `window_start_utc` as given, while the validation and measurement ids fall back to the applied time when it is absent.
+- `attribution_result` turns an origin that cannot be turned into text into `UNKNOWN`, because its enum fallback also catches the text conversion's error.
+- On the realize path `calculate_economics` re-evaluates readiness, which is always ready there (validation is due only when ready), and `attribution_result` always receives the quality gates, so its own gate fallback is reached only by direct calls.
+- A cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings.
+
+All are recorded for a separately reviewed change.
 
 ### Behavior differences
 
