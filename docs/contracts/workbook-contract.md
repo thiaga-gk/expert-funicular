@@ -1,6 +1,8 @@
-# Workbook Reporter Contract v1.5.0
+# Workbook Reporter Contract v1.6.0
 
-**Version history:** 1.5.0 projects the Reporter 3.0.0 `cost_profile`. *Warehouse Portfolio* adds `cost_profile` and `profile_source` (the source, with the tag or flag that chose it in parentheses) at the end of the *Identity / epoch* group; *Recommendation Registry* adds `cost_profile` at the end of the *Identity* group; *Executive Summary* adds a *Cost profiles* section with one row per profile (warehouse counts, zeros included). Sheets, grains and all other columns are unchanged.
+**Version history:** 1.6.0 projects the Reporter 3.1.0 `run_scope`. *Warehouse Portfolio* adds `run_scope` (group *Decision view*): `Full`, or the scoped scenarios and techniques such as `Current type: Auto-stop`, with `(+ safety: Size rollback)` when a canary rollback was kept outside the scope. *Executive Summary* adds the section *Run scope* (rows *Scenarios and techniques*, *Warehouses selected*, *Warehouses not selected*, *Safety inclusions*), and *Migration experiment high* is `UNAVAILABLE` with the note *Migration not in run scope* when no package has the migration in scope. A restricted run's Scenario Plans and Recommendation Registry rows are simply the scenarios and candidates its packages hold. Sheets, grains and all other columns are unchanged.
+
+1.5.0 projects the Reporter 3.0.0 `cost_profile`. *Warehouse Portfolio* adds `cost_profile` and `profile_source` (the source, with the tag or flag that chose it in parentheses) at the end of the *Identity / epoch* group; *Recommendation Registry* adds `cost_profile` at the end of the *Identity* group; *Executive Summary* adds a *Cost profiles* section with one row per profile (warehouse counts, zeros included). Sheets, grains and all other columns are unchanged.
 
 1.4.0 projects Reporter 1.3.0 per-step savings and separates plan savings from experiment upside. Execution-plan text (Warehouse Portfolio and Scenario Plans) appends `; step saves N/yr (base)` (or `; step costs N/yr more (base)`) to each priced step. *Recommendation Registry* adds `plan_step`, `plan_step_savings_base_365d` and `plan_step_pricing_basis` (group *Recommended plan step*) for candidates in the recommended scenario, and `—` for other candidates. *Executive Summary* adds the rows *Excluded (unsupported type)*, *Plan savings low/base/high* (section *Recommended plan savings*) and *Migration experiment high* (section *Experiment upside*). Sheets, grains and all other columns are unchanged.
 
@@ -9,7 +11,7 @@
 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
 
 **Status:** Locked  
-**Source of truth:** validated Reporter JSON Contract v3.0.0 packages  
+**Source of truth:** validated Reporter JSON Contract v3.1.0 packages  
 **Implementation:** `src/publisher/contracts/workbook_contract.py` + `src/publisher/reporter/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.
@@ -37,7 +39,8 @@ Presents coverage, including the count of warehouses excluded by the Governor as
 
 - **Recommended plan savings:** sums of the recommended scenario's total low, base and high over warehouses whose recommended scenario is priced. The note states how many are priced; unpriced plans are excluded, never counted as zero. The base equals the net annual impact.
 - **Pricing basis:** the *Forward 365d baseline* and *Plan savings* notes state that DBU cost is at the account's list price (negotiated discounts lower real savings proportionally) and AWS cost at on-demand EC2 prices (Spot, Reserved Instances and Savings Plans are not modeled).
-- **Experiment upside:** the sum of the positive total `high` of each package's priced, non-blocked migration-experiment scenario. It is an alternative to the recommended plan, not added to it, and unvalidated until the canary.
+- **Experiment upside:** the sum of the positive total `high` of each package's priced, non-blocked migration-experiment scenario. It is an alternative to the recommended plan, not added to it, and unvalidated until the canary. When no package has the migration in its run scope it is `UNAVAILABLE` ("Migration not in run scope"), never zero.
+- **Run scope:** the packages' scenarios and techniques (`Full` for a full assessment), the warehouses the run selected and left out (from the run manifest's `warehouse_selection`; `UNAVAILABLE` when the caller passes none) and the number of canary rollbacks published outside the scope.
 
 The package scenario envelope (which an experiment can set), confidence posture, the number of warehouses evaluated under each cost profile (aggressive, balanced, conservative; zeros included) and up to 15 highest-impact warehouses follow. Financial cells are numeric and chartable.
 
@@ -47,7 +50,7 @@ The package scenario envelope (which an experiment can set), confidence posture,
 
 Groups: identity/epoch (ending with the cost profile and how it was chosen); workload; current configuration; currency and actual/forward baseline; signed package low/base/high annual impacts and counterfactual costs; recommended scenario; assessment; compact human decision/plan views; traceability/audit JSON.
 
-The exact ordered set is `PORTFOLIO_COLUMNS` in `src/publisher/contracts/workbook_contract.py` (**63 columns**) and is regression-tested.
+The exact ordered set is `PORTFOLIO_COLUMNS` in `src/publisher/contracts/workbook_contract.py` (**64 columns**) and is regression-tested.
 
 ## 3. Scenario Plans
 

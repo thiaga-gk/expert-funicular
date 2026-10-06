@@ -1,4 +1,4 @@
-"""Excel workbook reporter for Workbook Contract v1.5.0.
+"""Excel workbook reporter for the Workbook Contract (``workbook_contract.WORKBOOK_CONTRACT_VERSION``).
 
 The workbook is a presentation-only projection of the locked Reporter JSON Contract
 packages (``rc.CONTRACT_VERSION``).  It holds no optimization, estimation, confidence, ID or hash logic.  Exact detailed-sheet columns and section groups are owned by
@@ -368,7 +368,7 @@ def _build_portfolio(wb: Any, projection: wc.WorkbookProjection) -> None:
     _write_contract_table(
         sheet, columns=wc.PORTFOLIO_COLUMNS, groups=wc.PORTFOLIO_GROUPS, rows=projection.warehouse_portfolio,
         table_name="WarehousePortfolio", freeze_columns=4, row_height=24,
-        wrap_keys=("warehouse_name", "recommended_scenario_name", "next_action"),
+        wrap_keys=("warehouse_name", "recommended_scenario_name", "next_action", "run_scope"),
         json_keys=("query_source_profile_json", "scenario_ids_json", "candidate_ids_json", "package_file", "evidence_summary_json"),
     )
 
@@ -398,7 +398,8 @@ def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def write_workbook(
-    path: str | Path, packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
+    path: str | Path, packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
+    warehouse_selection: Optional[Mapping[str, Any]] = None,
 ) -> Path:
     """Generate the locked four-sheet workbook projection and save it to *path*; returns the path written.
 
@@ -408,7 +409,7 @@ def write_workbook(
     """
     for package in packages:
         package.validate()
-    projection = wc.project_workbook(packages, excluded_warehouses)
+    projection = wc.project_workbook(packages, excluded_warehouses, warehouse_selection)
     LOGGER.debug("workbook.v1.rows portfolio=%d scenarios=%d candidates=%d excluded=%d", len(projection.warehouse_portfolio),
                  len(projection.scenario_plans), len(projection.recommendation_registry), len(excluded_warehouses or ()))
     wb = Workbook()

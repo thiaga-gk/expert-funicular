@@ -49,14 +49,15 @@ def option_table():
 
 
 class OptionParityTests(unittest.TestCase):
-    def test_every_single_file_option_is_unchanged_and_only_mode_and_cost_profile_are_new(self):
+    def test_every_single_file_option_is_unchanged_and_only_new_options_follow(self):
         before = json.loads((ROOT / "tests" / "fixtures" / "expected" / "cli" / "options.json").read_text())["options"]
         after = option_table()
         self.assertEqual(after[:len(before)], before)
-        self.assertEqual([o["flags"] for o in after[len(before):]], [["--mode"], ["--cost-profile"]])
-        self.assertEqual(after[-2]["choices"], ["local"])
-        self.assertEqual(after[-2]["default"], "local")
-        self.assertEqual((after[-1]["action"], after[-1]["default"]), ("_AppendAction", []))
+        added = after[len(before):]
+        self.assertEqual([o["flags"] for o in added], [["--mode"], ["--cost-profile"], ["--flat-output"], ["--scope"], ["--scope-file"], ["--warehouse"]])
+        self.assertEqual((added[0]["choices"], added[0]["default"]), (["local"], "local"))
+        self.assertEqual((added[1]["action"], added[1]["default"]), ("_AppendAction", []))
+        self.assertEqual([(o["dest"], o["default"]) for o in added[2:]], [("flat_output", False), ("scope", []), ("scope_file", None), ("warehouse", [])])
 
 
 class DependencyDirectionTests(unittest.TestCase):
@@ -77,8 +78,8 @@ class BehaviourTests(unittest.TestCase):
 
     def test_publish_subcommand_and_bare_options_are_the_same_run(self):
         with tempfile.TemporaryDirectory() as tmp:
-            a = self.run_cli(["publish", "--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--output-dir", f"{tmp}/a"])
-            b = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--output-dir", f"{tmp}/b"])
+            a = self.run_cli(["publish", "--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--flat-output", "--output-dir", f"{tmp}/a"])
+            b = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--flat-output", "--output-dir", f"{tmp}/b"])
             self.assertEqual((a[0], b[0]), (0, 0))
             for name in sorted(p.name for p in Path(f"{tmp}/a/packages").glob("*.json")):
                 self.assertEqual(Path(f"{tmp}/a/packages/{name}").read_text(), Path(f"{tmp}/b/packages/{name}").read_text())
@@ -99,7 +100,7 @@ class BehaviourTests(unittest.TestCase):
 
     def test_a_cost_profile_flag_reaches_every_package(self):
         with tempfile.TemporaryDirectory() as tmp:
-            code, _, _ = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--output-dir", tmp,
+            code, _, _ = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--flat-output", "--output-dir", tmp,
                                        "--cost-profile", "conservative"])
             self.assertEqual(code, 0)
             profiles = {json.loads(f.read_text())["cost_profile"]["source_detail"] for f in Path(f"{tmp}/packages").glob("*.json")}
@@ -109,7 +110,7 @@ class BehaviourTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "bad.json"
             bad.write_text("[]")
-            code, _, err = self.run_cli(["--from-evidence", str(bad), "--output-dir", f"{tmp}/out"])
+            code, _, err = self.run_cli(["--from-evidence", str(bad), "--flat-output", "--output-dir", f"{tmp}/out"])
             log = Path(f"{tmp}/out/publisher.log").read_text()
         self.assertEqual(code, 2)
         self.assertIn(" ERROR publisher.refused exit=2 error=", log)
@@ -119,7 +120,7 @@ class BehaviourTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(cli_publish, "publish", side_effect=RuntimeError("owner@example.com")):
                 with self.assertRaises(RuntimeError):
-                    self.run_cli(["--demo", "--output-dir", tmp])
+                    self.run_cli(["--demo", "--flat-output", "--output-dir", tmp])
             log = Path(f"{tmp}/publisher.log").read_text()
         self.assertIn(" ERROR publisher.crashed error_type=RuntimeError", log)
         self.assertNotIn("owner@example.com", log)

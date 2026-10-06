@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.0.0  
-**Workbook Contract:** v1.5.0  
+**Reporter JSON Contract:** v3.1.0  
+**Workbook Contract:** v1.6.0  
 
 Role: implementation design of the current publisher.
 
@@ -29,8 +29,8 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 3.0.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
-| Workbook Contract | 1.5.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
+| Reporter JSON Contract | 3.1.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
+| Workbook Contract | 1.6.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
 
@@ -38,7 +38,7 @@ The publisher implements the design directly:
 
 1. the fail-closed supported-type check (the Analyzer analyzes, and the Governor admits, only `CLASSIC`, `PRO`, and standard `SERVERLESS`);
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
-3. Workbook Contract v1.5.0 is a numeric-first presentation projection of the public packages.
+3. Workbook Contract v1.6.0 is a numeric-first presentation projection of the public packages.
 
 Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
 
@@ -111,7 +111,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 flowchart LR
     SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
     ANA --> PUB[src/publisher/optimizer/ and packager/ decision engine]
-    PUB --> RC[Reporter Contract v3.0.0]
+    PUB --> RC[Reporter Contract v3.1.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -174,7 +174,11 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 
 | Argument | Semantics |
 |---|---|
-| `--output-dir` | output root; default `./warehouse_optimizer_out` |
+| `--output-dir` | output root; default `./warehouse_optimizer_out`. Each run writes to a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under it (UTC start time; 28) |
+| `--flat-output` | write directly into `--output-dir` instead of a run folder |
+| `--scope` | repeatable; `scenario` or `scenario:technique[,technique...]` with scenarios `current` (`size`, `max-clusters`, `min-clusters`, `auto-stop`) and `migration` (`warehouse-type`); restricts what the run recommends (5.4); default: every scenario and technique |
+| `--scope-file` | JSON run-scope file validated against `schema/run-scope.schema.json` (scenario and technique toggles, warehouses); not combined with `--scope` or `--warehouse` |
+| `--warehouse` | repeatable; `all` (default), `<warehouse_id>` or `<workspace_id>/<warehouse_id>`; reports only these warehouses. A selector that matches no warehouse in the evidence, or a bare ID found in several workspaces, stops the run (exit status 2) |
 | `--demo` | synthetic collector mode; takes precedence over `--from-evidence` and live collection |
 | `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
 | `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3) |
@@ -203,6 +207,17 @@ A live run must resolve exactly one SQL execution target: one of the three conve
 The execution target is only where collector SQL runs; it is not the warehouse being optimized.
 
 ---
+
+### 5.4 Run scope
+
+The config layer (`resolve_scope` in `src/publisher/config/loader.py`) turns `--scope`, `--scope-file` and `--warehouse` into the frozen `RunScope` on `RunContext` (`src/publisher/contracts/scope.py`; the scenario/technique hierarchy is `SCOPE_SCENARIOS` in `src/publisher/config/defaults.py`). No input is the full scope, which reproduces an unscoped run. Each capability applies its part:
+
+- Analyzer: unchanged. Evidence is collected and normalized for every visible warehouse, so `evidence.json` is scope-free and can be replayed under any scope.
+- Governor: the warehouse selection narrows `eligible`; warehouses outside it are listed in `GovernanceResult.not_selected` (manifest `warehouse_selection`) and the exclusions cover selected warehouses only.
+- Optimizer: every technique still decides, so cross-technique rules (a canary rollback holding a conflicting cut, migration reading the auto-stop decision) are the same in every scope; `in_scope` then drops the out-of-scope decisions before pricing, keeping any `CANARY_GUARDRAIL_BREACHED` rollback.
+- Reviewer: the candidate gate requires exactly one candidate per in-scope knob and allows an out-of-scope candidate only when it is a canary rollback.
+- Packager: Plan A is built when `current` is in scope or a rollback must run, from the candidates present; Plan B when `migration` is in scope. Without Plan A the recommended scenario is the step-less `NO_CHANGE_BASELINE`. Sequencing and stateful pricing work unchanged on the steps present. A restricted scope is written to the package `run_scope` and hashed.
+- Reporter: the manifest records `run_scope` and `warehouse_selection`; the workbook shows them (Workbook Contract).
 
 ## 6. Detailed end-to-end sequence
 
@@ -1134,7 +1149,7 @@ Missing resource bounds, target DBU rate, list price, or AWS registry evidence m
 
 It validates:
 
-- exactly one candidate for each of five active knobs,
+- exactly one candidate for each in-scope knob (all five in the full scope; 5.4), and outside the scope only canary rollbacks,
 - candidate workspace/warehouse identity,
 - unique internal recommendation IDs,
 - nonnegative actual/forward baseline cost,
@@ -1235,7 +1250,7 @@ Compatibility checks may include:
 - legacy Hive metastore references observed in SQL history,
 - regional AWS price registry for Pro/Classic target.
 
-Plan B is named after, and its checks run against, the type the migration was evaluated for: the recommended type, or the type a value gate held (a held migration has no steps and is named "Plan B — Pro migration experiment", for example). When no migration was evaluated (not enough evidence) Plan B is "Plan B — Migration not evaluated", has no steps and no checks, and its compatibility status is `UNKNOWN`; it is never checked against the warehouse's own type.
+Plan B is named after, and its checks run against, the type the migration was evaluated for: the recommended type, or the type a value gate held (a held migration has no steps and is named "Plan B — Pro migration experiment", for example). When no migration was evaluated (not enough evidence) Plan B is "Plan B — Migration not evaluated", has no steps and no checks, and its compatibility status is `UNKNOWN`; it is never checked against the warehouse's own type. Plan B is always `scenario_type` `WAREHOUSE_TYPE_MIGRATION`, with or without its step, and only a scenario that holds the migration step gets the compatibility-validation step.
 
 The package maps the checks to a public compatibility status (`reporter-json-contract.md`, Compatibility): a migration whose every check is `PASS` is `COMPATIBLE` and gets no compatibility-validation step; any `UNKNOWN`, `REVIEW`, `PASS_WITH_LIMITATION` or `PASS_BY_EXISTING_SERVERLESS` check gives `REQUIRES_VALIDATION`, which adds that step; a `FAIL` gives `INCOMPATIBLE`. A Plan B without a migration step is never `COMPATIBLE`, so its scenario ID cannot equal an empty Plan A's (Plan A is always `COMPATIBLE`).
 
@@ -1339,7 +1354,7 @@ A package is final only after the Reviewer package gate has passed its scenarios
 
 ---
 
-## 22. Public Reporter JSON Contract v3.0.0
+## 22. Public Reporter JSON Contract v3.1.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1364,6 +1379,7 @@ classDiagram
     RecommendationPackage --> Realization: realization
     RecommendationPackage --> ObservedConfigChange: observed_change
     RecommendationPackage --> CarriedForwardPlan: carried_forward_plan
+    RecommendationPackage --> RunScope: run_scope
     RecommendationPackage --> Provenance: provenance
     RecommendationPackage --> CostProfile: cost_profile
 ```
@@ -1509,7 +1525,7 @@ Realization never changes the original `PKG-*` identity.
 
 ---
 
-## 27. Workbook Contract v1.5.0
+## 27. Workbook Contract v1.6.0
 
 The workbook is generated from already-validated `RecommendationPackage` objects.
 
@@ -1549,7 +1565,7 @@ The workbook must not alter the underlying JSON economics.
 
 ## 28. Packaging and output directory
 
-`package_locked_contract()` writes one `packages/<workspace>__<warehouse>.json` per package, `workbook.xlsx` (omitted only with `--no-workbook`), `evidence.json` and `manifest.json` into the output directory; the logger writes `publisher.log` there (29.1). Output tree: [`README.md`](../../README.md) (Output directory).
+`package_locked_contract()` writes one `packages/<workspace>__<warehouse>.json` per package, `workbook.xlsx` (omitted only with `--no-workbook`), `evidence.json` and `manifest.json` into the run's output directory; the logger writes `publisher.log` there (29.1). The CLI resolves that directory before logging starts (`run_output_dir` in `src/publisher/cli/publish.py`, `partitioned_run_dir` in `src/publisher/config/output_layout.py`): a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under `--output-dir`, or `--output-dir` itself with `--flat-output`. The timestamp is the UTC start time and appears only in the path; a folder that exists is never reused (a `-NN` suffix is claimed atomically). `latest_run_dir` resolves a root to its newest run for the scripts that read output. Output tree: [`README.md`](../../README.md) (Output directory).
 
 ### 28.1 Package filenames
 
@@ -1557,7 +1573,7 @@ Filenames are operational locators only. They are not content identities and are
 
 ### 28.2 Manifest
 
-The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists warehouses the Governor excluded as unsupported types (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
+The manifest records `publisher_version`, `reporter_contract_version`, `workbook_contract_version`, `generated_at` (the latest package `generated_at`), `run_scope` (null for the full scope, otherwise a `label` and the in-scope knobs per scenario type), `warehouse_selection` (`requested`: `all` or the selectors, `selected_count`, `not_selected_count`), `package_count`, one `packages[]` entry per package (`recommendation_package_id`, `workspace_id`, `warehouse_id`, `warehouse_name`, `epoch_id`, `package_hash_full_sha256`, relative `path`), `workbook_status` (`GENERATED` or `SKIPPED`), `workbook_file` (null when skipped) and `evidence_file`. It also lists the selected warehouses the Governor excluded as unsupported types (`excluded_warehouse_count`, `excluded_warehouses` with reason code `UNSUPPORTED_WAREHOUSE_TYPE`), billed warehouses with no configuration snapshot (`unseen_billed_warehouse_check` = `CHECKED` on a live run or `NOT_CHECKED` on a demo or replay run, `unseen_billed_warehouse_count`, null when not checked, and `unseen_billed_warehouses`; 7.2) and a `canonical_json_semantics` note. It is not itself a Reporter JSON Contract package.
 
 ### 28.3 Replay evidence
 
@@ -1724,7 +1740,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A order (value key, then invalidation precedence) is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v3.0.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v3.1.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.

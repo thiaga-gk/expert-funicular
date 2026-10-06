@@ -1,6 +1,6 @@
 # Databricks SQL Warehouse Optimizer
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v3.0.0** as the machine source of truth and **Workbook Reporter Contract v1.5.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v3.1.0** as the machine source of truth and **Workbook Reporter Contract v1.6.0** as the professional human projection.
 
 ## Install
 
@@ -26,8 +26,8 @@ flowchart LR
     R1 --> P[Packager<br/>scenarios, bundle estimator, contract assembly]
     P --> R2[Reviewer<br/>package gate]
     R2 --> RP[Reporter]
-    RP --> J[packages/*.json<br/>RecommendationPackage v3.0.0]
-    RP --> W[workbook.xlsx<br/>Workbook Contract v1.5.0]
+    RP --> J[packages/*.json<br/>RecommendationPackage v3.1.0]
+    RP --> W[workbook.xlsx<br/>Workbook Contract v1.6.0]
 ```
 
 `publish()` in `src/publisher/publisher.py` calls each capability once, in this order, and holds no domain logic; each capability lives in its own package under `src/publisher/` (`analyzer`, `governor`, `optimizer`, `reviewer`, `packager`, `reporter`, plus `contracts`, `config` and `common`). Architecture: [`docs/architecture/hld.md`](docs/architecture/hld.md).
@@ -40,17 +40,43 @@ Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unkn
 
 Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Each warehouse is evaluated under a cost profile: **aggressive** for nonprod-tagged warehouses, **balanced** otherwise, or whatever `--cost-profile` sets (`--cost-profile conservative` for every warehouse, `--cost-profile aggressive=<warehouse-id>[,...]` for some). The profile moves only how much performance risk a cut may take; values in `docs/reference/thresholds.md` (Cost profiles). Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
+## Run scope
+
+By default a run assesses every scenario and technique for every warehouse. A run can be restricted to some of them:
+
+| Scenario | Techniques |
+|---|---|
+| `current` (Plan A, optimize the current warehouse type) | `size`, `max-clusters`, `min-clusters`, `auto-stop` |
+| `migration` (Plan B, warehouse-type migration experiment) | `warehouse-type` |
+
+```bash
+publisher --from-evidence ./out/run_date=2026-10-05/run_ts=20261005T143012Z/evidence.json \
+  --scope current:auto-stop --warehouse wh-demo-001 --output-dir ./out
+publisher --demo --scope current:auto-stop,min-clusters --scope migration --output-dir ./demo_out
+publisher --demo --scope-file examples/scopes/current-auto-stop.json --output-dir ./demo_out
+```
+
+`--scope current` enables all four current-type techniques. `--warehouse` takes `all` (the default), a warehouse ID or `<workspace_id>/<warehouse_id>`, and can be repeated. `--scope-file` holds the same choices as JSON toggles plus the warehouses (`schema/run-scope.schema.json`; presets in `examples/scopes/`) and is not combined with the flags. An unknown name or a warehouse that is not in the evidence stops the run with exit status 2.
+
+Scope decides what is built, not only what is shown: out-of-scope candidates are never produced, Plan A is built and priced from the enabled techniques only, starting from the current configuration (out-of-scope knobs keep their current values), and each candidate is identical to the same candidate in a full run. A canary rollback is always published, even outside the scope. When `current` is not in scope, the recommended scenario is "No change" and any migration stays an alternative experiment. The packages record the scope in `run_scope` (null for a full run; [`docs/contracts/reporter-json-contract.md`](docs/contracts/reporter-json-contract.md) section 14.4), and the workbook and manifest show it. Evidence is collected the same way in every scope, so one `evidence.json` can be replayed with any scope.
+
 ## Output directory
+
+Each run writes to its own folder under `--output-dir`, named from the run's UTC start time (Hive-style, so Spark and Databricks read `run_date` and `run_ts` as partition columns):
 
 ```text
 <output-dir>/
-├── packages/
-│   └── <workspace_id>__<warehouse_id>.json
-├── workbook.xlsx
-├── evidence.json          # versioned replay input for --from-evidence
-├── manifest.json
-└── publisher.log
+└── run_date=YYYY-MM-DD/
+    └── run_ts=YYYYMMDDTHHMMSSZ/
+        ├── packages/
+        │   └── <workspace_id>__<warehouse_id>.json
+        ├── workbook.xlsx
+        ├── evidence.json          # versioned replay input for --from-evidence
+        ├── manifest.json
+        └── publisher.log
 ```
+
+The timestamp is only in the folder name, never inside a file, so identical replays write identical files. A second run in the same second gets a `-01` suffix; nothing is overwritten. `--flat-output` writes directly into `--output-dir` instead. The scripts that read a run (`scripts/validate_workbook.py`, `scripts/compare_with_ref.py`) accept a run folder or the root, where they read the newest run.
 
 Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication. `evidence.json` is validated the same way (`schema/evidence.schema.json`); see [`docs/contracts/evidence-format.md`](docs/contracts/evidence-format.md).
 
@@ -72,6 +98,7 @@ See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md)
 ```bash
 publisher --demo --output-dir ./demo_out
 python scripts/run_demo.py ./demo_out      # same run, no install
+python scripts/validate_workbook.py ./demo_out   # checks the newest run under ./demo_out
 ```
 
 The demo fleet has one simulated warehouse per golden scenario (each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..40) runs the first N warehouses.
@@ -101,7 +128,7 @@ To reproduce an earlier collection despite later billing corrections, add `--bil
 
 ## Weekly scheduled run
 
-Run the publisher once a week as a Databricks job: a Python task or a notebook that calls `python -m publisher` in live mode (the flags above) with an OAuth CLI profile available to the job (static PAT profiles are rejected, and the Databricks CLI must be on the job's `PATH`) and `--output-dir` on a Volume, for example `/Volumes/<catalog>/<schema>/<volume>/whopt/<run-date>`. Keep each run's dated output directory: every run reads the system tables afresh, and the directories are the audit trail.
+Run the publisher once a week as a Databricks job: a Python task or a notebook that calls `python -m publisher` in live mode (the flags above) with an OAuth CLI profile available to the job (static PAT profiles are rejected, and the Databricks CLI must be on the job's `PATH`) and `--output-dir` on a Volume, for example `/Volumes/<catalog>/<schema>/<volume>/whopt`. Each run writes its own `run_date=/run_ts=` folder there; keep them: every run reads the system tables afresh, and the folders are the audit trail.
 
 What each run shows, per warehouse package:
 

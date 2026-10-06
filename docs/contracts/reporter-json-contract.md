@@ -1,6 +1,8 @@
-# Reporter JSON Contract v3.0.0 — Locked
+# Reporter JSON Contract v3.1.0 — Locked
 
-**Version history:** 3.0.0 (MAJOR, §19: a required field and a hash input are added) adds the required top-level `cost_profile` (section 17.1): the cost profile the warehouse was evaluated under (aggressive, balanced or conservative), why it got it, and the effective value of every threshold the profile sets, grouped by technique. Its `name` and `applied_thresholds` enter every candidate, scenario and package hash; `source` and `source_detail` do not, so the same effective profile gives the same ids however it was chosen. No existing field or value changes.
+**Version history:** 3.1.0 (MINOR, §19 amendment 1.2.0) adds the required, nullable top-level `run_scope` (section 14.4): null for a full assessment, otherwise the scenarios and knobs a restricted run was asked to recommend plus any canary rollback kept outside them. A restricted package holds one candidate per in-scope knob and only in-scope scenarios; when current-type tuning is outside the scope, the recommended scenario is the step-less `NO_CHANGE_BASELINE` (first produced in 3.1.0) with selection reason `CURRENT_TYPE_OUT_OF_RUN_SCOPE`. The package hash payload gains `run_scope`. A step-less migration branch (held or not evaluated) is now typed `WAREHOUSE_TYPE_MIGRATION` instead of `IN_PLACE_OPTIMIZATION`, so a migration-only package never shows it as current-type tuning; no other field or value changes for a full assessment; `contract_version` is in every hash, so all IDs differ from 3.0.0 packages.
+
+3.0.0 (MAJOR, §19: a required field and a hash input are added) adds the required top-level `cost_profile` (section 17.1): the cost profile the warehouse was evaluated under (aggressive, balanced or conservative), why it got it, and the effective value of every threshold the profile sets, grouped by technique. Its `name` and `applied_thresholds` enter every candidate, scenario and package hash; `source` and `source_detail` do not, so the same effective profile gives the same ids however it was chosen. No existing field or value changes.
 
 2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next chance for another settled day (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
 
@@ -40,6 +42,7 @@ provenance
 cost_profile
 observed_change
 carried_forward_plan
+run_scope
 ```
 
 ### Economic semantics
@@ -206,6 +209,7 @@ reevaluation (status, earliest_reevaluation_time, blocking_codes; null when abse
 observed_change_fingerprint (SHA256 of the canonical observed_change; null when absent)
 carried_forward_fingerprint (SHA256 of the canonical whole carried_forward_plan block; null when absent)
 cost_profile (name and applied_thresholds; source and source_detail excluded)
+run_scope (the canonical block: scenarios sorted by type, knobs and safety inclusions sorted; null for a full assessment)
 ```
 
 ### Realization hash inputs
@@ -240,6 +244,8 @@ canonical applied_config
 
 `IN_PLACE_OPTIMIZATION | WAREHOUSE_TYPE_MIGRATION | NO_CHANGE_BASELINE`
 
+`NO_CHANGE_BASELINE` is produced only in a restricted package whose `run_scope` leaves out current-type tuning (section 14.4): a step-less recommended scenario that keeps the current configuration.
+
 ### In-scope tunable knobs
 
 `warehouse_type | warehouse_size | min_clusters | max_clusters | auto_stop_minutes | warehouse_channel | enable_photon`
@@ -272,14 +278,14 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `3.0.0` |
+| `contract_version` | string | Yes | No | Constant `3.1.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
 | `cost_baseline` | `CostBaseline` | Yes | No | Historical assessed cost + forward no-change forecast |
 | `assessment` | `Assessment` | Yes | No | Package-level evidence/decision summary |
 | `evidence` | map[`evidence_id`, `EvidenceRecord`] | Yes | No | Canonical evidence registry; define once/reference many |
-| `candidates` | array[`CandidateRecommendation`] | Yes | No | One decision per in-scope tunable knob |
+| `candidates` | array[`CandidateRecommendation`] | Yes | No | One decision per in-scope tunable knob: every active domain for a full assessment, the `run_scope` knobs (plus safety inclusions) for a restricted one |
 | `scenarios` | array[`Scenario`] | Yes | No | Alternative/mutually-exclusive execution paths |
 | `recommended_plan` | `RecommendedPlan` | Yes | No | Deterministic HITL path selection; may have null `scenario_id` if none is viable |
 | `package_economics` | `PackageEconomics` | Yes | No | Executive opportunity envelope across assessable scenarios |
@@ -288,6 +294,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | `cost_profile` | `CostProfile` | Yes | No | Cost profile the warehouse was evaluated under, why, and the thresholds it applied (section 17.1) |
 | `observed_change` | `ObservedConfigChange` | Yes | **Yes** | Observed config diff at the start of the current epoch; null for a first epoch or an empty diff (section 14.2) |
 | `carried_forward_plan` | `CarriedForwardPlan` | Yes | **Yes** | Reserved for Stage 2; always null in current producers (section 14.3) |
+| `run_scope` | `RunScope` | Yes | **Yes** | Null for a full assessment; the restricted scope this package was produced under otherwise (section 14.4) |
 
 ---
 
@@ -544,7 +551,7 @@ Scenarios are mutually exclusive/alternative execution strategies, not candidate
 |---|---|---:|---:|---|
 | `scenario_id` | string | Yes | No | Deterministic execution-path identity |
 | `scenario_name` | string | Yes | No | Human-readable stable scenario name |
-| `scenario_type` | enum | Yes | No | In-place / migration / no-change baseline |
+| `scenario_type` | enum | Yes | No | In-place / migration / no-change baseline. The migration branch is `WAREHOUSE_TYPE_MIGRATION` even when it has no step (a held or not-evaluated migration; since 3.1.0) |
 | `status` | enum | Yes | No | Exactly one `RECOMMENDED` when recommended plan exists |
 | `candidate_refs` | candidate_id[] | Yes | No | Ordered candidate references used to construct scenario ID |
 | `evidence_refs` | evidence_id[] | Yes | No | Scenario-level evidence references |
@@ -673,6 +680,21 @@ A canary rollback ([LLD §15.9](../architecture/lld.md)) is expressed with the e
 
 A contingent replay of the preceding epoch's plan, planned for Stage 2. Its structure and invariants are defined and validated now so the contract does not change again when it ships. It never feeds candidate, scenario or package economics (pricing basis `CONTINGENT_CARRIED_FORWARD`, which plan steps may not use). Fields: `source_epoch_id`, `as_of`, `match_policy` (`EXACT_SINGLE_KNOB`), `match_outcome` (`MATCHED` | `MISMATCH` | `NOT_REPLAYABLE`), `match_reason_code`, `replay_fingerprint`, `steps[]` (`order`, `knob`, `technique_id`, `previous_value`, `recommended_value`, `disposition` of `COMPLETED` | `PENDING_REEVALUATION` | `INVALIDATED`, `reason_code`, `rebased_running_savings_365d`), `remaining_upside_365d`, `pricing_basis`. Savings are **rebased**: running savings after the last `COMPLETED` step are subtracted track by track, so an applied step is not counted again as upside. A non-null block requires `observed_change` and an active `CURRENT_CONFIG_EPOCH_TOO_NEW` gate (the epoch is younger than the maturity gate), and `source_epoch_id` must equal `observed_change.previous_epoch_id`. The package hash covers the whole block (`carried_forward_fingerprint`); `replay_fingerprint` additionally binds it to the replay evidence. The validator applies the same patterns as the schema (uppercase hex fingerprints, `^[A-Z][A-Z0-9_]*$` codes).
 
+## 14.4 `run_scope` (new in 3.1.0)
+
+A run may be restricted to some scenarios and techniques (the publisher's `--scope` / `--scope-file`). Scope is a decision input, not a view filter: out-of-scope candidates are never produced, scenarios are built and priced from the in-scope candidates only, and every in-scope candidate is identical to the same candidate in a full assessment of the same evidence (candidates are priced in isolation against the current configuration and scope is not a candidate hash input). Knobs outside the scope keep their current values.
+
+| Field | Type | Req. | Nullable | Semantics |
+|---|---|---:|---:|---|
+| `scenarios` | object[] | Yes | No | At least one, sorted by `scenario_type`: `scenario_type` (`IN_PLACE_OPTIMIZATION` or `WAREHOUSE_TYPE_MIGRATION`) and `knobs` (unique, sorted, at least one, all of that type: `auto_stop_minutes`, `max_clusters`, `min_clusters`, `warehouse_size` for in-place; `warehouse_type` for migration) |
+| `safety_inclusions` | object[] | Yes | No | Candidates published outside the scope because they are safety actions, sorted by knob: `candidate_id`, `knob`, `reason_code` (`CANARY_GUARDRAIL_BREACHED`, section 14.2) |
+
+`run_scope` is null for a full assessment; a block that names every in-place and migration knob is rejected. When it is present:
+
+- the package holds exactly one candidate per in-scope knob and, outside the scope, only the candidates listed in `safety_inclusions`;
+- scenarios are only of the scoped types. Without `IN_PLACE_OPTIMIZATION` in scope the recommended scenario is a step-less `NO_CHANGE_BASELINE` (selection reason `CURRENT_TYPE_OUT_OF_RUN_SCOPE`, next action `REVIEW_SCENARIO`), or an `IN_PLACE_OPTIMIZATION` scenario holding only the safety rollbacks when there are any, so a migration experiment is never the recommended path;
+- package economics are the envelope over the scenarios present, so a restricted package's figures describe only the scoped changes.
+
 ---
 
 # 15. `package_economics`
@@ -791,7 +813,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal the contract version of this document (`3.0.0`) |
+| `contract_version` | Must equal the contract version of this document (`3.1.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -863,7 +885,8 @@ JSON Schema enforces shape, types, enums, nullability, patterns, and basic numer
 27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis;
 28. `step_savings_365d` null parity, first-step equality and authoritative-chain bracketing (section 13);
 29. a candidate with `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change` lists its knob, and its `recommended_value` equals that change's `previous_value` (section 14.2);
-30. `cost_profile.applied_thresholds` holds exactly the groups and fields of section 17.1 as finite numbers, and `source_detail` has the form its `source` requires (section 17.1).
+30. `cost_profile.applied_thresholds` holds exactly the groups and fields of section 17.1 as finite numbers, and `source_detail` has the form its `source` requires (section 17.1);
+31. `run_scope` (when present) is canonical and not the full scope, the candidates match its knobs and safety inclusions one to one, and every scenario has a scoped type (or is the baseline or safety-rollback scenario allowed in section 14.4); a `NO_CHANGE_BASELINE` scenario requires a `run_scope`.
 
 ---
 
@@ -896,4 +919,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/unit/contracts/test_reporter_contract.py`
 
-The workbook is not part of Reporter Contract v3.0.0. It is specified separately in `workbook-contract.md` as a projection of these packages.
+The workbook is not part of Reporter Contract v3.1.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

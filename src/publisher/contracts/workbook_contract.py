@@ -1,6 +1,6 @@
-"""Workbook Reporter Contract v1.5.0.
+"""Workbook Reporter Contract (version: ``WORKBOOK_CONTRACT_VERSION``).
 
-A compact, human-facing projection of the locked Reporter JSON Contract (v3.0.0, ``rc.CONTRACT_VERSION``).
+A compact, human-facing projection of the locked Reporter JSON Contract (``rc.CONTRACT_VERSION``).
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from . import reporter_contract as rc
 
-WORKBOOK_CONTRACT_VERSION = "1.5.0"
+WORKBOOK_CONTRACT_VERSION = "1.6.0"
 SHEET_EXECUTIVE = "Executive Summary"
 SHEET_PORTFOLIO = "Warehouse Portfolio"
 SHEET_SCENARIOS = "Scenario Plans"
@@ -118,6 +118,7 @@ PORTFOLIO_COLUMNS = (
     ColumnSpec("no_change_count", "No change", 10, "#,##0"),
     ColumnSpec("not_applicable_count", "N/A", 8, "#,##0"),
     ColumnSpec("insufficient_evidence_count", "Insuff. evidence", 14, "#,##0"),
+    ColumnSpec("run_scope", "Run scope", 26, wrap=True),
     ColumnSpec("candidate_view", "Candidate view", 42),
     ColumnSpec("recommended_execution_plan", "Execution plan", 50),
     ColumnSpec("query_source_profile_json", "Query source JSON", 22),
@@ -134,7 +135,7 @@ PORTFOLIO_GROUPS = (
     ColumnGroup("Package opportunity", "package_base_impact_type", "impact_pct"),
     ColumnGroup("Recommended plan", "recommended_scenario_id", "observed_change"),
     ColumnGroup("Assessment", "overall_status", "insufficient_evidence_count"),
-    ColumnGroup("Decision view", "candidate_view", "recommended_execution_plan"),
+    ColumnGroup("Decision view", "run_scope", "recommended_execution_plan"),
     ColumnGroup("Audit / traceability", "query_source_profile_json", "evidence_summary_json"),
 )
 
@@ -426,6 +427,32 @@ def candidate_view_text(package: rc.RecommendationPackage) -> str:
     return " | ".join(parts) or DISPLAY_NA
 
 
+_SCOPE_SCENARIO_LABELS = {
+    rc.ScenarioType.IN_PLACE_OPTIMIZATION: "Current type",
+    rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION: "Migration",
+}
+_KNOB_LABELS = {
+    rc.TunableKnob.WAREHOUSE_SIZE: "Size", rc.TunableKnob.MAX_CLUSTERS: "Max", rc.TunableKnob.MIN_CLUSTERS: "Min",
+    rc.TunableKnob.AUTO_STOP_MINUTES: "Auto-stop", rc.TunableKnob.WAREHOUSE_TYPE: "Type",
+}
+
+
+def run_scope_label(scope: Optional[rc.RunScope]) -> str:
+    """The scoped scenarios and techniques, e.g. ``Current type: Auto-stop, Min``; ``Full`` for a null (full) scope."""
+    if scope is None:
+        return "Full"
+    return " | ".join(f"{_SCOPE_SCENARIO_LABELS[s.scenario_type]}: {', '.join(_KNOB_LABELS[k] for k in s.knobs)}" for s in scope.scenarios)
+
+
+def run_scope_text(package: rc.RecommendationPackage) -> str:
+    """The package's run scope label plus any safety inclusions, e.g. ``Current type: Auto-stop (+ safety: Size rollback)``."""
+    text = run_scope_label(package.run_scope)
+    safety = [] if package.run_scope is None else package.run_scope.safety_inclusions
+    if safety:
+        text += f" (+ safety: {', '.join(_KNOB_LABELS[x.knob] + ' rollback' for x in safety)})"
+    return text
+
+
 def _pricing_tag(step: rc.PlanStep) -> str:
     """'; priced AUTHORITATIVE|CONTINGENT' for steps with projected economics, so plan text shows the pricing basis."""
     if step.projected_economics is None:
@@ -601,6 +628,7 @@ def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, 
         "candidate_count": summary.candidate_count, "actionable_count": summary.actionable_count, "test_required_count": summary.test_required_count,
         "review_count": summary.review_count, "blocked_count": summary.blocked_count, "no_change_count": summary.no_change_count,
         "not_applicable_count": summary.not_applicable_count, "insufficient_evidence_count": summary.insufficient_evidence_count,
+        "run_scope": run_scope_text(package),
         "candidate_view": candidate_view_text(package), "recommended_execution_plan": execution_plan_text(package),
         "scenario_ids_json": _compact_json_list([s.scenario_id for s in package.scenarios]),
         "candidate_ids_json": _compact_json_list([c.candidate_id for c in package.candidates]),
@@ -691,8 +719,13 @@ def project_executive(
     packages: Sequence[rc.RecommendationPackage],
     portfolio_rows: Sequence[Mapping[str, Any]],
     excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
+    warehouse_selection: Optional[Mapping[str, Any]] = None,
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Executive Summary rows: (metric rows, top-15 opportunity rows).
+
+    The Run scope section shows the packages' scope (the full scope when none is restricted), the warehouse selection
+    from the run (UNAVAILABLE when not given) and the safety inclusions. When no package has the migration in scope
+    the experiment upside is UNAVAILABLE ("Migration not in run scope"), never zero.
 
     Currency-bearing sums are computed only when every package shares one currency (otherwise currency reads MIXED and the sums UNAVAILABLE). Actual and
     forward totals and the scenario envelope low/high sums are UNAVAILABLE when any package lacks the figure; recommended-plan and experiment sums skip
@@ -738,6 +771,14 @@ def project_executive(
     experiment_upside = round(sum(max(float(h), 0.0) for h in experiment_highs), 2) if same_currency else None
     plan_note = f"{len(plan_ranges)} of {len(packages)} recommended plans priced; unpriced plans are excluded, not zero; DBU at list price, AWS on-demand"
     exclusion_types = sorted({str(x.get("warehouse_type")) for x in excluded_warehouses or ()})
+    scope_labels = sorted({run_scope_label(p.run_scope) for p in packages})
+    safety_count = sum(len(p.run_scope.safety_inclusions) for p in packages if p.run_scope is not None)
+    migration_in_scope = not packages or any(
+        p.run_scope is None or rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION in p.run_scope.scenario_types() for p in packages
+    )
+    selection = warehouse_selection or {}
+    requested = selection.get("requested")
+    requested_note = DISPLAY_NA if requested is None else ("All warehouses" if requested == "all" else "Requested: " + ", ".join(requested))
 
 
     metrics = [
@@ -748,6 +789,10 @@ def project_executive(
         {"section":"Coverage","metric":"Regions","value":len({p.warehouse.region for p in packages}),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Coverage","metric":"Excluded (unsupported type)","value":DISPLAY_UNAVAILABLE if excluded_warehouses is None else len(excluded_warehouses),"currency":DISPLAY_NA,"notes":DISPLAY_NA if not exclusion_types else "Types: " + ", ".join(exclusion_types) + "; see manifest.json excluded_warehouses"},
         {"section":"Coverage","metric":"Economically assessable","value":len(assessable),"currency":DISPLAY_NA,"notes":f"Not priced: {len(packages)-len(assessable)}"},
+        {"section":"Run scope","metric":"Scenarios and techniques","value":" / ".join(scope_labels) or "Full","currency":DISPLAY_NA,"notes":"Full = every scenario and technique; a restricted run recommends only these (see manifest.json run_scope)"},
+        {"section":"Run scope","metric":"Warehouses selected","value":selection.get("selected_count", DISPLAY_UNAVAILABLE),"currency":DISPLAY_NA,"notes":requested_note},
+        {"section":"Run scope","metric":"Warehouses not selected","value":selection.get("not_selected_count", DISPLAY_UNAVAILABLE),"currency":DISPLAY_NA,"notes":"Outside --warehouse; not assessed in this run"},
+        {"section":"Run scope","metric":"Safety inclusions","value":safety_count,"currency":DISPLAY_NA,"notes":"Canary rollbacks published outside the run scope"},
         {"section":"Cost","metric":"Actual trailing 365d","value":_money_or_unavailable(actual_total),"currency":currency,"notes":"UNAVAILABLE when any package lacks historical AWS total"},
         {"section":"Cost","metric":"Forward 365d baseline","value":_money_or_unavailable(forward_total),"currency":currency,"notes":"No-change forecast; DBU at list price (negotiated discounts lower real savings proportionally); AWS at on-demand EC2 prices (Spot, Reserved Instances, Savings Plans not modeled)"},
         {"section":"Economic impact","metric":"Recommended annual savings","value":_money_or_unavailable(recommended_savings),"currency":currency,"notes":"Sum of positive recommended-scenario base impacts"},
@@ -756,7 +801,7 @@ def project_executive(
         {"section":"Recommended plan savings","metric":"Plan savings low","value":_money_or_unavailable(plan_sum["low"]),"currency":currency,"notes":plan_note},
         {"section":"Recommended plan savings","metric":"Plan savings base","value":_money_or_unavailable(plan_sum["base"]),"currency":currency,"notes":plan_note},
         {"section":"Recommended plan savings","metric":"Plan savings high","value":_money_or_unavailable(plan_sum["high"]),"currency":currency,"notes":plan_note},
-        {"section":"Experiment upside","metric":"Migration experiment high","value":_money_or_unavailable(experiment_upside),"currency":currency,"notes":f"Sum of positive migration-experiment high bounds ({sum(1 for h in experiment_highs if h > 0)} warehouses); an alternative to the recommended plan, not additive, unvalidated until canary"},
+        {"section":"Experiment upside","metric":"Migration experiment high","value":_money_or_unavailable(experiment_upside if migration_in_scope else None),"currency":currency,"notes":f"Sum of positive migration-experiment high bounds ({sum(1 for h in experiment_highs if h > 0)} warehouses); an alternative to the recommended plan, not additive, unvalidated until canary" if migration_in_scope else "Migration not in run scope"},
         {"section":"Economic impact","metric":"Scenario envelope low","value":_money_or_unavailable(downside),"currency":currency,"notes":"Sum of package lows across all scenarios, including experiments; not a plan total"},
         {"section":"Economic impact","metric":"Scenario envelope high","value":_money_or_unavailable(upside),"currency":currency,"notes":"Sum of package highs across all scenarios, including experiments; not a plan total"},
         {"section":"Confidence","metric":"HIGH recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="HIGH"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
@@ -797,13 +842,14 @@ def project_executive(
 
 
 def project_workbook(
-    packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
+    packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
+    warehouse_selection: Optional[Mapping[str, Any]] = None,
 ) -> WorkbookProjection:
-    """Project validated packages (and the unsupported-type exclusions, if run) into all four sheets' rows and validate the projection grain and shape."""
+    """Project validated packages (and the unsupported-type exclusions and warehouse selection, if run) into all four sheets' rows and validate the projection grain and shape."""
     portfolio = [project_warehouse_portfolio(p) for p in packages]
     scenarios = [project_scenario(p, s) for p in packages for s in p.scenarios]
     registry = [project_candidate(p, c) for p in packages for c in p.candidates]
-    metrics, opportunities = project_executive(packages, portfolio, excluded_warehouses)
+    metrics, opportunities = project_executive(packages, portfolio, excluded_warehouses, warehouse_selection)
     result = WorkbookProjection(metrics, opportunities, portfolio, scenarios, registry)
     result.validate(packages)
     return result

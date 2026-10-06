@@ -9,23 +9,34 @@ from publisher.common.logging import LOGGER
 from publisher.contracts.analysis import FleetAnalysis
 from publisher.contracts.governance import GovernanceResult
 from publisher.contracts.request import MODE_LIVE, RunContext
+from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.governor.constraints import aws_region_price_guard
-from publisher.governor.eligibility import unsupported_warehouse_exclusions
+from publisher.governor.eligibility import selected_warehouse_keys, unsupported_warehouse_exclusions
 
 
-def govern(analysis: FleetAnalysis) -> GovernanceResult:
-    """Eligibility: the analyzed (supported) warehouses, and the fail-closed exclusions for every other one.
+def govern(analysis: FleetAnalysis, scope: RunScope = FULL_SCOPE) -> GovernanceResult:
+    """Eligibility: the selected, analyzed (supported) warehouses and the fail-closed exclusions for the other selected ones.
 
-    Eligible warehouses keep the Analyzer's order. Each exclusion is logged as a WARNING (identity and reason code only)
-    and is recorded in the run manifest by the Reporter; the rest of the fleet is still evaluated.
+    The run scope's warehouse selection (all by default) narrows the fleet first; a selector that names no warehouse
+    raises PublisherError. Eligible warehouses keep the Analyzer's order. Each exclusion is logged as a WARNING
+    (identity and reason code only) and is recorded in the run manifest by the Reporter; the rest of the selection is
+    still evaluated. The scope is passed on for the Optimizer, Reviewer and Packager.
     """
-    exclusions = unsupported_warehouse_exclusions(analysis.evidence)
+    selected = selected_warehouse_keys(analysis.evidence, scope.warehouses)
+    exclusions = [x for x in unsupported_warehouse_exclusions(analysis.evidence) if (x["workspace_id"], x["warehouse_id"]) in selected]
+    not_selected = [
+        {"workspace_id": e.workspace_id, "warehouse_id": e.warehouse_id}
+        for e in sorted(analysis.evidence, key=lambda x: (x.workspace_id, x.warehouse_id))
+        if (e.workspace_id, e.warehouse_id) not in selected
+    ]
+    eligible = [w for w in analysis.warehouses if (w.evidence.workspace_id, w.evidence.warehouse_id) in selected]
     for x in exclusions:
         LOGGER.warning("governor.excluded workspace_id=%s warehouse_id=%s reason_code=%s", x["workspace_id"], x["warehouse_id"], x["reason_code"])
-    for w in analysis.warehouses:
+    for w in eligible:
         LOGGER.debug("governor.eligible workspace_id=%s warehouse_id=%s", w.evidence.workspace_id, w.evidence.warehouse_id)
-    LOGGER.info("governor.govern_done eligible=%d excluded=%d", len(analysis.warehouses), len(exclusions))
-    return GovernanceResult(eligible=list(analysis.warehouses), exclusions=exclusions)
+    LOGGER.info("governor.govern_done eligible=%d excluded=%d not_selected=%d scope=%s",
+                len(eligible), len(exclusions), len(not_selected), scope.describe())
+    return GovernanceResult(eligible=eligible, exclusions=exclusions, not_selected=not_selected, scope=scope)
 
 
 def run(context: RunContext, analysis: FleetAnalysis) -> GovernanceResult:
@@ -42,4 +53,4 @@ def run(context: RunContext, analysis: FleetAnalysis) -> GovernanceResult:
             raise PublisherError(refusal)
         if request.allow_missing_aws_price and request.source_region not in (registry.get("regions") or {}):
             LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)", request.source_region)
-    return govern(analysis)
+    return govern(analysis, context.scope)

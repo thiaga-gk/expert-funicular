@@ -20,3 +20,6 @@ _EVIDENCE_SCHEMA_PATH = REPO_ROOT / "schema" / "evidence.schema.json"
 # Where a run executes. Only local execution exists; a Databricks Asset Bundle mode is added with its adapters.
 EXECUTION_MODES = ("local",)
 
+
+
+_SCOPE_SCHEMA_PATH = REPO_ROOT / "schema" / "run-scope.schema.json"

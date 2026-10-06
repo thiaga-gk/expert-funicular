@@ -17,13 +17,24 @@ def _recommended_plan(
     With no recommended scenario the plan is NO_RECOMMENDED_SCENARIO. When no step is ready and a re-evaluation
     window exists, the next action is WAIT_FOR_REEVALUATION (immature epoch vs. billing history still accruing).
     Otherwise the next action follows the first step. Always requires human review (HITL); the text only describes
-    the plan, it does not change any decision.
+    the plan, it does not change any decision. A NO_CHANGE_BASELINE (current-type scenario outside the run scope) is
+    CURRENT_TYPE_OUT_OF_RUN_SCOPE.
     """
     recommended = next((s for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED), None)
     if recommended is None:
         return rc.RecommendedPlan(None, "NO_RECOMMENDED_SCENARIO", "REVIEW_EVIDENCE", True, "No scenario currently satisfies the deterministic selection policy.", reevaluation)
     first = recommended.execution_plan[0] if recommended.execution_plan else None
     ready = any(x.execution_state in (rc.ExecutionState.READY, rc.ExecutionState.READY_FOR_CANARY) for x in recommended.execution_plan)
+    if recommended.scenario_type == rc.ScenarioType.NO_CHANGE_BASELINE:
+        return rc.RecommendedPlan(
+            scenario_id=recommended.scenario_id,
+            selection_reason_code="CURRENT_TYPE_OUT_OF_RUN_SCOPE",
+            next_action="REVIEW_SCENARIO",
+            requires_hitl=True,
+            decision_summary="Current-type tuning is outside this run's scope, so the current configuration is kept; any "
+                             "migration in scope is an alternative experiment that needs compatibility validation and a canary.",
+            reevaluation=reevaluation,
+        )
     if reevaluation is not None and not ready:
         young = "CURRENT_CONFIG_EPOCH_TOO_NEW" in reevaluation.blocking_codes
         if young:

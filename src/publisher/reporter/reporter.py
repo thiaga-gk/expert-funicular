@@ -7,6 +7,7 @@ from publisher.contracts.governance import GovernanceResult
 from publisher.contracts.report import ReportContract
 from publisher.contracts.request import RunContext
 from publisher.contracts.review import PackageReviewResult
+from publisher.packager.manifest import run_scope_summary, warehouse_selection_summary
 from publisher.reporter.json_reporter import package_locked_contract
 
 
@@ -18,10 +19,13 @@ def run(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResu
     ``context.request.output_dir`` in the order documented in ``json_reporter.package_locked_contract``.
     """
     packages = package.packages
-    files = package_locked_contract(context.request.output_dir, packages, analysis.evidence, generate_workbook=context.request.generate_workbook,
-                                    unseen_billed_warehouses=analysis.unseen_billed_warehouses)
     excluded = len(governance.exclusions)
-    LOGGER.info("reporter.done packages=%d files=%d analyzed=%d excluded=%d", len(packages), len(files),
-                len(analysis.evidence) - excluded, excluded)
-    return ReportContract(files=files, packages=list(packages), analyzed_count=len(analysis.evidence) - excluded, excluded_count=excluded,
+    analyzed = len(governance.eligible)
+    selection = warehouse_selection_summary(governance.scope, analyzed + excluded, len(governance.not_selected))
+    files = package_locked_contract(context.request.output_dir, packages, analysis.evidence, generate_workbook=context.request.generate_workbook,
+                                    unseen_billed_warehouses=analysis.unseen_billed_warehouses, exclusions=governance.exclusions,
+                                    run_scope=run_scope_summary(governance.scope), warehouse_selection=selection)
+    LOGGER.info("reporter.done packages=%d files=%d analyzed=%d excluded=%d not_selected=%d", len(packages), len(files),
+                analyzed, excluded, len(governance.not_selected))
+    return ReportContract(files=files, packages=list(packages), analyzed_count=analyzed, excluded_count=excluded,
                           candidate_count=sum(len(p.candidates) for p in packages), scenario_count=sum(len(p.scenarios) for p in packages))

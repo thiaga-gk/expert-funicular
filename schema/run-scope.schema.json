@@ -1,0 +1,106 @@
+{
+  "$id": "urn:databricks-sql-warehouse-optimizer:run-scope:1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Which scenarios, techniques and warehouses one publisher run recommends (--scope-file).",
+  "properties": {
+    "scenarios": {
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "techniques": {
+              "additionalProperties": false,
+              "properties": {
+                "auto_stop": {
+                  "type": "boolean"
+                },
+                "max_clusters": {
+                  "type": "boolean"
+                },
+                "min_clusters": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "size",
+                "max_clusters",
+                "min_clusters",
+                "auto_stop"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "techniques"
+          ],
+          "type": "object"
+        },
+        "migration": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "techniques": {
+              "additionalProperties": false,
+              "properties": {
+                "warehouse_type": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "warehouse_type"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "techniques"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "current",
+        "migration"
+      ],
+      "type": "object"
+    },
+    "scope_format_version": {
+      "const": "1.0.0"
+    },
+    "warehouses": {
+      "anyOf": [
+        {
+          "const": "all"
+        },
+        {
+          "items": {
+            "pattern": "^(?:[A-Za-z0-9_-]+/)?[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      ]
+    }
+  },
+  "required": [
+    "scope_format_version",
+    "warehouses",
+    "scenarios"
+  ],
+  "title": "Publisher run scope",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "scope_format_version": "1.0.0",
+  "warehouses": "all",
+  "scenarios": {
+    "current": {
+      "enabled": true,
+      "techniques": {
+        "size": true,
+        "max_clusters": true,
+        "min_clusters": true,
+        "auto_stop": true
+      }
+    },
+    "migration": {
+      "enabled": false,
+      "techniques": {
+        "warehouse_type": true
+      }
+    }
+  }
+}

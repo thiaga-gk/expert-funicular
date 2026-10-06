@@ -1601,7 +1601,7 @@
           "type": "string"
         },
         "contract_version": {
-          "const": "3.0.0"
+          "const": "3.1.0"
         },
         "decision_graph_version": {
           "minLength": 1,
@@ -2157,6 +2157,56 @@
       ],
       "type": "object"
     },
+    "RunScope": {
+      "additionalProperties": false,
+      "properties": {
+        "safety_inclusions": {
+          "items": {
+            "$ref": "#/$defs/SafetyInclusion"
+          },
+          "type": "array"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/ScopedScenario"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "scenarios",
+        "safety_inclusions"
+      ],
+      "type": "object"
+    },
+    "SafetyInclusion": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "pattern": "^CAND-[A-F0-9]{24}$",
+          "type": "string"
+        },
+        "knob": {
+          "enum": [
+            "auto_stop_minutes",
+            "max_clusters",
+            "min_clusters",
+            "warehouse_size"
+          ],
+          "type": "string"
+        },
+        "reason_code": {
+          "const": "CANARY_GUARDRAIL_BREACHED"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "knob",
+        "reason_code"
+      ],
+      "type": "object"
+    },
     "Scenario": {
       "additionalProperties": false,
       "properties": {
@@ -2362,6 +2412,38 @@
         "bound",
         "savings_365d",
         "estimated_cost_365d"
+      ],
+      "type": "object"
+    },
+    "ScopedScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "knobs": {
+          "items": {
+            "enum": [
+              "auto_stop_minutes",
+              "max_clusters",
+              "min_clusters",
+              "warehouse_size",
+              "warehouse_type"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "scenario_type": {
+          "enum": [
+            "IN_PLACE_OPTIMIZATION",
+            "WAREHOUSE_TYPE_MIGRATION"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_type",
+        "knobs"
       ],
       "type": "object"
     },
@@ -2596,7 +2678,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:3.0.0",
+  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:3.1.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
@@ -2621,7 +2703,7 @@
       ]
     },
     "contract_version": {
-      "const": "3.0.0"
+      "const": "3.1.0"
     },
     "cost_baseline": {
       "$ref": "#/$defs/CostBaseline"
@@ -2667,6 +2749,16 @@
     "recommended_plan": {
       "$ref": "#/$defs/RecommendedPlan"
     },
+    "run_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunScope"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "scenarios": {
       "items": {
         "$ref": "#/$defs/Scenario"
@@ -2697,7 +2789,8 @@
     "provenance",
     "cost_profile",
     "observed_change",
-    "carried_forward_plan"
+    "carried_forward_plan",
+    "run_scope"
   ],
   "title": "Databricks SQL Warehouse Optimization Recommendation Package",
   "type": "object"

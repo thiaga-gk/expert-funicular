@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 from publisher.analyzer.collector.collector import extract_evidence
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_SQL
 from publisher.analyzer.forecast import Modeler
+from publisher.config.loader import resolve_scope
+from publisher.contracts.scope import RunScope
 from publisher.governor.thresholds import Thresholds
 
 _SEGMENT = re.compile(r"^(?P<key>[A-Za-z0-9_]+)(?:\[(?P<sel>\*|[A-Za-z0-9_]+=[^\]]*)\])?$")
@@ -54,6 +56,12 @@ def check(package, assertion) -> Optional[str]:
             if not isinstance(value, (int, float)) or not low <= value <= high:
                 return f"{path}: expected between {low} and {high}, got {value!r}"
     return None
+
+
+def case_scope(case: Dict[str, Any]) -> Optional[RunScope]:
+    """The run scope of a case: its top-level ``scope`` list of ``--scope`` values, or None (the full scope)."""
+    specs = case.get("scope")
+    return None if not specs else resolve_scope(tuple(specs))
 
 
 def recompute_forecast(p, e) -> None:

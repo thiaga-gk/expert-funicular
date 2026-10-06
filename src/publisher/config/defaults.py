@@ -83,3 +83,16 @@ def scale_up_lag_minutes(warehouse_type: str) -> int:
 def auto_stop_floor(warehouse_type: str) -> int:
     """Lowest auto-stop (minutes) evaluated for a warehouse type."""
     return AUTO_STOP_FLOOR_SERVERLESS if warehouse_type == "SERVERLESS" else AUTO_STOP_FLOOR_PRO_CLASSIC
+# Run scope hierarchy: scenario -> (contract scenario type, technique name -> knob). Every active knob belongs to exactly
+# one scenario. Technique names are the scope-file keys; the CLI also accepts them with hyphens (auto-stop).
+SCOPE_SCENARIOS = {
+    "current": ("IN_PLACE_OPTIMIZATION", {
+        "size": "warehouse_size",
+        "max_clusters": "max_clusters",
+        "min_clusters": "min_clusters",
+        "auto_stop": "auto_stop_minutes",
+    }),
+    "migration": ("WAREHOUSE_TYPE_MIGRATION", {
+        "warehouse_type": "warehouse_type",
+    }),
+}

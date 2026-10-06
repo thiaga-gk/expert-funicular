@@ -224,8 +224,8 @@ class PackagerCases(PublisherCase):
         payload = load_case("concurrency-constrained")
         ev = [evidence_from_dict(payload["evidence"][0])]
         real = ScenarioPlanner.scenarios
-        def corrupt(planner, e, candidates):
-            scenarios, recommended = real(planner, e, candidates)
+        def corrupt(planner, e, candidates, scope):
+            scenarios, recommended = real(planner, e, candidates, scope)
             scenarios[0].steps[0].execution_state = "NOT_A_STATE"
             return scenarios, recommended
         with patch.object(ScenarioPlanner, "scenarios", corrupt):

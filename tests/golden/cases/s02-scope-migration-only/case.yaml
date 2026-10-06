@@ -1,0 +1,27 @@
+name: s02-scope-migration-only
+description: 'S02 Run scope migration on the idle-expensive warehouse: the migration stays an alternative experiment and
+  the recommended scenario is the step-less no-change baseline.'
+scope:
+- migration
+expect:
+  scenario: S02
+  warehouse: wh-demo-001
+  assertions:
+  - path: candidates
+    length: 1
+  - path: candidates[knob=warehouse_type].status
+    equals: TEST_REQUIRED
+  - path: scenarios
+    length: 2
+  - path: scenarios[status=RECOMMENDED].scenario_type
+    equals: NO_CHANGE_BASELINE
+  - path: scenarios[status=RECOMMENDED].execution_plan
+    length: 0
+  - path: scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].status
+    equals: ALTERNATIVE
+  - path: recommended_plan.selection_reason_code
+    equals: CURRENT_TYPE_OUT_OF_RUN_SCOPE
+  - path: package_economics.estimated_savings_365d.base
+    equals: 0.0
+  - path: run_scope.scenarios[scenario_type=WAREHOUSE_TYPE_MIGRATION].knobs
+    equals: [warehouse_type]

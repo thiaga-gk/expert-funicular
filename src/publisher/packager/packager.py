@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from publisher.analyzer.epochs import epoch_age_days
 from publisher.common.hashing import canonical_json
@@ -29,6 +29,7 @@ from publisher.contracts.package import PackagingResult
 from publisher.contracts.request import RunContext
 from publisher.contracts.review import CandidateReviewResult, WarehouseOptimization
 from publisher.contracts.scenario import Scenario
+from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.contracts.source import WarehouseEvidence
 from publisher.packager.adapter import (
     _actual_cost_breakdown,
@@ -48,12 +49,28 @@ from publisher.packager.execution_plan import _recommended_plan
 from publisher.packager.scenarios import ScenarioPlanner
 
 
+def _run_scope_contract(scope: RunScope, candidates: Sequence[rc.CandidateRecommendation]) -> Optional[rc.RunScope]:
+    """The package's ``run_scope``: None for the full scope, otherwise the in-scope knobs per scenario type and the
+    canary rollbacks kept outside the scope (sorted, so the hashed lists are canonical)."""
+    if scope.is_full:
+        return None
+    return rc.RunScope(
+        scenarios=[rc.ScopedScenario(rc.ScenarioType(stype), [rc.TunableKnob(k) for k in knobs]) for stype, knobs in scope.scenario_knobs()],
+        safety_inclusions=sorted(
+            (rc.SafetyInclusion(c.candidate_id, c.knob, "CANARY_GUARDRAIL_BREACHED")
+             for c in candidates if c.knob.value not in scope.knobs and "CANARY_GUARDRAIL_BREACHED" in c.blockers),
+            key=lambda x: x.knob.value,
+        ),
+    )
+
+
 def _build_locked_recommendation_package(
     e: WarehouseEvidence,
     candidates: Sequence[CandidateRecommendation],
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
     cost_profile: CostProfileChoice,
+    scope: RunScope = FULL_SCOPE,
 ) -> rc.RecommendationPackage:
     """Build one immutable Reporter JSON Contract package from reviewed decisions.
 
@@ -149,6 +166,7 @@ def _build_locked_recommendation_package(
         cost_profile=profile,
         observed_change=derive_observed_change(e),
         carried_forward_plan=None,  # Stage 2 (carried-forward preview) is reserved and not produced yet
+        run_scope=_run_scope_contract(scope, candidate_contracts),
     )
     package = dataclasses.replace(package, recommendation_package_id=package.expected_package_id())
     package = dataclasses.replace(
@@ -158,8 +176,8 @@ def _build_locked_recommendation_package(
     return package
 
 
-def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
-    """Scenarios for each warehouse whose candidates passed the candidate gate, in order.
+def plan(reviewed: CandidateReviewResult, thresholds: Thresholds, scope: RunScope = FULL_SCOPE) -> List[WarehouseOptimization]:
+    """Scenarios for each warehouse whose candidates passed the candidate gate, in order, within the run scope.
 
     Plan A/B construction and stateful pricing are delegated to ``ScenarioPlanner``; this only collects results.
     """
@@ -167,7 +185,7 @@ def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[Wareho
     for w in reviewed.accepted:
         e, candidates = w.evidence, w.candidates
         planner = ScenarioPlanner(thresholds)
-        scenarios, recommended = planner.scenarios(e, candidates)
+        scenarios, recommended = planner.scenarios(e, candidates, scope)
         status_counts: Dict[str, int] = {}
         for candidate in candidates:
             status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1
@@ -180,7 +198,7 @@ def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[Wareho
 
 
 def assemble(
-    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
+    analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds, scope: RunScope = FULL_SCOPE
 ) -> List[rc.RecommendationPackage]:
     """Assemble one locked public package per reviewed, planned warehouse, in order.
 
@@ -191,7 +209,7 @@ def assemble(
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
         e = evidence_by_key[(result.workspace_id, result.warehouse_id)]
-        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds, result.cost_profile)
+        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds, result.cost_profile, scope)
         packages.append(package)
         LOGGER.info(
             "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",
@@ -210,6 +228,6 @@ def assemble(
 
 
 def run(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult, candidates: CandidateReviewResult) -> PackagingResult:
-    """Scenarios, stateful scenario estimates, selection and the canonical package for every reviewed warehouse."""
-    optimizations = plan(candidates, context.thresholds)
-    return PackagingResult(optimizations, assemble(analysis, optimizations, context.thresholds))
+    """Scenarios, stateful scenario estimates, selection and the canonical package for every reviewed warehouse, within the run scope."""
+    optimizations = plan(candidates, context.thresholds, governance.scope)
+    return PackagingResult(optimizations, assemble(analysis, optimizations, context.thresholds, governance.scope))

@@ -36,6 +36,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/reporter-json-contract.md`](contracts/reporter-json-contract.md) and `src/publisher/contracts/reporter_contract.py` |
 | Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `src/publisher/contracts/workbook_contract.py` |
 | Replay evidence | [`contracts/evidence-format.md`](contracts/evidence-format.md) |
+| Run scope: what `--scope`, `--scope-file` and `--warehouse` restrict and how each capability applies it | [`architecture/lld.md`](architecture/lld.md) section 5.4 (requirement FR-OPT-011 in [`product/prd.md`](product/prd.md); package field `run_scope` in the reporter contract; scope-file schema `schema/run-scope.schema.json`) |
 | Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `src/publisher/governor/thresholds.py` |
 | Databricks product constants | [`reference/product-constants.md`](reference/product-constants.md) and `PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py` |
 | Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/blocker-codes.md`](reference/blocker-codes.md) |
@@ -43,7 +44,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
 | AWS cost formulas | [`reference/aws-cost-model.md`](reference/aws-cost-model.md) |
 | Known limitations | [`reference/known-limitations.md`](reference/known-limitations.md) |
-| Quickstart, install, output tree | [`../README.md`](../README.md) |
+| Quickstart, install, output tree (run folders), run-scope examples | [`../README.md`](../README.md) |
 | Precedence and documentation rules | this file |
 
 ## Precedence
