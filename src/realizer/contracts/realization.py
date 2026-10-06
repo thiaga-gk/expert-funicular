@@ -12,7 +12,7 @@ It presents the complete v1.0.0 surface: the observation-side enums
 re-exported here, so ``__all__`` is the single-file contract's ``__all__``
 plus the ID builders. The Estimator's and the Reviewer's hand-offs
 (``RealizationEstimate``, ``ReviewResult`` and their parts) are internal values
-defined at the end of the module and kept out of ``__all__``.
+defined at the end of the module and kept out of ``__all__``. So is the Packager's (``PackagingResult``).
 """
 from __future__ import annotations
 
@@ -23,7 +23,8 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 from realizer.contracts.reconciliation import (
@@ -323,7 +324,7 @@ def make_measurement_id(app_id: str, observation: Mapping[str, Any], cf_id: str,
 
 
 # ---------------------------------------------------------------------------
-# Internal hand-offs: the Estimator's and the Reviewer's results (not public contract, not in ``__all__``)
+# Internal hand-offs: the Estimator's, the Reviewer's and the Packager's results (not public contract, not in ``__all__``)
 # ---------------------------------------------------------------------------
 
 
@@ -413,6 +414,20 @@ class ReviewResult:
     validation: Optional[ValidationEpisode] = None
     recognition_status: Optional[str] = None
     halt: Optional[Exception] = None
+
+
+@dataclass(frozen=True)
+class PackagingResult:
+    """Packager output: the realization snapshot of the ledger the run left, and what it wrote.
+
+    ``realization`` is the snapshot projected from ``entries``: the ledger as reloaded after the run's events were
+    recorded and cut at ``replay_through`` when the run was asked to replay a prefix. ``written`` holds the evidence
+    (REVID) and regeneration (RERUN) files the Packager wrote, in the order it wrote them. The package and snapshot
+    files are not among them: the Reporter writes those from ``realization``.
+    """
+    realization: RealizationPackage
+    entries: Tuple[RealizationLedgerEntry, ...]
+    written: Tuple[Path, ...] = ()
 
 
 __all__ = [
