@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# FROZEN BEHAVIORAL ORACLE (realizer reorganization Phase 0). This is the v1.0.0
+# single-file Realizer kept verbatim as the compatibility oracle for the modular
+# src/realizer rewrite (docs/architecture/realizer-repo-reorg-design.md, 21.4 and
+# Phase 11). Do not change realization behavior here; the only edit is the
+# SIZE_ORDER import, which moved from the old single-file publisher module to
+# publisher.config.defaults (the same ordered list). Record any deviation in
+# docs/proposals/realizer-repo-reorg-parity.md.
 """Deterministic Databricks SQL Warehouse Realizer v1.0.0 (Phase 1).
 
 Phase 1 intentionally keeps the post-change engine in one file, mirroring the
@@ -26,7 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 from contracts import realizer_contract as rc
-from publisher import SIZE_ORDER as PUBLISHER_SIZE_ORDER
+from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
 
 PRODUCT_VERSION = "2.8.0"
 REALIZER_VERSION = "1.0.0"
