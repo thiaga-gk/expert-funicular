@@ -23,6 +23,9 @@ def run(
 ) -> RealizationEstimate:
     """The realized value of the active application when validation is due (an empty estimate otherwise).
 
+    Nothing is estimated for a reconciliation that failed (its ``halt``: the Packager raises it after the events decided
+    before it) or when no validation is due.
+
     The facts are decided in the order they are recorded, reading each policy check where it has always been read:
     the performance guardrails, then the counterfactual eligibility, then the economics, then (only for available
     economics) the financial-quality gates, the attribution and the measurement, then the billing correction.
@@ -30,7 +33,7 @@ def run(
     ``run`` never raises. A failure is kept as ``halt`` together with the facts decided before it, so the engine records
     exactly those and then raises it, as before.
     """
-    if not reconciliation.validation_due:
+    if reconciliation.halt is not None or not reconciliation.validation_due:
         return RealizationEstimate()
     observed, active = analysis.observation, reconciliation.active
     assert observed is not None and active is not None  # validation is due only for an active application
