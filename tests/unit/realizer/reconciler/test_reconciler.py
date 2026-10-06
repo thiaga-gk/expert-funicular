@@ -15,20 +15,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.parity import canonical, engine, fixture_package, oengine, outcome, run_sequence, tree  # noqa: E402
+from tests.unit.realizer.parity import Unprintable, Untestable, canonical, engine, fixture_package, ledger_lines, oengine, outcome, run_sequence, tree  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.reconciliation import ReconciliationResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
-from tests.unit.realizer.reconciler.test_failed_runs import Unprintable, Untestable  # noqa: E402
 
 VALIDATION_SECTION = {"VALIDATION_READY", "VALIDATION_STARTED", "VALIDATION_COMPLETED", "COUNTERFACTUAL_RECORDED",
                       "ECONOMIC_MEASUREMENT_RECORDED", "BILLING_CORRECTION_RECORDED", "REGENERATION_REQUESTED"}
-
-
-def ledger_lines(out):
-    files = sorted((out / "realization" / "ledger").glob("*.jsonl"))
-    return [json.loads(line) for path in files for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def lifecycle_entries(context, analysis, result):

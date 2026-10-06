@@ -13,45 +13,11 @@ import json
 import unittest
 from unittest import mock
 
-from tests.unit.realizer.parity import engine, fixture_package, oengine, run_sequence  # noqa: E402
+from tests.unit.realizer.parity import Unprintable, Untestable, engine, events, files, fixture_package, oengine, run_sequence  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
 
 MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
-
-
-class Unprintable:
-    """An observation value that cannot be turned into text (``str`` raises); truthy."""
-    def __str__(self):
-        raise ValueError("unprintable observation value")
-
-    def __eq__(self, other):
-        return isinstance(other, Unprintable)
-
-    def __hash__(self):
-        return 1
-
-
-class Untestable:
-    """An observation value whose truth cannot be tested (``bool`` raises)."""
-    def __bool__(self):
-        raise ValueError("observation flag has no truth value")
-
-    def __eq__(self, other):
-        return isinstance(other, Untestable)
-
-    def __hash__(self):
-        return 2
-
-
-def events(tree):
-    """The ledger event types of a run tree, in file (append) order."""
-    lines = [line for rel, text in tree.items() if rel.startswith("realization/ledger/") and text for line in text.splitlines() if line.strip()]
-    return [json.loads(line)["event_type"] for line in lines]
-
-
-def files(tree, folder):
-    return sorted(rel for rel, text in tree.items() if rel.startswith(f"realization/{folder}/") and text is not None)
 
 
 def two_step_package():
