@@ -27,6 +27,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import List
 
@@ -58,17 +59,26 @@ def expectation_modules() -> List[str]:
 
 
 def update_expectations() -> int:
-    """Rebuild every stored unit-test expectation by running its tests in record mode."""
+    """Rebuild every stored unit-test expectation by running its tests in record mode.
+
+    The tests record into a temporary directory, which replaces the stored expectations only when every test passed, so a
+    failed run leaves the stored set untouched.
+    """
     store = canonical.FIXTURES / "expectations"
     modules = expectation_modules()
-    if store.is_dir():
-        shutil.rmtree(store)
-    env = dict(os.environ, REALIZER_EXPECTATIONS="record", PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]))
-    done = subprocess.run([sys.executable, "-m", "unittest", *modules], cwd=ROOT, env=env, capture_output=True, text=True)
-    if done.returncode != 0:
-        print(done.stderr[-3000:], file=sys.stderr)
-        print("error: the tests failed in record mode; the expectations directory is incomplete, restore it with git", file=sys.stderr)
-        return 1
+    with tempfile.TemporaryDirectory(prefix="realizer-expectations-") as scratch:
+        recorded = Path(scratch) / "expectations"
+        recorded.mkdir()
+        env = dict(os.environ, REALIZER_EXPECTATIONS="record", REALIZER_EXPECTATIONS_DIR=str(recorded),
+                   PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]))
+        done = subprocess.run([sys.executable, "-m", "unittest", *modules], cwd=ROOT, env=env, capture_output=True, text=True)
+        if done.returncode != 0:
+            print(done.stderr[-3000:], file=sys.stderr)
+            print("error: the tests failed in record mode; the stored expectations are unchanged", file=sys.stderr)
+            return 1
+        if store.is_dir():
+            shutil.rmtree(store)
+        shutil.copytree(recorded, store)
     files = sorted(store.glob("*.json"))
     print(f"realizer expectations: {len(files)} file(s) written for {len(modules)} test module(s), {sum(p.stat().st_size for p in files)} bytes")
     return 0
