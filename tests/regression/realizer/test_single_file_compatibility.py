@@ -1,4 +1,4 @@
-"""Single-file Realizer compatibility baseline (realizer-repo-reorg-design.md 21.4, Phases 0-2).
+"""Single-file Realizer compatibility baseline (realizer-repo-reorg-design.md 21.4, Phases 0-4).
 
 The frozen oracle (legacy/realizer_single_file/realizer.py) and the modular engine (src/realizer) must each reproduce
 the stored canonical outputs under tests/fixtures/realizer/expected/ for every scenario under

@@ -8,17 +8,21 @@ outputs (``tests/regression/realizer/canonical.py``) are compared aspect by aspe
 plan/step status, realized economics, attribution, review result, RLE sequence, RSNAP, RPKG and report, then file by
 file. The oracle's output is also checked against the stored baseline in ``tests/fixtures/realizer/expected/``.
 
-The candidate is resolved lazily from ``--candidate`` (default ``realizer.realizer``, the modular ``src/realizer``
-engine): ``module:attr`` names an ``Engine`` or a factory returning one, a bare module exposes ``ENGINE`` or the
-single-file API (its workbook projection may live in the package's ``contracts.report``). If the candidate package
-cannot be found, the script compares the oracle against the stored baseline only and says so.
+The candidate is resolved from ``--candidate`` (default ``realizer.realizer``, the modular ``src/realizer`` engine,
+resolved through ``canonical.modular_engine()`` so that a stray top-level ``realizer`` shadowing ``src/realizer`` is
+rejected): ``module:attr`` names an ``Engine`` or a factory returning one, a bare module exposes ``ENGINE`` or the
+single-file API (its workbook projection may live in the package's ``contracts.report``). A candidate that cannot be
+found, imported or resolved (including a failed shadowing guard) is an error: the message goes to stderr and the exit
+status is 2, never 0. Comparing the oracle against the stored baseline alone is an explicit choice, ``--oracle-only``,
+which skips the candidate and says so.
 
 Usage:
   python scripts/compare_realizer_single_file.py                                # every scenario
   python scripts/compare_realizer_single_file.py --scenario GR-026              # only these (repeatable)
   python scripts/compare_realizer_single_file.py --candidate pkg.module:ENGINE  # another candidate
   python scripts/compare_realizer_single_file.py --oracle-only                  # skip the candidate
-Exit status 1 when any canonical output differs.
+Exit status: 0 every scenario identical, 1 a canonical output differs (or a candidate run crashed), 2 the candidate
+could not be resolved or the arguments are invalid.
 """
 from __future__ import annotations
 
@@ -35,12 +39,21 @@ for _path in (ROOT, ROOT / "src"):
 from tests.regression.realizer import canonical  # noqa: E402
 
 
+def resolve_candidate(spec: str) -> canonical.Engine:
+    """The default candidate goes through the shadowing guard (``canonical.modular_engine``); any other spec through
+    ``canonical.candidate_engine``. Raises ImportError, AttributeError or TypeError when it cannot be resolved."""
+    if spec == canonical.DEFAULT_CANDIDATE:
+        return canonical.modular_engine()
+    return canonical.candidate_engine(spec)
+
+
 def main(argv=None) -> int:
-    """Compare the oracle with the stored baseline and, when present, the candidate with the oracle; 1 on any difference."""
+    """Compare the oracle with the stored baseline and the candidate with the oracle; 1 on any difference, 2 when the
+    candidate cannot be resolved (``--oracle-only`` skips the candidate)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scenario", action="append", default=[], help="compare only this scenario (repeatable)")
     ap.add_argument("--candidate", default=canonical.DEFAULT_CANDIDATE, help="candidate engine: module or module:attr")
-    ap.add_argument("--oracle-only", action="store_true", help="compare the oracle with the stored baseline only")
+    ap.add_argument("--oracle-only", action="store_true", help="skip the candidate: compare the oracle with the stored baseline only")
     args = ap.parse_args(argv)
     names = canonical.scenario_names()
     unknown = sorted(set(args.scenario) - set(names))
@@ -51,11 +64,13 @@ def main(argv=None) -> int:
     candidate = None
     if args.oracle_only:
         print("candidate: skipped (--oracle-only)")
-    elif canonical.candidate_available(args.candidate):
-        candidate = canonical.candidate_engine(args.candidate)
-        print(f"candidate: {candidate.name} ({args.candidate})")
     else:
-        print(f"candidate: {args.candidate} not found; comparing the oracle against the stored baseline only")
+        try:
+            candidate = resolve_candidate(args.candidate)
+        except (ImportError, AttributeError, TypeError) as exc:
+            print(f"error: candidate {args.candidate!r} cannot be resolved: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 2
+        print(f"candidate: {candidate.name} ({args.candidate})")
 
     oracle = canonical.oracle_engine()
     failures: List[str] = []

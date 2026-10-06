@@ -1,16 +1,17 @@
 """Deterministic helpers: UTC timestamps, decimals and money strings, and JSON file I/O.
 
-Moved unchanged from the single-file Realizer. No domain logic: configuration normalization and hashing belong to
-the analyzer.
+Moved unchanged from the single-file Realizer, plus ``Deferred``. No domain logic: configuration normalization and
+hashing belong to the analyzer.
 """
 from __future__ import annotations
 
 import datetime as dt
 import json
 import os
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 from realizer.contracts.realization import canonical_decimal
 
@@ -56,3 +57,32 @@ def write_json(path: Path, value: Any) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class Deferred(Generic[T]):
+    """The outcome of a computation made early, delivered where the result is needed.
+
+    ``Deferred.of(fn, *args, **kwargs)`` calls ``fn`` now and keeps either its value or the ``Exception`` it raised;
+    ``get()`` returns the value or raises that exception. A pure check that used to run only on one branch can thus be
+    evaluated by an upstream capability without changing behavior: a malformed input still raises, with the same
+    exception, at the branch that needs the result, and never when no branch does. ``fn`` must be pure (no I/O, no
+    logging), because it runs even if its result is never read.
+    """
+    value: Optional[T] = None
+    error: Optional[Exception] = None
+
+    @staticmethod
+    def of(fn: Callable[..., T], *args: Any, **kwargs: Any) -> "Deferred[T]":
+        try:
+            return Deferred(value=fn(*args, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - kept, re-raised by get()
+            return Deferred(error=exc)
+
+    def get(self) -> T:
+        if self.error is not None:
+            raise self.error
+        return self.value  # type: ignore[return-value]

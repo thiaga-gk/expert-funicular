@@ -4,7 +4,9 @@
 Working copy of the frozen single-file oracle (``legacy/realizer_single_file/realizer.py``) with the same behavior.
 The realizer reorganization (docs/architecture/realizer-repo-reorg-design.md, section 22) moves its parts into the
 capability subpackages phase by phase; so far the contracts (``realizer.contracts``), settings and loading
-(``realizer.config``) and the shared helpers (``realizer.common``) are extracted, and this module imports them.
+(``realizer.config``), the shared helpers (``realizer.common``), the Analyzer (``realizer.analyzer``) and the Governor
+(``realizer.governor``) are extracted, and this module imports them. ``realize`` runs the Analyzer and the Governor and
+the rest of the engine consumes their results.
 
 The engine never mutates a RecommendationPackage (PKG-*): it appends immutable ledger facts (RLE-*) and projects a
 separate RealizationPackage (RPKG-*) / snapshot (RSNAP-*). The execution path is replay/offline friendly: a
@@ -16,21 +18,30 @@ from __future__ import annotations
 
 import argparse
 import copy
-import datetime as dt
+import datetime as dt  # noqa: F401  (the engine keeps its module attributes; tests use realizer.dt)
 import json
 import os
-from dataclasses import dataclass, asdict
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from realizer.analyzer import analyzer
+from realizer.analyzer.analysis import (
+    candidate_by_id,
+    candidate_steps,
+    config_hash,
+    observed_config,
+    package_config,
+    recommended_scenario,
+    scenario_by_id,
+)
+from realizer.analyzer.collector.collector import demo_observation, load_observation
 from realizer.common.logging import LOGGER, setup_logging
-from realizer.common.utils import decimal, load_json, money, ratio_string, utc_iso, write_json
+from realizer.common.utils import decimal, money, ratio_string, utc_iso, write_json
 from realizer.config.loader import load_package, load_policy_mapping, validate_package_shape
 from realizer.config.settings import (
     ANALYZER_GATEWAY_VERSION,
     ATTRIBUTION_VERSION,
-    CONFIG_KNOBS,
     ESTIMATOR_GATEWAY_VERSION,
     EXCLUSIVITY_VERSION,
     MODELER_GATEWAY_VERSION,
@@ -41,78 +52,36 @@ from realizer.config.settings import (
     SIZE_ORDER,
 )
 from realizer.contracts import realization as rc
+from realizer.contracts.analysis import RealizationAnalysis
+from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.realization import (
     make_app_id,
-    make_evidence_id,
     make_measurement_id,
     make_rpkg_id,
     make_val_id,
 )
+from realizer.contracts.request import RealizationRequest, RunContext
+from realizer.governor import governor
+from realizer.governor.policy import (
+    RealizerPolicy,
+    authority_eligible,
+    economic_quality_result,
+    readiness,
+)
+from realizer.packager.ledger import ledger_path, load_ledger
 
-
-# ---------------------------------------------------------------------------
-# Policy / normalized observation
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class RealizerPolicy:
-    minimum_days: int = 7
-    minimum_queries: int = 100
-    require_representative_regime: bool = True
-    max_normalized_p95_runtime_regression_pct: Decimal = Decimal("5")
-    realized_ratio_min: Decimal = Decimal("0.80")
-    under_realized_ratio_min: Decimal = Decimal("0.50")
-    remeasure_days_after_invalidating_change: int = 7
-    minimum_attributable_spend_pct: Decimal = Decimal("95")
-    minimum_price_coverage_pct: Decimal = Decimal("100")
-    required_currency_consistency_pct: Decimal = Decimal("100")
-    minimum_material_savings_delta_pct: Decimal = Decimal("5")
-    require_confirmed_origin_for_hard_kpi: bool = True
-    policy_version: str = POLICY_VERSION
-
-    @classmethod
-    def from_mapping(cls, value: Optional[Mapping[str, Any]]) -> "RealizerPolicy":
-        if not value:
-            return cls()
-        kwargs: Dict[str, Any] = {}
-        for f in cls.__dataclass_fields__.values():
-            if f.name not in value:
-                continue
-            v = value[f.name]
-            if f.type is Decimal or f.name in {
-                "max_normalized_p95_runtime_regression_pct",
-                "realized_ratio_min",
-                "under_realized_ratio_min",
-                "minimum_attributable_spend_pct",
-                "minimum_price_coverage_pct",
-                "required_currency_consistency_pct",
-                "minimum_material_savings_delta_pct",
-            }:
-                v = Decimal(str(v))
-            kwargs[f.name] = v
-        return cls(**kwargs)
-
-    @property
-    def snapshot_id(self) -> str:
-        return rc.content_id("PSNAP", {"contract": "1.0.0", "policy": policy_to_dict(self)})
-
-
-def policy_to_dict(policy: RealizerPolicy) -> Dict[str, Any]:
-    out = asdict(policy)
-    for k, v in list(out.items()):
-        if isinstance(v, Decimal):
-            out[k] = rc.canonical_decimal(v)
-    return out
+# The engine keeps every name it had; the extracted ones stay importable from here (``realizer.realizer.<name>``).
+from realizer.analyzer.analysis import normalize_scalar, photon_bool_from_package  # noqa: F401,E402
+from realizer.governor.policy import counterfactual_eligible, policy_to_dict, savings_improvement_material, validate_performance  # noqa: F401,E402
+from realizer.packager.ledger import latest_event  # noqa: F401,E402
+from realizer.common.utils import load_json  # noqa: F401,E402
+from realizer.config.settings import CONFIG_KNOBS  # noqa: F401,E402
+from realizer.contracts.realization import make_evidence_id  # noqa: F401,E402
 
 
 # ---------------------------------------------------------------------------
 # Canonical helpers / identities
 # ---------------------------------------------------------------------------
-
-
-def config_hash(config: Mapping[str, Any]) -> str:
-    return "SHA256:" + rc.sha256_hex({k: normalize_scalar(config.get(k)) for k in CONFIG_KNOBS})
 
 
 def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str, Any], policy: RealizerPolicy) -> str:
@@ -179,72 +148,6 @@ def make_ledger_entry(
     )
     entry.validate()
     return entry
-
-
-# ---------------------------------------------------------------------------
-# Package / observation normalization
-# ---------------------------------------------------------------------------
-
-
-def normalize_scalar(value: Any) -> Any:
-    if isinstance(value, str):
-        return value.strip().upper() if value.upper() in SIZE_ORDER or value.upper() in {"PRO", "CLASSIC", "SERVERLESS", "CURRENT", "PREVIEW"} else value
-    return value
-
-
-def photon_bool_from_package(package: Mapping[str, Any]) -> Optional[bool]:
-    status = str(((package.get("current_config") or {}).get("photon") or {}).get("status") or "UNKNOWN").upper()
-    if status == "ENABLED":
-        return True
-    if status == "DISABLED":
-        return False
-    return None
-
-
-def package_config(package: Mapping[str, Any]) -> Dict[str, Any]:
-    c = package["current_config"]
-    return {
-        "warehouse_type": c.get("warehouse_type"),
-        "warehouse_size": c.get("warehouse_size"),
-        "min_clusters": c.get("min_clusters"),
-        "max_clusters": c.get("max_clusters"),
-        "auto_stop_minutes": c.get("auto_stop_minutes"),
-        "warehouse_channel": c.get("warehouse_channel"),
-        "enable_photon": photon_bool_from_package(package),
-    }
-
-
-def observed_config(observation: Mapping[str, Any], package: Mapping[str, Any]) -> Dict[str, Any]:
-    raw = dict(observation.get("config") or {})
-    base = package_config(package)
-    # Observation is a full current snapshot semantically; for test/replay
-    # convenience omitted fields inherit source state, not recommended state.
-    return {k: normalize_scalar(raw[k]) if k in raw else base.get(k) for k in CONFIG_KNOBS}
-
-
-def scenario_by_id(package: Mapping[str, Any], scenario_id: Optional[str]) -> Optional[Mapping[str, Any]]:
-    if scenario_id is None:
-        return None
-    return next((s for s in package.get("scenarios", []) if s.get("scenario_id") == scenario_id), None)
-
-
-def recommended_scenario(package: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
-    return scenario_by_id(package, (package.get("recommended_plan") or {}).get("scenario_id"))
-
-def candidate_by_id(package: Mapping[str, Any], candidate_id: Optional[str]) -> Optional[Mapping[str, Any]]:
-    if candidate_id is None:
-        return None
-    return next((c for c in package.get("candidates", []) if c.get("candidate_id") == candidate_id), None)
-
-
-def candidate_steps(package: Mapping[str, Any], scenario_id: Optional[str] = None) -> List[Mapping[str, Any]]:
-    scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
-    if scenario is None:
-        return []
-    return [x for x in scenario.get("execution_plan", []) if x.get("step_type") == "CANDIDATE"]
-
-def authority_eligible(step: Mapping[str, Any]) -> bool:
-    return str(step.get("execution_state")) not in {"PENDING_REEVALUATION", "BLOCKED", "INVALIDATED"}
 
 
 # ---------------------------------------------------------------------------
@@ -351,28 +254,8 @@ def choose_application(
 
 
 # ---------------------------------------------------------------------------
-# Ledger persistence / replay
+# Ledger persistence (appending; the read side is realizer.packager.ledger)
 # ---------------------------------------------------------------------------
-
-
-def ledger_path(output_dir: Path, rpkg_id: str) -> Path:
-    return output_dir / "realization" / "ledger" / f"{rpkg_id}.jsonl"
-
-
-def load_ledger(path: Path) -> List[rc.RealizationLedgerEntry]:
-    if not path.exists():
-        return []
-    entries: List[rc.RealizationLedgerEntry] = []
-    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        raw = json.loads(line)
-        raw["event_type"] = rc.EventType(raw["event_type"])
-        entry = rc.RealizationLedgerEntry(**raw)
-        entry.validate()
-        entries.append(entry)
-    # recorded time governs projection order; RLE id is deterministic tie-break.
-    return sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
 
 
 def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
@@ -404,76 +287,8 @@ def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str,
 
 
 # ---------------------------------------------------------------------------
-# Readiness / validation / economics / attribution
+# Economics / attribution (the policy checks are realizer.governor.policy)
 # ---------------------------------------------------------------------------
-
-
-def readiness(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    elapsed = int(observation.get("elapsed_days", 0) or 0)
-    queries = int(observation.get("query_count", 0) or 0)
-    representative = bool(observation.get("representative_regime", False))
-    quality = str(observation.get("evidence_quality", "SUFFICIENT")).upper()
-    checks = {
-        "minimum_days": {"observed": elapsed, "threshold": policy.minimum_days, "pass": elapsed >= policy.minimum_days},
-        "minimum_queries": {"observed": queries, "threshold": policy.minimum_queries, "pass": queries >= policy.minimum_queries},
-        "representative_regime": {"observed": representative, "required": policy.require_representative_regime, "pass": representative or not policy.require_representative_regime},
-        "evidence_quality": {"observed": quality, "required": "SUFFICIENT", "pass": quality == "SUFFICIENT"},
-    }
-    return {"ready": all(x["pass"] for x in checks.values()), "checks": checks}
-
-
-def validate_performance(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    perf = observation.get("performance") or {}
-    p95 = decimal(perf.get("normalized_p95_runtime_regression_pct"))
-    reliability = perf.get("reliability_pass")
-    correctness = perf.get("correctness_pass", True)
-    p95_pass = p95 is not None and p95 <= policy.max_normalized_p95_runtime_regression_pct
-    reliability_pass = reliability is True
-    correctness_pass = correctness is not False
-    passed = p95_pass and reliability_pass and correctness_pass
-    return {
-        "state": "PASSED" if passed else "FAILED",
-        "hard_guardrails_pass": passed,
-        "rules": [
-            {
-                "rule_id": "REAL-PERF-P95-001",
-                "metric": "normalized_p95_runtime_regression_pct",
-                "observed": None if p95 is None else rc.canonical_decimal(p95),
-                "operator": "LTE",
-                "threshold": rc.canonical_decimal(policy.max_normalized_p95_runtime_regression_pct),
-                "result": "PASS" if p95_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-            {
-                "rule_id": "REAL-REL-001",
-                "metric": "reliability_pass",
-                "observed": reliability,
-                "operator": "EQ",
-                "threshold": True,
-                "result": "PASS" if reliability_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-            {
-                "rule_id": "REAL-CORRECT-001",
-                "metric": "correctness_pass",
-                "observed": correctness,
-                "operator": "NE",
-                "threshold": False,
-                "result": "PASS" if correctness_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-        ],
-    }
-
-
-def counterfactual_eligible(observation: Mapping[str, Any]) -> Tuple[bool, str]:
-    econ = observation.get("economics") or {}
-    method = str(econ.get("counterfactual_method") or "MATCHED_HISTORICAL").upper()
-    if method in {"NO_DEFENSIBLE_COUNTERFACTUAL", "NONE", "BLOCKED"}:
-        return False, method
-    if econ.get("counterfactual_old_cost") is None:
-        return False, "NO_DEFENSIBLE_COUNTERFACTUAL"
-    return method != "CORRELATED_ONLY", method
 
 
 def calculate_economics(
@@ -575,35 +390,6 @@ def calculate_economics(
     }
 
 
-def economic_quality_result(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    attributable = decimal(observation.get("attributable_spend_pct", "100"))
-    price_coverage = decimal(observation.get("price_coverage_pct", "100"))
-    currency_pct = decimal(observation.get("currency_consistency_pct", "100"))
-    correction_complete = bool(observation.get("correction_chain_complete", True))
-    material_cost_available = bool(observation.get("material_cost_component_available", True))
-    gates = {
-        "attributable_spend": {
-            "observed_pct": rc.canonical_decimal(attributable),
-            "required_min_pct": rc.canonical_decimal(policy.minimum_attributable_spend_pct),
-            "pass": attributable is not None and attributable >= policy.minimum_attributable_spend_pct,
-        },
-        "price_coverage": {
-            "observed_pct": rc.canonical_decimal(price_coverage),
-            "required_min_pct": rc.canonical_decimal(policy.minimum_price_coverage_pct),
-            "pass": price_coverage is not None and price_coverage >= policy.minimum_price_coverage_pct,
-        },
-        "currency_consistency": {
-            "observed_pct": rc.canonical_decimal(currency_pct),
-            "required_pct": rc.canonical_decimal(policy.required_currency_consistency_pct),
-            "pass": currency_pct is not None and currency_pct >= policy.required_currency_consistency_pct,
-        },
-        "correction_chain": {"complete": correction_complete, "pass": correction_complete},
-        "material_cost_components": {"available": material_cost_available, "pass": material_cost_available},
-    }
-    gates["pass"] = all(v.get("pass") for k, v in gates.items() if k != "pass")
-    return gates
-
-
 def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
     try:
         origin = rc.OriginAttribution(str(observation.get("origin_attribution") or "UNKNOWN").upper())
@@ -661,12 +447,6 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
 # ---------------------------------------------------------------------------
 # Projection
 # ---------------------------------------------------------------------------
-
-
-def latest_event(entries: Sequence[rc.RealizationLedgerEntry], *types: rc.EventType) -> Optional[rc.RealizationLedgerEntry]:
-    allowed = {x.value for x in types}
-    xs = [e for e in entries if e.event_type.value in allowed]
-    return xs[-1] if xs else None
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
@@ -863,13 +643,21 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
 # ---------------------------------------------------------------------------
 
 
+def build_context(request: RealizationRequest) -> RunContext:
+    """Validate the source package, apply the policy default and mint the realization package id."""
+    validate_package_shape(request.package)
+    policy = request.policy or RealizerPolicy()
+    return RunContext(request=request, policy=policy, realization_package_id=make_rpkg_id(request.package["recommendation_package_id"]))
+
+
 def realize(
     package: Mapping[str, Any], observation: Optional[Mapping[str, Any]], output_dir: Path,
     *, policy: Optional[RealizerPolicy] = None, replay_through: Optional[str] = None,
 ) -> rc.RealizationPackage:
-    validate_package_shape(package)
-    policy = policy or RealizerPolicy()
-    rpkg = make_rpkg_id(package["recommendation_package_id"])
+    context = build_context(RealizationRequest(
+        package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
+    ))
+    rpkg = context.realization_package_id
     lpath = ledger_path(output_dir, rpkg)
     entries = load_ledger(lpath)
 
@@ -885,8 +673,12 @@ def realize(
     )
     append_if_absent(lpath, created)
 
-    if observation:
-        process_observation(package, observation, output_dir, policy)
+    # The lineage entry is already appended: a malformed observation fails inside the Analyzer after it, as it always
+    # did, and the Governor never fails (its checks keep their exceptions until the consumer needs them).
+    analysis = analyzer.run(context)
+    governance = governor.run(context, analysis)
+    if analysis.observation is not None:
+        process_observation(context, analysis, governance)
 
     entries = load_ledger(lpath)
     if replay_through:
@@ -899,29 +691,17 @@ def realize(
     return snapshot
 
 
-def process_observation(package: Mapping[str, Any], observation: Mapping[str, Any], output_dir: Path, policy: RealizerPolicy) -> None:
-    rpkg = make_rpkg_id(package["recommendation_package_id"])
+def process_observation(context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult) -> None:
+    package, observation, output_dir, policy = context.request.package, context.request.observation, context.request.output_dir, context.policy
+    observed = analysis.observation
+    assert observed is not None  # the caller runs this only for a run with an observation
+    rpkg = context.realization_package_id
     lpath = ledger_path(output_dir, rpkg)
-    obs_time = utc_iso(observation.get("observed_at_utc") or observation.get("recorded_at_utc"))
-    recorded = utc_iso(observation.get("recorded_at_utc") or obs_time)
-    effective = utc_iso(observation.get("applied_at_utc") or observation.get("effective_at_utc") or obs_time)
-    obs_cfg = observed_config(observation, package)
-    source_cfg = package_config(package)
-    source_hash, observed_hash = config_hash(source_cfg), config_hash(obs_cfg)
-    evidence_payload = {"config": obs_cfg, "observed_at_utc": obs_time, "source": observation.get("source", "NORMALIZED_OBSERVATION")}
-    revid = make_evidence_id("OBSERVED_CONFIGURATION", package, observation, evidence_payload)
-    write_json(output_dir / "realization" / "evidence" / f"{revid}.json", {
-        "evidence_id": revid,
-        "evidence_type": "OBSERVED_CONFIGURATION",
-        "workspace_id": package["warehouse"]["workspace_id"],
-        "warehouse_id": package["warehouse"]["warehouse_id"],
-        "source": observation.get("source", "NORMALIZED_OBSERVATION"),
-        "observation_window": observation.get("window") or {"end_utc": obs_time},
-        "captured_at_utc": recorded,
-        "quality": str(observation.get("evidence_quality", "SUFFICIENT")).upper(),
-        "payload_hash": "SHA256:" + rc.sha256_hex(evidence_payload),
-        "payload": evidence_payload,
-    })
+    obs_time, recorded, effective = observed.observed_at_utc, observed.recorded_at_utc, observed.effective_at_utc
+    obs_cfg = observed.observed_config
+    source_hash, observed_hash = observed.source_config_hash, observed.observed_config_hash
+    revid = observed.evidence_id
+    write_json(output_dir / "realization" / "evidence" / f"{revid}.json", observed.evidence_record)
 
     selected_scenario_id = observation.get("applied_scenario_id") or (package.get("recommended_plan") or {}).get("scenario_id")
     selected_scenario = scenario_by_id(package, selected_scenario_id)
@@ -939,11 +719,9 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
         or (selected_scenario and selected_scenario.get("scenario_type") == "WAREHOUSE_TYPE_MIGRATION")
         or selected_scenario_id != (package.get("recommended_plan") or {}).get("scenario_id")
     )
-    old_entries = load_ledger(lpath)
-    previous_app = latest_event(old_entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
-    material_config_drift = False
-    if previous_app and previous_app.payload.get("observed_config_hash") != observed_hash and obs_time > previous_app.recorded_at_utc:
-        material_config_drift = True
+    previous_app = analysis.history.previous_application
+    material_config_drift = analysis.config_drift_observed
+    if material_config_drift:
         drift_payload = {
             "state": "DRIFTED",
             "drift_type": "CONFIGURATION",
@@ -1132,7 +910,7 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
         request_regeneration(package, app_payload, observation, output_dir, policy, recorded, effective, reason="CONTRARY_IMPLEMENTATION")
         return
 
-    ready = readiness(observation, policy)
+    ready = governance.readiness.get()
     if not ready["ready"]:
         return
     val_id = make_val_id(active_app_event.application_episode_id, observation, policy)
@@ -1150,7 +928,7 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
         evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id, validation_episode_id=val_id,
     )
     append_if_absent(lpath, vs)
-    validation = validate_performance(observation, policy)
+    validation = governance.performance.get()
     validation_payload = {
         "state": validation["state"],
         "validation_episode_id": val_id,
@@ -1168,7 +946,7 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
     append_if_absent(lpath, vc)
 
-    cf_claim_eligible, cf_method = counterfactual_eligible(observation)
+    cf_claim_eligible, cf_method = governance.counterfactual.get()
     econ_obs = observation.get("economics") or {}
     if econ_obs.get("counterfactual_old_cost") is not None:
         cf_id = make_cf_id(active_app_event.application_episode_id, observation, package, policy)
@@ -1194,7 +972,7 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
         counterfactual_claim_eligible=cf_claim_eligible,
     )
     if economic.get("available"):
-        economic["quality_gates"] = economic_quality_result(observation, policy)
+        economic["quality_gates"] = governance.economic_quality.get()
         attr = attribution_result(app_payload, observation, validation["hard_guardrails_pass"], cf_claim_eligible, economic, policy)
         basis = str(economic.get("economic_basis") or "ECONOMIC_COST")
         meas_id = make_measurement_id(active_app_event.application_episode_id, observation, cf_id, basis)
@@ -1220,7 +998,7 @@ def process_observation(package: Mapping[str, Any], observation: Mapping[str, An
         append_if_absent(lpath, me)
         corr = observation.get("correction") or {}
         if corr:
-            prior_measurement = latest_event(old_entries, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
+            prior_measurement = analysis.history.prior_measurement
             corrects_entry_id = corr.get("corrects_entry_id") or (prior_measurement.ledger_entry_id if prior_measurement else None)
             correction_payload = {
                 "correction_key": corr.get("key") or meas_id,
@@ -1288,14 +1066,6 @@ def request_regeneration(
 # ---------------------------------------------------------------------------
 
 
-def savings_improvement_material(old_expected: Any, new_expected: Any, policy: RealizerPolicy) -> bool:
-    old, new = decimal(old_expected), decimal(new_expected)
-    if old is None or new is None or old <= 0:
-        return False
-    pct = (new - old) * Decimal("100") / old
-    return pct >= policy.minimum_material_savings_delta_pct
-
-
 def authoritative_cumulative_realization(
     counterfactual_original_cost: Any, actual_final_cost: Any, incremental_realizations: Sequence[Any] = (),
 ) -> Dict[str, Any]:
@@ -1346,46 +1116,8 @@ def legacy_compatibility(snapshot: rc.RealizationPackage) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Demo / CLI
+# CLI (the demo observation is realizer.analyzer.collector.collector)
 # ---------------------------------------------------------------------------
-
-
-def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> Dict[str, Any]:
-    cfg = package_config(package)
-    step = next((s for s in candidate_steps(package) if authority_eligible(s)), None)
-    if step:
-        if modified and step.get("knob") == "warehouse_size" and str(step.get("recommended_value")) == "MEDIUM":
-            cfg["warehouse_size"] = "SMALL"
-        else:
-            cfg[str(step.get("knob"))] = step.get("recommended_value")
-    generated = (package.get("provenance") or {}).get("generated_at") or "2026-10-01T00:00:00Z"
-    d = dt.datetime.fromisoformat(generated.replace("Z", "+00:00")) + dt.timedelta(days=8)
-    return {
-        "observed_at_utc": utc_iso(d),
-        "recorded_at_utc": utc_iso(d),
-        "applied_at_utc": utc_iso(d - dt.timedelta(days=8)),
-        "window_start_utc": utc_iso(d - dt.timedelta(days=7)),
-        "window_end_utc": utc_iso(d),
-        "config": cfg,
-        "elapsed_days": 8,
-        "query_count": 250,
-        "representative_regime": True,
-        "evidence_quality": "SUFFICIENT",
-        "performance": {"normalized_p95_runtime_regression_pct": "2", "reliability_pass": True, "correctness_pass": True},
-        "economics": {
-            "currency": "USD",
-            "counterfactual_old_cost": "10000",
-            "observed_new_cost": "9000",
-            "period_days": 30,
-            "expected_annual_savings_actual_scope": "12000" if modified else None,
-            "counterfactual_method": "MATCHED_HISTORICAL",
-            "economic_basis": "ECONOMIC_COST",
-        },
-        "origin_attribution": "CONFIRMED",
-        "intent_state": "ACCEPTED",
-        "actor": "demo-user",
-        "source": "DEMO_NORMALIZED_OBSERVATION",
-    }
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -1410,7 +1142,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.demo or args.demo_modified:
         observation = demo_observation(package, modified=args.demo_modified)
     elif args.observation:
-        observation = load_json(args.observation)
+        observation = load_observation(args.observation)
     policy = RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
     snapshot = realize(package, observation, Path(args.output_dir), policy=policy, replay_through=args.replay_through)
     if args.print_json:

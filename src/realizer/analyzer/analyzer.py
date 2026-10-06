@@ -1,0 +1,23 @@
+"""Analyzer facade: what actually happened in this run's observation, and the history it follows.
+
+The Analyzer observes; it neither decides what the policy permits (Governor) nor relates the observation to the plan.
+"""
+from __future__ import annotations
+
+from realizer.analyzer import analysis
+from realizer.contracts.analysis import RealizationAnalysis
+from realizer.contracts.request import RunContext
+from realizer.packager.ledger import ledger_path, load_ledger
+
+
+def run(context: RunContext) -> RealizationAnalysis:
+    """Normalize the observation (``None`` for a lineage-only run) and read the ledger the run starts from.
+
+    The ledger is only read. A malformed observation raises here, as it raised at the start of the engine's
+    observation processing; nothing is written by this capability.
+    """
+    request = context.request
+    observation = analysis.analyze_observation(request.package, request.observation) if request.observation else None
+    history = analysis.summarize_history(load_ledger(ledger_path(request.output_dir, context.realization_package_id)))
+    drift = observation is not None and analysis.config_drift(history, observation.observed_config_hash, observation.observed_at_utc)
+    return RealizationAnalysis(observation=observation, history=history, config_drift_observed=drift)

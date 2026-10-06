@@ -85,6 +85,40 @@ class JsonFileTests(unittest.TestCase):
                              _outcome(oengine.load_json, Path(tmp) / "missing.json")[0])
 
 
+class DeferredTests(unittest.TestCase):
+    """``Deferred`` holds a pure computation's outcome until the consumer needs it (the Governor's hand-off)."""
+
+    def test_value_is_returned_by_every_get(self):
+        d = utils.Deferred.of(lambda a, b=1: {"sum": a + b}, 2, b=3)
+        self.assertEqual(d.get(), {"sum": 5})
+        self.assertIs(d.get(), d.get())
+        self.assertIsNone(d.error)
+
+    def test_exception_is_kept_not_raised_by_of_and_raised_by_get(self):
+        for fn, exc in [(lambda: int("x"), ValueError), (lambda: {}["k"], KeyError), (lambda: None.get, AttributeError)]:
+            d = utils.Deferred.of(fn)
+            self.assertIsInstance(d.error, exc)
+            self.assertIsNone(d.value)
+            for _ in range(2):
+                with self.assertRaises(exc) as caught:
+                    d.get()
+                self.assertIs(caught.exception, d.error)
+
+    def test_a_none_result_is_a_value_and_does_not_raise(self):
+        self.assertIsNone(utils.Deferred.of(lambda: None).get())
+
+    def test_only_exceptions_are_kept(self):
+        def interrupt():
+            raise KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            utils.Deferred.of(interrupt)
+
+    def test_is_frozen(self):
+        import dataclasses
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            utils.Deferred.of(lambda: 1).value = 2
+
+
 class LoggingTests(unittest.TestCase):
     def test_logger_is_the_realizer_logger(self):
         self.assertEqual(rlogging.LOGGER.name, "realizer")

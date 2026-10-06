@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
-import importlib.util
 import json
 import sys
 import tempfile
@@ -108,11 +107,6 @@ def oracle_engine() -> Engine:
     from tests.regression.realizer import oracle
 
     return engine_from_module("single-file oracle", oracle.engine(), oracle.realizer_workbook_contract())
-
-
-def candidate_available(spec: str = DEFAULT_CANDIDATE) -> bool:
-    """Whether the candidate's top-level package can be found on ``sys.path``."""
-    return importlib.util.find_spec(spec.split(":")[0].split(".")[0]) is not None
 
 
 def candidate_engine(spec: str = DEFAULT_CANDIDATE) -> Engine:

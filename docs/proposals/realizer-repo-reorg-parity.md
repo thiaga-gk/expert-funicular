@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-2 complete** (freeze current behavior; extract contracts; extract config and common). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-4 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 
@@ -32,7 +32,7 @@ Status: **Phases 0-2 complete** (freeze current behavior; extract contracts; ext
 
 ## Variable fields
 
-The oracle reads no wall clock: ledger times, `as_of_utc`, IDs and lineage derive from the package and the observation, and it writes no paths into its files. Runs into different output directories, time zones and hash seeds produce identical canonical outputs, so no field needed normalization; the baseline still replaces the output directory with `<out>` should it ever appear. The workbook `.xlsx` is not in the baseline: the renderer needs the `artifact_tool` runtime and `RecommendationPackage` objects of the retired publisher, which the frozen JSON fixtures cannot rebuild; its test skips when `artifact_tool` is absent.
+The oracle reads no wall clock: ledger times, `as_of_utc`, IDs and lineage derive from the package and the observation, and it writes no paths into its files. Runs into different output directories, time zones and hash seeds produce identical canonical outputs (`tests/regression/realizer/test_subprocess_determinism.py` runs both engines in fresh processes under `PYTHONHASHSEED` 0 and 1 and `TZ` UTC and Asia/Kolkata), so no field needed normalization; the baseline still replaces the output directory with `<out>` should it ever appear. The workbook `.xlsx` is not in the baseline: the renderer needs the `artifact_tool` runtime and `RecommendationPackage` objects of the retired publisher, which the frozen JSON fixtures cannot rebuild; its test skips when `artifact_tool` is absent.
 
 ## Known oracle behavior kept for parity
 
@@ -64,7 +64,7 @@ Every name keeps its spelling, signature, content dicts, messages and values.
 | `src/realizer/common/logging.py` | `LOGGER`; `setup_logging` (the CLI's `logging.basicConfig` call) | `realizer.py` |
 | `src/realizer/common/utils.py` | `utc_iso`, `decimal`, `money`, `ratio_string`, `load_json`, `write_json` | `realizer.py` |
 
-Still in the working copy, for the phases that own them: `RealizerPolicy`, `policy_to_dict` (governor); `normalize_scalar`, `config_hash`, `photon_bool_from_package`, `package_config`, `observed_config`, `scenario_by_id`, `recommended_scenario`, `candidate_by_id`, `candidate_steps` (analyzer); `make_cf_id` (estimator); and the matching, lifecycle, economics, attribution, ledger, snapshot, reporting, demo and CLI functions.
+Left in the working copy by these phases for the phases that own them: `make_cf_id` (estimator) and the matching, lifecycle, economics, attribution, ledger, snapshot, reporting and CLI functions. The policy, the analyzer functions and the demo moved in Phases 3 and 4 (below).
 
 ### Decisions
 
@@ -88,3 +88,62 @@ Still in the working copy, for the phases that own them: `RealizerPolicy`, `poli
 | Test suite | 924 tests (819 before: plus 54 runs of the ported oracle suites on the modular engine, 7 modular compatibility tests and 44 unit tests; 4 skip as before), all pass |
 
 The oracle's unused local `actor` in `legacy_compatibility` is kept in the working copy (pyflakes reports it); removing it is cleanup for the reporter phase.
+
+## Phases 3 and 4: analyzer, collector and governor
+
+The engine now runs `analyzer.run` and then `governor.run` for every realize run and consumes their results; the rest of it stays in the working copy for Phases 5-10. `realize` builds a `RunContext` (`build_context`: package shape gate, policy default, RPKG id; the first three statements of the oracle's `realize`), appends the lineage entry, runs the Analyzer and the Governor, and calls `process_observation(context, analysis, governance)`. The oracle is unchanged.
+
+### Where the moved names live
+
+Every name keeps its spelling, signature, messages and values; `realizer.realizer.<name>` still resolves for each one.
+
+| Module | Names | From |
+|---|---|---|
+| `src/realizer/analyzer/analysis.py` | `normalize_scalar`, `config_hash`, `photon_bool_from_package`, `package_config`, `observed_config`, `scenario_by_id`, `recommended_scenario`, `candidate_by_id`, `candidate_steps` | `realizer.py` |
+| `src/realizer/analyzer/analysis.py` | `analyze_observation` (the first statements of `process_observation`: the three UTC times, observed and source configurations, both hashes, the REVID id and evidence record), `summarize_history` (latest application and latest measurement of a loaded ledger), `config_drift` (the drift test) | `process_observation` |
+| `src/realizer/analyzer/analyzer.py` | `run(context) -> RealizationAnalysis` | new (replaces the above statements and the history reads of `process_observation`) |
+| `src/realizer/analyzer/collector/collector.py` | `load_observation` (replay of an observation file; the CLI's inline `load_json`), `demo_observation` | `realizer.py` |
+| `src/realizer/packager/ledger.py` | `ledger_path`, `load_ledger`, `latest_event` (the read side of the ledger only) | `realizer.py` |
+| `src/realizer/governor/policy.py` | `RealizerPolicy` (+ `from_mapping`, `snapshot_id`), `policy_to_dict`, `readiness`, `validate_performance`, `counterfactual_eligible`, `economic_quality_result`, `authority_eligible`, `savings_improvement_material` | `realizer.py` |
+| `src/realizer/governor/governor.py` | `run(context, analysis) -> GovernanceResult` | new |
+| `src/realizer/contracts/analysis.py` | `ObservationAnalysis`, `RealizationHistory`, `RealizationAnalysis` (internal hand-offs; `__all__` stays the public enums) | new |
+| `src/realizer/contracts/governance.py` | `GovernanceResult` | new |
+| `src/realizer/contracts/request.py` | `RunContext` | new |
+| `src/realizer/common/utils.py` | `Deferred` | new |
+| `src/realizer/config/settings.py` | `NON_AUTHORITATIVE_EXECUTION_STATES` (the state set `authority_eligible` tested inline) | `realizer.py` |
+| `src/realizer/realizer.py` | `build_context` | new (first statements of `realize`) |
+
+Not moved, per the extraction map: `compare_step`, `choose_application`, `_directional_relation` (reconciler), `expected_annual_for_exact_step`, `calculate_economics`, `attribution_result`, `make_cf_id` (estimator), `append_if_absent`, `ledger_checkpoint`, `make_ledger_entry`, `project_snapshot`. `attribution_result` keeps its policy thresholds inline, so no attribution-policy check exists yet to move.
+
+### Decisions
+
+- **Collector is a replay and demo stub.** `collector.py` holds `load_observation` and `demo_observation` and nothing else: the oracle has no live collection, so there is no `queries/` folder, no SQL and no live entry point. The design's exit criterion "collector integration tests pass" is not applicable and is recorded as such. `demo_observation` imports `authority_eligible` from the governor, because the demo picks the first step the policy lets carry authority.
+- **Ledger read side moved early.** The Analyzer must read the history a run starts from and cannot import the engine, so `ledger_path`, `load_ledger` and `latest_event` moved to `packager/ledger.py` (the extraction map's early slice of the Packager). Appending, checkpointing and the snapshot stay in the engine.
+- **Failed runs keep their half-written ledger (map option A, not atomic).** A run that raises midway leaves every earlier append and file in place, as before. The engine still appends the lineage entry before the Analyzer runs, so a malformed observation fails inside `analyzer.run` after it and before the evidence file, as it always did, and `analyzer.run` writes nothing. Nothing reads back what the same run appended, so reading the history before the evidence file is written (the oracle read it after) is unobservable: the ledger was already read twice by then, so the read cannot fail.
+- **Policy checks stay lazy: `Deferred`.** The oracle evaluates each check only on its branch, so a malformed field the run never reaches does not fail it (for example a malformed `performance` on an observation that applied nothing, or `elapsed_days` on a drift observation). A governor that evaluated every check and raised would change that. `Deferred.of(fn, ...)` calls the pure check early and keeps the `Exception` it raised; `get()` returns the value or re-raises the same exception. The engine calls `get()` at exactly the oracle's evaluation points: readiness (before the validation episode), performance (after VALIDATION_STARTED), counterfactual eligibility (after VALIDATION_COMPLETED), economic quality (inside the available-economics branch). `GovernanceResult.policy_snapshot_id` is a `Deferred` too, since a policy whose snapshot cannot be hashed only fails where the id is used. The checks have no I/O and no logging, so evaluating them early has no side effect. `calculate_economics` and `attribution_result` still call `readiness` and `economic_quality_result` themselves, as before.
+- **`RealizationAnalysis.observation` is not deferred.** The analyzer's own failures (a missing time, a non-mapping `config`) happen in the oracle at the start of observation processing, so `analyzer.run` raises them directly where the engine calls it. When the later phases move the lineage append into the Packager and run the Analyzer first, that failure must be held as a `Deferred` or halt marker and raised after the append; this is the same decision as the Governor's and is left to the phase that reorders them.
+- **A lineage-only run reads the history too.** `analyzer.run` always returns the history (an extra read-only file read when there is no observation); `observation` is `None` and the Governor holds no checks.
+- **Internal hand-offs.** `RealizationAnalysis`, `ObservationAnalysis`, `RealizationHistory`, `GovernanceResult` and `RunContext` are internal values; the contracts import `Deferred` and the policy type only under `TYPE_CHECKING`.
+- **Re-exports.** The names removed from the working copy stay importable from `realizer.realizer` (marked `noqa: F401`), as in Phases 1 and 2, so existing callers and tests are unaffected. Unused-import warnings from pyflakes on `src/realizer/realizer.py` are these re-exports and the oracle's unused local `actor`.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `scripts/compare_realizer_single_file.py` (candidate `realizer.realizer`, through the shadowing guard) | 41 scenarios: oracle = stored baseline = modular engine |
+| Unnormalized output trees and log lines of every scenario, oracle against modular (`test_single_file_compatibility`) | byte-identical, 41/41 |
+| Subprocess determinism (`test_subprocess_determinism`: both engines, `PYTHONHASHSEED` 0 and 1, `TZ` UTC and Asia/Kolkata, 9 scenarios covering replay-through, restatement, reprocessed restatement, drift, rollback, supersession, scenario scope, migration and policy change) | identical across all eight combinations and equal to the stored baseline |
+| Analyzer unit tests (`tests/unit/realizer/analyzer/`): every moved function and `analyze_observation` against the oracle on valid and malformed input (same exception type and message), the evidence record against every stored REVID file of the 41 scenarios, `run` (history, drift flag, read-only, lineage-only, corrupt ledger) for every run of every scenario, the collector (replay errors, demo observation for both packages and malformed packages), failed runs (same outcome and same output tree as the oracle) | pass |
+| Governor unit tests (`tests/unit/realizer/governor/`): policy defaults, overrides, `snapshot_id` and `from_mapping` errors, every check against the oracle over every scenario observation and five policies and over malformed observations, `run` (`Deferred.get` equals the oracle call or raises its exception, run never raises, pure), failed and lazy runs: for each check, a malformed field raises the oracle's exception at the oracle's step with the oracle's half-written ledger, and an unused malformed field does not raise | pass |
+| Mutation check | making the Governor evaluate `readiness` and `validate_performance` eagerly (no `Deferred`) fails 19 of the new tests |
+| Ledger read side, `RunContext`/`build_context`, `Deferred` unit tests | pass |
+
+### Review-gap fixes (found by the Phases 1-2 review)
+
+1. **Candidate-missing is an error.** `scripts/compare_realizer_single_file.py` no longer falls back to comparing the oracle with the stored baseline when the candidate cannot be found. An unresolvable candidate exits 2 with a message on stderr, the oracle-only mode is the explicit `--oracle-only` flag, and the default candidate is resolved through `canonical.modular_engine()` so that the `src/realizer` shadowing guard runs. Exit codes: 0 identical, 1 a difference or a candidate crash, 2 an unresolvable candidate or bad arguments. `tests/regression/realizer/test_compare_script.py` pins them, including a drifting and a crashing candidate (exit 1) and the real script in a subprocess.
+2. **Time zone and hash seed are tested.** `test_subprocess_determinism.py` (see the verification table), about 0.3 s.
+3. **Error paths the 41 scenarios cannot reach are compared directly.** Every moved function with a raise or lazy branch has a test running the oracle's copy and the moved one on the same malformed input and asserting the same exception type and message; whole-run tests compare the outcome and the output tree (files and directories) of failing runs.
+
+### Behavior differences
+
+None known. All 41 scenarios and every compared malformed case behave identically to the oracle.
