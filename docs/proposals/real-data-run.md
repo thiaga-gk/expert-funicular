@@ -62,7 +62,7 @@ warehouses with known month-end, quarter-end or yearly peaks.
 
 ## Order of the run (after batch 8)
 
-1. Run the three queries above and paste their output.
+1. Run the three queries above and paste their output. The `databricks-golden-miner` skill runs them read-only through the Databricks CLI and saves the results (`scripts/real_data_queries.py`, which reads the SQL from this page).
 2. Set up from a checkout (`python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`), then one live read-only publisher run on the account (`python -m publisher --profile <oauth-profile> --sql-warehouse-id <warehouse that runs the collector SQL> --source-region <aws-region> --output-dir <dir>`), keeping `evidence.json` for replay. Optional live checks: set `PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID` (and `PUBLISHER_LIVE_SERVERLESS_WAREHOUSE_ID`) and run `python -m unittest discover -s tests/integration -t .`.
 3. The backtest below on the same account.
 4. The cost-profile replays below.

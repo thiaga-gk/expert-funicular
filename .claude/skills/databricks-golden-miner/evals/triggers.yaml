@@ -1,0 +1,22 @@
+positive:
+  - Run the golden miner against our prod workspace with profile WHOPT and tell me which golden rows actually show up.
+  - Our golden scenarios were all hand-built; mine system.query.history and billing on the live account and propose new ones.
+  - Do the real-data run now: answer G4b, G5 and S4 and check the demo fleet against real warehouses.
+  - Which of our SQL warehouses match C04 keep-alive polling in reality, and does the publisher handle them the way the registry says?
+  - Refresh the golden set from live data; I want gap proposals for patterns no row covers.
+  - Turn the Finance BI warehouse from last night's live run into a regression golden case.
+  - The demo fleet numbers feel unrealistic. Compare DEMO_FLEET parameters with what our real warehouses look like.
+  - check the goldens against prod before the release, we have databricks cli set up with an oauth profile
+  - Find warehouses where the publisher's live decision contradicts the expected behavior in golden-scenarios.md.
+  - What usage patterns do our warehouses show in the system tables, mapped to the golden scenario catalog?
+negative:
+  - Regenerate the golden expected/ outputs after my approved auto-stop policy change.
+  - Add a unit test for the bundle estimator's double-counting guard.
+  - Build golden scenarios for a new job-cluster optimizer from scratch.
+  - Run publisher --demo and validate the workbook.
+  - Install the Databricks CLI on my laptop.
+  - Explain what system.billing.usage record_type RETRACTION means.
+  - Design the source contract for Lakeflow pipelines.
+  - Write a SQL query that lists all warehouses with auto-stop above 60 minutes.
+  - Seal the 2.13.0 release and build the ZIP.
+  - Calibrate the cost-profile thresholds by replaying evidence.json with each profile.

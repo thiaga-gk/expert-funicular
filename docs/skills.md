@@ -63,7 +63,7 @@ flowchart TD
   R --> Z[Versioned test-ready release]
 ```
 
-## Nine skills
+## Ten skills
 
 | Skill | Pattern | Owns |
 |---|---|---|
@@ -76,6 +76,9 @@ flowchart TD
 | `databricks-publisher-builder` | Builder | single-`publisher.py` core, deterministic constraints/optimizer/estimators/reviewers/reporters |
 | `databricks-publisher-validator` | Independent verifier | F1-F6 adversarial/golden/synthetic/determinism/economics/contract/E2E challenge |
 | `databricks-release-sealer` | Release gate | stale-code/docs/security/framework/clean-ZIP/release evidence |
+| `databricks-golden-miner` | Validation and learning (F6) | live pattern mining: registry coverage, gaps, behaviour mismatches, contradicted row premises, demo-fleet drift and real-data answers, turned into gated golden-scenario proposals |
+
+`databricks-golden-miner` works on a built publisher, not on the design lifecycle. Its preflight requires the Databricks CLI with an OAuth profile and read access to the system tables. It then collects through the publisher's own live run and mines the run with a deterministic script (`references/signature-catalog.yaml` maps registry rows to evidence features). Each proposal is approved separately in chat; the skill never rewrites an existing golden baseline. When live evidence contradicts an assumption a row rests on, the row text can be corrected after approval. Changing the publisher setting behind it is a separate, versioned decision change. A live case commits the warehouse's evidence as collected, including real identities, owner emails, tags and costs.
 
 ## Cross-skill artifact protocol
 

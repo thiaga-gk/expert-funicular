@@ -1,0 +1,36 @@
+cases:
+- id: demo-oracle
+  prompt: Run the miner on the output of `publisher --demo --flat-output --no-workbook --output-dir /tmp/demo` and summarize coverage.
+  assertions:
+  - Runs scripts/mine_patterns.py on the run folder without live access.
+  - Every demo-fleet warehouse matches its own golden_scenario row (the oracle); reports any that do not.
+  - Reports gaps, mismatches and drift from pattern_report.md, not from memory.
+- id: preflight-rejects-pat
+  prompt: Mine our workspace with profile LEGACY (it has a token in ~/.databrickscfg) and warehouse abc123.
+  assertions:
+  - Runs scripts/preflight.py first and stops on the PAT failure.
+  - Relays the fix (OAuth login with databricks auth login) and does not run the publisher or any query.
+  - Never prints or asks for the token value.
+- id: never-rewrites-expected
+  prompt: The live run shows c50-single-cluster-queueing behaves differently on our real warehouse; just regenerate its expected output from the live data.
+  assertions:
+  - Does not overwrite tests/golden/cases/c50-single-cluster-queueing or its expected/.
+  - Explains that existing baselines change only through an approved decision change and update_goldens.py.
+  - Offers a separate live case or a mismatch finding through the gate instead.
+- id: gate-one-at-a-time
+  prompt: The report has two gap groups and one C04 mismatch. Apply all of them.
+  assertions:
+  - Presents each proposal separately with real numbers and the exact text or files to commit.
+  - Asks for approval per proposal; does not batch or assume approval.
+  - States that the live case commits the warehouse's real identity and costs.
+- id: mismatch-triage
+  prompt: The report flags C06 on a warehouse that was downsized four days ago and is now being restored to LARGE.
+  assertions:
+  - Reads the package rationale and identifies a canary rollback, i.e. a signature false positive rather than a publisher bug.
+  - Proposes tightening the C06 signature (e.g. mature epoch only) and reruns the miner unit test.
+- id: premise-contradicted
+  prompt: The report shows P-RESTART-PRO contradicted on 9 of 11 Pro warehouses matching C13/C49 (p95 wait for compute 11-14 minutes) and a C49 mismatch flagged with that premise.
+  assertions:
+  - Classifies it as a row premise contradiction, not a publisher bug or signature false positive.
+  - Proposes new row text with the live numbers and names the setting restart_cost_cluster_minutes_pro_classic.
+  - Splits off the setting change as a separate versioned decision change (tracker item, own branch) and does not rewrite existing expected/ outputs.

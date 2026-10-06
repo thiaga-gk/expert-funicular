@@ -16,43 +16,11 @@ cases/<name>/
 
 Every case is checked twice by `tests/golden/test_golden_publisher.py`: its `expected/` output must equal what the publisher produces now (the behavioral baseline), and a scenario case (`c<NN>-` / `a<NN>-`, the number is the catalog row) must also pass the assertions in its `case.yaml` `expect` block. The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length` / `between`, collector-level `snapshots` cases) is documented in the docstring of `tests/golden/test_golden_publisher.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
 
-Core cases (also used by `tests/golden/test_golden_expectations.py`):
-- idle-expensive-warehouse
-- spill-constrained
-- concurrency-constrained
-- cold-start-sensitive
-- serverless
-- photon-disabled (Photon observed DISABLED: reported in `current_config.photon`, never recommended)
-- newly-changed-config
-- sparse-evidence
-- serverless-to-pro-costed
-- aws-region-missing
-
-Scenario cases (`c*` and `a*`):
-- a05-serverless-region-unverified
-- a07-billing-freshness
-- a08-owner-attribution
-- c06-oversized-warehouse (asserts the task-time utilization evidence only)
-- c08-concurrency-gates
-- c10-over-provisioned-floor (asserts the task-time utilization evidence only)
-- c20-sparse-cost-history
-- c26-failure-heavy
-- c30-billing-corrections (collector-level)
-- c31-multi-region-billing (collector-level)
-- c32-unpriced-sku
-- c36-tag-rename-churn (collector-level)
-- c37-seasonal-peak
-- c38-growth-trend
-- c45-steady-high-utilization (asserts the task-time utilization evidence only)
-- c48-long-unchanged-warehouse
-- c50-single-cluster-queueing (demo fleet evidence)
-- c56-nonprod-aggressive-cut (nonprod tag selects the aggressive cost profile)
-- c57-prod-twin-holds-cut (the same evidence tagged production stays balanced)
-- c58-cli-conservative-holds-cut (a `cost_profiles` warehouse override to conservative)
+The case list is the folder listing: each `case.yaml` `description` says what the case covers. Cases named `c<NN>-` or `a<NN>-` match a row of the scenario catalog; the unprefixed core cases are also used by `tests/golden/test_golden_expectations.py`.
 
 The `--demo` fleet is separate from these cases: the cases are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/golden/test_demo_fleet.py`).
 
-Golden evidence is synthetic and exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts. It is not pricing guidance.
+Golden evidence is synthetic, except in live cases. It exists to test decision semantics, blockers, epoch handling, DBU/AWS separation, and scenario contracts, and it is not pricing guidance. A live case (`origin: live` and `collected: <date>` in `case.yaml`) is created from a real warehouse by the `databricks-golden-miner` skill (`.claude/skills/databricks-golden-miner/scripts/make_case.py`) after the scenario is approved. Its `source/evidence.json` is the evidence exactly as collected, so it contains real warehouse names and IDs, owner emails, tags and costs. Those values ship with any copy or release ZIP of the repository.
 
 ## Adding a case
 
