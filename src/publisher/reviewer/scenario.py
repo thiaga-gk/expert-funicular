@@ -83,8 +83,11 @@ class ScenarioGate:
                 got=pe.contingent.estimated_savings_range_365
                 if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
                     raise ValueError(f"Contingent savings must equal the last pending step's running savings: {sc.scenario_id}")
-            if authoritative and pe.estimate_status not in {"REQUIRES_CANARY","REQUIRES_COST_MODEL"}:
-                last=authoritative[-1].running_estimated_savings_range_365
+            # A step held in the plan (BLOCKED) is not applied, so it carries no running savings: compare with the last
+            # step the chain applied.
+            applied=[st for st in authoritative if st.execution_state!="BLOCKED"]
+            if applied and pe.estimate_status not in {"REQUIRES_CANARY","REQUIRES_COST_MODEL"}:
+                last=applied[-1].running_estimated_savings_range_365
                 got=pe.estimated_savings_range_365
                 if last is not None and got is not None and any(abs(a-b)>0.01 for a,b in ((last.low,got.low),(last.base,got.base),(last.high,got.high))):
                     raise ValueError(f"Authoritative scenario savings must equal the last authoritative step's running savings: {sc.scenario_id}")

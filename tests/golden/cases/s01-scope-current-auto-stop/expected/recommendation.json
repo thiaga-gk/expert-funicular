@@ -34,7 +34,7 @@
     "candidates": [
       {
         "blockers": [],
-        "candidate_id": "CAND-4131853C82C6830315ACD5D1",
+        "candidate_id": "CAND-303F38E004A7805870F03564",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -706,7 +706,7 @@
       },
       "excluded_scenarios": [],
       "included_scenario_ids": [
-        "SCN-C033CBBEB6D6137934F1E3CB"
+        "SCN-8F4126DEF142AF9BC3B28664"
       ],
       "scenario_envelope": {
         "maximum_savings": {
@@ -721,7 +721,7 @@
             "dbu": 22500.0,
             "total": 29828.18
           },
-          "scenario_id": "SCN-C033CBBEB6D6137934F1E3CB"
+          "scenario_id": "SCN-8F4126DEF142AF9BC3B28664"
         },
         "minimum_savings": {
           "bound": "LOW",
@@ -735,7 +735,7 @@
             "dbu": 11250.0,
             "total": 14914.09
           },
-          "scenario_id": "SCN-C033CBBEB6D6137934F1E3CB"
+          "scenario_id": "SCN-8F4126DEF142AF9BC3B28664"
         },
         "recommended_base": {
           "bound": "BASE",
@@ -749,7 +749,7 @@
             "dbu": 16875.0,
             "total": 22371.14
           },
-          "scenario_id": "SCN-C033CBBEB6D6137934F1E3CB"
+          "scenario_id": "SCN-8F4126DEF142AF9BC3B28664"
         }
       },
       "semantics": {
@@ -759,18 +759,18 @@
       }
     },
     "provenance": {
-      "analyzer_version": "sql-warehouse-analyzer-v2.13.0",
-      "bundle_estimator_version": "stateful-resource-bundle-v2.13.0",
+      "analyzer_version": "sql-warehouse-analyzer-v2.14.0",
+      "bundle_estimator_version": "stateful-resource-bundle-v2.14.0",
       "contract_version": "3.1.0",
-      "decision_graph_version": "warehouse-decision-graph-v2.13.0",
-      "estimator_version": "counterfactual-v2.13.0",
+      "decision_graph_version": "warehouse-decision-graph-v2.14.0",
+      "estimator_version": "counterfactual-v2.14.0",
       "evidence_fingerprint": "SHA256:85561EAE9B5B0BA46C8E6CDADCDA318D4849DB06410675B284C655CAADEEA61C",
       "generated_at": "2026-10-01T12:00:00Z",
       "modeler_version": "epoch-runrate-v2.10.0",
-      "optimizer_version": "sql-warehouse-optimizer-v2.13.0",
-      "package_hash_full_sha256": "28E330E18AC21E4E5F05A4A2246380F2FC7488CC06283D1D20A08E8074DDEFE7",
-      "policy_version": "sql-warehouse-policy-v2.13.0",
-      "reviewer_version": "recommendation-reviewer-v2.13.0",
+      "optimizer_version": "sql-warehouse-optimizer-v2.14.0",
+      "package_hash_full_sha256": "30471476E3E70380F6114D0A594D8FA47D6501BB87F68DB6E584EE05BB4AE92E",
+      "policy_version": "sql-warehouse-policy-v2.14.0",
+      "reviewer_version": "recommendation-reviewer-v2.14.0",
       "source_regions": [
         "us-east-1"
       ],
@@ -795,13 +795,13 @@
       "realization_records": [],
       "status": "NOT_APPLIED"
     },
-    "recommendation_package_id": "PKG-28E330E18AC21E4E5F05A4A2",
+    "recommendation_package_id": "PKG-30471476E3E70380F6114D0A",
     "recommended_plan": {
       "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
       "next_action": "REVIEW_AND_EXECUTE_FIRST_READY_STEP",
       "reevaluation": null,
       "requires_hitl": true,
-      "scenario_id": "SCN-C033CBBEB6D6137934F1E3CB",
+      "scenario_id": "SCN-8F4126DEF142AF9BC3B28664",
       "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
     },
     "run_scope": {
@@ -818,7 +818,7 @@
     "scenarios": [
       {
         "candidate_refs": [
-          "CAND-4131853C82C6830315ACD5D1"
+          "CAND-303F38E004A7805870F03564"
         ],
         "compatibility": {
           "checks": [],
@@ -858,7 +858,7 @@
         "execution_plan": [
           {
             "action": null,
-            "candidate_id": "CAND-4131853C82C6830315ACD5D1",
+            "candidate_id": "CAND-303F38E004A7805870F03564",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -974,7 +974,7 @@
             }
           }
         },
-        "scenario_id": "SCN-C033CBBEB6D6137934F1E3CB",
+        "scenario_id": "SCN-8F4126DEF142AF9BC3B28664",
         "scenario_name": "Plan A \u2014 Optimize current warehouse type",
         "scenario_type": "IN_PLACE_OPTIMIZATION",
         "status": "RECOMMENDED"

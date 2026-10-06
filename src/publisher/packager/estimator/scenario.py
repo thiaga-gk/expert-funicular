@@ -143,10 +143,11 @@ class StatefulBundleEstimator:
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
                 st.resource_tracks[i]=before-removed
         elif typ=="min_cluster_reduction":
-            theoretical=max(0.0,safe_float(effect.get("cluster_minutes_to_remove")))
+            # Spare floor capacity on the forecast basis, as a share of today's running cluster-minutes applied to the same
+            # resource pool as the other steps; realized per track like auto-stop's idle.
+            theoretical=max(0.0,safe_float(effect.get("removed_share")))*original_resource
             target_min=max(1,safe_int(effect.get("target_min_clusters"),1))
-            effect_realizations=[safe_float(x) for x in effect["realization"]] if effect.get("realization") else realizations
-            for i,realization in enumerate(effect_realizations):
+            for i,realization in enumerate(realizations):
                 before=st.resource_tracks[i]; floor=st.floor_tracks[i]
                 # The track keeps the share of the floor reduction it did not realize.
                 st.floor_tracks[i]=floor-max(0.0,floor-target_min)*realization

@@ -48,7 +48,7 @@ from publisher.analyzer.collector.queries.query_history import (
 from publisher.analyzer.collector.sql_executor import SqlClient, with_ingestion_cutoff
 from publisher.analyzer.epochs import carried_query_view, observed_epoch_calendar_days
 from publisher.analyzer.forecast import Modeler
-from publisher.analyzer.metrics import running_idle_basis
+from publisher.analyzer.metrics import FLOOR_DEMAND_FIELD, floor_demand_map, running_idle_basis
 from publisher.analyzer.normalizer import (
     clean_owner,
     derive_query_source_profile,
@@ -178,6 +178,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     resource_collected_from: Optional[str] = None
     for r in client.query(RESOURCE_DAILY_SQL,label="resource_daily"):
         day = {k: (str(v)[:10] if k == "usage_day" else v) for k, v in r.items() if k not in {"workspace_id", "warehouse_id", "epoch_start", "collected_from"}}
+        if FLOOR_DEMAND_FIELD in day:
+            day[FLOOR_DEMAND_FIELD] = floor_demand_map(day[FLOOR_DEMAND_FIELD])
         resource_daily_idx.setdefault(_row_key(r), []).append(day)
         if r.get("collected_from") is not None:
             resource_collected_from = str(r.get("collected_from"))[:10]
