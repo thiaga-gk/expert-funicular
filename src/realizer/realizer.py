@@ -5,9 +5,10 @@ Working copy of the frozen single-file oracle (``legacy/realizer_single_file/rea
 The realizer reorganization (docs/architecture/realizer-repo-reorg-design.md, section 22) moves its parts into the
 capability subpackages phase by phase; so far the contracts (``realizer.contracts``), settings and loading
 (``realizer.config``), the shared helpers (``realizer.common``), the Analyzer (``realizer.analyzer``), the Governor
-(``realizer.governor``) and the Reconciler (``realizer.reconciler``) are extracted, and this module imports them.
-``realize`` runs the Analyzer, the Governor and the Reconciler; the engine records the lifecycle events the Reconciler
-decides and runs the validation and measurement that follow.
+(``realizer.governor``), the Reconciler (``realizer.reconciler``), the Estimator (``realizer.estimator``) and the
+Reviewer (``realizer.reviewer``) are extracted, and this module imports them. ``realize`` runs the Analyzer, the
+Governor and the Reconciler; the engine records the lifecycle events the Reconciler decides and, when validation is
+due, runs the Estimator and the Reviewer and records the validation episode and the measurement they decide.
 
 The engine never mutates a RecommendationPackage (PKG-*): it appends immutable ledger facts (RLE-*) and projects a
 separate RealizationPackage (RPKG-*) / snapshot (RSNAP-*). The execution path is replay/offline friendly: a
@@ -22,15 +23,14 @@ import copy
 import datetime as dt  # noqa: F401  (the engine keeps its module attributes; tests use realizer.dt)
 import json
 import os
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from realizer.analyzer import analyzer
-from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id
+from realizer.analyzer.analysis import candidate_steps
 from realizer.analyzer.collector.collector import demo_observation, load_observation
 from realizer.common.logging import LOGGER, setup_logging
-from realizer.common.utils import decimal, money, ratio_string, utc_iso, write_json
+from realizer.common.utils import utc_iso, write_json
 from realizer.config.loader import load_package, load_policy_mapping, validate_package_shape
 from realizer.config.settings import (
     ANALYZER_GATEWAY_VERSION,
@@ -46,14 +46,16 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
-from realizer.contracts.realization import make_measurement_id, make_rpkg_id, make_val_id
+from realizer.contracts.realization import make_rpkg_id
 from realizer.contracts.reconciliation import ReconciliationResult, RegenerationRequest
 from realizer.contracts.request import RealizationRequest, RunContext
 from realizer.governor import governor
-from realizer.governor.policy import RealizerPolicy, authority_eligible, economic_quality_result, readiness
+from realizer.estimator import estimator
+from realizer.governor.policy import RealizerPolicy, authority_eligible
 from realizer.packager.ledger import ledger_path, load_ledger
 from realizer.reconciler import reconciler
 from realizer.reconciler.lifecycle import regeneration_request
+from realizer.reviewer import reviewer
 
 # The engine keeps every name it had; the extracted ones stay importable from here (``realizer.realizer.<name>``).
 from realizer.analyzer.analysis import normalize_scalar, observed_config, photon_bool_from_package, recommended_scenario  # noqa: F401,E402
@@ -63,21 +65,19 @@ from realizer.common.utils import load_json  # noqa: F401,E402
 from realizer.config.settings import CONFIG_KNOBS, SIZE_ORDER  # noqa: F401,E402
 from realizer.contracts.realization import make_app_id, make_evidence_id  # noqa: F401,E402
 from realizer.reconciler.matching import _directional_relation, choose_application, compare_step  # noqa: F401,E402
+from realizer.estimator.economics import calculate_economics, expected_annual_for_exact_step, make_cf_id  # noqa: F401,E402
+from realizer.estimator.attribution import attribution_result, authoritative_cumulative_realization  # noqa: F401,E402
+# (and the names the engine imported for them before they moved)
+from decimal import Decimal  # noqa: F401,E402
+from typing import Tuple  # noqa: F401,E402
+from realizer.analyzer.analysis import candidate_by_id, config_hash, package_config, scenario_by_id  # noqa: F401,E402
+from realizer.common.utils import decimal, money, ratio_string  # noqa: F401,E402
+from realizer.contracts.realization import make_measurement_id, make_val_id  # noqa: F401,E402
+from realizer.governor.policy import economic_quality_result, readiness  # noqa: F401,E402
 
 # ---------------------------------------------------------------------------
 # Canonical helpers / identities
 # ---------------------------------------------------------------------------
-
-
-def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str, Any], policy: RealizerPolicy) -> str:
-    return rc.content_id("CF", {
-        "app": app_id,
-        "old_config_hash": config_hash(package_config(package)),
-        "post_change_workload": observation.get("workload", {}),
-        "window": [observation.get("window_start_utc"), observation.get("window_end_utc") or observation.get("observed_at_utc")],
-        "modeler_version": MODELER_GATEWAY_VERSION,
-        "policy_snapshot_id": policy.snapshot_id,
-    })
 
 
 def ledger_business_key(event_type: rc.EventType, payload: Mapping[str, Any]) -> Dict[str, Any]:
@@ -136,23 +136,6 @@ def make_ledger_entry(
 
 
 # ---------------------------------------------------------------------------
-# Economics denominator (step and plan matching are realizer.reconciler.matching)
-# ---------------------------------------------------------------------------
-
-
-def expected_annual_for_exact_step(package: Mapping[str, Any], step: Mapping[str, Any]) -> Tuple[Optional[Decimal], str]:
-    c = candidate_by_id(package, step.get("candidate_id"))
-    if not c:
-        return None, "UNAVAILABLE"
-    econ = c.get("independent_economics") or {}
-    savings = econ.get("savings_365d") or {}
-    total = savings.get("total")
-    dbu = savings.get("dbu")
-    value = (total or dbu or {}).get("base") if isinstance(total or dbu, Mapping) else None
-    return decimal(value), "PUBLISHER_CANDIDATE" if value is not None else "UNAVAILABLE"
-
-
-# ---------------------------------------------------------------------------
 # Ledger persistence (appending; the read side is realizer.packager.ledger)
 # ---------------------------------------------------------------------------
 
@@ -182,164 +165,6 @@ def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str,
         "latest_recorded_at_utc": ordered[-1].recorded_at_utc if ordered else None,
         "latest_effective_at_utc": max((e.effective_at_utc for e in ordered), default=None),
         "ledger_checkpoint_hash": digest,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Economics / attribution (the policy checks are realizer.governor.policy)
-# ---------------------------------------------------------------------------
-
-
-def calculate_economics(
-    package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any],
-    policy: RealizerPolicy, validation_passed: bool, counterfactual_claim_eligible: bool = True,
-) -> Dict[str, Any]:
-    econ = observation.get("economics") or {}
-    cf = decimal(econ.get("counterfactual_old_cost"))
-    actual = decimal(econ.get("observed_new_cost"))
-    if cf is None or actual is None:
-        return {
-            "available": False,
-            "currency": econ.get("currency"),
-            "observed_economic_delta": None,
-            "successful_realized_savings": None,
-            "annualized_realized_savings": None,
-            "expected_same_scope_annual_savings": None,
-            "denominator_source": "UNAVAILABLE",
-            "realization_ratio": None,
-            "classification_detail": "ECONOMICS_UNAVAILABLE",
-        }
-    realized = cf - actual
-    period_days = decimal(econ.get("period_days")) or Decimal(str(max(1, int(observation.get("elapsed_days", 1) or 1))))
-    representative = readiness(observation, policy)["ready"]
-    annualized = realized * Decimal("365") / period_days if representative and period_days > 0 else None
-
-    conformance = app.get("implementation_conformance")
-    expected: Optional[Decimal] = None
-    denom_source = "UNAVAILABLE"
-    supplied = decimal(econ.get("expected_annual_savings_actual_scope"))
-    if app.get("application_scope") == "SCENARIO":
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-        elif conformance == rc.ImplementationConformance.EXACT.value:
-            scn = scenario_by_id(package, app.get("scenario_id"))
-            total = (((scn or {}).get("portfolio_economics") or {}).get("savings_365d") or {}).get("total") or {}
-            expected = decimal(total.get("base"))
-            if expected is not None:
-                denom_source = "PUBLISHER_SCENARIO"
-    elif conformance == rc.ImplementationConformance.MODIFIED.value:
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-    elif conformance == rc.ImplementationConformance.EXACT.value:
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-        else:
-            step = next((st for st in candidate_steps(package, app.get("scenario_id")) if int(st.get("step", 0)) == int(app.get("step", -1))), None)
-            if step is not None and authority_eligible(step):
-                expected, denom_source = expected_annual_for_exact_step(package, step)
-
-    ratio: Optional[Decimal] = None
-    if annualized is not None and expected is not None and expected > 0:
-        ratio = annualized / expected
-
-    if not validation_passed:
-        state, detail = rc.RealizationState.VALIDATION_FAILED.value, "HARD_GUARDRAIL_FAILED"
-        successful = Decimal("0")
-    elif not counterfactual_claim_eligible:
-        # Retain source actual/counterfactual diagnostics but do not convert an
-        # indefensible/correlated-only counterfactual into successful realized
-        # value. This is the fail-closed REAL-INV-009 path.
-        state, detail = rc.RealizationState.BLOCKED.value, "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE"
-        successful = Decimal("0")
-    elif ratio is None:
-        state, detail = rc.RealizationState.MONITORING.value, "VALIDATED_VALUE_UNCLASSIFIED"
-        successful = realized
-    elif ratio >= policy.realized_ratio_min:
-        state, detail = rc.RealizationState.REALIZED.value, "REALIZED"
-        successful = realized
-    else:
-        state = rc.RealizationState.UNDER_REALIZED.value
-        detail = "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED" if ratio < policy.under_realized_ratio_min else "UNDER_REALIZED"
-        successful = realized
-
-    return {
-        "available": True,
-        "currency": str(econ.get("currency") or "USD"),
-        "economic_basis": str(econ.get("economic_basis") or "ECONOMIC_COST"),
-        "counterfactual_old_cost": money(cf),
-        "observed_new_cost": money(actual),
-        "realized_savings_period": money(realized),
-        "realized_savings_since_application": money(econ.get("realized_savings_since_application") if econ.get("realized_savings_since_application") is not None else realized),
-        "observed_economic_delta": money(realized),
-        "successful_realized_savings": money(successful),
-        "annualized_realized_savings": money(annualized),
-        "mature_ttm_realized_savings": money(econ.get("mature_ttm_realized_savings")),
-        "expected_same_scope_annual_savings": money(expected),
-        "denominator_source": denom_source,
-        "realization_ratio": ratio_string(ratio),
-        "realization_state": state,
-        "classification_detail": detail,
-        "reoptimization_recommended": detail == "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
-        "dbu_realized": money(econ.get("dbu_realized")),
-        "aws_economic_realized": money(econ.get("aws_economic_realized")),
-        "aws_cash_realized": money(econ.get("aws_cash_realized")),
-        "aws_commitment_freed": money(econ.get("aws_commitment_freed")),
-        "aws_evidence_type": econ.get("aws_evidence_type"),
-        "period_days": rc.canonical_decimal(period_days),
-    }
-
-
-def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    try:
-        origin = rc.OriginAttribution(str(observation.get("origin_attribution") or "UNKNOWN").upper())
-    except ValueError:
-        origin = rc.OriginAttribution.UNKNOWN
-    overlap = int(observation.get("overlap_count", 0) or 0)
-    eligible_conf = app.get("implementation_conformance") in {rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value}
-    hard: List[str] = []
-    quality = economic.get("quality_gates") or economic_quality_result(observation, policy)
-    if not quality.get("attributable_spend", {}).get("pass"):
-        hard.append("MATERIAL_SPEND_UNRECONCILED")
-    if not quality.get("price_coverage", {}).get("pass"):
-        hard.append("PRICE_COVERAGE_INCOMPLETE")
-    if not quality.get("currency_consistency", {}).get("pass"):
-        hard.append("CURRENCY_MISMATCH")
-    if not quality.get("correction_chain", {}).get("pass"):
-        hard.append("CORRECTION_CHAIN_INCOMPLETE")
-    if not quality.get("material_cost_components", {}).get("pass"):
-        hard.append("MATERIAL_COST_COMPONENT_UNAVAILABLE")
-    if not eligible_conf:
-        hard.append("APPLIED_STATE_UNMATCHED")
-    if not validation_passed:
-        hard.append("HARD_VALIDATION_FAILURE")
-    if not cf_claim_eligible:
-        hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
-    if overlap > 0:
-        hard.append("PORTFOLIO_SCOPE_OVERLAP")
-    if origin in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
-        hard.append("ORIGIN_NOT_ATTRIBUTABLE")
-    confirmed_ok = origin == rc.OriginAttribution.CONFIRMED or not policy.require_confirmed_origin_for_hard_kpi
-    claimable = not hard and confirmed_ok and economic.get("available") and quality.get("pass")
-    if claimable:
-        claim = rc.AttributionClaimStatus.CLAIMABLE
-        state = rc.AttributionState.HIGH_CONFIDENCE
-    elif economic.get("available") and validation_passed and cf_claim_eligible and origin not in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
-        claim = rc.AttributionClaimStatus.OBSERVABLE_ONLY
-        state = rc.AttributionState.PARTIAL_ATTRIBUTION if origin == rc.OriginAttribution.INFERRED else rc.AttributionState.CORRELATED_ONLY
-    else:
-        claim = rc.AttributionClaimStatus.NOT_ATTRIBUTABLE
-        state = rc.AttributionState.NOT_ATTRIBUTABLE
-    successful = decimal(economic.get("successful_realized_savings")) or Decimal("0")
-    return {
-        "origin_attribution": origin.value,
-        "attribution_scope": str(app.get("application_scope") or observation.get("attribution_scope") or "CANDIDATE"),
-        "attribution_state": state.value,
-        "attribution_claim_status": claim.value,
-        "hard_disqualifiers": hard,
-        "overlap_count": overlap,
-        "economic_quality_gates": quality,
-        "validated_observed_realization": economic.get("successful_realized_savings"),
-        "recommendation_attributed_realized_savings": money(successful if claimable else Decimal("0")),
     }
 
 
@@ -595,7 +420,7 @@ def realize(
 def process_observation(
     context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult, reconciliation: ReconciliationResult,
 ) -> None:
-    package, observation, output_dir, policy = context.request.package, context.request.observation, context.request.output_dir, context.policy
+    package, output_dir = context.request.package, context.request.output_dir
     observed = analysis.observation
     assert observed is not None  # the caller runs this only for a run with an observation
     rpkg = context.realization_package_id
@@ -663,113 +488,76 @@ def process_observation(
     if not reconciliation.validation_due:
         return
 
+    # Validation is due: the Estimator measures the active application, the Reviewer assembles its validation episode.
+    # The episode is recorded first (ready, started, completed), then the counterfactual, the measurement and its
+    # billing correction. A stage that failed is raised after the facts it decided before the failure, the episode's
+    # before the estimate's: the same exception after the same entries as before.
     active = reconciliation.active
     assert active is not None  # validation is due only for an active application
-    app_payload = active.payload
-    ready = governance.readiness.get()  # read by the Reconciler already (validation_due), so it cannot fail here
-    val_id = make_val_id(active.application_episode_id, observation, policy)
-    vr = make_ledger_entry(
-        package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_READY,
-        effective_at_utc=obs_time, recorded_at_utc=recorded,
-        payload={"validation_episode_id": val_id, "readiness": ready, "policy_snapshot_id": policy.snapshot_id},
-        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
-    )
-    append_if_absent(lpath, vr)
-    vs = make_ledger_entry(
-        package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_STARTED,
-        effective_at_utc=obs_time, recorded_at_utc=recorded,
-        payload={"validation_episode_id": val_id, "window_start_utc": observation.get("window_start_utc") or effective, "window_end_utc": observation.get("window_end_utc") or obs_time},
-        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
-    )
-    append_if_absent(lpath, vs)
-    validation = governance.performance.get()
-    validation_payload = {
-        "state": validation["state"],
-        "validation_episode_id": val_id,
-        "readiness": ready,
-        "hard_guardrails_pass": validation["hard_guardrails_pass"],
-        "rules": validation["rules"],
-        "policy_snapshot_id": policy.snapshot_id,
-        "window_start_utc": observation.get("window_start_utc") or effective,
-        "window_end_utc": observation.get("window_end_utc") or obs_time,
-    }
-    vc = make_ledger_entry(
-        package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_COMPLETED,
-        effective_at_utc=obs_time, recorded_at_utc=recorded, payload=validation_payload,
-        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
-    )
-    append_if_absent(lpath, vc)
+    estimate = estimator.run(context, analysis, governance, reconciliation)
+    review = reviewer.run(context, analysis, governance, reconciliation, estimate)
+    episode = review.validation
+    app_id = active.application_episode_id
+    for event_type, payload in (
+        (rc.EventType.VALIDATION_READY, episode.ready_payload if episode else None),
+        (rc.EventType.VALIDATION_STARTED, episode.started_payload if episode else None),
+        (rc.EventType.VALIDATION_COMPLETED, episode.completed_payload if episode else None),
+    ):
+        if payload is None:
+            break
+        entry = make_ledger_entry(
+            package=package, rpkg_id=rpkg, event_type=event_type,
+            effective_at_utc=obs_time, recorded_at_utc=recorded, payload=payload,
+            evidence_refs=[revid], application_episode_id=app_id, validation_episode_id=episode.validation_episode_id,
+        )
+        append_if_absent(lpath, entry)
+    if review.halt is not None:
+        raise review.halt
+    assert episode is not None  # a review that did not halt has its episode
+    val_id = episode.validation_episode_id
 
-    cf_claim_eligible, cf_method = governance.counterfactual.get()
-    econ_obs = observation.get("economics") or {}
-    if econ_obs.get("counterfactual_old_cost") is not None:
-        cf_id = make_cf_id(active.application_episode_id, observation, package, policy)
-        cf_payload = {
-            "counterfactual_id": cf_id,
-            "method": cf_method,
-            "claim_eligible": cf_claim_eligible,
-            "workload_basis": "ACTUAL_POST_CHANGE_WORKLOAD",
-            "counterfactual_old_cost": money(econ_obs.get("counterfactual_old_cost")),
-            "modeler_version": MODELER_GATEWAY_VERSION,
-        }
+    counterfactual = estimate.counterfactual
+    if counterfactual is not None and counterfactual.payload is not None:
         ce = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.COUNTERFACTUAL_RECORDED,
-            effective_at_utc=obs_time, recorded_at_utc=recorded, payload=cf_payload,
-            evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
+            effective_at_utc=obs_time, recorded_at_utc=recorded, payload=counterfactual.payload,
+            evidence_refs=[revid], application_episode_id=app_id, validation_episode_id=val_id,
         )
         append_if_absent(lpath, ce)
-    else:
-        cf_id = make_cf_id(active.application_episode_id, observation, package, policy)
-
-    economic = calculate_economics(
-        package, app_payload, observation, policy, validation["hard_guardrails_pass"],
-        counterfactual_claim_eligible=cf_claim_eligible,
-    )
-    if economic.get("available"):
-        economic["quality_gates"] = governance.economic_quality.get()
-        attr = attribution_result(app_payload, observation, validation["hard_guardrails_pass"], cf_claim_eligible, economic, policy)
-        basis = str(economic.get("economic_basis") or "ECONOMIC_COST")
-        meas_id = make_measurement_id(active.application_episode_id, observation, cf_id, basis)
+    measurement = estimate.measurement
+    if measurement is not None:
         measurement_payload = {
-            "measurement_id": meas_id,
-            "window_start_utc": observation.get("window_start_utc") or effective,
-            "window_end_utc": observation.get("window_end_utc") or obs_time,
-            "counterfactual_id": cf_id,
-            "counterfactual_method": cf_method,
-            "recognition_status": rc.RecognitionStatus.CONFIRMED.value if validation["hard_guardrails_pass"] and cf_claim_eligible else rc.RecognitionStatus.REJECTED.value if not validation["hard_guardrails_pass"] else rc.RecognitionStatus.PROVISIONAL.value,
-            "economics": economic,
-            "attribution": attr,
-            "realization_state": economic.get("realization_state"),
-            "mature_ttm_realized_savings": economic.get("mature_ttm_realized_savings"),
-            "correction_status": (observation.get("correction") or {}).get("type", "ORIGINAL"),
+            "measurement_id": measurement.measurement_id,
+            "window_start_utc": measurement.window_start_utc,
+            "window_end_utc": measurement.window_end_utc,
+            "counterfactual_id": measurement.counterfactual_id,
+            "counterfactual_method": measurement.counterfactual_method,
+            "recognition_status": review.recognition_status,
+            "economics": measurement.economics,
+            "attribution": measurement.attribution,
+            "realization_state": measurement.realization_state,
+            "mature_ttm_realized_savings": measurement.mature_ttm_realized_savings,
+            "correction_status": measurement.correction_status,
         }
         me = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.ECONOMIC_MEASUREMENT_RECORDED,
             effective_at_utc=obs_time, recorded_at_utc=recorded, payload=measurement_payload,
-            evidence_refs=[revid], application_episode_id=active.application_episode_id,
-            validation_episode_id=val_id, measurement_id=meas_id,
+            evidence_refs=[revid], application_episode_id=app_id,
+            validation_episode_id=val_id, measurement_id=measurement.measurement_id,
         )
         append_if_absent(lpath, me)
-        corr = observation.get("correction") or {}
-        if corr:
-            prior_measurement = analysis.history.prior_measurement
-            corrects_entry_id = corr.get("corrects_entry_id") or (prior_measurement.ledger_entry_id if prior_measurement else None)
-            correction_payload = {
-                "correction_key": corr.get("key") or meas_id,
-                "type": str(corr.get("type") or "RESTATEMENT").upper(),
-                "version": corr.get("version"),
-                "reason": corr.get("reason"),
-                "measurement_id": meas_id,
-                "corrects_entry_id": corrects_entry_id,
-            }
+        correction = estimate.correction
+        if correction is not None:
             co = make_ledger_entry(
                 package=package, rpkg_id=rpkg, event_type=rc.EventType.BILLING_CORRECTION_RECORDED,
-                effective_at_utc=obs_time, recorded_at_utc=recorded, payload=correction_payload,
-                evidence_refs=[revid], application_episode_id=active.application_episode_id,
-                validation_episode_id=val_id, measurement_id=meas_id,
-                corrects_entry_id=corrects_entry_id,
+                effective_at_utc=obs_time, recorded_at_utc=recorded, payload=correction.payload,
+                evidence_refs=[revid], application_episode_id=app_id,
+                validation_episode_id=val_id, measurement_id=measurement.measurement_id,
+                corrects_entry_id=correction.corrects_entry_id,
             )
             append_if_absent(lpath, co)
+    if estimate.halt is not None:
+        raise estimate.halt
 
     # Invalidating or modified authoritative changes require fresh Publisher
     # analysis once the governed remeasurement/readiness window has passed.
@@ -795,26 +583,6 @@ def append_regeneration(package: Mapping[str, Any], output_dir: Path, request: R
     )
     append_if_absent(ledger_path(output_dir, rpkg), event)
     write_json(output_dir / "realization" / "regeneration" / f"{request.regeneration_request_id}.json", request.payload)
-
-
-# ---------------------------------------------------------------------------
-# Portfolio / recommendation stability helpers
-# ---------------------------------------------------------------------------
-
-
-def authoritative_cumulative_realization(
-    counterfactual_original_cost: Any, actual_final_cost: Any, incremental_realizations: Sequence[Any] = (),
-) -> Dict[str, Any]:
-    cf, actual = decimal(counterfactual_original_cost), decimal(actual_final_cost)
-    if cf is None or actual is None:
-        return {"authoritative": None, "diagnostic_incremental_sum": None, "interaction_delta": None}
-    authoritative = cf - actual
-    diagnostic = sum((decimal(v) or Decimal("0") for v in incremental_realizations), Decimal("0"))
-    return {
-        "authoritative": money(authoritative),
-        "diagnostic_incremental_sum": money(diagnostic),
-        "interaction_delta": money(authoritative - diagnostic),
-    }
 
 
 # ---------------------------------------------------------------------------

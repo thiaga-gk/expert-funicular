@@ -10,7 +10,9 @@ It presents the complete v1.0.0 surface: the observation-side enums
 (``realizer.contracts.analysis``) and the reconciliation enums
 (``realizer.contracts.reconciliation``) are defined with their group and
 re-exported here, so ``__all__`` is the single-file contract's ``__all__``
-plus the ID builders.
+plus the ID builders. The Estimator's and the Reviewer's hand-offs
+(``RealizationEstimate``, ``ReviewResult`` and their parts) are internal values
+defined at the end of the module and kept out of ``__all__``.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 from realizer.contracts.reconciliation import (
@@ -31,6 +33,11 @@ from realizer.contracts.reconciliation import (
     RegenerationStatus,
     SourcePackageDisposition,
 )
+
+if TYPE_CHECKING:  # annotations only: the hand-offs of the earlier capabilities
+    from realizer.contracts.analysis import RealizationAnalysis
+    from realizer.contracts.governance import GovernanceResult
+    from realizer.contracts.reconciliation import ReconciliationResult
 
 CONTRACT_VERSION = "1.0.0"
 LEDGER_CONTRACT_VERSION = "1.0.0"
@@ -313,6 +320,99 @@ def make_measurement_id(app_id: str, observation: Mapping[str, Any], cf_id: str,
         "counterfactual_id": cf_id,
         "correction_version": (observation.get("correction") or {}).get("version"),
     })
+
+
+# ---------------------------------------------------------------------------
+# Internal hand-offs: the Estimator's and the Reviewer's results (not public contract, not in ``__all__``)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CounterfactualRecord:
+    """The counterfactual baseline of a measurement (CF-*).
+
+    ``claim_eligible`` and ``method`` are the policy's verdict on the baseline. ``payload`` is the
+    COUNTERFACTUAL_RECORDED payload, ``None`` when the observation carries no counterfactual cost (nothing is recorded,
+    but the id still names the baseline of the measurement).
+    """
+    counterfactual_id: str
+    method: str
+    claim_eligible: bool
+    payload: Optional[Mapping[str, Any]] = None
+
+
+@dataclass(frozen=True)
+class MeasurementFacts:
+    """The realized-value measurement (MEAS-*) of an application episode: every ECONOMIC_MEASUREMENT_RECORDED payload
+    field except the recognition status, which the Reviewer decides. ``economics`` includes the financial-quality
+    gates (``quality_gates``)."""
+    measurement_id: str
+    window_start_utc: Any
+    window_end_utc: Any
+    counterfactual_id: str
+    counterfactual_method: str
+    economics: Mapping[str, Any]
+    attribution: Mapping[str, Any]
+    realization_state: Any
+    mature_ttm_realized_savings: Any
+    correction_status: Any
+
+
+@dataclass(frozen=True)
+class CorrectionFacts:
+    """A billing correction of the measurement: the BILLING_CORRECTION_RECORDED payload and the ledger entry it
+    corrects (the observation's reference, else the previous measurement)."""
+    payload: Mapping[str, Any]
+    corrects_entry_id: Any
+
+
+@dataclass(frozen=True)
+class RealizationEstimate:
+    """Estimator output: the realized value of the active application, in the order it is recorded.
+
+    Everything is ``None`` when no validation is due. ``validation_passed`` is the hard-guardrail verdict the
+    economics depend on; ``counterfactual`` the baseline; ``economics`` the realized economics (the unavailable form when
+    the observation lacks costs); ``measurement`` the measurement (only for available economics) and ``correction`` its
+    billing correction, when the observation carries one.
+
+    ``halt`` is the exception the estimation raised, if any. The facts present were decided before it, so the engine
+    records them and then raises ``halt``: the ledger a failed run leaves behind is the one it always left.
+    """
+    validation_passed: Optional[bool] = None
+    counterfactual: Optional[CounterfactualRecord] = None
+    economics: Optional[Mapping[str, Any]] = None
+    measurement: Optional[MeasurementFacts] = None
+    correction: Optional[CorrectionFacts] = None
+    halt: Optional[Exception] = None
+
+
+@dataclass(frozen=True)
+class ValidationEpisode:
+    """The validation episode (VAL-*) of the active application: the VALIDATION_READY, VALIDATION_STARTED and
+    VALIDATION_COMPLETED payloads, in recording order. A payload is ``None`` when the review halted before it."""
+    validation_episode_id: str
+    ready_payload: Optional[Mapping[str, Any]] = None
+    started_payload: Optional[Mapping[str, Any]] = None
+    completed_payload: Optional[Mapping[str, Any]] = None
+
+
+@dataclass(frozen=True)
+class ReviewResult:
+    """Reviewer output: the upstream results it reviewed, the validation episode and the recognition status of the
+    measurement.
+
+    The Reviewer assembles; it adds no check of its own. ``validation`` is ``None`` when no validation is due (or the
+    review halted before the episode id); ``recognition_status`` is ``None`` when there is no measurement. ``halt`` is
+    the exception the review raised, if any, after the validation payloads present; the engine records those and then
+    raises it, before anything the estimate holds.
+    """
+    analysis: "RealizationAnalysis"
+    governance: "GovernanceResult"
+    reconciliation: "ReconciliationResult"
+    estimate: RealizationEstimate
+    validation: Optional[ValidationEpisode] = None
+    recognition_status: Optional[str] = None
+    halt: Optional[Exception] = None
 
 
 __all__ = [
