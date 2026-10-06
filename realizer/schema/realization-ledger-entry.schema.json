@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application_episode_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "caused_by_entry_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "corrects_entry_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effective_at_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "event_type": {
+      "enum": [
+        "REALIZATION_CREATED",
+        "INTENT_RECORDED",
+        "APPLICATION_OBSERVED",
+        "MODIFIED_APPLICATION_OBSERVED",
+        "INDEPENDENT_CHANGE_OBSERVED",
+        "VALIDATION_READY",
+        "VALIDATION_STARTED",
+        "VALIDATION_COMPLETED",
+        "ECONOMIC_MEASUREMENT_RECORDED",
+        "COUNTERFACTUAL_RECORDED",
+        "DRIFT_DETECTED",
+        "INVALIDATION_RECORDED",
+        "ROLLBACK_REQUESTED",
+        "ROLLBACK_OBSERVED",
+        "SOURCE_PACKAGE_SUPERSEDED",
+        "SOURCE_PACKAGE_EXPIRED",
+        "BILLING_CORRECTION_RECORDED",
+        "FINANCIAL_BASIS_CHANGED",
+        "SOURCE_QUALITY_CHANGED",
+        "REGENERATION_REQUESTED",
+        "REPLACEMENT_PACKAGE_LINKED"
+      ]
+    },
+    "evidence_refs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "ledger_contract_version": {
+      "const": "1.0.0"
+    },
+    "ledger_entry_id": {
+      "pattern": "^RLE-[0-9A-F]{24}$",
+      "type": "string"
+    },
+    "measurement_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "realization_package_id": {
+      "pattern": "^RPKG-[0-9A-F]{24}$",
+      "type": "string"
+    },
+    "recommendation_package_id": {
+      "pattern": "^PKG-[0-9A-F]+$",
+      "type": "string"
+    },
+    "recorded_at_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "validation_episode_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "warehouse_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "workspace_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "ledger_entry_id",
+    "ledger_contract_version",
+    "realization_package_id",
+    "recommendation_package_id",
+    "event_type",
+    "effective_at_utc",
+    "recorded_at_utc",
+    "workspace_id",
+    "warehouse_id",
+    "application_episode_id",
+    "validation_episode_id",
+    "measurement_id",
+    "payload",
+    "evidence_refs",
+    "caused_by_entry_id",
+    "corrects_entry_id",
+    "provenance"
+  ],
+  "title": "RealizationLedgerEntry",
+  "type": "object"
+}

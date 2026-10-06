@@ -1,0 +1,22 @@
+{
+  "canonical_json_semantics": "Each packages/*.json file is exactly one Reporter JSON Contract v1.0.0 RecommendationPackage.",
+  "evidence_file": "evidence.json",
+  "generated_at": "2026-10-01T12:00:00Z",
+  "package_count": 1,
+  "packages": [
+    {
+      "epoch_id": "EPOCH-90F9FB8E6BAEFDC508183AC2",
+      "package_hash_full_sha256": "C1928BFAD6E14C166A0F518DA9EFC38BC802CF0468ABA253146863E049BC9274",
+      "path": "packages/1234567890123456__wh-synth-001.json",
+      "recommendation_package_id": "PKG-C1928BFAD6E14C166A0F518D",
+      "warehouse_id": "wh-synth-001",
+      "warehouse_name": "BI - Sales",
+      "workspace_id": "1234567890123456"
+    }
+  ],
+  "publisher_version": "2.8.0",
+  "reporter_contract_version": "1.0.0",
+  "workbook_contract_version": "1.0.0",
+  "workbook_file": null,
+  "workbook_status": "SKIPPED"
+}

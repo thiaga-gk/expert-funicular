@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "application": {
+      "type": "object"
+    },
+    "as_of_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "attribution": {
+      "type": "object"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "current_state": {
+      "type": "object"
+    },
+    "drift": {
+      "type": "object"
+    },
+    "economics": {
+      "type": "object"
+    },
+    "history": {
+      "type": "object"
+    },
+    "maturity": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "realization_package_id": {
+      "pattern": "^RPKG-[0-9A-F]{24}$",
+      "type": "string"
+    },
+    "regeneration": {
+      "type": "object"
+    },
+    "snapshot_id": {
+      "pattern": "^RSNAP-[0-9A-F]{24}$",
+      "type": "string"
+    },
+    "source_recommendation": {
+      "type": "object"
+    },
+    "validation": {
+      "type": "object"
+    },
+    "warehouse": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "contract_version",
+    "realization_package_id",
+    "snapshot_id",
+    "source_recommendation",
+    "warehouse",
+    "as_of_utc",
+    "current_state",
+    "application",
+    "validation",
+    "economics",
+    "attribution",
+    "maturity",
+    "drift",
+    "regeneration",
+    "history",
+    "provenance"
+  ],
+  "title": "RealizationPackage",
+  "type": "object"
+}

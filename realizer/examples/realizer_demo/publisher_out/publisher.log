@@ -1,0 +1,15 @@
+2026-10-03T20:47:43Z INFO publisher.start version=2.8.0
+2026-10-03T20:47:43Z INFO policy.versions policy=sql-warehouse-policy-v2.7 analyzer=sql-warehouse-analyzer-v2.7 optimizer=sql-warehouse-optimizer-v2.7 estimator=counterfactual-v2.7 bundle=stateful-resource-bundle-v2.8
+2026-10-03T20:47:43Z INFO mode.demo synthetic_collector_warehouses=1
+2026-10-03T20:47:43Z INFO pipeline.start warehouses=1 batch_size=100
+2026-10-03T20:47:43Z INFO pipeline.batch.start batch_index=1 start=0 size=1
+2026-10-03T20:47:43Z INFO warehouse.start workspace_id=1234567890123456 warehouse_id=wh-synth-001 name=BI - Sales epoch_id=EPOCH-D648843D370D13A7
+2026-10-03T20:47:43Z INFO warehouse.decisions workspace_id=1234567890123456 warehouse_id=wh-synth-001 statuses={"ACTIONABLE":3,"NO_CHANGE":2,"TEST_REQUIRED":2} scenarios=2 recommended_scenario=SCN-4373344703579FA2
+2026-10-03T20:47:43Z INFO pipeline.batch.done batch_index=1 processed=1
+2026-10-03T20:47:43Z INFO pipeline.done warehouses=1 candidates=7 scenarios=2 currencies=USD
+2026-10-03T20:47:43Z INFO contract.v1.build.start warehouses=1
+2026-10-03T20:47:43Z INFO contract.v1.package.valid workspace_id=1234567890123456 warehouse_id=wh-synth-001 package_id=PKG-C1928BFAD6E14C166A0F518D candidates=7 scenarios=2
+2026-10-03T20:47:43Z INFO contract.v1.build.done packages=1
+2026-10-03T20:47:43Z INFO contract.v1.package.start output_dir=examples/realizer_demo/publisher_out packages=1
+2026-10-03T20:47:43Z INFO contract.v1.package.done packages=1
+2026-10-03T20:47:43Z INFO publisher.done warehouses=1 packages=1 candidates=7 scenarios=2 log=examples/realizer_demo/publisher_out/publisher.log

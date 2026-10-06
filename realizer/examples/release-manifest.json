@@ -1,0 +1,486 @@
+{
+  "automated_tests": 63,
+  "bundle_estimator_version": "stateful-resource-bundle-v2.8",
+  "external_gates": [
+    {
+      "id": "GATE-REALIZER-LIVE-ADAPTER",
+      "reason": "Direct Databricks post-change observation collection is not yet wired into realizer.py; normalized observation input is implemented",
+      "status": "OPEN"
+    },
+    {
+      "id": "GATE-LIVE-001",
+      "reason": "No Databricks workspace authentication/profile available in build environment",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "GATE-GIT-001",
+      "reason": "Distributed repo snapshot contains no .git metadata",
+      "status": "NOT_PROVABLE"
+    },
+    {
+      "id": "GATE-REVIEW-001",
+      "reason": "Organizational /code-review low unavailable in build environment",
+      "status": "NOT_RUN"
+    }
+  ],
+  "files": [
+    {
+      "bytes": 6170,
+      "path": ".claude/skills/realizer-delivery/SKILL.md",
+      "sha256": "95a38f342aaa4323f600bdab3e411bd9a430bcb71f7a7673329a23aac5af8bcc"
+    },
+    {
+      "bytes": 1760,
+      "path": ".claude/skills/realizer-delivery/evals/EVALUATION.md",
+      "sha256": "e2a20f0292bf5f6032892b7aec853b693a692bcf8dc78a2e8a7487ec7a544c35"
+    },
+    {
+      "bytes": 693,
+      "path": ".claude/skills/realizer-delivery/references/ARTIFACT_MAP.md",
+      "sha256": "9d7406e556d81e4884decc6b918481f1e9db93b489122d75450742fc28d41d34"
+    },
+    {
+      "bytes": 609,
+      "path": ".env.example",
+      "sha256": "5bc023fee17313ef58f35e49cfcaf068221848bb3d20054f18a00a188691457f"
+    },
+    {
+      "bytes": 80,
+      "path": ".gitignore",
+      "sha256": "9771c734a24c49070112e5eadacaed7134400b17e4f3abb4142d2ae640846501"
+    },
+    {
+      "bytes": 4438,
+      "path": "CLAUDE.md",
+      "sha256": "40118b1b7b3a9f6bbbefe742e375ff7256f9e71e578d992b89642dd0ec7fa9f3"
+    },
+    {
+      "bytes": 7680,
+      "path": "README.md",
+      "sha256": "fe3e7feb6c6b1a701c680147ff4a467e718fd799e0e84fdac39cc3cd2af2c2ff"
+    },
+    {
+      "bytes": 1738,
+      "path": "RELEASE_STATUS.md",
+      "sha256": "0f74f27613c8063ccb5078a612baaa2cce6b8dcde2a6790d2d2a03f26d4be80e"
+    },
+    {
+      "bytes": 6,
+      "path": "VERSION",
+      "sha256": "dceb827995520dae388b7283c5bc7847ef58a16e8013318c3bb436feeb5dc51e"
+    },
+    {
+      "bytes": 0,
+      "path": "contracts/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 10423,
+      "path": "contracts/realizer_contract.py",
+      "sha256": "5d729a03223438e0708321f0d868e2eb073b39fdf1f2fdfd0d19775a81323680"
+    },
+    {
+      "bytes": 3521,
+      "path": "contracts/realizer_schema.py",
+      "sha256": "b96306fae4078ec538f76c1d20b2783f148d6e8bcc48580b364e7f5e373dff4d"
+    },
+    {
+      "bytes": 5288,
+      "path": "contracts/realizer_workbook_contract.py",
+      "sha256": "2a48fcf0a22f3f5d29d412f7be116533e24e009bfe99ad78482d3d9c2d74df20"
+    },
+    {
+      "bytes": 64284,
+      "path": "contracts/reporter_contract.py",
+      "sha256": "33f2f39bbe7beedd71168ef6446de80e9ac7dd3a9e703adacd95bebf2f1e2145"
+    },
+    {
+      "bytes": 20550,
+      "path": "contracts/reporter_schema.py",
+      "sha256": "a047ba77a35e34e4f04159c3889223bf6eb8b938f9aa4572a0ddbaa5351f2922"
+    },
+    {
+      "bytes": 23628,
+      "path": "contracts/workbook_contract.py",
+      "sha256": "ebeeb463da72f2a28fabd9dde8f43ef84e55097da977a9e32da26f136ca2890b"
+    },
+    {
+      "bytes": 47481,
+      "path": "docs/context.md",
+      "sha256": "f19df2a456c8d2d276c5308c43eb25092d9c09160a78907fc300cbcaec9503a4"
+    },
+    {
+      "bytes": 2634,
+      "path": "docs/document-inventory-v2.8.0.md",
+      "sha256": "971a9e45069e6ce83f579e941ae49a6ddf8c618e59a2811b8a9fc53d4fbb6fd5"
+    },
+    {
+      "bytes": 39177,
+      "path": "docs/hld.md",
+      "sha256": "a1d6935851882d6bb93628aa842b3a8d7374deb11ba8d20996f6afaca0caa47a"
+    },
+    {
+      "bytes": 52033,
+      "path": "docs/lld.md",
+      "sha256": "3d1784066b1769de2bc23f1331fca6c0e257f6338178a7154e93bb1e94e3f88a"
+    },
+    {
+      "bytes": 1117,
+      "path": "docs/phase2/README.md",
+      "sha256": "1e7c8c95701392c8b6ca213a323611d8d8c19cf5b2409c0ffc958220128e31b6"
+    },
+    {
+      "bytes": 1060,
+      "path": "docs/phase2/context.md",
+      "sha256": "af7406d461715b952f1fda35be013df69176d09c95e176cf060b3a4f4fafbddf"
+    },
+    {
+      "bytes": 2827,
+      "path": "docs/phase2/hld.md",
+      "sha256": "c2109325629f3ae3302feada0c3ac2ca800555dbc154b14bf0652a2309866158"
+    },
+    {
+      "bytes": 2895,
+      "path": "docs/phase2/lld.md",
+      "sha256": "7fff7b002412073998b4631ef944d5c675e60b8dd06041e9fb1b01d01a350085"
+    },
+    {
+      "bytes": 1336,
+      "path": "docs/phase2/migration-release-plan.md",
+      "sha256": "96e4b624da6ed0f70887954a28d0d5190bda34e389311178147fcabfda3b1f04"
+    },
+    {
+      "bytes": 3191,
+      "path": "docs/phase2/prd.md",
+      "sha256": "35ac1ade8563f7eb0d3a68700540e9b818a5581714c88b56c6ce83407859924d"
+    },
+    {
+      "bytes": 40203,
+      "path": "docs/prd.md",
+      "sha256": "55097ad507331116ec48eec8a53428ecff30d717a6cc69f43601aae35a747ffb"
+    },
+    {
+      "bytes": 3088,
+      "path": "docs/realizer/context.md",
+      "sha256": "e46279771b8ea464fd0249d21445f20d0b9e163768cb88eb3fc119ed433721f0"
+    },
+    {
+      "bytes": 8950,
+      "path": "docs/realizer/cross-document-readiness-review-v1.0.0.md",
+      "sha256": "2a04868d925889cb6f9bf188921ad19db0f673229de1a091f799e9cfbc5cf89d"
+    },
+    {
+      "bytes": 4529,
+      "path": "docs/realizer/golden-realization-scenarios-v1.0.0.md",
+      "sha256": "063af28f830a8f0e232b8e37dd59351638f82c88360608095167b649c6211ca7"
+    },
+    {
+      "bytes": 2823,
+      "path": "docs/realizer/hld.md",
+      "sha256": "dcb1a337ab96dcd4dc704cb0bf0d3d32e71d05a1953cccd4545f17636ac2e31b"
+    },
+    {
+      "bytes": 6494,
+      "path": "docs/realizer/implementation-release-plan-v1.0.0.md",
+      "sha256": "015a490a92aa8c6ff461a6db23ae9734c5842e05dcacaac8b7224ef9bae99d37"
+    },
+    {
+      "bytes": 4012,
+      "path": "docs/realizer/lld.md",
+      "sha256": "23fd518b08336cbd6befdfd43733507d83ac895130ab75cee1104dac580980bc"
+    },
+    {
+      "bytes": 4651,
+      "path": "docs/realizer/prd.md",
+      "sha256": "6aaf5ef75157b9a8e2ba342ff2b2226a03290d4de6bb848473ef50f57c06fc4d"
+    },
+    {
+      "bytes": 10381,
+      "path": "docs/realizer/realizer-json-ledger-contract-v1.0.0.md",
+      "sha256": "80d1e431beb2c7033db39ad65fc7dffbbae0db92996c01d3f8e45cfe33c5523c"
+    },
+    {
+      "bytes": 3613,
+      "path": "docs/realizer/realizer-policy-contract-v1.0.0.md",
+      "sha256": "f10e05ca9a2b590d81e8b58425972465ba8b0134895d345eecf3ee99ef893933"
+    },
+    {
+      "bytes": 4337,
+      "path": "docs/realizer/realizer-source-evidence-contract-v1.0.0.md",
+      "sha256": "efa345d37658f7c2256c0ef79391007f9d9fe67cbb445564eb3a29c1c6cb1364"
+    },
+    {
+      "bytes": 7373,
+      "path": "docs/realizer/release-evidence-v1.0.0.md",
+      "sha256": "a8eb2d0c17d6fe1a355c45360dc932af70b2dbadd02b2a761f1ff1454fc85ce9"
+    },
+    {
+      "bytes": 6956,
+      "path": "docs/realizer/reporter-workbook-compatibility-contract-v1.0.0.md",
+      "sha256": "5432a00d213dc7d4c048494c0996b4bed276ba74b1ff5fad2cb44d89a1192de9"
+    },
+    {
+      "bytes": 1523,
+      "path": "docs/release-notes-v2.8.0.md",
+      "sha256": "a76b579cc4187fb3f8c5cda47554039ca9dbb01d1a1c7348d102bebdc36d8c4a"
+    },
+    {
+      "bytes": 29641,
+      "path": "docs/reporter-json-contract-v1.0.0.md",
+      "sha256": "a20d51889943ac59a1623c830ff26bf461afb7140076c78815fb0150dc21d5c2"
+    },
+    {
+      "bytes": 4403,
+      "path": "docs/workbook-contract-v1.1.0.md",
+      "sha256": "35b2a7baa8c7a856d0d8f63befb830602379b7f55723209f3f7524bca9316d89"
+    },
+    {
+      "bytes": 902,
+      "path": "examples/realizer_demo/README.md",
+      "sha256": "56badbb2fd1c86a6da17c0585f5f789043d4643e6881fdeff0b49718cd9cc02b"
+    },
+    {
+      "bytes": 43421,
+      "path": "examples/realizer_demo/publisher-realizer-workbook.xlsx",
+      "sha256": "0e0daaeec450dbdc51cfcda30428acf03bc18cbcd232df0aad95403b566986e4"
+    },
+    {
+      "bytes": 73155,
+      "path": "examples/realizer_demo/publisher_out/evidence.json",
+      "sha256": "6f4a46d65f6f53d1dd06c087dbe6eee7ecc28e8dceeb9602daec137e107a3197"
+    },
+    {
+      "bytes": 832,
+      "path": "examples/realizer_demo/publisher_out/manifest.json",
+      "sha256": "4d775aeb66b18e7a708ea99e670c39aef866660eb117db2ef4fcc9523fc3fe69"
+    },
+    {
+      "bytes": 70498,
+      "path": "examples/realizer_demo/publisher_out/packages/1234567890123456__wh-synth-001.json",
+      "sha256": "c1f1155964e50fd290877f353d8189cc3a7e2e7205cb6c41f840101b3c01b388"
+    },
+    {
+      "bytes": 1627,
+      "path": "examples/realizer_demo/publisher_out/publisher.log",
+      "sha256": "97df95a003c78d9d8c60dbf06ec3aa7d45e090c218d61d328018b47116330340"
+    },
+    {
+      "bytes": 795,
+      "path": "examples/realizer_demo/realization/evidence/REVID-C82136407213010727CEAB98.json",
+      "sha256": "16faf7f9454e8a9a18bcb3d7a31ae22ff8469c6ffc94c9d9dc8f0bc249ebd1ea"
+    },
+    {
+      "bytes": 12593,
+      "path": "examples/realizer_demo/realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl",
+      "sha256": "5013a907f097384c0601e4d6dc97cec417151d2aa01a85154ace6886e51ed212"
+    },
+    {
+      "bytes": 7489,
+      "path": "examples/realizer_demo/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json",
+      "sha256": "abaa74cfa6462eee73fa5defe59ec6586b88d2b7421502e9cfea9945fe26a5be"
+    },
+    {
+      "bytes": 829,
+      "path": "examples/realizer_demo/realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json",
+      "sha256": "153ff9eff0ad59fbf1265a1f1503af22c8f2f7eb9b13e5e33ff79979ee652103"
+    },
+    {
+      "bytes": 7489,
+      "path": "examples/realizer_demo/realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json",
+      "sha256": "abaa74cfa6462eee73fa5defe59ec6586b88d2b7421502e9cfea9945fe26a5be"
+    },
+    {
+      "bytes": 1104,
+      "path": "examples/realizer_jsons/exact/observation.json",
+      "sha256": "97c694f3cbc054d129e78a70e32307369a686ba24f6f45ca82ae100e3afa24e8"
+    },
+    {
+      "bytes": 795,
+      "path": "examples/realizer_jsons/exact/realization/evidence/REVID-C82136407213010727CEAB98.json",
+      "sha256": "16faf7f9454e8a9a18bcb3d7a31ae22ff8469c6ffc94c9d9dc8f0bc249ebd1ea"
+    },
+    {
+      "bytes": 12593,
+      "path": "examples/realizer_jsons/exact/realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl",
+      "sha256": "5013a907f097384c0601e4d6dc97cec417151d2aa01a85154ace6886e51ed212"
+    },
+    {
+      "bytes": 7489,
+      "path": "examples/realizer_jsons/exact/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json",
+      "sha256": "abaa74cfa6462eee73fa5defe59ec6586b88d2b7421502e9cfea9945fe26a5be"
+    },
+    {
+      "bytes": 829,
+      "path": "examples/realizer_jsons/exact/realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json",
+      "sha256": "153ff9eff0ad59fbf1265a1f1503af22c8f2f7eb9b13e5e33ff79979ee652103"
+    },
+    {
+      "bytes": 7489,
+      "path": "examples/realizer_jsons/exact/realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json",
+      "sha256": "abaa74cfa6462eee73fa5defe59ec6586b88d2b7421502e9cfea9945fe26a5be"
+    },
+    {
+      "bytes": 70498,
+      "path": "examples/realizer_jsons/exact/source-package.json",
+      "sha256": "c1f1155964e50fd290877f353d8189cc3a7e2e7205cb6c41f840101b3c01b388"
+    },
+    {
+      "bytes": 1106,
+      "path": "examples/realizer_jsons/modified/observation.json",
+      "sha256": "93bb654c780838234971e1e4ebf621f278a3150ffeac5dde7ce5a4a83a0fcdd0"
+    },
+    {
+      "bytes": 794,
+      "path": "examples/realizer_jsons/modified/realization/evidence/REVID-783EE1BC18D972E51EBFC4AE.json",
+      "sha256": "d53613a7b9c447de3d38fba0b8af98579c29562579eb7457bc8873ba6f41c0f1"
+    },
+    {
+      "bytes": 12622,
+      "path": "examples/realizer_jsons/modified/realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl",
+      "sha256": "85aaff62336f98160c2bc3514c674c855efc48a35cdc5d7d772735f29ca44874"
+    },
+    {
+      "bytes": 7510,
+      "path": "examples/realizer_jsons/modified/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json",
+      "sha256": "52c0f2098aeed2183b0d8294ec0a19acb8ca9d096c7cec32d63e1bdfdb1e34d4"
+    },
+    {
+      "bytes": 828,
+      "path": "examples/realizer_jsons/modified/realization/regeneration/RERUN-BE6D14C9D53D954C51BE6C47.json",
+      "sha256": "301e97ff8857ce79197e1e24bbb71ec40fd9b760afccde61ae9616bc9da1b3bc"
+    },
+    {
+      "bytes": 7510,
+      "path": "examples/realizer_jsons/modified/realization/snapshots/RSNAP-709E1EC13A10E423918D76AB.json",
+      "sha256": "52c0f2098aeed2183b0d8294ec0a19acb8ca9d096c7cec32d63e1bdfdb1e34d4"
+    },
+    {
+      "bytes": 70498,
+      "path": "examples/realizer_jsons/modified/source-package.json",
+      "sha256": "c1f1155964e50fd290877f353d8189cc3a7e2e7205cb6c41f840101b3c01b388"
+    },
+    {
+      "bytes": 9257,
+      "path": "examples/test-results.txt",
+      "sha256": "0d9f420ce55f2d26b1d6e404856fefb23e8ff77c25e96174209b8ead6ae94459"
+    },
+    {
+      "bytes": 473,
+      "path": "pricing/README.md",
+      "sha256": "30289ec1501c3a952dd9e4acd60a971fc5fc52325ff058dfcd7607708a33d78a"
+    },
+    {
+      "bytes": 515,
+      "path": "pricing/aws_ec2_on_demand.json",
+      "sha256": "adaad9c9c9e7789f1299f5b3cfe300500d72346d03ca2b74ceead5b51b6c660d"
+    },
+    {
+      "bytes": 250083,
+      "path": "publisher.py",
+      "sha256": "5530d8cac1ac7a322a0bdc8422b2d8e68b104d23761580d9a5b651d26777fbde"
+    },
+    {
+      "bytes": 77054,
+      "path": "realizer.py",
+      "sha256": "ce9ca0df5c24bdeb9d6d968fc6869ec449b838492c8220d9ebf9fd94909cba3e"
+    },
+    {
+      "bytes": 0,
+      "path": "reporters/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 3722,
+      "path": "reporters/realizer_workbook_reporter.py",
+      "sha256": "ae14d34b744a901e054f167ade162993687fe739744280fe9c133746bf7ca960"
+    },
+    {
+      "bytes": 19942,
+      "path": "reporters/workbook_reporter.py",
+      "sha256": "0c941deaad9a09b7e8a86dab76c9344048c7bc965c935943b445af7e4a6d5c4b"
+    },
+    {
+      "bytes": 248,
+      "path": "requirements.txt",
+      "sha256": "6f0c8d6ba6e55a226796fa138d3065b0766e2710610f92407fe6f00c5ae1b272"
+    },
+    {
+      "bytes": 2698,
+      "path": "schema/realization-ledger-entry.schema.json",
+      "sha256": "1740081107dfee543ff52540b570dbae092a4960afa83a3e84e9e7c90a21ba46"
+    },
+    {
+      "bytes": 1438,
+      "path": "schema/realization-package.schema.json",
+      "sha256": "68c3c5fe13314ded8c21de783f25b43a76fc4476cffa34d6fb0e64f4aa17f21f"
+    },
+    {
+      "bytes": 49516,
+      "path": "schema/recommendation-package.schema.json",
+      "sha256": "e5bb79072d37614f64bb0ec9efb695809f702fc438d4d51d405431d3bb05dbbf"
+    },
+    {
+      "bytes": 0,
+      "path": "tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 9583,
+      "path": "tests/golden/realizer/registry.json",
+      "sha256": "285cfd70bf8e35b190d31a7b3d33fee66a8aa0f9b1a99560790c008238a7634b"
+    },
+    {
+      "bytes": 15026,
+      "path": "tests/legacy_test_publisher_v21_reference.py",
+      "sha256": "fcc027955c732dc98791248bc7c7c3f4d2a1a0937cfddfb8d8354ef17c4ee78d"
+    },
+    {
+      "bytes": 4346,
+      "path": "tests/test_publisher_v28_regression.py",
+      "sha256": "900e296932a890682747e60e22b5bb61a0a3d519a8d4d261f4d90351b6d480f8"
+    },
+    {
+      "bytes": 4926,
+      "path": "tests/test_realizer.py",
+      "sha256": "06f3ecf67d41316a710b3f005bf22d7297658a686b4d8aea5b888148d8848004"
+    },
+    {
+      "bytes": 1491,
+      "path": "tests/test_realizer_contract.py",
+      "sha256": "ceee2d86f9a1766a0e37f7592697ab00132be1ad1589f261b70e43caea270d39"
+    },
+    {
+      "bytes": 19705,
+      "path": "tests/test_realizer_golden.py",
+      "sha256": "3b1689824ac9812811484c6ac0661aea7e99132d87e30ae1b13bfeb727853898"
+    },
+    {
+      "bytes": 1961,
+      "path": "tests/test_realizer_workbook_contract.py",
+      "sha256": "90fb59eb157e0ef1371076be2bbe9fc847aa4007e31f38f8261d29f0f29d8349"
+    }
+  ],
+  "golden_realizer_scenarios": 40,
+  "phase2_docs": [
+    "docs/phase2/README.md",
+    "docs/phase2/prd.md",
+    "docs/phase2/hld.md",
+    "docs/phase2/lld.md",
+    "docs/phase2/context.md",
+    "docs/phase2/migration-release-plan.md"
+  ],
+  "phase2_runtime_authority": false,
+  "product": "Databricks SQL Warehouse Optimizer",
+  "product_version": "2.8.0",
+  "publisher_design_lineage": "v2.7",
+  "realizer_live_collection": "NORMALIZED_OBSERVATION_INPUT; DIRECT_DATABRICKS_ADAPTER_OPEN",
+  "realizer_version": "1.0.0",
+  "release_status": "OFFLINE_RELEASE_CANDIDATE_COMPLETE_WITH_CONNECTED_RUNTIME_GATES",
+  "reporter_contract_version": "1.0.0",
+  "skill_files": [
+    ".claude/skills/realizer-delivery/SKILL.md",
+    ".claude/skills/realizer-delivery/evals/EVALUATION.md",
+    ".claude/skills/realizer-delivery/references/ARTIFACT_MAP.md"
+  ],
+  "workbook_contract_version": "1.1.0"
+}
