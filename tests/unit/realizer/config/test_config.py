@@ -1,8 +1,8 @@
 """Realizer configuration (src/realizer/config): version identifiers, knobs, size order, input loading and policy.
 
 Every value equals the frozen single-file oracle's, the package-shape gate raises the oracle's errors, and the CLI
-loads its inputs the same way. ``RealizerPolicy`` itself stays in the engine until the governor phase; its defaults
-and ``from_mapping`` are pinned here against the oracle because the policy file is loaded by the config layer.
+loads its inputs the same way. ``RealizerPolicy`` itself lives in ``realizer.governor.policy``; its defaults
+and ``from_mapping`` are also pinned here against the oracle because the policy file is loaded by the config layer.
 """
 import copy
 import io
