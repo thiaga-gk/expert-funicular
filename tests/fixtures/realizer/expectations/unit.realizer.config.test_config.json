@@ -1,0 +1,279 @@
+{
+ "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
+  "length": 8464,
+  "sha256": "f024fb65e3a70ba6fd63f58b18745aea319f63d08e47e38c996541567e8a9a43",
+  "spot": {
+   "logging": [
+    [],
+    {
+     "format": "%(asctime)sZ %(levelname)s %(message)s",
+     "level": 10
+    }
+   ],
+   "stdout_characters": 7510
+  }
+ },
+ "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
+  "value": "<tmp>/p/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+ },
+ "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
+  "length": 4072,
+  "sha256": "25a5acbc77e4de398b4c135b32d2ea747a5e818832dd48afa99d40cce9853639",
+  "spot": {
+   "logging": [
+    [],
+    {
+     "format": "%(asctime)sZ %(levelname)s %(message)s",
+     "level": 10
+    }
+   ],
+   "stdout_characters": 3608
+  }
+ },
+ "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
+  "length": 8441,
+  "sha256": "a980f568c9224551651662f2b70791d122bb026a2e2d0d3ec5ef5065a5a45057",
+  "spot": {
+   "logging": [
+    [],
+    {
+     "format": "%(asctime)sZ %(levelname)s %(message)s",
+     "level": 10
+    }
+   ],
+   "stdout_characters": 7489
+  }
+ },
+ "LoaderTests.test_package_shape_gate/bad id": {
+  "value": [
+   "ValueError",
+   "invalid recommendation_package_id"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/contract 3.1.0": {
+  "value": [
+   "ValueError",
+   "unsupported Publisher contract: 3.1.0"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/contract None": {
+  "value": [
+   "ValueError",
+   "unsupported Publisher contract: None"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/missing all": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['recommendation_package_id', 'contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/missing provenance": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['provenance']"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/missing recommendation_package_id": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['recommendation_package_id']"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/missing warehouse": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['warehouse']"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/numeric id": {
+  "value": [
+   "ValueError",
+   "invalid recommendation_package_id"
+  ]
+ },
+ "LoaderTests.test_package_shape_gate/valid": {
+  "value": null
+ },
+ "PolicyTests.test_defaults/policy": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 0": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 1": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 2": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 3,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-EF47B2EA8E896452967B3634"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 3": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.9",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.4"
+   },
+   "snapshot_id": "PSNAP-79DB690FA432F23F19A58A9F"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 4": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "4",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.0.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": false,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-CAC437C774B31282F2A5D222"
+  }
+ },
+ "PolicyTests.test_from_mapping/mapping 5": {
+  "value": {
+   "policy": {
+    "max_normalized_p95_runtime_regression_pct": "5",
+    "minimum_attributable_spend_pct": "90",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "2",
+    "minimum_price_coverage_pct": "99.5",
+    "minimum_queries": 10,
+    "policy_version": "custom",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 14,
+    "require_confirmed_origin_for_hard_kpi": false,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+   },
+   "snapshot_id": "PSNAP-CA8EEE3EF28FDF12DE2C1839"
+  }
+ },
+ "PolicyTests.test_policy_file_round_trip_through_the_loader/snapshot id": {
+  "value": "PSNAP-CA8EEE3EF28FDF12DE2C1839"
+ },
+ "SettingsTests.test_config_knobs/knobs": {
+  "value": [
+   "warehouse_type",
+   "warehouse_size",
+   "min_clusters",
+   "max_clusters",
+   "auto_stop_minutes",
+   "warehouse_channel",
+   "enable_photon"
+  ]
+ },
+ "SettingsTests.test_size_order_is_the_publisher_registry/size order": {
+  "value": {
+   "2X_LARGE": 6,
+   "2X_SMALL": 0,
+   "3X_LARGE": 7,
+   "4X_LARGE": 8,
+   "5X_LARGE": 9,
+   "LARGE": 4,
+   "MEDIUM": 3,
+   "SMALL": 2,
+   "X_LARGE": 5,
+   "X_SMALL": 1
+  }
+ },
+ "SettingsTests.test_version_identifiers/versions": {
+  "value": {
+   "ANALYZER_GATEWAY_VERSION": "post-change-analyzer-adapter-v1.0.0",
+   "ATTRIBUTION_VERSION": "realizer-attribution-v1.0.0",
+   "ESTIMATOR_GATEWAY_VERSION": "realized-estimator-adapter-v1.0.0",
+   "EXCLUSIVITY_VERSION": "realizer-exclusivity-v1.0.0",
+   "MODELER_GATEWAY_VERSION": "m08-realization-adapter-v1.0.0",
+   "POLICY_VERSION": "realizer-policy-v1.0.0",
+   "PRODUCT_VERSION": "2.8.0",
+   "PROJECTOR_VERSION": "realizer-projector-v1.0.0",
+   "REALIZER_VERSION": "1.0.0"
+  }
+ }
+}

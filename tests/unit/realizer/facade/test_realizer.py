@@ -1,9 +1,9 @@
 """Realizer facade (src/realizer/realizer.py): the capabilities once each, in order, and nothing else.
 
 ``realize_request`` is the pipeline (``build_context``, the lineage entry, then the Analyzer, Governor, Reconciler,
-Estimator, Reviewer, Packager and Reporter) and ``realize`` is the single-file entry point over it. The facade holds no
+Estimator, Reviewer, Packager and Reporter) and ``realize`` is the positional entry point over it. The facade holds no
 domain logic: its functions only call capabilities (checked on the source), the Estimator and the Reviewer gate
-themselves, and every name the single-file engine had is still importable from it.
+themselves, and the facade re-exports nothing but what the CLI needs.
 """
 import ast
 import copy
@@ -14,40 +14,33 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.parity import Untestable, canonical, engine, fixture_package, oengine, tree  # noqa: E402
+from tests.unit.realizer.helpers import Untestable, canonical, fixture_package, tree  # noqa: E402
+from realizer import realizer as facade  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.realization import RealizationEstimate, ReviewResult  # noqa: E402
 from realizer.contracts.report import RealizationReport  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
+from realizer.estimator import estimator  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.packager import packager  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
+from realizer.reporter import reporter  # noqa: E402
+from realizer.reviewer import reviewer  # noqa: E402
 
-# Every name ``realizer.realizer`` had before the reporter and the CLI left it (dumped from the module namespace).
-ENGINE_NAMES = (
-    "ANALYZER_GATEWAY_VERSION", "ATTRIBUTION_VERSION", "Any", "CONFIG_KNOBS", "Decimal", "Dict",
-    "ESTIMATOR_GATEWAY_VERSION", "EXCLUSIVITY_VERSION", "GovernanceResult", "LOGGER", "List",
-    "MODELER_GATEWAY_VERSION", "Mapping", "Optional", "POLICY_VERSION", "PRODUCT_VERSION", "PROJECTOR_VERSION",
-    "Path", "REALIZER_VERSION", "RealizationAnalysis", "RealizationEstimate", "RealizationRequest", "RealizerPolicy",
-    "ReconciliationResult", "RegenerationRequest", "ReviewResult", "RunContext", "SIZE_ORDER", "Sequence", "Tuple",
-    "_directional_relation", "analyzer", "annotations", "append_if_absent", "append_regeneration", "argparse",
-    "attribution_result", "authoritative_cumulative_realization", "authority_eligible", "build_context",
-    "calculate_economics", "candidate_by_id", "candidate_steps", "choose_application", "compare_step", "config_hash",
-    "copy", "counterfactual_eligible", "decimal", "demo_observation", "dt", "economic_quality_result", "estimator",
-    "expected_annual_for_exact_step", "governor", "json", "latest_event", "ledger_business_key", "ledger_checkpoint",
-    "ledger_path", "legacy_compatibility", "load_json", "load_ledger", "load_observation", "load_package",
-    "load_policy_mapping", "main", "make_app_id", "make_cf_id", "make_evidence_id", "make_ledger_entry",
-    "make_measurement_id", "make_rpkg_id", "make_val_id", "money", "normalize_scalar", "observed_config", "os",
-    "package_config", "packager", "parse_args", "photon_bool_from_package", "policy_to_dict", "project_snapshot",
-    "ratio_string", "rc", "readiness", "realize", "recommended_scenario", "reconciler", "regeneration_request",
-    "request_regeneration", "review", "reviewer", "savings_improvement_material", "scenario_by_id", "setup_logging",
-    "utc_iso", "validate_package_shape", "validate_performance", "write_json",
-)
 STAGES = ("analyzer", "governor", "reconciler", "estimator", "reviewer", "packager", "reporter")
+MODULES = {"analyzer": analyzer, "governor": governor, "reconciler": reconciler, "estimator": estimator, "reviewer": reviewer,
+           "packager": packager, "reporter": reporter}
 
 
 class OrderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def recorded(self, observation, out):
         """One ``realize_request`` with every stage wrapped: the calls in order, each with its arguments and result."""
@@ -60,13 +53,13 @@ class OrderTests(unittest.TestCase):
                 return result
             return run
 
-        with mock.patch.object(engine.packager, "begin", wrap("begin", engine.packager.begin)), \
-                mock.patch.object(engine, "build_context", wrap("build_context", engine.build_context)):
-            patches = [mock.patch.object(getattr(engine, stage), "run", wrap(stage, getattr(engine, stage).run)) for stage in STAGES]
+        with mock.patch.object(packager, "begin", wrap("begin", packager.begin)), \
+                mock.patch.object(facade, "build_context", wrap("build_context", facade.build_context)):
+            patches = [mock.patch.object(MODULES[stage], "run", wrap(stage, MODULES[stage].run)) for stage in STAGES]
             for patch in patches:
                 patch.start()
             try:
-                report = engine.realize_request(RealizationRequest(copy.deepcopy(self.pkg), copy.deepcopy(observation), out))
+                report = facade.realize_request(RealizationRequest(copy.deepcopy(self.pkg), copy.deepcopy(observation), out))
             finally:
                 for patch in patches:
                     patch.stop()
@@ -104,12 +97,11 @@ class OrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             called = []
             for stage in STAGES[3:]:
-                module = getattr(engine, stage)
-                self.assertTrue(callable(module.run))
-            with mock.patch.object(engine.analyzer, "run", side_effect=ValueError("boom")), \
-                    mock.patch.object(engine.governor, "run", side_effect=lambda *a: called.append("governor")):
+                self.assertTrue(callable(MODULES[stage].run))
+            with mock.patch.object(analyzer, "run", side_effect=ValueError("boom")), \
+                    mock.patch.object(governor, "run", side_effect=lambda *a: called.append("governor")):
                 with self.assertRaises(ValueError):
-                    engine.realize_request(RealizationRequest(self.pkg, self.base, Path(tmp)))
+                    facade.realize_request(RealizationRequest(self.pkg, self.base, Path(tmp)))
             self.assertEqual(called, [])
 
 
@@ -117,35 +109,36 @@ class EntryPointTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def test_realize_is_realize_request_returning_the_snapshot(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-            snapshot = engine.realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), Path(a))
-            report = engine.realize_request(RealizationRequest(copy.deepcopy(self.pkg), copy.deepcopy(self.base), Path(b)))
+            snapshot = facade.realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), Path(a))
+            report = facade.realize_request(RealizationRequest(copy.deepcopy(self.pkg), copy.deepcopy(self.base), Path(b)))
             self.assertIsInstance(snapshot, rc.RealizationPackage)
             self.assertIsInstance(report, RealizationReport)
             self.assertEqual(snapshot.to_dict(), report.realization.to_dict())
             self.assertEqual(tree(Path(a)), tree(Path(b)))
             self.assertEqual([p.relative_to(b).parts[1] for p in report.files], ["packages", "snapshots"])
 
-    def test_realize_keeps_the_oracle_signature(self):
-        self.assertEqual(str(inspect.signature(engine.realize)).replace("rc.RealizationPackage", "RealizationPackage"),
-                         str(inspect.signature(oengine.realize)).replace("rc.RealizationPackage", "RealizationPackage"))
-        self.assertEqual(list(inspect.signature(engine.realize_request).parameters), ["request"])
+    def test_realize_keeps_its_positional_signature(self):
+        self.assertEqual(str(inspect.signature(facade.realize)),
+                         "(package: 'Mapping[str, Any]', observation: 'Optional[Mapping[str, Any]]', output_dir: 'Path', *, "
+                         "policy: 'Optional[RealizerPolicy]' = None, replay_through: 'Optional[str]' = None) -> 'rc.RealizationPackage'")
+        self.assertEqual(list(inspect.signature(facade.realize_request).parameters), ["request"])
 
-    def test_every_scenario_through_the_request_entry_equals_the_oracle_files(self):
+    def test_every_scenario_through_the_request_entry_equals_realize(self):
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
-            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            with self.subTest(scenario=name), tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
                 for step in scenario["runs"]:
                     policy = step.get("policy")
-                    old = oengine.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(a),
-                                          replay_through=step.get("replay_through"),
-                                          policy=None if policy is None else oengine.RealizerPolicy.from_mapping(policy))
-                    new = engine.realize_request(RealizationRequest(
+                    old = facade.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(a),
+                                         replay_through=step.get("replay_through"),
+                                         policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                    new = facade.realize_request(RealizationRequest(
                         copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(b),
-                        policy=None if policy is None else engine.RealizerPolicy.from_mapping(policy), replay_through=step.get("replay_through")))
+                        policy=None if policy is None else RealizerPolicy.from_mapping(policy), replay_through=step.get("replay_through")))
                     self.assertEqual(new.realization.snapshot_id, old.snapshot_id, name)
                 self.assertEqual(tree(Path(b)), tree(Path(a)), name)
 
@@ -157,18 +150,18 @@ class StageGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def stages(self, observation):
-        context = engine.build_context(RealizationRequest(self.pkg, observation, Path("/nonexistent-out")))
-        analysis = engine.analyzer.run(context)
-        governance = engine.governor.run(context, analysis)
-        return context, analysis, governance, engine.reconciler.run(context, analysis, governance)
+        context = facade.build_context(RealizationRequest(self.pkg, observation, Path("/nonexistent-out")))
+        analysis = analyzer.run(context)
+        governance = governor.run(context, analysis)
+        return context, analysis, governance, reconciler.run(context, analysis, governance)
 
     def test_nothing_due_means_empty_results_from_both(self):
         cases = {
             "lineage only": None,
-            "nothing applied": {**self.base, "config": oengine.package_config(self.pkg)},
+            "nothing applied": {**self.base, "config": package_config(self.pkg)},
             "not ready": {**self.base, "elapsed_days": 1},
             "contrary": {**self.base, "config": {**self.base["config"], "warehouse_size": "X_LARGE"}},
             "reconciliation halted": {**self.base, "rollback_requested": Untestable()},
@@ -176,41 +169,39 @@ class StageGateTests(unittest.TestCase):
         for label, observation in cases.items():
             with self.subTest(case=label):
                 stages = self.stages(observation)
-                estimate = engine.estimator.run(*stages)
+                estimate = estimator.run(*stages)
                 self.assertEqual(estimate, RealizationEstimate())
-                reviewed = engine.reviewer.run(*stages, estimate)
+                reviewed = reviewer.run(*stages, estimate)
                 self.assertEqual(reviewed, ReviewResult(analysis=stages[1], governance=stages[2], reconciliation=stages[3], estimate=estimate))
-                self.assertEqual(engine.review(*stages), reviewed)
 
     def test_a_halted_reconciliation_is_never_estimated_or_reviewed_even_if_validation_looks_due(self):
         stages = self.stages(self.base)
         context, analysis, governance, reconciliation = stages
         self.assertTrue(reconciliation.validation_due)
         halted = dataclasses.replace(reconciliation, halt=ValueError("kept"))
-        self.assertEqual(engine.estimator.run(context, analysis, governance, halted), RealizationEstimate())
-        reviewed = engine.reviewer.run(context, analysis, governance, halted, RealizationEstimate())
+        self.assertEqual(estimator.run(context, analysis, governance, halted), RealizationEstimate())
+        reviewed = reviewer.run(context, analysis, governance, halted, RealizationEstimate())
         self.assertIsNone(reviewed.validation)
         self.assertIsNone(reviewed.recognition_status)
         self.assertIsNone(reviewed.halt)
 
     def test_validation_due_is_estimated_and_reviewed(self):
         stages = self.stages(self.base)
-        estimate = engine.estimator.run(*stages)
+        estimate = estimator.run(*stages)
         self.assertIsNotNone(estimate.measurement)
-        reviewed = engine.reviewer.run(*stages, estimate)
+        reviewed = reviewer.run(*stages, estimate)
         self.assertIsNotNone(reviewed.validation)
-        self.assertEqual(engine.review(*stages), reviewed)
 
 
 class NoDomainLogicTests(unittest.TestCase):
     """The facade only sequences: no SQL, lifecycle, realized-savings formula, ledger fold or rendering lives in it."""
 
-    source = Path(inspect.getsourcefile(engine)).read_text(encoding="utf-8")
+    source = Path(inspect.getsourcefile(facade)).read_text(encoding="utf-8")
     tree_ = ast.parse(source)
     functions = {n.name: n for n in tree_.body if isinstance(n, ast.FunctionDef)}
 
-    def test_its_own_functions_are_the_orchestration_and_compatibility_entries(self):
-        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize", "review", "__getattr__"})
+    def test_its_own_functions_are_the_orchestration_entries(self):
+        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize"})
         self.assertEqual([n.name for n in self.tree_.body if isinstance(n, ast.ClassDef)], [])
 
     def test_the_pipeline_function_is_a_straight_line_of_stage_calls(self):
@@ -227,7 +218,7 @@ class NoDomainLogicTests(unittest.TestCase):
 
     def test_no_control_flow_in_the_pipeline_or_its_entry_points(self):
         forbidden = (ast.If, ast.For, ast.While, ast.Try, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp, ast.IfExp, ast.BoolOp)
-        for name in ("realize_request", "realize", "review"):  # build_context applies the policy default (``or``)
+        for name in ("realize_request", "realize"):  # build_context applies the policy default (``or``)
             for node in ast.walk(self.functions[name]):
                 self.assertNotIsInstance(node, forbidden, f"{name}: {ast.dump(node)[:80]}")
 
@@ -236,9 +227,7 @@ class NoDomainLogicTests(unittest.TestCase):
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
                    "packager.begin", "reporter.run"}
         seen = set()
-        for name, function in self.functions.items():
-            if name == "__getattr__":
-                continue
+        for function in self.functions.values():
             for node in ast.walk(function):
                 if isinstance(node, ast.Call):
                     func = node.func
@@ -252,31 +241,28 @@ class NoDomainLogicTests(unittest.TestCase):
             self.assertNotIn(word, body)
 
 
-class ReexportTests(unittest.TestCase):
-    def test_every_name_the_engine_had_still_resolves(self):
-        self.assertEqual(len(ENGINE_NAMES), len(set(ENGINE_NAMES)))
-        missing = [n for n in ENGINE_NAMES if not hasattr(engine, n)]
-        self.assertEqual(missing, [])
+class NamespaceTests(unittest.TestCase):
+    """The facade re-exports only what the CLI needs; every other name comes from its capability package."""
 
-    def test_the_names_keep_their_values_and_homes(self):
-        from realizer.cli import main as cli_main, realize as cli_realize
-        from realizer.reporter import reporter
-        self.assertIs(engine.legacy_compatibility, reporter.legacy_compatibility)
-        self.assertIs(engine.parse_args, cli_realize.parse_args)
-        self.assertIs(engine.main, cli_main.main)
-        self.assertIs(engine.write_json, __import__("realizer.common.utils", fromlist=["write_json"]).write_json)
-        self.assertEqual(engine.REALIZER_VERSION, oengine.REALIZER_VERSION)
-        self.assertEqual(engine.PRODUCT_VERSION, oengine.PRODUCT_VERSION)
+    def test_the_public_names_are_the_entry_points_the_imports_they_need_and_the_cli_pass_throughs(self):
+        names = {n for n, value in vars(facade).items() if not n.startswith("_") and not inspect.ismodule(value)}
+        self.assertEqual(names, {
+            "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
+            "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "realize", "realize_request",
+            "validate_package_shape",
+        })
 
-    def test_a_name_that_never_existed_is_still_an_error(self):
+    def test_the_cli_pass_throughs_are_the_capability_functions(self):
+        from realizer.analyzer.collector import collector
+        self.assertIs(facade.demo_observation, collector.demo_observation)
+        self.assertIs(facade.load_observation, collector.load_observation)
+        self.assertIs(facade.RealizerPolicy, RealizerPolicy)
+
+    def test_removed_compatibility_names_and_helpers_are_gone(self):
+        for name in ("review", "main", "parse_args", "calculate_economics", "load_ledger", "legacy_compatibility", "ledger_path", "dt", "json"):
+            self.assertFalse(hasattr(facade, name), name)
         with self.assertRaises(AttributeError):
-            engine.no_such_name  # noqa: B018
-        self.assertFalse(hasattr(engine, "no_such_name"))
-
-    def test_the_public_contract_surface_is_unchanged(self):
-        self.assertNotIn("RealizationReport", rc.__all__)
-        for name in oengine.rc.__all__:
-            self.assertIn(name, rc.__all__)
+            facade.no_such_name  # noqa: B018
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """Realizer Contract v1.0.0 (src/realizer/contracts/realization.py, analysis.py, reconciliation.py).
 
-Every public name, enum value, constant, canonical helper, validation message and ID is identical to the frozen
-single-file oracle's, and the ledger entries and packages stored in the compatibility baseline round-trip byte for
-byte through the moved dataclasses.
+Every public name, enum value, constant, canonical helper result, validation message and ID is the one stored in
+``tests/fixtures/realizer/expectations/`` (generated from the single-file release), and the ledger entries and packages
+stored in the compatibility baseline round-trip byte for byte through the dataclasses.
 """
 import dataclasses
 import datetime as dt
@@ -17,14 +17,17 @@ ROOT = Path(__file__).resolve().parents[4]
 for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
-from tests.regression.realizer import canonical, oracle  # noqa: E402
+from tests import realizer_expect as expect  # noqa: E402
+from tests.regression.realizer import canonical  # noqa: E402
+from tests.unit.realizer.helpers import outcome  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
-from realizer import realizer as engine  # noqa: E402
+from realizer.analyzer.analysis import observed_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.common.utils import utc_iso  # noqa: E402
 from realizer.contracts import analysis, reconciliation, realization as rc  # noqa: E402
-
-orc = oracle.rc()
-oengine = oracle.engine()
+from realizer.estimator.economics import make_cf_id  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
 
 
 def _error(fn, *args, **kwargs):
@@ -54,26 +57,25 @@ def _package_files():
 
 
 class PublicSurfaceTests(unittest.TestCase):
-    def test_every_oracle_public_name_survives(self):
-        for name in orc.__all__:
+    def test_every_public_name_survives(self):
+        for name in rc.__all__:
             with self.subTest(name=name):
-                self.assertIn(name, rc.__all__)
                 self.assertTrue(hasattr(rc, name))
-        self.assertEqual(set(rc.__all__) - set(orc.__all__),
-                         {"make_rpkg_id", "make_evidence_id", "make_app_id", "make_val_id", "make_measurement_id"})
+        added = {"make_rpkg_id", "make_evidence_id", "make_app_id", "make_val_id", "make_measurement_id"}
+        self.assertLessEqual(added, set(rc.__all__))
+        # the single-file release's public names plus the ID builders the contract module gained
+        expect.check(self, "names", sorted(rc.__all__), spot={"count": len(rc.__all__), "added": sorted(added)})
 
     def test_constants_are_identical(self):
-        for name in ("CONTRACT_VERSION", "LEDGER_CONTRACT_VERSION", "HASH_HEX_LENGTH"):
-            self.assertEqual(getattr(rc, name), getattr(orc, name), name)
+        expect.check(self, "constants", {name: getattr(rc, name) for name in ("CONTRACT_VERSION", "LEDGER_CONTRACT_VERSION", "HASH_HEX_LENGTH")})
 
     def test_enums_have_identical_members_and_values(self):
-        enums = [n for n in orc.__all__ if isinstance(getattr(orc, n), type) and issubclass(getattr(orc, n), Enum)]
+        enums = [n for n in rc.__all__ if isinstance(getattr(rc, n), type) and issubclass(getattr(rc, n), Enum)]
         self.assertEqual(len(enums), 16)
         for name in enums:
-            with self.subTest(enum=name):
-                new, old = getattr(rc, name), getattr(orc, name)
-                self.assertTrue(issubclass(new, str))
-                self.assertEqual([(m.name, m.value) for m in new], [(m.name, m.value) for m in old])
+            self.assertTrue(issubclass(getattr(rc, name), str), name)
+        expect.check(self, "members", {name: [(m.name, m.value) for m in getattr(rc, name)] for name in enums},
+                     spot={"enums": enums, "members": sum(len(list(getattr(rc, n))) for n in enums)})
 
     def test_grouped_enums_are_reexported_not_copied(self):
         grouped = {**{n: analysis for n in analysis.__all__}, **{n: reconciliation for n in reconciliation.__all__}}
@@ -83,11 +85,6 @@ class PublicSurfaceTests(unittest.TestCase):
         for name, module in grouped.items():
             self.assertIs(getattr(rc, name), getattr(module, name), name)
 
-    def test_engine_uses_the_contract_module(self):
-        self.assertIs(engine.rc, rc)
-        for name in ("make_rpkg_id", "make_evidence_id", "make_app_id", "make_val_id", "make_measurement_id"):
-            self.assertIs(getattr(engine, name), getattr(rc, name), name)
-
 
 class CanonicalHelperTests(unittest.TestCase):
     VALUES = [
@@ -95,15 +92,17 @@ class CanonicalHelperTests(unittest.TestCase):
         Decimal("1E+3"), "2.50", 5, 0.1, -0,
     ]
 
-    def test_canonical_decimal_matches_oracle(self):
+    def test_canonical_decimal(self):
         for value in self.VALUES:
             with self.subTest(value=value):
-                self.assertEqual(rc.canonical_decimal(value), orc.canonical_decimal(value))
+                expect.check(self, f"value {value!r}", outcome(rc.canonical_decimal, value))
         for bad in (Decimal("NaN"), Decimal("Infinity"), "abc"):
             with self.subTest(bad=bad):
-                self.assertEqual(_error(rc.canonical_decimal, bad), _error(orc.canonical_decimal, bad))
+                result = outcome(rc.canonical_decimal, bad)
+                self.assertNotEqual(result[0], "ok")
+                expect.check(self, f"bad {bad!r}", result)
 
-    def test_canonical_json_hash_and_content_id_match_oracle(self):
+    def test_canonical_json_hash_and_content_id(self):
         @dataclasses.dataclass
         class Row:
             a: Decimal
@@ -116,11 +115,9 @@ class CanonicalHelperTests(unittest.TestCase):
             [],
             "text",
         ]
-        for payload in payloads:
+        for index, payload in enumerate(payloads):
             with self.subTest(payload=repr(payload)[:60]):
-                self.assertEqual(rc.canonical_json(payload), orc.canonical_json(payload))
-                self.assertEqual(rc.sha256_hex(payload), orc.sha256_hex(payload))
-                self.assertEqual(rc.content_id("RLE", payload), orc.content_id("RLE", payload))
+                expect.check(self, f"payload {index}", [rc.canonical_json(payload), rc.sha256_hex(payload), rc.content_id("RLE", payload)])
 
 
 class DataclassRoundTripTests(unittest.TestCase):
@@ -133,8 +130,6 @@ class DataclassRoundTripTests(unittest.TestCase):
             entry = rc.RealizationLedgerEntry(**{**raw, "event_type": rc.EventType(raw["event_type"])})
             entry.validate()
             self.assertEqual(rc.canonical_json(entry.to_dict()), line, name)
-            legacy = orc.RealizationLedgerEntry(**{**raw, "event_type": orc.EventType(raw["event_type"])})
-            self.assertEqual(entry.to_dict(), legacy.to_dict(), name)
             count += 1
         self.assertGreater(count, 300)
         self.assertGreaterEqual(len(seen), 15, sorted(seen))
@@ -147,15 +142,13 @@ class DataclassRoundTripTests(unittest.TestCase):
             package = rc.RealizationPackage(**doc)
             package.validate()
             self.assertEqual(json.dumps(package.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n", text, path)
-            self.assertEqual(package.to_dict(), orc.RealizationPackage(**doc).to_dict(), path)
             count += 1
         self.assertGreater(count, 41)
 
-    def test_dataclasses_are_frozen_with_the_oracle_fields(self):
+    def test_dataclasses_are_frozen_with_the_single_file_fields(self):
         for name in ("RealizationLedgerEntry", "RealizationPackage"):
-            new, old = getattr(rc, name), getattr(orc, name)
-            self.assertEqual([(f.name, str(f.type)) for f in dataclasses.fields(new)],
-                             [(f.name, str(f.type)) for f in dataclasses.fields(old)], name)
+            new = getattr(rc, name)
+            expect.check(self, name, [(f.name, str(f.type)) for f in dataclasses.fields(new)])
             self.assertTrue(new.__dataclass_params__.frozen)
 
 
@@ -166,17 +159,15 @@ class ValidationTests(unittest.TestCase):
         cls.raw_entry = json.loads(line)
         cls.raw_package = json.loads(next(_package_files()).read_text(encoding="utf-8"))
 
-    def _entry_errors(self, **changes):
+    def _entry_error(self, **changes):
         raw = {**self.raw_entry, **changes}
-        new = rc.RealizationLedgerEntry(**{**raw, "event_type": rc.EventType(raw["event_type"])})
-        old = orc.RealizationLedgerEntry(**{**raw, "event_type": orc.EventType(raw["event_type"])})
-        return _error(new.validate), _error(old.validate)
+        return _error(rc.RealizationLedgerEntry(**{**raw, "event_type": rc.EventType(raw["event_type"])}).validate)
 
-    def _package_errors(self, **changes):
+    def _package_error(self, **changes):
         raw = {**self.raw_package, **changes}
-        return _error(rc.RealizationPackage(**raw).validate), _error(orc.RealizationPackage(**raw).validate)
+        return _error(rc.RealizationPackage(**raw).validate)
 
-    def test_ledger_entry_validation_messages_match_oracle(self):
+    def test_ledger_entry_validation_messages(self):
         hex24 = "A" * 24
         cases = [
             {}, {"ledger_entry_id": None}, {"ledger_entry_id": "RLE-" + hex24.lower()}, {"ledger_entry_id": "RLE-ABC"},
@@ -189,12 +180,12 @@ class ValidationTests(unittest.TestCase):
         failing = 0
         for change in cases:
             with self.subTest(change=change):
-                new, old = self._entry_errors(**change)
-                self.assertEqual(new, old)
+                new = self._entry_error(**change)
+                expect.check(self, json.dumps(change, sort_keys=True), new)
                 failing += new is not None
         self.assertEqual(failing, len(cases) - 3)
 
-    def test_package_validation_messages_match_oracle(self):
+    def test_package_validation_messages(self):
         cases = [
             {}, {"contract_version": "1.1.0"}, {"realization_package_id": "RPKG-1"}, {"snapshot_id": "RSNAP-" + "a" * 24},
             {"source_recommendation": {}}, {"warehouse": {"workspace_id": "1"}}, {"warehouse": {"warehouse_id": "w"}},
@@ -202,59 +193,54 @@ class ValidationTests(unittest.TestCase):
         ]
         for change in cases:
             with self.subTest(change=change):
-                new, old = self._package_errors(**change)
-                self.assertEqual(new, old)
+                new = self._package_error(**change)
+                expect.check(self, json.dumps(change, sort_keys=True), new)
                 self.assertEqual(new is None, change == {})
 
 
 class IdBuilderTests(unittest.TestCase):
-    """IDs built from the frozen PKG fixture and its demo observation equal the oracle's and the stored outputs'."""
+    """IDs built from the frozen PKG fixture and its demo observation equal the stored values and the stored outputs'."""
 
     @classmethod
     def setUpClass(cls):
         cls.pkg = canonical.load_scenario("example-exact")["package_doc"]
         cls.observations = [
-            oengine.demo_observation(cls.pkg),
-            oengine.demo_observation(cls.pkg, modified=True),
-            {**oengine.demo_observation(cls.pkg), "window": {"start_utc": "2026-10-02T00:00:00Z"}, "source": "S",
+            demo_observation(cls.pkg),
+            demo_observation(cls.pkg, modified=True),
+            {**demo_observation(cls.pkg), "window": {"start_utc": "2026-10-02T00:00:00Z"}, "source": "S",
              "correction": {"version": 2}, "performance": {"reliability_pass": False}},
             {"observed_at_utc": "2026-10-09T12:00:00Z"},
         ]
-        cls.policies = [(engine.RealizerPolicy(), oengine.RealizerPolicy()),
-                        (engine.RealizerPolicy.from_mapping({"minimum_days": 3}), oengine.RealizerPolicy.from_mapping({"minimum_days": 3}))]
+        cls.policies = [RealizerPolicy(), RealizerPolicy.from_mapping({"minimum_days": 3})]
 
-    def test_rpkg_id_matches_oracle_and_stored_output(self):
+    def test_rpkg_id_and_stored_output(self):
         pkg_id = self.pkg["recommendation_package_id"]
-        self.assertEqual(rc.make_rpkg_id(pkg_id), oengine.make_rpkg_id(pkg_id))
         self.assertEqual(rc.make_rpkg_id(pkg_id), "RPKG-9BCA3C3DFB12CC37AA7CA775")
 
-    def test_evidence_id_matches_oracle_and_stored_output(self):
+    def test_evidence_id_and_stored_output(self):
+        ids = []
         for obs in self.observations:
-            payload = {"config": oengine.observed_config(obs, self.pkg), "observed_at_utc": obs["observed_at_utc"]}
-            self.assertEqual(rc.make_evidence_id("OBSERVED_CONFIGURATION", self.pkg, obs, payload),
-                             oengine.make_evidence_id("OBSERVED_CONFIGURATION", self.pkg, obs, payload))
+            payload = {"config": observed_config(obs, self.pkg), "observed_at_utc": obs["observed_at_utc"]}
+            ids.append(rc.make_evidence_id("OBSERVED_CONFIGURATION", self.pkg, obs, payload))
+        expect.check(self, "ids", ids)
         obs = canonical.load_scenario("example-exact")["runs"][0]["observation"]
-        observed_at = oengine.utc_iso(obs["observed_at_utc"])
-        payload = {"config": oengine.observed_config(obs, self.pkg), "observed_at_utc": observed_at,
+        observed_at = utc_iso(obs["observed_at_utc"])
+        payload = {"config": observed_config(obs, self.pkg), "observed_at_utc": observed_at,
                    "source": obs.get("source", "NORMALIZED_OBSERVATION")}
         revid = rc.make_evidence_id("OBSERVED_CONFIGURATION", self.pkg, obs, payload)
         self.assertEqual(revid, "REVID-C82136407213010727CEAB98")
         self.assertTrue((canonical.EXPECTED / "example-exact" / "realization" / "evidence" / f"{revid}.json").is_file())
 
-    def test_episode_counterfactual_and_measurement_ids_match_oracle(self):
+    def test_episode_counterfactual_and_measurement_ids(self):
         rpkg = rc.make_rpkg_id(self.pkg["recommendation_package_id"])
         for i, obs in enumerate(self.observations):
-            for new_policy, old_policy in self.policies:
-                with self.subTest(observation=i, policy=new_policy.snapshot_id):
-                    self.assertEqual(new_policy.snapshot_id, old_policy.snapshot_id)
-                    app = rc.make_app_id(rpkg, "SCN-X", i, "SHA256:A", "SHA256:B", "REVID-" + "C" * 24)
-                    self.assertEqual(app, oengine.make_app_id(rpkg, "SCN-X", i, "SHA256:A", "SHA256:B", "REVID-" + "C" * 24))
-                    self.assertEqual(rc.make_val_id(app, obs, new_policy), oengine.make_val_id(app, obs, old_policy))
-                    cf = engine.make_cf_id(app, obs, self.pkg, new_policy)
-                    self.assertEqual(cf, oengine.make_cf_id(app, obs, self.pkg, old_policy))
-                    for basis in ("ECONOMIC_COST", "LIST_PRICE"):
-                        self.assertEqual(rc.make_measurement_id(app, obs, cf, basis),
-                                         oengine.make_measurement_id(app, obs, cf, basis))
+            ids = {}
+            for policy in self.policies:
+                app = rc.make_app_id(rpkg, "SCN-X", i, "SHA256:A", "SHA256:B", "REVID-" + "C" * 24)
+                cf = make_cf_id(app, obs, self.pkg, policy)
+                ids[policy.snapshot_id] = {"app": app, "val": rc.make_val_id(app, obs, policy), "cf": cf,
+                                           "measurements": [rc.make_measurement_id(app, obs, cf, basis) for basis in ("ECONOMIC_COST", "LIST_PRICE")]}
+            expect.check(self, f"observation {i}", ids)
 
     def test_stored_ledgers_carry_ids_the_builders_reproduce(self):
         """Every APP / VAL / MEAS id in the example-exact ledger is one the moved builders produce from its inputs."""
@@ -265,9 +251,9 @@ class IdBuilderTests(unittest.TestCase):
         meas = [e for e in lines if e["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"]
         self.assertEqual(len(app_ids), 1)
         app = app_ids.pop()
-        policy = engine.RealizerPolicy()
+        policy = RealizerPolicy()
         self.assertEqual(val_ids, {rc.make_val_id(app, obs, policy)})
-        cf = engine.make_cf_id(app, obs, self.pkg, policy)
+        cf = make_cf_id(app, obs, self.pkg, policy)
         self.assertEqual([e["measurement_id"] for e in meas],
                          [rc.make_measurement_id(app, obs, cf, e["payload"]["economics"]["economic_basis"]) for e in meas])
 

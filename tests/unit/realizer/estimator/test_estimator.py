@@ -1,8 +1,8 @@
 """Realizer estimator capability (src/realizer/estimator/estimator.py): ``run`` and its ``RealizationEstimate``.
 
 For every run of the 41 scenarios, the counterfactual, measurement and billing-correction facts ``run`` decides,
-recorded after the validation episode with the oracle's per-append duplicate suppression, are exactly the entries the
-oracle appended for those slots, and ``run`` is called only when validation is due. ``run`` never raises, writes and
+recorded after the validation episode with the per-append duplicate suppression, are exactly the entries the engine
+appended for those slots (a prefix of the stored baseline's ledger), and ``run`` is called only when validation is due. ``run`` never raises, writes and
 logs nothing, and keeps a failure as ``halt`` together with the facts decided before it.
 """
 import collections
@@ -13,20 +13,27 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.unit.realizer.parity import (  # noqa: E402
-    Opaque, Untestable, compare_measurement_section, engine, fixture_package, oengine, run_sequence, staged_scenario_runs, tree,
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import (  # noqa: E402
+    Opaque, Untestable, compare_measurement_section, fixture_package, run_sequence, staged_scenario_runs, tree,
 )
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.realization import CounterfactualRecord, RealizationEstimate  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
-from realizer.estimator import estimator  # noqa: E402
+from realizer.estimator import economics, estimator  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
+from realizer.realizer import build_context, realize  # noqa: E402
 
 class EveryScenarioRunTests(unittest.TestCase):
-    def test_estimated_facts_are_the_oracle_ledger_entries_for_every_run_of_every_scenario(self):
+    def test_estimated_facts_are_the_ledger_entries_for_every_run_of_every_scenario(self):
         seen = collections.Counter()
         for run in staged_scenario_runs():
             with self.subTest(scenario=run.scenario, run=run.index):
                 result = compare_measurement_section(self, run)
-                self.assertEqual(run.modular_tree, run.oracle_tree)
                 if result is None:
                     seen["not due"] += 1
                     continue
@@ -58,13 +65,13 @@ class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def stages(self, observation, out, package=None, policy=None):
-        context = engine.build_context(RealizationRequest(package or self.pkg, observation, out, policy=policy))
-        analysis = engine.analyzer.run(context)
-        governance = engine.governor.run(context, analysis)
-        return context, analysis, governance, engine.reconciler.run(context, analysis, governance)
+        context = build_context(RealizationRequest(package or self.pkg, observation, out, policy=policy))
+        analysis = analyzer.run(context)
+        governance = governor.run(context, analysis)
+        return context, analysis, governance, reconciler.run(context, analysis, governance)
 
     def estimate(self, observation, out=Path("/nonexistent-out"), package=None, policy=None):
         return estimator.run(*self.stages(observation, out, package, policy))
@@ -72,7 +79,7 @@ class RunTests(unittest.TestCase):
     def test_nothing_is_estimated_unless_validation_is_due(self):
         cases = {
             "lineage only": None,
-            "nothing applied": {**self.base, "config": oengine.package_config(self.pkg)},
+            "nothing applied": {**self.base, "config": package_config(self.pkg)},
             "not ready": {**self.base, "elapsed_days": 1},
             "contrary": {**self.base, "config": {**self.base["config"], "warehouse_size": "X_LARGE"}},
             "reconciliation halted": {**self.base, "rollback_requested": Untestable()},
@@ -102,7 +109,7 @@ class RunTests(unittest.TestCase):
     def test_run_is_pure_it_writes_and_logs_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            engine.realize(self.pkg, self.base, out)
+            realize(self.pkg, self.base, out)
             before = tree(out)
             corrected = {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1", "version": 2}}
             stages = self.stages(corrected, out)
@@ -121,13 +128,13 @@ class RunTests(unittest.TestCase):
         context, analysis, governance, reconciliation = self.stages(self.base, Path("/nonexistent-out"))
         estimate = estimator.run(context, analysis, governance, reconciliation)
         gates = governance.economic_quality.get()
-        bare = engine.calculate_economics(self.pkg, reconciliation.active.payload, self.base, context.policy, True, True)
+        bare = economics.calculate_economics(self.pkg, reconciliation.active.payload, self.base, context.policy, True, True)
         self.assertEqual(estimate.economics, {**bare, "quality_gates": gates})
         self.assertEqual(list(estimate.economics), list(bare) + ["quality_gates"])
         self.assertIs(estimate.economics["quality_gates"], gates)
         self.assertEqual(estimator.run(context, analysis, governance, reconciliation), estimate)  # nothing was mutated
 
-    def test_run_never_raises_and_halts_with_the_oracle_exception_after_the_facts_decided_before_it(self):
+    def test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it(self):
         econ = self.base["economics"]
         cases = {
             # (observation patch, the last fact decided before the failure)
@@ -147,8 +154,9 @@ class RunTests(unittest.TestCase):
             with self.subTest(case=label):
                 estimate = self.estimate(observation)
                 self.assertIsInstance(estimate.halt, Exception)
-                (old,), _ = run_sequence(oengine, self.pkg, [observation])
-                self.assertEqual((type(estimate.halt).__name__, str(estimate.halt)), old)
+                (raised,), _ = run_sequence(self.pkg, [observation])
+                self.assertEqual((type(estimate.halt).__name__, str(estimate.halt)), raised)
+                expect.check(self, label, (type(estimate.halt).__name__, str(estimate.halt)))
                 decided = order[:order.index(last) + 1] if last else []
                 for name in order:
                     present = getattr(estimate, name) is not None
@@ -162,14 +170,14 @@ class RunTests(unittest.TestCase):
         self.assertFalse(estimate.economics["available"])
         self.assertIsNone(estimate.counterfactual.payload)
         self.assertEqual(estimate.counterfactual.counterfactual_id,
-                         engine.make_cf_id(self.stages(observation, Path("/x"))[3].active.application_episode_id, observation, self.pkg, engine.RealizerPolicy()))
+                         economics.make_cf_id(self.stages(observation, Path("/x"))[3].active.application_episode_id, observation, self.pkg, RealizerPolicy()))
         self.assertIsNone(estimate.measurement)
         self.assertIsNone(estimate.correction)
 
     def test_billing_correction_falls_back_to_the_previous_measurement(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            engine.realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
+            realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
             corrected = {**self.base, "correction": {"type": "restatement", "version": 2}}
             context, analysis, governance, reconciliation = self.stages(corrected, out)
             estimate = estimator.run(context, analysis, governance, reconciliation)

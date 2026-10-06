@@ -1,45 +1,50 @@
-"""Failed runs through the extracted Estimator: same exception, same half-written ledger as the oracle.
+"""Failed runs through the extracted Estimator: the exception and the half-written ledger of the single-file release.
 
 The Estimator decides the counterfactual, the measurement and the billing correction before the engine records the
 validation episode, so a failure inside it must still surface where the single-file engine raised it: after the
 completed validation for the counterfactual eligibility, cost and id; after the counterfactual for the economics, the
 quality gates, the attribution and the measurement id; after the measurement for the correction; and the downstream
-regeneration after the measurement and the correction. Each case runs the oracle and the modular engine over the same
-observations into separate directories and compares the outcomes and the whole output tree (files and directories).
+regeneration after the measurement and the correction. Each case runs the engine over the observations into a fresh
+directory and checks the outcomes and the whole output tree (the ledger events in order, the directories and a digest
+of every file) against the stored expectation.
 
-The mutation checks at the end prove the comparisons would notice an Estimator that raised at once, that read the
+The mutation checks at the end prove the checks would notice an Estimator that raised at once, that read the
 financial-quality gates before the economics, or that read them for unavailable economics.
 """
 import copy
 import unittest
 from unittest import mock
 
-from tests.unit.realizer.parity import Opaque, Unprintable, Untestable, engine, events, files, fixture_package, oengine, run_sequence  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import (  # noqa: E402
+    Opaque, Unprintable, Untestable, compact_tree, events, files, fixture_package, run_sequence,
+)
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.realization import RealizationEstimate  # noqa: E402
 from realizer.estimator import estimator  # noqa: E402
 
 VALIDATED = ["VALIDATION_READY", "VALIDATION_STARTED", "VALIDATION_COMPLETED"]
 
 
-class EstimatorFailedRunParityTests(unittest.TestCase):
+class EstimatorFailedRunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def econ(self, **patch):
         return {**copy.deepcopy(self.base), "economics": {**self.base["economics"], **patch}}
 
-    def compare(self, observations, policy=None, package=None):
+    def compare(self, label, observations, policy=None, package=None):
+        """Run *observations* and check the outcomes and the output tree against the stored expectation."""
         package = self.pkg if package is None else package
-        new = run_sequence(engine, package, observations, policy)
-        old = run_sequence(oengine, package, observations, policy)
-        self.assertEqual(new[0], old[0], "outcomes")
-        self.assertEqual(new[1], old[1], "output tree")
-        return old
+        outcomes, tree = run_sequence(package, observations, policy)
+        expect.check(self, label, (outcomes, compact_tree(tree)))
+        return outcomes, tree
 
-    def assert_fails_after(self, observation, last, kind, policy=None, package=None):
-        outcomes, tree = self.compare([observation], policy, package)
+    def assert_fails_after(self, label, observation, last, kind, policy=None, package=None):
+        outcomes, tree = self.compare(label, [observation], policy, package)
         self.assertEqual(outcomes[0][0], kind, outcomes)
         self.assertEqual(events(tree)[-1], last, events(tree))
         self.assertEqual(files(tree, "regeneration"), [])
@@ -57,7 +62,7 @@ class EstimatorFailedRunParityTests(unittest.TestCase):
         }
         for label, (observation, kind) in cases.items():
             with self.subTest(case=label):
-                tree = self.assert_fails_after(observation, "VALIDATION_COMPLETED", kind)
+                tree = self.assert_fails_after(label, observation, "VALIDATION_COMPLETED", kind)
                 self.assertEqual(events(tree)[-3:], VALIDATED)
 
     # --- W4: economics, quality gates, attribution and measurement fail after the counterfactual ------------------
@@ -75,17 +80,17 @@ class EstimatorFailedRunParityTests(unittest.TestCase):
         }
         for label, (observation, kind) in cases.items():
             with self.subTest(case=label):
-                self.assert_fails_after(observation, "COUNTERFACTUAL_RECORDED", kind)
+                self.assert_fails_after(label, observation, "COUNTERFACTUAL_RECORDED", kind)
 
     def test_economics_failure_without_a_counterfactual_cost_leaves_the_validation_episode(self):
-        self.assert_fails_after(self.econ(counterfactual_old_cost=None, observed_new_cost="abc"), "VALIDATION_COMPLETED", "InvalidOperation")
+        self.assert_fails_after("no cost", self.econ(counterfactual_old_cost=None, observed_new_cost="abc"), "VALIDATION_COMPLETED", "InvalidOperation")
 
     def test_economics_fail_before_the_quality_gates(self):
         # both malformed: the economics are computed first, so their exception is the one raised
         observation = {**self.econ(observed_new_cost="abc"), "attributable_spend_pct": "NaN"}
-        self.assert_fails_after(observation, "COUNTERFACTUAL_RECORDED", "InvalidOperation")
+        self.assert_fails_after("economics first", observation, "COUNTERFACTUAL_RECORDED", "InvalidOperation")
         # and the gates before the attribution
-        self.assert_fails_after({**self.base, "attributable_spend_pct": "NaN", "overlap_count": "abc"}, "COUNTERFACTUAL_RECORDED", "ValueError")
+        self.assert_fails_after("gates before attribution", {**self.base, "attributable_spend_pct": "NaN", "overlap_count": "abc"}, "COUNTERFACTUAL_RECORDED", "ValueError")
 
     # --- W5: the billing correction fails after the measurement -----------------------------------------------------
 
@@ -98,39 +103,39 @@ class EstimatorFailedRunParityTests(unittest.TestCase):
         }
         for label, (correction, kind) in cases.items():
             with self.subTest(case=label):
-                self.assert_fails_after({**self.base, "correction": correction}, "ECONOMIC_MEASUREMENT_RECORDED", kind)
+                self.assert_fails_after(label, {**self.base, "correction": correction}, "ECONOMIC_MEASUREMENT_RECORDED", kind)
 
     # --- W6: the downstream regeneration fails after the measurement and the correction -----------------------------
 
     def test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction(self):
         bad_window = {"remeasure_days_after_invalidating_change": "abc"}
-        self.assert_fails_after(self.base, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", bad_window)
-        self.assert_fails_after({**self.base, "correction": {"type": "RESTATEMENT", "key": "c1"}}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window)
+        self.assert_fails_after("measurement", self.base, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", bad_window)
+        self.assert_fails_after("correction", {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1"}}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window)
         # without available economics, after the completed validation
-        self.assert_fails_after(self.econ(counterfactual_old_cost=None), "VALIDATION_COMPLETED", "ValueError", bad_window)
+        self.assert_fails_after("no economics", self.econ(counterfactual_old_cost=None), "VALIDATION_COMPLETED", "ValueError", bad_window)
 
     # --- unreached input does not fail ------------------------------------------------------------------------------
 
     def test_unavailable_economics_never_read_the_measurement_inputs(self):
         observation = {**self.econ(counterfactual_old_cost=None), "attributable_spend_pct": "NaN", "overlap_count": "abc",
                        "correction": {"corrects_entry_id": Untestable()}}
-        outcomes, tree = self.compare([observation])
+        outcomes, tree = self.compare("unavailable", [observation])
         self.assertEqual(outcomes[0][0], "ok")
         self.assertNotIn("COUNTERFACTUAL_RECORDED", events(tree))
         self.assertNotIn("ECONOMIC_MEASUREMENT_RECORDED", events(tree))
 
     def test_unvalidated_runs_never_read_the_economics(self):
         broken = {"economics": 5, "overlap_count": "abc", "correction": 5}
-        outcomes, _ = self.compare([{**self.base, "elapsed_days": 1, **broken}])
+        outcomes, _ = self.compare("not ready", [{**self.base, "elapsed_days": 1, **broken}])
         self.assertEqual(outcomes[0][0], "ok")
-        outcomes, _ = self.compare([{**self.base, "config": oengine.package_config(self.pkg), **broken}])
+        outcomes, _ = self.compare("nothing applied", [{**self.base, "config": package_config(self.pkg), **broken}])
         self.assertEqual(outcomes[0][0], "ok")
 
     # --- recovery ---------------------------------------------------------------------------------------------------
 
     def test_failure_is_followed_by_the_same_recovery(self):
         later = {**self.base, "observed_at_utc": "2026-10-10T12:00:00Z", "recorded_at_utc": "2026-10-10T12:00:00Z"}
-        outcomes, _ = self.compare([self.econ(observed_new_cost="abc"), self.base, later, {**later, "correction": {"version": 2}}])
+        outcomes, _ = self.compare("recovery", [self.econ(observed_new_cost="abc"), self.base, later, {**later, "correction": {"version": 2}}])
         self.assertNotEqual(outcomes[0][0], "ok")
         self.assertEqual([o[0] for o in outcomes[1:]], ["ok", "ok", "ok"])
 
@@ -141,7 +146,7 @@ class EstimatorMutationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def test_raising_before_recording_changes_the_failed_run_tree(self):
         original = estimator.run
@@ -153,14 +158,14 @@ class EstimatorMutationTests(unittest.TestCase):
             return result
 
         cases = [[{**self.base, "economics": 5}], [{**self.base, "overlap_count": "abc"}], [{**self.base, "correction": {"corrects_entry_id": Untestable()}}]]
-        for observations in cases:
+        for index, observations in enumerate(cases):
             with self.subTest(observations=observations):
-                old = run_sequence(oengine, self.pkg, observations)
-                with mock.patch.object(engine.estimator, "run", eager):
-                    new = run_sequence(engine, self.pkg, observations)
-                self.assertEqual(new[0], old[0], "the exception itself is the same")
-                self.assertNotEqual(new[1], old[1], "but the ledger it leaves is not")
-                self.assertEqual(run_sequence(engine, self.pkg, observations), old)
+                normal = run_sequence(self.pkg, observations)
+                expect.check(self, str(index), (normal[0], compact_tree(normal[1])))
+                with mock.patch.object(estimator, "run", eager):
+                    mutated = run_sequence(self.pkg, observations)
+                self.assertEqual(mutated[0], normal[0], "the exception itself is the same")
+                self.assertNotEqual(mutated[1], normal[1], "but the ledger it leaves is not")
 
     def test_reading_the_quality_gates_eagerly_is_caught(self):
         original = estimator.run
@@ -175,18 +180,18 @@ class EstimatorMutationTests(unittest.TestCase):
 
         econ = self.base["economics"]
         cases = [
-            # unavailable economics: the oracle never reads the gates and succeeds
+            # unavailable economics: the engine never reads the gates and succeeds
             [{**self.base, "economics": {**econ, "counterfactual_old_cost": None}, "attributable_spend_pct": "NaN"}],
-            # both malformed: the oracle raises the economics' exception
+            # both malformed: the engine raises the economics' exception
             [{**self.base, "economics": {**econ, "observed_new_cost": "abc"}, "attributable_spend_pct": "NaN"}],
         ]
-        for observations in cases:
+        for index, observations in enumerate(cases):
             with self.subTest(observations=observations):
-                old = run_sequence(oengine, self.pkg, observations)
-                with mock.patch.object(engine.estimator, "run", eager_gates):
-                    new = run_sequence(engine, self.pkg, observations)
-                self.assertNotEqual(new, old)
-                self.assertEqual(run_sequence(engine, self.pkg, observations), old)
+                normal = run_sequence(self.pkg, observations)
+                expect.check(self, str(index), (normal[0], compact_tree(normal[1])))
+                with mock.patch.object(estimator, "run", eager_gates):
+                    mutated = run_sequence(self.pkg, observations)
+                self.assertNotEqual(mutated, normal)
 
 
 if __name__ == "__main__":

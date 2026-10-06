@@ -1,0 +1,201 @@
+{
+ "FailedWriteTests.test_a_package_or_snapshot_that_cannot_be_written_fails_like_the_single_file_release/packages": {
+  "value": [
+   [
+    "FileExistsError",
+    "[Errno 17] File exists: '<out>/realization/packages'"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages": "aacd1cd8cc810c3e",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+    }
+   }
+  ]
+ },
+ "FailedWriteTests.test_a_package_or_snapshot_that_cannot_be_written_fails_like_the_single_file_release/snapshots": {
+  "value": [
+   [
+    "FileExistsError",
+    "[Errno 17] File exists: '<out>/realization/snapshots'"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots": "aacd1cd8cc810c3e"
+    }
+   }
+  ]
+ },
+ "LegacyCompatibilityTests.test_every_snapshot_of_every_scenario_projects_as_stored/projections": {
+  "length": 5210,
+  "sha256": "8f86a06137aa2839d19b7762d46e66b4699cc5b93e1bcbfd35f966fa728b280e",
+  "spot": {
+   "distinct": [
+    [
+     "APPLIED",
+     "LOSSLESS",
+     []
+    ],
+    [
+     "BLOCKED",
+     "UNREPRESENTABLE",
+     [
+      "REALIZER_STATE_BLOCKED_HAS_NO_LEGACY_MAPPING"
+     ]
+    ],
+    [
+     "DRIFTED",
+     "UNREPRESENTABLE",
+     [
+      "REALIZER_STATE_DRIFTED_HAS_NO_LEGACY_MAPPING"
+     ]
+    ],
+    [
+     "MONITORING",
+     "LOSSY",
+     [
+      "MONITORING_COLLAPSES_TO_LEGACY_REALIZED",
+      "LEGACY_HAS_NO_MODIFIED_CONFORMANCE"
+     ]
+    ],
+    [
+     "NOT_APPLIED",
+     "LOSSLESS",
+     []
+    ],
+    [
+     "REALIZED",
+     "LOSSLESS",
+     []
+    ],
+    [
+     "REALIZED",
+     "LOSSY",
+     [
+      "LEGACY_APPLIED_BY_REQUIRED_BUT_ACTOR_UNKNOWN"
+     ]
+    ],
+    [
+     "REALIZED",
+     "LOSSY",
+     [
+      "LEGACY_HAS_NO_MODIFIED_CONFORMANCE"
+     ]
+    ],
+    [
+     "ROLLED_BACK",
+     "LOSSLESS",
+     []
+    ],
+    [
+     "UNDER_REALIZED",
+     "LOSSY",
+     [
+      "UNDER_REALIZED_COLLAPSES_TO_LEGACY_REALIZED"
+     ]
+    ],
+    [
+     "VALIDATION_FAILED",
+     "LOSSLESS",
+     []
+    ]
+   ],
+   "runs": 53
+  }
+ },
+ "LegacyCompatibilityTests.test_every_state_actor_and_conformance/projections": {
+  "length": 14637,
+  "sha256": "5afea504f64f80bb346d6073bb4e8f4f49951def21c738280e9965878571aaec",
+  "spot": {
+   "cases": 77,
+   "statuses": [
+    "LOSSLESS",
+    "LOSSY",
+    "UNREPRESENTABLE"
+   ]
+  }
+ },
+ "LegacyCompatibilityTests.test_malformed_snapshots_raise_the_single_file_exception/empty object": {
+  "value": [
+   "AttributeError",
+   "'SimpleNamespace' object has no attribute 'current_state'"
+  ]
+ },
+ "LegacyCompatibilityTests.test_malformed_snapshots_raise_the_single_file_exception/no application": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "LegacyCompatibilityTests.test_malformed_snapshots_raise_the_single_file_exception/no state": {
+  "value": [
+   "KeyError",
+   "'realization_state'"
+  ]
+ },
+ "LegacyCompatibilityTests.test_malformed_snapshots_raise_the_single_file_exception/none": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'current_state'"
+  ]
+ },
+ "RunTests.test_lineage_only_run_is_reported_like_any_other/tree": {
+  "value": {
+   "directories": [
+    "realization",
+    "realization/ledger",
+    "realization/packages",
+    "realization/snapshots"
+   ],
+   "events": [
+    "REALIZATION_CREATED"
+   ],
+   "files": {
+    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
+    "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
+    "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+   }
+  }
+ }
+}

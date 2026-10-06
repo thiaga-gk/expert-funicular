@@ -1,0 +1,940 @@
+{
+ "FailedRunTests.test_counterfactual_failure_leaves_the_completed_validation/counterfactual": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'str' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "d96ab52e325539b6"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_economic_quality_failure_leaves_the_counterfactual_but_no_measurement/economic quality {'attributable_spend_pct': 'abc'}": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_economic_quality_failure_leaves_the_counterfactual_but_no_measurement/economic quality {'attributable_spend_pct': None}": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_economic_quality_failure_leaves_the_counterfactual_but_no_measurement/economic quality {'currency_consistency_pct': None}": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_economic_quality_failure_leaves_the_counterfactual_but_no_measurement/economic quality {'price_coverage_pct': 'NaN'}": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_is_followed_by_recovery/recovery {'attributable_spend_pct': 'abc'}": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_is_followed_by_recovery/recovery {'economics': 'x'}": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'str' object has no attribute 'get'"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_is_followed_by_recovery/recovery {'elapsed_days': 'abc'}": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_is_followed_by_recovery/recovery {'performance': 5}": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ],
+    [
+     "ok",
+     "RSNAP-0D1AF0DD1C19EB2D0DEC4454"
+    ],
+    [
+     "ok",
+     "RSNAP-0D1AF0DD1C19EB2D0DEC4454"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "b6f2a25966ecbe3d",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "4b871eff3c857de5",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-0D1AF0DD1C19EB2D0DEC4454.json": "4b871eff3c857de5"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'max_normalized_p95_runtime_regression_pct': '1'} economic quality": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "8c760655c6ed4900"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'max_normalized_p95_runtime_regression_pct': '1'} performance": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "c18adb1d58942884"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'minimum_attributable_spend_pct': 100} economic quality": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "2440163912262078"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'minimum_attributable_spend_pct': 100} performance": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "c6370738d08f0b86"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'minimum_days': 1} economic quality": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3e032a04e69847a3"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_failure_under_another_policy/policy {'minimum_days': 1} performance": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "953e3b16cb8c7cd5"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_performance_failure_leaves_ready_and_started_but_not_completed/performance {'performance': 'x'}": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'str' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "964de80eec0b1db9"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_performance_failure_leaves_ready_and_started_but_not_completed/performance {'performance': 5}": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "86008d258a22230d"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_performance_failure_leaves_ready_and_started_but_not_completed/performance {'performance': {'normalized_p95_runtime_regression_pct': 'NaN'}}": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "114f7e1265a06fbd"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_performance_failure_leaves_ready_and_started_but_not_completed/performance {'performance': {'normalized_p95_runtime_regression_pct': 'abc'}}": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "07be3be2dce7b80e"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_readiness_failure_leaves_the_lifecycle_entries/readiness {'elapsed_days': 'abc'}": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_readiness_failure_leaves_the_lifecycle_entries/readiness {'elapsed_days': [1]}": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "int() argument must be a string, a bytes-like object or a real number, not 'list'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_readiness_failure_leaves_the_lifecycle_entries/readiness {'query_count': 'x'}": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'x'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_counterfactual_input_does_not_fail_a_regeneration_run/unused counterfactual input, contrary": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-A4424161EB1C99D6C7179000"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-44AADFFAA2E35238208674D4.json": "1157b336535994fe",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "b8a2f84d8923a101",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "41ad00363faced90",
+     "realization/regeneration/RERUN-8358F0061187B25546138AEE.json": "0118743fbc4518dd",
+     "realization/snapshots/RSNAP-A4424161EB1C99D6C7179000.json": "41ad00363faced90"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_counterfactual_input_does_not_fail_a_regeneration_run/unused counterfactual input, drift": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-55A1FD891A57FA5FD91F2935"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "57e406c9e9b3fba6",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "802470e87ab8c4f6",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/regeneration/RERUN-DC5DBE999923FB929473083A.json": "20dd539b34246412",
+     "realization/snapshots/RSNAP-55A1FD891A57FA5FD91F2935.json": "802470e87ab8c4f6",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_economic_quality_gate_input_does_not_fail_when_economics_are_unavailable/unused economic quality input": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-8C3133EEB1B4FE42E1755ED5"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "c8c5ec7dd6a0fa0e",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "ebba0df1f96be67f",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-8C3133EEB1B4FE42E1755ED5.json": "ebba0df1f96be67f"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_malformed_field_on_a_lineage_only_run/lineage only": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-FF710CE066DA00D4BEED88E4"
+    ],
+    [
+     "ok",
+     "RSNAP-FF710CE066DA00D4BEED88E4"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
+     "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_malformed_fields_do_not_fail_a_run_that_never_reaches_them/unused unchanged": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-06AE3F13062BF09B8BDE70B7"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-8A2F2BD128ABEEA1B753DC1B.json": "72d81d857a364455",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "7e140fd8020f515b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "9152f01cb8b43dea",
+     "realization/snapshots/RSNAP-06AE3F13062BF09B8BDE70B7.json": "9152f01cb8b43dea"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_malformed_fields_do_not_fail_a_run_that_never_reaches_them/unused unready": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-0270D16D7042C068C3E61DEB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "586b276e1c249b7f",
+     "realization/snapshots/RSNAP-0270D16D7042C068C3E61DEB.json": "586b276e1c249b7f"
+    }
+   }
+  ]
+ },
+ "FailedRunTests.test_unused_malformed_fields_do_not_fail_a_run_that_never_reaches_them/unused, nothing applied": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-06AE3F13062BF09B8BDE70B7"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-8A2F2BD128ABEEA1B753DC1B.json": "72d81d857a364455",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "7e140fd8020f515b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "9152f01cb8b43dea",
+     "realization/snapshots/RSNAP-06AE3F13062BF09B8BDE70B7.json": "9152f01cb8b43dea"
+    }
+   }
+  ]
+ }
+}

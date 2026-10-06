@@ -1,0 +1,1924 @@
+{
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'applied_at_utc': 'bad'}": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: 'bad'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'config': 5}": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'config': ['x']}": {
+  "value": [
+   "ValueError",
+   "dictionary update sequence element #0 has length 1; 2 is required"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'evidence_quality': Opaque()}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "OPAQUE()",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'observed_at_utc': 'not a time'}": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: 'not a time'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'observed_at_utc': None, 'recorded_at_utc': None}": {
+  "value": [
+   "ValueError",
+   "timestamp is required"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'recorded_at_utc': 5}": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: '5'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'source': <object object>}": {
+  "value": [
+   "TypeError",
+   "Object of type object is not JSON serializable"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'source': {1, 2}}": {
+  "value": [
+   "TypeError",
+   "Object of type set is not JSON serializable"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/observation {'window': <object object>}": {
+  "value": [
+   "TypeError",
+   "Object of type object is not JSON serializable"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/package current_config is text": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/package empty package": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/package no warehouse": {
+  "value": [
+   "KeyError",
+   "'warehouse'"
+  ]
+ },
+ "AnalyzeObservationTests.test_malformed_observations_raise_the_stored_exception/package warehouse without a warehouse_id": {
+  "value": [
+   "KeyError",
+   "'warehouse_id'"
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'applied_at_utc': None, 'effective_at_utc': '2026-10-03T00:00:00Z'}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-03T00:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'config': {'warehouse_size': 'small'}}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:3B9059D88F80FAC631B633B7B93A3A756EBD89699D9E14EE52830CD1166ED59B"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "SMALL",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-783EE1BC18D972E51EBFC4AE",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "SMALL",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:A965ED787BCB6B5B769A7885E33E6D6BEDECFB27C080591B73CEDD011B6F31B5",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-783EE1BC18D972E51EBFC4AE",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'config': {}}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-8A2F2BD128ABEEA1B753DC1B",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "LARGE",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:6F458C8072560C32F5C28B297B89AFB818E8FC738E6A8ED7339D2A3196372563",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-8A2F2BD128ABEEA1B753DC1B",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'evidence_quality': 'partial'}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "PARTIAL",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'evidence_quality': None}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "NONE",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'observed_at_utc': '2026-10-09T12:00:00'}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'observed_at_utc': None}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'recorded_at_utc': '2026-10-10T01:00:00+05:30'}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T19:30:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T19:30:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'source': 'LIVE'}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-ACFE5D25AD3B8661227EA2B3",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "LIVE"
+     },
+     "payload_hash": "SHA256:71DEF1C5F6B773137DF39C658AFD118AD957BF685E285193B16319502E9F1B80",
+     "quality": "SUFFICIENT",
+     "source": "LIVE",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-ACFE5D25AD3B8661227EA2B3",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{'window': {'start_utc': 'a', 'end_utc': 'b'}}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-BBA036FC7F821A70BF677295",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "b",
+      "start_utc": "a"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-BBA036FC7F821A70BF677295",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "AnalyzeObservationTests.test_normalized_view_of_valid_observations/{}": {
+  "value": [
+   "ok",
+   {
+    "hashes": [
+     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
+     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+    ],
+    "obs_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "record": {
+     "captured_at_utc": "2026-10-09T12:00:00Z",
+     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_type": "OBSERVED_CONFIGURATION",
+     "observation_window": {
+      "end_utc": "2026-10-09T12:00:00Z"
+     },
+     "payload": {
+      "config": {
+       "auto_stop_minutes": 120,
+       "enable_photon": true,
+       "max_clusters": 4,
+       "min_clusters": 2,
+       "warehouse_channel": "CURRENT",
+       "warehouse_size": "MEDIUM",
+       "warehouse_type": "PRO"
+      },
+      "observed_at_utc": "2026-10-09T12:00:00Z",
+      "source": "DEMO_NORMALIZED_OBSERVATION"
+     },
+     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "quality": "SUFFICIENT",
+     "source": "DEMO_NORMALIZED_OBSERVATION",
+     "warehouse_id": "wh-synth-001",
+     "workspace_id": "1234567890123456"
+    },
+    "revid": "REVID-C82136407213010727CEAB98",
+    "source_cfg": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "times": [
+     "2026-10-09T12:00:00Z",
+     "2026-10-09T12:00:00Z",
+     "2026-10-01T12:00:00Z"
+    ]
+   }
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash('x')": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash(5)": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash(None)": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash([])": {
+  "value": [
+   "AttributeError",
+   "'list' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'min_clusters': 1, 'unknown': <object object>})": {
+  "value": [
+   "ok",
+   "SHA256:0B2FB9ACE07893C824EA89236C3696B4B73D7A406AEA18CEDF273E0842F868BC"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_size': 'SMALL', 'enable_photon': None})": {
+  "value": [
+   "ok",
+   "SHA256:1F0B42334D015324E2C6B20E829F43EFF51E0DBD12D28E4B2AA17B9148B82535"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_size': 'small'})": {
+  "value": [
+   "ok",
+   "SHA256:1F0B42334D015324E2C6B20E829F43EFF51E0DBD12D28E4B2AA17B9148B82535"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_size': <object object>})": {
+  "value": [
+   "TypeError",
+   "Object of type object is not JSON serializable"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_size': {1, 2}})": {
+  "value": [
+   "TypeError",
+   "Object of type set is not JSON serializable"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_type': 'PRO', 'warehouse_size': 'LARGE', 'min_clusters': 2, 'max_clusters': 4, 'auto_stop_minutes': 120, 'warehouse_channel': 'CURRENT', 'enable_photon': True})": {
+  "value": [
+   "ok",
+   "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719"
+  ]
+ },
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({})": {
+  "value": [
+   "ok",
+   "SHA256:9172DFC8BE8BD36E098B9879FCE7AC5750814A946CD22B1F25808538AF1E2E8E"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar(' large ')": {
+  "value": [
+   "ok",
+   " large "
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('')": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('Classic')": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('LARGE')": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('PREVIEW')": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('current')": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('medium')": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('pro')": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('serverless')": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar('xx')": {
+  "value": [
+   "ok",
+   "xx"
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar(2.5)": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar(4)": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar(None)": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_scalar/normalize_scalar(True)": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config(({'config': {'warehouse_size': 'x'}}, {'current_config': 'x'}))": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config(({'config': {'warehouse_size': 'x'}}, {'current_config': None}))": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config(({'config': {'warehouse_size': 'x'}}, {}))": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config(config 5, fixture package)": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': 'ab'}, fixture package)": {
+  "value": [
+   "ValueError",
+   "dictionary update sequence element #0 has length 1; 2 is required"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': 5}, fixture package)": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': None}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': True}, fixture package)": {
+  "value": [
+   "TypeError",
+   "'bool' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': ['a']}, fixture package)": {
+  "value": [
+   "ValueError",
+   "dictionary update sequence element #0 has length 1; 2 is required"
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': [('warehouse_size', 'x')]}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "x",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': []}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': {'enable_photon': False, 'warehouse_type': 'serverless', 'auto_stop_minutes': None}}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": false,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "SERVERLESS"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': {'warehouse_size': 'small', 'min_clusters': 3}}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 3,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "SMALL",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({'config': {}}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_observed_config/observed_config({}, fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config(fixture package)": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "LARGE",
+    "warehouse_type": "PRO"
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': 'x'})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': None})": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': []})": {
+  "value": [
+   "AttributeError",
+   "'list' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': 'ENABLED'}})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': []}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": null,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': {'status': 'DISABLED'}}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": false,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': {'status': 'enabled'}}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": true,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': {'status': 5}}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": null,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {'photon': {'status': None}}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": null,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({'current_config': {}})": {
+  "value": [
+   "ok",
+   {
+    "auto_stop_minutes": null,
+    "enable_photon": null,
+    "max_clusters": null,
+    "min_clusters": null,
+    "warehouse_channel": null,
+    "warehouse_size": null,
+    "warehouse_type": null
+   }
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/package_config({})": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': 'x'})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': None})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': []})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': 'ENABLED'}})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': []}})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': {'status': 'DISABLED'}}})": {
+  "value": [
+   "ok",
+   false
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': {'status': 'enabled'}}})": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': {'status': 5}}})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {'photon': {'status': None}}})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({'current_config': {}})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_package_config_and_photon/photon_bool_from_package({})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'candidates': None}, 'C'))": {
+  "value": [
+   "TypeError",
+   "'NoneType' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'candidates': [3]}, 'C'))": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'candidates': [{'candidate_id': 'C'}]}, 'C'))": {
+  "value": [
+   "ok",
+   {
+    "candidate_id": "C"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': 5}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': None}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': ['x']}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [None]}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': 5}]}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [1]}]}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [{'step_type': 'CANDIDATE'}, {'step_type': 'X'}]}], 'recommended_plan': {'scenario_id': 'S'}}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': 'x'}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': None}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({'scenarios': [{'scenario_id': 'S'}]}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(({}, 'C'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-ED593F8D45EFA6CAB149B2FF')": {
+  "value": [
+   "ok",
+   {
+    "blockers": [],
+    "candidate_id": "CAND-ED593F8D45EFA6CAB149B2FF",
+    "confidence": {
+     "components": {
+      "coverage": 1.0,
+      "epoch_maturity": 1.0,
+      "sample": 1.0,
+      "signal": 0.7,
+      "stability": 0.91
+     },
+     "level": "HIGH",
+     "method": "deterministic_evidence_score",
+     "score": 0.8
+    },
+    "current_value": "CURRENT",
+    "dependencies": [],
+    "evidence_refs": [
+     "EVID-9F57601D7601AD949053633C",
+     "EVID-65ADAC65D01DAEC470E7B3E4",
+     "EVID-941BE40F20A14CA11A130748",
+     "EVID-6C45A23DC840A92F3BFC102C",
+     "EVID-C0A8B86FC6694C973270EFA1"
+    ],
+    "independent_economics": {
+     "baseline_365d": {
+      "availability": "COMPLETE",
+      "aws_basis": "MODELED_AWS_LIST_PRICE",
+      "aws_cost": 11725.1,
+      "dbu_basis": "FORECAST",
+      "dbu_cost": 27000.0,
+      "total_cost": 38725.1
+     },
+     "estimated_cost_365d": {
+      "aws": {
+       "base": 11725.1,
+       "high": 11725.1,
+       "low": 11725.1
+      },
+      "dbu": {
+       "base": 27000.0,
+       "high": 27000.0,
+       "low": 27000.0
+      },
+      "total": {
+       "base": 38725.1,
+       "high": 38725.1,
+       "low": 38725.1
+      }
+     },
+     "estimation_status": "NO_DELTA_MODELED",
+     "is_additive": false,
+     "savings_365d": {
+      "aws": {
+       "base": 0.0,
+       "high": 0.0,
+       "low": 0.0
+      },
+      "dbu": {
+       "base": 0.0,
+       "high": 0.0,
+       "low": 0.0
+      },
+      "total": {
+       "base": 0.0,
+       "high": 0.0,
+       "low": 0.0
+      }
+     }
+    },
+    "invalidates": [],
+    "knob": "warehouse_channel",
+    "objectives": [
+     "STABILITY"
+    ],
+    "rationale": "No channel change indicated.",
+    "recommended_value": "CURRENT",
+    "status": "NO_CHANGE",
+    "technique_id": "WH-CHANNEL-CURRENT-001"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-MISSING')": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, None)": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'candidates': None}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'candidates': [3]}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'candidates': [{'candidate_id': 'C'}]}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': 5}, 'S'))": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': None}, 'S'))": {
+  "value": [
+   "TypeError",
+   "'NoneType' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': ['x']}, 'S'))": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [None]}, 'S'))": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S', 'execution_plan': 5}]}, 'S'))": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [1]}]}, 'S'))": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [{'step_type': 'CANDIDATE'}, {'step_type': 'X'}]}], 'recommended_plan': {'scenario_id': 'S'}}, 'S'))": {
+  "value": [
+   "ok",
+   [
+    {
+     "step_type": "CANDIDATE"
+    }
+   ]
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': 'x'}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': None}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({'scenarios': [{'scenario_id': 'S'}]}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(({}, 'S'))": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package)": {
+  "length": 3117,
+  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, '')": {
+  "length": 3117,
+  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-669E0ED750DDE520F0F03317')": {
+  "length": 3117,
+  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-MISSING')": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 5)": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, None)": {
+  "length": 3117,
+  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'candidates': None})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'candidates': [3]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'candidates': [{'candidate_id': 'C'}]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': 5})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': None})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': ['x']})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [None]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S', 'execution_plan': 5}]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S', 'execution_plan': [1]}]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S', 'execution_plan': [{'step_type': 'CANDIDATE'}, {'step_type': 'X'}]}], 'recommended_plan': {'scenario_id': 'S'}})": {
+  "value": [
+   "ok",
+   [
+    {
+     "step_type": "CANDIDATE"
+    }
+   ]
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': 'x'})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': None})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'scenarios': [{'scenario_id': 'S'}]})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({})": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario(fixture package)": {
+  "length": 5953,
+  "sha256": "386ade2431d5fc1d322d7c78f2c5e8b3ca7e6fa4143c4e64a678ce59fd9e3c7a"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'candidates': None})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'candidates': [3]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'candidates': [{'candidate_id': 'C'}]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': 5})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': None})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': ['x']})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [None]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S', 'execution_plan': 5}]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S', 'execution_plan': [1]}]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S', 'execution_plan': [{'step_type': 'CANDIDATE'}, {'step_type': 'X'}]}], 'recommended_plan': {'scenario_id': 'S'}})": {
+  "value": [
+   "ok",
+   {
+    "execution_plan": [
+     {
+      "step_type": "CANDIDATE"
+     },
+     {
+      "step_type": "X"
+     }
+    ],
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': 'x'})": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': None})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'scenarios': [{'scenario_id': 'S'}]})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({})": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'candidates': None}, 'S'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'candidates': [3]}, 'S'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'candidates': [{'candidate_id': 'C'}]}, 'S'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': 5}, 'S'))": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': None}, 'S'))": {
+  "value": [
+   "TypeError",
+   "'NoneType' object is not iterable"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': ['x']}, 'S'))": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [None]}, 'S'))": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': 5}]}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "execution_plan": 5,
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [1]}]}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "execution_plan": [
+     1
+    ],
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S', 'execution_plan': [{'step_type': 'CANDIDATE'}, {'step_type': 'X'}]}], 'recommended_plan': {'scenario_id': 'S'}}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "execution_plan": [
+     {
+      "step_type": "CANDIDATE"
+     },
+     {
+      "step_type": "X"
+     }
+    ],
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': 'x'}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S'}], 'recommended_plan': None}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({'scenarios': [{'scenario_id': 'S'}]}, 'S'))": {
+  "value": [
+   "ok",
+   {
+    "scenario_id": "S"
+   }
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(({}, 'S'))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, '')": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-669E0ED750DDE520F0F03317')": {
+  "length": 5953,
+  "sha256": "386ade2431d5fc1d322d7c78f2c5e8b3ca7e6fa4143c4e64a678ce59fd9e3c7a"
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-MISSING')": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 5)": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, None)": {
+  "value": [
+   "ok",
+   null
+  ]
+ }
+}

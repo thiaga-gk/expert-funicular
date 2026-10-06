@@ -1,0 +1,393 @@
+{
+ "CalculateEconomicsGridTests.test_grid/results": {
+  "length": 7669953,
+  "sha256": "f9b21783b23bd011a10d460b1d1c0311468531dd3f8aebb1385e50c689bb0f34",
+  "spot": {
+   "classes": [
+    [
+     "BLOCKED",
+     "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
+     "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "BLOCKED",
+     "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
+     "PUBLISHER_SCENARIO"
+    ],
+    [
+     "BLOCKED",
+     "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "BLOCKED",
+     "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
+     "UNAVAILABLE"
+    ],
+    [
+     "MONITORING",
+     "VALIDATED_VALUE_UNCLASSIFIED",
+     "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "MONITORING",
+     "VALIDATED_VALUE_UNCLASSIFIED",
+     "PUBLISHER_SCENARIO"
+    ],
+    [
+     "MONITORING",
+     "VALIDATED_VALUE_UNCLASSIFIED",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "MONITORING",
+     "VALIDATED_VALUE_UNCLASSIFIED",
+     "UNAVAILABLE"
+    ],
+    [
+     "None",
+     "ECONOMICS_UNAVAILABLE",
+     "UNAVAILABLE"
+    ],
+    [
+     "REALIZED",
+     "REALIZED",
+     "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "REALIZED",
+     "REALIZED",
+     "PUBLISHER_SCENARIO"
+    ],
+    [
+     "REALIZED",
+     "REALIZED",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "UNDER_REALIZED",
+     "UNDER_REALIZED",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "UNDER_REALIZED",
+     "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
+     "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "UNDER_REALIZED",
+     "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
+     "PUBLISHER_SCENARIO"
+    ],
+    [
+     "UNDER_REALIZED",
+     "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "VALIDATION_FAILED",
+     "HARD_GUARDRAIL_FAILED",
+     "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "VALIDATION_FAILED",
+     "HARD_GUARDRAIL_FAILED",
+     "PUBLISHER_SCENARIO"
+    ],
+    [
+     "VALIDATION_FAILED",
+     "HARD_GUARDRAIL_FAILED",
+     "REESTIMATED_APPLIED_SCOPE"
+    ],
+    [
+     "VALIDATION_FAILED",
+     "HARD_GUARDRAIL_FAILED",
+     "UNAVAILABLE"
+    ]
+   ],
+   "count": 11088,
+   "failures": 0
+  }
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'x'"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/aws not finite": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/cost not a number": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/cost not finite": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/currency unprintable": {
+  "value": [
+   "ValueError",
+   "unprintable observation value"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/economics not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/elapsed days not a number": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/expected not a number": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/negative period": {
+  "value": [
+   "ok",
+   {
+    "annualized_realized_savings": null,
+    "available": true,
+    "aws_cash_realized": null,
+    "aws_commitment_freed": null,
+    "aws_economic_realized": null,
+    "aws_evidence_type": null,
+    "classification_detail": "VALIDATED_VALUE_UNCLASSIFIED",
+    "counterfactual_old_cost": "10000.00",
+    "currency": "USD",
+    "dbu_realized": null,
+    "denominator_source": "PUBLISHER_CANDIDATE",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_same_scope_annual_savings": "12029.52",
+    "mature_ttm_realized_savings": null,
+    "observed_economic_delta": "1000.00",
+    "observed_new_cost": "9000.00",
+    "period_days": "-30",
+    "realization_ratio": null,
+    "realization_state": "MONITORING",
+    "realized_savings_period": "1000.00",
+    "realized_savings_since_application": "1000.00",
+    "reoptimization_recommended": false,
+    "successful_realized_savings": "1000.00"
+   }
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/period not a number": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/plan step": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/readiness": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/ttm not a number": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_failures/observation": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_failures/package": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_failures/policy": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_failures/window": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_failures/workload": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ },
+ "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
+  "length": 7021,
+  "sha256": "c3a81bfe2ae1117aabe0f4f9416148028739b1bcbada1de4aa92325ac50a78f2",
+  "spot": {
+   "count": 234,
+   "distinct": 42,
+   "first": "CF-0C3017A9DB0418C4500E9B5B"
+  }
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {
+  "value": [
+   "ok",
+   [
+    "7",
+    "PUBLISHER_CANDIDATE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/malformed base": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/no base": {
+  "value": [
+   "ok",
+   [
+    null,
+    "UNAVAILABLE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/no economics": {
+  "value": [
+   "ok",
+   [
+    null,
+    "UNAVAILABLE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/no savings": {
+  "value": [
+   "ok",
+   [
+    null,
+    "UNAVAILABLE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/non-finite base": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/non-mapping savings": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/non-mapping total": {
+  "value": [
+   "ok",
+   [
+    null,
+    "UNAVAILABLE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_candidate_economics_shapes/total": {
+  "value": [
+   "ok",
+   [
+    "120.5",
+    "PUBLISHER_CANDIDATE"
+   ]
+  ]
+ },
+ "ExpectedAnnualTests.test_every_plan_step_of_both_packages/steps": {
+  "value": {
+   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/1": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/2": [
+    "12418.79",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/3": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/1": [
+    "12029.52",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/2": [
+    "0.0",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/3": [
+    "11617.53",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/4": [
+    "11501.35",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/5": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/1": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/2": [
+    "12418.79",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/3": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/1": [
+    "12029.52",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/2": [
+    "0.0",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/3": [
+    "11617.53",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/4": [
+    "11501.35",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/5": [
+    null,
+    "UNAVAILABLE"
+   ]
+  }
+ }
+}

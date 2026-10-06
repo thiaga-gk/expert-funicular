@@ -1,46 +1,45 @@
 """Realizer analyzer logic (src/realizer/analyzer/analysis.py): configuration normalization, hashes, the source-package
 view and the observation analysis.
 
-Every moved function returns, and raises, exactly what the frozen single-file oracle's copy did, including on malformed
-input; ``analyze_observation`` reproduces the evidence the oracle wrote for every observation of the 41 scenarios.
+Every function returns, and raises, what is stored in ``tests/fixtures/realizer/expectations/`` (generated from the
+single-file release), including on malformed input; ``analyze_observation`` reproduces the evidence the stored
+baseline holds for every observation of the 41 scenarios.
 """
 import copy
 import dataclasses
 import json
+import re
 import unittest
 
-from tests.unit.realizer.parity import canonical, engine, fixture_package, oengine, outcome  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome  # noqa: E402
 from realizer.analyzer import analysis  # noqa: E402
-
-MOVED = (
-    "normalize_scalar", "config_hash", "photon_bool_from_package", "package_config", "observed_config", "scenario_by_id",
-    "recommended_scenario", "candidate_by_id", "candidate_steps",
-)
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 
 
-class MovedFunctionTests(unittest.TestCase):
+def label_of(*args):
+    """A stable, readable label for a case: the arguments' repr without memory addresses."""
+    return re.sub(r" at 0x[0-9a-f]+", "", repr(args if len(args) != 1 else args[0]))
+
+
+class FunctionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
         cls.plan_scenario = (cls.pkg["recommended_plan"] or {}).get("scenario_id")
 
-    def assert_same(self, name, *args, **kwargs):
+    def check(self, name, *args, label=None, **kwargs):
+        """The ``(status, value or message)`` outcome of ``analysis.<name>(*args)``, checked against the stored one.
+        *label* names a case whose arguments are too large to print (the fixture package)."""
         new = outcome(getattr(analysis, name), *copy.deepcopy(args), **kwargs)
-        old = outcome(getattr(oengine, name), *copy.deepcopy(args), **kwargs)
-        self.assertEqual(new, old, f"{name}{args!r}")
+        expect.check(self, f"{name}({label if label is not None else label_of(*args)})", new)
         return new
-
-    def test_names_are_the_engines_and_the_engine_reexports_them(self):
-        for name in MOVED:
-            with self.subTest(name=name):
-                self.assertIs(getattr(engine, name), getattr(analysis, name))
-                self.assertTrue(callable(getattr(oengine, name)))
 
     def test_normalize_scalar(self):
         for value in ["medium", " large ", "LARGE", "pro", "Classic", "serverless", "current", "PREVIEW", "xx", "", None, 4, True, 2.5]:
             with self.subTest(value=value):
-                self.assert_same("normalize_scalar", value)
-        # Pinned oracle quirk, kept: the membership test is on the unstripped value, so a padded size stays padded.
+                self.check("normalize_scalar", value)
+        # Pinned quirk, kept: the membership test is on the unstripped value, so a padded size stays padded.
         self.assertEqual(analysis.normalize_scalar(" large "), " large ")
         self.assertEqual(analysis.normalize_scalar("large"), "LARGE")
 
@@ -49,14 +48,14 @@ class MovedFunctionTests(unittest.TestCase):
                    {"min_clusters": 1, "unknown": object()}]
         for cfg in configs:
             with self.subTest(config=cfg):
-                self.assertEqual(self.assert_same("config_hash", cfg)[0], "ok")
+                self.assertEqual(self.check("config_hash", cfg)[0], "ok")
         for bad in [None, [], "x", 5, {"warehouse_size": {1, 2}}, {"warehouse_size": object()}]:
             with self.subTest(bad=bad):
-                self.assert_same("config_hash", bad)
-        self.assertEqual(self.assert_same("config_hash", {"warehouse_size": object()})[0], "TypeError")
+                self.check("config_hash", bad)
+        self.assertEqual(self.check("config_hash", {"warehouse_size": object()})[0], "TypeError")
 
     def test_package_config_and_photon(self):
-        self.assertEqual(self.assert_same("package_config", self.pkg)[0], "ok")
+        self.assertEqual(self.check("package_config", self.pkg, label="fixture package")[0], "ok")
         variants = [
             {}, {"current_config": None}, {"current_config": {}}, {"current_config": []}, {"current_config": "x"},
             {"current_config": {"photon": "ENABLED"}}, {"current_config": {"photon": {"status": "enabled"}}},
@@ -65,13 +64,13 @@ class MovedFunctionTests(unittest.TestCase):
         ]
         for variant in variants:
             with self.subTest(variant=variant):
-                self.assert_same("package_config", variant)
-                self.assert_same("photon_bool_from_package", variant)
-        self.assertEqual(self.assert_same("package_config", {})[0], "KeyError")
-        self.assertEqual(self.assert_same("package_config", {"current_config": []})[0], "AttributeError")
-        self.assertEqual(self.assert_same("photon_bool_from_package", {"current_config": {"photon": "ENABLED"}})[0], "AttributeError")
+                self.check("package_config", variant)
+                self.check("photon_bool_from_package", variant)
+        self.assertEqual(self.check("package_config", {})[0], "KeyError")
+        self.assertEqual(self.check("package_config", {"current_config": []})[0], "AttributeError")
+        self.assertEqual(self.check("photon_bool_from_package", {"current_config": {"photon": "ENABLED"}})[0], "AttributeError")
         # ``photon_bool_from_package`` is lenient where ``package_config`` is strict: an absent current_config is fine.
-        self.assertEqual(self.assert_same("photon_bool_from_package", {}), ("ok", None))
+        self.assertEqual(self.check("photon_bool_from_package", {}), ("ok", None))
 
     def test_observed_config(self):
         for observation in [
@@ -80,11 +79,11 @@ class MovedFunctionTests(unittest.TestCase):
             {"config": [("warehouse_size", "x")]}, {"config": []}, {"config": ["a"]}, {"config": "ab"}, {"config": 5}, {"config": True},
         ]:
             with self.subTest(observation=observation):
-                self.assert_same("observed_config", observation, self.pkg)
+                self.check("observed_config", observation, self.pkg, label=f"{label_of(observation)}, fixture package")
         for package in [{}, {"current_config": None}, {"current_config": "x"}]:
             with self.subTest(package=package):
-                self.assert_same("observed_config", {"config": {"warehouse_size": "x"}}, package)
-        self.assertEqual(self.assert_same("observed_config", {"config": 5}, self.pkg)[0], "TypeError")
+                self.check("observed_config", {"config": {"warehouse_size": "x"}}, package)
+        self.assertEqual(self.check("observed_config", {"config": 5}, self.pkg, label="config 5, fixture package")[0], "TypeError")
         # Omitted knobs inherit the source package's, not a recommendation.
         self.assertEqual(analysis.observed_config({}, self.pkg), analysis.package_config(self.pkg))
 
@@ -92,12 +91,12 @@ class MovedFunctionTests(unittest.TestCase):
         plan = self.pkg["recommended_plan"]["scenario_id"]
         candidate = self.pkg["candidates"][0]["candidate_id"]
         for sid in [None, plan, "SCN-MISSING", "", 5]:
-            self.assert_same("scenario_by_id", self.pkg, sid)
-            self.assert_same("candidate_steps", self.pkg, sid)
+            self.check("scenario_by_id", self.pkg, sid, label=f"fixture package, {sid!r}")
+            self.check("candidate_steps", self.pkg, sid, label=f"fixture package, {sid!r}")
         for cid in [None, candidate, "CAND-MISSING"]:
-            self.assert_same("candidate_by_id", self.pkg, cid)
-        self.assert_same("recommended_scenario", self.pkg)
-        self.assertEqual(self.assert_same("candidate_steps", self.pkg)[0], "ok")
+            self.check("candidate_by_id", self.pkg, cid, label=f"fixture package, {cid!r}")
+        self.check("recommended_scenario", self.pkg, label="fixture package")
+        self.assertEqual(self.check("candidate_steps", self.pkg, label="fixture package")[0], "ok")
         self.assertTrue(analysis.candidate_steps(self.pkg), "the fixture plan has candidate steps")
         for variant in [
             {}, {"scenarios": None}, {"scenarios": 5}, {"scenarios": ["x"]}, {"scenarios": [None]}, {"scenarios": [{"scenario_id": "S"}]},
@@ -107,13 +106,13 @@ class MovedFunctionTests(unittest.TestCase):
             {"candidates": None}, {"candidates": [3]}, {"candidates": [{"candidate_id": "C"}]},
         ]:
             with self.subTest(variant=variant):
-                self.assert_same("recommended_scenario", variant)
-                self.assert_same("scenario_by_id", variant, "S")
-                self.assert_same("candidate_steps", variant)
-                self.assert_same("candidate_steps", variant, "S")
-                self.assert_same("candidate_by_id", variant, "C")
-        self.assertEqual(self.assert_same("scenario_by_id", {"scenarios": 5}, "S")[0], "TypeError")
-        self.assertEqual(self.assert_same("scenario_by_id", {"scenarios": ["x"]}, "S")[0], "AttributeError")
+                self.check("recommended_scenario", variant)
+                self.check("scenario_by_id", variant, "S")
+                self.check("candidate_steps", variant)
+                self.check("candidate_steps", variant, "S")
+                self.check("candidate_by_id", variant, "C")
+        self.assertEqual(self.check("scenario_by_id", {"scenarios": 5}, "S")[0], "TypeError")
+        self.assertEqual(self.check("scenario_by_id", {"scenarios": ["x"]}, "S")[0], "AttributeError")
         # Lazy: an unknown scenario id never reads the scenarios list, and a missing key defaults to empty.
         self.assertEqual(analysis.scenario_by_id({"scenarios": 5}, None), None)
         self.assertEqual(analysis.candidate_by_id({"candidates": 5}, None), None)
@@ -126,32 +125,7 @@ class AnalyzeObservationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.obs = oengine.demo_observation(cls.pkg)
-
-    @staticmethod
-    def oracle_inline(package, observation):
-        """The oracle's own first statements of ``process_observation``, in order, as the reference."""
-        utc_iso, rc = oengine.utc_iso, oengine.rc
-        obs_time = utc_iso(observation.get("observed_at_utc") or observation.get("recorded_at_utc"))
-        recorded = utc_iso(observation.get("recorded_at_utc") or obs_time)
-        effective = utc_iso(observation.get("applied_at_utc") or observation.get("effective_at_utc") or obs_time)
-        obs_cfg = oengine.observed_config(observation, package)
-        source_cfg = oengine.package_config(package)
-        source_hash, observed_hash = oengine.config_hash(source_cfg), oengine.config_hash(obs_cfg)
-        evidence_payload = {"config": obs_cfg, "observed_at_utc": obs_time, "source": observation.get("source", "NORMALIZED_OBSERVATION")}
-        revid = oengine.make_evidence_id("OBSERVED_CONFIGURATION", package, observation, evidence_payload)
-        return {
-            "times": (obs_time, recorded, effective), "obs_cfg": obs_cfg, "source_cfg": source_cfg,
-            "hashes": (source_hash, observed_hash), "revid": revid,
-            "record": {
-                "evidence_id": revid, "evidence_type": "OBSERVED_CONFIGURATION",
-                "workspace_id": package["warehouse"]["workspace_id"], "warehouse_id": package["warehouse"]["warehouse_id"],
-                "source": observation.get("source", "NORMALIZED_OBSERVATION"),
-                "observation_window": observation.get("window") or {"end_utc": obs_time},
-                "captured_at_utc": recorded, "quality": str(observation.get("evidence_quality", "SUFFICIENT")).upper(),
-                "payload_hash": "SHA256:" + rc.sha256_hex(evidence_payload), "payload": evidence_payload,
-            },
-        }
+        cls.obs = demo_observation(cls.pkg)
 
     @staticmethod
     def flatten(a):
@@ -159,7 +133,10 @@ class AnalyzeObservationTests(unittest.TestCase):
                 "source_cfg": a.source_config, "hashes": (a.source_config_hash, a.observed_config_hash),
                 "revid": a.evidence_id, "record": a.evidence_record}
 
-    def test_matches_the_oracle_statements_on_valid_observations(self):
+    def analyzed(self, package, observation):
+        return outcome(lambda: self.flatten(analysis.analyze_observation(package, observation)))
+
+    def test_normalized_view_of_valid_observations(self):
         variants = [
             {}, {"observed_at_utc": None}, {"recorded_at_utc": "2026-10-10T01:00:00+05:30"}, {"applied_at_utc": None, "effective_at_utc": "2026-10-03T00:00:00Z"},
             {"source": "LIVE"}, {"window": {"start_utc": "a", "end_utc": "b"}}, {"evidence_quality": "partial"}, {"evidence_quality": None},
@@ -168,28 +145,29 @@ class AnalyzeObservationTests(unittest.TestCase):
         for patch in variants:
             observation = {**copy.deepcopy(self.obs), **patch}
             with self.subTest(patch=patch):
-                expected = outcome(self.oracle_inline, self.pkg, copy.deepcopy(observation))
-                got = outcome(lambda: self.flatten(analysis.analyze_observation(self.pkg, observation)))
-                self.assertEqual(got, expected)
+                got = self.analyzed(self.pkg, observation)
                 self.assertEqual(got[0], "ok")
+                expect.check(self, label_of(patch), got)
 
-    def test_malformed_observations_raise_the_oracle_exception(self):
+    def test_malformed_observations_raise_the_stored_exception(self):
         malformed = [
             {"observed_at_utc": None, "recorded_at_utc": None}, {"observed_at_utc": "not a time"}, {"recorded_at_utc": 5},
             {"applied_at_utc": "bad"}, {"config": 5}, {"config": ["x"]}, {"source": object()}, {"source": {1, 2}},
-            {"window": object()}, {"evidence_quality": object()},
+            {"window": object()}, {"evidence_quality": Opaque()},
         ]
+        # ``evidence_quality`` is not an error: any value is turned into text, so it is an ``Opaque`` (stable text), not an ``object()``.
         for patch in malformed:
             observation = {**copy.deepcopy(self.obs), **patch}
             with self.subTest(patch=patch):
-                expected = outcome(self.oracle_inline, self.pkg, observation)
-                self.assertEqual(outcome(lambda: self.flatten(analysis.analyze_observation(self.pkg, observation))), expected)
-        for package in [{}, {**self.pkg, "current_config": "x"}, {k: v for k, v in self.pkg.items() if k != "warehouse"},
-                        {**self.pkg, "warehouse": {"workspace_id": "w"}}]:
-            with self.subTest(package=sorted(package)):
-                expected = outcome(self.oracle_inline, package, self.obs)
-                self.assertEqual(outcome(lambda: self.flatten(analysis.analyze_observation(package, self.obs))), expected)
-                self.assertNotEqual(expected[0], "ok")
+                expect.check(self, f"observation {label_of(patch)}", self.analyzed(self.pkg, observation))
+        packages = [("empty package", {}), ("current_config is text", {**self.pkg, "current_config": "x"}),
+                    ("no warehouse", {k: v for k, v in self.pkg.items() if k != "warehouse"}),
+                    ("warehouse without a warehouse_id", {**self.pkg, "warehouse": {"workspace_id": "w"}})]
+        for label, package in packages:
+            with self.subTest(package=label):
+                got = self.analyzed(package, self.obs)
+                self.assertNotEqual(got[0], "ok")
+                expect.check(self, f"package {label}", got)
 
     def test_result_is_frozen_and_keeps_the_raw_observation(self):
         result = analysis.analyze_observation(self.pkg, self.obs)
@@ -197,7 +175,7 @@ class AnalyzeObservationTests(unittest.TestCase):
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.evidence_id = "x"
 
-    def test_evidence_of_every_scenario_observation_equals_what_the_oracle_wrote(self):
+    def test_evidence_of_every_scenario_observation_equals_the_stored_baseline(self):
         checked = 0
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)

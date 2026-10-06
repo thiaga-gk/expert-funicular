@@ -1,0 +1,193 @@
+{
+ "ChooseApplicationTests.test_every_scenario_observation_and_scenario_choice/results": {
+  "length": 593232,
+  "sha256": "be194aa9d57a0156c84e91bf79d8833e857ebbbf40d86775718b5e382445d3df",
+  "spot": {
+   "count": 255,
+   "kinds": [
+    "ok"
+   ]
+  }
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/execution_plan_not_a_list": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/invalidates_not_iterable": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/scenario_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/scenarios_missing_and_plan_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/step_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/step_not_a_number": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "ChooseApplicationTests.test_malformed_packages_raise/validation_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CompareStepTests.test_every_knob_and_value_combination/results": {
+  "length": 147253,
+  "sha256": "593e8443eca3c2d0f1e5340ca46f4d45adf1f2f6d145326a2e81477c9bf9bde8",
+  "spot": {
+   "count": 5670,
+   "distinct": [
+    "[\"ok\", [[\"enum\", \"CONTRARY\"], null]]",
+    "[\"ok\", [[\"enum\", \"EXACT\"], null]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"LESS_AGGRESSIVE\"]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"MORE_AGGRESSIVE\"]]",
+    "[\"ok\", [[\"enum\", \"NOT_APPLIED\"], null]]",
+    "[\"ok\", [[\"enum\", \"UNRELATED\"], null]]",
+    "[\"ok\", [null, null]]"
+   ],
+   "kinds": [
+    "ok"
+   ]
+  }
+ },
+ "CompareStepTests.test_every_plan_step_against_every_observed_configuration/results": {
+  "length": 3343,
+  "sha256": "14b3ba4331f4411094a549bfc10e40eb38b8cd4dead63f18cbfbe78a5268eb5c",
+  "spot": {
+   "count": 112,
+   "distinct": [
+    "[\"ok\", [[\"enum\", \"CONTRARY\"], null]]",
+    "[\"ok\", [[\"enum\", \"EXACT\"], null]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"MORE_AGGRESSIVE\"]]",
+    "[\"ok\", [[\"enum\", \"NOT_APPLIED\"], null]]",
+    "[\"ok\", [null, null]]"
+   ]
+  }
+ },
+ "CompareStepTests.test_malformed_input_raises/case0": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CompareStepTests.test_malformed_input_raises/case1": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "CompareStepTests.test_malformed_input_raises/case2": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "CompareStepTests.test_malformed_input_raises/case3": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "CompareStepTests.test_malformed_input_raises/case4": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DirectionalRelationTests.test_every_value_triple/results": {
+  "length": 164680,
+  "sha256": "f015615aec5c4e6369a5471a55066d85828562e8f00bf45fad4e457e2a984ce9",
+  "spot": {
+   "count": 4096,
+   "distinct": [
+    "[\"InvalidOperation\", \"[<class 'decimal.InvalidOperation'>]\"]",
+    "[\"ok\", [[\"enum\", \"CONTRARY\"], null]]",
+    "[\"ok\", [[\"enum\", \"EXACT\"], null]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"ALTERNATE_SAME_INTENT\"]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"LESS_AGGRESSIVE\"]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"MORE_AGGRESSIVE\"]]",
+    "[\"ok\", [[\"enum\", \"NOT_APPLIED\"], null]]",
+    "[\"ok\", [[\"enum\", \"UNRELATED\"], null]]"
+   ]
+  }
+ },
+ "MatchTests.test_malformed_input_raises/execution_plan_not_a_list": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/invalidates_not_iterable": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/observation not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/scenario_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/scenarios_missing_and_plan_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/step_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/step_not_a_number": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "MatchTests.test_malformed_input_raises/validation_not_a_mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "MatchTests.test_match_for_every_scenario_observation/results": {
+  "length": 171951,
+  "sha256": "54d3f6e27e1cf54afb6dc760d595e1202d3660de32bb22f95a92c7838c8111dc",
+  "spot": {
+   "changes": 47,
+   "count": 51,
+   "other_scenario": 1,
+   "primary": 47,
+   "scope": 2
+  }
+ }
+}

@@ -1,7 +1,7 @@
 """Realizer Contract JSON Schema builders (src/realizer/contracts/realization_schema.py).
 
-The builders reproduce the committed schema files byte for byte (they live with the frozen oracle in
-legacy/realizer_single_file/schema/), equal the oracle's builders, and accept every stored RPKG/RSNAP and RLE.
+The builders reproduce the committed schema files (``schema/realization-package.schema.json`` and
+``schema/realization-ledger-entry.schema.json``) byte for byte, and accept every stored RPKG/RSNAP and RLE.
 """
 import json
 import sys
@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parents[4]
 for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
-from tests.regression.realizer import canonical, oracle  # noqa: E402
+from tests.regression.realizer import canonical  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
 from realizer.contracts import realization_schema as schema  # noqa: E402
 
-COMMITTED = ROOT / "legacy" / "realizer_single_file" / "schema"
+COMMITTED = ROOT / "schema"
 BUILDERS = {
     "realization-package.schema.json": "realization_package_schema",
     "realization-ledger-entry.schema.json": "ledger_entry_schema",
@@ -33,15 +33,10 @@ def serialize(value) -> bytes:
 
 class SchemaBuilderTests(unittest.TestCase):
     def test_builders_reproduce_committed_schema_files_byte_for_byte(self):
-        self.assertEqual(sorted(p.name for p in COMMITTED.glob("*.json")), sorted(BUILDERS))
+        self.assertTrue(all((COMMITTED / name).is_file() for name in BUILDERS))
         for file_name, builder in BUILDERS.items():
             with self.subTest(schema=file_name):
                 self.assertEqual(serialize(getattr(schema, builder)()), (COMMITTED / file_name).read_bytes())
-
-    def test_builders_equal_the_oracle_builders(self):
-        legacy = oracle.realizer_schema()
-        for builder in BUILDERS.values():
-            self.assertEqual(getattr(schema, builder)(), getattr(legacy, builder)(), builder)
 
     def test_schemas_are_valid_draft_2020_12(self):
         for builder in BUILDERS.values():

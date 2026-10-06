@@ -5,8 +5,8 @@ ledger. ``run`` writes the realization package (``realization/packages/<RPKG>.js
 (``realization/snapshots/<RSNAP>.json``), the same canonical JSON in both. ``legacy_compatibility`` is the Reporter
 v1.0.0 compatibility projection of a snapshot (nothing on the realize path calls it).
 
-The single-file ``.xlsx`` renderer is not here: it needs the ``artifact_tool`` runtime and the retired Publisher's
-workbook reporter, and nothing on the realize path calls it. The workbook projection it renders is
+The single-file release's ``.xlsx`` renderer was not carried over: it needs the ``artifact_tool`` runtime and the retired
+Publisher's workbook reporter, and nothing on the realize path calls it. The workbook projection it renders is
 ``realizer.contracts.report``; a renderer is added when it has code to hold.
 """
 from __future__ import annotations
@@ -39,7 +39,6 @@ def run(context: RunContext, packaged: PackagingResult) -> RealizationReport:
 
 def legacy_compatibility(snapshot: rc.RealizationPackage) -> Dict[str, Any]:
     state = snapshot.current_state["realization_state"]
-    actor = snapshot.application.get("actor")
     mapping = {
         "NOT_APPLIED": "NOT_APPLIED",
         "APPLIED": "APPLIED",

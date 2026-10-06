@@ -1,0 +1,26 @@
+{
+ "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/bad id": {
+  "value": [
+   "ValueError",
+   "invalid recommendation_package_id"
+  ]
+ },
+ "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/contract 9.9.9": {
+  "value": [
+   "ValueError",
+   "unsupported Publisher contract: 9.9.9"
+  ]
+ },
+ "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/empty": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['recommendation_package_id', 'contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
+  ]
+ },
+ "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/no candidates": {
+  "value": [
+   "ValueError",
+   "PKG missing required fields: ['candidates']"
+  ]
+ }
+}

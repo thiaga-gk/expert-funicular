@@ -1,43 +1,42 @@
 """Realizer governor capability (src/realizer/governor/governor.py): ``run`` and its ``GovernanceResult``.
 
-The Governor evaluates every policy check up front and hands each over as a ``Deferred``; ``get()`` returns what the
-oracle's inline call returned, or raises the same exception, and ``run`` itself never raises on an observation.
+The Governor evaluates every policy check up front and hands each over as a ``Deferred``; ``get()`` returns the stored
+result of the policy check (as the single-file release's inline call did), or raises its exception, and ``run`` itself
+never raises on an observation.
 """
-import copy
 import dataclasses
 import logging
 import tempfile
 import unittest
 from pathlib import Path
 
-from tests.unit.realizer.parity import Opaque, canonical, engine, fixture_package, oengine, outcome, tree  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome, tree  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import Deferred  # noqa: E402
 from realizer.contracts.governance import GovernanceResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.realizer import build_context  # noqa: E402
 
-CHECKS = {
-    "readiness": ("readiness", True), "performance": ("validate_performance", True),
-    "counterfactual": ("counterfactual_eligible", False), "economic_quality": ("economic_quality_result", True),
-}
+CHECKS = ("readiness", "performance", "counterfactual", "economic_quality")
 
 
 def govern(observation, policy_mapping=None, out=Path("/nonexistent-out")):
     package = fixture_package()
-    policy = None if policy_mapping is None else engine.RealizerPolicy.from_mapping(policy_mapping)
-    context = engine.build_context(RealizationRequest(package, observation, out, policy=policy))
-    analysis = engine.analyzer.run(context) if observation else engine.analyzer.run(engine.build_context(RealizationRequest(package, None, out)))
+    policy = None if policy_mapping is None else RealizerPolicy.from_mapping(policy_mapping)
+    context = build_context(RealizationRequest(package, observation, out, policy=policy))
+    analysis = analyzer.run(context) if observation else analyzer.run(build_context(RealizationRequest(package, None, out)))
     return context, governor.run(context, analysis)
 
 
 def observation_of(**patch):
-    return {**oengine.demo_observation(fixture_package()), **patch}
+    return {**demo_observation(fixture_package()), **patch}
 
 
 class RunTests(unittest.TestCase):
-    def test_engine_runs_the_governor_module(self):
-        self.assertIs(engine.governor, governor)
-
     def test_lineage_only_run_holds_the_policy_and_no_checks(self):
         context, result = govern(None)
         self.assertIsInstance(result, GovernanceResult)
@@ -46,29 +45,28 @@ class RunTests(unittest.TestCase):
         for field in CHECKS:
             self.assertIsNone(getattr(result, field))
 
-    def test_checks_equal_the_oracle_for_every_scenario_observation(self):
-        count = 0
+    def test_checks_for_every_scenario_observation(self):
+        results = {}
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
-            for step in scenario["runs"]:
+            for index, step in enumerate(scenario["runs"]):
                 observation = step.get("observation")
                 if not observation:
                     continue
                 with self.subTest(scenario=name):
-                    policy = engine.RealizerPolicy.from_mapping(step.get("policy"))
-                    opolicy = oengine.RealizerPolicy.from_mapping(step.get("policy"))
-                    analysis = engine.analyzer.run(engine.build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)))
-                    result = governor.run(engine.build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)), analysis)
-                    self.assertEqual(result.policy_snapshot_id.get(), opolicy.snapshot_id)
-                    for field, (fn, takes_policy) in CHECKS.items():
+                    policy = RealizerPolicy.from_mapping(step.get("policy"))
+                    analysis = analyzer.run(build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)))
+                    result = governor.run(build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)), analysis)
+                    entry = {"policy_snapshot_id": result.policy_snapshot_id.get()}
+                    for field in CHECKS:
                         deferred = getattr(result, field)
                         self.assertIsInstance(deferred, Deferred)
-                        reference = outcome(getattr(oengine, fn), copy.deepcopy(observation), *([opolicy] if takes_policy else []))
-                        self.assertEqual(outcome(deferred.get), reference, field)
-                    count += 1
-        self.assertGreater(count, 40)
+                        entry[field] = list(outcome(deferred.get))
+                    results[f"{name}[{index}]"] = entry
+        self.assertGreater(len(results), 40)
+        expect.check(self, "results", results, spot={"count": len(results), "exceptions": sorted({r[0] for e in results.values() for f, r in e.items() if f != "policy_snapshot_id" and r[0] != "ok"})})
 
-    def test_malformed_observation_never_fails_run_and_get_raises_the_oracle_exception(self):
+    def test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception(self):
         cases = {
             "readiness": {"elapsed_days": "abc"}, "performance": {"performance": 5},
             "counterfactual": {"economics": "x"}, "economic_quality": {"attributable_spend_pct": "abc"},
@@ -77,15 +75,10 @@ class RunTests(unittest.TestCase):
             with self.subTest(field=field):
                 observation = observation_of(**patch)
                 context, result = govern(observation)
-                fn, takes_policy = CHECKS[field]
-                reference = outcome(getattr(oengine, fn), copy.deepcopy(observation), *([oengine.RealizerPolicy()] if takes_policy else []))
-                self.assertNotEqual(reference[0], "ok")
-                self.assertEqual(outcome(getattr(result, field).get), reference)
+                outcomes = {name: list(outcome(getattr(result, name).get)) for name in CHECKS}
+                self.assertNotEqual(outcomes[field][0], "ok")
                 # the other checks are unaffected by this field
-                for other, (ofn, otakes) in CHECKS.items():
-                    if other != field:
-                        expected = outcome(getattr(oengine, ofn), copy.deepcopy(observation), *([oengine.RealizerPolicy()] if otakes else []))
-                        self.assertEqual(outcome(getattr(result, other).get), expected)
+                expect.check(self, field, outcomes)
 
     def test_a_raised_check_keeps_the_exception_and_raises_it_on_every_get(self):
         _, result = govern(observation_of(elapsed_days="abc"))
@@ -98,20 +91,20 @@ class RunTests(unittest.TestCase):
 
     def test_policy_whose_snapshot_id_fails_does_not_fail_run(self):
         package = fixture_package()
-        bad = dataclasses.replace(engine.RealizerPolicy(), minimum_days=Opaque())
-        context = engine.build_context(RealizationRequest(package, observation_of(), Path("/nonexistent-out"), policy=bad))
-        analysis = engine.analyzer.run(context)
+        bad = dataclasses.replace(RealizerPolicy(), minimum_days=Opaque())
+        context = build_context(RealizationRequest(package, observation_of(), Path("/nonexistent-out"), policy=bad))
+        analysis = analyzer.run(context)
         result = governor.run(context, analysis)
-        reference = outcome(lambda: dataclasses.replace(oengine.RealizerPolicy(), minimum_days=Opaque()).snapshot_id)
-        self.assertEqual(outcome(result.policy_snapshot_id.get), reference)
+        reference = outcome(result.policy_snapshot_id.get)
         self.assertEqual(reference[0], "TypeError")
+        expect.check(self, "snapshot id", list(reference))
 
     def test_run_is_pure_it_writes_and_logs_nothing(self):
         package = fixture_package()
         with tempfile.TemporaryDirectory() as tmp, self.assertNoLogs("realizer", logging.DEBUG):
             out = Path(tmp)
-            context = engine.build_context(RealizationRequest(package, observation_of(), out))
-            analysis = engine.analyzer.run(context)
+            context = build_context(RealizationRequest(package, observation_of(), out))
+            analysis = analyzer.run(context)
             governor.run(context, analysis)
             self.assertEqual(tree(out), {})
 

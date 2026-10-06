@@ -1,0 +1,565 @@
+{
+ "CanonicalHelperTests.test_canonical_decimal/bad 'abc'": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/bad Decimal('Infinity')": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/bad Decimal('NaN')": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value '2.50'": {
+  "value": [
+   "ok",
+   "2.5"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value 0": {
+  "value": [
+   "ok",
+   "0"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value 0.1": {
+  "value": [
+   "ok",
+   "0.1"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value 5": {
+  "value": [
+   "ok",
+   "5"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('-10.5000')": {
+  "value": [
+   "ok",
+   "-10.5"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('0.000')": {
+  "value": [
+   "ok",
+   "0"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('1.00')": {
+  "value": [
+   "ok",
+   "1"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('123456789.123456789')": {
+  "value": [
+   "ok",
+   "123456789.123456789"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('1E+3')": {
+  "value": [
+   "ok",
+   "1000"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_decimal/value Decimal('1E-7')": {
+  "value": [
+   "ok",
+   "0.0000001"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_json_hash_and_content_id/payload 0": {
+  "value": [
+   "{\"a\":[1,[2,3]],\"b\":2,\"c\":{\"y\":\"é\",\"z\":null}}",
+   "6F404DC0593FC6CE224B6C6319C1BC0AFE54349184C173841512E3F9CCF156D6",
+   "RLE-6F404DC0593FC6CE224B6C63"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_json_hash_and_content_id/payload 1": {
+  "value": [
+   "{\"amount\":\"10.5\",\"enum\":\"DRIFT_DETECTED\",\"naive\":\"2026-10-01T12:00:00Z\"}",
+   "D873D53C292DC405DD902D04F3883EED75CA09B14D4ADF6360FFB9CC061CB02F",
+   "RLE-D873D53C292DC405DD902D04"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_json_hash_and_content_id/payload 2": {
+  "value": [
+   "{\"aware\":\"2026-10-01T12:00:00Z\",\"row\":{\"a\":\"3\",\"when\":\"2026-01-01T00:00:00Z\"}}",
+   "29A757BEFE173B05E0A04CD650D7263140892742275C9C8D0CF3759C8A7BC631",
+   "RLE-29A757BEFE173B05E0A04CD6"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_json_hash_and_content_id/payload 3": {
+  "value": [
+   "[]",
+   "4F53CDA18C2BAA0C0354BB5F9A3ECBE5ED12AB4D8E11BA873C2F11161202B945",
+   "RLE-4F53CDA18C2BAA0C0354BB5F"
+  ]
+ },
+ "CanonicalHelperTests.test_canonical_json_hash_and_content_id/payload 4": {
+  "value": [
+   "\"text\"",
+   "1E1D0F251D3A76FA2B1BFC81164078572623403887DB02988B504B0492E9F076",
+   "RLE-1E1D0F251D3A76FA2B1BFC81"
+  ]
+ },
+ "DataclassRoundTripTests.test_dataclasses_are_frozen_with_the_single_file_fields/RealizationLedgerEntry": {
+  "value": [
+   [
+    "ledger_entry_id",
+    "str"
+   ],
+   [
+    "ledger_contract_version",
+    "str"
+   ],
+   [
+    "realization_package_id",
+    "str"
+   ],
+   [
+    "recommendation_package_id",
+    "str"
+   ],
+   [
+    "event_type",
+    "EventType"
+   ],
+   [
+    "effective_at_utc",
+    "str"
+   ],
+   [
+    "recorded_at_utc",
+    "str"
+   ],
+   [
+    "workspace_id",
+    "str"
+   ],
+   [
+    "warehouse_id",
+    "str"
+   ],
+   [
+    "application_episode_id",
+    "Optional[str]"
+   ],
+   [
+    "validation_episode_id",
+    "Optional[str]"
+   ],
+   [
+    "measurement_id",
+    "Optional[str]"
+   ],
+   [
+    "payload",
+    "Dict[str, Any]"
+   ],
+   [
+    "evidence_refs",
+    "List[str]"
+   ],
+   [
+    "caused_by_entry_id",
+    "Optional[str]"
+   ],
+   [
+    "corrects_entry_id",
+    "Optional[str]"
+   ],
+   [
+    "provenance",
+    "Dict[str, Any]"
+   ]
+  ]
+ },
+ "DataclassRoundTripTests.test_dataclasses_are_frozen_with_the_single_file_fields/RealizationPackage": {
+  "value": [
+   [
+    "contract_version",
+    "str"
+   ],
+   [
+    "realization_package_id",
+    "str"
+   ],
+   [
+    "snapshot_id",
+    "str"
+   ],
+   [
+    "source_recommendation",
+    "Dict[str, Any]"
+   ],
+   [
+    "warehouse",
+    "Dict[str, Any]"
+   ],
+   [
+    "as_of_utc",
+    "str"
+   ],
+   [
+    "current_state",
+    "Dict[str, Any]"
+   ],
+   [
+    "application",
+    "Dict[str, Any]"
+   ],
+   [
+    "validation",
+    "Dict[str, Any]"
+   ],
+   [
+    "economics",
+    "Dict[str, Any]"
+   ],
+   [
+    "attribution",
+    "Dict[str, Any]"
+   ],
+   [
+    "maturity",
+    "Dict[str, Any]"
+   ],
+   [
+    "drift",
+    "Dict[str, Any]"
+   ],
+   [
+    "regeneration",
+    "Dict[str, Any]"
+   ],
+   [
+    "history",
+    "Dict[str, Any]"
+   ],
+   [
+    "provenance",
+    "Dict[str, Any]"
+   ]
+  ]
+ },
+ "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 0": {
+  "value": {
+   "PSNAP-EF47B2EA8E896452967B3634": {
+    "app": "APP-7E8412DBE8717CA0BF6D40A5",
+    "cf": "CF-FF32DB19160687B047E608A1",
+    "measurements": [
+     "MEAS-62A623635D23FF1BCDCA8D41",
+     "MEAS-385BC2818088E3D47005CDBC"
+    ],
+    "val": "VAL-53705C47042AE86678256C13"
+   },
+   "PSNAP-FEF164129C29BEC36EE4002F": {
+    "app": "APP-7E8412DBE8717CA0BF6D40A5",
+    "cf": "CF-8548F6A37BF677B6E9697E3A",
+    "measurements": [
+     "MEAS-4905A3E00AD35D069E6DD4D0",
+     "MEAS-BA8424B10A1CAB1E2228E1FA"
+    ],
+    "val": "VAL-ECEDCE034760A3B66343E744"
+   }
+  }
+ },
+ "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 1": {
+  "value": {
+   "PSNAP-EF47B2EA8E896452967B3634": {
+    "app": "APP-F944EB406C8196141D81367F",
+    "cf": "CF-5F6E2AB3A02E7FBCC6BE682F",
+    "measurements": [
+     "MEAS-2CE3DE5AF9B37E1C8B08874D",
+     "MEAS-52D36EEF5656208D81D6F56E"
+    ],
+    "val": "VAL-355D2AD8964ACFD4CFA7F10B"
+   },
+   "PSNAP-FEF164129C29BEC36EE4002F": {
+    "app": "APP-F944EB406C8196141D81367F",
+    "cf": "CF-823E2D8AF21963AF069F34BE",
+    "measurements": [
+     "MEAS-BAC56385FF32A1020EBEBBA5",
+     "MEAS-E73A9E3008CA116DF525606C"
+    ],
+    "val": "VAL-972AF5D5660ABC025224EAA9"
+   }
+  }
+ },
+ "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 2": {
+  "value": {
+   "PSNAP-EF47B2EA8E896452967B3634": {
+    "app": "APP-CC5B65C8F26885E0504F3138",
+    "cf": "CF-06DB8F92DBAE96CF8E604D33",
+    "measurements": [
+     "MEAS-583553CBB24BF7D1F5D11CE4",
+     "MEAS-A837A3F26898F8AF7A29F5C1"
+    ],
+    "val": "VAL-8EAE60C50727AF3F0BB0B457"
+   },
+   "PSNAP-FEF164129C29BEC36EE4002F": {
+    "app": "APP-CC5B65C8F26885E0504F3138",
+    "cf": "CF-363F9C5318C69E78616B57CF",
+    "measurements": [
+     "MEAS-6AACF3D1BF316870B7EC46CE",
+     "MEAS-9D4570210B77ACF62993176F"
+    ],
+    "val": "VAL-9806D2733A126BC2584D0836"
+   }
+  }
+ },
+ "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 3": {
+  "value": {
+   "PSNAP-EF47B2EA8E896452967B3634": {
+    "app": "APP-EEFDC8F04BBA91EB12A4D40F",
+    "cf": "CF-059E01DD0C5ABC94CAF9C978",
+    "measurements": [
+     "MEAS-2903ECBA194A4C4BBA9133C5",
+     "MEAS-7F92197502F120B25152E2F0"
+    ],
+    "val": "VAL-6EA0511C87450CDA2E1D5D86"
+   },
+   "PSNAP-FEF164129C29BEC36EE4002F": {
+    "app": "APP-EEFDC8F04BBA91EB12A4D40F",
+    "cf": "CF-DD36A105368D95CE9564719C",
+    "measurements": [
+     "MEAS-EB2BB9DF1C4824FF302315B9",
+     "MEAS-624A0CBBA30D59B5296C30BA"
+    ],
+    "val": "VAL-31A46AD344D60DD1903DD38F"
+   }
+  }
+ },
+ "IdBuilderTests.test_evidence_id_and_stored_output/ids": {
+  "value": [
+   "REVID-E08F730B9B6653C7966B465D",
+   "REVID-46CC2686DCB632F067253694",
+   "REVID-7A54D3E7406D30D6008B27F3",
+   "REVID-E3172E7A4F1DC8C4548B2DA9"
+  ]
+ },
+ "PublicSurfaceTests.test_constants_are_identical/constants": {
+  "value": {
+   "CONTRACT_VERSION": "1.0.0",
+   "HASH_HEX_LENGTH": 24,
+   "LEDGER_CONTRACT_VERSION": "1.0.0"
+  }
+ },
+ "PublicSurfaceTests.test_enums_have_identical_members_and_values/members": {
+  "length": 3437,
+  "sha256": "0e87b1b5e44a1889f61fce02c77d1e0c42c5621d998f697df1bdc5442fd742af",
+  "spot": {
+   "enums": [
+    "IntentState",
+    "SourcePackageDisposition",
+    "ImplementationConformance",
+    "ApplicationState",
+    "PlanProgressState",
+    "ValidationState",
+    "RealizationState",
+    "MaturityState",
+    "OriginAttribution",
+    "AttributionState",
+    "AttributionClaimStatus",
+    "EvidenceQuality",
+    "RegenerationStatus",
+    "RecognitionStatus",
+    "CompatibilityStatus",
+    "EventType"
+   ],
+   "members": 94
+  }
+ },
+ "PublicSurfaceTests.test_every_public_name_survives/names": {
+  "spot": {
+   "added": [
+    "make_app_id",
+    "make_evidence_id",
+    "make_measurement_id",
+    "make_rpkg_id",
+    "make_val_id"
+   ],
+   "count": 30
+  },
+  "value": [
+   "ApplicationState",
+   "AttributionClaimStatus",
+   "AttributionState",
+   "CONTRACT_VERSION",
+   "CompatibilityStatus",
+   "EventType",
+   "EvidenceQuality",
+   "HASH_HEX_LENGTH",
+   "ImplementationConformance",
+   "IntentState",
+   "LEDGER_CONTRACT_VERSION",
+   "MaturityState",
+   "OriginAttribution",
+   "PlanProgressState",
+   "RealizationLedgerEntry",
+   "RealizationPackage",
+   "RealizationState",
+   "RecognitionStatus",
+   "RegenerationStatus",
+   "SourcePackageDisposition",
+   "ValidationState",
+   "canonical_decimal",
+   "canonical_json",
+   "content_id",
+   "make_app_id",
+   "make_evidence_id",
+   "make_measurement_id",
+   "make_rpkg_id",
+   "make_val_id",
+   "sha256_hex"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"application_episode_id\": \"APP-1\"}": {
+  "value": [
+   "ValueError",
+   "'APP-1' must have 24 hex chars"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"caused_by_entry_id\": \"RLE-AAAAAAAAAAAAAAAAAAAAAAAA\"}": {
+  "value": null
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"corrects_entry_id\": \"MEAS-AAAAAAAAAAAAAAAAAAAAAAAA\"}": {
+  "value": [
+   "ValueError",
+   "'MEAS-AAAAAAAAAAAAAAAAAAAAAAAA' must start with RLE-"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"effective_at_utc\": \"yesterday\"}": {
+  "value": [
+   "ValueError",
+   "invalid effective timestamp"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"ledger_contract_version\": \"2.0.0\"}": {
+  "value": [
+   "ValueError",
+   "ledger contract version mismatch"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"ledger_entry_id\": \"APP-AAAAAAAAAAAAAAAAAAAAAAAA\"}": {
+  "value": [
+   "ValueError",
+   "'APP-AAAAAAAAAAAAAAAAAAAAAAAA' must start with RLE-"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"ledger_entry_id\": \"RLE-ABC\"}": {
+  "value": [
+   "ValueError",
+   "'RLE-ABC' must have 24 hex chars"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"ledger_entry_id\": \"RLE-aaaaaaaaaaaaaaaaaaaaaaaa\"}": {
+  "value": [
+   "ValueError",
+   "'RLE-aaaaaaaaaaaaaaaaaaaaaaaa' must use uppercase hex"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"ledger_entry_id\": null}": {
+  "value": [
+   "ValueError",
+   "RLE id required"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"measurement_id\": \"MEAS-x\"}": {
+  "value": [
+   "ValueError",
+   "'MEAS-x' must have 24 hex chars"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"realization_package_id\": \"RPKG-GGGGGGGGGGGGGGGGGGGGGGGG\"}": {
+  "value": [
+   "ValueError",
+   "'RPKG-GGGGGGGGGGGGGGGGGGGGGGGG' must use uppercase hex"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"recommendation_package_id\": \"XPKG-1\"}": {
+  "value": [
+   "ValueError",
+   "PKG reference required"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"recorded_at_utc\": \"2026-13-01T00:00:00Z\"}": {
+  "value": [
+   "ValueError",
+   "invalid recorded timestamp"
+  ]
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{\"validation_episode_id\": \"VAL-AAAAAAAAAAAAAAAAAAAAAAAA\"}": {
+  "value": null
+ },
+ "ValidationTests.test_ledger_entry_validation_messages/{}": {
+  "value": null
+ },
+ "ValidationTests.test_package_validation_messages/{\"as_of_utc\": \"not-a-time\"}": {
+  "value": [
+   "ValueError",
+   "invalid as_of_utc"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"contract_version\": \"1.1.0\"}": {
+  "value": [
+   "ValueError",
+   "realizer contract version mismatch"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"history\": {\"ledger_checkpoint_hash\": \"MD5:x\"}}": {
+  "value": [
+   "ValueError",
+   "ledger checkpoint hash required"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"history\": {}}": {
+  "value": [
+   "ValueError",
+   "ledger checkpoint hash required"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"realization_package_id\": \"RPKG-1\"}": {
+  "value": [
+   "ValueError",
+   "'RPKG-1' must have 24 hex chars"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"snapshot_id\": \"RSNAP-aaaaaaaaaaaaaaaaaaaaaaaa\"}": {
+  "value": [
+   "ValueError",
+   "'RSNAP-aaaaaaaaaaaaaaaaaaaaaaaa' must use uppercase hex"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"source_recommendation\": {}}": {
+  "value": [
+   "ValueError",
+   "source recommendation PKG required"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"warehouse\": {\"warehouse_id\": \"w\"}}": {
+  "value": [
+   "ValueError",
+   "workspace_id required"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{\"warehouse\": {\"workspace_id\": \"1\"}}": {
+  "value": [
+   "ValueError",
+   "warehouse_id required"
+  ]
+ },
+ "ValidationTests.test_package_validation_messages/{}": {
+  "value": null
+ }
+}

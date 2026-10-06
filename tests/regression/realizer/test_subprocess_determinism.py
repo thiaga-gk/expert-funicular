@@ -1,11 +1,11 @@
 """Hash-seed and time-zone independence of the Realizer, measured across processes.
 
-``test_single_file_compatibility`` shows that output directories do not matter; this module covers the other claims of
-docs/proposals/realizer-repo-reorg-parity.md: the output is identical under different ``PYTHONHASHSEED`` values and
-time zones, and the modular engine (src/realizer) equals the frozen oracle (legacy/realizer_single_file/).
+``test_stored_baseline`` shows that output directories do not matter; this module covers the other claim of
+docs/proposals/realizer/repo-reorg-parity.md: the output is identical under different ``PYTHONHASHSEED`` values and
+time zones, and equal to the stored baseline.
 
-A representative subset of the scenarios runs in fresh interpreters, once per (engine, hash seed, time zone), all in
-one process each and in parallel (8 processes). Every one of the 8 canonical file maps must equal the others.
+A representative subset of the scenarios runs in fresh interpreters, once per (hash seed, time zone), all in one process
+each and in parallel (4 processes). Every one of the 4 canonical file maps must equal the others.
 """
 import json
 import os
@@ -35,15 +35,14 @@ SUBSET = (
     "GR-021",
     "GR-034",
 )
-ENGINES = ("modular", "oracle")
 HASH_SEEDS = ("0", "1")
 TIME_ZONES = {"UTC": 0, "Asia/Kolkata": 19800}  # TZ -> expected UTC offset in seconds
 
 
 def _run(job):
-    engine, seed, tz = job
+    seed, tz = job
     env = dict(os.environ, PYTHONHASHSEED=seed, TZ=tz, PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]))
-    done = subprocess.run([sys.executable, "-m", "tests.regression.realizer.dump_canonical", engine, *SUBSET],
+    done = subprocess.run([sys.executable, "-m", "tests.regression.realizer.dump_canonical", *SUBSET],
                           cwd=ROOT, env=env, capture_output=True, text=True, check=False)
     if done.returncode != 0:
         raise RuntimeError(f"{job} failed ({done.returncode}):\n{done.stderr[-3000:]}")
@@ -53,7 +52,7 @@ def _run(job):
 class SubprocessDeterminismTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        jobs = list(product(ENGINES, HASH_SEEDS, TIME_ZONES))
+        jobs = list(product(HASH_SEEDS, TIME_ZONES))
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
             cls.results = dict(pool.map(_run, jobs))
 
@@ -69,10 +68,10 @@ class SubprocessDeterminismTests(unittest.TestCase):
     def test_environment_variation_took_effect(self):
         """Guards the guard: the processes really ran with the requested seed and zone, and those differ."""
         probes = {}
-        for (engine, seed, tz), result in self.results.items():
+        for (seed, tz), result in self.results.items():
             meta = result["meta"]
             self.assertEqual((meta["PYTHONHASHSEED"], meta["TZ"]), (seed, tz))
-            self.assertEqual(meta["utc_offset_seconds"], TIME_ZONES[tz], f"TZ={tz} not effective in {engine}")
+            self.assertEqual(meta["utc_offset_seconds"], TIME_ZONES[tz], f"TZ={tz} not effective")
             probes.setdefault(seed, set()).add(meta["hash_probe"])
         self.assertTrue(all(len(v) == 1 for v in probes.values()), "a hash seed must give one hash")
         self.assertEqual(len(probes), len(HASH_SEEDS))
@@ -87,21 +86,13 @@ class SubprocessDeterminismTests(unittest.TestCase):
                     self.assertTrue({"runs.json", "report.json"} <= set(files), name)
 
     def test_output_is_identical_across_hash_seeds_and_time_zones(self):
-        for engine in ENGINES:
-            reference_job = (engine, HASH_SEEDS[0], "UTC")
-            reference = self.results[reference_job]["scenarios"]
-            for seed, tz in product(HASH_SEEDS, TIME_ZONES):
-                with self.subTest(engine=engine, hash_seed=seed, tz=tz):
-                    self.assertEqual(self.results[(engine, seed, tz)]["scenarios"], reference)
-
-    def test_modular_engine_equals_oracle_in_every_environment(self):
+        reference = self.results[(HASH_SEEDS[0], "UTC")]["scenarios"]
         for seed, tz in product(HASH_SEEDS, TIME_ZONES):
             with self.subTest(hash_seed=seed, tz=tz):
-                self.assertEqual(self.results[("modular", seed, tz)]["scenarios"],
-                                 self.results[("oracle", seed, tz)]["scenarios"])
+                self.assertEqual(self.results[(seed, tz)]["scenarios"], reference)
 
     def test_subprocess_output_equals_the_stored_baseline(self):
-        scenarios = self.results[("modular", HASH_SEEDS[0], "UTC")]["scenarios"]
+        scenarios = self.results[(HASH_SEEDS[0], "UTC")]["scenarios"]
         for name in SUBSET:
             with self.subTest(scenario=name):
                 self.assertEqual(canonical.semantic_diff(name, canonical.stored_expected(name), scenarios[name]), [])

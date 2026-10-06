@@ -1,6 +1,6 @@
 """Subprocess entry point of ``test_subprocess_determinism``.
 
-``python -m tests.regression.realizer.dump_canonical <modular|oracle> <scenario>...`` runs the scenarios in this one
+``python -m tests.regression.realizer.dump_canonical <scenario>...`` runs the scenarios in this one
 process and prints ``{"meta": ..., "scenarios": {name: {relative path: text}}}`` as sorted JSON. ``meta`` records the
 process environment that the test varies (hash seed and time zone), so that the test can check the variation took effect.
 """
@@ -29,8 +29,8 @@ def meta() -> dict:
 
 
 def main(argv) -> int:
-    kind, names = argv[0], argv[1:]
-    engine = {"modular": canonical.modular_engine, "oracle": canonical.oracle_engine}[kind]()
+    names = argv
+    engine = canonical.modular_engine()
     scenarios = {name: canonical.produce(engine, name) for name in names}
     json.dump({"meta": meta(), "scenarios": scenarios}, sys.stdout, sort_keys=True)
     return 0

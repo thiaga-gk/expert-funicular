@@ -34,6 +34,11 @@ SCOPE = (
     + sorted((ROOT / "docs/contracts").glob("*.md"))
     + sorted((ROOT / "docs/reference").glob("*.md"))
 )
+# The Realizer documents (docs/<type>/realizer/) are checked for links, and the specification set also for repo paths.
+# They are not in SCOPE: they cite the Reporter JSON Contract 1.0.0 the Realizer accepts, and the frozen v1.0.0 release
+# records under docs/proposals/realizer/ name the paths of the single-file release.
+REALIZER_DOCS = sorted(ROOT.glob("docs/*/realizer/*.md"))
+REALIZER_SPEC = sorted(path for path in REALIZER_DOCS if path.parent.parent.name in ("product", "contracts") or path.name in ("context.md", "hld.md", "lld.md"))
 FENCE = re.compile(r"```.*?```", re.S)
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
@@ -69,6 +74,30 @@ class DocsGuardTests(unittest.TestCase):
                 if not (path.parent / target).resolve().exists():
                     broken.append(f"{path.relative_to(ROOT)} -> {target}")
         self.assertEqual(broken, [])
+
+    def test_realizer_documents_exist_and_their_links_resolve(self):
+        self.assertEqual(len(REALIZER_DOCS), 14)
+        self.assertEqual(len(REALIZER_SPEC), 8)
+        broken = []
+        for path in REALIZER_DOCS:
+            for target in LINK.findall(FENCE.sub("", read(path))):
+                if not target.startswith(("http://", "https://", "mailto:")) and not (path.parent / target).resolve().exists():
+                    broken.append(f"{path.relative_to(ROOT)} -> {target}")
+        self.assertEqual(broken, [])
+
+    def test_realizer_specification_repo_paths_exist(self):
+        missing = []
+        for path in REALIZER_SPEC:
+            for token in BACKTICK.findall(FENCE.sub("", read(path))):
+                token = token.rstrip("/.")
+                if not any(ch in token for ch in "<*{") and REPO_PATH.match(token) and not (ROOT / token).exists():
+                    missing.append(f"{path.relative_to(ROOT)}: {token}")
+        self.assertEqual(missing, [])
+
+    def test_realizer_documents_are_in_the_documentation_map(self):
+        index = read(ROOT / "docs/README.md")
+        unlisted = [str(path.relative_to(ROOT / "docs")) for path in REALIZER_DOCS if str(path.relative_to(ROOT / "docs")) not in index]
+        self.assertEqual(unlisted, [])
 
     def test_backticked_repo_paths_exist(self):
         missing = []

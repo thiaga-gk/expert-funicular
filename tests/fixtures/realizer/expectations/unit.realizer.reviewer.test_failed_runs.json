@@ -1,0 +1,222 @@
+{
+ "ReviewerFailedRunTests.test_episode_id_failure_records_no_validation_entry/episode id: performance value": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_episode_id_failure_records_no_validation_entry/episode id: policy snapshot": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_episode_id_failure_records_no_validation_entry/episode id: window value": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-CC8A331176ECCC62A3E1E4F3.json": "03dd87e441e2d1e7",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "fd9064a3b0f86884"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_performance_failure_leaves_ready_and_started/performance: not a mapping": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "86008d258a22230d"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_performance_failure_leaves_ready_and_started/performance: p95 not a number": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "07be3be2dce7b80e"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_performance_failure_leaves_ready_and_started/performance: p95 not finite": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "114f7e1265a06fbd"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_performance_failure_leaves_ready_and_started/performance: with malformed economics": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "86008d258a22230d"
+    }
+   }
+  ]
+ },
+ "ReviewerFailedRunTests.test_unreached_performance_input_does_not_fail/unreached performance input": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-0270D16D7042C068C3E61DEB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "586b276e1c249b7f",
+     "realization/snapshots/RSNAP-0270D16D7042C068C3E61DEB.json": "586b276e1c249b7f"
+    }
+   }
+  ]
+ }
+}

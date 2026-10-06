@@ -1,48 +1,43 @@
-"""Failed and lazy runs through the extracted Governor: same exception, same half-written ledger as the oracle.
+"""Failed and lazy runs through the extracted Governor: the exception and the half-written ledger are stored.
 
-The Governor evaluates its policy checks before the run needs them, so the engine must still fail (or not fail) exactly
-where the single-file engine did: a malformed field raises, with the oracle's exception, at the step that reads it,
-after the ledger entries before that step were appended; a malformed field the run never reads does not raise. Each
-case runs the oracle and the modular engine over the same observations into separate directories and compares the
-outcomes and the whole output tree (files and directories).
+The Governor evaluates its policy checks before the run needs them, so the engine must still fail (or not fail) where
+the single-file release did: a malformed field raises its exception at the step that reads it, after the ledger
+entries before that step were appended; a malformed field the run never reads does not raise. Each case runs the
+observations through the engine into one directory and compares the outcomes and the whole output tree (files and
+directories, compacted to the ledger events and a digest per file) with the stored expectation.
 """
 import copy
-import json
 import unittest
 
-from tests.unit.realizer.parity import fixture_package, oengine, engine, run_sequence  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import compact_tree, events, fixture_package, run_sequence  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 
 
-def events(tree):
-    """The ordered ledger event types of a run tree."""
-    lines = [line for rel, text in tree.items() if rel.startswith("realization/ledger/") and text for line in text.splitlines() if line.strip()]
-    return [json.loads(line)["event_type"] for line in lines]
-
-
-class FailedRunParityTests(unittest.TestCase):
+class FailedRunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
-        cls.source_config = oengine.package_config(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
+        cls.source_config = package_config(cls.pkg)
 
     def later(self, day, **patch):
         stamp = f"2026-10-{day:02d}T12:00:00Z"
         return {**copy.deepcopy(self.base), "observed_at_utc": stamp, "recorded_at_utc": stamp, **patch}
 
-    def compare(self, observations, policy=None):
-        new = run_sequence(engine, self.pkg, observations, policy)
-        old = run_sequence(oengine, self.pkg, observations, policy)
-        self.assertEqual(new[0], old[0], "outcomes")
-        self.assertEqual(new[1], old[1], "output tree")
-        return old
+    def compare(self, label, observations, policy=None):
+        """Run *observations*, check the outcomes and the output tree against the stored expectation *label*, and return them."""
+        outcomes, tree = run_sequence(self.pkg, observations, policy)
+        expect.check(self, label, (outcomes, compact_tree(tree)))
+        return outcomes, tree
 
     # --- failure windows reached through a Governor check -------------------------------------------------------
 
     def test_readiness_failure_leaves_the_lifecycle_entries(self):
         for patch in ({"elapsed_days": "abc"}, {"query_count": "x"}, {"elapsed_days": [1]}):
             with self.subTest(patch=patch):
-                outcomes, tree = self.compare([{**self.base, **patch}])
+                outcomes, tree = self.compare(f"readiness {patch}", [{**self.base, **patch}])
                 self.assertNotEqual(outcomes[0][0], "ok")
                 self.assertIn("APPLICATION_OBSERVED", events(tree))
                 self.assertNotIn("VALIDATION_READY", events(tree))
@@ -51,12 +46,12 @@ class FailedRunParityTests(unittest.TestCase):
         for patch in ({"performance": 5}, {"performance": "x"}, {"performance": {"normalized_p95_runtime_regression_pct": "abc"}},
                       {"performance": {"normalized_p95_runtime_regression_pct": "NaN"}}):
             with self.subTest(patch=patch):
-                outcomes, tree = self.compare([{**self.base, **patch}])
+                outcomes, tree = self.compare(f"performance {patch}", [{**self.base, **patch}])
                 self.assertNotEqual(outcomes[0][0], "ok")
                 self.assertEqual(events(tree)[-2:], ["VALIDATION_READY", "VALIDATION_STARTED"])
 
     def test_counterfactual_failure_leaves_the_completed_validation(self):
-        outcomes, tree = self.compare([{**self.base, "economics": "x"}])
+        outcomes, tree = self.compare("counterfactual", [{**self.base, "economics": "x"}])
         self.assertEqual(outcomes[0][0], "AttributeError")
         self.assertEqual(events(tree)[-1], "VALIDATION_COMPLETED")
 
@@ -64,15 +59,15 @@ class FailedRunParityTests(unittest.TestCase):
         for patch in ({"attributable_spend_pct": "abc"}, {"price_coverage_pct": "NaN"}, {"currency_consistency_pct": None},
                       {"attributable_spend_pct": None}):
             with self.subTest(patch=patch):
-                outcomes, tree = self.compare([{**self.base, **patch}])
+                outcomes, tree = self.compare(f"economic quality {patch}", [{**self.base, **patch}])
                 self.assertNotEqual(outcomes[0][0], "ok", outcomes)
                 self.assertEqual(events(tree)[-1], "COUNTERFACTUAL_RECORDED")
                 self.assertNotIn("ECONOMIC_MEASUREMENT_RECORDED", events(tree))
 
-    def test_failure_is_followed_by_the_same_recovery(self):
+    def test_failure_is_followed_by_recovery(self):
         for patch in ({"elapsed_days": "abc"}, {"performance": 5}, {"economics": "x"}, {"attributable_spend_pct": "abc"}):
             with self.subTest(patch=patch):
-                outcomes, _ = self.compare([{**self.base, **patch}, self.base, self.later(10)])
+                outcomes, _ = self.compare(f"recovery {patch}", [{**self.base, **patch}, self.base, self.later(10)])
                 self.assertEqual([o[0] for o in outcomes][0] == "ok", False)
                 self.assertEqual(outcomes[1][0], "ok")
                 self.assertEqual(outcomes[2][0], "ok")
@@ -80,8 +75,8 @@ class FailedRunParityTests(unittest.TestCase):
     def test_failure_under_another_policy(self):
         for policy in ({"minimum_days": 1}, {"max_normalized_p95_runtime_regression_pct": "1"}, {"minimum_attributable_spend_pct": 100}):
             with self.subTest(policy=policy):
-                self.compare([{**self.base, "performance": 5}], policy)
-                self.compare([{**self.base, "attributable_spend_pct": "abc"}], policy)
+                self.compare(f"policy {policy} performance", [{**self.base, "performance": 5}], policy)
+                self.compare(f"policy {policy} economic quality", [{**self.base, "attributable_spend_pct": "abc"}], policy)
 
     # --- malformed fields the run never reads: no failure, as before ------------------------------------------------
 
@@ -91,17 +86,17 @@ class FailedRunParityTests(unittest.TestCase):
         malformed = {"performance": 5, "economics": "x", "attributable_spend_pct": "abc", "price_coverage_pct": "NaN", "overlap_count": "x"}
         for label, observation in (("unchanged", unchanged), ("unready", unready)):
             with self.subTest(case=label):
-                outcomes, tree = self.compare([{**observation, **malformed}])
+                outcomes, tree = self.compare(f"unused {label}", [{**observation, **malformed}])
                 self.assertEqual(outcomes[0][0], "ok")
         # Only on the lifecycle-less run is readiness itself unused as well.
-        outcomes, tree = self.compare([{**unchanged, "elapsed_days": "abc", "query_count": "x", **malformed}])
+        outcomes, tree = self.compare("unused, nothing applied", [{**unchanged, "elapsed_days": "abc", "query_count": "x", **malformed}])
         self.assertEqual(outcomes[0][0], "ok")
         self.assertNotIn("VALIDATION_READY", events(tree))
 
     def test_unused_economic_quality_gate_input_does_not_fail_when_economics_are_unavailable(self):
         observation = {**self.base, "attributable_spend_pct": "abc", "price_coverage_pct": "NaN", "currency_consistency_pct": []}
         observation["economics"] = {**observation["economics"], "observed_new_cost": None}
-        outcomes, tree = self.compare([observation])
+        outcomes, tree = self.compare("unused economic quality input", [observation])
         self.assertEqual(outcomes[0][0], "ok")
         self.assertNotIn("ECONOMIC_MEASUREMENT_RECORDED", events(tree))
 
@@ -110,14 +105,14 @@ class FailedRunParityTests(unittest.TestCase):
         first = self.base
         drifted = self.later(10, config={**self.base["config"], "warehouse_size": "SMALL"}, **malformed)     # drift: regenerates before validation
         contrary = self.later(11, config={**self.base["config"], "warehouse_size": "X_LARGE"}, **malformed)
-        outcomes, tree = self.compare([first, drifted])
+        outcomes, tree = self.compare("unused counterfactual input, drift", [first, drifted])
         self.assertEqual([o[0] for o in outcomes], ["ok", "ok"])
         self.assertIn("DRIFT_DETECTED", events(tree))
         self.assertIn("REGENERATION_REQUESTED", events(tree))
-        self.compare([contrary])
+        self.compare("unused counterfactual input, contrary", [contrary])
 
     def test_unused_malformed_field_on_a_lineage_only_run(self):
-        outcomes, _ = self.compare([None, {}])
+        outcomes, _ = self.compare("lineage only", [None, {}])
         self.assertEqual([o[0] for o in outcomes], ["ok", "ok"])
 
 

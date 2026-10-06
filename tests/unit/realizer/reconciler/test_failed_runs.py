@@ -1,20 +1,24 @@
-"""Failed runs through the extracted Reconciler: same exception, same half-written ledger as the oracle.
+"""Failed runs through the extracted Reconciler: the stored exception and half-written ledger of the single-file release.
 
 The Reconciler decides every lifecycle event of a run before the engine records any of them, so a failure inside it
 must still surface after exactly the ledger entries (and files) the single-file engine had written when it raised:
 matching failures right after the evidence file, a scenario-scope failure before any lifecycle entry, a failure in the
 middle of the lifecycle after the entries decided before it, a regeneration request after every lifecycle entry, the
 readiness check before the validation episode, and the downstream regeneration after the measurement. Each case runs
-the oracle and the modular engine over the same observations into separate directories and compares the outcomes and
-the whole output tree (files and directories).
+the engine over its observations into one directory and compares the outcomes and the output tree (files and
+directories, compact) with the stored expectation; the events at the failure position are asserted in the test.
 """
 import copy
 import json
+import re
 import unittest
 from unittest import mock
 
-from tests.unit.realizer.parity import Unprintable, Untestable, engine, events, files, fixture_package, oengine, run_sequence  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Unprintable, Untestable, compact_tree, events, files, fixture_package, run_sequence  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
 
 MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
@@ -29,24 +33,32 @@ def recommended_plan(package):
     return next(s for s in package["scenarios"] if s["scenario_id"] == sid)["execution_plan"]
 
 
-class ReconcilerFailedRunParityTests(unittest.TestCase):
+def stable_message(text):
+    """"'<' not supported between instances of 'int' and 'str'" names the two types in set-iteration order, which varies
+    with the string hash seed: the pair, sorted."""
+    return re.sub(r"between instances of '(\w+)' and '(\w+)'", lambda m: "between instances of '%s' and '%s'" % tuple(sorted(m.groups())), text)
+
+
+class ReconcilerFailedRunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
-        cls.source_config = oengine.package_config(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
+        cls.source_config = package_config(cls.pkg)
 
     def later(self, day, **patch):
         stamp = f"2026-10-{day:02d}T12:00:00Z"
         return {**copy.deepcopy(self.base), "observed_at_utc": stamp, "recorded_at_utc": stamp, **patch}
 
-    def compare(self, observations, policy=None, package=None):
+    def compare(self, observations, policy=None, package=None, label=None):
+        """Run *observations* and check the outcomes and the compact output tree against the stored expectation; returns
+        ``(outcomes, tree)``."""
         package = self.pkg if package is None else package
-        new = run_sequence(engine, package, observations, policy)
-        old = run_sequence(oengine, package, observations, policy)
-        self.assertEqual(new[0], old[0], "outcomes")
-        self.assertEqual(new[1], old[1], "output tree")
-        return old
+        outcomes, run_tree = run_sequence(package, observations, policy)
+        outcomes = [(kind, stable_message(text)) for kind, text in outcomes]
+        self.checks = getattr(self, "checks", 0) + 1
+        expect.check(self, label or f"run{self.checks}", (outcomes, compact_tree(run_tree)))
+        return outcomes, run_tree
 
     def assert_failed(self, outcomes, index=0, kind=None):
         self.assertNotEqual(outcomes[index][0], "ok", outcomes)
@@ -78,7 +90,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
             with self.subTest(case=label):
                 package = copy.deepcopy(self.pkg)
                 corrupt(package)
-                outcomes, tree = self.compare([self.base], package=package)
+                outcomes, tree = self.compare([self.base], package=package, label=label)
                 self.assert_failed(outcomes)
                 self.assertEqual(events(tree), ["REALIZATION_CREATED"])
                 self.assertEqual(len(files(tree, "evidence")), 1)
@@ -87,7 +99,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
         package = copy.deepcopy(self.pkg)
         next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"][1]["step"] = "x"
         migrated = {**self.base, "applied_scenario_id": MIGRATION, "config": {**self.source_config, "warehouse_type": "SERVERLESS"}}
-        outcomes, tree = self.compare([migrated], package=package)
+        outcomes, tree = self.compare([migrated], package=package, label="migration step")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree), ["REALIZATION_CREATED"])
 
@@ -99,7 +111,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
             with self.subTest(case=label):
                 package = two_step_package()
                 recommended_plan(package)[0]["invalidates"] = invalidates
-                outcomes, tree = self.compare([observation], package=package)
+                outcomes, tree = self.compare([observation], package=package, label=label)
                 self.assert_failed(outcomes, kind="TypeError")
                 self.assertEqual(events(tree), ["REALIZATION_CREATED"])
 
@@ -120,7 +132,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
         }
         for label, drifted in cases.items():
             with self.subTest(case=label):
-                outcomes, tree = self.compare([self.base, drifted])
+                outcomes, tree = self.compare([self.base, drifted], label=label)
                 self.assertEqual(outcomes[0][0], "ok")
                 self.assert_failed(outcomes, 1, kind="ValueError")
                 self.assertEqual(events(tree)[-1], "DRIFT_DETECTED")
@@ -133,7 +145,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
         }
         for label, (patch, last) in cases.items():
             with self.subTest(case=label):
-                outcomes, tree = self.compare([{**self.base, **patch}])
+                outcomes, tree = self.compare([{**self.base, **patch}], label=label)
                 self.assert_failed(outcomes, kind="ValueError")
                 self.assertEqual(events(tree)[-1], last)
                 self.assertIn("APPLICATION_OBSERVED", events(tree))
@@ -143,7 +155,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
     def test_terminal_regeneration_failure_leaves_every_lifecycle_entry_and_no_rerun_file(self):
         unhashable_policy = {"realized_ratio_min": "NaN"}   # the policy snapshot id cannot be computed
         drifted = self.later(10, config={**self.base["config"], "warehouse_size": "SMALL"}, replacement_package_id="PKG-AAAAAAAAAAAAAAAAAAAAAAAA")
-        outcomes, tree = self.compare([self.base, drifted], unhashable_policy)
+        outcomes, tree = self.compare([self.base, drifted], unhashable_policy, label="drift and supersession")
         self.assert_failed(outcomes, 0, kind="ValueError")   # the first run fails at its validation episode
         self.assert_failed(outcomes, 1, kind="ValueError")
         # (the second run's intent is the first run's entry again, on the same episode, so it is suppressed)
@@ -152,7 +164,7 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
         self.assertEqual(files(tree, "regeneration"), [])
 
         contrary = {**self.base, "config": {**self.base["config"], "warehouse_size": "X_LARGE"}}
-        outcomes, tree = self.compare([contrary], unhashable_policy)
+        outcomes, tree = self.compare([contrary], unhashable_policy, label="contrary")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree), ["REALIZATION_CREATED", "APPLICATION_OBSERVED", "INTENT_RECORDED"])
         self.assertEqual(files(tree, "regeneration"), [])
@@ -160,29 +172,29 @@ class ReconcilerFailedRunParityTests(unittest.TestCase):
     # --- the downstream regeneration: fails after the measurement ---------------------------------------------------
 
     def test_downstream_regeneration_failure_leaves_the_measurement(self):
-        outcomes, tree = self.compare([self.base], {"remeasure_days_after_invalidating_change": "abc"})
+        outcomes, tree = self.compare([self.base], {"remeasure_days_after_invalidating_change": "abc"}, label="policy remeasure days")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
         self.assertEqual(files(tree, "regeneration"), [])
 
         corrected = {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1", "version": 1}}
-        outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"})
+        outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"}, label="correction")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "BILLING_CORRECTION_RECORDED")
 
         package = copy.deepcopy(self.pkg)
         recommended_plan(package)[0]["validation"] = {"remeasure_days": "soon"}
-        outcomes, tree = self.compare([self.base], package=package)
+        outcomes, tree = self.compare([self.base], package=package, label="step remeasure days")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
 
     def test_unreached_downstream_regeneration_input_does_not_fail(self):
         # Not ready: the run stops before validation and never needs the downstream regeneration.
-        outcomes, tree = self.compare([{**self.base, "elapsed_days": 1}], {"remeasure_days_after_invalidating_change": "abc"})
+        outcomes, tree = self.compare([{**self.base, "elapsed_days": 1}], {"remeasure_days_after_invalidating_change": "abc"}, label="not ready")
         self.assertEqual(outcomes[0][0], "ok")
         self.assertNotIn("VALIDATION_READY", events(tree))
         # Nothing applied: no active application at all.
-        outcomes, _ = self.compare([{**self.base, "config": dict(self.source_config)}], {"remeasure_days_after_invalidating_change": "abc"})
+        outcomes, _ = self.compare([{**self.base, "config": dict(self.source_config)}], {"remeasure_days_after_invalidating_change": "abc"}, label="nothing applied")
         self.assertEqual(outcomes[0][0], "ok")
 
     def test_unreached_regeneration_input_does_not_fail(self):
@@ -205,7 +217,7 @@ class EagerRaisingIsDetectedTests(unittest.TestCase):
 
     def test_raising_before_recording_changes_the_failed_run_tree(self):
         package = fixture_package()
-        base = oengine.demo_observation(package)
+        base = demo_observation(package)
         original = reconciler.run
 
         def eager(context, analysis, governance):
@@ -220,14 +232,15 @@ class EagerRaisingIsDetectedTests(unittest.TestCase):
                     "config": {**base["config"], "warehouse_size": "SMALL"}, "effective_time_quality": Unprintable()}],
             [{**base, "elapsed_days": "abc"}],
         ]
-        for observations in cases:
+        for index, observations in enumerate(cases):
             with self.subTest(observations=len(observations)):
-                old = run_sequence(oengine, package, observations)
-                with mock.patch.object(engine.reconciler, "run", eager):
-                    new = run_sequence(engine, package, observations)
-                self.assertEqual(new[0], old[0], "the exception itself is the same")
-                self.assertNotEqual(new[1], old[1], "but the ledger it leaves is not")
-                self.assertEqual(run_sequence(engine, package, observations), old)
+                normal = run_sequence(package, observations)
+                expect.check(self, f"case{index}", (normal[0], compact_tree(normal[1])))
+                with mock.patch.object(reconciler, "run", eager):
+                    mutated = run_sequence(package, observations)
+                self.assertEqual(mutated[0], normal[0], "the exception itself is the same")
+                self.assertNotEqual(mutated[1], normal[1], "but the ledger it leaves is not")
+                self.assertEqual(run_sequence(package, observations), normal)
 
 
 if __name__ == "__main__":

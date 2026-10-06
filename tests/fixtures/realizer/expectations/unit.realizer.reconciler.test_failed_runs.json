@@ -1,0 +1,782 @@
+{
+ "EagerRaisingIsDetectedTests.test_raising_before_recording_changes_the_failed_run_tree/case0": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "EagerRaisingIsDetectedTests.test_raising_before_recording_changes_the_failed_run_tree/case1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ValueError",
+     "unprintable observation value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "1e262b30a35e046d",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "EagerRaisingIsDetectedTests.test_raising_before_recording_changes_the_failed_run_tree/case2": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_downstream_regeneration_failure_leaves_the_measurement/correction": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "BILLING_CORRECTION_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3355e62d4cb55ba3"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_downstream_regeneration_failure_leaves_the_measurement/policy remeasure days": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3a19c0ea9d5ebd9c"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_downstream_regeneration_failure_leaves_the_measurement/step remeasure days": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'soon'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "efe419fb069a8803"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_after_drift_keeps_the_drift_entry/intent": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ValueError",
+     "unprintable observation value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-F30A47B6B1C253BB065496CD.json": "911683aeac2f8786",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "1c9701a7edb081b4",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_after_drift_keeps_the_drift_entry/step payload": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ValueError",
+     "unprintable observation value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "1e262b30a35e046d",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_after_intent_and_rollback_keeps_what_came_before/replacement package": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "ROLLBACK_OBSERVED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "f37f026e92a2d22d"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_after_intent_and_rollback_keeps_what_came_before/rollback observed": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "ROLLBACK_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "90cfefc20c22441a"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_after_intent_and_rollback_keeps_what_came_before/rollback requested": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_failure_is_followed_by_the_same_recovery/run1": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-55A1FD891A57FA5FD91F2935"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-A1A2FA53CA5F945D15BB7BAF.json": "d3b239ec95b3c2ec",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5c24053dc2cf39ff",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "891ee2731c744f31",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/regeneration/RERUN-DC5DBE999923FB929473083A.json": "20dd539b34246412",
+     "realization/snapshots/RSNAP-55A1FD891A57FA5FD91F2935.json": "891ee2731c744f31",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_for_an_applied_scenario_other_than_the_recommended_one/migration step": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'x'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-CEEB060431317FE4F92D3497.json": "259a3c55c0376e78",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/invalidates_not_a_list": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "'int' object is not iterable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/recommended_plan_not_a_mapping": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/scenario_not_a_mapping": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/step_not_a_mapping": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/step_not_a_number": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_scenario_scope_failure_records_nothing_after_the_evidence/mixed types": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "'<' not supported between instances of 'int' and 'str'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-255B94818101F6BD27CC88F3.json": "942aba3819ea3b12",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_scenario_scope_failure_records_nothing_after_the_evidence/unhashable": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "cannot use 'dict' as a set element (unhashable type: 'dict')"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-255B94818101F6BD27CC88F3.json": "942aba3819ea3b12",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_scenario_scope_readiness_failure_leaves_the_scenario_application_and_intent/run1": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-255B94818101F6BD27CC88F3.json": "942aba3819ea3b12",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "37ee9d68b6a934ad"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_terminal_regeneration_failure_leaves_every_lifecycle_entry_and_no_rerun_file/contrary": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-09DD246CAC33D4969215E816.json": "6650f4a9b33ccf8c",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "978dc9e5cdccc34a"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_terminal_regeneration_failure_leaves_every_lifecycle_entry_and_no_rerun_file/drift and supersession": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "non-finite decimal"
+    ],
+    [
+     "ValueError",
+     "non-finite decimal"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "DRIFT_DETECTED",
+     "SOURCE_PACKAGE_SUPERSEDED",
+     "REPLACEMENT_PACKAGE_LINKED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "0c7c55ae73f61976"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_unreached_downstream_regeneration_input_does_not_fail/not ready": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-0270D16D7042C068C3E61DEB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "586b276e1c249b7f",
+     "realization/snapshots/RSNAP-0270D16D7042C068C3E61DEB.json": "586b276e1c249b7f"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_unreached_downstream_regeneration_input_does_not_fail/nothing applied": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-06AE3F13062BF09B8BDE70B7"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-8A2F2BD128ABEEA1B753DC1B.json": "72d81d857a364455",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "7e140fd8020f515b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "9152f01cb8b43dea",
+     "realization/snapshots/RSNAP-06AE3F13062BF09B8BDE70B7.json": "9152f01cb8b43dea"
+    }
+   }
+  ]
+ },
+ "ReconcilerFailedRunTests.test_unreached_regeneration_input_does_not_fail/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-06AE3F13062BF09B8BDE70B7"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-8A2F2BD128ABEEA1B753DC1B.json": "72d81d857a364455",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "7e140fd8020f515b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "9152f01cb8b43dea",
+     "realization/snapshots/RSNAP-06AE3F13062BF09B8BDE70B7.json": "9152f01cb8b43dea"
+    }
+   }
+  ]
+ }
+}

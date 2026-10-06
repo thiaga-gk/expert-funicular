@@ -1,5 +1,0 @@
-# Phase-1 core/test dependencies. Workbook rendering additionally requires the
-# OpenAI artifact_tool runtime used by this project; it is intentionally not
-# declared as a public PyPI dependency here.
-jsonschema>=4.23
-databricks-sql-connector>=3.0

@@ -1,9 +1,9 @@
-"""Realizer reconciler matching (src/realizer/reconciler/matching.py) against the frozen oracle.
+"""Realizer reconciler matching (src/realizer/reconciler/matching.py).
 
-``_directional_relation``, ``compare_step`` and ``choose_application`` are moved unchanged, so each returns the oracle's
-value, or raises the oracle's exception type and message, on valid and malformed input. ``match`` gathers the
-oracle's inline plan-authority statements (selected scenario, authority changes, scenario scope) and equals them for
-every observation of every scenario and on malformed packages.
+``_directional_relation``, ``compare_step`` and ``choose_application`` return the values (or raise the exception type
+and message) stored in ``tests/fixtures/realizer/expectations/`` on valid and malformed input. ``match`` gathers the
+plan-authority statements (selected scenario, authority changes, scenario scope) the single-file release made inline
+and returns the stored values for every observation of every scenario and on malformed packages.
 """
 import copy
 import itertools
@@ -12,7 +12,10 @@ import unittest
 from decimal import Decimal
 from enum import Enum
 
-from tests.unit.realizer.parity import canonical, engine, fixture_package, oengine, outcome  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import canonical, fixture_package, outcome  # noqa: E402
+from realizer.analyzer.analysis import observed_config, package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import PlanMatch  # noqa: E402
 from realizer.reconciler import matching  # noqa: E402
 
@@ -24,7 +27,7 @@ KNOBS = ["warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes", 
 
 
 def plain(value):
-    """Enums (two different classes in the two engines) by value, containers recursively, everything else as is."""
+    """Enums by value, containers recursively, everything else as is."""
     if isinstance(value, Enum):
         return ("enum", value.value)
     if isinstance(value, (list, tuple)):
@@ -32,33 +35,6 @@ def plain(value):
     if isinstance(value, dict):
         return {k: plain(v) for k, v in value.items()}
     return value
-
-
-def same(test, new, old):
-    """Compare two ``outcome`` results; NaN never equals itself, so compare its text form instead."""
-    test.assertEqual(repr(plain(new)), repr(plain(old)))
-
-
-def oracle_match(package, observation, obs_cfg):
-    """The oracle's inline plan-authority statements at the start of its lifecycle (``process_observation``)."""
-    rc = oengine.rc
-    selected_scenario_id = observation.get("applied_scenario_id") or (package.get("recommended_plan") or {}).get("scenario_id")
-    selected_scenario = oengine.scenario_by_id(package, selected_scenario_id)
-    step_results, primary = oengine.choose_application(package, obs_cfg, scenario_id=selected_scenario_id)
-    authority_changes = [
-        item for item in step_results
-        if item.get("authority_eligible") and item.get("implementation_conformance") in {
-            rc.ImplementationConformance.EXACT.value,
-            rc.ImplementationConformance.MODIFIED.value,
-            rc.ImplementationConformance.CONTRARY.value,
-        }
-    ]
-    scenario_scope = bool(
-        len(authority_changes) > 1
-        or (selected_scenario and selected_scenario.get("scenario_type") == "WAREHOUSE_TYPE_MIGRATION")
-        or selected_scenario_id != (package.get("recommended_plan") or {}).get("scenario_id")
-    )
-    return selected_scenario_id, step_results, primary, authority_changes, scenario_scope
 
 
 def as_tuple(result: PlanMatch):
@@ -85,26 +61,13 @@ def plan_steps(package):
             yield step
 
 
-class ReExportTests(unittest.TestCase):
-    def test_engine_names_are_the_moved_functions(self):
-        for name in ("_directional_relation", "compare_step", "choose_application"):
-            self.assertIs(getattr(engine, name), getattr(matching, name), name)
-
-    def test_engine_runs_the_reconciler_module(self):
-        from realizer.reconciler import reconciler
-        self.assertIs(engine.reconciler, reconciler)
-
-
 class DirectionalRelationTests(unittest.TestCase):
-    def test_every_value_triple_equals_the_oracle(self):
+    def test_every_value_triple(self):
         small = [None, 0, 1, 2, 3, -1, "2", "2.5", "abc", True, 1.5, float("nan"), "NaN", "Infinity", Decimal("3"), [1]]
-        count = 0
-        for source, recommended, observed in itertools.product(small, repeat=3):
-            new = outcome(matching._directional_relation, source, recommended, observed)
-            old = outcome(oengine._directional_relation, source, recommended, observed)
-            same(self, new, old)
-            count += 1
-        self.assertEqual(count, len(small) ** 3)
+        results = [plain(outcome(matching._directional_relation, source, recommended, observed))
+                   for source, recommended, observed in itertools.product(small, repeat=3)]
+        self.assertEqual(len(results), len(small) ** 3)
+        expect.check(self, "results", results, spot={"count": len(results), "distinct": sorted({json.dumps(r, default=str) for r in results})})
 
     def test_relations(self):
         self.assertEqual(plain(matching._directional_relation(120, 30, 60)), [("enum", "MODIFIED"), "LESS_AGGRESSIVE"])
@@ -116,65 +79,64 @@ class DirectionalRelationTests(unittest.TestCase):
 
 class CompareStepTests(unittest.TestCase):
     def test_every_plan_step_against_every_observed_configuration(self):
-        configs = [json.loads(c) for c in {json.dumps(oengine.observed_config(o, p), sort_keys=True) for _, _, p, o in scenario_observations()}]
-        count = 0
+        configs = [json.loads(c) for c in sorted({json.dumps(observed_config(o, p), sort_keys=True) for _, _, p, o in scenario_observations()})]
+        results = []
         for package in packages():
             for step in plan_steps(package):
                 for obs_cfg in configs:
-                    same(self, outcome(matching.compare_step, step, obs_cfg), outcome(oengine.compare_step, step, obs_cfg))
-                    count += 1
-        self.assertGreater(count, 100)
+                    results.append(plain(outcome(matching.compare_step, step, obs_cfg)))
+        self.assertGreater(len(results), 100)
+        expect.check(self, "results", results, spot={"count": len(results), "distinct": sorted({json.dumps(r) for r in results})})
 
     def test_every_knob_and_value_combination(self):
         triples = [(None, 1, 2), (4, 3, 2), (4, 3, 3), (4, 3, 4), (4, 3, 5), (4, 3, "x"), ("LARGE", "MEDIUM", "SMALL"),
                    ("LARGE", "MEDIUM", "X_LARGE"), ("LARGE", "MEDIUM", "medium"), ("LARGE", "MEDIUM", "HUGE"), (True, False, True),
                    (True, False, "yes"), ("PRO", "SERVERLESS", "CLASSIC"), ("CURRENT", "PREVIEW", "OTHER"), (1, 1, 2)]
+        results = []
         for knob in KNOBS:
             for source, recommended, observed in triples + [(a, b, c) for a, b, c in itertools.product(VALUES[:12], repeat=3)][:300]:
                 step = {"knob": knob, "current_value": source, "recommended_value": recommended}
                 for obs_cfg in ({knob: observed} if knob is not None else {"None": observed}, {}):
-                    with self.subTest(knob=knob, values=(source, recommended, observed)):
-                        same(self, outcome(matching.compare_step, step, obs_cfg), outcome(oengine.compare_step, step, obs_cfg))
+                    results.append(plain(outcome(matching.compare_step, step, obs_cfg)))
+        self.assertGreater(len(results), 5000)
+        expect.check(self, "results", results, spot={"count": len(results), "kinds": sorted({r[0] for r in results}),
+                                                   "distinct": sorted({json.dumps(r) for r in results if r[0] == "ok"})})
 
-    def test_malformed_input_raises_the_oracle_exception(self):
-        for step, obs_cfg in ((5, {}), ({"knob": "x"}, 5), (None, {}), ({"knob": "max_clusters"}, None), ("abc", {"x": 1})):
+    def test_malformed_input_raises(self):
+        for index, (step, obs_cfg) in enumerate(((5, {}), ({"knob": "x"}, 5), (None, {}), ({"knob": "max_clusters"}, None), ("abc", {"x": 1}))):
             with self.subTest(step=step, obs_cfg=obs_cfg):
-                new, old = outcome(matching.compare_step, step, obs_cfg), outcome(oengine.compare_step, step, obs_cfg)
-                self.assertNotEqual(old[0], "ok")
-                same(self, new, old)
+                new = outcome(matching.compare_step, step, obs_cfg)
+                self.assertNotEqual(new[0], "ok")
+                expect.check(self, f"case{index}", new)
 
 
 class ChooseApplicationTests(unittest.TestCase):
     def test_every_scenario_observation_and_scenario_choice(self):
-        count = 0
+        results = {}
         for name, index, package, observation in scenario_observations():
-            obs_cfg = oengine.observed_config(observation, package)
+            obs_cfg = observed_config(observation, package)
             for scenario_id in (None, package["recommended_plan"]["scenario_id"], MIGRATION, "SCN-UNKNOWN", ""):
-                with self.subTest(scenario=name, run=index, scenario_id=scenario_id):
-                    new = outcome(matching.choose_application, copy.deepcopy(package), obs_cfg, scenario_id=scenario_id)
-                    old = outcome(oengine.choose_application, copy.deepcopy(package), obs_cfg, scenario_id=scenario_id)
-                    same(self, new, old)
-                    count += 1
-        self.assertGreater(count, 200)
+                results[f"{name}/{index}/{scenario_id}"] = plain(outcome(matching.choose_application, copy.deepcopy(package), obs_cfg, scenario_id=scenario_id))
+        self.assertGreater(len(results), 200)
+        expect.check(self, "results", results, spot={"count": len(results), "kinds": sorted({r[0] for r in results.values()})})
 
     def test_primary_is_the_first_authoritative_change_and_one_of_the_matches(self):
         package = packages()[1]
-        obs_cfg = oengine.observed_config({"config": {"warehouse_size": "MEDIUM", "max_clusters": 3}}, package)
+        obs_cfg = observed_config({"config": {"warehouse_size": "MEDIUM", "max_clusters": 3}}, package)
         results, primary = matching.choose_application(package, obs_cfg)
         self.assertIs(primary, results[0])
         self.assertEqual([r["implementation_conformance"] for r in results], ["EXACT", "EXACT", "NOT_APPLIED", "NOT_APPLIED"])
         self.assertEqual(primary["step"], 1)
 
-    def test_malformed_packages_raise_the_oracle_exception(self):
-        obs_cfg = oengine.observed_config(oengine.demo_observation(fixture_package()), fixture_package())
+    def test_malformed_packages_raise(self):
+        obs_cfg = observed_config(demo_observation(fixture_package()), fixture_package())
         for label, corrupt in malformed_packages().items():
             package = copy.deepcopy(fixture_package())
             corrupt(package)
             with self.subTest(case=label):
                 new = outcome(matching.choose_application, copy.deepcopy(package), obs_cfg)
-                old = outcome(oengine.choose_application, copy.deepcopy(package), obs_cfg)
-                self.assertNotEqual(old[0], "ok", label)
-                same(self, new, old)
+                self.assertNotEqual(new[0], "ok", label)
+                expect.check(self, label, new)
 
 
 def malformed_packages():
@@ -208,23 +170,25 @@ def malformed_packages():
 
 
 class MatchTests(unittest.TestCase):
-    def test_match_equals_the_oracle_for_every_scenario_observation(self):
+    def test_match_for_every_scenario_observation(self):
         seen = {"scope": 0, "changes": 0, "primary": 0, "other_scenario": 0}
+        results = {}
         for name, index, package, observation in scenario_observations():
-            obs_cfg = oengine.observed_config(observation, package)
+            obs_cfg = observed_config(observation, package)
             with self.subTest(scenario=name, run=index):
                 result = matching.match(copy.deepcopy(package), observation, obs_cfg)
                 self.assertIsInstance(result, PlanMatch)
-                same(self, as_tuple(result), oracle_match(copy.deepcopy(package), observation, obs_cfg))
+                results[f"{name}/{index}"] = plain(as_tuple(result))
                 seen["scope"] += result.scenario_scope
                 seen["changes"] += bool(result.authority_changes)
                 seen["primary"] += result.primary is not None
                 seen["other_scenario"] += bool(observation.get("applied_scenario_id"))
         self.assertTrue(all(seen.values()), seen)
+        expect.check(self, "results", results, spot={"count": len(results), **seen})
 
     def test_primary_and_authority_changes_are_the_step_matches_themselves(self):
         _, _, package, observation = next((n, i, p, o) for n, i, p, o in scenario_observations() if n == "GR-019")
-        result = matching.match(package, observation, oengine.observed_config(observation, package))
+        result = matching.match(package, observation, observed_config(observation, package))
         self.assertTrue(result.scenario_scope)
         self.assertEqual(len(result.authority_changes), 2)
         for change in result.authority_changes:
@@ -233,8 +197,8 @@ class MatchTests(unittest.TestCase):
 
     def test_scenario_scope_triggers(self):
         package = fixture_package()
-        base = oengine.demo_observation(package)
-        source = oengine.package_config(package)
+        base = demo_observation(package)
+        source = package_config(package)
         cases = {
             "one authoritative change": (base, False),
             "migration scenario": ({**base, "applied_scenario_id": MIGRATION, "config": {**source, "warehouse_type": "SERVERLESS"}}, True),
@@ -243,13 +207,12 @@ class MatchTests(unittest.TestCase):
         }
         for label, (observation, expected) in cases.items():
             with self.subTest(case=label):
-                obs_cfg = oengine.observed_config(observation, package)
+                obs_cfg = observed_config(observation, package)
                 self.assertEqual(matching.match(package, observation, obs_cfg).scenario_scope, expected)
-                self.assertEqual(oracle_match(package, observation, obs_cfg)[4], expected)
 
-    def test_malformed_input_raises_the_oracle_exception(self):
-        observation = oengine.demo_observation(fixture_package())
-        obs_cfg = oengine.observed_config(observation, fixture_package())
+    def test_malformed_input_raises(self):
+        observation = demo_observation(fixture_package())
+        obs_cfg = observed_config(observation, fixture_package())
         cases = [(label, corrupt, observation) for label, corrupt in malformed_packages().items()]
         cases.append(("observation not a mapping", lambda p: None, 5))
         for label, corrupt, obs in cases:
@@ -257,14 +220,13 @@ class MatchTests(unittest.TestCase):
             corrupt(package)
             with self.subTest(case=label):
                 new = outcome(matching.match, copy.deepcopy(package), obs, obs_cfg)
-                old = outcome(oracle_match, copy.deepcopy(package), obs, obs_cfg)
-                self.assertNotEqual(old[0], "ok", label)
-                self.assertEqual(new, old)
+                self.assertNotEqual(new[0], "ok", label)
+                expect.check(self, label, new)
 
     def test_match_is_frozen(self):
         package = fixture_package()
-        observation = oengine.demo_observation(package)
-        result = matching.match(package, observation, oengine.observed_config(observation, package))
+        observation = demo_observation(package)
+        result = matching.match(package, observation, observed_config(observation, package))
         with self.assertRaises(Exception):
             result.scenario_scope = True
 

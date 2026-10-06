@@ -1,7 +1,7 @@
 """JSON Schema builders for Realizer Contract v1.0.0.
 
 The committed schema files are these builders' output serialized as ``json.dumps(schema, indent=2, sort_keys=True)``
-plus a trailing newline (``legacy/realizer_single_file/schema/realization-*.schema.json``).
+plus a trailing newline (``schema/realization-package.schema.json`` and ``schema/realization-ledger-entry.schema.json``).
 """
 from __future__ import annotations
 

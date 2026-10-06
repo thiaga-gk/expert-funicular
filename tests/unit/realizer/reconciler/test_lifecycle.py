@@ -1,10 +1,11 @@
-"""Realizer reconciler lifecycle (src/realizer/reconciler/lifecycle.py) against the frozen oracle.
+"""Realizer reconciler lifecycle (src/realizer/reconciler/lifecycle.py).
 
-``regeneration_request`` is the RERUN id and payload part of the oracle's ``request_regeneration`` and
-``upstream_regeneration_request`` its downstream-invalidation rule; both equal the oracle on valid and malformed input.
-The engine's ``request_regeneration`` keeps its signature and writes what the oracle wrote. The lifecycle scenarios
-(drift, reuse of the active episode, rollback, supersession, contrary, scenario scope, migration, modified, pending
-downstream, not ready) check the decided events directly and the whole output tree against the oracle.
+``regeneration_request`` is the RERUN id and payload part of the single-file release's ``request_regeneration`` and
+``upstream_regeneration_request`` its downstream-invalidation rule; both return the values stored in
+``tests/fixtures/realizer/expectations/`` on valid and malformed input. The engine's ``request_regeneration`` keeps its
+signature and writes what the single-file release wrote. The lifecycle scenarios (drift, reuse of the active episode,
+rollback, supersession, contrary, scenario scope, migration, modified, pending downstream, not ready) check the
+decided events directly and the whole output tree against the stored expectation.
 """
 import copy
 import itertools
@@ -14,32 +15,24 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.parity import canonical, engine, fixture_package, oengine, outcome, run_sequence, tree  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, outcome, tree  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import ActiveApplication, PlannedApplication, ReconciliationResult, RegenerationRequest  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.packager.packager import request_regeneration  # noqa: E402
+from realizer.realizer import realize  # noqa: E402
 from realizer.reconciler import lifecycle, reconciler  # noqa: E402
 
 MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
 REASONS = ("CONFIGURATION_DRIFT", "CONTRARY_IMPLEMENTATION", "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM")
 RECORDED = "2026-10-09T12:00:00Z"
-APP = "APP-" + "0123456789AB" * 2   # a well-formed application episode id (the oracle's ledger entry validates it)
+APP = "APP-" + "0123456789AB" * 2   # a well-formed application episode id (the ledger entry validates it)
 
 
-def oracle_rerun(package, app_payload, observation, policy, reason):
-    """The oracle's ``request_regeneration`` outcome as ``(id, application episode, payload)`` read back from what it
-    wrote, or its exception."""
-    with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp)
-        result = outcome(oengine.request_regeneration, copy.deepcopy(package), copy.deepcopy(app_payload), copy.deepcopy(observation),
-                         out, policy, RECORDED, RECORDED, reason=reason)
-        if result[0] != "ok":
-            return result
-        (rerun,) = (out / "realization" / "regeneration").glob("*.json")
-        (ledger,) = (out / "realization" / "ledger").glob("*.jsonl")
-        entry = json.loads(ledger.read_text(encoding="utf-8").splitlines()[-1])
-        return "ok", (rerun.stem, entry["application_episode_id"], json.loads(rerun.read_text(encoding="utf-8")))
-
-
-def modular_rerun(fn, *args, **kwargs):
+def rerun_summary(fn, *args, **kwargs):
+    """``outcome`` of *fn* with a request reduced to ``(id, application episode, payload as JSON)``."""
     result = outcome(fn, *args, **kwargs)
     if result[0] != "ok" or result[1] is None:
         return result
@@ -47,26 +40,12 @@ def modular_rerun(fn, *args, **kwargs):
     return "ok", (request.regeneration_request_id, request.application_episode_id, json.loads(json.dumps(request.payload)))
 
 
-def oracle_upstream(package, app_payload, observation, policy):
-    """The oracle's downstream-invalidation rule (end of ``process_observation``) as an outcome, its request read back
-    from what ``request_regeneration`` wrote."""
-    try:
-        if app_payload.get("invalidates") or app_payload.get("implementation_conformance") == oengine.rc.ImplementationConformance.MODIFIED.value:
-            days = int(observation.get("elapsed_days", 0) or 0)
-            required_days = int(app_payload.get("remeasure_days") or policy.remeasure_days_after_invalidating_change)
-            if days >= required_days:
-                return oracle_rerun(package, app_payload, observation, policy, "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM")
-        return "ok", None
-    except Exception as exc:  # noqa: BLE001 - compared, not handled
-        return type(exc).__name__, str(exc)
-
-
 def stored_application_payloads():
     """Every application payload the stored baseline recorded, with its scenario's package and observations."""
     found = []
     for name in canonical.scenario_names():
         scenario = canonical.load_scenario(name)
-        for ledger in (canonical.EXPECTED / name / "realization" / "ledger").glob("*.jsonl"):
+        for ledger in sorted((canonical.EXPECTED / name / "realization" / "ledger").glob("*.jsonl")):
             for line in ledger.read_text(encoding="utf-8").splitlines():
                 entry = json.loads(line)
                 if entry["event_type"] in {"APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED", "INDEPENDENT_CHANGE_OBSERVED"}:
@@ -76,8 +55,8 @@ def stored_application_payloads():
 
 
 def reconcile_runs(test, package, observations, policy=None):
-    """Run *observations* through the modular engine into one directory, capturing each run's ``ReconciliationResult``
-    (and the analysis it reconciled), and check the output tree equals the oracle's."""
+    """Run *observations* through the engine into one directory, capturing each run's ``ReconciliationResult`` (and the
+    analysis it reconciled), and check the outcomes and the output tree (compact) against the stored expectation."""
     captured = []
     original = reconciler.run
 
@@ -89,40 +68,45 @@ def reconcile_runs(test, package, observations, policy=None):
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
         outcomes = []
-        with mock.patch.object(engine.reconciler, "run", capturing):
+        with mock.patch.object(reconciler, "run", capturing):
             for observation in observations:
-                kwargs = {} if policy is None else {"policy": engine.RealizerPolicy.from_mapping(policy)}
-                result = outcome(engine.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
+                kwargs = {} if policy is None else {"policy": RealizerPolicy.from_mapping(policy)}
+                result = outcome(realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
                 outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
-        new_tree = tree(out)
-    test.assertEqual((outcomes, new_tree), run_sequence(oengine, package, observations, policy), "same outcomes and tree as the oracle")
+        run_tree = tree(out)
+    test.reconcile_checks = getattr(test, "reconcile_checks", 0) + 1
+    expect.check(test, f"run{test.reconcile_checks}", (outcomes, compact_tree(run_tree)))
     return captured
 
 
 class RegenerationRequestTests(unittest.TestCase):
-    def test_every_stored_application_payload_and_reason_equals_the_oracle(self):
+    def test_every_stored_application_payload_and_reason(self):
         payloads = stored_application_payloads()
         self.assertGreater(len(payloads), 20)
-        policy, opolicy = engine.RealizerPolicy(), oengine.RealizerPolicy()
+        policy = RealizerPolicy()
+        results = []
         for name, package, app_payload, observation in payloads:
             for reason in REASONS:
-                with self.subTest(scenario=name, reason=reason):
-                    new = modular_rerun(lifecycle.regeneration_request, package, app_payload, observation, policy, reason=reason)
-                    self.assertEqual(new, oracle_rerun(package, app_payload, observation, opolicy, reason))
+                results.append([name, reason, rerun_summary(lifecycle.regeneration_request, package, app_payload, observation, policy, reason=reason)])
+        self.assertTrue(all(r[2][0] == "ok" for r in results))
+        expect.check(self, "requests", results, spot={"count": len(results), "scenarios": sorted({r[0] for r in results}),
+                                                       "ids": sorted({r[2][1][0] for r in results})[:3]})
 
     def test_fallback_to_the_observed_configuration_and_other_policies(self):
         package = fixture_package()
-        observation = oengine.demo_observation(package)
+        observation = demo_observation(package)
         variants = [{}, {"observed_config": None, "invalidates": None}, {"observed_config": {}, "scenario_id": "S", "step": 2},
                     {"observed_config": {"warehouse_size": "small"}, "invalidates": ["a", "b"], "application_episode_id": APP}]
+        results = []
         for app_payload, mapping in itertools.product(variants, (None, {"minimum_days": 1}, {"realized_ratio_min": "0.9"})):
-            with self.subTest(app_payload=app_payload, policy=mapping):
-                new = modular_rerun(lifecycle.regeneration_request, package, app_payload, observation, engine.RealizerPolicy.from_mapping(mapping), reason="R")
-                self.assertEqual(new, oracle_rerun(package, app_payload, observation, oengine.RealizerPolicy.from_mapping(mapping), "R"))
+            results.append([app_payload, mapping, rerun_summary(lifecycle.regeneration_request, package, app_payload, observation,
+                                                                RealizerPolicy.from_mapping(mapping), reason="R")])
+        self.assertEqual(len(results), 12)
+        expect.check(self, "requests", results, spot={"count": len(results), "ids": sorted({r[2][1][0] for r in results})})
 
-    def test_malformed_input_raises_the_oracle_exception_and_writes_nothing(self):
+    def test_malformed_input_raises_and_returns_nothing(self):
         package = fixture_package()
-        observation = oengine.demo_observation(package)
+        observation = demo_observation(package)
         cases = {
             "unhashable policy": (package, {}, observation, {"realized_ratio_min": "NaN"}),
             "configuration not a mapping": (package, {"observed_config": 5}, observation, None),
@@ -133,32 +117,27 @@ class RegenerationRequestTests(unittest.TestCase):
         }
         for label, (pkg, app_payload, obs, mapping) in cases.items():
             with self.subTest(case=label):
-                old = oracle_rerun(pkg, app_payload, obs, oengine.RealizerPolicy.from_mapping(mapping), "R")
-                self.assertNotEqual(old[0], "ok")
-                new = modular_rerun(lifecycle.regeneration_request, pkg, app_payload, obs, engine.RealizerPolicy.from_mapping(mapping), reason="R")
-                self.assertEqual(new, old)
+                new = rerun_summary(lifecycle.regeneration_request, pkg, app_payload, obs, RealizerPolicy.from_mapping(mapping), reason="R")
+                self.assertNotEqual(new[0], "ok")
+                expect.check(self, label, new)
 
-    def test_engine_request_regeneration_writes_what_the_oracle_wrote(self):
+    def test_engine_request_regeneration_writes_the_stored_files(self):
         package = fixture_package()
-        observation = oengine.demo_observation(package)
-        for app_payload, mapping in (({}, None), ({"observed_config": {"warehouse_size": "SMALL"}, "application_episode_id": APP}, None),
-                                     ({}, {"realized_ratio_min": "NaN"}), ({"observed_config": 5}, None)):
-            with self.subTest(app_payload=app_payload, policy=mapping):
-                trees = []
-                for module in (engine, oengine):
-                    with tempfile.TemporaryDirectory() as tmp:
-                        out = Path(tmp)
-                        result = outcome(module.request_regeneration, copy.deepcopy(package), dict(app_payload), observation, out,
-                                         module.RealizerPolicy.from_mapping(mapping), RECORDED, RECORDED, reason="R")
-                        trees.append((result, tree(out)))
-                self.assertEqual(trees[0], trees[1])
+        observation = demo_observation(package)
+        for index, (app_payload, mapping) in enumerate((({}, None), ({"observed_config": {"warehouse_size": "SMALL"}, "application_episode_id": APP}, None),
+                                                        ({}, {"realized_ratio_min": "NaN"}), ({"observed_config": 5}, None))):
+            with self.subTest(app_payload=app_payload, policy=mapping), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                result = outcome(request_regeneration, copy.deepcopy(package), dict(app_payload), observation, out,
+                                 RealizerPolicy.from_mapping(mapping), RECORDED, RECORDED, reason="R")
+                expect.check(self, f"case{index}", (result, compact_tree(tree(out))))
 
 
 class UpstreamRegenerationTests(unittest.TestCase):
-    def test_rule_equals_the_oracle_over_its_inputs(self):
+    def test_rule_over_its_inputs(self):
         package = fixture_package()
-        observation = oengine.demo_observation(package)
-        count = 0
+        observation = demo_observation(package)
+        results = []
         for invalidates, conformance, elapsed, remeasure, mapping in itertools.product(
             ([], ["min_clusters"], None), ("EXACT", "MODIFIED", "CONTRARY", None), (None, 0, 6, 7, 8, "8", "abc", 7.9),
             (None, 3, 10, "abc", 0), (None, {"remeasure_days_after_invalidating_change": 3}, {"remeasure_days_after_invalidating_change": "x"}),
@@ -166,19 +145,20 @@ class UpstreamRegenerationTests(unittest.TestCase):
             app_payload = {"invalidates": invalidates, "implementation_conformance": conformance, "remeasure_days": remeasure,
                            "observed_config": {"warehouse_size": "MEDIUM"}, "application_episode_id": APP, "scenario_id": "S", "step": 1}
             obs = {**observation, "elapsed_days": elapsed}
-            new = modular_rerun(lifecycle.upstream_regeneration_request, package, app_payload, obs, engine.RealizerPolicy.from_mapping(mapping))
-            old = oracle_upstream(package, app_payload, obs, oengine.RealizerPolicy.from_mapping(mapping))
-            self.assertEqual(new, old, (invalidates, conformance, elapsed, remeasure, mapping))
-            count += 1
-        self.assertGreater(count, 1000)
+            results.append(rerun_summary(lifecycle.upstream_regeneration_request, package, app_payload, obs, RealizerPolicy.from_mapping(mapping)))
+        self.assertGreater(len(results), 1000)
+        kinds = sorted({r[0] for r in results})
+        self.assertGreater(len(kinds), 1)
+        expect.check(self, "results", results, spot={"count": len(results), "kinds": kinds, "requested": sum(1 for r in results if r[0] == "ok" and r[1] is not None),
+                                                      "ids": len({r[1][0] for r in results if r[0] == "ok" and r[1] is not None})})
 
 
 class LifecycleScenarioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
-        cls.source = oengine.package_config(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
+        cls.source = package_config(cls.pkg)
 
     def later(self, day, **patch):
         stamp = f"2026-10-{day:02d}T12:00:00Z"
