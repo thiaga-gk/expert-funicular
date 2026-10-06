@@ -4,9 +4,10 @@
 Working copy of the frozen single-file oracle (``legacy/realizer_single_file/realizer.py``) with the same behavior.
 The realizer reorganization (docs/architecture/realizer-repo-reorg-design.md, section 22) moves its parts into the
 capability subpackages phase by phase; so far the contracts (``realizer.contracts``), settings and loading
-(``realizer.config``), the shared helpers (``realizer.common``), the Analyzer (``realizer.analyzer``) and the Governor
-(``realizer.governor``) are extracted, and this module imports them. ``realize`` runs the Analyzer and the Governor and
-the rest of the engine consumes their results.
+(``realizer.config``), the shared helpers (``realizer.common``), the Analyzer (``realizer.analyzer``), the Governor
+(``realizer.governor``) and the Reconciler (``realizer.reconciler``) are extracted, and this module imports them.
+``realize`` runs the Analyzer, the Governor and the Reconciler; the engine records the lifecycle events the Reconciler
+decides and runs the validation and measurement that follow.
 
 The engine never mutates a RecommendationPackage (PKG-*): it appends immutable ledger facts (RLE-*) and projects a
 separate RealizationPackage (RPKG-*) / snapshot (RSNAP-*). The execution path is replay/offline friendly: a
@@ -26,15 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer import analyzer
-from realizer.analyzer.analysis import (
-    candidate_by_id,
-    candidate_steps,
-    config_hash,
-    observed_config,
-    package_config,
-    recommended_scenario,
-    scenario_by_id,
-)
+from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id
 from realizer.analyzer.collector.collector import demo_observation, load_observation
 from realizer.common.logging import LOGGER, setup_logging
 from realizer.common.utils import decimal, money, ratio_string, utc_iso, write_json
@@ -49,35 +42,27 @@ from realizer.config.settings import (
     PRODUCT_VERSION,
     PROJECTOR_VERSION,
     REALIZER_VERSION,
-    SIZE_ORDER,
 )
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
-from realizer.contracts.realization import (
-    make_app_id,
-    make_measurement_id,
-    make_rpkg_id,
-    make_val_id,
-)
+from realizer.contracts.realization import make_measurement_id, make_rpkg_id, make_val_id
+from realizer.contracts.reconciliation import ReconciliationResult, RegenerationRequest
 from realizer.contracts.request import RealizationRequest, RunContext
 from realizer.governor import governor
-from realizer.governor.policy import (
-    RealizerPolicy,
-    authority_eligible,
-    economic_quality_result,
-    readiness,
-)
+from realizer.governor.policy import RealizerPolicy, authority_eligible, economic_quality_result, readiness
 from realizer.packager.ledger import ledger_path, load_ledger
+from realizer.reconciler import reconciler
+from realizer.reconciler.lifecycle import regeneration_request
 
 # The engine keeps every name it had; the extracted ones stay importable from here (``realizer.realizer.<name>``).
-from realizer.analyzer.analysis import normalize_scalar, photon_bool_from_package  # noqa: F401,E402
+from realizer.analyzer.analysis import normalize_scalar, observed_config, photon_bool_from_package, recommended_scenario  # noqa: F401,E402
 from realizer.governor.policy import counterfactual_eligible, policy_to_dict, savings_improvement_material, validate_performance  # noqa: F401,E402
 from realizer.packager.ledger import latest_event  # noqa: F401,E402
 from realizer.common.utils import load_json  # noqa: F401,E402
-from realizer.config.settings import CONFIG_KNOBS  # noqa: F401,E402
-from realizer.contracts.realization import make_evidence_id  # noqa: F401,E402
-
+from realizer.config.settings import CONFIG_KNOBS, SIZE_ORDER  # noqa: F401,E402
+from realizer.contracts.realization import make_app_id, make_evidence_id  # noqa: F401,E402
+from realizer.reconciler.matching import _directional_relation, choose_application, compare_step  # noqa: F401,E402
 
 # ---------------------------------------------------------------------------
 # Canonical helpers / identities
@@ -151,58 +136,8 @@ def make_ledger_entry(
 
 
 # ---------------------------------------------------------------------------
-# Application matching / plan authority
+# Economics denominator (step and plan matching are realizer.reconciler.matching)
 # ---------------------------------------------------------------------------
-
-
-def _directional_relation(source: Any, recommended: Any, observed: Any) -> Tuple[rc.ImplementationConformance, Optional[str]]:
-    try:
-        s, r, o = Decimal(str(source)), Decimal(str(recommended)), Decimal(str(observed))
-    except Exception:
-        return rc.ImplementationConformance.UNRELATED, None
-    if o == s:
-        return rc.ImplementationConformance.NOT_APPLIED, None
-    if o == r:
-        return rc.ImplementationConformance.EXACT, None
-    d_rec, d_obs = r - s, o - s
-    if d_rec == 0:
-        return rc.ImplementationConformance.UNRELATED, None
-    if (d_rec > 0 and d_obs > 0) or (d_rec < 0 and d_obs < 0):
-        relation = "LESS_AGGRESSIVE" if abs(d_obs) < abs(d_rec) else "MORE_AGGRESSIVE" if abs(d_obs) > abs(d_rec) else "ALTERNATE_SAME_INTENT"
-        return rc.ImplementationConformance.MODIFIED, relation
-    return rc.ImplementationConformance.CONTRARY, None
-
-
-def compare_step(step: Mapping[str, Any], obs_config: Mapping[str, Any]) -> Tuple[Optional[rc.ImplementationConformance], Optional[str]]:
-    knob = str(step.get("knob"))
-    source = step.get("current_value")
-    recommended = step.get("recommended_value")
-    observed = obs_config.get(knob)
-    if observed is None:
-        return None, None
-    if observed == recommended:
-        return rc.ImplementationConformance.EXACT, None
-    if observed == source:
-        return rc.ImplementationConformance.NOT_APPLIED, None
-    if knob in {"min_clusters", "max_clusters", "auto_stop_minutes"}:
-        return _directional_relation(source, recommended, observed)
-    if knob == "warehouse_size":
-        s, r, o = (SIZE_ORDER.get(str(x).upper()) for x in (source, recommended, observed))
-        if None in {s, r, o}:
-            return rc.ImplementationConformance.UNRELATED, None
-        return _directional_relation(s, r, o)
-    if knob == "enable_photon":
-        # No third ordinary boolean target exists. Mixed/unknown evidence must be
-        # normalized upstream rather than guessed here.
-        if isinstance(observed, bool):
-            return rc.ImplementationConformance.CONTRARY, None
-        return None, None
-    if knob in {"warehouse_type", "warehouse_channel"}:
-        # Semantic enums do not have a universal ordinal. A third state is a
-        # modified alternate transition only when the observation explicitly
-        # labels it as such; absent that evidence, classify as unrelated.
-        return rc.ImplementationConformance.UNRELATED, None
-    return rc.ImplementationConformance.UNRELATED, None
 
 
 def expected_annual_for_exact_step(package: Mapping[str, Any], step: Mapping[str, Any]) -> Tuple[Optional[Decimal], str]:
@@ -215,42 +150,6 @@ def expected_annual_for_exact_step(package: Mapping[str, Any], step: Mapping[str
     dbu = savings.get("dbu")
     value = (total or dbu or {}).get("base") if isinstance(total or dbu, Mapping) else None
     return decimal(value), "PUBLISHER_CANDIDATE" if value is not None else "UNAVAILABLE"
-
-
-def choose_application(
-    package: Mapping[str, Any], obs_config: Mapping[str, Any], *, scenario_id: Optional[str] = None,
-) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
-    results: List[Dict[str, Any]] = []
-    primary: Optional[Dict[str, Any]] = None
-    scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
-    sid = None if scenario is None else scenario.get("scenario_id")
-    for step in candidate_steps(package, sid):
-        conf, relation = compare_step(step, obs_config)
-        item = {
-            "scenario_id": sid,
-            "step": int(step.get("step", 0)),
-            "candidate_id": step.get("candidate_id"),
-            "technique_id": step.get("technique_id"),
-            "knob": step.get("knob"),
-            "execution_state": step.get("execution_state"),
-            "authority_eligible": authority_eligible(step),
-            "source_value": step.get("current_value"),
-            "recommended_value": step.get("recommended_value"),
-            "observed_value": obs_config.get(step.get("knob")),
-            "implementation_conformance": None if conf is None else conf.value,
-            "modification_relation": relation,
-            "invalidates": list(step.get("invalidates") or []),
-            "dependencies": copy.deepcopy(step.get("dependencies") or []),
-            "remeasure_days": ((step.get("validation") or {}).get("remeasure_days")),
-        }
-        results.append(item)
-        if primary is None and item["authority_eligible"] and conf in {
-            rc.ImplementationConformance.EXACT,
-            rc.ImplementationConformance.MODIFIED,
-            rc.ImplementationConformance.CONTRARY,
-        }:
-            primary = item
-    return results, primary
 
 
 # ---------------------------------------------------------------------------
@@ -674,11 +573,13 @@ def realize(
     append_if_absent(lpath, created)
 
     # The lineage entry is already appended: a malformed observation fails inside the Analyzer after it, as it always
-    # did, and the Governor never fails (its checks keep their exceptions until the consumer needs them).
+    # did. The Governor and the Reconciler never fail: a check keeps its exception until the consumer needs the result,
+    # and a reconciliation failure is raised by process_observation after the events decided before it.
     analysis = analyzer.run(context)
     governance = governor.run(context, analysis)
+    reconciliation = reconciler.run(context, analysis, governance)
     if analysis.observation is not None:
-        process_observation(context, analysis, governance)
+        process_observation(context, analysis, governance, reconciliation)
 
     entries = load_ledger(lpath)
     if replay_through:
@@ -691,241 +592,94 @@ def realize(
     return snapshot
 
 
-def process_observation(context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult) -> None:
+def process_observation(
+    context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult, reconciliation: ReconciliationResult,
+) -> None:
     package, observation, output_dir, policy = context.request.package, context.request.observation, context.request.output_dir, context.policy
     observed = analysis.observation
     assert observed is not None  # the caller runs this only for a run with an observation
     rpkg = context.realization_package_id
     lpath = ledger_path(output_dir, rpkg)
     obs_time, recorded, effective = observed.observed_at_utc, observed.recorded_at_utc, observed.effective_at_utc
-    obs_cfg = observed.observed_config
-    source_hash, observed_hash = observed.source_config_hash, observed.observed_config_hash
     revid = observed.evidence_id
     write_json(output_dir / "realization" / "evidence" / f"{revid}.json", observed.evidence_record)
 
-    selected_scenario_id = observation.get("applied_scenario_id") or (package.get("recommended_plan") or {}).get("scenario_id")
-    selected_scenario = scenario_by_id(package, selected_scenario_id)
-    step_results, primary = choose_application(package, obs_cfg, scenario_id=selected_scenario_id)
-    authority_changes = [
-        item for item in step_results
-        if item.get("authority_eligible") and item.get("implementation_conformance") in {
-            rc.ImplementationConformance.EXACT.value,
-            rc.ImplementationConformance.MODIFIED.value,
-            rc.ImplementationConformance.CONTRARY.value,
-        }
-    ]
-    scenario_scope = bool(
-        len(authority_changes) > 1
-        or (selected_scenario and selected_scenario.get("scenario_type") == "WAREHOUSE_TYPE_MIGRATION")
-        or selected_scenario_id != (package.get("recommended_plan") or {}).get("scenario_id")
-    )
-    previous_app = analysis.history.previous_application
-    material_config_drift = analysis.config_drift_observed
-    if material_config_drift:
-        drift_payload = {
-            "state": "DRIFTED",
-            "drift_type": "CONFIGURATION",
-            "previous_observed_config_hash": previous_app.payload.get("observed_config_hash"),
-            "observed_config_hash": observed_hash,
-            "observed_config": obs_cfg,
-            "material": True,
-            "required_action": "REGENERATE",
-        }
+    # Record the lifecycle events the Reconciler decided, in order: drift, the application events, intent, rollback,
+    # supersession. If reconciliation failed, the events decided before the failure are recorded and then it is raised.
+    if reconciliation.drift is not None:
         drift = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.DRIFT_DETECTED,
-            effective_at_utc=effective, recorded_at_utc=recorded, payload=drift_payload,
-            evidence_refs=[revid], application_episode_id=previous_app.application_episode_id,
+            effective_at_utc=effective, recorded_at_utc=recorded, payload=reconciliation.drift,
+            evidence_refs=[revid], application_episode_id=reconciliation.drift_episode_id,
         )
         append_if_absent(lpath, drift)
-
-    # Record every materially changed candidate relationship; only authority-
-    # eligible primary scope can enter recommendation realization. Repeated
-    # observations of the same already-applied configuration remain in the same
-    # application episode rather than creating a new APP on every daily run.
-    active_app_event: Optional[rc.RealizationLedgerEntry] = previous_app if material_config_drift else None
-    if not material_config_drift and previous_app and primary and (
-        previous_app.payload.get("observed_config_hash") == observed_hash
-        and previous_app.payload.get("scenario_id") == primary.get("scenario_id")
-        and (scenario_scope or previous_app.payload.get("step") == primary.get("step"))
-    ):
-        active_app_event = previous_app
-
-    # Multiple compatible authoritative changes (or a migration alternative)
-    # are one scenario-scope application episode. This avoids fabricating
-    # candidate allocation for inseparable economics.
-    if scenario_scope and authority_changes and active_app_event is None:
-        scenario_conf = (
-            rc.ImplementationConformance.CONTRARY.value
-            if any(i["implementation_conformance"] == rc.ImplementationConformance.CONTRARY.value for i in authority_changes)
-            else rc.ImplementationConformance.MODIFIED.value
-            if any(i["implementation_conformance"] == rc.ImplementationConformance.MODIFIED.value for i in authority_changes)
-            else rc.ImplementationConformance.EXACT.value
-        )
-        app_id = make_app_id(rpkg, str(selected_scenario_id), 0, source_hash, observed_hash, revid)
-        invalidates = sorted({k for i in authority_changes for k in (i.get("invalidates") or [])})
-        payload = {
-            "application_scope": "SCENARIO",
-            "scenario_id": selected_scenario_id,
-            "step": None,
-            "candidate_id": None,
-            "technique_id": None,
-            "knob": None,
-            "execution_state": "SCENARIO_APPLIED",
-            "authority_eligible": True,
-            "source_value": None,
-            "recommended_value": None,
-            "observed_value": None,
-            "implementation_conformance": scenario_conf,
-            "modification_relation": None,
-            "invalidates": invalidates,
-            "dependencies": [],
-            "applied_step_refs": [{"scenario_id": i["scenario_id"], "step": i["step"], "conformance": i["implementation_conformance"]} for i in authority_changes],
-            "application_episode_id": app_id,
-            "source_config_hash": source_hash,
-            "observed_config_hash": observed_hash,
-            "observed_config": obs_cfg,
-            "effective_from_utc": effective,
-            "effective_time_quality": str(observation.get("effective_time_quality") or "OBSERVED_AT_ONLY"),
-            "intent_state": str(observation.get("intent_state") or "UNKNOWN").upper(),
-            "origin_attribution": str(observation.get("origin_attribution") or "UNKNOWN").upper(),
-            "actor": observation.get("actor"),
-        }
-        et = rc.EventType.MODIFIED_APPLICATION_OBSERVED if scenario_conf == rc.ImplementationConformance.MODIFIED.value else rc.EventType.APPLICATION_OBSERVED
+    for planned in reconciliation.applications:
         event = make_ledger_entry(
-            package=package, rpkg_id=rpkg, event_type=et,
-            effective_at_utc=effective, recorded_at_utc=recorded, payload=payload,
-            evidence_refs=[revid], application_episode_id=app_id,
+            package=package, rpkg_id=rpkg, event_type=planned.event_type,
+            effective_at_utc=effective, recorded_at_utc=recorded, payload=planned.payload,
+            evidence_refs=[revid], application_episode_id=planned.application_episode_id,
         )
         append_if_absent(lpath, event)
-        active_app_event = event
-
-    for item in step_results:
-        conf = item.get("implementation_conformance")
-        if conf in {None, rc.ImplementationConformance.NOT_APPLIED.value}:
-            continue
-        app_id = make_app_id(rpkg, str(item.get("scenario_id")), int(item.get("step") or 0), source_hash, observed_hash, revid)
-        payload = {
-            **item,
-            "application_episode_id": app_id,
-            "source_config_hash": source_hash,
-            "observed_config_hash": observed_hash,
-            "observed_config": obs_cfg,
-            "effective_from_utc": effective,
-            "effective_time_quality": str(observation.get("effective_time_quality") or "OBSERVED_AT_ONLY"),
-            "intent_state": str(observation.get("intent_state") or "UNKNOWN").upper(),
-            "origin_attribution": str(observation.get("origin_attribution") or "UNKNOWN").upper(),
-            "actor": observation.get("actor"),
-        }
-        if material_config_drift and item["authority_eligible"]:
-            continue
-        if scenario_scope and item["authority_eligible"]:
-            continue
-        if (
-            previous_app is not None
-            and active_app_event is previous_app
-            and item["authority_eligible"]
-            and primary
-            and item.get("step") == primary.get("step")
-        ):
-            # Stable state observation: reuse the active APP. Measurement and
-            # validation events below still record the new observation window.
-            continue
-        if not item["authority_eligible"]:
-            et = rc.EventType.INDEPENDENT_CHANGE_OBSERVED
-        elif conf == rc.ImplementationConformance.MODIFIED.value:
-            et = rc.EventType.MODIFIED_APPLICATION_OBSERVED
-        else:
-            et = rc.EventType.APPLICATION_OBSERVED
-        event = make_ledger_entry(
-            package=package, rpkg_id=rpkg, event_type=et,
-            effective_at_utc=effective, recorded_at_utc=recorded, payload=payload,
-            evidence_refs=[revid], application_episode_id=app_id,
-        )
-        append_if_absent(lpath, event)
-        if item["authority_eligible"] and primary and item.get("step") == primary.get("step"):
-            active_app_event = event
-
-    intent = str(observation.get("intent_state") or "UNKNOWN").upper()
-    if intent != "UNKNOWN":
+    if reconciliation.intent is not None:
         ie = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.INTENT_RECORDED,
-            effective_at_utc=effective, recorded_at_utc=recorded,
-            payload={"intent_state": intent, "actor": observation.get("actor"), "reference": observation.get("intent_reference")},
-            evidence_refs=[], application_episode_id=active_app_event.application_episode_id if active_app_event else None,
+            effective_at_utc=effective, recorded_at_utc=recorded, payload=reconciliation.intent,
+            evidence_refs=[], application_episode_id=reconciliation.intent_episode_id,
         )
         append_if_absent(lpath, ie)
-
-    # Explicit rollback can be requested/observed independently of a new PKG.
-    if observation.get("rollback_requested"):
+    if reconciliation.rollback_requested is not None:
         rb = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.ROLLBACK_REQUESTED,
-            effective_at_utc=effective, recorded_at_utc=recorded,
-            payload={"reason": observation.get("rollback_reason")},
-            evidence_refs=[revid], application_episode_id=(active_app_event or previous_app).application_episode_id if (active_app_event or previous_app) else None,
+            effective_at_utc=effective, recorded_at_utc=recorded, payload=reconciliation.rollback_requested,
+            evidence_refs=[revid], application_episode_id=reconciliation.rollback_episode_id,
         )
         append_if_absent(lpath, rb)
-    if observation.get("rollback_observed"):
+    if reconciliation.rollback_observed is not None:
         rb = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.ROLLBACK_OBSERVED,
-            effective_at_utc=effective, recorded_at_utc=recorded,
-            payload={"observed_config": obs_cfg, "reason": observation.get("rollback_reason")},
-            evidence_refs=[revid], application_episode_id=(active_app_event or previous_app).application_episode_id if (active_app_event or previous_app) else None,
+            effective_at_utc=effective, recorded_at_utc=recorded, payload=reconciliation.rollback_observed,
+            evidence_refs=[revid], application_episode_id=reconciliation.rollback_episode_id,
         )
         append_if_absent(lpath, rb)
-
-    # Replacement/supersession events are explicit; package generation alone is
-    # not inferred from observation time.
-    replacement_pkg = observation.get("replacement_package_id")
-    if replacement_pkg:
+    if reconciliation.replacement_package_id:
         se = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.SOURCE_PACKAGE_SUPERSEDED,
             effective_at_utc=effective, recorded_at_utc=recorded,
-            payload={"replacement_package_id": replacement_pkg}, evidence_refs=[]
+            payload={"replacement_package_id": reconciliation.replacement_package_id}, evidence_refs=[]
         )
         append_if_absent(lpath, se)
         le = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.REPLACEMENT_PACKAGE_LINKED,
             effective_at_utc=effective, recorded_at_utc=recorded,
-            payload={"replacement_package_id": replacement_pkg}, evidence_refs=[]
+            payload={"replacement_package_id": reconciliation.replacement_package_id}, evidence_refs=[]
         )
         append_if_absent(lpath, le)
+    if reconciliation.halt is not None:
+        raise reconciliation.halt
 
-    if material_config_drift and previous_app:
-        drift_app_payload = dict(previous_app.payload)
-        drift_app_payload["observed_config"] = obs_cfg
-        drift_app_payload["observed_config_hash"] = observed_hash
-        request_regeneration(
-            package, drift_app_payload, observation, output_dir, policy, recorded, effective,
-            reason="CONFIGURATION_DRIFT",
-        )
+    if reconciliation.terminal_regeneration is not None:
+        append_regeneration(package, output_dir, reconciliation.terminal_regeneration, recorded, effective)
+        return
+    if not reconciliation.validation_due:
         return
 
-    if not active_app_event:
-        return
-
-    app_payload = active_app_event.payload
-    # Contrary application is evidence but not a realization of the original
-    # recommendation. Request regeneration from actual state instead.
-    if app_payload.get("implementation_conformance") == rc.ImplementationConformance.CONTRARY.value:
-        request_regeneration(package, app_payload, observation, output_dir, policy, recorded, effective, reason="CONTRARY_IMPLEMENTATION")
-        return
-
-    ready = governance.readiness.get()
-    if not ready["ready"]:
-        return
-    val_id = make_val_id(active_app_event.application_episode_id, observation, policy)
+    active = reconciliation.active
+    assert active is not None  # validation is due only for an active application
+    app_payload = active.payload
+    ready = governance.readiness.get()  # read by the Reconciler already (validation_due), so it cannot fail here
+    val_id = make_val_id(active.application_episode_id, observation, policy)
     vr = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_READY,
         effective_at_utc=obs_time, recorded_at_utc=recorded,
         payload={"validation_episode_id": val_id, "readiness": ready, "policy_snapshot_id": policy.snapshot_id},
-        evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id, validation_episode_id=val_id,
+        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
     )
     append_if_absent(lpath, vr)
     vs = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_STARTED,
         effective_at_utc=obs_time, recorded_at_utc=recorded,
         payload={"validation_episode_id": val_id, "window_start_utc": observation.get("window_start_utc") or effective, "window_end_utc": observation.get("window_end_utc") or obs_time},
-        evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id, validation_episode_id=val_id,
+        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
     )
     append_if_absent(lpath, vs)
     validation = governance.performance.get()
@@ -942,14 +696,14 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
     vc = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.VALIDATION_COMPLETED,
         effective_at_utc=obs_time, recorded_at_utc=recorded, payload=validation_payload,
-        evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id, validation_episode_id=val_id,
+        evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
     )
     append_if_absent(lpath, vc)
 
     cf_claim_eligible, cf_method = governance.counterfactual.get()
     econ_obs = observation.get("economics") or {}
     if econ_obs.get("counterfactual_old_cost") is not None:
-        cf_id = make_cf_id(active_app_event.application_episode_id, observation, package, policy)
+        cf_id = make_cf_id(active.application_episode_id, observation, package, policy)
         cf_payload = {
             "counterfactual_id": cf_id,
             "method": cf_method,
@@ -961,11 +715,11 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
         ce = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.COUNTERFACTUAL_RECORDED,
             effective_at_utc=obs_time, recorded_at_utc=recorded, payload=cf_payload,
-            evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id, validation_episode_id=val_id,
+            evidence_refs=[revid], application_episode_id=active.application_episode_id, validation_episode_id=val_id,
         )
         append_if_absent(lpath, ce)
     else:
-        cf_id = make_cf_id(active_app_event.application_episode_id, observation, package, policy)
+        cf_id = make_cf_id(active.application_episode_id, observation, package, policy)
 
     economic = calculate_economics(
         package, app_payload, observation, policy, validation["hard_guardrails_pass"],
@@ -975,7 +729,7 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
         economic["quality_gates"] = governance.economic_quality.get()
         attr = attribution_result(app_payload, observation, validation["hard_guardrails_pass"], cf_claim_eligible, economic, policy)
         basis = str(economic.get("economic_basis") or "ECONOMIC_COST")
-        meas_id = make_measurement_id(active_app_event.application_episode_id, observation, cf_id, basis)
+        meas_id = make_measurement_id(active.application_episode_id, observation, cf_id, basis)
         measurement_payload = {
             "measurement_id": meas_id,
             "window_start_utc": observation.get("window_start_utc") or effective,
@@ -992,7 +746,7 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
         me = make_ledger_entry(
             package=package, rpkg_id=rpkg, event_type=rc.EventType.ECONOMIC_MEASUREMENT_RECORDED,
             effective_at_utc=obs_time, recorded_at_utc=recorded, payload=measurement_payload,
-            evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id,
+            evidence_refs=[revid], application_episode_id=active.application_episode_id,
             validation_episode_id=val_id, measurement_id=meas_id,
         )
         append_if_absent(lpath, me)
@@ -1011,7 +765,7 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
             co = make_ledger_entry(
                 package=package, rpkg_id=rpkg, event_type=rc.EventType.BILLING_CORRECTION_RECORDED,
                 effective_at_utc=obs_time, recorded_at_utc=recorded, payload=correction_payload,
-                evidence_refs=[revid], application_episode_id=active_app_event.application_episode_id,
+                evidence_refs=[revid], application_episode_id=active.application_episode_id,
                 validation_episode_id=val_id, measurement_id=meas_id,
                 corrects_entry_id=corrects_entry_id,
             )
@@ -1019,46 +773,28 @@ def process_observation(context: RunContext, analysis: RealizationAnalysis, gove
 
     # Invalidating or modified authoritative changes require fresh Publisher
     # analysis once the governed remeasurement/readiness window has passed.
-    if app_payload.get("invalidates") or app_payload.get("implementation_conformance") == rc.ImplementationConformance.MODIFIED.value:
-        days = int(observation.get("elapsed_days", 0) or 0)
-        required_days = int(app_payload.get("remeasure_days") or policy.remeasure_days_after_invalidating_change)
-        if days >= required_days:
-            request_regeneration(package, app_payload, observation, output_dir, policy, recorded, effective, reason="UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM")
+    upstream = reconciliation.upstream_regeneration.get() if reconciliation.upstream_regeneration is not None else None
+    if upstream is not None:
+        append_regeneration(package, output_dir, upstream, recorded, effective)
 
 
 def request_regeneration(
     package: Mapping[str, Any], app_payload: Mapping[str, Any], observation: Mapping[str, Any], output_dir: Path,
     policy: RealizerPolicy, recorded: str, effective: str, *, reason: str,
 ) -> None:
+    append_regeneration(package, output_dir, regeneration_request(package, app_payload, observation, policy, reason=reason), recorded, effective)
+
+
+def append_regeneration(package: Mapping[str, Any], output_dir: Path, request: RegenerationRequest, recorded: str, effective: str) -> None:
+    """Record a regeneration request (REGENERATION_REQUESTED on its application episode), then write its RERUN file."""
     rpkg = make_rpkg_id(package["recommendation_package_id"])
-    actual_cfg = app_payload.get("observed_config") or observed_config(observation, package)
-    rerun_id = rc.content_id("RERUN", {
-        "source_package": package["recommendation_package_id"],
-        "rpkg": rpkg,
-        "actual_config_hash": config_hash(actual_cfg),
-        "reason": reason,
-        "policy_snapshot_id": policy.snapshot_id,
-    })
-    payload = {
-        "regeneration_request_id": rerun_id,
-        "source_recommendation_package_id": package["recommendation_package_id"],
-        "source_realization_package_id": rpkg,
-        "scenario_id": app_payload.get("scenario_id"),
-        "step": app_payload.get("step"),
-        "actual_config": actual_cfg,
-        "actual_config_hash": config_hash(actual_cfg),
-        "reasons": [reason],
-        "impacted_knobs": list(app_payload.get("invalidates") or []),
-        "policy_snapshot_id": policy.snapshot_id,
-        "status": rc.RegenerationStatus.REQUESTED.value,
-    }
     event = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.REGENERATION_REQUESTED,
-        effective_at_utc=effective, recorded_at_utc=recorded, payload=payload,
-        application_episode_id=app_payload.get("application_episode_id"),
+        effective_at_utc=effective, recorded_at_utc=recorded, payload=request.payload,
+        application_episode_id=request.application_episode_id,
     )
     append_if_absent(ledger_path(output_dir, rpkg), event)
-    write_json(output_dir / "realization" / "regeneration" / f"{rerun_id}.json", payload)
+    write_json(output_dir / "realization" / "regeneration" / f"{request.regeneration_request_id}.json", request.payload)
 
 
 # ---------------------------------------------------------------------------

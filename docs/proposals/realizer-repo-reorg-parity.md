@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-4 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-5 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 
@@ -143,6 +143,60 @@ Not moved, per the extraction map: `compare_step`, `choose_application`, `_direc
 1. **Candidate-missing is an error.** `scripts/compare_realizer_single_file.py` no longer falls back to comparing the oracle with the stored baseline when the candidate cannot be found. An unresolvable candidate exits 2 with a message on stderr, the oracle-only mode is the explicit `--oracle-only` flag, and the default candidate is resolved through `canonical.modular_engine()` so that the `src/realizer` shadowing guard runs. Exit codes: 0 identical, 1 a difference or a candidate crash, 2 an unresolvable candidate or bad arguments. `tests/regression/realizer/test_compare_script.py` pins them, including a drifting and a crashing candidate (exit 1) and the real script in a subprocess.
 2. **Time zone and hash seed are tested.** `test_subprocess_determinism.py` (see the verification table), about 0.3 s.
 3. **Error paths the 41 scenarios cannot reach are compared directly.** Every moved function with a raise or lazy branch has a test running the oracle's copy and the moved one on the same malformed input and asserting the same exception type and message; whole-run tests compare the outcome and the output tree (files and directories) of failing runs.
+
+### Behavior differences
+
+None known. All 41 scenarios and every compared malformed case behave identically to the oracle.
+
+## Phase 5: reconciler
+
+The engine now runs `reconciler.run` after `governor.run` and records the lifecycle events it decides. `realize` runs the Analyzer, the Governor and the Reconciler; `process_observation(context, analysis, governance, reconciliation)` writes the evidence file, appends the lifecycle slots in the oracle's order (drift, the application events, intent, rollback requested, rollback observed, supersession), then either appends the regeneration request that ends the run (and writes its RERUN file) or, when validation is due, runs the oracle's validation and measurement section unchanged and appends the downstream regeneration after the measurement. The validation and measurement section and the ledger appends stay in the engine for Phases 6-8. The oracle is unchanged.
+
+### Where the moved names live
+
+Every name keeps its spelling, signature, messages and values; `realizer.realizer.<name>` still resolves for each one.
+
+| Module | Names | From |
+|---|---|---|
+| `src/realizer/reconciler/matching.py` | `_directional_relation`, `compare_step`, `choose_application` | `realizer.py` |
+| `src/realizer/reconciler/matching.py` | `match` (the selected scenario, the step matches, the authority changes and the scenario-scope decision) | `process_observation` |
+| `src/realizer/reconciler/lifecycle.py` | `plan` (drift, active-episode reuse, the scenario-scope application, the per-step application loop, intent, rollback, supersession, the regeneration that ends the run, `validation_due`), `LifecyclePlan` | `process_observation` |
+| `src/realizer/reconciler/lifecycle.py` | `regeneration_request` (the RERUN id and payload), `upstream_regeneration_request` (the downstream-invalidation rule) | `request_regeneration`, `process_observation` |
+| `src/realizer/reconciler/reconciler.py` | `run(context, analysis, governance) -> ReconciliationResult` | new |
+| `src/realizer/contracts/reconciliation.py` | `PlanMatch`, `PlannedApplication`, `ActiveApplication`, `RegenerationRequest`, `ReconciliationResult` (internal hand-offs; `__all__` stays the public enums) | new |
+| `src/realizer/realizer.py` | `request_regeneration` (same signature: `regeneration_request`, then `append_regeneration`), `append_regeneration` (the ledger append and the RERUN file write) | `request_regeneration` |
+
+Left in the engine for later phases: the validation and measurement section of `process_observation` (estimator and reviewer, Phases 6-7), `make_ledger_entry`, `append_if_absent`, `append_regeneration`, the evidence-file write and the slot-by-slot commit (packager, Phase 8).
+
+### Decisions
+
+- **Reconciliation decides, the engine records.** The Reconciler builds payloads, episode ids and event types; the engine turns them into ledger entries (`make_ledger_entry`) and appends them one by one with the per-append duplicate suppression, so the RLE ids, the `ledger.append` and `ledger.duplicate_suppressed` log lines and every file stay identical. The interim commit loop in `process_observation` encodes the oracle's slot order; it moves to the Packager in Phase 8.
+- **Failed runs keep their half-written ledger (Option A): `halt`.** `reconciler.run` never raises. `lifecycle.plan` fills a `LifecyclePlan` in recording order, each event as soon as it is decided; if anything raises (matching, the scenario-scope invalidation set, a payload value, a rollback or supersession flag, the regeneration request, the readiness check), `run` keeps the exception as `ReconciliationResult.halt` together with the events decided before it. The engine appends exactly those and then raises `halt`, so the run fails with the oracle's exception after the oracle's entries. This covers every raise point by construction, including values a JSON observation cannot carry (an object whose text or truth value cannot be taken), instead of case-by-case reasoning about which computation can raise between two appends.
+- **Readiness is read where the oracle read it.** `lifecycle.plan` calls `governance.readiness.get()` as its last step, only for an active application that neither drifted nor was applied contrary, after every lifecycle event; a failure there is a `halt` raised after the lifecycle slots and before the validation episode. A run with no active application, a drift or a contrary application never reads it. `validation_due` is the readiness verdict; the engine reads the cached readiness value for the validation payloads.
+- **The ending regeneration is a value, the downstream one is held.** The regeneration that ends the run (drift, contrary) is decided after every lifecycle event, so it is computed in place and a failure is a `halt` raised before its append. The downstream regeneration (an invalidating or modified application whose remeasurement window has passed) comes after the measurement in the oracle, so `upstream_regeneration` is a `Deferred`, created only when validation is due and forced by the engine after the measurement and the billing correction.
+- **Explicit episode flag.** The oracle's identity test "the active application is the previous run's application" is `ActiveApplication.is_previous`, set when the previous application is taken over (drift, or the same configuration observed again) and cleared when this run opens an episode. It matters only for a plan that repeats a step number with an observation that neither drifts nor reuses the previous episode; a unit test covers that shape.
+- **Reconciler runs before the evidence file.** `reconciler.run` reads and writes nothing and never raises, so running it from `realize` before `process_observation` writes the evidence file is unobservable; a matching failure is raised after the evidence file, where the oracle raised it. When the Packager takes over the evidence write, the same `halt` places the failure after it.
+- **Contracts.** The hand-off dataclasses are frozen and internal; `contracts/reconciliation.py` imports `Deferred` and `EventType` only under `TYPE_CHECKING`, so the contracts still import nothing at run time from `common` and `realization.py` can keep re-exporting its enums. Payload mappings are passed through unchanged (no copies, no read-only wrappers) so their content and key order match what the oracle hashed.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `scripts/compare_realizer_single_file.py` (candidate `realizer.realizer`, through the shadowing guard) | 41 scenarios: oracle = stored baseline = modular engine |
+| Unnormalized output trees and log lines of every scenario, oracle against modular (`test_single_file_compatibility`), and subprocess determinism | byte-identical, 41/41; identical across hash seeds and time zones |
+| Matching unit tests (`tests/unit/realizer/reconciler/test_matching.py`): `_directional_relation` over 4,096 value triples, `compare_step` over every plan step of both packages against every observed configuration and over every knob with valid and malformed values, `choose_application` for every scenario observation and five scenario choices, `match` against the oracle's inline statements for every scenario observation; malformed packages and observations raise the oracle's exception | pass |
+| Lifecycle unit tests (`test_lifecycle.py`): `regeneration_request` against the oracle's `request_regeneration` for every stored application payload and the three reasons, fallbacks, policies and malformed input; `upstream_regeneration_request` over 1,440 input combinations; the engine's `request_regeneration` writes the oracle's tree; drift, reuse, rollback, supersession, contrary, scenario scope, migration, modified, pending downstream, not ready and the repeated-step reuse rule, each also compared tree for tree with the oracle | pass |
+| `run` over every run of every scenario (`test_reconciler.py`): the decided lifecycle slots, with duplicate suppression, are exactly the entries the oracle appended after its evidence file; then the ending regeneration, the validation section with the downstream regeneration last, or nothing; every RERUN file equals the decided payload; every lifecycle kind occurs | pass |
+| Failed runs (`test_failed_runs.py`): matching failures (malformed step number, plan entry, invalidation list, scenario, recommended plan, an applied non-recommended scenario), the scenario-scope invalidation set, values that fail after the drift entry, after the intent and after each rollback entry, the ending regeneration (drift and contrary, policy whose snapshot cannot be hashed), readiness after a scenario-scope application, the downstream regeneration (policy and step remeasurement window) after the measurement and after a billing correction; unreached inputs do not fail; recovery runs | same outcome and same output tree as the oracle |
+| Mutation checks | a Reconciler that raises at once instead of keeping `halt` fails the automated mutation test (3 of 3 failed-run trees differ); reading readiness before the lifecycle fails 3 tests; computing the ending regeneration before the lifecycle fails 1; forcing the downstream regeneration eagerly fails 1; dropping the `is_previous` flag fails 1 |
+| Test suite | 1073 tests (1018 before: plus 55 reconciler unit tests; 4 skip as before), all pass |
+
+### Known oracle behavior kept for parity
+
+- An authority-eligible step whose observed value is unrelated to the recommendation (for example an unknown warehouse size) is recorded as `APPLICATION_OBSERVED` although it never becomes the active application; the snapshot then counts it as an applied application with conformance `UNRELATED`, and later runs treat it as the previous application.
+- `compare_step` compares the normalized observed value with the package's raw values, so a package value with different spelling or spacing matches differently than its normalized form would.
+
+Both are recorded for a separately reviewed change.
 
 ### Behavior differences
 
