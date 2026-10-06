@@ -1,0 +1,184 @@
+{
+ "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
+  "length": 33190,
+  "sha256": "c88d9a7c6b5dc5fb6144e392dc48c9e0da86e1f1bd358ddf8a03da9012355c25",
+  "spot": {
+   "kinds": {
+    "INFO ledger.append event=APPLICATION_OBSERVED": 34,
+    "INFO ledger.append event=BILLING_CORRECTION_RECORDED": 3,
+    "INFO ledger.append event=COUNTERFACTUAL_RECORDED": 39,
+    "INFO ledger.append event=DRIFT_DETECTED": 3,
+    "INFO ledger.append event=ECONOMIC_MEASUREMENT_RECORDED": 39,
+    "INFO ledger.append event=INDEPENDENT_CHANGE_OBSERVED": 2,
+    "INFO ledger.append event=INTENT_RECORDED": 39,
+    "INFO ledger.append event=MODIFIED_APPLICATION_OBSERVED": 4,
+    "INFO ledger.append event=REALIZATION_CREATED": 41,
+    "INFO ledger.append event=REGENERATION_REQUESTED": 39,
+    "INFO ledger.append event=REPLACEMENT_PACKAGE_LINKED": 1,
+    "INFO ledger.append event=ROLLBACK_OBSERVED": 1,
+    "INFO ledger.append event=SOURCE_PACKAGE_SUPERSEDED": 1,
+    "INFO ledger.append event=VALIDATION_COMPLETED": 39,
+    "INFO ledger.append event=VALIDATION_READY": 39,
+    "INFO ledger.append event=VALIDATION_STARTED": 39,
+    "INFO ledger.duplicate_suppressed": 46
+   },
+   "lines": 409,
+   "scenarios": 41
+  }
+ },
+ "IdempotencyTests.test_the_same_observation_twice_records_nothing_the_second_time/first run": {
+  "value": {
+   "directories": [
+    "realization",
+    "realization/evidence",
+    "realization/ledger",
+    "realization/packages",
+    "realization/regeneration",
+    "realization/snapshots"
+   ],
+   "events": [
+    "REALIZATION_CREATED",
+    "APPLICATION_OBSERVED",
+    "INTENT_RECORDED",
+    "VALIDATION_READY",
+    "VALIDATION_STARTED",
+    "VALIDATION_COMPLETED",
+    "COUNTERFACTUAL_RECORDED",
+    "ECONOMIC_MEASUREMENT_RECORDED",
+    "REGENERATION_REQUESTED"
+   ],
+   "files": {
+    "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+    "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+    "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+    "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+   }
+  }
+ },
+ "IdempotencyTests.test_the_same_observation_twice_records_nothing_the_second_time/second run logs": {
+  "value": [
+   "INFO ledger.duplicate_suppressed rle=RLE-6B7C42D2B96436035A636C5A",
+   "INFO ledger.duplicate_suppressed rle=RLE-84A5977657D31E8D76465DF8",
+   "INFO ledger.duplicate_suppressed rle=RLE-457CB8EB0581B0780CD5FCA3",
+   "INFO ledger.duplicate_suppressed rle=RLE-C29AB5DA194789CA5305CE1F",
+   "INFO ledger.duplicate_suppressed rle=RLE-D8566070F57E270A05235F1A",
+   "INFO ledger.duplicate_suppressed rle=RLE-F8AD4D071038EDDC2302FF09",
+   "INFO ledger.duplicate_suppressed rle=RLE-EF3E3E73D1A3B7DBB7D26C10",
+   "INFO ledger.duplicate_suppressed rle=RLE-7FA52651D805C9BF40C72E5F"
+  ]
+ },
+ "LineageTests.test_lineage_only_run_records_nothing_more/tree": {
+  "value": {
+   "directories": [
+    "realization",
+    "realization/ledger",
+    "realization/packages",
+    "realization/snapshots"
+   ],
+   "events": [
+    "REALIZATION_CREATED"
+   ],
+   "files": {
+    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
+    "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
+    "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+   }
+  }
+ },
+ "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
+  "length": 18752,
+  "sha256": "6ab193f827dcfa6d070757bfdd75713b086087c15339c44f84c44868a83289aa",
+  "spot": {
+   "count": 171,
+   "first": [
+    "GR-001",
+    "2026-10-01T12:00:00Z",
+    "ok",
+    "7d1e296289c68f5530b93f25545ed05e806c699f4a2e067d4048c9e7a8014c9b"
+   ],
+   "last": [
+    "restatement-reprocessed",
+    "2999-01-01T00:00:00Z",
+    "ok",
+    "6f16500ede664a65ad2abe2f77375a31aac9d09b79bb1d617188e0569a5e2acb"
+   ],
+   "outcomes": {
+    "ValueError": 41,
+    "ok": 130
+   }
+  }
+ },
+ "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
+  "length": 36077,
+  "sha256": "31b069ea8e43db562bfd2f20a15b813c0dd2c4216da86870496833c5931651f4",
+  "spot": {
+   "files": 259,
+   "scenarios": 41
+  }
+ },
+ "ReplayTests.test_replay_is_cut_after_the_commit/empty": {
+  "value": [
+   [
+    "ValueError",
+    "cannot project empty ledger"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+    }
+   }
+  ]
+ },
+ "ReplayTests.test_replay_is_cut_after_the_commit/garbage": {
+  "value": [
+   [
+    "ValueError",
+    "Invalid isoformat string: 'garbage'"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+    }
+   }
+  ]
+ }
+}

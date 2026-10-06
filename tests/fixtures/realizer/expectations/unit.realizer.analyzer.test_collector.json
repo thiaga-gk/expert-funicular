@@ -1,0 +1,791 @@
+{
+ "DemoObservationTests.test_for_every_fixture_package/GR-019-two-ready-steps.json modified=False": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "config": {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+   },
+   "economics": {
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "10000",
+    "currency": "USD",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": null,
+    "observed_new_cost": "9000",
+    "period_days": 30
+   },
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "intent_state": "ACCEPTED",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "performance": {
+    "correctness_pass": true,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "representative_regime": true,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z"
+  }
+ },
+ "DemoObservationTests.test_for_every_fixture_package/GR-019-two-ready-steps.json modified=True": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "config": {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "SMALL",
+    "warehouse_type": "PRO"
+   },
+   "economics": {
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "10000",
+    "currency": "USD",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": "12000",
+    "observed_new_cost": "9000",
+    "period_days": 30
+   },
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "intent_state": "ACCEPTED",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "performance": {
+    "correctness_pass": true,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "representative_regime": true,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z"
+  }
+ },
+ "DemoObservationTests.test_for_every_fixture_package/PKG-C1928BFAD6E14C166A0F518D.json modified=False": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "config": {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+   },
+   "economics": {
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "10000",
+    "currency": "USD",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": null,
+    "observed_new_cost": "9000",
+    "period_days": 30
+   },
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "intent_state": "ACCEPTED",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "performance": {
+    "correctness_pass": true,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "representative_regime": true,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z"
+  }
+ },
+ "DemoObservationTests.test_for_every_fixture_package/PKG-C1928BFAD6E14C166A0F518D.json modified=True": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "config": {
+    "auto_stop_minutes": 120,
+    "enable_photon": true,
+    "max_clusters": 4,
+    "min_clusters": 2,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "SMALL",
+    "warehouse_type": "PRO"
+   },
+   "economics": {
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "10000",
+    "currency": "USD",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": "12000",
+    "observed_new_cost": "9000",
+    "period_days": 30
+   },
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "intent_state": "ACCEPTED",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "performance": {
+    "correctness_pass": true,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "representative_regime": true,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z"
+  }
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/candidate step blocked modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/candidate step blocked modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/candidate step without knob modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "None": null,
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/candidate step without knob modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "None": null,
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/current_config None modified=False": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/current_config None modified=True": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/current_config text modified=False": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/current_config text modified=True": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/empty package modified=False": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/empty package modified=True": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at a number modified=False": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'replace'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at a number modified=True": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'replace'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at empty modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T00:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T00:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T00:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T00:00:00Z",
+    "window_start_utc": "2026-10-02T00:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at empty modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T00:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "SMALL",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T00:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T00:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T00:00:00Z",
+    "window_start_utc": "2026-10-02T00:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at not a time modified=False": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: 'not a time'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/generated_at not a time modified=True": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: 'not a time'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/no scenarios key modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/no scenarios key modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/provenance None modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T00:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "MEDIUM",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T00:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T00:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T00:00:00Z",
+    "window_start_utc": "2026-10-02T00:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/provenance None modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T00:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "SMALL",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T00:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T00:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T00:00:00Z",
+    "window_start_utc": "2026-10-02T00:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/provenance text modified=False": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/provenance text modified=True": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/recommended plan names no scenario modified=False": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": null,
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/recommended plan names no scenario modified=True": {
+  "value": [
+   "ok",
+   {
+    "actor": "demo-user",
+    "applied_at_utc": "2026-10-01T12:00:00Z",
+    "config": {
+     "auto_stop_minutes": 120,
+     "enable_photon": true,
+     "max_clusters": 4,
+     "min_clusters": 2,
+     "warehouse_channel": "CURRENT",
+     "warehouse_size": "LARGE",
+     "warehouse_type": "PRO"
+    },
+    "economics": {
+     "counterfactual_method": "MATCHED_HISTORICAL",
+     "counterfactual_old_cost": "10000",
+     "currency": "USD",
+     "economic_basis": "ECONOMIC_COST",
+     "expected_annual_savings_actual_scope": "12000",
+     "observed_new_cost": "9000",
+     "period_days": 30
+    },
+    "elapsed_days": 8,
+    "evidence_quality": "SUFFICIENT",
+    "intent_state": "ACCEPTED",
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "origin_attribution": "CONFIRMED",
+    "performance": {
+     "correctness_pass": true,
+     "normalized_p95_runtime_regression_pct": "2",
+     "reliability_pass": true
+    },
+    "query_count": 250,
+    "recorded_at_utc": "2026-10-09T12:00:00Z",
+    "representative_regime": true,
+    "source": "DEMO_NORMALIZED_OBSERVATION",
+    "window_end_utc": "2026-10-09T12:00:00Z",
+    "window_start_utc": "2026-10-02T12:00:00Z"
+   }
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/scenarios a number modified=False": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/scenarios a number modified=True": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/scenarios text items modified=False": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "DemoObservationTests.test_malformed_packages_raise_the_stored_exception/scenarios text items modified=True": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'get'"
+  ]
+ },
+ "LoadObservationTests.test_errors/None": {
+  "value": "TypeError"
+ },
+ "LoadObservationTests.test_errors/a directory": {
+  "value": "IsADirectoryError"
+ },
+ "LoadObservationTests.test_errors/empty file": {
+  "value": "JSONDecodeError"
+ },
+ "LoadObservationTests.test_errors/invalid JSON": {
+  "value": "JSONDecodeError"
+ },
+ "LoadObservationTests.test_errors/missing file": {
+  "value": "FileNotFoundError"
+ }
+}

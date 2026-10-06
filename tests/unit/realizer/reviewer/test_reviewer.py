@@ -1,33 +1,41 @@
 """Realizer reviewer capability (src/realizer/reviewer/): ``run``, the validation episode and the recognition status.
 
 For every run of the 41 scenarios, the validation episode ``run`` assembles and the recognition status of the
-measurement, recorded with the oracle's per-append duplicate suppression, are exactly the oracle's VALIDATION_READY,
-VALIDATION_STARTED, VALIDATION_COMPLETED and ECONOMIC_MEASUREMENT_RECORDED entries. The Reviewer only assembles: it
+measurement, recorded with the single-file release's per-append duplicate suppression, are exactly the VALIDATION_READY,
+VALIDATION_STARTED, VALIDATION_COMPLETED and ECONOMIC_MEASUREMENT_RECORDED entries the engine appended (tied to the
+stored baseline ledger by ``staged_scenario_runs``). The Reviewer only assembles: it
 passes the estimate through untouched, adds no check, never raises, writes and logs nothing, and keeps a failure of the
 episode as ``halt`` with the payloads decided before it.
 """
 import collections
 import dataclasses
-import inspect
 import logging
 import tempfile
 import unittest
 from pathlib import Path
 
-from tests.unit.realizer.parity import Opaque, compare_measurement_section, engine, fixture_package, oengine, outcome, run_sequence, staged_scenario_runs, tree  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Opaque, compare_measurement_section, fixture_package, outcome, run_sequence, staged_scenario_runs, tree  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.realization import CounterfactualRecord, MeasurementFacts, RealizationEstimate, ReviewResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
+from realizer.estimator import estimator  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy, readiness  # noqa: E402
+from realizer.realizer import build_context, realize  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
 from realizer.reviewer import economics, reviewer, validation  # noqa: E402
 
 
 class EveryScenarioRunTests(unittest.TestCase):
-    def test_reviewed_episode_and_recognition_are_the_oracle_ledger_entries_for_every_run_of_every_scenario(self):
+    def test_reviewed_episode_and_recognition_are_the_ledger_entries_for_every_run_of_every_scenario(self):
         seen = collections.Counter()
         for run in staged_scenario_runs():
             with self.subTest(scenario=run.scenario, run=run.index):
                 result = compare_measurement_section(self, run)
-                self.assertEqual(run.modular_tree, run.oracle_tree)
                 if result is None:
                     continue
                 context, analysis, governance, reconciliation, estimate, review = result
@@ -54,34 +62,26 @@ class RecognitionStatusTests(unittest.TestCase):
         self.assertEqual(economics.recognition_status(False, False), "REJECTED")
         self.assertEqual({economics.recognition_status(a, b) for a in (True, False) for b in (True, False)}, {m.value for m in rc.RecognitionStatus})
 
-    def test_expression_is_the_oracle_measurement_payload_expression(self):
-        oracle_source = inspect.getsource(oengine.process_observation)
-        expression = ('rc.RecognitionStatus.CONFIRMED.value if validation["hard_guardrails_pass"] and cf_claim_eligible else '
-                      'rc.RecognitionStatus.REJECTED.value if not validation["hard_guardrails_pass"] else rc.RecognitionStatus.PROVISIONAL.value')
-        self.assertIn(expression, oracle_source)
-        moved = expression.replace('validation["hard_guardrails_pass"]', "validation_passed").replace("cf_claim_eligible", "counterfactual_claim_eligible")
-        self.assertIn(f"return {moved}", inspect.getsource(economics.recognition_status))
-
 
 class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def stages(self, observation, out=Path("/nonexistent-out"), policy=None):
-        context = engine.build_context(RealizationRequest(self.pkg, observation, out, policy=policy))
-        analysis = engine.analyzer.run(context)
-        governance = engine.governor.run(context, analysis)
-        return context, analysis, governance, engine.reconciler.run(context, analysis, governance)
+        context = build_context(RealizationRequest(self.pkg, observation, out, policy=policy))
+        analysis = analyzer.run(context)
+        governance = governor.run(context, analysis)
+        return context, analysis, governance, reconciler.run(context, analysis, governance)
 
     def review(self, observation, estimate=None, **kwargs):
         stages = self.stages(observation, **kwargs)
-        return reviewer.run(*stages, estimate if estimate is not None else engine.estimator.run(*stages))
+        return reviewer.run(*stages, estimate if estimate is not None else estimator.run(*stages))
 
     def test_nothing_is_reviewed_unless_validation_is_due(self):
         for label, observation in {"lineage only": None, "not ready": {**self.base, "elapsed_days": 1},
-                                   "nothing applied": {**self.base, "config": oengine.package_config(self.pkg)}}.items():
+                                   "nothing applied": {**self.base, "config": package_config(self.pkg)}}.items():
             with self.subTest(case=label):
                 stages = self.stages(observation)
                 estimate = RealizationEstimate()
@@ -91,8 +91,8 @@ class RunTests(unittest.TestCase):
     def test_episode_payloads(self):
         review = self.review(self.base)
         episode = review.validation
-        policy_id = engine.RealizerPolicy().snapshot_id
-        ready = engine.readiness(self.base, engine.RealizerPolicy())
+        policy_id = RealizerPolicy().snapshot_id
+        ready = readiness(self.base, RealizerPolicy())
         self.assertEqual(episode.ready_payload, {"validation_episode_id": episode.validation_episode_id, "readiness": ready, "policy_snapshot_id": policy_id})
         self.assertEqual(episode.started_payload, {"validation_episode_id": episode.validation_episode_id,
                                                    "window_start_utc": self.base["window_start_utc"], "window_end_utc": self.base["window_end_utc"]})
@@ -119,7 +119,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(review.recognition_status, "REJECTED")
         self.assertEqual(review.validation, self.review(self.base).validation)
 
-    def test_run_never_raises_and_halts_with_the_oracle_exception(self):
+    def test_run_never_raises_and_halts_with_the_exception_the_run_raises(self):
         cases = {
             "policy snapshot": ({}, {"realized_ratio_min": "NaN"}, None),
             "validation id": ({"window": {"start_utc": "x"}, "window_start_utc": Opaque()}, None, None),
@@ -129,10 +129,11 @@ class RunTests(unittest.TestCase):
         for label, (patch, mapping, last) in cases.items():
             observation = {**self.base, **patch}
             with self.subTest(case=label):
-                policy = None if mapping is None else engine.RealizerPolicy.from_mapping(mapping)
+                policy = None if mapping is None else RealizerPolicy.from_mapping(mapping)
                 review = self.review(observation, policy=policy)
-                (old,), _ = run_sequence(oengine, self.pkg, [observation], mapping)
-                self.assertEqual((type(review.halt).__name__, str(review.halt)), old)
+                (raised,), _ = run_sequence(self.pkg, [observation], mapping)
+                self.assertEqual((type(review.halt).__name__, str(review.halt)), raised)
+                expect.check(self, label, (type(review.halt).__name__, str(review.halt)))
                 self.assertIsNone(review.recognition_status)
                 if last is None:
                     self.assertIsNone(review.validation)
@@ -151,10 +152,10 @@ class RunTests(unittest.TestCase):
     def test_run_is_pure_and_frozen(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            engine.realize(self.pkg, self.base, out)
+            realize(self.pkg, self.base, out)
             before = tree(out)
             stages = self.stages(self.base, out)
-            estimate = engine.estimator.run(*stages)
+            estimate = estimator.run(*stages)
             with self.assertNoLogs("realizer", logging.DEBUG):
                 review = reviewer.run(*stages, estimate)
             self.assertEqual(tree(out), before)

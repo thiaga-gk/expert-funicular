@@ -1,0 +1,317 @@
+{
+ "AnalyzerFailureTests.test_evidence_write_failure_leaves_the_same_directories/decimal source": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Decimal is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_failure_is_followed_by_the_same_recovery/failure then recovery": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "'int' object is not iterable"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_malformed_package_fails_the_same_way/current_config text": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'str' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_malformed_package_fails_the_same_way/photon a string": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'str' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_malformed_package_fails_the_same_way/warehouse text": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "string indices must be integers, not 'str'"
+    ]
+   ],
+   {
+    "directories": [],
+    "events": [],
+    "files": {}
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_malformed_package_fails_the_same_way/warehouse without a warehouse_id": {
+  "value": [
+   [
+    [
+     "KeyError",
+     "'warehouse_id'"
+    ]
+   ],
+   {
+    "directories": [],
+    "events": [],
+    "files": {}
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/applied_at not a time": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "Invalid isoformat string: 'nope'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/config a list": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "dictionary update sequence element #0 has length 1; 2 is required"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/config a number": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "'int' object is not iterable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/no times": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "timestamp is required"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/observed_at not a time": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "Invalid isoformat string: 'nope'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/recorded_at not a time": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "Invalid isoformat string: 'nope'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/source unserializable": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "AnalyzerFailureTests.test_unreadable_observation_fails_after_the_lineage_entry_and_before_the_evidence_file/window unserializable": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ }
+}

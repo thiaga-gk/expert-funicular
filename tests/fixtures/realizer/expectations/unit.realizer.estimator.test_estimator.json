@@ -1,0 +1,56 @@
+{
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/attribution": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/correction": {
+  "value": [
+   "ValueError",
+   "observation flag has no truth value"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/counterfactual cost": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/counterfactual eligibility": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/counterfactual id": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/economics": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/measurement id": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/performance": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_after_the_facts_decided_before_it/quality gates": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ }
+}

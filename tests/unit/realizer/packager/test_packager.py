@@ -1,12 +1,13 @@
 """Realizer packager capability (src/realizer/packager/packager.py): ``begin``, ``run`` and its ``PackagingResult``.
 
-For every run of the 41 scenarios, the entries ``run`` records, the files it writes and the snapshot it projects are the
-oracle's: the whole output tree and the log lines are identical, the result holds the ledger the run left (cut at
-``replay_through``) and the evidence and regeneration files written, and the snapshot is the oracle's package body. A
-replay through any recorded time reproduces the oracle's snapshot, a repeated observation records nothing, and a billing
-restatement is recorded as a correction of the earlier measurement. The mutation checks prove the comparison notices
-two events recorded in the wrong order.
+For every run of the 41 scenarios, the result holds the ledger the run left (cut at ``replay_through``) and the evidence
+and regeneration files written, and the snapshot is the package body the Reporter wrote (the output tree itself is the
+stored baseline's). The ledger log lines of every scenario, a replay through any recorded time, and the tree a lineage-only
+run or a failed replay cut leaves are stored expectations (``tests/fixtures/realizer/expectations/``). A repeated
+observation records nothing, and a billing restatement is recorded as a correction of the earlier measurement. The
+mutation check proves the comparison notices two events recorded in the wrong order.
 """
+import collections
 import copy
 import dataclasses
 import json
@@ -15,42 +16,51 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import realizer_expect as expect
 from tests.unit.realizer.packager.test_ledger import capture_logs  # noqa: E402
-from tests.unit.realizer.parity import as_line, canonical, engine, events, files, fixture_package, ledger_lines, oengine, outcome, staged_scenario_runs, tree  # noqa: E402
+from tests.unit.realizer.helpers import as_line, canonical, compact_tree, events, files, fixture_package, ledger_lines, outcome, staged_scenario_runs, tree  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.common.utils import utc_iso  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
-from realizer.contracts.realization import PackagingResult, RealizationEstimate, ReviewResult  # noqa: E402
+from realizer.contracts.realization import PackagingResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
+from realizer.estimator import estimator  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager import ledger, packager  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
+from realizer.realizer import build_context, realize  # noqa: E402
+from realizer.reviewer import reviewer  # noqa: E402
 
 
 class EveryScenarioRunTests(unittest.TestCase):
-    def test_result_and_output_are_the_oracles_for_every_run_of_every_scenario(self):
+    def test_result_and_output_for_every_run_of_every_scenario(self):
         runs = written = prefixes = 0
         for run in staged_scenario_runs():
             with self.subTest(scenario=run.scenario, run=run.index):
-                self.assertEqual(run.modular_tree, run.oracle_tree)
                 ((args, result),) = run.calls["packager"]
                 context, reviewed = args
                 self.assertIsInstance(result, PackagingResult)
                 self.assertIs(result.realization.__class__, rc.RealizationPackage)
-                # the ledger the run left, as the oracle's file lines (file order before and after the run), cut at the replay time
+                # the ledger the run left, as the file lines (file order before and after the run), cut at the replay time
                 lines = run.before + run.appended
                 ordered = sorted(lines, key=lambda x: (x["recorded_at_utc"], x["ledger_entry_id"]))
                 if run.replay_through:
-                    cut = engine.utc_iso(run.replay_through)
+                    cut = utc_iso(run.replay_through)
                     ordered = [x for x in ordered if x["recorded_at_utc"] <= cut]
                     prefixes += 1
                 self.assertEqual([as_line(e) for e in result.entries], ordered)
-                # the snapshot is the package body the oracle wrote, under its RPKG and RSNAP names
+                # the snapshot is the package body the Reporter wrote, under its RPKG and RSNAP names
                 rpkg = f"realization/packages/{result.realization.realization_package_id}.json"
-                self.assertEqual(json.loads(json.dumps(result.realization.to_dict())), json.loads(run.oracle_tree[rpkg]))
-                self.assertIn(f"realization/snapshots/{result.realization.snapshot_id}.json", run.oracle_tree)
-                # the files the Packager wrote exist in the oracle's tree, with the oracle's name
+                self.assertEqual(json.loads(json.dumps(result.realization.to_dict())), json.loads(run.tree[rpkg]))
+                self.assertIn(f"realization/snapshots/{result.realization.snapshot_id}.json", run.tree)
+                # the files the Packager wrote exist in the output tree
                 out = context.request.output_dir
                 relative = [p.relative_to(out).as_posix() for p in result.written]
                 self.assertEqual(len(relative), len(set(relative)))
                 for rel in relative:
-                    self.assertIsNotNone(run.oracle_tree.get(rel), rel)
+                    self.assertIsNotNone(run.tree.get(rel), rel)
                 if run.observation:
                     self.assertEqual(relative[0], f"realization/evidence/{reviewed.analysis.observation.evidence_id}.json")
                 else:
@@ -66,30 +76,29 @@ class EveryScenarioRunTests(unittest.TestCase):
         self.assertGreater(written, 40)
         self.assertGreater(prefixes, 0)
 
-    def test_log_lines_are_the_oracles_for_every_scenario(self):
+    def test_log_lines_for_every_scenario(self):
+        logs = {}
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
-            logs = []
-            for module in (engine, oengine):
-                with tempfile.TemporaryDirectory() as tmp, capture_logs() as lines:
-                    for step in scenario["runs"]:
-                        policy = step.get("policy")
-                        module.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
-                                       replay_through=step.get("replay_through"),
-                                       policy=None if policy is None else module.RealizerPolicy.from_mapping(policy))
-                logs.append([line for line in lines if "ledger." in line])
-            self.assertEqual(logs[0], logs[1], name)
-            self.assertTrue(any("ledger.append" in line for line in logs[0]), name)
+            with tempfile.TemporaryDirectory() as tmp, capture_logs() as lines:
+                for step in scenario["runs"]:
+                    policy = step.get("policy")
+                    realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
+                            replay_through=step.get("replay_through"), policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+            logs[name] = [line for line in lines if "ledger." in line]
+            self.assertTrue(any("ledger.append" in line for line in logs[name]), name)
+        kinds = collections.Counter(line.split(" rle=")[0] for lines in logs.values() for line in lines)
+        expect.check(self, "ledger lines", logs, spot={"scenarios": len(logs), "lines": sum(len(v) for v in logs.values()), "kinds": dict(kinds)})
 
 
-def run_scenario(module, name, runs=None):
-    """Run scenario *name* through *module*'s ``realize`` into a fresh directory; the tree it leaves."""
+def run_scenario(name):
+    """Run scenario *name* through ``realize`` into a fresh directory; the tree it leaves."""
     scenario = canonical.load_scenario(name)
     with tempfile.TemporaryDirectory() as tmp:
-        for step in (scenario["runs"] if runs is None else runs):
+        for step in scenario["runs"]:
             policy = step.get("policy")
-            module.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
-                           replay_through=step.get("replay_through"), policy=None if policy is None else module.RealizerPolicy.from_mapping(policy))
+            realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
+                    replay_through=step.get("replay_through"), policy=None if policy is None else RealizerPolicy.from_mapping(policy))
         return tree(Path(tmp))
 
 
@@ -99,7 +108,7 @@ class LineageTests(unittest.TestCase):
         cls.pkg = fixture_package()
 
     def context(self, out, observation=None, **kw):
-        return engine.build_context(RealizationRequest(package=copy.deepcopy(self.pkg), observation=observation, output_dir=out, **kw))
+        return build_context(RealizationRequest(package=copy.deepcopy(self.pkg), observation=observation, output_dir=out, **kw))
 
     def test_begin_records_the_lineage_entry_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -121,21 +130,19 @@ class LineageTests(unittest.TestCase):
             self.assertEqual(path.read_text(encoding="utf-8"), "not json\n")
 
     def test_lineage_only_run_records_nothing_more(self):
-        trees = []
-        for module in (engine, oengine):
-            with tempfile.TemporaryDirectory() as tmp:
-                module.realize(copy.deepcopy(self.pkg), None, Path(tmp))
-                trees.append(tree(Path(tmp)))
-        self.assertEqual(trees[0], trees[1])
-        self.assertEqual(events(trees[0]), ["REALIZATION_CREATED"])
-        self.assertEqual(files(trees[0], "evidence"), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            realize(copy.deepcopy(self.pkg), None, Path(tmp))
+            lineage_tree = tree(Path(tmp))
+        self.assertEqual(events(lineage_tree), ["REALIZATION_CREATED"])
+        self.assertEqual(files(lineage_tree, "evidence"), [])
+        expect.check(self, "tree", compact_tree(lineage_tree))
         with tempfile.TemporaryDirectory() as tmp:
             context = self.context(Path(tmp))
             packager.begin(context)
-            analysis = engine.analyzer.run(context)
-            governance = engine.governor.run(context, analysis)
-            reconciliation = engine.reconciler.run(context, analysis, governance)
-            reviewed = engine.review(context, analysis, governance, reconciliation)
+            analysis = analyzer.run(context)
+            governance = governor.run(context, analysis)
+            reconciliation = reconciler.run(context, analysis, governance)
+            reviewed = reviewer.run(context, analysis, governance, reconciliation, estimator.run(context, analysis, governance, reconciliation))
             result = packager.run(context, reviewed)
             self.assertEqual(result.written, ())
             self.assertEqual([e.event_type for e in result.entries], [rc.EventType.REALIZATION_CREATED])
@@ -150,75 +157,67 @@ class LineageTests(unittest.TestCase):
 
 
 class ReplayTests(unittest.TestCase):
-    def test_an_entry_prefix_through_replay_reproduces_the_oracle_snapshot_and_files(self):
-        compared = 0
+    def test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files(self):
+        replays = []
+        trees = {}
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
             package = scenario["package_doc"]
-            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            with tempfile.TemporaryDirectory() as out:
                 for step in scenario["runs"]:
                     policy = step.get("policy")
-                    for module, out in ((engine, a), (oengine, b)):
-                        module.realize(copy.deepcopy(package), copy.deepcopy(step.get("observation")), Path(out),
-                                       policy=None if policy is None else module.RealizerPolicy.from_mapping(policy))
-                cuts = sorted({line["recorded_at_utc"] for line in ledger_lines(Path(b))})
+                    realize(copy.deepcopy(package), copy.deepcopy(step.get("observation")), Path(out),
+                            policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                cuts = sorted({line["recorded_at_utc"] for line in ledger_lines(Path(out))})
                 for cut in cuts + ["1999-01-01T00:00:00Z", "2999-01-01T00:00:00Z"]:
-                    results = []
-                    for module, out in ((engine, a), (oengine, b)):
-                        result = outcome(lambda: module.realize(copy.deepcopy(package), None, Path(out), replay_through=cut).to_dict())
-                        results.append(json.loads(json.dumps(result, default=str)))
-                    self.assertEqual(results[0], results[1], (name, cut))
-                    compared += 1
-                self.assertEqual(tree(Path(a)), tree(Path(b)), name)
-        self.assertGreater(compared, 150)
+                    result = outcome(lambda: realize(copy.deepcopy(package), None, Path(out), replay_through=cut).to_dict())
+                    replays.append([name, cut, result[0], expect.digest(json.loads(json.dumps(result, default=str)))])
+                trees[name] = compact_tree(tree(Path(out)))
+        self.assertGreater(len(replays), 150)
+        expect.check(self, "replays", replays, spot={"count": len(replays), "outcomes": dict(collections.Counter(r[2] for r in replays)),
+                                                     "first": replays[0], "last": replays[-1]})
+        expect.check(self, "trees", trees, spot={"scenarios": len(trees), "files": sum(len(t["files"]) for t in trees.values())})
 
     def test_replay_is_cut_after_the_commit(self):
         # a cut that is not a time raises only after the run's events were recorded; a cut before every entry leaves nothing to project
         pkg = fixture_package()
-        base = oengine.demo_observation(pkg)
-        results = []
-        for module in (engine, oengine):
-            row = []
-            for cut in ("garbage", "1999-01-01T00:00:00Z"):
-                with tempfile.TemporaryDirectory() as tmp:
-                    row.append((outcome(module.realize, copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp), replay_through=cut), tree(Path(tmp))))
-            results.append(row)
-        self.assertEqual(results[0], results[1])
-        (garbage, garbage_tree), (empty, empty_tree) = results[0]
+        base = demo_observation(pkg)
+        results = {}
+        for label, cut in (("garbage", "garbage"), ("empty", "1999-01-01T00:00:00Z")):
+            with tempfile.TemporaryDirectory() as tmp:
+                results[label] = (outcome(realize, copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp), replay_through=cut), tree(Path(tmp)))
+        (garbage, garbage_tree), (empty, empty_tree) = results["garbage"], results["empty"]
         self.assertNotEqual(garbage[0], "ok")
         self.assertEqual(empty[:2], ("ValueError", "cannot project empty ledger"))
         for failed in (garbage_tree, empty_tree):
             self.assertIn("ECONOMIC_MEASUREMENT_RECORDED", events(failed))
             self.assertEqual(files(failed, "packages"), [])
             self.assertEqual(files(failed, "snapshots"), [])
+        for label, (result, failed_tree) in results.items():
+            expect.check(self, label, (result, compact_tree(failed_tree)))
 
 
 class IdempotencyTests(unittest.TestCase):
     def test_the_same_observation_twice_records_nothing_the_second_time(self):
         pkg = fixture_package()
-        base = oengine.demo_observation(pkg)
-        trees, logs = [], []
-        for module in (engine, oengine):
-            with tempfile.TemporaryDirectory() as tmp, capture_logs() as lines:
-                module.realize(copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp))
-                first = tree(Path(tmp))
-                mark = len(lines)
-                module.realize(copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp))
-                second = tree(Path(tmp))
-                trees.append((first, second))
-                logs.append(list(lines[mark:]))
-        self.assertEqual(trees[0], trees[1])
-        self.assertEqual(logs[0], logs[1])
-        first, second = trees[0]
+        base = demo_observation(pkg)
+        with tempfile.TemporaryDirectory() as tmp, capture_logs() as lines:
+            realize(copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp))
+            first = tree(Path(tmp))
+            mark = len(lines)
+            realize(copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp))
+            second = tree(Path(tmp))
+            logs = list(lines[mark:])
         self.assertEqual(events(first), events(second))
         self.assertEqual(second, first, "the second run changes nothing: not a ledger line, not a file")
-        self.assertTrue(logs[0])
-        self.assertTrue(all("duplicate_suppressed" in line for line in logs[0]), logs[0])
+        self.assertTrue(logs)
+        self.assertTrue(all("duplicate_suppressed" in line for line in logs), logs)
+        expect.check(self, "first run", compact_tree(first))
+        expect.check(self, "second run logs", logs)
 
     def test_billing_restatement_is_a_correction_of_the_earlier_measurement(self):
-        ledgers = [run_scenario(module, "GR-026") for module in (engine, oengine)]
-        self.assertEqual(ledgers[0], ledgers[1])
-        lines = [json.loads(line) for rel, text in ledgers[0].items() if rel.startswith("realization/ledger/") and text for line in text.splitlines()]
+        run_tree = run_scenario("GR-026")
+        lines = [json.loads(line) for rel, text in run_tree.items() if rel.startswith("realization/ledger/") and text for line in text.splitlines()]
         measurement = next(x for x in lines if x["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED")
         corrections = [x for x in lines if x["event_type"] == "BILLING_CORRECTION_RECORDED"]
         self.assertEqual(len(corrections), 1)
@@ -272,12 +271,13 @@ class SlotOrderMutationTests(unittest.TestCase):
             with self.subTest(first=first, second=second):
                 name = self.scenario_with(first, second)
                 self.assertIsNotNone(name, "no scenario records the pair")
-                expected = run_scenario(oengine, name)
-                self.assertEqual(run_scenario(engine, name), expected)
+                expected = run_scenario(name)
+                stored = {rel: text for rel, text in canonical_tree(name).items() if rel.startswith("realization/")}
+                self.assertEqual({rel: text for rel, text in expected.items() if text is not None}, stored, "the run is the stored baseline")
                 with mock.patch.object(ledger, "append_if_absent", self.swapping(first, second)):
-                    mutant = run_scenario(engine, name)
+                    mutant = run_scenario(name)
                 self.assertNotEqual(mutant, expected)
-                self.assertEqual(run_scenario(engine, name), expected)
+                self.assertEqual(run_scenario(name), expected)
 
 
 _TREES = {}

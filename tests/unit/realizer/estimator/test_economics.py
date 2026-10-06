@@ -1,32 +1,41 @@
-"""Estimator economics (src/realizer/estimator/economics.py): the moved functions and the measurement facts.
+"""Estimator economics (src/realizer/estimator/economics.py): the functions and the measurement facts.
 
-``make_cf_id``, ``expected_annual_for_exact_step`` and ``calculate_economics`` are the oracle's functions moved
-unchanged: same source, signature and result, and the same exception on malformed input, over every application the
+``make_cf_id``, ``expected_annual_for_exact_step`` and ``calculate_economics`` give the results (and raise the
+exceptions on malformed input) stored in ``tests/fixtures/realizer/expectations/`` over every application the
 41 scenarios recorded and over grids of economics, readiness, verdicts and policies. The realization classes,
 denominators, period, AWS components, trailing-twelve-month savings, unavailable economics, guardrail failure and the
 counterfactual that cannot support a claim are also pinned to explicit values. ``counterfactual_record``,
-``measurement_facts`` and ``correction_facts`` build the oracle's payloads (compared entry for entry in
+``measurement_facts`` and ``correction_facts`` build the ledger payloads (compared entry for entry in
 ``test_estimator``); their fallbacks are pinned here.
 """
 import copy
-import inspect
 import itertools
 import json
 import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from tests.unit.realizer.parity import Opaque, Unprintable, canonical, engine, fixture_package, oengine, outcome  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.config.settings import MODELER_GATEWAY_VERSION  # noqa: E402
+from realizer.contracts.realization import make_measurement_id, make_rpkg_id  # noqa: E402
+from realizer.contracts.realization import EventType  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.estimator import economics  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.packager.ledger import make_ledger_entry  # noqa: E402
+from realizer.realizer import build_context  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
 
-MOVED = ("make_cf_id", "expected_annual_for_exact_step", "calculate_economics")
 APPLICATION_EVENTS = {"APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED", "INDEPENDENT_CHANGE_OBSERVED"}
 POLICIES = [None, {"realized_ratio_min": "0.95", "under_realized_ratio_min": "0.7", "minimum_days": 1, "require_representative_regime": False}]
 
 
-def policies(mapping):
-    return engine.RealizerPolicy.from_mapping(mapping), oengine.RealizerPolicy.from_mapping(mapping)
+def policy(mapping):
+    return RealizerPolicy.from_mapping(mapping)
 
 
 def stored_applications():
@@ -45,36 +54,25 @@ def stored_applications():
 
 
 def demo_application(package, observation):
-    context = engine.build_context(RealizationRequest(package, observation, Path("/nonexistent-out")))
-    analysis = engine.analyzer.run(context)
-    return engine.reconciler.run(context, analysis, engine.governor.run(context, analysis)).active.payload
-
-
-class MovedNamesTests(unittest.TestCase):
-    def test_moved_unchanged_and_reexported(self):
-        for name in MOVED:
-            with self.subTest(name=name):
-                moved = getattr(economics, name)
-                self.assertIs(getattr(engine, name), moved)
-                self.assertEqual(inspect.getsource(moved), inspect.getsource(getattr(oengine, name)))
-                self.assertEqual(str(inspect.signature(moved)), str(inspect.signature(getattr(oengine, name))))
+    context = build_context(RealizationRequest(package, observation, Path("/nonexistent-out")))
+    analysis = analyzer.run(context)
+    return reconciler.run(context, analysis, governor.run(context, analysis)).active.payload
 
 
 class CounterfactualIdTests(unittest.TestCase):
-    def test_cf_id_equals_the_oracle_for_every_application_observation_and_policy(self):
+    def test_cf_id_for_every_application_observation_and_policy(self):
         observations = [run["observation"] for name in canonical.scenario_names() for run in canonical.load_scenario(name)["runs"] if run.get("observation")]
-        count = 0
+        results = []
         for (package, app), mapping in itertools.product(list(stored_applications())[:12], POLICIES):
-            new_policy, old_policy = policies(mapping)
             for observation in observations[::4]:
-                self.assertEqual(economics.make_cf_id(app["application_episode_id"], observation, package, new_policy),
-                                 oengine.make_cf_id(app["application_episode_id"], observation, package, old_policy))
-                count += 1
-        self.assertGreater(count, 100)
+                results.append(economics.make_cf_id(app["application_episode_id"], observation, package, policy(mapping)))
+        self.assertGreater(len(results), 100)
+        self.assertTrue(all(r.startswith("CF-") for r in results))
+        expect.check(self, "ids", results, spot={"count": len(results), "distinct": len(set(results)), "first": results[0]})
 
-    def test_cf_id_failures_equal_the_oracle(self):
+    def test_cf_id_failures(self):
         package = fixture_package()
-        base = oengine.demo_observation(package)
+        base = demo_observation(package)
         broken_package = copy.deepcopy(package)
         broken_package["current_config"] = 5
         cases = [
@@ -86,22 +84,21 @@ class CounterfactualIdTests(unittest.TestCase):
         ]
         for label, observation, pkg, mapping in cases:
             with self.subTest(case=label):
-                new_policy, old_policy = policies(mapping)
-                new = outcome(economics.make_cf_id, "APP-X", observation, pkg, new_policy)
+                new = outcome(economics.make_cf_id, "APP-X", observation, pkg, policy(mapping))
                 self.assertNotEqual(new[0], "ok")
-                self.assertEqual(new, outcome(oengine.make_cf_id, "APP-X", observation, pkg, old_policy))
+                expect.check(self, label, new)
 
 
 class ExpectedAnnualTests(unittest.TestCase):
     def test_every_plan_step_of_both_packages(self):
-        count = 0
+        results = {}
         for path in sorted(canonical.PACKAGES.glob("*.json")):
             package = json.loads(path.read_text(encoding="utf-8"))
             for scenario in package["scenarios"]:
                 for step in scenario.get("execution_plan", []):
-                    self.assertEqual(economics.expected_annual_for_exact_step(package, step), oengine.expected_annual_for_exact_step(package, step))
-                    count += 1
-        self.assertGreater(count, 10)
+                    results[f"{path.stem}/{scenario['scenario_id']}/{step.get('step')}"] = economics.expected_annual_for_exact_step(package, step)
+        self.assertGreater(len(results), 10)
+        expect.check(self, "steps", results)
 
     def test_candidate_economics_shapes(self):
         package = fixture_package()
@@ -121,7 +118,7 @@ class ExpectedAnnualTests(unittest.TestCase):
             with self.subTest(shape=label):
                 pkg = copy.deepcopy(package)
                 pkg["candidates"] = [{"candidate_id": "CAND-T", "independent_economics": econ}]
-                self.assertEqual(outcome(economics.expected_annual_for_exact_step, pkg, step), outcome(oengine.expected_annual_for_exact_step, pkg, step))
+                expect.check(self, label, outcome(economics.expected_annual_for_exact_step, pkg, step))
         pkg = copy.deepcopy(package)
         pkg["candidates"] = [{"candidate_id": "CAND-T", "independent_economics": shapes["total"]}]
         self.assertEqual(economics.expected_annual_for_exact_step(pkg, step), (Decimal("120.5"), "PUBLISHER_CANDIDATE"))
@@ -132,12 +129,12 @@ class ExpectedAnnualTests(unittest.TestCase):
 
 
 class CalculateEconomicsGridTests(unittest.TestCase):
-    """``calculate_economics`` against the oracle over applications x economics x readiness x verdicts x policies."""
+    """``calculate_economics`` over applications x economics x readiness x verdicts x policies."""
 
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
         cls.app = demo_application(cls.pkg, cls.base)
 
     def apps(self):
@@ -169,29 +166,28 @@ class CalculateEconomicsGridTests(unittest.TestCase):
              "aws_cash_realized": 0, "aws_commitment_freed": "12", "aws_evidence_type": "CUR"},
         ]
 
-    def test_grid_equals_the_oracle(self):
+    def test_grid(self):
         observations = [self.base, {**self.base, "elapsed_days": 1}, {**self.base, "elapsed_days": None, "query_count": 5000}]
-        count = 0
+        results = []
         classes = set()
         for (package, app), econ, obs, passed, eligible, mapping in itertools.product(
                 list(self.apps()), self.economics_variants(), observations, (True, False), (True, False), POLICIES):
             observation = {**obs, "economics": econ}
-            new_policy, old_policy = policies(mapping)
-            new = outcome(economics.calculate_economics, package, app, observation, new_policy, passed, eligible)
-            old = outcome(oengine.calculate_economics, package, app, observation, old_policy, passed, eligible)
-            self.assertEqual(new, old)
+            new = outcome(economics.calculate_economics, package, app, observation, policy(mapping), passed, eligible)
+            results.append(new)
             if new[0] == "ok":
                 classes.add((new[1].get("realization_state"), new[1]["classification_detail"], new[1]["denominator_source"]))
-            count += 1
-        self.assertGreater(count, 10000)
+        self.assertGreater(len(results), 10000)
         states = {c[0] for c in classes}
         details = {c[1] for c in classes}
         sources = {c[2] for c in classes}
         self.assertEqual(states, {None, "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "BLOCKED", "MONITORING"})
         self.assertIn("UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED", details)
         self.assertEqual(sources, {"UNAVAILABLE", "PUBLISHER_CANDIDATE", "PUBLISHER_SCENARIO", "REESTIMATED_APPLIED_SCOPE"})
+        expect.check(self, "results", results, spot={"count": len(results), "failures": sum(1 for r in results if r[0] != "ok"),
+                                                     "classes": sorted(map(list, ((str(a), b, c) for a, b, c in classes)))})
 
-    def test_malformed_input_raises_the_oracle_exception(self):
+    def test_malformed_input_raises_the_stored_exception(self):
         econ = self.base["economics"]
         bad_plan = copy.deepcopy(self.pkg)
         bad_plan["scenarios"][0]["execution_plan"][0]["step"] = "abc"
@@ -213,30 +209,26 @@ class CalculateEconomicsGridTests(unittest.TestCase):
         for label, (patch, app, package) in cases.items():
             with self.subTest(case=label):
                 observation = {**self.base, **patch}
-                new_policy, old_policy = policies(None)
-                new = outcome(economics.calculate_economics, package, app, observation, new_policy, True, True)
-                self.assertEqual(new, outcome(oengine.calculate_economics, package, app, observation, old_policy, True, True))
+                new = outcome(economics.calculate_economics, package, app, observation, policy(None), True, True)
+                expect.check(self, label, new)
         # a negative period is not an error: it only suppresses annualization
-        negative = economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": {**econ, "period_days": "-30"}}, engine.RealizerPolicy(), True, True)
+        negative = economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": {**econ, "period_days": "-30"}}, RealizerPolicy(), True, True)
         self.assertIsNone(negative["annualized_realized_savings"])
 
 
 class EconomicsCaseTests(unittest.TestCase):
-    """Explicit economics: what the oracle computes, pinned to values."""
+    """Explicit economics, pinned to values."""
 
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
         cls.app = demo_application(cls.pkg, cls.base)
 
     def econ(self, app=None, passed=True, eligible=True, policy=None, observation=None, **economics_patch):
         observation = {**(observation or self.base)}
         observation["economics"] = {**self.base["economics"], **economics_patch}
-        result = economics.calculate_economics(self.pkg, app or self.app, observation, policy or engine.RealizerPolicy(), passed, eligible)
-        self.assertEqual(result, oengine.calculate_economics(self.pkg, app or self.app, observation, oengine.RealizerPolicy.from_mapping(
-            None if policy is None else engine.policy_to_dict(policy)), passed, eligible))
-        return result
+        return economics.calculate_economics(self.pkg, app or self.app, observation, policy or RealizerPolicy(), passed, eligible)
 
     def test_ratio_classes(self):
         # realized 1000 over 30 days -> 12166.67 a year
@@ -249,7 +241,7 @@ class EconomicsCaseTests(unittest.TestCase):
                 self.assertEqual(result["annualized_realized_savings"], "12166.67")
                 self.assertEqual(result["successful_realized_savings"], "1000.00")
                 self.assertEqual(Decimal(result["realization_ratio"]), Decimal(1000) * 365 / 30 / Decimal(expected))
-        self.assertEqual(self.econ(expected_annual_savings_actual_scope="12500", policy=engine.RealizerPolicy.from_mapping({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope="12500", policy=RealizerPolicy.from_mapping({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
         for expected in ("0", "-5"):
             result = self.econ(expected_annual_savings_actual_scope=expected)
             self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"]), ("MONITORING", "VALIDATED_VALUE_UNCLASSIFIED", None))
@@ -321,30 +313,30 @@ class MeasurementFactsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def test_counterfactual_record_with_and_without_the_counterfactual_cost(self):
-        policy = engine.RealizerPolicy()
+        policy = RealizerPolicy()
         record = economics.counterfactual_record("APP-X", self.base, self.pkg, policy, True, "MATCHED_HISTORICAL")
-        cf_id = oengine.make_cf_id("APP-X", self.base, self.pkg, oengine.RealizerPolicy())
+        cf_id = economics.make_cf_id("APP-X", self.base, self.pkg, policy)
         self.assertEqual(record.payload, {"counterfactual_id": cf_id, "method": "MATCHED_HISTORICAL", "claim_eligible": True,
                                           "workload_basis": "ACTUAL_POST_CHANGE_WORKLOAD", "counterfactual_old_cost": "10000.00",
-                                          "modeler_version": engine.MODELER_GATEWAY_VERSION})
+                                          "modeler_version": MODELER_GATEWAY_VERSION})
         without = {**self.base, "economics": {**self.base["economics"], "counterfactual_old_cost": None}}
         record = economics.counterfactual_record("APP-X", without, self.pkg, policy, False, "NO_DEFENSIBLE_COUNTERFACTUAL")
-        self.assertEqual((record.counterfactual_id, record.payload, record.claim_eligible), (oengine.make_cf_id("APP-X", without, self.pkg, oengine.RealizerPolicy()), None, False))
+        self.assertEqual((record.counterfactual_id, record.payload, record.claim_eligible), (economics.make_cf_id("APP-X", without, self.pkg, policy), None, False))
 
     def test_measurement_window_falls_back_to_the_observation_times(self):
-        record = economics.counterfactual_record("APP-X", self.base, self.pkg, engine.RealizerPolicy(), True, "M")
+        record = economics.counterfactual_record("APP-X", self.base, self.pkg, RealizerPolicy(), True, "M")
         facts = economics.measurement_facts("APP-X", {**self.base, "window_start_utc": None, "window_end_utc": ""}, record, {"realization_state": "REALIZED"}, {},
                                             effective="2026-10-01T12:00:00Z", observed_at="2026-10-09T12:00:00Z")
         self.assertEqual((facts.window_start_utc, facts.window_end_utc), ("2026-10-01T12:00:00Z", "2026-10-09T12:00:00Z"))
-        self.assertEqual(facts.measurement_id, engine.make_measurement_id("APP-X", {**self.base, "window_start_utc": None, "window_end_utc": ""}, record.counterfactual_id, "ECONOMIC_COST"))
+        self.assertEqual(facts.measurement_id, make_measurement_id("APP-X", {**self.base, "window_start_utc": None, "window_end_utc": ""}, record.counterfactual_id, "ECONOMIC_COST"))
         self.assertEqual((facts.realization_state, facts.mature_ttm_realized_savings, facts.correction_status), ("REALIZED", None, "ORIGINAL"))
 
     def test_correction_facts(self):
-        prior = engine.make_ledger_entry(package=self.pkg, rpkg_id=engine.make_rpkg_id(self.pkg["recommendation_package_id"]),
-                                         event_type=engine.rc.EventType.ECONOMIC_MEASUREMENT_RECORDED, effective_at_utc="2026-10-01T00:00:00Z",
+        prior = make_ledger_entry(package=self.pkg, rpkg_id=make_rpkg_id(self.pkg["recommendation_package_id"]),
+                                         event_type=EventType.ECONOMIC_MEASUREMENT_RECORDED, effective_at_utc="2026-10-01T00:00:00Z",
                                          recorded_at_utc="2026-10-01T00:00:00Z", payload={"measurement_id": "MEAS-1"})
         self.assertIsNone(economics.correction_facts(self.base, "MEAS-2", prior))
         self.assertIsNone(economics.correction_facts({**self.base, "correction": {}}, "MEAS-2", prior))

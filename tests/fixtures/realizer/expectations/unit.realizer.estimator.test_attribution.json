@@ -1,0 +1,212 @@
+{
+ "AttributionGridTests.test_absent_gates_are_computed_from_the_observation/result": {
+  "value": {
+   "attribution_claim_status": "OBSERVABLE_ONLY",
+   "attribution_scope": "CANDIDATE",
+   "attribution_state": "CORRELATED_ONLY",
+   "economic_quality_gates": {
+    "attributable_spend": {
+     "observed_pct": "90",
+     "pass": false,
+     "required_min_pct": "95"
+    },
+    "correction_chain": {
+     "complete": true,
+     "pass": true
+    },
+    "currency_consistency": {
+     "observed_pct": "100",
+     "pass": true,
+     "required_pct": "100"
+    },
+    "material_cost_components": {
+     "available": true,
+     "pass": true
+    },
+    "pass": false,
+    "price_coverage": {
+     "observed_pct": "100",
+     "pass": true,
+     "required_min_pct": "100"
+    }
+   },
+   "hard_disqualifiers": [
+    "MATERIAL_SPEND_UNRECONCILED"
+   ],
+   "origin_attribution": "CONFIRMED",
+   "overlap_count": 0,
+   "recommendation_attributed_realized_savings": "0.00",
+   "validated_observed_realization": "1000.00"
+  }
+ },
+ "AttributionGridTests.test_grid/results": {
+  "length": 15624321,
+  "sha256": "de7e405b42b983080fe7fc226e7842ef389d4cdfb89999333983f7fd1ac2ee62",
+  "spot": {
+   "claims": [
+    [
+     "CLAIMABLE",
+     "HIGH_CONFIDENCE"
+    ],
+    [
+     "NOT_ATTRIBUTABLE",
+     "NOT_ATTRIBUTABLE"
+    ],
+    [
+     "OBSERVABLE_ONLY",
+     "CORRELATED_ONLY"
+    ],
+    [
+     "OBSERVABLE_ONLY",
+     "PARTIAL_ATTRIBUTION"
+    ]
+   ],
+   "count": 25920,
+   "failure_kinds": [],
+   "failures": 0
+  }
+ },
+ "AttributionGridTests.test_malformed_input_raises/absent gates, malformed observation": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/gates not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/observation not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/origin unprintable": {
+  "value": [
+   "ok",
+   {
+    "attribution_claim_status": "OBSERVABLE_ONLY",
+    "attribution_scope": "CANDIDATE",
+    "attribution_state": "CORRELATED_ONLY",
+    "economic_quality_gates": {
+     "attributable_spend": {
+      "pass": true
+     },
+     "correction_chain": {
+      "pass": true
+     },
+     "currency_consistency": {
+      "pass": true
+     },
+     "material_cost_components": {
+      "pass": true
+     },
+     "pass": true,
+     "price_coverage": {
+      "pass": true
+     }
+    },
+    "hard_disqualifiers": [],
+    "origin_attribution": "UNKNOWN",
+    "overlap_count": 0,
+    "recommendation_attributed_realized_savings": "0.00",
+    "validated_observed_realization": "1000.00"
+   }
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/overlap not a number": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/overlap not finite": {
+  "value": [
+   "OverflowError",
+   "cannot convert float infinity to integer"
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/savings not a number": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1', 'NaN', [])": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1000', '1200', [None, '5'])": {
+  "value": [
+   "ok",
+   {
+    "authoritative": "-200.00",
+    "diagnostic_incremental_sum": "5.00",
+    "interaction_delta": "-205.00"
+   }
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1000', '810', 5)": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1000', '810', ['100', '60', '50'])": {
+  "value": [
+   "ok",
+   {
+    "authoritative": "190.00",
+    "diagnostic_incremental_sum": "210.00",
+    "interaction_delta": "-20.00"
+   }
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1000', '810', ['x'])": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('1000', None, ['1'])": {
+  "value": [
+   "ok",
+   {
+    "authoritative": null,
+    "diagnostic_incremental_sum": null,
+    "interaction_delta": null
+   }
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/('abc', '1', [])": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/(1000, 999.995, ('0.001',))": {
+  "value": [
+   "ok",
+   {
+    "authoritative": "0.01",
+    "diagnostic_incremental_sum": "0.00",
+    "interaction_delta": "0.00"
+   }
+  ]
+ },
+ "CumulativeRealizationTests.test_cases/(None, '810', [])": {
+  "value": [
+   "ok",
+   {
+    "authoritative": null,
+    "diagnostic_incremental_sum": null,
+    "interaction_delta": null
+   }
+  ]
+ }
+}

@@ -1,0 +1,597 @@
+{
+ "CommitPositionTests.test_a_failed_run_is_followed_by_the_same_recovery/sequence": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-0E263B07EA90F7B31439B184"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "BILLING_CORRECTION_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "856cdb2a3b9cca57",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "494ea4d784a797df",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-0E263B07EA90F7B31439B184.json": "494ea4d784a797df",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_analyzer_failure_leaves_the_lineage_entry_only/analyzer": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "'int' object is not iterable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_corrupt_ledger_fails_before_anything_is_written/result": {
+  "value": [
+   [
+    "JSONDecodeError",
+    "Expecting value: line 1 column 1 (char 0)"
+   ],
+   {
+    "realization": null,
+    "realization/ledger": null,
+    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "not json\n"
+   }
+  ]
+ },
+ "CommitPositionTests.test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction/correction": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "BILLING_CORRECTION_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "4fbdf08501877af9"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction/measurement": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3a19c0ea9d5ebd9c"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_estimate_failures_leave_the_facts_decided_before_them/attribution": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_estimate_failures_leave_the_facts_decided_before_them/correction entry": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "'bogus' must start with RLE-"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3d7099495e3bde84"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_estimate_failures_leave_the_facts_decided_before_them/correction payload": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3d7099495e3bde84"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_estimate_failures_leave_the_facts_decided_before_them/counterfactual": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "d96ab52e325539b6"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_estimate_failures_leave_the_facts_decided_before_them/economics": {
+  "value": [
+   [
+    [
+     "InvalidOperation",
+     "[<class 'decimal.ConversionSyntax'>]"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_lifecycle_failures_keep_every_entry_decided_before_them/after drift": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ValueError",
+     "unprintable observation value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "1e262b30a35e046d",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_lifecycle_failures_keep_every_entry_decided_before_them/after intent": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_lifecycle_failures_keep_every_entry_decided_before_them/after rollback observed": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "ROLLBACK_OBSERVED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "f37f026e92a2d22d"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_lifecycle_failures_keep_every_entry_decided_before_them/after rollback requested": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "observation flag has no truth value"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "ROLLBACK_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "90cfefc20c22441a"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_matching_failure_leaves_the_lineage_entry_and_the_evidence_file/matching": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_readiness_failure_leaves_the_whole_lifecycle/readiness": {
+  "value": [
+   [
+    [
+     "ValueError",
+     "invalid literal for int() with base 10: 'abc'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_replay_cut_fails_after_the_whole_commit/1999-01-01T00:00:00Z": {
+  "value": [
+   [
+    "ValueError",
+    "cannot project empty ledger"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_replay_cut_fails_after_the_whole_commit/garbage": {
+  "value": [
+   [
+    "ValueError",
+    "Invalid isoformat string: 'garbage'"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_review_failures_leave_the_validation_payloads_decided_before_them/performance": {
+  "value": [
+   [
+    [
+     "AttributeError",
+     "'int' object has no attribute 'get'"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "86008d258a22230d"
+    }
+   }
+  ]
+ },
+ "CommitPositionTests.test_review_failures_leave_the_validation_payloads_decided_before_them/window": {
+  "value": [
+   [
+    [
+     "TypeError",
+     "Object of type Opaque is not JSON serializable"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-CC8A331176ECCC62A3E1E4F3.json": "03dd87e441e2d1e7",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "fd9064a3b0f86884"
+    }
+   }
+  ]
+ }
+}

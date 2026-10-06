@@ -1,8 +1,8 @@
-"""Canonical Realizer outputs for the single-file compatibility baseline (docs/architecture/realizer/repo-reorg-design.md 21.4, Phase 0).
+"""Canonical Realizer outputs for the stored baseline (docs/architecture/realizer/repo-reorg-design.md 21.4, Phase 0).
 
 One place defines what "the same realization output" means, for ``tests/fixtures/realizer/expected/``,
-``tests/regression/realizer/test_single_file_compatibility.py``, ``scripts/update_realizer_goldens.py`` and
-``scripts/compare_realizer_single_file.py``.
+``tests/regression/realizer/test_stored_baseline.py``, ``scripts/update_realizer_goldens.py`` and
+``scripts/compare_realizer_with_ref.py``.
 
 A *scenario* (``tests/fixtures/realizer/observations/<name>.json``) names a frozen Publisher package under
 ``tests/fixtures/realizer/packages/`` and a sequence of realize runs into one output directory, each with an
@@ -17,9 +17,8 @@ of a scenario is a map of relative path -> text:
 Variable fields: the engine reads no wall clock (ledger times, ``as_of_utc`` and lineage come from the package and
 the observation) and writes no paths into its files, so the only run-dependent value is the output directory itself.
 ``normalize`` replaces it with ``<out>`` should it ever appear; running a scenario twice into different directories
-yields identical maps (``test_single_file_compatibility``). The workbook ``.xlsx`` is not part of the baseline: it
-needs the proprietary ``artifact_tool`` runtime and ``RecommendationPackage`` objects of the retired single-file
-publisher, which the frozen JSON fixtures cannot rebuild.
+yields identical maps (``test_stored_baseline``). There is no ``.xlsx`` in the baseline: the Realizer's workbook
+projection is the ``report.json`` above, and the single-file renderer was dropped (see the parity record).
 """
 from __future__ import annotations
 
@@ -41,7 +40,6 @@ PACKAGES = FIXTURES / "packages"
 OBSERVATIONS = FIXTURES / "observations"
 EXPECTED = FIXTURES / "expected"
 OUT_PLACEHOLDER = "<out>"
-DEFAULT_CANDIDATE = "realizer.realizer"
 
 
 def dumps(value: Any) -> str:
@@ -65,7 +63,7 @@ def load_scenario(name: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Engines: the frozen oracle and a pluggable candidate
+# Engines: the modular engine, and the single-file API of old git refs
 # ---------------------------------------------------------------------------
 
 @dataclasses.dataclass(frozen=True)
@@ -85,70 +83,60 @@ class Engine:
     report: Callable[[Any, Path], Mapping[str, Any]]
 
 
-def engine_from_module(name: str, module: Any, workbook_contract: Any) -> Engine:
-    """An engine built from a module with the single-file API (``realize``, ``RealizerPolicy``, ``legacy_compatibility``,
-    ``load_ledger``, ``ledger_path``) and a workbook contract module with ``project_realizer_workbook``."""
+def engine_from_functions(name: str, *, realize: Callable[..., Any], policy_class: Any, legacy_compatibility: Callable[..., Any],
+                          load_ledger: Callable[..., Any], ledger_path: Callable[..., Any], project_realizer_workbook: Callable[..., Any]) -> Engine:
+    """An engine built from the functions of one implementation (the capability modules, or the single-file module)."""
 
     def report(snapshot: Any, out: Path) -> Mapping[str, Any]:
-        entries = module.load_ledger(module.ledger_path(out, snapshot.realization_package_id))
-        projection = workbook_contract.project_realizer_workbook([snapshot], {snapshot.realization_package_id: entries})
-        return dataclasses.asdict(projection)
+        entries = load_ledger(ledger_path(out, snapshot.realization_package_id))
+        return dataclasses.asdict(project_realizer_workbook([snapshot], {snapshot.realization_package_id: entries}))
 
     return Engine(
         name=name,
-        realize=module.realize,
-        policy=lambda mapping: None if mapping is None else module.RealizerPolicy.from_mapping(mapping),
-        compatibility=module.legacy_compatibility,
+        realize=realize,
+        policy=lambda mapping: None if mapping is None else policy_class.from_mapping(mapping),
+        compatibility=legacy_compatibility,
         report=report,
     )
-
-
-def oracle_engine() -> Engine:
-    from tests.regression.realizer import oracle
-
-    return engine_from_module("single-file oracle", oracle.engine(), oracle.realizer_workbook_contract())
-
-
-def candidate_engine(spec: str = DEFAULT_CANDIDATE) -> Engine:
-    """Resolve a candidate lazily. ``module:attr`` names an ``Engine`` (or a zero-argument factory returning one);
-    a bare module must expose ``ENGINE`` or the single-file API, with ``project_realizer_workbook`` either in the
-    module itself or in its package's ``contracts.report`` (the modular layout)."""
-    module_name, _, attr = spec.partition(":")
-    module = importlib.import_module(module_name)
-    target = getattr(module, attr or "ENGINE", None)
-    if callable(target) and not isinstance(target, Engine):
-        target = target()
-    if isinstance(target, Engine):
-        return target
-    if attr:
-        raise TypeError(f"{spec} is not a Realizer Engine")
-    workbook = module
-    if not hasattr(module, "project_realizer_workbook"):
-        workbook = importlib.import_module(module_name.split(".")[0] + ".contracts.report")
-    name = "modular realizer" if module_name == DEFAULT_CANDIDATE else module_name
-    return engine_from_module(name, module, workbook)
 
 
 SRC = ROOT / "src" / "realizer"
 
 
-def modular():
-    """The modular engine module ``realizer.realizer``, checked to resolve to this repository's ``src/realizer``.
+def modular(src: Optional[Path] = None):
+    """The modular engine module ``realizer.realizer``, checked to resolve to ``src/realizer`` (this repository's, or *src*).
 
     Guards against a stray top-level ``realizer`` (an installed copy, a root folder, a test package on ``sys.path``)
-    shadowing the package under test. The oracle is loaded under its private name and can never satisfy this import.
+    shadowing the package under test.
     """
+    expected = (src or SRC).resolve()
     module = importlib.import_module("realizer.realizer")
     path = Path(module.__file__).resolve()
-    if path.parent != SRC.resolve():
-        raise ImportError(f"realizer.realizer resolved to {path}, not {SRC}")
+    if path.parent != expected:
+        raise ImportError(f"realizer.realizer resolved to {path}, not {expected}")
     return module
 
 
-def modular_engine() -> Engine:
-    """The modular engine (``src/realizer``) as a baseline ``Engine``."""
-    modular()
-    return candidate_engine(DEFAULT_CANDIDATE)
+def modular_engine(src: Optional[Path] = None) -> Engine:
+    """The modular engine (``src/realizer``) as a baseline ``Engine``, built from the capability modules."""
+    facade = modular(src)
+    from realizer.contracts.report import project_realizer_workbook
+    from realizer.governor.policy import RealizerPolicy
+    from realizer.packager.ledger import ledger_path, load_ledger
+    from realizer.reporter.reporter import legacy_compatibility
+
+    return engine_from_functions("modular realizer", realize=facade.realize, policy_class=RealizerPolicy,
+                                 legacy_compatibility=legacy_compatibility, load_ledger=load_ledger, ledger_path=ledger_path,
+                                 project_realizer_workbook=project_realizer_workbook)
+
+
+def single_file_engine(module: Any, workbook_contract: Any) -> Engine:
+    """An engine from a module with the single-file API (``realize``, ``RealizerPolicy``, ``legacy_compatibility``,
+    ``load_ledger``, ``ledger_path``) and its workbook contract module: the layout of ``legacy/realizer_single_file/``
+    in the git tag ``realizer-reorg-oracle-1.0.0``."""
+    return engine_from_functions("single-file realizer", realize=module.realize, policy_class=module.RealizerPolicy,
+                                 legacy_compatibility=module.legacy_compatibility, load_ledger=module.load_ledger,
+                                 ledger_path=module.ledger_path, project_realizer_workbook=workbook_contract.project_realizer_workbook)
 
 
 # ---------------------------------------------------------------------------

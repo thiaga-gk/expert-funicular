@@ -1,0 +1,95 @@
+{
+ "ProjectionTests.test_entry_order_and_duplicates/doubled ledgers": {
+  "length": 4417,
+  "sha256": "c4c4c6e4b85e4cea3f3280abcde54ccd6710b207ffae013d8accbf867be74994",
+  "spot": {
+   "count": 41,
+   "first": [
+    "GR-001/RPKG-9BCA3C3DFB12CC37AA7CA775",
+    "3a0f5a45cfa26adf6e089bfe9c07c7bdd2a436e0bd1d5d40e4580207ee9acb07"
+   ]
+  }
+ },
+ "ProjectionTests.test_every_ledger_prefix_projects_and_every_stored_snapshot_is_reproduced/projections": {
+  "length": 75128,
+  "sha256": "be19b7c7f5ca2fcde207fa403bce5adb6f080b5f2db1b059873a2c56b851e445",
+  "spot": {
+   "count": 452,
+   "distinct snapshots": 128,
+   "first": [
+    "GR-001",
+    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    "file prefix",
+    1,
+    "RSNAP-FF710CE066DA00D4BEED88E4",
+    "6130f6577dfd11a5bb5ba7afc28fd9e6cfe8ddda5fc14f3f711fd5378cc51d2d"
+   ],
+   "last": [
+    "restatement-reprocessed",
+    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    "recorded through",
+    "2026-10-10T12:00:00Z",
+    "RSNAP-F4E5024A8E93A58075149B38",
+    "4e36e8cba8c18fe01a60800ea77116c8c5de2ee9a78b9d1a89d4b5eed89bbd34"
+   ]
+  }
+ },
+ "ProjectionTests.test_malformed_input_raises/empty ledger": {
+  "value": [
+   "ValueError",
+   "cannot project empty ledger"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/entries None": {
+  "value": [
+   "TypeError",
+   "'NoneType' object is not iterable"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/entry None": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'recorded_at_utc'"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/entry a mapping": {
+  "value": [
+   "AttributeError",
+   "'dict' object has no attribute 'recorded_at_utc'"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/package a list": {
+  "value": [
+   "TypeError",
+   "list indices must be integers or slices, not str"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/package plan not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/package warehouse not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/package without id": {
+  "value": [
+   "KeyError",
+   "'recommendation_package_id'"
+  ]
+ },
+ "ProjectionTests.test_malformed_input_raises/package without scenarios": {
+  "length": 3026,
+  "sha256": "7d1e296289c68f5530b93f25545ed05e806c699f4a2e067d4048c9e7a8014c9b"
+ },
+ "ProjectionTests.test_malformed_input_raises/package without warehouse": {
+  "value": [
+   "KeyError",
+   "'warehouse'"
+  ]
+ }
+}

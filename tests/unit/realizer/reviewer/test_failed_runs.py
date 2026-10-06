@@ -1,35 +1,36 @@
-"""Failed runs through the extracted Reviewer: same exception, same half-written ledger as the oracle.
+"""Failed runs through the extracted Reviewer: the exception and the half-written ledger are stored.
 
 The Reviewer assembles the validation episode before the engine records it, so a failure while building it must still
-surface where the single-file engine raised it: before any validation entry for the episode id (a policy whose
+surface where the single-file release raised it: before any validation entry for the episode id (a policy whose
 snapshot cannot be hashed, a window value the id cannot hash), and after VALIDATION_READY and VALIDATION_STARTED for the
 performance verdict. The episode is recorded before the estimate, so its failure wins over a later one of the
-Estimator. Each case compares the outcomes and the whole output tree with the oracle; the mutation check proves the
-comparison would notice a Reviewer that raised at once.
+Estimator. Each case compares the outcomes and the whole output tree (compacted to the ledger events and a digest per
+file) with the stored expectation; the mutation check proves the comparison would notice a Reviewer that raised at once.
 
 Nothing the started payload reads can fail after the ready entry: every value it records is part of the episode id.
 """
 import unittest
 from unittest import mock
 
-from tests.unit.realizer.parity import Opaque, engine, events, fixture_package, oengine, run_sequence  # noqa: E402
+from tests import realizer_expect as expect
+from tests.unit.realizer.helpers import Opaque, compact_tree, events, fixture_package, run_sequence  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.reviewer import reviewer  # noqa: E402
 
 LIFECYCLE = ["REALIZATION_CREATED", "APPLICATION_OBSERVED", "INTENT_RECORDED"]
 
 
-class ReviewerFailedRunParityTests(unittest.TestCase):
+class ReviewerFailedRunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
-    def compare(self, observations, policy=None):
-        new = run_sequence(engine, self.pkg, observations, policy)
-        old = run_sequence(oengine, self.pkg, observations, policy)
-        self.assertEqual(new[0], old[0], "outcomes")
-        self.assertEqual(new[1], old[1], "output tree")
-        return old
+    def compare(self, label, observations, policy=None):
+        """Run *observations*, check the outcomes and the output tree against the stored expectation *label*, and return them."""
+        outcomes, tree = run_sequence(self.pkg, observations, policy)
+        expect.check(self, label, (outcomes, compact_tree(tree)))
+        return outcomes, tree
 
     def test_episode_id_failure_records_no_validation_entry(self):
         cases = {
@@ -39,7 +40,7 @@ class ReviewerFailedRunParityTests(unittest.TestCase):
         }
         for label, (observation, policy, kind) in cases.items():
             with self.subTest(case=label):
-                outcomes, tree = self.compare([observation], policy)
+                outcomes, tree = self.compare(f"episode id: {label}", [observation], policy)
                 self.assertEqual(outcomes[0][0], kind, outcomes)
                 self.assertEqual(events(tree), LIFECYCLE)
 
@@ -53,19 +54,19 @@ class ReviewerFailedRunParityTests(unittest.TestCase):
         }
         for label, (patch, kind) in cases.items():
             with self.subTest(case=label):
-                outcomes, tree = self.compare([{**self.base, **patch}])
+                outcomes, tree = self.compare(f"performance: {label}", [{**self.base, **patch}])
                 self.assertEqual(outcomes[0][0], kind, outcomes)
                 self.assertEqual(events(tree), LIFECYCLE + ["VALIDATION_READY", "VALIDATION_STARTED"])
 
     def test_unreached_performance_input_does_not_fail(self):
-        outcomes, _ = self.compare([{**self.base, "elapsed_days": 1, "performance": 5}])
+        outcomes, _ = self.compare("unreached performance input", [{**self.base, "elapsed_days": 1, "performance": 5}])
         self.assertEqual(outcomes[0][0], "ok")
 
 
 class ReviewerMutationTests(unittest.TestCase):
     def test_raising_before_recording_changes_the_failed_run_tree(self):
         package = fixture_package()
-        base = oengine.demo_observation(package)
+        base = demo_observation(package)
         original = reviewer.run
 
         def eager(*args):
@@ -75,12 +76,12 @@ class ReviewerMutationTests(unittest.TestCase):
             return result
 
         observations = [{**base, "performance": {"normalized_p95_runtime_regression_pct": "abc"}}]
-        old = run_sequence(oengine, package, observations)
-        with mock.patch.object(engine.reviewer, "run", eager):
-            new = run_sequence(engine, package, observations)
-        self.assertEqual(new[0], old[0], "the exception itself is the same")
-        self.assertNotEqual(new[1], old[1], "but the ledger it leaves is not")
-        self.assertEqual(run_sequence(engine, package, observations), old)
+        expected = run_sequence(package, observations)
+        with mock.patch.object(reviewer, "run", eager):
+            mutated = run_sequence(package, observations)
+        self.assertEqual(mutated[0], expected[0], "the exception itself is the same")
+        self.assertNotEqual(mutated[1], expected[1], "but the ledger it leaves is not")
+        self.assertEqual(run_sequence(package, observations), expected)
 
 
 if __name__ == "__main__":

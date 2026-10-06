@@ -1,10 +1,11 @@
 """Realizer reporter capability (src/realizer/reporter/): ``run`` and ``legacy_compatibility``.
 
 ``run`` writes the realization package and then the snapshot, the same canonical JSON in both, and nothing else: for every
-run of the 41 scenarios the files, their bytes and the report it returns are the oracle's, and a write that fails leaves
-the output tree the oracle left. ``legacy_compatibility`` is moved verbatim (source text and signature identical to the
-oracle's) and gives the oracle's projection for every snapshot of every scenario and for every state the mapping knows
-or does not know. The Reporter decides nothing: it logs nothing and changes neither the snapshot nor the ledger.
+run of the 41 scenarios it writes those two files and returns them in its report (the bytes of every output tree are
+checked against the stored baseline in ``tests/regression/realizer``), and a write that fails leaves the output tree
+stored in ``tests/fixtures/realizer/expectations/``. ``legacy_compatibility`` gives the stored projection for every
+snapshot of every scenario and for every state the mapping knows or does not know. The Reporter decides nothing: it logs
+nothing and changes neither the snapshot nor the ledger.
 """
 import contextlib
 import copy
@@ -19,52 +20,59 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.parity import canonical, engine, events, files, fixture_package, oengine, outcome, tree  # noqa: E402
+from tests import realizer_expect as expect  # noqa: E402
+from tests.unit.realizer.helpers import canonical, compact_tree, events, files, fixture_package, outcome, tree  # noqa: E402
+from realizer.analyzer import analyzer  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.report import RealizationReport  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
+from realizer.estimator import estimator  # noqa: E402
+from realizer.governor import governor  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
+from realizer.packager import packager  # noqa: E402
+from realizer.realizer import build_context, realize  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
 from realizer.reporter import reporter  # noqa: E402
+from realizer.reviewer import reviewer  # noqa: E402
 
 
 def packaged_run(package, observation, out, replay_through=None):
     """The modular stages up to the Packager, the way the facade runs them: ``(context, packaged)``."""
-    context = engine.build_context(RealizationRequest(package, observation, out, replay_through=replay_through))
-    engine.packager.begin(context)
-    analysis = engine.analyzer.run(context)
-    governance = engine.governor.run(context, analysis)
-    reconciliation = engine.reconciler.run(context, analysis, governance)
-    estimate = engine.estimator.run(context, analysis, governance, reconciliation)
-    reviewed = engine.reviewer.run(context, analysis, governance, reconciliation, estimate)
-    return context, engine.packager.run(context, reviewed)
+    context = build_context(RealizationRequest(package, observation, out, replay_through=replay_through))
+    packager.begin(context)
+    analysis = analyzer.run(context)
+    governance = governor.run(context, analysis)
+    reconciliation = reconciler.run(context, analysis, governance)
+    estimate = estimator.run(context, analysis, governance, reconciliation)
+    reviewed = reviewer.run(context, analysis, governance, reconciliation, estimate)
+    return context, packager.run(context, reviewed)
 
 
 class EveryScenarioRunTests(unittest.TestCase):
-    def test_files_and_report_are_the_oracle_files_for_every_run_of_every_scenario(self):
+    def test_files_and_report_for_every_run_of_every_scenario(self):
         runs = 0
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
             package = scenario["package_doc"]
-            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-                oracle_out, modular_out = Path(a), Path(b)
+            with tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
                 for index, step in enumerate(scenario["runs"]):
                     with self.subTest(scenario=name, run=index):
                         observation, cut, policy = step.get("observation"), step.get("replay_through"), step.get("policy")
-                        oengine.realize(copy.deepcopy(package), copy.deepcopy(observation), oracle_out, replay_through=cut,
-                                        policy=None if policy is None else oengine.RealizerPolicy.from_mapping(policy))
-                        request = RealizationRequest(copy.deepcopy(package), copy.deepcopy(observation), modular_out, replay_through=cut,
-                                                     policy=None if policy is None else engine.RealizerPolicy.from_mapping(policy))
-                        context = engine.build_context(request)
-                        engine.packager.begin(context)
-                        analysis = engine.analyzer.run(context)
-                        governance = engine.governor.run(context, analysis)
-                        reconciliation = engine.reconciler.run(context, analysis, governance)
-                        estimate = engine.estimator.run(context, analysis, governance, reconciliation)
-                        packaged = engine.packager.run(context, engine.reviewer.run(context, analysis, governance, reconciliation, estimate))
+                        request = RealizationRequest(copy.deepcopy(package), copy.deepcopy(observation), out, replay_through=cut,
+                                                     policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                        context = build_context(request)
+                        packager.begin(context)
+                        analysis = analyzer.run(context)
+                        governance = governor.run(context, analysis)
+                        reconciliation = reconciler.run(context, analysis, governance)
+                        estimate = estimator.run(context, analysis, governance, reconciliation)
+                        packaged = packager.run(context, reviewer.run(context, analysis, governance, reconciliation, estimate))
                         report = reporter.run(context, packaged)
-                        self.assertEqual(tree(modular_out), tree(oracle_out))
                         rpkg = context.realization_package_id
-                        self.assertEqual(report.files, (modular_out / "realization" / "packages" / f"{rpkg}.json",
-                                                        modular_out / "realization" / "snapshots" / f"{report.realization.snapshot_id}.json"))
+                        self.assertEqual(report.files, (out / "realization" / "packages" / f"{rpkg}.json",
+                                                        out / "realization" / "snapshots" / f"{report.realization.snapshot_id}.json"))
                         for path in report.files:
                             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), report.realization.to_dict())
                         self.assertIs(report.realization, packaged.realization)
@@ -76,7 +84,7 @@ class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
     def test_writes_the_package_then_the_snapshot_and_nothing_else(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -117,72 +125,66 @@ class RunTests(unittest.TestCase):
         self.assertNotIn("RealizationReport", getattr(rc, "__all__", ()))
 
     def test_lineage_only_run_is_reported_like_any_other(self):
-        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-            oengine.realize(copy.deepcopy(self.pkg), None, Path(a))
-            context, packaged = packaged_run(copy.deepcopy(self.pkg), None, Path(b))
+        with tempfile.TemporaryDirectory() as tmp:
+            context, packaged = packaged_run(copy.deepcopy(self.pkg), None, Path(tmp))
             report = reporter.run(context, packaged)
-            self.assertEqual(tree(Path(a)), tree(Path(b)))
             self.assertEqual(len(report.files), 2)
+            expect.check(self, "tree", compact_tree(tree(Path(tmp))))
 
 
 class FailedWriteTests(unittest.TestCase):
-    """A write that fails leaves the oracle's tree: the ledger, the evidence and the regeneration files stay, and the
+    """A write that fails leaves the stored tree: the ledger, the evidence and the regeneration files stay, and the
     package file stays when only the snapshot cannot be written."""
 
     @classmethod
     def setUpClass(cls):
         cls.pkg = fixture_package()
-        cls.base = oengine.demo_observation(cls.pkg)
+        cls.base = demo_observation(cls.pkg)
 
-    def failing(self, module, blocked):
+    def failing(self, blocked):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             blocker = out / "realization" / blocked
             blocker.parent.mkdir(parents=True)
             blocker.write_text("in the way\n", encoding="utf-8")
-            result = outcome(module.realize, copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
+            result = outcome(realize, copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
             kind, message = result
             return (kind, str(message).replace(str(out), "<out>")), tree(out)
 
-    def test_a_package_or_snapshot_that_cannot_be_written_fails_like_the_oracle(self):
+    def test_a_package_or_snapshot_that_cannot_be_written_fails_like_the_single_file_release(self):
         for blocked in ("packages", "snapshots"):
             with self.subTest(blocked=blocked):
-                new, old = self.failing(engine, blocked), self.failing(oengine, blocked)
-                self.assertEqual(new, old)
-                self.assertNotEqual(new[0][0], "ok")
+                failure, left = self.failing(blocked)
+                self.assertNotEqual(failure[0], "ok")
+                expect.check(self, blocked, (failure, compact_tree(left)))
         # the snapshot directory in the way: the package file is already written (package first), the ledger is complete
-        _, snapshot_blocked = self.failing(oengine, "snapshots")
+        _, snapshot_blocked = self.failing("snapshots")
         self.assertEqual(len(files(snapshot_blocked, "packages")), 1)
-        _, package_blocked = self.failing(oengine, "packages")
+        _, package_blocked = self.failing("packages")
         self.assertEqual(files(package_blocked, "packages"), [])
         self.assertIn("VALIDATION_COMPLETED", events(package_blocked))
 
 
 class LegacyCompatibilityTests(unittest.TestCase):
-    def test_moved_verbatim_and_still_reachable_from_the_engine(self):
-        self.assertIs(engine.legacy_compatibility, reporter.legacy_compatibility)
-        self.assertEqual(inspect.getsource(reporter.legacy_compatibility), inspect.getsource(oengine.legacy_compatibility))
-        self.assertEqual(str(inspect.signature(reporter.legacy_compatibility)), str(inspect.signature(oengine.legacy_compatibility)))
-
-    def test_every_snapshot_of_every_scenario_projects_like_the_oracle(self):
+    def test_every_snapshot_of_every_scenario_projects_as_stored(self):
         seen = set()
+        projections = {}
         for name in canonical.scenario_names():
             scenario = canonical.load_scenario(name)
-            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            with tempfile.TemporaryDirectory() as tmp:
                 for index, step in enumerate(scenario["runs"]):
                     policy = step.get("policy")
-                    new = engine.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(a),
-                                         replay_through=step.get("replay_through"), policy=None if policy is None else engine.RealizerPolicy.from_mapping(policy))
-                    old = oengine.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(b),
-                                          replay_through=step.get("replay_through"), policy=None if policy is None else oengine.RealizerPolicy.from_mapping(policy))
+                    snapshot = realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
+                                       replay_through=step.get("replay_through"), policy=None if policy is None else RealizerPolicy.from_mapping(policy))
                     with self.subTest(scenario=name, run=index):
-                        projection = reporter.legacy_compatibility(new)
-                        self.assertEqual(projection, oengine.legacy_compatibility(old))
-                        seen.add((new.current_state["realization_state"], projection["status"], tuple(projection["reasons"])))
+                        projection = reporter.legacy_compatibility(snapshot)
+                        projections[f"{name}/{index}"] = projection
+                        seen.add((snapshot.current_state["realization_state"], projection["status"], tuple(projection["reasons"])))
         states = {state for state, _, _ in seen}
         for state in ("NOT_APPLIED", "APPLIED", "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "ROLLED_BACK", "MONITORING", "DRIFTED", "BLOCKED"):
             self.assertIn(state, states)
         self.assertGreaterEqual({status for _, status, _ in seen}, {"LOSSLESS", "LOSSY"})
+        expect.check(self, "projections", projections, spot={"runs": len(projections), "distinct": sorted([state, status, list(reasons)] for state, status, reasons in seen)})
 
     def snapshot(self, realization_state, **application):
         return types.SimpleNamespace(current_state={"realization_state": realization_state}, application=application)
@@ -193,11 +195,13 @@ class LegacyCompatibilityTests(unittest.TestCase):
         applications = [{}, {"state": "APPLIED"}, {"state": "APPLIED", "actor": "ops@example.com"}, {"state": "APPLIED", "actor": ""},
                         {"implementation_conformance": "MODIFIED"}, {"implementation_conformance": "EXACT", "state": "APPLIED", "actor": None},
                         {"state": "APPLIED", "implementation_conformance": "MODIFIED"}]
+        results = {}
         for state in states:
             for application in applications:
                 with self.subTest(state=state, application=application):
-                    self.assertEqual(outcome(reporter.legacy_compatibility, self.snapshot(state, **application)),
-                                     outcome(oengine.legacy_compatibility, self.snapshot(state, **application)))
+                    results[f"{state!r} {json.dumps(application, sort_keys=True)}"] = outcome(reporter.legacy_compatibility, self.snapshot(state, **application))
+        self.assertEqual(len(results), len(states) * len(applications))
+        expect.check(self, "projections", results, spot={"cases": len(results), "statuses": sorted({r[1]["status"] for r in results.values() if r[0] == "ok"})})
 
     def test_the_unknown_actor_is_not_fabricated(self):
         result = reporter.legacy_compatibility(self.snapshot("APPLIED", state="APPLIED"))
@@ -206,12 +210,22 @@ class LegacyCompatibilityTests(unittest.TestCase):
         self.assertEqual(reporter.legacy_compatibility(self.snapshot("OTHER")),
                          {"status": "UNREPRESENTABLE", "legacy_realization_status": None, "reasons": ["REALIZER_STATE_OTHER_HAS_NO_LEGACY_MAPPING"]})
 
-    def test_malformed_snapshots_raise_the_oracle_exception(self):
-        for bad in (types.SimpleNamespace(current_state={}, application={}), types.SimpleNamespace(current_state={"realization_state": "APPLIED"}, application=None),
-                    types.SimpleNamespace(), None):
-            with self.subTest(bad=bad):
-                self.assertEqual(outcome(reporter.legacy_compatibility, bad), outcome(oengine.legacy_compatibility, bad))
-                self.assertNotEqual(outcome(reporter.legacy_compatibility, bad)[0], "ok")
+    def test_malformed_snapshots_raise_the_single_file_exception(self):
+        cases = {"no state": types.SimpleNamespace(current_state={}, application={}),
+                 "no application": types.SimpleNamespace(current_state={"realization_state": "APPLIED"}, application=None),
+                 "empty object": types.SimpleNamespace(), "none": None}
+        for label, bad in cases.items():
+            with self.subTest(bad=label):
+                kind, message = outcome(reporter.legacy_compatibility, bad)
+                self.assertNotEqual(kind, "ok")
+                expect.check(self, label, (kind, message.replace("types.SimpleNamespace", "SimpleNamespace")))  # the class name reads differently before Python 3.13
+
+    def test_a_state_without_a_legacy_mapping_does_not_read_the_application(self):
+        """The single-file release read ``application["actor"]`` into a local it never used, before the state check, so a
+        snapshot with an unmapped state and no application mapping raised there. The local is gone; every snapshot the
+        engine produces has an application mapping, and the projection of each is unchanged (the scenario and grid tests above)."""
+        snapshot = types.SimpleNamespace(current_state={"realization_state": "OTHER"}, application=None)
+        self.assertEqual(reporter.legacy_compatibility(snapshot)["status"], "UNREPRESENTABLE")
 
     def test_is_pure(self):
         snap = self.snapshot("APPLIED", state="APPLIED")

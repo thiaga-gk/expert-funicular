@@ -1,4 +1,4 @@
-"""Helpers for the Realizer unit tests that compare a moved function or a whole run with the frozen oracle."""
+"""Helpers shared by the Realizer unit tests: values that cannot be serialized, run trees, and staged scenario runs."""
 import contextlib
 import copy
 import dataclasses
@@ -13,13 +13,17 @@ ROOT = Path(__file__).resolve().parents[3]
 for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
-from tests.regression.realizer import canonical, oracle  # noqa: E402
+from tests.regression.realizer import canonical  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
-from realizer import realizer as engine  # noqa: E402
+from realizer import realizer as _facade  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
-
-oengine = oracle.engine()
+from realizer.estimator import estimator  # noqa: E402
+from realizer.packager import packager  # noqa: E402
+from realizer.reconciler import reconciler  # noqa: E402
+from realizer.reviewer import reviewer  # noqa: E402
+from realizer.governor import policy as policy_module  # noqa: E402
+from realizer.packager import ledger as ledger_module  # noqa: E402
 
 
 class Opaque:
@@ -93,37 +97,47 @@ def ledger_lines(out: Path) -> List[Dict[str, Any]]:
     return [json.loads(line) for path in paths for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run_sequence(module: Any, package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None):
-    """Run each observation through *module*'s ``realize`` into one fresh directory, continuing past a failure.
+def compact_tree(run_tree: Mapping[str, Optional[str]]) -> Dict[str, Any]:
+    """A run tree as compact data for a stored expectation: the ledger event types in append order, the directories, and
+    the SHA-256 (first 16 hex digits) of every file."""
+    import hashlib
+    return {
+        "events": events(run_tree),
+        "directories": [rel for rel, text in run_tree.items() if text is None],
+        "files": {rel: hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] for rel, text in run_tree.items() if text is not None},
+    }
+
+
+def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None):
+    """Run each observation through ``realize`` into one fresh directory, continuing past a failure.
 
     Returns ``(outcomes, tree)``: per observation ``("ok", snapshot id)`` or ``(exception type, message)``, and the
     files and directories left behind (so a crash is compared together with the ledger it left half written).
     """
-    with tempfile.TemporaryDirectory(prefix="parity-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="realizer-run-") as tmp:
         out = Path(tmp)
         outcomes: List[Any] = []
         for observation in observations:
-            kwargs = {} if policy is None else {"policy": module.RealizerPolicy.from_mapping(policy)}
-            result = outcome(module.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
+            kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
+            result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
             outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
         return outcomes, tree(out)
 
 
-STAGES = ("reconciler", "estimator", "reviewer", "packager")
+STAGES = {"reconciler": reconciler, "estimator": estimator, "reviewer": reviewer, "packager": packager}
 
 
 @dataclasses.dataclass
 class StagedRun:
-    """One realize run of a scenario through both engines: the oracle's ledger lines before it and appended by it,
-    each modular stage's ``(args, result)`` calls, and both output trees after it."""
+    """One realize run of a scenario: the ledger lines before it and appended by it, each stage's ``(args, result)``
+    calls, and the output tree after it. The ledger after every run is checked to be a prefix of the stored baseline's."""
     scenario: str
     index: int
     observation: Optional[Mapping[str, Any]]
     before: List[Dict[str, Any]]
     appended: List[Dict[str, Any]]
     calls: Dict[str, List[Any]]
-    modular_tree: Dict[str, Optional[str]]
-    oracle_tree: Dict[str, Optional[str]]
+    tree: Dict[str, Optional[str]]
     replay_through: Optional[str] = None
 
 
@@ -135,28 +149,35 @@ def _capturing(original: Callable[..., Any], calls: List[Any]) -> Callable[..., 
     return run
 
 
+def _stored_ledger(name: str) -> List[str]:
+    base = canonical.EXPECTED / name / "realization" / "ledger"
+    return [line for path in sorted(base.glob("*.jsonl")) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
 def staged_scenario_runs() -> Iterator[StagedRun]:
-    """Every run of every scenario, oracle and modular engine side by side, with the modular stages' calls captured."""
+    """Every run of every scenario through the engine, with each stage's calls captured. After each run the ledger on
+    disk must be a prefix of the stored baseline's ledger for the scenario (the history is append-only), which ties
+    every run's appended entries to the stored baseline."""
     for name in canonical.scenario_names():
         scenario = canonical.load_scenario(name)
         package = scenario["package_doc"]
-        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-            oracle_out, modular_out = Path(a), Path(b)
+        stored = _stored_ledger(name)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
             for index, step in enumerate(scenario["runs"]):
                 observation = step.get("observation")
                 policy = step.get("policy")
-                before = ledger_lines(oracle_out)
-                oengine.realize(copy.deepcopy(package), copy.deepcopy(observation), oracle_out, replay_through=step.get("replay_through"),
-                                policy=None if policy is None else oengine.RealizerPolicy.from_mapping(policy))
-                appended = ledger_lines(oracle_out)[len(before):]
+                before = ledger_lines(out)
                 calls: Dict[str, List[Any]] = {stage: [] for stage in STAGES}
                 with contextlib.ExitStack() as stack:
-                    for stage in STAGES:
-                        module = getattr(engine, stage)
+                    for stage, module in STAGES.items():
                         stack.enter_context(mock.patch.object(module, "run", _capturing(module.run, calls[stage])))
-                    engine.realize(copy.deepcopy(package), copy.deepcopy(observation), modular_out, replay_through=step.get("replay_through"),
-                                   policy=None if policy is None else engine.RealizerPolicy.from_mapping(policy))
-                yield StagedRun(name, index, observation, before, appended, calls, tree(modular_out), tree(oracle_out), step.get("replay_through"))
+                    _facade.realize(copy.deepcopy(package), copy.deepcopy(observation), out, replay_through=step.get("replay_through"),
+                                   policy=None if policy is None else policy_module.RealizerPolicy.from_mapping(policy))
+                after = ledger_lines(out)
+                text_lines = [line for path in sorted((out / "realization" / "ledger").glob("*.jsonl")) for line in path.read_text(encoding="utf-8").splitlines()]
+                assert text_lines == stored[:len(text_lines)], f"{name} run {index}: the ledger is not a prefix of the stored baseline's"
+                yield StagedRun(name, index, observation, before, after[len(before):], calls, tree(out), step.get("replay_through"))
 
 
 VALIDATION_SLOTS = ("VALIDATION_READY", "VALIDATION_STARTED", "VALIDATION_COMPLETED")
@@ -165,14 +186,14 @@ MEASUREMENT_SLOTS = ("COUNTERFACTUAL_RECORDED", "ECONOMIC_MEASUREMENT_RECORDED",
 
 def measurement_section_entries(context: Any, analysis: Any, reconciliation: Any, review: Any) -> List[Any]:
     """The validation and measurement slots of a reviewed run as ledger entries, assembled here independently of the
-    engine, in the order the single-file Realizer records them (ready, started, completed, counterfactual,
+    engine, in the order the Realizer records them (ready, started, completed, counterfactual,
     measurement, billing correction)."""
     package, rpkg, observed = context.request.package, context.realization_package_id, analysis.observation
     app_id, episode, estimate = reconciliation.active.application_episode_id, review.validation, review.estimate
     val_id = episode.validation_episode_id
 
     def entry(event_type: Any, payload: Any, **ids: Any) -> Any:
-        return engine.make_ledger_entry(package=package, rpkg_id=rpkg, event_type=event_type, effective_at_utc=observed.observed_at_utc,
+        return ledger_module.make_ledger_entry(package=package, rpkg_id=rpkg, event_type=event_type, effective_at_utc=observed.observed_at_utc,
                                         recorded_at_utc=observed.recorded_at_utc, payload=payload, evidence_refs=[observed.evidence_id],
                                         application_episode_id=app_id, validation_episode_id=val_id, **ids)
 
@@ -203,8 +224,7 @@ MEASUREMENT_SECTION = set(VALIDATION_SLOTS) | set(MEASUREMENT_SLOTS)
 
 
 def compare_measurement_section(test: Any, run: StagedRun) -> Optional[Tuple[Any, ...]]:
-    """Assert (on *test*) that the validation and measurement entries the oracle appended in *run* are those the modular
-    stages decided, with per-append duplicate suppression, and that the Estimator and the Reviewer did nothing unless
+    """Assert (on *test*) that the validation and measurement entries appended in *run* are those the stages decided, with per-append duplicate suppression, and that the Estimator and the Reviewer did nothing unless
     validation was due. Returns ``(context, analysis, governance, reconciliation, estimate, review)``, or ``None``."""
     section = [line for line in run.appended if line["event_type"] in MEASUREMENT_SECTION]
     # Every stage runs once per realize; the Estimator and the Reviewer return an empty result unless validation is due.

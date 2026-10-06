@@ -1,0 +1,354 @@
+{
+ "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/a list": {
+  "value": [
+   [
+    "TypeError",
+    "list indices must be integers or slices, not str"
+   ],
+   [],
+   "[1]\n"
+  ]
+ },
+ "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/not json": {
+  "value": [
+   [
+    "JSONDecodeError",
+    "Expecting value: line 1 column 1 (char 0)"
+   ],
+   [],
+   "not json\n"
+  ]
+ },
+ "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/unknown event type": {
+  "value": [
+   [
+    "ValueError",
+    "'NOPE' is not a valid EventType"
+   ],
+   [],
+   "{\"event_type\": \"NOPE\"}\n"
+  ]
+ },
+ "AppendTests.test_an_entry_that_cannot_be_serialized_leaves_the_file_alone/result": {
+  "value": [
+   [
+    "TypeError",
+    "Object of type Opaque is not JSON serializable"
+   ],
+   [],
+   ""
+  ]
+ },
+ "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
+  "length": 63864,
+  "sha256": "c10f1cff689d177ba14a817c7ffa93d73d91bbdd79d326d72f43ad447532f1ee",
+  "spot": {
+   "entries": 363,
+   "first": "GR-001/RPKG-9BCA3C3DFB12CC37AA7CA775",
+   "ledgers": 41
+  }
+ },
+ "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
+  "length": 509063,
+  "sha256": "4152b8356546a6f6ef4dd7343687e3659cb6389852301a8af3977aa8c67b466d",
+  "spot": {
+   "entries": 363,
+   "first": "GR-001/RPKG-9BCA3C3DFB12CC37AA7CA775",
+   "latest_of_first": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "ledgers": 41
+  }
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/a directory": {
+  "value": "IsADirectoryError"
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/bad second line": {
+  "value": [
+   "TypeError",
+   "list indices must be integers or slices, not str"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/blank lines only": {
+  "value": [
+   "ok",
+   []
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/invalid id": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with RLE-"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/missing event type": {
+  "value": [
+   "KeyError",
+   "'event_type'"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/missing field": {
+  "value": [
+   "TypeError",
+   "RealizationLedgerEntry.__init__() missing 1 required positional argument: 'payload'"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/not json": {
+  "value": [
+   "JSONDecodeError",
+   "Expecting value: line 1 column 1 (char 0)"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/unexpected field": {
+  "value": [
+   "TypeError",
+   "RealizationLedgerEntry.__init__() got an unexpected keyword argument 'extra'"
+  ]
+ },
+ "LedgerReadTests.test_malformed_ledger_raises/unknown event type": {
+  "value": [
+   "ValueError",
+   "'NOPE' is not a valid EventType"
+  ]
+ },
+ "RegenerationRecordTests.test_records_the_entry_and_file/full application payload": {
+  "value": [
+   [
+    "ok",
+    null
+   ],
+   [
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-166F844946ED7292610870E9"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "78be476aeff66058",
+     "realization/regeneration/RERUN-341CBCF60F499475281588FE.json": "348eaa9df87e0c89"
+    }
+   }
+  ]
+ },
+ "RegenerationRecordTests.test_records_the_entry_and_file/no application payload": {
+  "value": [
+   [
+    "ok",
+    null
+   ],
+   [
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-67BA1E0D27BF05F0B348D421"
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "50f6f60a94e0b91e",
+     "realization/regeneration/RERUN-518A1ADCF1DEB3E248A35FCC.json": "f289e2720a57654b"
+    }
+   }
+  ]
+ },
+ "WriteSideTests.test_business_key_for_every_stored_entry/bad payload 5": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "WriteSideTests.test_business_key_for_every_stored_entry/bad payload None": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'get'"
+  ]
+ },
+ "WriteSideTests.test_business_key_for_every_stored_entry/bad payload [('a', 1)]": {
+  "value": [
+   "AttributeError",
+   "'list' object has no attribute 'get'"
+  ]
+ },
+ "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
+  "length": 53492,
+  "sha256": "1acca9f9c290faf78d4779b856cbfafb5714dff5bb6bc45d4dbc05a60c951f1e",
+  "spot": {
+   "count": 363,
+   "first": {},
+   "last": {
+    "application_episode_id": "APP-2F8AD6BFA5DBAF88C3D14FE3",
+    "correction_key": "oct",
+    "measurement_id": "MEAS-9DBB70BA1745E60A823CB14A",
+    "validation_episode_id": "VAL-8B4C25FCE4EC5B613DA2C525"
+   }
+  }
+ },
+ "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/bad entries 5": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/bad entries [None]": {
+  "value": [
+   "AttributeError",
+   "'NoneType' object has no attribute 'recorded_at_utc'"
+  ]
+ },
+ "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/bad entries [{}]": {
+  "value": [
+   "AttributeError",
+   "'dict' object has no attribute 'recorded_at_utc'"
+  ]
+ },
+ "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
+  "length": 290711,
+  "sha256": "cc5253da1b3cf57050b15eb12132bd7658ded5e0fc1bc47662afe71a22a69e08",
+  "spot": {
+   "count": 808,
+   "first": [
+    "GR-001",
+    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    0,
+    "forward",
+    {
+     "entry_count": 0,
+     "first_entry_id": null,
+     "latest_effective_at_utc": null,
+     "latest_entry_id": null,
+     "latest_recorded_at_utc": null,
+     "ledger_checkpoint_hash": "SHA256:2E072167411BD83D6D7317C88986A8F6ABED4F38BFD7B1CEB2804CE83F20372C"
+    }
+   ],
+   "last": [
+    "restatement-reprocessed",
+    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    16,
+    "reversed",
+    {
+     "entry_count": 16,
+     "first_entry_id": "RLE-6B7C42D2B96436035A636C5A",
+     "latest_effective_at_utc": "2026-10-10T12:00:00Z",
+     "latest_entry_id": "RLE-E8AF15BCE761866E3D6FE19A",
+     "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
+     "ledger_checkpoint_hash": "SHA256:7EDC3860E910BDD1F6ED3393985302B1093132A69666CE55312DAF85CB6B83EC"
+    }
+   ]
+  }
+ },
+ "WriteSideTests.test_malformed_input_raises/application episode malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with APP-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/caused-by malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with RLE-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/corrects entry malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with RLE-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/effective time missing": {
+  "value": [
+   "ValueError",
+   "timestamp is required"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/effective time not a time": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: 'not a time'"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/event type is text": {
+  "value": [
+   "AttributeError",
+   "'str' object has no attribute 'value'"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/evidence refs not iterable": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/measurement malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with MEAS-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/package without id": {
+  "value": [
+   "KeyError",
+   "'recommendation_package_id'"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/package without warehouse": {
+  "value": [
+   "KeyError",
+   "'warehouse'"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/payload a list": {
+  "value": [
+   "TypeError",
+   "object is not iterable"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/payload missing": {
+  "value": [
+   "TypeError",
+   "'NoneType' object is not iterable"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/payload not serializable": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/realization package id malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with RPKG-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/recorded time a number": {
+  "value": [
+   "ValueError",
+   "Invalid isoformat string: '5'"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/validation episode malformed": {
+  "value": [
+   "ValueError",
+   "'BAD' must start with VAL-"
+  ]
+ },
+ "WriteSideTests.test_malformed_input_raises/warehouse without workspace": {
+  "value": [
+   "KeyError",
+   "'workspace_id'"
+  ]
+ }
+}

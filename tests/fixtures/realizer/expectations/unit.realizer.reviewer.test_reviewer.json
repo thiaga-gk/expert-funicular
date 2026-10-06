@@ -1,0 +1,26 @@
+{
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_the_run_raises/performance": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_the_run_raises/performance value": {
+  "value": [
+   "InvalidOperation",
+   "[<class 'decimal.ConversionSyntax'>]"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_the_run_raises/policy snapshot": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_exception_the_run_raises/validation id": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ }
+}

@@ -1,0 +1,876 @@
+{
+ "LifecycleScenarioTests.test_contrary_application_ends_with_a_regeneration/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-BE8EB728A531AE753465A1F0"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-09DD246CAC33D4969215E816.json": "6650f4a9b33ccf8c",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "590ba12731885e02",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "4fccbdc026feb6ce",
+     "realization/regeneration/RERUN-8358F0061187B25546138AEE.json": "0118743fbc4518dd",
+     "realization/snapshots/RSNAP-BE8EB728A531AE753465A1F0.json": "4fccbdc026feb6ce"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_drift_ends_with_a_regeneration_on_the_previous_episode/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-8E878275368A67659339507F"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-A81A3CE08B6DC42E7D530163.json": "8a03ce9dd394dd29",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "7609d34625a19aff",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "630840aa3e5e6733",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/regeneration/RERUN-ADF43F07950392F3EBC5C7BA.json": "df6fe5e0628b0428",
+     "realization/snapshots/RSNAP-8E878275368A67659339507F.json": "630840aa3e5e6733",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_drift_skips_authoritative_steps_but_records_independent_ones/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-1A77897E1B0792DBB7640CA9"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED",
+     "INDEPENDENT_CHANGE_OBSERVED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-1E0448A052801551F5332159.json": "1eac6d15d7573a92",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5260ed2013b321c4",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "78ed1be1bc9efa46",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/regeneration/RERUN-C24B9A62CC53D4A30593DA21.json": "8518f1c1b9eb81c0",
+     "realization/snapshots/RSNAP-1A77897E1B0792DBB7640CA9.json": "78ed1be1bc9efa46",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_exact_application_opens_an_episode_and_validation_is_due/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_migration_scenario_is_a_scenario_application/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-BC3E3A561819C24C48EE357F"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-CEEB060431317FE4F92D3497.json": "259a3c55c0376e78",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3a1f72adbab39705",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "8955f4d85a711de2",
+     "realization/regeneration/RERUN-3391E1F4C66CF84E6AD6C53A.json": "cffe56ed77b46977",
+     "realization/snapshots/RSNAP-BC3E3A561819C24C48EE357F.json": "8955f4d85a711de2"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_modified_application_requests_regeneration_after_measurement/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-709E1EC13A10E423918D76AB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "MODIFIED_APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-783EE1BC18D972E51EBFC4AE.json": "d53613a7b9c447de",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "85aaff62336f9816",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "52c0f2098aeed218",
+     "realization/regeneration/RERUN-BE6D14C9D53D954C51BE6C47.json": "301e97ff8857ce79",
+     "realization/snapshots/RSNAP-709E1EC13A10E423918D76AB.json": "52c0f2098aeed218"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_not_ready_evidence_stops_before_validation/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-0270D16D7042C068C3E61DEB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "586b276e1c249b7f",
+     "realization/snapshots/RSNAP-0270D16D7042C068C3E61DEB.json": "586b276e1c249b7f"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_pending_downstream_change_is_independent_and_opens_no_episode/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-EC7A9420C3ED863207B7749F"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INDEPENDENT_CHANGE_OBSERVED",
+     "INTENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-221DEEB91BD789B4E42B1751.json": "1435e0920f5a8ac2",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "be571ef275f0ec48",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "3e0b968c064b86e4",
+     "realization/snapshots/RSNAP-EC7A9420C3ED863207B7749F.json": "3e0b968c064b86e4"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_result_is_frozen/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-8AADC9173DB3D1525646C74C"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "APPLICATION_OBSERVED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-ACA0A6E2A71276E5C1207393.json": "a77c67c4e4096d72",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "ec01df40747d95da",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "66f732c798e07a83",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-8AADC9173DB3D1525646C74C.json": "66f732c798e07a83",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "880d9e91a9a1d7c5"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_reused_episode_still_records_other_changes/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-725B8772D09735AD101A7F43"
+    ],
+    [
+     "ok",
+     "RSNAP-D225FB1BE8BC4FD10054FF34"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INDEPENDENT_CHANGE_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "INDEPENDENT_CHANGE_OBSERVED"
+    ],
+    "files": {
+     "realization/evidence/REVID-12CF8E4AE098C43944ADCB0B.json": "49cc17ac3e2f5a6a",
+     "realization/evidence/REVID-255B94818101F6BD27CC88F3.json": "942aba3819ea3b12",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3044d7f6d0acc172",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "991b807bf0b9ba5f",
+     "realization/regeneration/RERUN-68186ADE077FFFEECF22CABC.json": "0eaf3390c24b8ed3",
+     "realization/snapshots/RSNAP-725B8772D09735AD101A7F43.json": "aaf8a5651f1e5a3a",
+     "realization/snapshots/RSNAP-D225FB1BE8BC4FD10054FF34.json": "991b807bf0b9ba5f"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_rollback_attaches_to_the_active_or_previous_episode/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-18646E5D42BB1840FB575CFB"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "DRIFT_DETECTED",
+     "ROLLBACK_OBSERVED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-A81A3CE08B6DC42E7D530163.json": "8a03ce9dd394dd29",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5c93e8b8580ff811",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "4143c1728568f0b9",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/regeneration/RERUN-ADF43F07950392F3EBC5C7BA.json": "df6fe5e0628b0428",
+     "realization/snapshots/RSNAP-18646E5D42BB1840FB575CFB.json": "4143c1728568f0b9",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_rollback_attaches_to_the_active_or_previous_episode/run2": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-C3C2DF8883743CAFED2366AF"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "ROLLBACK_REQUESTED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "a93e597a29519c48",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "a8d2743858af3f22",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-C3C2DF8883743CAFED2366AF.json": "a8d2743858af3f22"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_rollback_attaches_to_the_active_or_previous_episode/run3": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-0BC7ACD7E617DCB2FECD6941"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "INTENT_RECORDED",
+     "ROLLBACK_OBSERVED"
+    ],
+    "files": {
+     "realization/evidence/REVID-8A2F2BD128ABEEA1B753DC1B.json": "72d81d857a364455",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "cbc0d832b36b6725",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "e2fb59abc99091b8",
+     "realization/snapshots/RSNAP-0BC7ACD7E617DCB2FECD6941.json": "e2fb59abc99091b8"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_same_configuration_again_reuses_the_active_episode/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_several_authoritative_changes_are_one_scenario_application/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-E627E35E18467EBB0A037866"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/evidence/REVID-255B94818101F6BD27CC88F3.json": "942aba3819ea3b12",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "c74cae4b7cf6f78d",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "58e8c59f877391fa",
+     "realization/regeneration/RERUN-68186ADE077FFFEECF22CABC.json": "94f7023a1ab53b55",
+     "realization/snapshots/RSNAP-E627E35E18467EBB0A037866.json": "58e8c59f877391fa"
+    }
+   }
+  ]
+ },
+ "LifecycleScenarioTests.test_supersession_records_the_replacement/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-B4E0622B53B53930421A90E3"
+    ],
+    [
+     "ok",
+     "RSNAP-6DEDD65850BF5CBCFC04AF5B"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "SOURCE_PACKAGE_SUPERSEDED",
+     "REPLACEMENT_PACKAGE_LINKED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-3F584D93963CC839EF0A52B5.json": "8832209390de7fbd",
+     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "2677639d4672b60a",
+     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "c5eb15bfc5506270",
+     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/snapshots/RSNAP-6DEDD65850BF5CBCFC04AF5B.json": "c5eb15bfc5506270",
+     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+    }
+   }
+  ]
+ },
+ "RegenerationRequestTests.test_engine_request_regeneration_writes_the_stored_files/case0": {
+  "value": [
+   [
+    "ok",
+    null
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "50f6f60a94e0b91e",
+     "realization/regeneration/RERUN-518A1ADCF1DEB3E248A35FCC.json": "f289e2720a57654b"
+    }
+   }
+  ]
+ },
+ "RegenerationRequestTests.test_engine_request_regeneration_writes_the_stored_files/case1": {
+  "value": [
+   [
+    "ok",
+    null
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/ledger",
+     "realization/regeneration"
+    ],
+    "events": [
+     "REGENERATION_REQUESTED"
+    ],
+    "files": {
+     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5e196e0402000ef2",
+     "realization/regeneration/RERUN-341CBCF60F499475281588FE.json": "333dab5fe93e36c8"
+    }
+   }
+  ]
+ },
+ "RegenerationRequestTests.test_engine_request_regeneration_writes_the_stored_files/case2": {
+  "value": [
+   [
+    "ValueError",
+    "non-finite decimal"
+   ],
+   {
+    "directories": [],
+    "events": [],
+    "files": {}
+   }
+  ]
+ },
+ "RegenerationRequestTests.test_engine_request_regeneration_writes_the_stored_files/case3": {
+  "value": [
+   [
+    "AttributeError",
+    "'int' object has no attribute 'get'"
+   ],
+   {
+    "directories": [],
+    "events": [],
+    "files": {}
+   }
+  ]
+ },
+ "RegenerationRequestTests.test_every_stored_application_payload_and_reason/requests": {
+  "length": 97811,
+  "sha256": "87b6cb6fdd3608623a9f80411e103f548ab47ae96fb6905c5499f0b049690549",
+  "spot": {
+   "count": 120,
+   "ids": [
+    "RERUN-186130AEE279F50D72F7BFB5",
+    "RERUN-3391E1F4C66CF84E6AD6C53A",
+    "RERUN-37D82D2E35D220DD0D4810F4"
+   ],
+   "scenarios": [
+    "GR-002",
+    "GR-003",
+    "GR-005",
+    "GR-006",
+    "GR-008",
+    "GR-009",
+    "GR-010",
+    "GR-011",
+    "GR-012",
+    "GR-013",
+    "GR-014",
+    "GR-015",
+    "GR-016",
+    "GR-017",
+    "GR-018",
+    "GR-019",
+    "GR-020",
+    "GR-021",
+    "GR-022",
+    "GR-023",
+    "GR-024",
+    "GR-025",
+    "GR-026",
+    "GR-027",
+    "GR-028",
+    "GR-029",
+    "GR-030",
+    "GR-031",
+    "GR-032",
+    "GR-033",
+    "GR-034",
+    "GR-037",
+    "GR-038",
+    "GR-040",
+    "example-exact",
+    "example-modified",
+    "financial-quality-gates",
+    "replay-through-generation",
+    "restatement-reprocessed"
+   ]
+  }
+ },
+ "RegenerationRequestTests.test_fallback_to_the_observed_configuration_and_other_policies/requests": {
+  "length": 8409,
+  "sha256": "e89a30379aa451af48412e2fa77bff17b79977d2fe5c91e05557425433951af7",
+  "spot": {
+   "count": 12,
+   "ids": [
+    "RERUN-0DA3B9EB3D9D53ED9A6BE0CA",
+    "RERUN-341CBCF60F499475281588FE",
+    "RERUN-518A1ADCF1DEB3E248A35FCC",
+    "RERUN-774EEE1C63021D5B06E18645",
+    "RERUN-88304AA2A6A90040B331D501",
+    "RERUN-8C7D432BDC0C92FD7B863BC8"
+   ]
+  }
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/configuration not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/fallback configuration not a mapping": {
+  "value": [
+   "TypeError",
+   "'int' object is not iterable"
+  ]
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/package without configuration": {
+  "value": [
+   "KeyError",
+   "'current_config'"
+  ]
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/package without id": {
+  "value": [
+   "KeyError",
+   "'recommendation_package_id'"
+  ]
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/payload not a mapping": {
+  "value": [
+   "AttributeError",
+   "'int' object has no attribute 'get'"
+  ]
+ },
+ "RegenerationRequestTests.test_malformed_input_raises_and_returns_nothing/unhashable policy": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "UpstreamRegenerationTests.test_rule_over_its_inputs/results": {
+  "length": 146329,
+  "sha256": "c6ee79a6f2b40817f40bf9732b65f302d0b6f9bcef0801885c050ad52f1db650",
+  "spot": {
+   "count": 1440,
+   "ids": 3,
+   "kinds": [
+    "ValueError",
+    "ok"
+   ],
+   "requested": 198
+  }
+ }
+}

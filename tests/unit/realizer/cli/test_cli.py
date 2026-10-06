@@ -1,9 +1,10 @@
-"""Realizer CLI adapter (src/realizer/cli): option parity with the single-file CLI, dependency direction, behavior.
+"""Realizer CLI adapter (src/realizer/cli): option table, dependency direction, behavior.
 
 The CLI parses its own arguments, loads the package, the observation and the policy (in that order), configures logging,
 calls the facade and prints the written package path (or the snapshot with ``--print-json``). It never imports a
-capability package. For the demo, replay, observation-file and policy modes its exit status, stdout and output tree are the
-single-file CLI's.
+capability package. The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
+observation-file and policy modes, the exit status, stdout and output tree are those of the single-file CLI, stored in
+tests/fixtures/realizer/expectations/.
 """
 import ast
 import contextlib
@@ -17,9 +18,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.parity import ROOT, canonical, engine, fixture_package, oengine, tree  # noqa: E402
+from tests import realizer_expect as expect  # noqa: E402
+from tests.unit.realizer.helpers import ROOT, canonical, compact_tree, fixture_package, tree  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.cli import realize as cli_realize  # noqa: E402
 from realizer.cli.main import main  # noqa: E402
+from realizer.contracts import realization as rc  # noqa: E402
+from realizer.realizer import realize  # noqa: E402
 
 CAPABILITIES = ("analyzer", "governor", "reconciler", "estimator", "reviewer", "packager", "reporter")
 CLI_DIR = ROOT / "src" / "realizer" / "cli"
@@ -71,25 +76,22 @@ class DependencyDirectionTests(unittest.TestCase):
 
 
 class OptionParityTests(unittest.TestCase):
-    def test_parse_args_defaults_and_values_equal_the_single_file_cli(self):
-        for argv in (["--package", "p.json"],
-                     ["--package", "p", "--observation", "o", "--output-dir", "x", "--policy", "pol", "--demo", "--demo-modified",
-                      "--replay-through", "2026-10-01T00:00:00Z", "--print-json", "--log-level", "DEBUG"]):
-            self.assertEqual(vars(cli_realize.parse_args(argv)), vars(oengine.parse_args(argv)))
+    def test_parse_args_defaults_and_values(self):
+        for index, argv in enumerate((["--package", "p.json"],
+                                      ["--package", "p", "--observation", "o", "--output-dir", "x", "--policy", "pol", "--demo", "--demo-modified",
+                                       "--replay-through", "2026-10-01T00:00:00Z", "--print-json", "--log-level", "DEBUG"])):
+            expect.check(self, f"argv {index}", vars(cli_realize.parse_args(argv)))
         self.assertEqual(cli_realize.parse_args(["--package", "p"]).output_dir, "./warehouse_optimizer_out")
 
-    def test_help_text_and_errors_are_the_single_file_ones(self):
-        def outcome(module, argv):
+    def test_help_text_and_errors(self):
+        def outcome(argv):
             out, err = io.StringIO(), io.StringIO()
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as raised:
-                module.parse_args(argv)
+            with mock.patch.object(sys, "argv", ["realizer"]), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+                    mock.patch.dict(os.environ, {"COLUMNS": "100"}), self.assertRaises(SystemExit) as raised:
+                cli_realize.parse_args(argv)
             return raised.exception.code, out.getvalue(), err.getvalue()
-        for argv in (["--help"], [], ["--package", "p", "--log-level", "LOUD"], ["--package", "p", "--no-such-flag"]):
-            self.assertEqual(outcome(cli_realize, argv), outcome(oengine, argv), argv)
-
-    def test_the_facade_still_resolves_parse_args_and_main(self):
-        self.assertIs(engine.parse_args, cli_realize.parse_args)
-        self.assertIs(engine.main, main)
+        for index, argv in enumerate((["--help"], [], ["--package", "p", "--log-level", "LOUD"], ["--package", "p", "--no-such-flag"])):
+            expect.check(self, f"argv {index}", outcome(argv))
 
 
 class BehaviourTests(unittest.TestCase):
@@ -98,7 +100,7 @@ class BehaviourTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.root = tempfile.TemporaryDirectory()
         cls.observation = Path(cls.root.name) / "observation.json"
-        cls.observation.write_text(json.dumps(oengine.demo_observation(cls.pkg, modified=True)), encoding="utf-8")
+        cls.observation.write_text(json.dumps(demo_observation(cls.pkg, modified=True)), encoding="utf-8")
         cls.policy = Path(cls.root.name) / "policy.json"
         cls.policy.write_text(json.dumps({"minimum_validation_days": 3}), encoding="utf-8")
 
@@ -115,56 +117,54 @@ class BehaviourTests(unittest.TestCase):
                 code = f"{type(exc).__name__}: {exc}".replace(str(out), "<out>")
         return code, stdout.getvalue().replace(str(out), "<out>")
 
-    def assert_same(self, argv, runs=1):
-        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-            results = []
-            for _ in range(runs):
-                results.append((self.run_cli(oengine.main, argv, Path(a)), self.run_cli(main, argv, Path(b))))
-            for old, new in results:
-                self.assertEqual(new, old, argv)
-            self.assertEqual(tree(Path(b)), tree(Path(a)), argv)
-            return results[-1][1], tree(Path(b))
+    def check_run(self, label, argv, runs=1):
+        """Run the CLI *runs* times into one directory; the exit status, stdout and output tree of the last run are the
+        stored expectation (the same for every run). Returns ``((code, stdout), tree)``."""
+        with tempfile.TemporaryDirectory() as out:
+            results = [self.run_cli(main, argv, Path(out)) for _ in range(runs)]
+            run_tree = tree(Path(out))
+        expect.check(self, label, (results[-1], compact_tree(run_tree)))
+        return results[-1], run_tree
 
     def test_demo_mode(self):
-        (code, stdout), files_ = self.assert_same(["--package", str(PACKAGE), "--demo"])
+        (code, stdout), files_ = self.check_run("demo", ["--package", str(PACKAGE), "--demo"])
         self.assertEqual(code, 0)
         self.assertRegex(stdout, r"^<out>/realization/packages/RPKG-[0-9A-F]{24}\.json\n$")
         self.assertTrue(any(k.startswith("realization/snapshots/RSNAP-") for k in files_))
 
     def test_demo_modified_and_print_json(self):
-        (code, stdout), _ = self.assert_same(["--package", str(PACKAGE), "--demo-modified", "--print-json"])
+        (code, stdout), _ = self.check_run("demo modified", ["--package", str(PACKAGE), "--demo-modified", "--print-json"])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(stdout)["contract_version"], oengine.rc.CONTRACT_VERSION)
+        self.assertEqual(json.loads(stdout)["contract_version"], rc.CONTRACT_VERSION)
 
     def test_replay_modes(self):
         base = ["--package", str(PACKAGE), "--demo"]
-        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        results = []
+        with tempfile.TemporaryDirectory() as out:
             for argv in (base, base, [*base, "--replay-through", "2000-01-01T00:00:00Z"], [*base, "--replay-through", "2100-01-01T00:00:00Z"],
                          ["--package", str(PACKAGE), "--replay-through", "2100-01-01T00:00:00Z"]):
-                with self.subTest(argv=argv[2:]):
-                    self.assertEqual(self.run_cli(main, argv, Path(b)), self.run_cli(oengine.main, argv, Path(a)))
-                    self.assertEqual(tree(Path(b)), tree(Path(a)))
+                results.append((argv[2:], self.run_cli(main, argv, Path(out)), compact_tree(tree(Path(out)))))
+        expect.check(self, "sequence", [(argv[:1] + argv[1:], result, files_) for argv, result, files_ in results])
 
     def test_observation_file_and_policy_override(self):
-        (code, _), files_ = self.assert_same(["--package", str(PACKAGE), "--observation", str(self.observation), "--policy", str(self.policy)])
+        (code, _), files_ = self.check_run("observation file and policy", ["--package", str(PACKAGE), "--observation", str(self.observation), "--policy", str(self.policy)])
         self.assertEqual(code, 0)
         self.assertTrue(any(k.startswith("realization/ledger/") for k in files_))
 
     def test_lineage_only_run_without_an_observation(self):
-        (code, _), files_ = self.assert_same(["--package", str(PACKAGE)])
+        (code, _), files_ = self.check_run("lineage only", ["--package", str(PACKAGE)])
         self.assertEqual(code, 0)
         self.assertFalse(any(k.startswith("realization/evidence/") and v for k, v in files_.items()))
 
     def test_failures_are_not_mapped_to_an_exit_status(self):
         bad = Path(self.root.name) / "bad.json"
         bad.write_text(json.dumps({"recommendation_package_id": "PKG-1"}), encoding="utf-8")
-        for argv in (["--package", str(bad)], ["--package", str(Path(self.root.name) / "missing.json")],
-                     ["--package", str(PACKAGE), "--observation", str(bad), "--demo-modified", "--policy", str(Path(self.root.name) / "nope.json")]):
+        for index, argv in enumerate((["--package", str(bad)], ["--package", str(Path(self.root.name) / "missing.json")],
+                                      ["--package", str(PACKAGE), "--observation", str(bad), "--demo-modified", "--policy", str(Path(self.root.name) / "nope.json")])):
             with self.subTest(argv=argv[1:]):
                 new = self.run_cli(main, argv, Path(self.root.name) / "o1")
-                old = self.run_cli(oengine.main, argv, Path(self.root.name) / "o2")
-                self.assertEqual(new[0].replace("o1", "o2"), old[0].replace("o1", "o2"))
                 self.assertIsInstance(new[0], str)
+                expect.check(self, f"case {index}", new[0].replace(self.root.name, "<tmp>"))
 
     def test_load_order_is_package_then_observation_then_policy(self):
         order = []
@@ -194,7 +194,7 @@ class EntryPointTests(unittest.TestCase):
                 self.assertEqual(path.parent, Path(tmp) / "realization" / "packages")
                 with tempfile.TemporaryDirectory() as ref:
                     package = fixture_package()
-                    snapshot = oengine.realize(package, oengine.demo_observation(package), Path(ref))
+                    snapshot = realize(package, demo_observation(package), Path(ref))
                     self.assertEqual(path.name, f"{snapshot.realization_package_id}.json")
 
     def test_bad_arguments_exit_with_status_2(self):

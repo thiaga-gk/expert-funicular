@@ -1,0 +1,32 @@
+{
+ "RunTests.test_run_never_raises_and_halts_with_the_stored_exception/contrary regeneration": {
+  "value": [
+   "ValueError",
+   "non-finite decimal"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_stored_exception/intent text": {
+  "value": [
+   "ValueError",
+   "unprintable observation value"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_stored_exception/matching": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_stored_exception/readiness": {
+  "value": [
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
+  ]
+ },
+ "RunTests.test_run_never_raises_and_halts_with_the_stored_exception/rollback flag": {
+  "value": [
+   "ValueError",
+   "observation flag has no truth value"
+  ]
+ }
+}

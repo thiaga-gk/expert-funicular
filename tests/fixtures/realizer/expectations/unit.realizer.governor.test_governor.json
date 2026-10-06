@@ -1,0 +1,348 @@
+{
+ "RunTests.test_checks_for_every_scenario_observation/results": {
+  "length": 74036,
+  "sha256": "d0c3379bd0c6f69e24283aa56f4d343fb69b78eeb56fe481e0bed1dc59a57a91",
+  "spot": {
+   "count": 51,
+   "exceptions": []
+  }
+ },
+ "RunTests.test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception/counterfactual": {
+  "value": {
+   "counterfactual": [
+    "AttributeError",
+    "'str' object has no attribute 'get'"
+   ],
+   "economic_quality": [
+    "ok",
+    {
+     "attributable_spend": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "95"
+     },
+     "correction_chain": {
+      "complete": true,
+      "pass": true
+     },
+     "currency_consistency": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_pct": "100"
+     },
+     "material_cost_components": {
+      "available": true,
+      "pass": true
+     },
+     "pass": true,
+     "price_coverage": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "100"
+     }
+    }
+   ],
+   "performance": [
+    "ok",
+    {
+     "hard_guardrails_pass": true,
+     "rules": [
+      {
+       "metric": "normalized_p95_runtime_regression_pct",
+       "observed": "2",
+       "operator": "LTE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-PERF-P95-001",
+       "threshold": "5"
+      },
+      {
+       "metric": "reliability_pass",
+       "observed": true,
+       "operator": "EQ",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-REL-001",
+       "threshold": true
+      },
+      {
+       "metric": "correctness_pass",
+       "observed": true,
+       "operator": "NE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-CORRECT-001",
+       "threshold": false
+      }
+     ],
+     "state": "PASSED"
+    }
+   ],
+   "readiness": [
+    "ok",
+    {
+     "checks": {
+      "evidence_quality": {
+       "observed": "SUFFICIENT",
+       "pass": true,
+       "required": "SUFFICIENT"
+      },
+      "minimum_days": {
+       "observed": 8,
+       "pass": true,
+       "threshold": 7
+      },
+      "minimum_queries": {
+       "observed": 250,
+       "pass": true,
+       "threshold": 100
+      },
+      "representative_regime": {
+       "observed": true,
+       "pass": true,
+       "required": true
+      }
+     },
+     "ready": true
+    }
+   ]
+  }
+ },
+ "RunTests.test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception/economic_quality": {
+  "value": {
+   "counterfactual": [
+    "ok",
+    [
+     true,
+     "MATCHED_HISTORICAL"
+    ]
+   ],
+   "economic_quality": [
+    "InvalidOperation",
+    "[<class 'decimal.ConversionSyntax'>]"
+   ],
+   "performance": [
+    "ok",
+    {
+     "hard_guardrails_pass": true,
+     "rules": [
+      {
+       "metric": "normalized_p95_runtime_regression_pct",
+       "observed": "2",
+       "operator": "LTE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-PERF-P95-001",
+       "threshold": "5"
+      },
+      {
+       "metric": "reliability_pass",
+       "observed": true,
+       "operator": "EQ",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-REL-001",
+       "threshold": true
+      },
+      {
+       "metric": "correctness_pass",
+       "observed": true,
+       "operator": "NE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-CORRECT-001",
+       "threshold": false
+      }
+     ],
+     "state": "PASSED"
+    }
+   ],
+   "readiness": [
+    "ok",
+    {
+     "checks": {
+      "evidence_quality": {
+       "observed": "SUFFICIENT",
+       "pass": true,
+       "required": "SUFFICIENT"
+      },
+      "minimum_days": {
+       "observed": 8,
+       "pass": true,
+       "threshold": 7
+      },
+      "minimum_queries": {
+       "observed": 250,
+       "pass": true,
+       "threshold": 100
+      },
+      "representative_regime": {
+       "observed": true,
+       "pass": true,
+       "required": true
+      }
+     },
+     "ready": true
+    }
+   ]
+  }
+ },
+ "RunTests.test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception/performance": {
+  "value": {
+   "counterfactual": [
+    "ok",
+    [
+     true,
+     "MATCHED_HISTORICAL"
+    ]
+   ],
+   "economic_quality": [
+    "ok",
+    {
+     "attributable_spend": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "95"
+     },
+     "correction_chain": {
+      "complete": true,
+      "pass": true
+     },
+     "currency_consistency": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_pct": "100"
+     },
+     "material_cost_components": {
+      "available": true,
+      "pass": true
+     },
+     "pass": true,
+     "price_coverage": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "100"
+     }
+    }
+   ],
+   "performance": [
+    "AttributeError",
+    "'int' object has no attribute 'get'"
+   ],
+   "readiness": [
+    "ok",
+    {
+     "checks": {
+      "evidence_quality": {
+       "observed": "SUFFICIENT",
+       "pass": true,
+       "required": "SUFFICIENT"
+      },
+      "minimum_days": {
+       "observed": 8,
+       "pass": true,
+       "threshold": 7
+      },
+      "minimum_queries": {
+       "observed": 250,
+       "pass": true,
+       "threshold": 100
+      },
+      "representative_regime": {
+       "observed": true,
+       "pass": true,
+       "required": true
+      }
+     },
+     "ready": true
+    }
+   ]
+  }
+ },
+ "RunTests.test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception/readiness": {
+  "value": {
+   "counterfactual": [
+    "ok",
+    [
+     true,
+     "MATCHED_HISTORICAL"
+    ]
+   ],
+   "economic_quality": [
+    "ok",
+    {
+     "attributable_spend": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "95"
+     },
+     "correction_chain": {
+      "complete": true,
+      "pass": true
+     },
+     "currency_consistency": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_pct": "100"
+     },
+     "material_cost_components": {
+      "available": true,
+      "pass": true
+     },
+     "pass": true,
+     "price_coverage": {
+      "observed_pct": "100",
+      "pass": true,
+      "required_min_pct": "100"
+     }
+    }
+   ],
+   "performance": [
+    "ok",
+    {
+     "hard_guardrails_pass": true,
+     "rules": [
+      {
+       "metric": "normalized_p95_runtime_regression_pct",
+       "observed": "2",
+       "operator": "LTE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-PERF-P95-001",
+       "threshold": "5"
+      },
+      {
+       "metric": "reliability_pass",
+       "observed": true,
+       "operator": "EQ",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-REL-001",
+       "threshold": true
+      },
+      {
+       "metric": "correctness_pass",
+       "observed": true,
+       "operator": "NE",
+       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "result": "PASS",
+       "rule_id": "REAL-CORRECT-001",
+       "threshold": false
+      }
+     ],
+     "state": "PASSED"
+    }
+   ],
+   "readiness": [
+    "ValueError",
+    "invalid literal for int() with base 10: 'abc'"
+   ]
+  }
+ },
+ "RunTests.test_policy_whose_snapshot_id_fails_does_not_fail_run/snapshot id": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ }
+}
