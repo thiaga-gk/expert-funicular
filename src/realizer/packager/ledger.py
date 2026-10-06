@@ -23,7 +23,7 @@ from realizer.common.logging import LOGGER
 from realizer.common.utils import utc_iso, write_json
 from realizer.config.settings import POLICY_VERSION, PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts import realization as rc
-from realizer.contracts.realization import MeasurementFacts, RealizationEstimate, ReviewResult
+from realizer.contracts.realization import MeasurementFacts, ReviewResult
 from realizer.contracts.reconciliation import RegenerationRequest
 from realizer.contracts.request import RunContext
 
@@ -208,10 +208,6 @@ def record_creation(context: RunContext) -> None:
 
 def append_regeneration(package: Mapping[str, Any], output_dir: Path, request: RegenerationRequest, recorded: str, effective: str) -> None:
     """Record a regeneration request (REGENERATION_REQUESTED on its application episode), then write its RERUN file."""
-    _record_regeneration(package, output_dir, request, recorded, effective)
-
-
-def _record_regeneration(package: Mapping[str, Any], output_dir: Path, request: RegenerationRequest, recorded: str, effective: str) -> Path:
     rpkg = rc.make_rpkg_id(package["recommendation_package_id"])
     event = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.REGENERATION_REQUESTED,
@@ -219,9 +215,7 @@ def _record_regeneration(package: Mapping[str, Any], output_dir: Path, request: 
         application_episode_id=request.application_episode_id,
     )
     append_if_absent(ledger_path(output_dir, rpkg), event)
-    path = regeneration_path(output_dir, request.regeneration_request_id)
-    write_json(path, request.payload)
-    return path
+    write_json(regeneration_path(output_dir, request.regeneration_request_id), request.payload)
 
 
 def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ...]:
@@ -276,7 +270,8 @@ def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ..
         raise reconciliation.halt
 
     if reconciliation.terminal_regeneration is not None:
-        written.append(_record_regeneration(package, output_dir, reconciliation.terminal_regeneration, recorded, effective))
+        append_regeneration(package, output_dir, reconciliation.terminal_regeneration, recorded, effective)
+        written.append(regeneration_path(output_dir, reconciliation.terminal_regeneration.regeneration_request_id))
         return tuple(written)
     if not reconciliation.validation_due:
         return tuple(written)
@@ -325,5 +320,6 @@ def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ..
     # analysis once the governed remeasurement/readiness window has passed.
     upstream = reconciliation.upstream_regeneration.get() if reconciliation.upstream_regeneration is not None else None
     if upstream is not None:
-        written.append(_record_regeneration(package, output_dir, upstream, recorded, effective))
+        append_regeneration(package, output_dir, upstream, recorded, effective)
+        written.append(regeneration_path(output_dir, upstream.regeneration_request_id))
     return tuple(written)
