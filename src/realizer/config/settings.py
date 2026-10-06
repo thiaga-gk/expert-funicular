@@ -30,3 +30,6 @@ CONFIG_KNOBS = (
 
 # Reuse Publisher's canonical size registry; Realizer must not maintain a competing order.
 SIZE_ORDER = {name: idx for idx, name in enumerate(PUBLISHER_SIZE_ORDER)}
+
+# Execution states of a plan step that cannot carry realization authority (its change is only recorded as independent).
+NON_AUTHORITATIVE_EXECUTION_STATES = frozenset({"PENDING_REEVALUATION", "BLOCKED", "INVALIDATED"})

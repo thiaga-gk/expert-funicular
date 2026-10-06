@@ -27,3 +27,12 @@ class RealizationRequest:
     output_dir: Path
     policy: Optional[Any] = None
     replay_through: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RunContext:
+    """A validated request: the source package passed the shape gate, the policy default is applied and the realization
+    package id (RPKG-*) is minted. Every capability's ``run`` takes it."""
+    request: RealizationRequest
+    policy: Any
+    realization_package_id: str
