@@ -48,17 +48,26 @@ class OptimizerCases(PublisherCase):
         step = next(x for x in plan.steps if x.knob == "min_clusters")
         self.assertIn("CANARY", step.validation_gate)
 
-    def test_min_cluster_time_at_min_is_an_upper_bound_not_the_base(self):
+    def test_min_cluster_savings_are_spare_floor_capacity_scaled_by_realization(self):
         c = self.by_knob["min_clusters"]
         r = c.estimated_savings_range_365
-        # Low: the floor capacity may have been needed, so the change may save nothing.
-        self.assertAlmostEqual(r.low, 0.0, places=2)
-        # High is the old time-at-min figure, now labelled as an upper bound; base is the policy midpoint of it.
-        self.assertGreater(r.high, 0)
-        self.assertAlmostEqual(r.base, r.high * self.t.min_cluster_realization_base, places=2)
-        self.assertLess(r.base, 0.75 * r.high)  # the pre-fix base was 75% of this figure
-        self.assertTrue(c.metadata["savings_high_is_upper_bound"])
-        self.assertIn("upper bound", c.metadata["method"])
+        share = c.metadata["spare_floor_share"]
+        self.assertGreater(share, 0)
+        # High: all spare floor capacity is removed; base and low scale it by the shared realization tracks.
+        self.assertAlmostEqual(r.high, c.total_365d_baseline_cost * share, delta=1.0)
+        self.assertAlmostEqual(r.base, r.high * self.t.realization_base, delta=1.0)
+        self.assertAlmostEqual(r.low, r.high * self.t.realization_conservative, delta=1.0)
+        self.assertIn("spare floor capacity", c.metadata["method"])
+
+    def test_min_cluster_cut_without_floor_demand_is_not_priced(self):
+        # Evidence without the floor-demand maps: the cut stays a canary, its economics are withheld (never zero).
+        e = copy.deepcopy(self.evidence[0])
+        for row in e.current_epoch.resource_daily:
+            row.pop("floor_minutes_by_demand_clusters", None)
+        c = next(x for x in p.evaluate_warehouses([e], self.t)[0].candidates if x.knob == "min_clusters")
+        self.assertEqual(c.status, "TEST_REQUIRED")
+        self.assertIsNone(c.estimated_savings_365)
+        self.assertEqual(c.metadata["estimate_blocker"], "FLOOR_DEMAND_EVIDENCE_UNAVAILABLE")
 
     def test_utilization_does_not_change_decisions(self):
         decisions = []

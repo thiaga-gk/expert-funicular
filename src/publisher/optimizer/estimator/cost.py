@@ -137,21 +137,30 @@ class CostModel:
             }
 
         if knob=="min_clusters":
-            minutes_at_min=safe_float(a.facts.get("minutes_at_min"))
-            cluster=safe_float(a.facts.get("cluster_minutes"))
             current=safe_int(d.current_config.get("min_clusters"),1)
             target=safe_int(d.recommended_config.get("min_clusters"),current)
-            delta=max(0,current-target)
-            theoretical_removed=minutes_at_min*delta
-            raw=clamp(theoretical_removed/cluster,0,self.t.min_cluster_savings_fraction_cap) if cluster>0 else 0
-            realization=[self.t.min_cluster_realization_optimistic,self.t.min_cluster_realization_base,self.t.min_cluster_realization_conservative]
-            factors=Range3(*(1-raw*r for r in realization))
+            share=(a.facts.get("floor_spare_shares") or {}).get(str(target))
+            basis=a.facts.get("floor_spare_basis") or {}
+            if share is None:
+                # Priced only on spare floor capacity measured on the DBU forecast's days; the canary measures the rest.
+                return None,{
+                    "method":"estimate withheld: no time at the floor by demand on the DBU forecast's days",
+                    "estimate_blocker":"FLOOR_DEMAND_EVIDENCE_UNAVAILABLE","floor_demand_check":basis.get("reason"),
+                    "bundle_effect":{"type":"requires_canary"},**meta,
+                }
+            # Spare floor capacity (cluster-minutes the floor held that the demand of the minute did not need) is the most
+            # the lower floor removes; the realization tracks (shared with auto-stop) scale it for the autoscaler holding
+            # clusters after demand drops.
+            realization=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
+            factors=Range3(*(max(0.0,1.0-share*r) for r in realization))
+            spare_per_day=safe_float((a.facts.get("floor_spare_cluster_minutes_per_day") or {}).get(str(target)))
             return factors,{
-                "method":"cluster-minutes observed at the minimum are an upper bound on removable capacity (the floor may have been needed); high savings is that upper bound, low is no savings, base is the policy midpoint; canary required",
-                "raw_savings_fraction":round(raw,4),
-                "savings_high_is_upper_bound":True,
-                # The capped removable minutes (not the raw time-at-min) feed the stateful bundle so both models agree.
-                "bundle_effect":{"type":"min_cluster_reduction","cluster_minutes_to_remove":raw*cluster,"target_min_clusters":target,"realization":realization},
+                "method":"spare floor capacity on the DBU forecast's days (running cluster-minutes at the floor the demand did not need, above the new floor) as a share of running cluster-minutes, annualized like the forecast; realization tracks for scale-down holds; canary required",
+                "spare_floor_share":share,"realization_range":realization,
+                "spare_floor_cluster_minutes_per_day":spare_per_day,"running_cluster_minutes_per_day":basis.get("running_cluster_minutes_per_day"),
+                "annual_spare_floor_cluster_hours":round(spare_per_day*365.0*safe_float(basis.get("trend_adjustment_factor"),1.0)/60.0,1),
+                "spare_floor_basis":{k:basis.get(k) for k in ("model","resource_window_start","resource_window_end","resource_window_days","trend_adjustment_factor")},
+                "bundle_effect":{"type":"min_cluster_reduction","removed_share":share,"target_min_clusters":target},
                 **meta,
             }
 

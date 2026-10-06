@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import bisect
 import datetime as dt
+import json
 import math
 import statistics
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.common.time import parse_datetime
 from publisher.common.utils import clamp, optional_float, safe_float, safe_int
@@ -288,6 +289,24 @@ def conditional_severity(q: Dict[str, Any], count_key: str, p95_key: str) -> Tup
 
 
 RESOURCE_SERIES_FIELDS = ("uptime_minutes", "cluster_minutes", "minutes_at_min", "minutes_at_max", "recycle_minutes", "max_cluster_count", "starts")
+# Per day: {clusters the demand needed: running minutes at the floor} for demand below the floor (0 = no query running).
+FLOOR_DEMAND_FIELD = "floor_minutes_by_demand_clusters"
+
+
+def floor_demand_map(value: Any) -> Optional[Dict[str, float]]:
+    """A floor-demand map as collected (a JSON object string from SQL, or a mapping) normalized to {demand clusters as a
+    string: minutes}, sorted by demand; None when it cannot be read (unknown, never empty)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return {str(k): round(float(value[k]), 3) for k in sorted(value, key=lambda x: int(x))}
+    except (TypeError, ValueError):
+        return None
 
 
 def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thresholds, days: Optional[int] = None) -> Optional[Dict[str, Any]]:
@@ -318,6 +337,10 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
     window: Dict[str, Any] = {"start": start_day.isoformat(), "end": end_day.isoformat(), "days": len(days)}
     for name in RESOURCE_SERIES_FIELDS:
         window[name] = [safe_float((by_day.get(d.isoformat()) or {}).get(name)) for d in days]
+    # A day without warehouse events is a known empty map; a collected day without the map (evidence from before it
+    # was collected) is unknown (None).
+    maps = [by_day.get(d.isoformat()) for d in days]
+    window[FLOOR_DEMAND_FIELD] = [{} if r is None else (r.get(FLOOR_DEMAND_FIELD) if isinstance(r.get(FLOOR_DEMAND_FIELD), Mapping) else None) for r in maps]
     return window
 
 
@@ -327,14 +350,28 @@ def resource_window(e: "WarehouseEvidence", t: Thresholds) -> Optional[Dict[str,
     return resource_window_from(e.current_epoch, meta.get("forecast_basis_end") or meta.get("billing_complete_through"), t)
 
 
-def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: Thresholds, fields: Sequence[str]) -> Tuple[Optional[Dict[str, float]], Dict[str, Any]]:
+def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: Thresholds, fields: Sequence[str],
+                              derived: Optional[Mapping[str, Callable[[Mapping[str, Any]], Optional[List[float]]]]] = None) -> Tuple[Optional[Dict[str, float]], Dict[str, Any]]:
     """Annual totals of daily resource series on the DBU forecast's model, so AWS and DBU describe the same year.
 
     Run-rate model: the forecast's window and recent-weighted blend, times its trend adjustment. Cadence model: the same
     whole run-to-run cycles over the latest runs warehouse events cover (at least forecast_min_cycles of them), with no
-    trend. Returns (None, info with a blocker) when the window is missing or holds too few covered cycles.
+    trend. ``derived`` adds series computed from the window (name -> function of the window, None when unknown), annualized
+    the same way and returned under their names. Returns (None, info with a blocker) when the window is missing, holds too
+    few covered cycles, or a derived series is unknown on its days (``DERIVED_SERIES_UNAVAILABLE``).
     """
     end = meta.get("forecast_basis_end") or meta.get("billing_complete_through")
+
+    def with_derived(window: Dict[str, Any], i0: int, i1: int) -> Optional[Dict[str, Any]]:
+        """The window with the derived series added, or None when one is unknown on the days [i0, i1) the rates use."""
+        for name, fn in (derived or {}).items():
+            sliced = {k: (v[i0:i1] if isinstance(v, list) else v) for k, v in window.items()}
+            series = fn(sliced)
+            if series is None:
+                return None
+            window = {**window, name: [0.0] * i0 + list(series) + [0.0] * (len(window["cluster_minutes"]) - i1)}
+        return window
+
     if meta.get("forecast_model") == "CADENCE":
         window = resource_window_from(epoch, end, t, days=365)
         if window is None:
@@ -345,7 +382,10 @@ def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: 
             return None, {"blocker": "CADENCE_CYCLES_NOT_COVERED_BY_EVENTS", "cadence_cycles": max(0, len(starts) - 1),
                           "resource_window_start": window["start"], "resource_window_end": window["end"]}
         i0, i1 = ((dt.date.fromisoformat(x) - first).days for x in (starts[0], starts[-1]))
-        rates = {f: sum(window[f][i0:i1]) / (i1 - i0) * 365.0 for f in fields}
+        window = with_derived(window, i0, i1)
+        if window is None:
+            return None, {"blocker": "DERIVED_SERIES_UNAVAILABLE"}
+        rates = {f: sum(window[f][i0:i1]) / (i1 - i0) * 365.0 for f in [*fields, *(derived or {})]}
         return rates, {"model": "CADENCE", "cadence_cycles": len(starts) - 1, "trend_adjustment_factor": 1.0, "window_cluster_minutes": sum(window["cluster_minutes"][i0:i1]),
                        "window_uptime_minutes": sum(window["uptime_minutes"][i0:i1]), "max_observed_clusters": max(window["max_cluster_count"][i0:i1], default=0.0),
                        "resource_window_start": starts[0], "resource_window_end": (dt.date.fromisoformat(starts[-1]) - dt.timedelta(days=1)).isoformat(), "resource_window_days": i1 - i0}
@@ -353,10 +393,44 @@ def annualized_resource_rates(epoch: EpochEvidence, meta: Mapping[str, Any], t: 
     if window is None:
         return None, {"blocker": "RECENT_RESOURCE_WINDOW_UNAVAILABLE"}
     trend = safe_float(meta.get("trend_adjustment_factor"), 1.0)
-    rates = {f: blended_daily_rate(window[f], t) * 365.0 * trend for f in fields}
+    # The blend reads whole weeks only: a derived series must be known on those days.
+    used = len(whole_weeks(window["cluster_minutes"]))
+    window = with_derived(window, window["days"] - used, window["days"])
+    if window is None:
+        return None, {"blocker": "DERIVED_SERIES_UNAVAILABLE"}
+    rates = {f: blended_daily_rate(window[f], t) * 365.0 * trend for f in [*fields, *(derived or {})]}
     return rates, {"model": "RUN_RATE", "trend_adjustment_factor": trend, "window_cluster_minutes": sum(window["cluster_minutes"]),
                    "window_uptime_minutes": sum(window["uptime_minutes"]), "max_observed_clusters": max(window["max_cluster_count"], default=0.0),
                    "resource_window_start": window["start"], "resource_window_end": window["end"], "resource_window_days": window["days"]}
+
+
+def floor_spare_shares(epoch: EpochEvidence, meta: Mapping[str, Any], t: Thresholds, floor: int) -> Tuple[Optional[Dict[str, float]], Dict[str, Any]]:
+    """Spare floor capacity for every lower floor, as shares of running cluster-minutes on the DBU forecast's days.
+
+    For a floor of k below the current one, a running minute at the current floor whose demand needed d clusters
+    (ceil(running + queued queries / QUERIES_PER_CLUSTER_PRO_CLASSIC), 0 when idle) holds floor - max(k, d) clusters
+    the demand did not use: the most a floor of k removes. Spare and running cluster-minutes are annualized on the same
+    forecast window and model, so their ratio annualizes like the baseline (the trend cancels). Returns ({str(k):
+    share}, info) or (None, info with ``FLOOR_DEMAND_EVIDENCE_UNAVAILABLE`` and the reason) when the resource window,
+    its cadence cycles or the floor-demand maps on those days are missing.
+    """
+    def spare(k: int) -> Callable[[Mapping[str, Any]], Optional[List[float]]]:
+        def series(w: Mapping[str, Any]) -> Optional[List[float]]:
+            maps = w[FLOOR_DEMAND_FIELD]
+            if any(m is None for m in maps):
+                return None
+            return [sum(safe_float(v) * max(0, floor - max(k, safe_int(d))) for d, v in m.items()) for m in maps]
+        return series
+    targets = list(range(1, max(1, floor)))
+    rates, info = annualized_resource_rates(epoch, meta, t, ("cluster_minutes",), {f"spare_{k}": spare(k) for k in targets})
+    if rates is None or rates["cluster_minutes"] <= 0:
+        reason = info.get("blocker") if rates is None else "NO_RUNNING_TIME_ON_FORECAST_BASIS"
+        return None, {**info, "blocker": "FLOOR_DEMAND_EVIDENCE_UNAVAILABLE",
+                      "reason": "FLOOR_DEMAND_NOT_COLLECTED" if reason == "DERIVED_SERIES_UNAVAILABLE" else reason}
+    shares = {str(k): round(min(1.0, rates[f"spare_{k}"] / rates["cluster_minutes"]), 6) for k in targets}
+    trend = safe_float(info.get("trend_adjustment_factor"), 1.0) or 1.0
+    per_day = {str(k): round(rates[f"spare_{k}"] / 365.0 / trend, 3) for k in targets}
+    return shares, {**info, "spare_cluster_minutes_per_day": per_day, "running_cluster_minutes_per_day": round(rates["cluster_minutes"] / 365.0 / trend, 3)}
 
 
 def first_full_day(ts: Optional[str]) -> Optional[dt.date]:

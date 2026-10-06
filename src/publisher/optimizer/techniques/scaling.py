@@ -85,10 +85,11 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
         epoch_peak = f.get("epoch_max_observed")
         demand_blocker: Optional[str] = None
         if cfg.warehouse_type!="SERVERLESS":
-            # Pro/Classic: the ceiling is the demand-derived target; the whole current epoch's peak demand keeps it
-            # for a seasonal peak outside the recent window.
+            # Pro/Classic: the ceiling is the demand-derived target, never below the recent window's observed peak (a cut
+            # saves nothing, so it never takes away clusters the warehouse used); the whole current epoch's peak demand
+            # keeps it for a seasonal peak outside the recent window.
             def target_for(clusters: Optional[int]) -> int:
-                return min(MAX_CLUSTERS_SUPPORTED_LIMIT, max(cfg.min_clusters, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
+                return min(MAX_CLUSTERS_SUPPORTED_LIMIT, max(cfg.min_clusters, peak, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
             if not f["concurrency_available"]:
                 demand_blocker = "CONCURRENCY_EVIDENCE_UNAVAILABLE"
             elif safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:
@@ -140,7 +141,7 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
             target=reduced_max
             out.append(OptimizationDecision(e.warehouse_id,"max_clusters","COST_GUARDRAIL","ACTIONABLE",
                 {"max_clusters":cfg.max_clusters},{"max_clusters":target},[],["warehouse_size"],[],[],
-                "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings."))
+                f"Peak demand and the recent peak ({peak} cluster(s)) stay below the configured ceiling and queue pressure is low; tighten the guardrail to {target} without claiming direct savings."))
         elif held_by_epoch_peak:
             out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                 {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},evidence_blockers+["PEAK_OUTSIDE_RECENT_WINDOW"],["warehouse_size"],[],[],

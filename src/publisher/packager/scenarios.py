@@ -16,6 +16,10 @@ from publisher.packager.estimator.scenario import StatefulBundleEstimator
 from publisher.packager.sequencing import PLAN_KNOB_RANK, PlanOrdering
 
 
+
+# Cost steps whose plan saving can shrink below materiality once earlier steps remove the time they would act on.
+MARGINAL_HOLD_KNOBS = ("auto_stop_minutes", "min_clusters", "warehouse_size")
+
 class ScenarioPlanner(PlanOrdering):
     """Build ordered, dependency-aware scenarios from reviewed candidates.
 
@@ -93,20 +97,21 @@ class ScenarioPlanner(PlanOrdering):
         return Scenario(plan_a_id,e.warehouse_id,e.workspace_id,"Plan A — Optimize current warehouse type","Apply ordered tuning without changing warehouse type. Re-analyze downstream knobs after invalidating changes.",steps,self._estimate_with_marginal_hold(e,steps,by_id,materiality_floor),[],True,{"target_warehouse_type":e.current_epoch.config.warehouse_type,"assessment":"CURRENT_TYPE"},self._scenario_confidence(steps))
 
     def _estimate_with_marginal_hold(self,e:WarehouseEvidence,steps:List[PlanStep],by_id:Dict[str,CandidateRecommendation],materiality_floor:float)->PortfolioEstimate:
-        """Price Plan A; an auto-stop step whose own saving after the steps applied before it falls below the materiality
-        floor that its standalone saving cleared is held (BLOCKED, not applied, not priced) and the plan is priced again.
+        """Price Plan A; a cost step (auto-stop, a lower floor, a smaller size) whose own saving after the steps applied
+        before it falls below the materiality floor that its standalone saving cleared is held (BLOCKED, not applied, not
+        priced) and the plan is priced again.
 
         Applied before it means in execution order, not plan order: approval-only steps go first and canaries start on a
         later run (the sequencing note), so an approval-only auto-stop follows only the approval-only steps listed before
-        it, and an auto-stop canary every approval-only step and the canaries listed before it. Its candidate keeps its
-        standalone status: the hold is about this plan, not the change."""
+        it, and a canary every approval-only step and the canaries listed before it. Its candidate keeps its standalone
+        status: the hold is about this plan, not the change."""
         estimate=self.bundle.estimate(e,steps,by_id)
         ready=("READY_FOR_HITL","READY_FOR_CANARY")
         wave=lambda x:ready.index(x.execution_state)
         held=False
         for i,st in enumerate(steps):
             c=by_id[st.recommendation_id]
-            if (c.knob!="auto_stop_minutes" or st.execution_state not in ready
+            if (c.knob not in MARGINAL_HOLD_KNOBS or c.objective!="COST" or st.execution_state not in ready
                     or c.estimated_savings_365 is None or c.estimated_savings_365<materiality_floor):
                 continue
             before=[x for j,x in enumerate(steps) if j!=i and x.execution_state in ready and (wave(x),j)<(wave(st),i)]

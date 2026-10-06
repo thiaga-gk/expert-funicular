@@ -36,7 +36,7 @@
         "blockers": [
           "A_B_PERFORMANCE_VALIDATION_REQUIRED"
         ],
-        "candidate_id": "CAND-8B84B641EBFD1539F20CA8E4",
+        "candidate_id": "CAND-B9779B60580AEFE8ABEDBBC6",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -137,7 +137,7 @@
       },
       {
         "blockers": [],
-        "candidate_id": "CAND-DFA62673CDDA773D3B7E99E8",
+        "candidate_id": "CAND-3ACF6B90B634896B5065AFF6",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -169,7 +169,7 @@
           "EVID-F30D3258FD9086D24AF8E2D1",
           "EVID-9C08A8BE0F53B825CACEBBD0",
           "EVID-91866CFB333B7D1DC6E2169F",
-          "EVID-8464A31D6C70CBE7EDF36E2C",
+          "EVID-72B11E0F84145C074EEA0397",
           "EVID-7E0AAD8FE09E63A8AB1898A7",
           "EVID-F8545337B30A67FF7B6979DA",
           "EVID-6C58C7E49C2A75613D50482B",
@@ -231,7 +231,7 @@
         "objectives": [
           "COST_GUARDRAIL"
         ],
-        "rationale": "The configured ceiling has not been used and queue pressure is low; tighten the guardrail without claiming direct savings.",
+        "rationale": "Peak demand and the recent peak (2 cluster(s)) stay below the configured ceiling and queue pressure is low; tighten the guardrail to 3 without claiming direct savings.",
         "recommended_value": 3,
         "status": "ACTIONABLE",
         "technique_id": "WH-MAX-CLUSTER-REDUCE-001"
@@ -241,7 +241,7 @@
           "A_B_PERFORMANCE_VALIDATION_REQUIRED",
           "SPARE_FLOOR_CAPACITY_UNPROVEN"
         ],
-        "candidate_id": "CAND-B64D0537293956DD40B5400B",
+        "candidate_id": "CAND-1F4490B72C10AA8877B528A2",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -274,10 +274,11 @@
           "EVID-8DF28FFFA16F4901C2C8B37B",
           "EVID-4D0CBE6AD488D4AD0FE6C6C6",
           "EVID-5ED497DE795220083932A07F",
+          "EVID-747EE01957FDF60F4C237887",
           "EVID-B9CB486D2411F1BF157D7CE3",
           "EVID-F30D3258FD9086D24AF8E2D1",
           "EVID-91866CFB333B7D1DC6E2169F",
-          "EVID-8464A31D6C70CBE7EDF36E2C",
+          "EVID-72B11E0F84145C074EEA0397",
           "EVID-7E0AAD8FE09E63A8AB1898A7",
           "EVID-F8545337B30A67FF7B6979DA",
           "EVID-6C58C7E49C2A75613D50482B",
@@ -299,38 +300,38 @@
           },
           "estimated_cost_365d": {
             "aws": {
-              "base": 6595.36,
-              "high": 8793.82,
-              "low": 4396.91
+              "base": 5276.29,
+              "high": 6448.8,
+              "low": 4103.79
             },
             "dbu": {
-              "base": 20250.0,
-              "high": 27000.0,
-              "low": 13500.0
+              "base": 16200.01,
+              "high": 19800.0,
+              "low": 12600.01
             },
             "total": {
-              "base": 26845.36,
-              "high": 35793.82,
-              "low": 17896.91
+              "base": 21476.3,
+              "high": 26248.8,
+              "low": 16703.8
             }
           },
           "estimation_status": "PROVISIONAL_MODELED_RANGE",
           "is_additive": false,
           "savings_365d": {
             "aws": {
-              "base": 2198.46,
-              "high": 4396.91,
-              "low": 0.0
+              "base": 3517.53,
+              "high": 4690.03,
+              "low": 2345.02
             },
             "dbu": {
-              "base": 6750.0,
-              "high": 13500.0,
-              "low": 0.0
+              "base": 10799.99,
+              "high": 14399.99,
+              "low": 7200.0
             },
             "total": {
-              "base": 8948.46,
-              "high": 17896.91,
-              "low": 0.0
+              "base": 14317.52,
+              "high": 19090.02,
+              "low": 9545.02
             }
           }
         },
@@ -346,7 +347,7 @@
       },
       {
         "blockers": [],
-        "candidate_id": "CAND-4131853C82C6830315ACD5D1",
+        "candidate_id": "CAND-303F38E004A7805870F03564",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -446,7 +447,7 @@
           "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED",
           "SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES"
         ],
-        "candidate_id": "CAND-7F118C0DCA25AE07BC4711CF",
+        "candidate_id": "CAND-3CCEB076C00F91DA4DE16F56",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -1206,6 +1207,19 @@
         "unit": "ms",
         "value": null
       },
+      "EVID-72B11E0F84145C074EEA0397": {
+        "comparator": "busy minutes at or above this level",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-72B11E0F84145C074EEA0397",
+        "interpretation": "The level the whole current epoch reached in at least that many busy minutes (a sustained peak), so a seasonal peak outside the recent window keeps the ceiling.",
+        "metric": "peak_concurrency_epoch",
+        "observation_window": "current epoch (last 365 days)",
+        "source": "system.query.history",
+        "source_field": "start_time/end_time",
+        "threshold": 30,
+        "unit": "queries",
+        "value": 1
+      },
       "EVID-73F77DE29626EC2C395148C9": {
         "comparator": ">= upsize signal",
         "epoch_scope": "CURRENT",
@@ -1218,6 +1232,21 @@
         "threshold": 1073741824,
         "unit": "bytes",
         "value": 0
+      },
+      "EVID-747EE01957FDF60F4C237887": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-747EE01957FDF60F4C237887",
+        "interpretation": "Per lower floor: running cluster-minutes at the current floor that the demand of the minute did not need (floor minus the larger of the lower floor and demand clusters), as a share of running cluster-minutes. The most a lower floor removes.",
+        "metric": "spare_floor_cluster_share",
+        "observation_window": "DBU forecast basis: 2026-07-09 to 2026-09-30",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "start_time/end_time, cluster_count",
+        "threshold": null,
+        "unit": "ratio by lower floor",
+        "value": {
+          "1": 0.533333
+        }
       },
       "EVID-7A2E73157F821F68F965DA7F": {
         "comparator": "compatibility_check",
@@ -1273,19 +1302,6 @@
         "threshold": 95.0,
         "unit": "queries",
         "value": 10
-      },
-      "EVID-8464A31D6C70CBE7EDF36E2C": {
-        "comparator": "percentile of busy minutes",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-8464A31D6C70CBE7EDF36E2C",
-        "interpretation": "The same peak over the whole current epoch, so a seasonal peak outside the recent window keeps the ceiling.",
-        "metric": "peak_concurrency_epoch",
-        "observation_window": "current epoch (last 365 days)",
-        "source": "system.query.history",
-        "source_field": "start_time/end_time",
-        "threshold": 99.5,
-        "unit": "queries",
-        "value": 1
       },
       "EVID-880B19A9191BB5F9F87D4C03": {
         "comparator": "",
@@ -1867,11 +1883,11 @@
       "excluded_scenarios": [
         {
           "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
-          "scenario_id": "SCN-D5FB9350F1357B2DA85BDC98"
+          "scenario_id": "SCN-DE2CA3AC520DEE0F865C9615"
         }
       ],
       "included_scenario_ids": [
-        "SCN-7B058D023BBC320C90C8E87C"
+        "SCN-0B73EBCADD5D375E7B2D25BA"
       ],
       "scenario_envelope": {
         "maximum_savings": {
@@ -1886,7 +1902,7 @@
             "dbu": 24030.0,
             "total": 31856.5
           },
-          "scenario_id": "SCN-7B058D023BBC320C90C8E87C"
+          "scenario_id": "SCN-0B73EBCADD5D375E7B2D25BA"
         },
         "minimum_savings": {
           "bound": "LOW",
@@ -1900,7 +1916,7 @@
             "dbu": 8100.0,
             "total": 10738.15
           },
-          "scenario_id": "SCN-7B058D023BBC320C90C8E87C"
+          "scenario_id": "SCN-0B73EBCADD5D375E7B2D25BA"
         },
         "recommended_base": {
           "bound": "BASE",
@@ -1914,7 +1930,7 @@
             "dbu": 19102.5,
             "total": 25324.13
           },
-          "scenario_id": "SCN-7B058D023BBC320C90C8E87C"
+          "scenario_id": "SCN-0B73EBCADD5D375E7B2D25BA"
         }
       },
       "semantics": {
@@ -1924,18 +1940,18 @@
       }
     },
     "provenance": {
-      "analyzer_version": "sql-warehouse-analyzer-v2.13.0",
-      "bundle_estimator_version": "stateful-resource-bundle-v2.13.0",
+      "analyzer_version": "sql-warehouse-analyzer-v2.14.0",
+      "bundle_estimator_version": "stateful-resource-bundle-v2.14.0",
       "contract_version": "3.1.0",
-      "decision_graph_version": "warehouse-decision-graph-v2.13.0",
-      "estimator_version": "counterfactual-v2.13.0",
-      "evidence_fingerprint": "SHA256:05BE3EFA613EC573031D0AF144BB94F7682EAD2C296CEE21AF0C0E8F87B05F50",
+      "decision_graph_version": "warehouse-decision-graph-v2.14.0",
+      "estimator_version": "counterfactual-v2.14.0",
+      "evidence_fingerprint": "SHA256:6D7673A8C3053E0EC0BAABFB40BA051880055FA14BA73166D231049DEAC4238B",
       "generated_at": "2026-10-01T12:00:00Z",
       "modeler_version": "epoch-runrate-v2.10.0",
-      "optimizer_version": "sql-warehouse-optimizer-v2.13.0",
-      "package_hash_full_sha256": "F900788367AB19A868DD65F65E19D15757037FE862EAC471CF2FC2A4F14831B5",
-      "policy_version": "sql-warehouse-policy-v2.13.0",
-      "reviewer_version": "recommendation-reviewer-v2.13.0",
+      "optimizer_version": "sql-warehouse-optimizer-v2.14.0",
+      "package_hash_full_sha256": "56125A5A298AE53F1475186752346CCD64B4E87A62AAFA391C8089436D354887",
+      "policy_version": "sql-warehouse-policy-v2.14.0",
+      "reviewer_version": "recommendation-reviewer-v2.14.0",
       "source_regions": [
         "us-east-1"
       ],
@@ -1960,23 +1976,23 @@
       "realization_records": [],
       "status": "NOT_APPLIED"
     },
-    "recommendation_package_id": "PKG-F900788367AB19A868DD65F6",
+    "recommendation_package_id": "PKG-56125A5A298AE53F14751867",
     "recommended_plan": {
       "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes. Apply the ready no-canary steps (auto_stop_minutes) first; start the warehouse_size canary once the next run shows their new configuration ready (2 settled billed days), so the canary's cost reading is not mixed with their savings.",
       "next_action": "REVIEW_AND_EXECUTE_FIRST_READY_STEP",
       "reevaluation": null,
       "requires_hitl": true,
-      "scenario_id": "SCN-7B058D023BBC320C90C8E87C",
+      "scenario_id": "SCN-0B73EBCADD5D375E7B2D25BA",
       "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
     },
     "run_scope": null,
     "scenarios": [
       {
         "candidate_refs": [
-          "CAND-4131853C82C6830315ACD5D1",
-          "CAND-8B84B641EBFD1539F20CA8E4",
-          "CAND-B64D0537293956DD40B5400B",
-          "CAND-DFA62673CDDA773D3B7E99E8"
+          "CAND-303F38E004A7805870F03564",
+          "CAND-B9779B60580AEFE8ABEDBBC6",
+          "CAND-1F4490B72C10AA8877B528A2",
+          "CAND-3ACF6B90B634896B5065AFF6"
         ],
         "compatibility": {
           "checks": [],
@@ -2035,8 +2051,9 @@
           "EVID-32D1858F7AFAAE6251C819D0",
           "EVID-4D0CBE6AD488D4AD0FE6C6C6",
           "EVID-5ED497DE795220083932A07F",
+          "EVID-747EE01957FDF60F4C237887",
           "EVID-91866CFB333B7D1DC6E2169F",
-          "EVID-8464A31D6C70CBE7EDF36E2C",
+          "EVID-72B11E0F84145C074EEA0397",
           "EVID-7E0AAD8FE09E63A8AB1898A7",
           "EVID-F8545337B30A67FF7B6979DA",
           "EVID-6C58C7E49C2A75613D50482B",
@@ -2051,7 +2068,7 @@
         "execution_plan": [
           {
             "action": null,
-            "candidate_id": "CAND-4131853C82C6830315ACD5D1",
+            "candidate_id": "CAND-303F38E004A7805870F03564",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -2119,7 +2136,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-8B84B641EBFD1539F20CA8E4",
+            "candidate_id": "CAND-B9779B60580AEFE8ABEDBBC6",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -2197,7 +2214,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-B64D0537293956DD40B5400B",
+            "candidate_id": "CAND-1F4490B72C10AA8877B528A2",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -2230,36 +2247,36 @@
               "pricing_basis": "CONTINGENT_PENDING_REEVALUATION",
               "running_savings_365d": {
                 "aws": {
-                  "base": 6716.28,
-                  "high": 8266.19,
-                  "low": 2638.15
+                  "base": 7095.51,
+                  "high": 8442.07,
+                  "low": 3495.54
                 },
                 "dbu": {
-                  "base": 20621.25,
-                  "high": 25380.0,
-                  "low": 8100.0
+                  "base": 21785.62,
+                  "high": 25919.99,
+                  "low": 10732.5
                 },
                 "total": {
-                  "base": 27337.53,
-                  "high": 33646.19,
-                  "low": 10738.15
+                  "base": 28881.13,
+                  "high": 34362.06,
+                  "low": 14228.04
                 }
               },
               "step_savings_365d": {
                 "aws": {
-                  "base": 494.65,
-                  "high": 494.65,
-                  "low": 0.0
+                  "base": 873.88,
+                  "high": 873.88,
+                  "low": 615.57
                 },
                 "dbu": {
-                  "base": 1518.75,
-                  "high": 1518.75,
-                  "low": 0.0
+                  "base": 2683.12,
+                  "high": 2683.12,
+                  "low": 1889.99
                 },
                 "total": {
-                  "base": 2013.4,
-                  "high": 2013.4,
-                  "low": 0.0
+                  "base": 3557.0,
+                  "high": 3557.0,
+                  "low": 2505.56
                 }
               }
             },
@@ -2283,7 +2300,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-DFA62673CDDA773D3B7E99E8",
+            "candidate_id": "CAND-3ACF6B90B634896B5065AFF6",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -2311,19 +2328,19 @@
               "pricing_basis": "CONTINGENT_PENDING_REEVALUATION",
               "running_savings_365d": {
                 "aws": {
-                  "base": 6716.28,
-                  "high": 8266.19,
-                  "low": 2638.15
+                  "base": 7095.51,
+                  "high": 8442.07,
+                  "low": 3495.54
                 },
                 "dbu": {
-                  "base": 20621.25,
-                  "high": 25380.0,
-                  "low": 8100.0
+                  "base": 21785.62,
+                  "high": 25919.99,
+                  "low": 10732.5
                 },
                 "total": {
-                  "base": 27337.53,
-                  "high": 33646.19,
-                  "low": 10738.15
+                  "base": 28881.13,
+                  "high": 34362.06,
+                  "low": 14228.04
                 }
               },
               "step_savings_365d": {
@@ -2402,36 +2419,36 @@
           },
           "contingent_estimated_cost_365d": {
             "aws": {
-              "base": 2077.54,
-              "high": 6155.67,
-              "low": 527.63
+              "base": 1698.31,
+              "high": 5298.28,
+              "low": 351.75
             },
             "dbu": {
-              "base": 6378.75,
-              "high": 18900.0,
-              "low": 1620.0
+              "base": 5214.38,
+              "high": 16267.5,
+              "low": 1080.01
             },
             "total": {
-              "base": 8456.29,
-              "high": 25055.67,
-              "low": 2147.63
+              "base": 6912.69,
+              "high": 21565.78,
+              "low": 1431.76
             }
           },
           "contingent_savings_365d": {
             "aws": {
-              "base": 6716.28,
-              "high": 8266.19,
-              "low": 2638.15
+              "base": 7095.51,
+              "high": 8442.07,
+              "low": 3495.54
             },
             "dbu": {
-              "base": 20621.25,
-              "high": 25380.0,
-              "low": 8100.0
+              "base": 21785.62,
+              "high": 25919.99,
+              "low": 10732.5
             },
             "total": {
-              "base": 27337.53,
-              "high": 33646.19,
-              "low": 10738.15
+              "base": 28881.13,
+              "high": 34362.06,
+              "low": 14228.04
             }
           },
           "estimated_cost_365d": {
@@ -2472,14 +2489,14 @@
             }
           }
         },
-        "scenario_id": "SCN-7B058D023BBC320C90C8E87C",
+        "scenario_id": "SCN-0B73EBCADD5D375E7B2D25BA",
         "scenario_name": "Plan A \u2014 Optimize current warehouse type",
         "scenario_type": "IN_PLACE_OPTIMIZATION",
         "status": "RECOMMENDED"
       },
       {
         "candidate_refs": [
-          "CAND-7F118C0DCA25AE07BC4711CF"
+          "CAND-3CCEB076C00F91DA4DE16F56"
         ],
         "compatibility": {
           "checks": [
@@ -2605,7 +2622,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-7F118C0DCA25AE07BC4711CF",
+            "candidate_id": "CAND-3CCEB076C00F91DA4DE16F56",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -2701,7 +2718,7 @@
             "total": null
           }
         },
-        "scenario_id": "SCN-D5FB9350F1357B2DA85BDC98",
+        "scenario_id": "SCN-DE2CA3AC520DEE0F865C9615",
         "scenario_name": "Plan B \u2014 Serverless migration experiment",
         "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
         "status": "ALTERNATIVE"
