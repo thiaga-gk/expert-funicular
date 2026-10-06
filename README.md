@@ -141,6 +141,19 @@ What each run shows, per warehouse package:
 
 Weekly is enough: readiness needs only a few settled billed days (`readiness_min_billed_days`), the cost history clears within a week, and a canary's guards are read on every run, so a rollback recommendation appears on the first run after the evidence trips one. The job is read-only and never applies a change: owners apply approved steps in the Databricks UI or API themselves, and the next run measures the epoch that follows.
 
+## Realizer
+
+The Realizer records what happened after a RecommendationPackage was published: it reads the package and a normalized post-change observation, appends immutable ledger facts and projects a realization package and snapshot. It is offline and read-only and never changes a recommendation package.
+
+```bash
+realizer --package <PKG.json> --observation <observation.json> --output-dir ./realizer_out
+realizer --package <PKG.json> --demo                        # deterministic synthetic observation
+python -m realizer --package <PKG.json> --demo-modified     # the same CLI without the console script
+python scripts/run_realizer.py --package <PKG.json> --demo  # from a checkout, no install
+```
+
+Options: `--policy <file>` overrides the realization policy, `--replay-through <UTC time>` projects only the ledger entries recorded through that time, `--print-json` prints the snapshot instead of the written package path, and `--log-level` sets the log level. Without an observation the run only records the lineage. Output goes under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `packages/`, `snapshots/`). `realize_request()` in `src/realizer/realizer.py` (and `realize()`, its single-file signature) calls each capability once (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) and holds no domain logic; the CLI in `src/realizer/cli/` is an adapter in front of it. `python scripts/compare_realizer_single_file.py` compares the modular code with the frozen single-file Realizer.
+
 ## Source policy
 
 - `system.compute.warehouses` — configuration snapshots/epochs (an epoch is a period of unchanged type, channel, size, min/max clusters and auto-stop; name/tag-only snapshots do not start one).

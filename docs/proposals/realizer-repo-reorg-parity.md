@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-8 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-10 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager; extract reporter; reduce the engine to orchestration with a CLI adapter). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 
@@ -322,3 +322,88 @@ All are recorded for a separately reviewed change.
 ### Behavior differences
 
 None known. All 41 scenarios and every compared malformed case behave identically to the oracle.
+
+## Phases 9 and 10: reporter and orchestration
+
+The two final writes and the legacy compatibility projection leave the engine for the Reporter, `realize` becomes the publisher-shaped facade, and the command line moves to a CLI adapter with a console script. `realizer.py` now only sequences the capabilities. The oracle is unchanged.
+
+### Where the moved names live
+
+Every name keeps its spelling, signature, messages and values; `realizer.realizer.<name>` still resolves for each one (functions are the same objects, imported with `# noqa: F401`; `parse_args` and `main` resolve lazily, see Decisions), and so does every other name the engine had, including the standard-library modules it imported.
+
+| Module | Names | From |
+|---|---|---|
+| `src/realizer/reporter/reporter.py` | `run(context, packaged) -> RealizationReport` (writes `realization/packages/<RPKG>.json`, then `realization/snapshots/<RSNAP>.json`, the same payload) | `realize` |
+| `src/realizer/reporter/reporter.py` | `legacy_compatibility`, source text identical to the oracle's | `realizer.py` |
+| `src/realizer/contracts/report.py` | `RealizationReport` (`realization`, `files`), an internal hand-off beside the workbook projection; `report.py` has no `__all__`, so no public list changed | new |
+| `src/realizer/cli/realize.py` | `parse_args`, `run` (the body of `main`) | `realizer.py` |
+| `src/realizer/cli/main.py` | `main` (hands its arguments to `realize.run`) | `realizer.py` |
+| `src/realizer/__main__.py`, `scripts/run_realizer.py`, `pyproject.toml` `[project.scripts]` | `python -m realizer`, the no-install wrapper, `realizer = "realizer.cli.main:main"` | new |
+| `src/realizer/realizer.py` | `realize_request(request) -> RealizationReport`, the pipeline | `realize` |
+| `src/realizer/realizer.py` | `realize(package, observation, output_dir, *, policy=None, replay_through=None)`, the oracle signature, now `realize_request(...).realization` | `realize` |
+| `src/realizer/realizer.py` | `build_context` (unchanged) and `review` (the Estimator and the Reviewer as one call, see Decisions) | `realizer.py` |
+| `src/realizer/estimator/estimator.py`, `src/realizer/reviewer/reviewer.py` | the gate on `reconciliation.halt` and `reconciliation.validation_due`, now inside each `run` | `review` |
+
+Not moved: the single-file `.xlsx` renderer (`legacy/realizer_single_file/reporters/realizer_workbook_reporter.py`), and `legacy/realizer_single_file/` itself (Phase 11).
+
+### The facade
+
+```python
+def realize_request(request: RealizationRequest) -> RealizationReport:
+    context = build_context(request)
+    packager.begin(context)
+    analysis = analyzer.run(context)
+    governance = governor.run(context, analysis)
+    reconciliation = reconciler.run(context, analysis, governance)
+    estimate = estimator.run(context, analysis, governance, reconciliation)
+    reviewed = reviewer.run(context, analysis, governance, reconciliation, estimate)
+    packaged = packager.run(context, reviewed)
+    return reporter.run(context, packaged)
+
+
+def realize(package, observation, output_dir, *, policy=None, replay_through=None) -> rc.RealizationPackage:
+    return realize_request(RealizationRequest(
+        package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
+    )).realization
+```
+
+### Decisions
+
+- **Two entry points.** `realize_request(request) -> RealizationReport` is the pipeline (the publisher's `publish` shape); `realize` keeps the oracle's signature and return value (the snapshot) and delegates to it, so the regression baseline, the ported oracle suites, the unit tests and the comparison script run unchanged. `RealizationRequest`'s fields are still exactly `realize`'s parameters in order (pinned by `contracts/test_request.py`).
+- **The gate moved into the stages.** The `review` helper ran the Estimator and the Reviewer only when validation was due and the reconciliation had not failed. `estimator.run` and `reviewer.run` now return an empty result (`RealizationEstimate()`, a `ReviewResult` with no episode, status or halt) in those cases, and the facade calls both every time. The Packager never read an estimate or a review on a halted or not-due run, so nothing recorded changes. The staged-run test helper accordingly asserts that both stages did nothing, instead of that they were not called.
+- **`review` stays as a name.** It is not used by the pipeline; it composes the two stages (no condition of its own) so that every name the engine had still resolves. The Packager unit test that built a review through it is unchanged.
+- **`parse_args` and `main` resolve lazily.** The CLI imports the facade, so the facade cannot import the CLI at load without a cycle. A module-level `__getattr__` returns the CLI's functions on first access; `from realizer.realizer import main` and `realizer.realizer.parse_args` work, and any other missing name still raises `AttributeError`. `python -m realizer.realizer` still runs the CLI.
+- **The CLI reaches the core only through the facade.** It imports `realizer.realizer` (for `realize`, `demo_observation`, `load_observation` and `RealizerPolicy`, as the publisher CLI reaches its demo through the facade), `realizer.config.loader` and `realizer.common.logging`; a test checks with `ast.walk` that no capability package is imported. Flags, defaults, help text, load order (package, observation or demo, policy), stdout (the package path, or the snapshot with `--print-json`) and logging setup are the oracle's.
+- **No exit-status mapping and no `common/errors.py`** (decided in Phase 2: a behavior change). A failed run still ends in an uncaught exception (status 1); argparse errors exit 2 as before.
+- **No `reporter/workbook.py`.** The workbook projection already lives in `contracts/report.py`; the renderer needs the `artifact_tool` runtime and the retired Publisher's workbook reporter, and nothing on the realize path calls it. A module would be empty or a stub (design 4.3), so none is created; a test pins the Reporter package to `reporter.py`. The workbook stays projection-only.
+- **The dead local in `legacy_compatibility` is kept.** The function is moved verbatim, including the oracle's unused `actor` local (pyflakes flags it). Removing it would not change the output, but a verbatim move lets a test compare the source text with the oracle's.
+- **Failed writes keep the oracle's tree (Option A).** `reporter.run` writes the package, then the snapshot, with the same writer; a failure of either leaves the ledger and files the oracle left (the package file when only the snapshot fails). The Reporter raises, as the oracle did; it has no `halt`.
+- **The facade holds no domain logic.** Tests check on the source that its functions contain only the stage calls (no `if`, loop, `try` or comprehension in the pipeline) and none of the vocabulary of SQL, lifecycle, realized-savings formulas, ledger folding or rendering; `build_context` keeps the oracle's policy default.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `scripts/compare_realizer_single_file.py` (candidate `realizer.realizer`) | 41 scenarios: oracle = stored baseline = modular engine; the stored baseline is not regenerated |
+| Unnormalized output trees and log lines of every scenario, oracle against modular (`test_single_file_compatibility`), and subprocess determinism | byte-identical, 41/41 |
+| `reporter.run` over all 53 runs of the 41 scenarios (`reporter/test_reporter.py`): the output tree equals the oracle's; the report's files are the package then the snapshot, both holding the snapshot's payload; the writes happen in that order; nothing already written is touched, nothing is logged | pass |
+| Failed writes (package directory blocked, snapshot directory blocked): outcome and whole output tree equal the oracle's; the package file exists only in the second case | pass |
+| `legacy_compatibility` (`reporter/test_reporter.py`): source and signature identical to the oracle's; every snapshot of every run of every scenario projects like the oracle's (states NOT_APPLIED, APPLIED, REALIZED, UNDER_REALIZED, VALIDATION_FAILED, ROLLED_BACK, MONITORING, DRIFTED, BLOCKED seen); every state, actor and conformance combination, including unmapped states and malformed snapshots, same result or exception | pass |
+| Facade (`facade/test_realizer.py`): build context, the lineage entry and the seven stages called once each in order with each result handed on; a failing stage stops the run; `realize` equals `realize_request(...).realization`; every scenario through the request entry equals the oracle's files; the estimator and the reviewer return empty results when nothing is due or the reconciliation halted (even when validation looks due) | pass |
+| Re-export check (`facade/test_realizer.py`): the 101 names in the engine namespace before this change (dumped from the module) all resolve; `parse_args`, `main` and `legacy_compatibility` are the moved objects; an unknown name still raises `AttributeError` | pass |
+| CLI (`cli/test_cli.py`): no capability package imported (`ast.walk`) and only the facade, contracts, config and common allowed; parse results, help text and argparse errors equal the oracle's; demo, demo-modified with `--print-json`, replay cuts, an observation file with a policy file and a lineage-only run give the same exit status, stdout and output tree as the oracle's `main`; failures are the same uncaught exceptions; load order package, observation, policy; `python -m realizer` and `scripts/run_realizer.py` run the demo (exit 0, the oracle's package id); a missing `--package` exits 2; the console script is declared | pass |
+| Mutation check (source edit) | changing the CLI's `--log-level` default fails the option-parity test |
+| `tests/test_docs.py` | pass |
+| pyflakes `src/realizer` | 76 findings: 75 are the facade's `noqa: F401` re-exports (pyflakes does not read `noqa`) and 1 is the verbatim `actor` local in `legacy_compatibility` |
+| Test suite | 1225 tests (1176 before: plus 14 reporter, 18 facade and 17 CLI tests; 4 skip as before), all pass |
+
+### Known oracle behavior kept for parity
+
+- `legacy_compatibility` assigns an `actor` it never reads (the check below it reads the application's actor again).
+- The CLI's log format labels local time as `Z`, and an uncaught failure gives a traceback with exit status 1.
+
+Both are recorded for a separately reviewed change.
+
+### Behavior differences
+
+None known. The only observable change is an addition: the `realizer` console script, `python -m realizer` and `scripts/run_realizer.py`. All 41 scenarios, the CLI modes and every compared malformed case behave identically to the oracle.
