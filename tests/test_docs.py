@@ -1,6 +1,6 @@
 """Documentation guards: links resolve, contract versions match the code, cited headings exist.
 
-Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, docs/contracts/ and docs/reference/. It never globs `**`,
+Scope is the four design documents, docs/README.md, README.md, CLAUDE.md, the publisher and shared folders of docs/contracts/ and docs/reference/. It never globs `**`,
 which would reach .worktrees/ and docs/archive/. Rules are added as the documentation work makes them true.
 """
 import ast
@@ -23,16 +23,15 @@ from publisher.config import versions as versions_mod  # noqa: E402
 from tests.golden import case_names, load_case  # noqa: E402
 
 CORE = {
-    "prd": ROOT / "docs/product/prd.md",
-    "context": ROOT / "docs/architecture/context.md",
-    "hld": ROOT / "docs/architecture/hld.md",
-    "lld": ROOT / "docs/architecture/lld.md",
+    "prd": ROOT / "docs/product/publisher/prd.md",
+    "context": ROOT / "docs/architecture/publisher/context.md",
+    "hld": ROOT / "docs/architecture/publisher/hld.md",
+    "lld": ROOT / "docs/architecture/publisher/lld.md",
 }
 SCOPE = (
     list(CORE.values())
     + [ROOT / "docs/README.md", ROOT / "README.md", ROOT / "CLAUDE.md"]
-    + sorted((ROOT / "docs/contracts").glob("*.md"))
-    + sorted((ROOT / "docs/reference").glob("*.md"))
+    + sorted(path for kind in ("contracts", "reference") for product in ("publisher", "shared") for path in (ROOT / "docs" / kind / product).glob("*.md"))
 )
 # The Realizer documents (docs/<type>/realizer/) are checked for links, and the specification set also for repo paths.
 # They are not in SCOPE: they cite the Reporter JSON Contract 1.0.0 the Realizer accepts, and the frozen v1.0.0 release
@@ -143,7 +142,7 @@ class DocsGuardTests(unittest.TestCase):
 
 
     def test_thresholds_reference_lists_every_parameter_with_its_default(self):
-        text = read(ROOT / "docs/reference/thresholds.md")
+        text = read(ROOT / "docs/reference/publisher/thresholds.md")
         rows = re.findall(r"^\| `(\w+)` \| `([^`]+)` \|", text, re.M)
         documented = {}
         for name, default in rows:
@@ -155,7 +154,7 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
 
     def test_thresholds_reference_lists_every_derived_value(self):
-        text = read(ROOT / "docs/reference/thresholds.md")
+        text = read(ROOT / "docs/reference/publisher/thresholds.md")
         rows = re.findall(r"^\| `(\w+)` \| `\w+` − 0\.01 \(([\d.]+)\) \|", text, re.M)
         derived = {name for name, value in vars(Thresholds).items() if isinstance(value, property)}
         self.assertEqual(sorted(name for name, _ in rows), sorted(derived))
@@ -164,7 +163,7 @@ class DocsGuardTests(unittest.TestCase):
 
     def test_cost_profile_table_matches_the_code(self):
         from publisher.governor.cost_profiles import profile_values
-        text = read(ROOT / "docs/reference/thresholds.md")
+        text = read(ROOT / "docs/reference/publisher/thresholds.md")
         rows = re.findall(r"^\| (\w+) \| `(\w+)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|", text, re.M)
         documented_groups = {}
         for group, field, conservative, balanced, aggressive in rows:
@@ -175,14 +174,14 @@ class DocsGuardTests(unittest.TestCase):
 
     def test_product_constants_reference_matches_the_code(self):
         from publisher.config.defaults import PRODUCT_CONSTANTS
-        text = read(ROOT / "docs/reference/product-constants.md")
+        text = read(ROOT / "docs/reference/publisher/product-constants.md")
         documented = {name: ast.literal_eval(value) for name, value in re.findall(r"^\| `([A-Z_]+)` \| `([^`]+)` \|", text, re.M)}
         self.assertEqual(documented, dict(PRODUCT_CONSTANTS))
         lowered = {name.lower() for name in PRODUCT_CONSTANTS}
         self.assertEqual(sorted(lowered & {f.name for f in dataclasses.fields(Thresholds)}), [], "a product constant is also a policy field")
 
     def test_blocker_reference_matches_the_code(self):
-        text = read(ROOT / "docs/reference/blocker-codes.md")
+        text = read(ROOT / "docs/reference/publisher/blocker-codes.md")
         documented = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \|", text, re.M))
         self.assertGreater(len(documented), 20)
         source = "\n".join(read(path) for path in sorted((ROOT / "src" / "publisher").rglob("*.py")))
@@ -199,7 +198,7 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(sorted(emitted - documented), [], "blockers emitted by the fixtures but not documented")
 
     def test_reporter_contract_provenance_row_matches_the_code(self):
-        text = read(ROOT / "docs/contracts/reporter-json-contract.md")
+        text = read(ROOT / "docs/contracts/shared/reporter-json-contract.md")
         match = re.search(r"\| `contract_version` \| Must equal the contract version of this document \(`(\d+\.\d+\.\d+)`\)", text)
         self.assertIsNotNone(match)
         self.assertEqual(match.group(1), rc.CONTRACT_VERSION)
@@ -221,7 +220,7 @@ class DocsGuardTests(unittest.TestCase):
     def test_design_docs_do_not_restate_workbook_or_signed_value_details(self):
         pattern = re.compile(r"\b\d+ columns\b|positive[- ]magnitude")
         found = [f"{k}:{n}: {line.strip()[:80]}" for k, n, line in self._core_lines() if pattern.search(line)]
-        self.assertEqual(found, [], "column counts and presentation rules live in docs/contracts/workbook-contract.md")
+        self.assertEqual(found, [], "column counts and presentation rules live in docs/contracts/publisher/workbook-contract.md")
 
     def test_design_docs_carry_no_version_stamps_or_internal_ids(self):
         pattern = re.compile(r"\b[Pp]ublisher v\d|\bv2\.\d+\.\d+\b|\baudit M\d|\bM9\b|\b[GK]\d{1,2}\b")

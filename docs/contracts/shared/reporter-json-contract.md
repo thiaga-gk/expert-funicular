@@ -422,7 +422,7 @@ Cost basis enum:
 
 - `model`: required non-empty string.
 - `confidence`: standard Confidence object.
-- `assumptions`: unique string list; factual/modeling assumptions only. It always states the pricing basis (DBU at the account's list price, AWS at on-demand EC2 rates; *Price semantics* above) and names the DBU forecast model in use: a run rate, or for a periodic workload the average over whole run-to-run billing cycles ([LLD §11.2](../architecture/lld.md)).
+- `assumptions`: unique string list; factual/modeling assumptions only. It always states the pricing basis (DBU at the account's list price, AWS at on-demand EC2 rates; *Price semantics* above) and names the DBU forecast model in use: a run rate, or for a periodic workload the average over whole run-to-run billing cycles ([LLD §11.2](../../architecture/publisher/lld.md)).
 
 ---
 
@@ -478,7 +478,7 @@ All are required non-negative integers:
 | `unit` | string | Yes | No | e.g. `percent`, `ms`, `bytes`, `clusters`, `boolean` |
 | `source` | string | Yes | No | System table / compatibility evidence / `derived` |
 | `source_field` | string | Yes | No | Physical field or deterministic derivation name |
-| `epoch_scope` | string | Yes | No | `CURRENT`, or `CARRIED_ACROSS_CHANGE` for evidence read across a configuration change that cannot affect it (observation window: last 30 days since the carry period start; [LLD §10.2](../architecture/lld.md)) |
+| `epoch_scope` | string | Yes | No | `CURRENT`, or `CARRIED_ACROSS_CHANGE` for evidence read across a configuration change that cannot affect it (observation window: last 30 days since the carry period start; [LLD §10.2](../../architecture/publisher/lld.md)) |
 | `observation_window` | string | Yes | No | e.g. `30d`, `current_epoch`, `point_in_time` |
 | `threshold` | JSON value | Yes | Yes | Policy threshold where applicable |
 | `comparator` | string | Yes | No | Human/audit comparator representation |
@@ -632,7 +632,7 @@ Validation type:
 | `selection_reason_code` | code | Yes | No | Stable machine-readable reason |
 | `next_action` | string | Yes | No | Next HITL/workflow action |
 | `requires_hitl` | bool | Yes | No | Explicit approval/validation flag |
-| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity. When the recommended plan has both `READY` approval-only steps and `READY_FOR_CANARY` steps it ends with a sequencing sentence: apply the ready no-canary steps first and start the canary once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days; [LLD §19.1](../architecture/lld.md)). |
+| `decision_summary` | string | Yes | No | Human-facing summary; not part of recommendation identity. When the recommended plan has both `READY` approval-only steps and `READY_FOR_CANARY` steps it ends with a sequencing sentence: apply the ready no-canary steps first and start the canary once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days; [LLD §19.1](../../architecture/publisher/lld.md)). |
 | `reevaluation` | `ReevaluationWindow` | Yes | **Yes** | Time-clearable gates that currently hide the next step; null once both are clear |
 
 If `scenario_id` is non-null, exactly one scenario must be `RECOMMENDED` and it must match this ID.
@@ -674,7 +674,7 @@ A record that the authoritative configuration (`system.compute.warehouses`) chan
 
 Null when the current epoch is the first in the retained history window or the config is identical. The change can be months old; consumers should read `changed_at`.
 
-A canary rollback ([LLD §15.9](../architecture/lld.md)) is expressed with the existing fields: a candidate whose `blockers` include `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change.changes` lists its knob, and its `recommended_value` equals that change's `previous_value`. Its economics are null.
+A canary rollback ([LLD §15.9](../../architecture/publisher/lld.md)) is expressed with the existing fields: a candidate whose `blockers` include `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change.changes` lists its knob, and its `recommended_value` equals that change's `previous_value`. Its economics are null.
 
 ## 14.3 `carried_forward_plan` (reserved; always null in current producers)
 
@@ -831,7 +831,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 ## 17.1 `cost_profile` (new in 3.0.0)
 
-The risk appetite the warehouse was evaluated under: how much performance risk a cut that the evidence supports may take. A profile changes only the thresholds listed below; evidence minimums, product constants, estimator and forecast parameters, confidence and the rules that add capacity are the same under every profile, so a candidate with the same recommended value has the same economics under every profile. The values per profile, and why, are policy (`docs/reference/thresholds.md`, Cost profiles); the field names and groups are this contract (`COST_PROFILE_GROUPS` in `src/publisher/contracts/reporter_contract.py`).
+The risk appetite the warehouse was evaluated under: how much performance risk a cut that the evidence supports may take. A profile changes only the thresholds listed below; evidence minimums, product constants, estimator and forecast parameters, confidence and the rules that add capacity are the same under every profile, so a candidate with the same recommended value has the same economics under every profile. The values per profile, and why, are policy (`docs/reference/publisher/thresholds.md`, Cost profiles); the field names and groups are this contract (`COST_PROFILE_GROUPS` in `src/publisher/contracts/reporter_contract.py`).
 
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
@@ -912,7 +912,7 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 
 # 20. Source-of-truth artifacts
 
-1. **Semantic contract:** `docs/contracts/reporter-json-contract.md`
+1. **Semantic contract:** `docs/contracts/shared/reporter-json-contract.md`
 2. **Python executable contract:** `src/publisher/contracts/reporter_contract.py`
 3. **Schema builder:** `src/publisher/contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`

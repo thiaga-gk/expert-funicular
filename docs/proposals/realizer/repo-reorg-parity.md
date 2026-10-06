@@ -414,7 +414,7 @@ None known. The only observable change is an addition: the `realizer` console sc
 
 ### Decision
 
-The oracle is retired on 1:1 fixture parity, as the Publisher's was ([`repo-reorg-parity.md`](../repo-reorg-parity.md) and design section 21.5 there). That replaces the design's condition (section 22, Phase 11) that representative real source-system runs pass first. The condition cannot be met yet, for two reasons that Phase 11 did not change:
+The oracle is retired on 1:1 fixture parity, as the Publisher's was ([`repo-reorg-parity.md`](../publisher/repo-reorg-parity.md) and design section 21.5 there). That replaces the design's condition (section 22, Phase 11) that representative real source-system runs pass first. The condition cannot be met yet, for two reasons that Phase 11 did not change:
 
 - the Realizer accepts only Publisher packages with `contract_version` 1.0.0 (`validate_package_shape`), while the current Publisher emits a later contract version, so a package from today's Publisher cannot be realized;
 - the Realizer has no live collector: it consumes a normalized observation file or the synthetic demo observation (`collector.py` holds only `load_observation` and `demo_observation`), so there is nothing to run against a live source.

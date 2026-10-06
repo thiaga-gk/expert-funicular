@@ -1,6 +1,6 @@
 # Gap review of publisher 2.8.0: findings, decisions and batch plan
 
-Status: **Living design record.** Per-item implementation status is in the tracker and in the golden table (`docs/proposals/golden-scenarios.md`). Reviewed 2026-10-03 against `docs/product/prd.md`, `docs/architecture/hld.md`, `docs/architecture/lld.md`, `docs/architecture/context.md`, `src/publisher/publisher.py` and current Databricks documentation. Items already tracked in `docs/reference/known-limitations.md` and `docs/archive/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
+Status: **Living design record.** Per-item implementation status is in the tracker and in the golden table (`docs/proposals/publisher/golden-scenarios.md`). Reviewed 2026-10-03 against `docs/product/publisher/prd.md`, `docs/architecture/publisher/hld.md`, `docs/architecture/publisher/lld.md`, `docs/architecture/publisher/context.md`, `src/publisher/publisher.py` and current Databricks documentation. Items already tracked in `docs/reference/publisher/known-limitations.md` and `docs/archive/publisher/audit-m-group-b.md` (M1, M2, M3b, M4, M9, D1–D6, list-price and on-demand semantics) are not repeated. Demo figures come from a fresh 15-warehouse `--demo` run of 2.8.0.
 
 No change to `schema/recommendation-package.schema.json` is needed for any item. Existing enums and fields cover every fix (`availability: PARTIAL`, `overall_status: NO_CHANGE / REVIEW_REQUIRED`, blocker codes). Most fixes change decisions or IDs, so each batch needs the matching policy/analyzer/optimizer/estimator/bundle/decision-graph version bump and regenerated goldens.
 
@@ -90,7 +90,7 @@ G31 proposal: Reporter 1.2.0 → 1.3.0 additive required-nullable `StepProjectio
 
 ### Golden-scenario pass
 
-56 cost-optimization scenarios (44 seeded, 12 added from Databricks documentation and community sources) plus constructed runs of publisher 2.9.0 (now folded into scenario rows C01–C51). Every scenario maps to a tracker item, works today, or is out of scope. The catalog (63 rows: scenario, signature, expected behavior, scope, code coverage, pass/fail, tracker IDs) is in `docs/proposals/golden-scenarios.md`. New items:
+56 cost-optimization scenarios (44 seeded, 12 added from Databricks documentation and community sources) plus constructed runs of publisher 2.9.0 (now folded into scenario rows C01–C51). Every scenario maps to a tracker item, works today, or is out of scope. The catalog (63 rows: scenario, signature, expected behavior, scope, code coverage, pass/fail, tracker IDs) is in `docs/proposals/publisher/golden-scenarios.md`. New items:
 
 | ID | Band | Finding | Golden case |
 |---|---|---|---|
@@ -157,7 +157,7 @@ Each batch follows the CLAUDE.md change loop with a per-item summary and worked 
 
 ## Coordination with M9
 
-`docs/archive/m9-contract-design.md` (signed off) claims publisher 2.9.0, Reporter contract 1.2.0 and Workbook contract 1.3.0. The G1 exclusion row and the D2 Executive Summary rows should ride the same Workbook 1.3.0 bump. G3 must land before or with M9 Stage 1: otherwise M9's `observed_change` would report a rename or tag edit as an applied configuration change.
+`docs/archive/publisher/m9-contract-design.md` (signed off) claims publisher 2.9.0, Reporter contract 1.2.0 and Workbook contract 1.3.0. The G1 exclusion row and the D2 Executive Summary rows should ride the same Workbook 1.3.0 bump. G3 must land before or with M9 Stage 1: otherwise M9's `observed_change` would report a rename or tag edit as an applied configuration change.
 
 ## Verification still needed on first real data
 
@@ -243,7 +243,7 @@ New semantic invariant: a candidate whose blockers contain `CANARY_GUARDRAIL_BRE
 
 Documented (no schema change; `epoch_scope` is a free string): evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`.
 
-docs/contracts/reporter-json-contract.md §14.1, replacement text:
+docs/contracts/shared/reporter-json-contract.md §14.1, replacement text:
 > Gates (constants embedded in the validator): `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the package's `billed_cost_days` evidence value is `< 2` (the current configuration is not ready: fewer than two settled billed days); `COST_HISTORY_INSUFFICIENT` is active while the package's `cost_history_days` evidence value is `< 7`.
 > `t_ready = 00:00Z of (analysis date + 2 days)` (the analysis day has then settled), never before the epoch start; `t_cost = 00:00Z of (epoch start date + 7 days)`; `earliest_reevaluation_time = max(t_x for each active gate)`.
 > Changing the readiness or cost-history gate lengths requires a contract version bump.
@@ -258,7 +258,7 @@ CLAUDE.md, Source authority (first bullet), replacement:
 PRD principle 2 (line 64) and FR-EPOCH-003: the same three-exception sentence.
 
 PRD FR-EPOCH-004, replacement:
-> A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/thresholds.md`.
+> A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/publisher/thresholds.md`.
 
 PRD new FR-EPOCH-005:
 > After a canary-type change (one size down, a lower minimum, a higher auto-stop), every run checks the new epoch's own evidence. A failure/cancel rate, queued-query share or, after a size-down, spill share above its safe level and above the previous epoch's, or a p95 execution time on statement sources seen in both epochs more than `canary_p95_regression_pct` above the previous epoch's (at least `canary_p95_min_queries` such queries), recommends restoring the previous value: `ACTIONABLE` with `CANARY_GUARDRAIL_BREACHED`, no savings claimed.

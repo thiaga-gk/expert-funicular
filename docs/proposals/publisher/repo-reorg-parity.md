@@ -1,6 +1,6 @@
 # Repository reorganization: parity record
 
-Status: **Complete.** The single-file publisher (2.10.0, tag `reorg-oracle-2.10.0`) is retired as the behavioral oracle; the capability packages under `src/publisher/` are the only implementation. Design and approved decisions: [`repo-reorg-design.md`](../architecture/repo-reorg-design.md) section 21.
+Status: **Complete.** The single-file publisher (2.10.0, tag `reorg-oracle-2.10.0`) is retired as the behavioral oracle; the capability packages under `src/publisher/` are the only implementation. Design and approved decisions: [`repo-reorg-design.md`](../../architecture/publisher/repo-reorg-design.md) section 21.
 
 ## Behavioral parity
 

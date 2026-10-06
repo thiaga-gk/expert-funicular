@@ -3,7 +3,7 @@
 A profile changes only how much performance risk a supported cut may take (the fields in COST_PROFILE_GROUPS). It
 never changes evidence floors, product constants, estimator or forecast parameters, confidence, classification rules,
 the failure-cancel guard or the rules that add capacity, so a candidate's economics are the same under every profile.
-balanced is the Thresholds defaults. Values and rationale: docs/reference/thresholds.md (Cost profiles).
+balanced is the Thresholds defaults. Values and rationale: docs/reference/publisher/thresholds.md (Cost profiles).
 """
 from __future__ import annotations
 

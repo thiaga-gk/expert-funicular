@@ -1,6 +1,6 @@
 # Domain Context — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/architecture/context.md`  
+**Document:** `docs/architecture/publisher/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Reporter JSON Contract:** v3.1.0  
 **Workbook Contract:** v1.6.0
@@ -156,7 +156,7 @@ flowchart TD
     PKG --> REAL[Realization\nREAL-*]
 ```
 
-Each ID is content-addressed: it identifies one thing, and the same normalized inputs under the same versions always give the same ID, so an ID changes only when what it identifies changes. Public IDs come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. Hash inputs and ID formats: `docs/contracts/reporter-json-contract.md`.
+Each ID is content-addressed: it identifies one thing, and the same normalized inputs under the same versions always give the same ID, so an ID changes only when what it identifies changes. Public IDs come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. Hash inputs and ID formats: `docs/contracts/shared/reporter-json-contract.md`.
 
 ### 6.3 Technique ID vs candidate ID
 
@@ -262,7 +262,7 @@ Typical availability differs by source:
 
 The optimizer must therefore distinguish **normal source latency** from true missing/invalid data.
 
-For billing, a UTC day enters the cost basis only after a settle buffer (`billing_settle_hours`, see `docs/reference/thresholds.md`) and once its own workspace's billing watermark has passed it; completeness is judged per workspace. A late day is excluded, not read as a zero-cost day.
+For billing, a UTC day enters the cost basis only after a settle buffer (`billing_settle_hours`, see `docs/reference/publisher/thresholds.md`) and once its own workspace's billing watermark has passed it; completeness is judged per workspace. A late day is excluded, not read as a zero-cost day.
 
 ---
 
@@ -338,9 +338,9 @@ Allowed states:
 
 Sparse, stale, or low-coverage evidence yields `UNKNOWN` rather than a guessed state.
 
-Coverage, share and freshness cutoffs for these states are the `photon_*` parameters in `docs/reference/thresholds.md`.
+Coverage, share and freshness cutoffs for these states are the `photon_*` parameters in `docs/reference/publisher/thresholds.md`.
 
-Photon is observation-only and never recommended: an observed `DISABLED` state generates no candidate (`docs/reference/known-limitations.md`).
+Photon is observation-only and never recommended: an observed `DISABLED` state generates no candidate (`docs/reference/publisher/known-limitations.md`).
 
 ---
 
@@ -421,7 +421,7 @@ Examples (finding metrics):
 - `spill_query_pct_30`, read against the upsize spill share;
 - `time_at_max_pct`, read against the reduce-safe share of time at the maximum.
 
-Blocker codes such as `COLD_START_BUDGET_EXCEEDED` and `INSUFFICIENT_QUERY_SAMPLE` are not findings: the optimizer places them on a decision or candidate (section 26.1). Meanings: `docs/reference/blocker-codes.md`.
+Blocker codes such as `COLD_START_BUDGET_EXCEEDED` and `INSUFFICIENT_QUERY_SAMPLE` are not findings: the optimizer places them on a decision or candidate (section 26.1). Meanings: `docs/reference/publisher/blocker-codes.md`.
 
 ### 13.3 Analysis result
 
@@ -461,7 +461,7 @@ Every supported warehouse is evaluated across the same five candidate domains. T
 
 Photon and the warehouse channel are not candidate domains: they are observed and reported (section 11, 14.1) but never recommended.
 
-Stable technique IDs live in `docs/reference/technique-catalog.md`.
+Stable technique IDs live in `docs/reference/publisher/technique-catalog.md`.
 
 ### 14.1 Channel is observed, not recommended
 
@@ -512,7 +512,7 @@ stateDiagram-v2
     READY --> INVALIDATED: package/evidence superseded
 ```
 
-The diagram is conceptual. For candidate steps the planner emits `READY`, `READY_FOR_CANARY` and `PENDING_REEVALUATION` today, and compatibility-validation and re-measure steps are `REQUIRED`; the full state list is in `docs/contracts/reporter-json-contract.md`.
+The diagram is conceptual. For candidate steps the planner emits `READY`, `READY_FOR_CANARY` and `PENDING_REEVALUATION` today, and compatibility-validation and re-measure steps are `REQUIRED`; the full state list is in `docs/contracts/shared/reporter-json-contract.md`.
 
 Core states include:
 
@@ -532,7 +532,7 @@ Default thresholds are **balanced-to-conservative**, not universal Databricks re
 
 The defaults are the **balanced** cost profile. A warehouse can instead be evaluated under **aggressive** (more performance risk for a larger saving; the default for a nonprod-tagged warehouse) or **conservative** (less). A cost profile is risk appetite, not a different model of the warehouse: it moves only the limits a cut must stay within, never the evidence a decision needs or what a change is predicted to save, and it is part of every package identity.
 
-Posture per decision and exact values live in `docs/reference/thresholds.md` and the versioned policy/constants in code.
+Posture per decision and exact values live in `docs/reference/publisher/thresholds.md` and the versioned policy/constants in code.
 
 Do not tune thresholds based on one appealing warehouse. Calibrate using representative real workloads and false-positive/false-negative review.
 
@@ -563,7 +563,7 @@ Expected next-365-day cost if the current configuration remains unchanged.
 
 This is the primary comparison basis for counterfactual recommendations.
 
-It is published only when known: every day in the current-epoch basis priced, enough billed days in the current epoch (`min_economics_cost_history_days`, see `docs/reference/thresholds.md`), and a positive run rate. Otherwise it is unavailable (null), never $0 or a run rate guessed from a few days, and savings estimates are withheld until it can be forecast. A workload that bills only periodically is forecast over whole billing cycles instead of a daily run rate (`docs/architecture/lld.md` section 11.2).
+It is published only when known: every day in the current-epoch basis priced, enough billed days in the current epoch (`min_economics_cost_history_days`, see `docs/reference/publisher/thresholds.md`), and a positive run rate. Otherwise it is unavailable (null), never $0 or a run rate guessed from a few days, and savings estimates are withheld until it can be forecast. A workload that bills only periodically is forecast over whole billing cycles instead of a daily run rate (`docs/architecture/publisher/lld.md` section 11.2).
 
 ### 18.3 Candidate counterfactual
 
@@ -792,7 +792,7 @@ Levels:
 - `LOW`
 - `UNKNOWN` where a score is unavailable by contract.
 
-Scenario confidence uses a conservative bottleneck concept: a weak material step should not disappear inside several strong steps. A scenario with no steps has `UNKNOWN` confidence and no score. A candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`; the formula and caps are in `docs/architecture/lld.md`, section 16.
+Scenario confidence uses a conservative bottleneck concept: a weak material step should not disappear inside several strong steps. A scenario with no steps has `UNKNOWN` confidence and no score. A candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`; the formula and caps are in `docs/architecture/publisher/lld.md`, section 16.
 
 Do not interpret:
 
@@ -823,7 +823,7 @@ Example:
 - every auto-stop value that saves money would add more cold starts than the budget allows (`COLD_START_BUDGET_EXCEEDED`);
 - unsupported warehouse type (`UNSUPPORTED_WAREHOUSE_TYPE`).
 
-Meaning, trigger and gating parameter of every code: `docs/reference/blocker-codes.md`.
+Meaning, trigger and gating parameter of every code: `docs/reference/publisher/blocker-codes.md`.
 
 ### 26.2 Unknown
 
@@ -846,7 +846,7 @@ aws_cost = null
 availability = PARTIAL
 ```
 
-The reason is recorded as an unavailability code such as `AWS_PRICE_REGION_NOT_IN_REGISTRY` (`docs/reference/blocker-codes.md`).
+The reason is recorded as an unavailability code such as `AWS_PRICE_REGION_NOT_IN_REGISTRY` (`docs/reference/publisher/blocker-codes.md`).
 
 ### 26.4 Zero
 
@@ -960,7 +960,7 @@ stateDiagram-v2
     ROLLED_BACK --> SUPERSEDED
 ```
 
-Realization record fields and lifecycle: `docs/contracts/reporter-json-contract.md`.
+Realization record fields and lifecycle: `docs/contracts/shared/reporter-json-contract.md`.
 
 ### 29.1 Immutability rule
 
@@ -968,7 +968,7 @@ Realization does **not** rewrite the original recommendation package identity. I
 
 ### 29.2 Current implementation status
 
-The realization **contract exists**, but automatic ingestion of measured post-change realization is intentionally outside Phase 1; packages stay `NOT_APPLIED` (`docs/reference/known-limitations.md`).
+The realization **contract exists**, but automatic ingestion of measured post-change realization is intentionally outside Phase 1; packages stay `NOT_APPLIED` (`docs/reference/publisher/known-limitations.md`).
 
 ---
 
@@ -976,7 +976,7 @@ The realization **contract exists**, but automatic ingestion of measured post-ch
 
 The JSON package is the canonical product/API contract.
 
-Top-level hierarchy, identities and field semantics: `docs/contracts/reporter-json-contract.md`.
+Top-level hierarchy, identities and field semantics: `docs/contracts/shared/reporter-json-contract.md`.
 
 One file represents one package. Multi-warehouse runs emit multiple package files.
 
@@ -998,7 +998,7 @@ flowchart TD
     PKGS --> RR[Recommendation Registry\n1 row / candidate]
 ```
 
-Sheet grains, columns and presentation: `docs/contracts/workbook-contract.md`.
+Sheet grains, columns and presentation: `docs/contracts/publisher/workbook-contract.md`.
 
 ### 31.1 Persona mapping
 
@@ -1107,7 +1107,7 @@ Access to system tables must follow Databricks/organization governance policies.
 
 ## 36. Product personas and accountability
 
-Personas, their needs and primary surfaces: `docs/product/prd.md` section 5. The PRD does not state what each persona is accountable for; that is recorded here.
+Personas, their needs and primary surfaces: `docs/product/publisher/prd.md` section 5. The PRD does not state what each persona is accountable for; that is recorded here.
 
 | Persona | Owns |
 |---|---|
@@ -1260,7 +1260,7 @@ Auto-stop is ready immediately because no other change invalidates it. The max- 
 
 ### 40.1 Supported types
 
-Supported types and the fail-closed gate: `docs/reference/known-limitations.md`.
+Supported types and the fail-closed gate: `docs/reference/publisher/known-limitations.md`.
 
 ### 40.2 Internal orchestration
 
@@ -1268,11 +1268,11 @@ The capability pipeline uses a minimal `WarehouseOptimization` orchestration obj
 
 ### 40.3 Realization ingestion
 
-Realization ingestion status: `docs/reference/known-limitations.md`.
+Realization ingestion status: `docs/reference/publisher/known-limitations.md`.
 
 ### 40.4 Threshold calibration
 
-Threshold calibration status: `docs/reference/known-limitations.md`.
+Threshold calibration status: `docs/reference/publisher/known-limitations.md`.
 
 ---
 
@@ -1361,13 +1361,13 @@ May change Workbook Contract patch version if semantics are unchanged. Must not 
 
 ## 43. External Databricks reference points
 
-The Databricks pages that anchor the platform concepts in this document are listed in `docs/product/prd.md` section 28. They describe Databricks behavior; product-specific thresholds and algorithms are defined by the PRD, the LLD and `docs/reference/thresholds.md`.
+The Databricks pages that anchor the platform concepts in this document are listed in `docs/product/publisher/prd.md` section 28. They describe Databricks behavior; product-specific thresholds and algorithms are defined by the PRD, the LLD and `docs/reference/publisher/thresholds.md`.
 
 ---
 
 ## 44. Domain-context acceptance checklist
 
-This document is complete when a new engineer/agent can correctly answer all of the following without reading implementation code first. Acceptance criteria for the product increment itself: `docs/product/prd.md` section 23.
+This document is complete when a new engineer/agent can correctly answer all of the following without reading implementation code first. Acceptance criteria for the product increment itself: `docs/product/publisher/prd.md` section 23.
 
 - What is the canonical aggregate root?
 - What warehouse types are supported and excluded?

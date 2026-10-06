@@ -8,7 +8,7 @@ For the current Pro/Classic config epoch:
 
 `annual AWS EC2 = annualized recent cluster-minutes / 60 × modeled cluster $/hour`
 
-Cluster-minutes come from the daily resource series for the current epoch, on the same window, calendar and 28/84-day blend as the DBU forecast (so DBU and AWS describe the same period), times the forecast trend adjustment and 365. Without the series the AWS baseline is null (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`). For a periodic workload the DBU forecast uses whole billing cycles (cadence model, [LLD §11.2](../architecture/lld.md)); the cluster-minutes are then annualized over the same whole cycles inside event coverage (`annualized_resource_rates`), with no trend adjustment, and the AWS baseline is null (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`) when events cover fewer than `forecast_min_cycles` cycles.
+Cluster-minutes come from the daily resource series for the current epoch, on the same window, calendar and 28/84-day blend as the DBU forecast (so DBU and AWS describe the same period), times the forecast trend adjustment and 365. Without the series the AWS baseline is null (`RECENT_RESOURCE_WINDOW_UNAVAILABLE`). For a periodic workload the DBU forecast uses whole billing cycles (cadence model, [LLD §11.2](../../architecture/publisher/lld.md)); the cluster-minutes are then annualized over the same whole cycles inside event coverage (`annualized_resource_rates`), with no trend adjustment, and the AWS baseline is null (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`) when events cover fewer than `forecast_min_cycles` cycles.
 
 `cluster $/hour = driver instance $/hour + worker_count × i3.2xlarge $/hour`
 

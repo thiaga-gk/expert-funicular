@@ -19,7 +19,7 @@ from publisher.common.time import parse_datetime  # noqa: E402
 from publisher.config.defaults import GIB, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 
-GOLDEN_TABLE = ROOT / "docs" / "proposals" / "golden-scenarios.md"
+GOLDEN_TABLE = ROOT / "docs" / "proposals" / "publisher" / "golden-scenarios.md"
 CAPACITY_CUT = {"warehouse_size", "max_clusters", "min_clusters"}
 
 

@@ -1,4 +1,4 @@
-# Machine-checkable signatures of the golden-scenario registry rows (docs/proposals/golden-scenarios.md).
+# Machine-checkable signatures of the golden-scenario registry rows (docs/proposals/publisher/golden-scenarios.md).
 #
 # Each row:
 #   id / title / status   -- the registry row (status = pass | fail, copied from the registry's Status column)
@@ -22,7 +22,7 @@
 #                tolerance band around the assumed value, not policy.
 #
 # Thresholds here describe what a pattern looks like; they are not publisher policy. Policy values live in
-# src/publisher/governor/thresholds.py and docs/reference/thresholds.md. Edit this catalog when a registry row is
+# src/publisher/governor/thresholds.py and docs/reference/publisher/thresholds.md. Edit this catalog when a registry row is
 # added or its signature changes; tests/unit/skills/test_golden_miner.py checks that every demo-fleet warehouse
 # matches its own row.
 version: 1.1.0

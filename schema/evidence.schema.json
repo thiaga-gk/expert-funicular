@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Replay evidence file",
-  "description": "Normalized WarehouseEvidence written to evidence.json and read back with --from-evidence. Format version 1.0.0; documented in docs/contracts/evidence-format.md.",
+  "description": "Normalized WarehouseEvidence written to evidence.json and read back with --from-evidence. Format version 1.0.0; documented in docs/contracts/publisher/evidence-format.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["evidence_format_version", "publisher_version", "warehouses"],

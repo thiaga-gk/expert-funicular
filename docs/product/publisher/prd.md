@@ -1,6 +1,6 @@
 # Product Requirements Document — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/product/prd.md`  
+**Document:** `docs/product/publisher/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Reporter JSON Contract:** v3.1.0 (locked)  
 **Workbook Contract:** v1.6.0 (locked)
@@ -176,7 +176,7 @@ Each supported warehouse must produce exactly one candidate decision for each ac
 
 The warehouse channel is observed, not recommended: a Preview→Current move has no priced effect, and Preview-only dependencies cannot be detected from system tables. It is reported in the current configuration and stays part of the configuration epoch; a `PREVIEW` warehouse carries an informational evidence note (FR-OPT-001).
 
-Photon is observed and never recommended; it is not a candidate domain (rationale: `docs/reference/known-limitations.md`).
+Photon is observed and never recommended; it is not a candidate domain (rationale: `docs/reference/publisher/known-limitations.md`).
 
 ### 6.5 Configuration items currently excluded from active optimization
 
@@ -308,7 +308,7 @@ Older epochs are calibration/backtest only, with three exceptions: a capacity cu
 
 ### FR-EPOCH-004
 
-A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/thresholds.md`.
+A change waits until the current configuration is ready: at least `readiness_min_billed_days` settled billed days in the current epoch, the knob's own evidence sample, and, for a capacity cut, a recent window that has reached the peak demand of older epochs (FR-EPOCH-003). A cost change applied without a canary also waits for its own price (`min_economics_cost_history_days`). Default: `docs/reference/publisher/thresholds.md`.
 
 ### FR-EPOCH-005
 
@@ -347,7 +347,7 @@ Analyzer evidence shall support explicit sufficiency and blocker evaluation rath
 
 ## 11. Optimization policy requirements
 
-Every parameter named below is a `Thresholds` field. Defaults: `docs/reference/thresholds.md`. Meaning, firing condition and resulting status of each blocker code: `docs/reference/blocker-codes.md`. Missing evidence is never read as zero: an unreported value holds the change.
+Every parameter named below is a `Thresholds` field. Defaults: `docs/reference/publisher/thresholds.md`. Meaning, firing condition and resulting status of each blocker code: `docs/reference/publisher/blocker-codes.md`. Missing evidence is never read as zero: an unreported value holds the change.
 
 ### FR-OPT-001 — Channel observation
 
@@ -364,7 +364,7 @@ The observed state is `ENABLED`, `DISABLED`, `MIXED` or `UNKNOWN`:
 - the state is inferred only when enough current-epoch DBU carries a known Photon feature flag (`photon_min_feature_coverage_pct`), the current epoch has enough total DBU (`photon_min_epoch_dbu`) and the latest supporting billing usage is recent enough (`photon_freshness_days`); otherwise it is `UNKNOWN`;
 - a high enough share of Photon-enabled DBU (`photon_enabled_usage_pct`) gives `ENABLED`, a low enough share (`photon_disabled_usage_pct`) gives `DISABLED`, and anything in between is `MIXED`.
 
-Photon is observed and never recommended; no Photon recommendation is produced for any observed state (`docs/reference/known-limitations.md`).
+Photon is observed and never recommended; no Photon recommendation is produced for any observed state (`docs/reference/publisher/known-limitations.md`).
 
 ### FR-OPT-003 — Size down
 
@@ -382,7 +382,7 @@ A one-size down canary may be proposed only when all of the following hold:
 
 Evidence the collector did not report is null (never treated as zero pressure) and holds the downsize. Growing volume, a peak outside the recent window or a higher older-epoch peak holds it as `NO_CHANGE` with `QUERY_VOLUME_GROWING`, `PEAK_OUTSIDE_RECENT_WINDOW` or `OLDER_EPOCH_PEAK_DEMAND_HIGHER`; an auto-stop reduction is not held by growth.
 
-Downsize status shall be `TEST_REQUIRED`, not auto-actionable. When any condition fails the candidate is `NO_CHANGE` and carries the blockers that explain why (`docs/reference/blocker-codes.md`).
+Downsize status shall be `TEST_REQUIRED`, not auto-actionable. When any condition fails the candidate is `NO_CHANGE` and carries the blockers that explain why (`docs/reference/publisher/blocker-codes.md`).
 
 ### FR-OPT-004 — Size up
 
@@ -404,7 +404,7 @@ An increase may be proposed only when all of the following hold:
 
 - queue frequency is at or above the increase level (`queue_query_pct_increase_max`);
 - p95 capacity wait among queued queries is at or above the increase level (`queue_wait_p95_ms_increase_max`);
-- time at the configured maximum is saturated over the recent resource window (`time_at_max_pct_saturated`, `pressure_window_days`); saturation and queueing are required together but are not proven to coincide (`docs/reference/known-limitations.md`);
+- time at the configured maximum is saturated over the recent resource window (`time_at_max_pct_saturated`, `pressure_window_days`); saturation and queueing are required together but are not proven to coincide (`docs/reference/publisher/known-limitations.md`);
 - enough queries queued for the p95 to be meaningful (`severity_min_affected_queries`), the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration is ready (`readiness_min_billed_days`);
 - the configured maximum is below the supported limit (`MAX_CLUSTERS_SUPPORTED_LIMIT`);
 - for Pro and Classic, peak query concurrency was collected and covers enough busy minutes (`concurrency_min_busy_minutes`).
@@ -426,7 +426,7 @@ A reduction may be proposed only when the configured maximum is demonstrably unu
 - no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
 - the new maximum is below the current maximum. For Pro and Classic it is derived from peak concurrency, as in FR-OPT-005, from the larger of the recent peak and the whole current epoch's peak (the level reached in `peak_demand_min_minutes` busy minutes), so a seasonal peak outside the recent window is never cut away; peak concurrency must be collected and cover enough busy minutes. For Serverless it is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_cut_headroom_pct` of the peak, rounded up, never below the minimum), where the peak is the larger of the recent-window peak and the whole current epoch's peak.
 
-Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/blocker-codes.md`).
+Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/publisher/blocker-codes.md`).
 
 This candidate is primarily a cost/operational guardrail; the system shall not fabricate direct savings if observed resource consumption would not change.
 
@@ -444,7 +444,7 @@ A reduction may be proposed only when current-epoch evidence demonstrates substa
 
 The target floor is the smallest that carries the demand busy periods start with (`min_cluster_busy_start_percentile` of busy-period peaks in the first scale-up-lag minutes, `SCALE_UP_LAG_MINUTES_PRO_CLASSIC` / `SCALE_UP_LAG_MINUTES_SERVERLESS`), moved in one canary; a floor raise is never recommended. A pinned warehouse (minimum equal to maximum) is not held for sustained scale pressure, since it always runs at its maximum; queueing is judged instead.
 
-Unreported queue frequency or capacity wait holds the reduction (`docs/reference/blocker-codes.md`).
+Unreported queue frequency or capacity wait holds the reduction (`docs/reference/publisher/blocker-codes.md`).
 
 Time at the minimum does not prove a floor cluster was spare, so the status shall be `TEST_REQUIRED` and the savings an upper-bound range, not an actionable change.
 
@@ -466,7 +466,7 @@ Statuses:
 - `REVIEW` when the warehouse ran with no queries in the window and a lower value removes that running time;
 - `INSUFFICIENT_EVIDENCE` when running idle time was not collected, when too few cluster-minutes were observed (`min_cluster_minutes_for_cost_model`), when idle time contradicts recorded running time, or when the current configuration is not ready (`readiness_min_billed_days`).
 
-Two advisory flags describe non-work activity: running time kept alive by something other than queries (`kept_alive_flag_pct`), and a warehouse that runs around the clock while queries are busy only a small share of its running time, so frequent tiny queries (BI polling, dashboard refresh) keep it up (`always_on_running_pct`, `always_on_busy_pct_max`). Blocker meanings: `docs/reference/blocker-codes.md`.
+Two advisory flags describe non-work activity: running time kept alive by something other than queries (`kept_alive_flag_pct`), and a warehouse that runs around the clock while queries are busy only a small share of its running time, so frequent tiny queries (BI polling, dashboard refresh) keep it up (`always_on_running_pct`, `always_on_busy_pct_max`). Blocker meanings: `docs/reference/publisher/blocker-codes.md`.
 
 ### FR-OPT-009 — Warehouse type migration
 
@@ -475,7 +475,7 @@ The optimizer shall create a separate migration candidate/scenario:
 - Pro/Classic → Serverless experiment,
 - Serverless → Pro experiment.
 
-The migration target shall be priced at its own cost-minimizing auto-stop on the same running-idle evidence, not at the current warehouse's. Migration shall be `TEST_REQUIRED` and compatibility-gated when the forward DBU baseline is known, unless even its best case costs more than today, in which case it is held as `NO_CHANGE` (`MIGRATION_NOT_COST_EFFECTIVE`); when it is unknown or too young the candidate is `INSUFFICIENT_EVIDENCE` with a DBU-baseline blocker (`docs/reference/blocker-codes.md`). Current-type tuning and type migration shall not be combined into the same execution scenario.
+The migration target shall be priced at its own cost-minimizing auto-stop on the same running-idle evidence, not at the current warehouse's. Migration shall be `TEST_REQUIRED` and compatibility-gated when the forward DBU baseline is known, unless even its best case costs more than today, in which case it is held as `NO_CHANGE` (`MIGRATION_NOT_COST_EFFECTIVE`); when it is unknown or too young the candidate is `INSUFFICIENT_EVIDENCE` with a DBU-baseline blocker (`docs/reference/publisher/blocker-codes.md`). Current-type tuning and type migration shall not be combined into the same execution scenario.
 
 ### FR-OPT-010 — Candidate completeness
 
@@ -494,13 +494,13 @@ Every warehouse shall be evaluated under exactly one cost profile:
 - a profile shall change only the cost-profiled thresholds (the risk limits of size, max-cluster, min-cluster and auto-stop cuts, the materiality floor, the canary rollback limit and the growth hold); a candidate with the same recommended value shall have the same economics under every profile, except the Pro target of a Serverless-to-Pro migration, which is priced within the profile's cold-start budget;
 - the package shall publish the profile, why it was chosen and the values it applied, and the profile name and values shall enter every candidate, scenario and package identity, so packages built under different profiles never share an ID.
 
-Values: `docs/reference/thresholds.md` (Cost profiles).
+Values: `docs/reference/publisher/thresholds.md` (Cost profiles).
 
 ---
 
 ## 12. Candidate status requirements
 
-The public contract shall support the recommendation states enumerated in `docs/contracts/reporter-json-contract.md` (Recommendation status).
+The public contract shall support the recommendation states enumerated in `docs/contracts/shared/reporter-json-contract.md` (Recommendation status).
 
 Recommendation status and execution state shall remain separate concepts.
 
@@ -530,7 +530,7 @@ A scenario execution plan shall contain explicit validation gates and required n
 
 ### FR-PLAN-005
 
-The public plan shall distinguish the execution states enumerated in `docs/contracts/reporter-json-contract.md` (Execution state).
+The public plan shall distinguish the execution states enumerated in `docs/contracts/shared/reporter-json-contract.md` (Execution state).
 
 ---
 
@@ -610,7 +610,7 @@ Every candidate shall carry deterministic confidence:
 
 ### FR-CONF-002
 
-Confidence levels (`HIGH`, `MEDIUM`, `LOW`) shall be derived from the score by the cut-offs `confidence_high_threshold` and `confidence_medium_threshold`, and the level shall be `UNKNOWN` only when a score is unavailable under the public contract (`docs/contracts/reporter-json-contract.md`, Confidence).
+Confidence levels (`HIGH`, `MEDIUM`, `LOW`) shall be derived from the score by the cut-offs `confidence_high_threshold` and `confidence_medium_threshold`, and the level shall be `UNKNOWN` only when a score is unavailable under the public contract (`docs/contracts/shared/reporter-json-contract.md`, Confidence).
 
 ### FR-CONF-003
 
@@ -668,7 +668,7 @@ The only authoritative public recommendation serialization is **Reporter JSON Co
 
 ### FR-JSON-001
 
-Every warehouse/current epoch shall emit one immutable package with the top-level hierarchy locked in `docs/contracts/reporter-json-contract.md` (Locked hierarchy).
+Every warehouse/current epoch shall emit one immutable package with the top-level hierarchy locked in `docs/contracts/shared/reporter-json-contract.md` (Locked hierarchy).
 
 ### FR-JSON-002
 
@@ -707,19 +707,19 @@ The workbook shall be a pure projection of locked package JSONs and shall contai
 
 ### 18.1 Executive Summary
 
-Portfolio/leadership view over the supplied packages. Contents: `docs/contracts/workbook-contract.md`.
+Portfolio/leadership view over the supplied packages. Contents: `docs/contracts/publisher/workbook-contract.md`.
 
 ### 18.2 Warehouse Portfolio
 
-Grain: **one row per `recommendation_package_id`**. Columns and groups: `docs/contracts/workbook-contract.md`.
+Grain: **one row per `recommendation_package_id`**. Columns and groups: `docs/contracts/publisher/workbook-contract.md`.
 
 ### 18.3 Scenario Plans
 
-Grain: **one row per `scenario_id`**. Columns and groups: `docs/contracts/workbook-contract.md`.
+Grain: **one row per `scenario_id`**. Columns and groups: `docs/contracts/publisher/workbook-contract.md`.
 
 ### 18.4 Recommendation Registry
 
-Grain: **one row per `candidate_id`**. Columns and groups: `docs/contracts/workbook-contract.md`.
+Grain: **one row per `candidate_id`**. Columns and groups: `docs/contracts/publisher/workbook-contract.md`.
 
 ### FR-XLSX-001
 
@@ -755,7 +755,7 @@ A realization record shall reference the immutable original package, scenario, c
 
 ### FR-REAL-003
 
-Realization shall capture, where available, the applied change, the validation window and guardrail result, observed DBU/AWS/total cost, realized and annualized realized savings, rollback outcome and learning codes. Record fields: `docs/contracts/reporter-json-contract.md` (`realization`).
+Realization shall capture, where available, the applied change, the validation window and guardrail result, observed DBU/AWS/total cost, realized and annualized realized savings, rollback outcome and learning codes. Record fields: `docs/contracts/shared/reporter-json-contract.md` (`realization`).
 
 ### FR-REAL-004
 
@@ -763,7 +763,7 @@ Adding realization evidence shall not mutate the identity of the original recomm
 
 ### FR-REAL-005
 
-Realization lifecycle shall support the states enumerated in `docs/contracts/reporter-json-contract.md` (Realization lifecycle).
+Realization lifecycle shall support the states enumerated in `docs/contracts/shared/reporter-json-contract.md` (Realization lifecycle).
 
 ---
 
@@ -793,7 +793,7 @@ The product shall include deterministic synthetic evidence sufficient to exercis
 
 ### FR-RUN-005 — Output directory
 
-A normal run shall write a `packages/` directory with one package JSON per warehouse, `workbook.xlsx`, `evidence.json`, `manifest.json` and `publisher.log`; the tree is in `README.md` (Output directory). `evidence.json` is a versioned, schema-validated replay file that holds owner emails and tags (`docs/contracts/evidence-format.md`).
+A normal run shall write a `packages/` directory with one package JSON per warehouse, `workbook.xlsx`, `evidence.json`, `manifest.json` and `publisher.log`; the tree is in `README.md` (Output directory). `evidence.json` is a versioned, schema-validated replay file that holds owner emails and tags (`docs/contracts/publisher/evidence-format.md`).
 
 The workbook may be disabled explicitly without disabling authoritative JSON package generation.
 
@@ -941,7 +941,7 @@ The current product increment is accepted when all of the following remain true:
 
 ## 24. Known limitations and assumptions
 
-Known limitations and assumptions are recorded in `docs/reference/known-limitations.md`.
+Known limitations and assumptions are recorded in `docs/reference/publisher/known-limitations.md`.
 
 ---
 
@@ -982,15 +982,15 @@ Future ML or LLM components may assist explanation, anomaly diagnosis, or thresh
 
 ## 27. Locked contracts referenced by this PRD
 
-- `docs/contracts/reporter-json-contract.md`
+- `docs/contracts/shared/reporter-json-contract.md`
 - `schema/recommendation-package.schema.json`
 - `src/publisher/contracts/reporter_contract.py`
-- `docs/contracts/workbook-contract.md`
+- `docs/contracts/publisher/workbook-contract.md`
 - `src/publisher/contracts/workbook_contract.py`
-- `docs/reference/technique-catalog.md`
-- `docs/reference/thresholds.md`
-- `docs/reference/source-mapping.md`
-- `docs/reference/aws-cost-model.md`
+- `docs/reference/publisher/technique-catalog.md`
+- `docs/reference/publisher/thresholds.md`
+- `docs/reference/publisher/source-mapping.md`
+- `docs/reference/publisher/aws-cost-model.md`
 
 Document ownership and precedence are defined once, in `docs/README.md`.
 
@@ -1039,4 +1039,4 @@ Whether a later policy may automatically select a migration scenario as `RECOMME
 
 ## 30. Approval gate
 
-Change control. A change to product scope or policy in this document, or to a requirement in it, is shown as exact text and approved by the product owner before it merges (`docs/proposals/remediation-runbook.md`).
+Change control. A change to product scope or policy in this document, or to a requirement in it, is shown as exact text and approved by the product owner before it merges (`docs/proposals/publisher/remediation-runbook.md`).

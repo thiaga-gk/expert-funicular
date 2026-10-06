@@ -1,4 +1,4 @@
-"""Replay evidence file format (schema/evidence.schema.json, docs/contracts/evidence-format.md)."""
+"""Replay evidence file format (schema/evidence.schema.json, docs/contracts/publisher/evidence-format.md)."""
 import copy
 import dataclasses
 import json

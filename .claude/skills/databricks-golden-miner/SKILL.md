@@ -30,7 +30,7 @@ how to read gaps, mismatches and drift. The row signatures live in `references/s
 - **Live golden cases commit the evidence exactly as collected.** This was the repo owner's decision: no anonymizer. Say so at the gate
   for each proposed case so the user sees which warehouse's identity and costs will enter git.
 - **One home per fact.** The collector SQL stays in `src/publisher/analyzer/collector/queries/`, the real-data queries in
-  `docs/proposals/real-data-run.md` and the scenarios in `docs/proposals/golden-scenarios.md`. The scripts read
+  `docs/proposals/publisher/real-data-run.md` and the scenarios in `docs/proposals/publisher/golden-scenarios.md`. The scripts read
   those; they never carry copies.
 
 ## Inputs to ask for (once, up front)
@@ -64,7 +64,7 @@ Keep `evidence.json`, `packages/`, `manifest.json` and `publisher.log`. Report `
 python .claude/skills/databricks-golden-miner/scripts/real_data_queries.py --profile <P> --warehouse-id <W> \
   --out mining_out/<date>/real_data_answers.json
 ```
-These are aggregate-only queries. The script reads them from `docs/proposals/real-data-run.md`; `--list` shows them without running.
+These are aggregate-only queries. The script reads them from `docs/proposals/publisher/real-data-run.md`; `--list` shows them without running.
 
 ### 3. Mine
 ```bash
@@ -85,7 +85,7 @@ Turn the report into a short, ranked list of proposals. A report finding alone i
 | **Behaviour mismatch** | `mismatches` | Triage into one of three causes (below) and say which one it is and why |
 | **Row premise contradicted** | `premise_contradictions`, a mismatch triaged as premise, or a real-data answer that refutes an assumption a row cites | The current row text, the premise and the setting it rests on (`assumes`), the live evidence against it, and the suggested new row text. When the publisher's behaviour or a setting must change too, a separate decision-change item (see step 6) |
 | **Drift** | `drift` with `demo_outside_live_range` | A `DEMO_FLEET` parameter change in `src/publisher/analyzer/collector/demo.py` with before/after values; expected behaviour unchanged |
-| **Real-data answer** | `real_data` | The text that closes G4b/G5/S4 in `docs/proposals/real-data-run.md` and the tracker |
+| **Real-data answer** | `real_data` | The text that closes G4b/G5/S4 in `docs/proposals/publisher/real-data-run.md` and the tracker |
 
 **Mismatch triage.** Read the package `rationale` and `blockers`, the row and the warehouse's features, then pick one of these:
 1. **Publisher bug.** The row and the signature are right, but the decision is wrong. Propose a live case asserting the expected behaviour.
@@ -126,11 +126,11 @@ treat silence as approval.
    premise item would fail, so it is not added here: it becomes the red test of that item's fix branch (step 5).
    Then generate the baseline:
    `python scripts/update_goldens.py --case <name> --approved-change "<the approval in one line>"`.
-3. **New row:** add it to `docs/proposals/golden-scenarios.md` and its signature to
+3. **New row:** add it to `docs/proposals/publisher/golden-scenarios.md` and its signature to
    `references/signature-catalog.yaml`. A row that also gets a `DEMO_FLEET` warehouse needs
    `python scripts/update_goldens.py --demo-only --approved-change "<why>"`.
 4. **Row premise contradicted:** this has two parts, approved separately.
-   - **Text-only.** Edit the row's Signature or Expected behaviour in `docs/proposals/golden-scenarios.md`, and its `expect`
+   - **Text-only.** Edit the row's Signature or Expected behaviour in `docs/proposals/publisher/golden-scenarios.md`, and its `expect`
      and `premises` in the catalog. Do this on the mining branch, as long as no publisher decision changes.
    - **Decision change.** The behaviour the row expects differs from what the code does, or the setting it rests on
      (`assumes`, a `Thresholds` field or product constant) must change. It becomes a fix brief (step 5). Never fold it into
@@ -138,7 +138,7 @@ treat silence as approval.
    Until the decision change lands, keep the row's Status honest (`fail` if the code now contradicts the corrected row).
 5. **Fix briefs** (hand-off to the fixing loop). Each approved publisher bug, and each premise item that needs a decision
    change, becomes one tracker row. Add it to the live tracker when it is reachable, and always to
-   `docs/proposals/tracker.md`. The row has:
+   `docs/proposals/publisher/tracker.md`. The row has:
    - ID `L<NN>`, the next free number;
    - Title, Band (P1 for a bug on an in-scope row, P2 for a premise), Batch `mining-<date>`;
    - Status `Open`, or `Needs input` when a policy value must be chosen first, such as the new value of the setting a
@@ -149,9 +149,9 @@ treat silence as approval.
      - the warehouse to build the red case from (`<ws>/<wh>`) and its run folder;
      - the setting it rests on (`assumes`) and the components likely to need a version bump.
 
-   Put the `L<NN>` ID in each affected row's Tracker cell in `docs/proposals/golden-scenarios.md`. Fixing follows
-   "Fixing a golden-miner finding" in `docs/proposals/remediation-runbook.md`. That work is not part of this skill. Out-of-scope rows never get fix briefs.
-6. **Real-data answers:** update `docs/proposals/real-data-run.md` and the tracker, then regenerate `docs/proposals/tracker.md`.
+   Put the `L<NN>` ID in each affected row's Tracker cell in `docs/proposals/publisher/golden-scenarios.md`. Fixing follows
+   "Fixing a golden-miner finding" in `docs/proposals/publisher/remediation-runbook.md`. That work is not part of this skill. Out-of-scope rows never get fix briefs.
+6. **Real-data answers:** update `docs/proposals/publisher/real-data-run.md` and the tracker, then regenerate `docs/proposals/publisher/tracker.md`.
 7. Run the change loop: `python -m compileall -q src tests scripts examples`, then
    `python -m unittest discover -s tests -v`, the demo with `python scripts/validate_workbook.py`, and
    `python scripts/validate_skill_suite.py`. Report failures with their output. Don't hide them.

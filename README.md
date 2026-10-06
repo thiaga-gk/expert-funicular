@@ -30,7 +30,7 @@ flowchart LR
     RP --> W[workbook.xlsx<br/>Workbook Contract v1.6.0]
 ```
 
-`publish()` in `src/publisher/publisher.py` calls each capability once, in this order, and holds no domain logic; each capability lives in its own package under `src/publisher/` (`analyzer`, `governor`, `optimizer`, `reviewer`, `packager`, `reporter`, plus `contracts`, `config` and `common`). Architecture: [`docs/architecture/hld.md`](docs/architecture/hld.md).
+`publish()` in `src/publisher/publisher.py` calls each capability once, in this order, and holds no domain logic; each capability lives in its own package under `src/publisher/` (`analyzer`, `governor`, `optimizer`, `reviewer`, `packager`, `reporter`, plus `contracts`, `config` and `common`). Architecture: [`docs/architecture/publisher/hld.md`](docs/architecture/publisher/hld.md).
 
 The workbook never recalculates recommendations, confidence, IDs, or scenario economics.
 
@@ -38,7 +38,7 @@ The workbook never recalculates recommendations, confidence, IDs, or scenario ec
 
 Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unknown warehouse type fails closed before optimization. Lakehouse Real-Time is not modeled by this release.
 
-Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Each warehouse is evaluated under a cost profile: **aggressive** for nonprod-tagged warehouses, **balanced** otherwise, or whatever `--cost-profile` sets (`--cost-profile conservative` for every warehouse, `--cost-profile aggressive=<warehouse-id>[,...]` for some). The profile moves only how much performance risk a cut may take; values in `docs/reference/thresholds.md` (Cost profiles). Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
+Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Each warehouse is evaluated under a cost profile: **aggressive** for nonprod-tagged warehouses, **balanced** otherwise, or whatever `--cost-profile` sets (`--cost-profile conservative` for every warehouse, `--cost-profile aggressive=<warehouse-id>[,...]` for some). The profile moves only how much performance risk a cut may take; values in `docs/reference/publisher/thresholds.md` (Cost profiles). Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
 ## Run scope
 
@@ -58,7 +58,7 @@ publisher --demo --scope-file examples/scopes/current-auto-stop.json --output-di
 
 `--scope current` enables all four current-type techniques. `--warehouse` takes `all` (the default), a warehouse ID or `<workspace_id>/<warehouse_id>`, and can be repeated. `--scope-file` holds the same choices as JSON toggles plus the warehouses (`schema/run-scope.schema.json`; presets in `examples/scopes/`) and is not combined with the flags. An unknown name or a warehouse that is not in the evidence stops the run with exit status 2.
 
-Scope decides what is built, not only what is shown: out-of-scope candidates are never produced, Plan A is built and priced from the enabled techniques only, starting from the current configuration (out-of-scope knobs keep their current values), and each candidate is identical to the same candidate in a full run. A canary rollback is always published, even outside the scope. When `current` is not in scope, the recommended scenario is "No change" and any migration stays an alternative experiment. The packages record the scope in `run_scope` (null for a full run; [`docs/contracts/reporter-json-contract.md`](docs/contracts/reporter-json-contract.md) section 14.4), and the workbook and manifest show it. Evidence is collected the same way in every scope, so one `evidence.json` can be replayed with any scope.
+Scope decides what is built, not only what is shown: out-of-scope candidates are never produced, Plan A is built and priced from the enabled techniques only, starting from the current configuration (out-of-scope knobs keep their current values), and each candidate is identical to the same candidate in a full run. A canary rollback is always published, even outside the scope. When `current` is not in scope, the recommended scenario is "No change" and any migration stays an alternative experiment. The packages record the scope in `run_scope` (null for a full run; [`docs/contracts/shared/reporter-json-contract.md`](docs/contracts/shared/reporter-json-contract.md) section 14.4), and the workbook and manifest show it. Evidence is collected the same way in every scope, so one `evidence.json` can be replayed with any scope.
 
 ## Output directory
 
@@ -78,7 +78,7 @@ Each run writes to its own folder under `--output-dir`, named from the run's UTC
 
 The timestamp is only in the folder name, never inside a file, so identical replays write identical files. A second run in the same second gets a `-01` suffix; nothing is overwritten. `--flat-output` writes directly into `--output-dir` instead. The scripts that read a run (`scripts/validate_workbook.py`, `scripts/compare_with_ref.py`) accept a run folder or the root, where they read the newest run.
 
-Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication. `evidence.json` is validated the same way (`schema/evidence.schema.json`); see [`docs/contracts/evidence-format.md`](docs/contracts/evidence-format.md).
+Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication. `evidence.json` is validated the same way (`schema/evidence.schema.json`); see [`docs/contracts/publisher/evidence-format.md`](docs/contracts/publisher/evidence-format.md).
 
 ## Professional workbook
 
@@ -91,7 +91,7 @@ The workbook contains exactly four sheets:
 
 Economic cells are numeric whenever available. Positive annual impact means savings; negative annual impact means cost increase and uses accounting-style parentheses/red formatting. Separate `Currency` and `Impact Type` columns make the meaning explicit. Unavailable economics are never coerced to zero.
 
-See [`docs/contracts/workbook-contract.md`](docs/contracts/workbook-contract.md).
+See [`docs/contracts/publisher/workbook-contract.md`](docs/contracts/publisher/workbook-contract.md).
 
 ## Synthetic golden-scenario fleet (end-to-end test)
 
@@ -120,7 +120,7 @@ publisher \
   --output-dir ./out
 ```
 
-Every flag, its default and its meaning: [`docs/architecture/lld.md`](docs/architecture/lld.md) section 5.2. `--sql-warehouse-id` is also supported. A validated all-purpose cluster may be used with `--all-purpose-cluster-id`; jobs compute is rejected. REST interactions are read-only and limited to execution-target resolution/validation and optional compatibility evidence. Authoritative optimizer configuration and metrics remain system-table driven.
+Every flag, its default and its meaning: [`docs/architecture/publisher/lld.md`](docs/architecture/publisher/lld.md) section 5.2. `--sql-warehouse-id` is also supported. A validated all-purpose cluster may be used with `--all-purpose-cluster-id`; jobs compute is rejected. REST interactions are read-only and limited to execution-target resolution/validation and optional compatibility evidence. Authoritative optimizer configuration and metrics remain system-table driven.
 
 `--source-region` must be an AWS region in `pricing/aws_ec2_on_demand.json` when the fleet has Pro/Classic warehouses: otherwise a live run stops after collection, before writing packages, evidence or the workbook. Add `--allow-missing-aws-price` to publish anyway, with Pro/Classic AWS cost unavailable. Serverless-only fleets and `--from-evidence` replays are not affected.
 
@@ -137,7 +137,7 @@ What each run shows, per warehouse package:
 - canary guards and rollback recommendations: after a canary-type change (one size down or a lower minimum), a candidate with `CANARY_GUARDRAIL_BREACHED` restores the previous value when the new epoch's own evidence trips a guard;
 - `recommended_plan.reevaluation` with `earliest_reevaluation_time` while nothing is ready yet and the plan is waiting for the configuration to be ready or for cost history to clear.
 
-`carried_forward_plan` (the earlier epoch's plan carried forward) is reserved in the contract and not produced yet ([`docs/reference/known-limitations.md`](docs/reference/known-limitations.md)).
+`carried_forward_plan` (the earlier epoch's plan carried forward) is reserved in the contract and not produced yet ([`docs/reference/publisher/known-limitations.md`](docs/reference/publisher/known-limitations.md)).
 
 Weekly is enough: readiness needs only a few settled billed days (`readiness_min_billed_days`), the cost history clears within a week, and a canary's guards are read on every run, so a rollback recommendation appears on the first run after the evidence trips one. The job is read-only and never applies a change: owners apply approved steps in the Databricks UI or API themselves, and the next run measures the epoch that follows.
 
@@ -165,7 +165,7 @@ Options: `--policy <file>` overrides the realization policy, `--replay-through <
 
 ## Documentation
 
-[`docs/README.md`](docs/README.md) indexes every document by audience: product, architecture, contracts, reference, skills, proposals and archive. Start with [`docs/architecture/context.md`](docs/architecture/context.md) for the domain language, then the two contract docs under `docs/contracts/`.
+[`docs/README.md`](docs/README.md) indexes every document by audience: product, architecture, contracts, reference, skills, proposals and archive. Start with [`docs/architecture/publisher/context.md`](docs/architecture/publisher/context.md) for the domain language, then the two contract docs under `docs/contracts/`.
 
 ## Reusable Databricks publisher skill suite
 
@@ -173,7 +173,7 @@ This repo also contains a reusable ten-skill system under `.claude/skills/` for 
 
 Start with `databricks-publisher-orchestrator`. It coordinates service discovery, source contracts, technique catalog, economics, public contracts, implementation, independent validation, and release sealing through explicit artifact gates. The generic reporter vocabulary uses `resource`, not `warehouse`, so Job Cluster/Lakeflow implementations rediscover their own identity/configuration/economics while reusing the proven publisher architecture.
 
-See [`docs/skills.md`](docs/skills.md). Validate the suite with:
+See [`docs/reference/shared/skills.md`](docs/reference/shared/skills.md). Validate the suite with:
 
 ```bash
 python scripts/validate_skill_suite.py

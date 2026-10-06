@@ -84,7 +84,7 @@ annualized change, bias and spread. It calibrates the assumed values:
 
 ## Cost profile calibration
 
-The conservative and aggressive values in the cost-profile table (`docs/reference/thresholds.md`, Cost profiles) are starting points; only balanced has been reviewed, and none are calibrated on live data. Replay the kept `evidence.json` three times with `--cost-profile conservative`, `balanced` and `aggressive` (`python -m publisher --from-evidence <dir>/evidence.json --cost-profile <profile> --output-dir <dir>-<profile>`), then compare per warehouse which cuts each profile ships or holds, and on which limit.
+The conservative and aggressive values in the cost-profile table (`docs/reference/publisher/thresholds.md`, Cost profiles) are starting points; only balanced has been reviewed, and none are calibrated on live data. Replay the kept `evidence.json` three times with `--cost-profile conservative`, `balanced` and `aggressive` (`python -m publisher --from-evidence <dir>/evidence.json --cost-profile <profile> --output-dir <dir>-<profile>`), then compare per warehouse which cuts each profile ships or holds, and on which limit.
 
 - **Too loose:** a cut the aggressive profile ships on a warehouse whose owner would reject it, such as latency-sensitive dashboards. Its limit moves toward balanced.
 - **Too tight:** a cut the conservative profile holds where the evidence is clearly safe. Its limit moves toward balanced.

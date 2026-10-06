@@ -79,7 +79,7 @@ lists each contradiction with its feature values.
 A **row premise contradiction** differs from a behaviour mismatch. In a mismatch the publisher disagrees with the row.
 In a contradiction, reality disagrees with what the row (and usually the publisher) assumes. The two often coincide. A
 contradiction on one warehouse is a lead to investigate. A contradiction across many matched warehouses, or one confirmed
-by a real-data answer (for example the restart-billing assumption in `docs/proposals/real-data-run.md`), is grounds to propose new
+by a real-data answer (for example the restart-billing assumption in `docs/proposals/publisher/real-data-run.md`), is grounds to propose new
 row text. Changing the setting behind it is a separate, versioned decision change.
 
 Add a premise when a row's expected behaviour depends on a number or mechanism that live evidence can test. Keep the
@@ -104,7 +104,7 @@ check a tolerance band around the assumed value, and name the exact setting in `
   the live range means the simulation is unrealistic for that row. Propose new `DEMO_FLEET` parameters only when the
   row's expected behaviour still holds with them. When it doesn't, that is a finding about the row, not about drift.
 - **real_data:** the raw aggregates for G4b, G5 and S4. Interpret them against the questions in
-  `docs/proposals/real-data-run.md`, and propose the closing text there.
+  `docs/proposals/publisher/real-data-run.md`, and propose the closing text there.
 
 ## 6. Known limits
 
