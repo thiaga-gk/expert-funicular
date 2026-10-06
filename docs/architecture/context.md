@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v2.0.0  
-**Workbook Contract:** v1.4.0
+**Reporter JSON Contract:** v3.0.0  
+**Workbook Contract:** v1.5.0
 
 Role: domain language, semantics and invariants.
 
@@ -529,6 +529,8 @@ Core states include:
 ## 17. Threshold posture
 
 Default thresholds are **balanced-to-conservative**, not universal Databricks recommendations. They are product policy defaults and must be versioned.
+
+The defaults are the **balanced** cost profile. A warehouse can instead be evaluated under **aggressive** (more performance risk for a larger saving; the default for a nonprod-tagged warehouse) or **conservative** (less). A cost profile is risk appetite, not a different model of the warehouse: it moves only the limits a cut must stay within, never the evidence a decision needs or what a change is predicted to save, and it is part of every package identity.
 
 Posture per decision and exact values live in `docs/reference/thresholds.md` and the versioned policy/constants in code.
 

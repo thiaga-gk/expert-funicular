@@ -1,4 +1,4 @@
-"""Excel workbook reporter for Workbook Contract v1.4.0.
+"""Excel workbook reporter for Workbook Contract v1.5.0.
 
 The workbook is a presentation-only projection of the locked Reporter JSON Contract
 packages (``rc.CONTRACT_VERSION``).  It holds no optimization, estimation, confidence, ID or hash logic.  Exact detailed-sheet columns and section groups are owned by

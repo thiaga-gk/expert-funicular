@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v2.0.0.
+"""Build the locked Reporter Contract JSON Schema v3.0.0.
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.
@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable
 
 from .reporter_contract import (
     CONTRACT_VERSION,
+    COST_PROFILE_GROUPS,
     ActivityPattern,
     AssessmentStatus,
     BoundName,
@@ -22,6 +23,8 @@ from .reporter_contract import (
     CostAvailability,
     CarriedForwardDisposition,
     CostBasis,
+    CostProfileName,
+    CostProfileSource,
     DependencyType,
     EstimationStatus,
     EvidenceQualityStatus,
@@ -509,6 +512,15 @@ def build_schema() -> Dict[str, Any]:
         "package_hash_full_sha256": nullable({"type": "string", "pattern": "^[A-F0-9]{64}$"}),
     })
 
+    defs["CostProfile"] = obj({
+        "name": {"enum": enum_values(CostProfileName)},
+        "source": {"enum": enum_values(CostProfileSource)},
+        "source_detail": nullable({"type": "string", "minLength": 1}),
+        "applied_thresholds": obj({
+            group: obj({f: {"type": "number"} for f in fields}) for group, fields in COST_PROFILE_GROUPS.items()
+        }),
+    })
+
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": f"urn:databricks-sql-warehouse-optimizer:recommendation-package:{CONTRACT_VERSION}",
@@ -535,6 +547,7 @@ def build_schema() -> Dict[str, Any]:
             "package_economics": ref("PackageEconomics"),
             "realization": ref("Realization"),
             "provenance": ref("Provenance"),
+            "cost_profile": ref("CostProfile"),
             "observed_change": nullable(ref("ObservedConfigChange")),
             "carried_forward_plan": nullable(ref("CarriedForwardPlan")),
         },
@@ -542,7 +555,7 @@ def build_schema() -> Dict[str, Any]:
             "recommendation_package_id", "contract_version", "warehouse", "current_config",
             "workload_profile", "cost_baseline", "assessment", "evidence", "candidates",
             "scenarios", "recommended_plan", "package_economics", "realization", "provenance",
-            "observed_change", "carried_forward_plan",
+            "cost_profile", "observed_change", "carried_forward_plan",
         ],
         "$defs": defs,
     }

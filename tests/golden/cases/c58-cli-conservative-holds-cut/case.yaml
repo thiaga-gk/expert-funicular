@@ -1,0 +1,20 @@
+name: c58-cli-conservative-holds-cut
+description: 'C58 A --cost-profile warehouse override to conservative: p95 execution 4000 ms passes the balanced limit but
+  not the conservative one, so the size cut is held.'
+cost_profiles:
+- conservative=1234567890123456/wh-demo-001
+expect:
+  scenario: C58
+  warehouse: wh-demo-001
+  assertions:
+  - path: cost_profile.name
+    equals: conservative
+  - path: cost_profile.source
+    equals: CLI_WAREHOUSE
+  - path: cost_profile.source_detail
+    equals: --cost-profile conservative=1234567890123456/wh-demo-001
+  - path: candidates[knob=warehouse_size].status
+    equals: NO_CHANGE
+  - path: candidates[knob=warehouse_size].blockers
+    includes:
+    - P95_LATENCY_TOO_HIGH

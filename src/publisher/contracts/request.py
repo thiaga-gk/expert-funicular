@@ -33,6 +33,8 @@ class PublisherRequest:
     generate_workbook: bool = True
     print_json: bool = False
     execution_mode: str = "local"
+    # Raw --cost-profile flags (PROFILE or PROFILE=WH[,WH...]); parsed by config/cost_profiles.py.
+    cost_profiles: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

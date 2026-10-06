@@ -26,9 +26,9 @@ from publisher.optimizer.estimator.candidate import Estimator  # noqa: E402
 from publisher.optimizer.estimator.cost import validated_size_rate_ratio  # noqa: E402
 
 
-def candidates_by_scenario(evidence, t):
+def candidates_by_scenario(evidence, t, cost_profiles=()):
     out = {}
-    for w in p.evaluate_warehouses(evidence, t):
+    for w in p.evaluate_warehouses(evidence, t, cost_profiles=cost_profiles):
         e = next(x for x in evidence if x.warehouse_id == w.warehouse_id and x.workspace_id == w.workspace_id)
         out[e.current_epoch.tags["golden_scenario"]] = {c.knob: c for c in w.candidates}
     return out
@@ -138,8 +138,9 @@ class CostValueGateTests(unittest.TestCase):
         self.assertIn(size.estimated_savings_365, (None, 0, 0.0))
 
     def test_cost_change_below_the_materiality_floor_does_not_ship(self):
+        # A customized base applies under balanced; another cost profile sets its own floor, so pin every warehouse.
         t = dataclasses.replace(Thresholds(), cost_change_min_annual_savings=10 ** 9)
-        by = candidates_by_scenario(self.fleet, t)
+        by = candidates_by_scenario(self.fleet, t, cost_profiles=("balanced",))
         held = [(s, k) for s, cands in by.items() for k, c in cands.items() if "COST_SAVINGS_BELOW_MATERIALITY" in c.blockers]
         self.assertTrue(held)
         for s, cands in by.items():
@@ -149,7 +150,7 @@ class CostValueGateTests(unittest.TestCase):
 
     def test_gate_leaves_non_cost_and_unpriced_changes_alone(self):
         t = dataclasses.replace(Thresholds(), cost_change_min_annual_savings=10 ** 9)
-        by = candidates_by_scenario(self.fleet, t)
+        by = candidates_by_scenario(self.fleet, t, cost_profiles=("balanced",))
         self.assertEqual(by["C09"]["max_clusters"].status, "ACTIONABLE")  # ceiling cut: guardrail, no priced saving
         self.assertEqual(by["C30"]["warehouse_size"].status, "TEST_REQUIRED")  # unpriced canary: nothing to gate on
 

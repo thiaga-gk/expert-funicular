@@ -13,6 +13,7 @@ from typing import Optional, Sequence, Tuple
 
 from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER, setup_logging
+from publisher.config.cost_profiles import COST_PROFILES, parse_cost_profile_flags
 from publisher.config.settings import EXECUTION_MODES, REPO_ROOT
 from publisher.config.versions import ANALYZER_VERSION, BUNDLE_MODEL_VERSION, ESTIMATOR_VERSION, OPTIMIZER_VERSION, POLICY_VERSION, PUBLISHER_VERSION
 from publisher.contracts import reporter_contract as rc
@@ -37,10 +38,14 @@ def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
 
 
 def request_from_args(args: argparse.Namespace) -> PublisherRequest:
-    """The run request: demo when --demo, replay when --from-evidence, otherwise live with a resolved execution target."""
+    """The run request: demo when --demo, replay when --from-evidence, otherwise live with a resolved execution target.
+
+    Raises PublisherError for invalid --cost-profile flags before anything is collected.
+    """
+    parse_cost_profile_flags(args.cost_profile)
     common = dict(output_dir=Path(args.output_dir), batch_size=args.batch_size, generate_workbook=not args.no_workbook,
                   print_json=args.print_json, source_region=args.source_region,
-                  execution_mode=args.mode)
+                  execution_mode=args.mode, cost_profiles=tuple(args.cost_profile))
     if args.demo:
         return PublisherRequest(mode=MODE_DEMO, demo_count=args.demo_count, **common)
     if args.from_evidence:
@@ -84,6 +89,8 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--no-workbook",action="store_true",help="Skip workbook.xlsx generation; locked JSON packages are still emitted")
     p.add_argument("--print-json",action="store_true")
     p.add_argument("--mode",choices=EXECUTION_MODES,default=os.getenv("PUBLISHER_EXECUTION_MODE","local"),help="Where the run executes (only local today)")
+    p.add_argument("--cost-profile",action="append",default=[],metavar="PROFILE[=WH_ID,...]",
+                   help=f"Cost profile ({', '.join(COST_PROFILES)}) for every warehouse, or with =WH_ID[,WH_ID...] (warehouse_id or workspace_id/warehouse_id) for the listed ones; repeatable. Default: aggressive for nonprod-tagged warehouses, balanced otherwise")
     return p.parse_args(argv)
 
 
@@ -109,6 +116,10 @@ def _log_settings(args: argparse.Namespace, request: PublisherRequest) -> None:
         "cli.settings run_mode=%s execution_mode=%s output_dir=%s log_level=%s workbook=%s print_json=%s batch_size=%d",
         request.mode, args.mode, args.output_dir, args.log_level, not args.no_workbook, args.print_json, args.batch_size,
     )
+    selection = parse_cost_profile_flags(request.cost_profiles)
+    LOGGER.info("cli.settings.cost_profile all_warehouses=%s warehouse_overrides=%d profiles=%s",
+                selection.all_profile or "TAG_DEFAULT", len(selection.by_warehouse),
+                ",".join(sorted({p for _, p in selection.by_warehouse} | ({selection.all_profile} if selection.all_profile else set()))) or "NONE")
     if request.mode == MODE_LIVE:
         LOGGER.info("cli.settings.live profile=%s execution_kind=%s source_region=%s compatibility_api_mode=%s",
                     request.profile, request.execution_kind, request.source_region, request.compatibility_api_mode)

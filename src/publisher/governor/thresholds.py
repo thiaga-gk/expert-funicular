@@ -13,6 +13,8 @@ class Thresholds:
 
     Every field has a row in docs/reference/thresholds.md. A change here is decision-affecting: bump the affected
     component versions and regenerate goldens. Units are in the field name or its comment (pct, ms, minutes, days).
+    The defaults are the balanced cost profile; governor/cost_profiles.py derives the other profiles by replacing the
+    risk-appetite fields only.
     """
     # Evidence sufficiency / epoch stability
     min_query_sample_size: int = 100
@@ -68,9 +70,12 @@ class Thresholds:
     time_at_max_pct_safe_reduce: float = 1.0
     # Saturation = real time at the configured ceiling. A peak above max is not evidence (cluster recycling can briefly exceed it).
     time_at_max_pct_saturated: float = 5.0
-    # A reduced ceiling must leave growth room above the observed peak: max(clusters, ceil(pct x peak)).
+    # A ceiling must leave growth room above an observed peak: max(clusters, ceil(pct x peak)). The size-down hold for a
+    # peak outside the recent window uses max_cluster_headroom_pct; the Serverless max-cluster cut uses the cost-profiled
+    # max_cluster_cut_headroom_pct.
     max_cluster_headroom_clusters: int = 1
     max_cluster_headroom_pct: float = 25.0
+    max_cluster_cut_headroom_pct: float = 25.0
     # Concurrency-derived cluster targets (Pro/Classic queries per cluster: config/defaults.py).
     max_cluster_target_percentile: float = 99.5  # of busy minutes' running + queued queries (recent window and whole epoch)
     max_cluster_target_headroom_clusters: int = 1
@@ -103,13 +108,12 @@ class Thresholds:
     restart_cost_cluster_minutes_pro_classic: float = 4.0
     restart_cost_cluster_minutes_serverless: float = 0.1
     # Cold-start budget: restarts a lower auto-stop adds, as a share of queries over the same window (Pro/Classic only;
-    # nonprod warehouses by tag get the larger budget).
+    # cost-profiled, so a nonprod warehouse on the aggressive profile gets the larger budget).
     cold_start_added_share_max_pct: float = 2.0
-    cold_start_added_share_max_pct_nonprod: float = 10.0
     # Among auto-stop values whose net saving is within this share of the best, the smallest change is chosen.
     auto_stop_near_best_pct: float = 2.0
-    # Nonprod profile: a warehouse tag whose key (case-insensitive) is one of these keys and whose value is one of these
-    # values. Staging and UAT stay production.
+    # Nonprod tag: a warehouse tag whose key (case-insensitive) is one of these keys and whose value is one of these
+    # values selects the aggressive cost profile by default. Staging and UAT stay production.
     nonprod_tag_keys: Tuple[str, ...] = ("env", "environment", "stage", "tier")
     nonprod_tag_values: Tuple[str, ...] = ("dev", "development", "test", "testing", "qa", "sandbox", "nonprod", "non-prod")
     # Non-work activity flags (observations; nothing is priced from them): running time after the current auto-stop

@@ -46,6 +46,9 @@ Scenario cases (`c*` and `a*`):
 - c45-steady-high-utilization (asserts the task-time utilization evidence only)
 - c48-long-unchanged-warehouse
 - c50-single-cluster-queueing (demo fleet evidence)
+- c56-nonprod-aggressive-cut (nonprod tag selects the aggressive cost profile)
+- c57-prod-twin-holds-cut (the same evidence tagged production stays balanced)
+- c58-cli-conservative-holds-cut (a `cost_profiles` warehouse override to conservative)
 
 The `--demo` fleet is separate from these cases: the cases are hand-built from the core `demo_evidence()` warehouse, while the demo fleet is simulated from workload descriptions (see `tests/golden/test_demo_fleet.py`).
 
@@ -59,7 +62,7 @@ Create `tests/golden/cases/<name>/` with `case.yaml` (name, description, `expect
 python scripts/update_goldens.py --case <name> --approved-change "<why>"
 ```
 
-No test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/unit/analyzer/test_evidence_format.py` fails otherwise. `expected/` is written only by `scripts/update_goldens.py`, which requires the approved-change reason; a decision-affecting change regenerates it in the same commit.
+A case may carry a top-level `cost_profiles` list of raw `--cost-profile` flags (for example `conservative=<workspace>/<warehouse>`); without it every warehouse gets its tag default. No test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/unit/analyzer/test_evidence_format.py` fails otherwise. `expected/` is written only by `scripts/update_goldens.py`, which requires the approved-change reason; a decision-affecting change regenerates it in the same commit.
 
 ## Backfilling older cases
 

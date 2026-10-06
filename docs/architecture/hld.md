@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v2.0.0 (locked)  
-**Workbook Contract:** v1.4.0 (locked)
+**Reporter JSON Contract:** v3.0.0 (locked)  
+**Workbook Contract:** v1.5.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
 
@@ -163,7 +163,7 @@ The numbered capabilities define the high-level architecture contract. A capabil
 | Capability | Owns | Component sections |
 |---|---|---|
 | Analyzer | source collection, normalization and configuration epochs, derived metrics and findings; analyzes only supported warehouse types | 6.1, 6.2, 6.4 |
-| Governor | which analyzed warehouses may be considered (exclusion of unsupported types), the policy `Thresholds`, run constraints, migration compatibility | 6.3 |
+| Governor | which analyzed warehouses may be considered (exclusion of unsupported types), the policy `Thresholds` and the cost profiles (which profile each warehouse gets; the Analyzer applies the resolution once, before any finding), run constraints, migration compatibility | 6.3 |
 | Optimizer | one deterministic decision per active domain, cross-technique conflicts, candidate pricing in isolation | 6.5, 6.6 |
 | Reviewer candidate gate | candidate invariants, before any scenario exists | 6.7 |
 | Packager | scenario planning and sequencing, stateful bundle pricing, package envelope, evidence registry, public contract assembly | 6.8, 6.9, 6.11 |
@@ -230,7 +230,7 @@ Older epochs are calibration/backtest only, with three exceptions: a capacity cu
 
 ### 6.3 Governor: eligibility and supported types
 
-**Responsibility:** Decide what the Optimizer may consider. The Analyzer analyzes only explicitly modeled warehouse types; the Governor records every other warehouse as an exclusion and holds the policy `Thresholds`, the run constraints (for a live run, the AWS price-registry constraint) and the migration compatibility rules.
+**Responsibility:** Decide what the Optimizer may consider. The Analyzer analyzes only explicitly modeled warehouse types; the Governor records every other warehouse as an exclusion and holds the policy `Thresholds`, the cost profiles (the aggressive, balanced and conservative values and the rule that gives each warehouse its profile), the run constraints (for a live run, the AWS price-registry constraint) and the migration compatibility rules. The profile needs the warehouse tags, so the Analyzer applies the Governor's resolution once per run before any finding, and every later capability reads the warehouse's profile from its analysis.
 
 Allowed Phase-1 types:
 
@@ -361,7 +361,7 @@ It verifies, at minimum:
 
 ### 6.11 Packager: public contract assembly
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v2.0.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.0.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
@@ -638,7 +638,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v2.0.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v3.0.0:
 
 - Python dataclasses: `src/publisher/contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
@@ -646,7 +646,7 @@ The only authoritative recommendation serialization is Reporter JSON Contract v2
 
 ### 12.2 Workbook contract
 
-Workbook Contract v1.4.0 is an independently versioned presentation contract:
+Workbook Contract v1.5.0 is an independently versioned presentation contract:
 
 - projection: `src/publisher/contracts/workbook_contract.py`
 - renderer: `src/publisher/reporter/workbook_reporter.py`

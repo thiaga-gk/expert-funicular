@@ -19,7 +19,8 @@ through extract_evidence, and ``evidence_assertions`` address the serialized War
 every given value), ``excludes`` (list contains none of them), ``length`` (list length), ``between`` ([low, high],
 inclusive, for numbers).
 
-With ``recompute_forecast: true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
+An optional top-level ``cost_profiles`` list holds raw ``--cost-profile`` flags (``PROFILE`` or ``PROFILE=WH[,WH...]``)
+the case is built with; without it every warehouse gets its tag default. With ``recompute_forecast: true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
 rows (as the collector does) before the package is built, so a case can exercise the forecast itself. With ``[*]`` or a filter the operator applies
 to every matched item, and at least one item must match.
 
@@ -79,7 +80,8 @@ class GoldenScenarioTests(unittest.TestCase):
                 if expect.get("recompute_forecast"):
                     for e in evidence:
                         recompute_forecast(p, e)
-                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, Thresholds())}
+                flags = tuple(payload.get("cost_profiles") or ())
+                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags)}
                 package = packages[expect["warehouse"]].to_dict()
                 validate_locked_package_schema(package)
                 failures = [msg for msg in (check(package, a) for a in expect["assertions"]) if msg]

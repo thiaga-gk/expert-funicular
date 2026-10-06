@@ -1,0 +1,19 @@
+name: c56-nonprod-aggressive-cut
+description: 'C56 Nonprod tag selects the aggressive profile: the C06 warehouse tagged environment=dev with p95 execution
+  7000 ms, above the balanced limit and below the aggressive one, so the one-size-down canary ships.'
+expect:
+  scenario: C56
+  warehouse: wh-demo-001
+  assertions:
+  - path: cost_profile.name
+    equals: aggressive
+  - path: cost_profile.source
+    equals: TAG_DEFAULT
+  - path: cost_profile.source_detail
+    equals: tag environment=dev
+  - path: cost_profile.applied_thresholds.size.p95_execution_ms_downsize_safe
+    equals: 10000
+  - path: candidates[knob=warehouse_size].status
+    equals: TEST_REQUIRED
+  - path: candidates[knob=warehouse_size].recommended_value
+    equals: MEDIUM

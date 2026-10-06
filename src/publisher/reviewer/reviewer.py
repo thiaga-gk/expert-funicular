@@ -70,7 +70,7 @@ def review_package(context: RunContext, analysis: FleetAnalysis, governance: Gov
     for w, p in zip(package.warehouses, package.packages, strict=True):
         review_plans(context, [w])
         try:
-            review_contract(p)
+            review_contract(p, context.thresholds)
         except Exception as exc:
             _reject("package", w.evidence.workspace_id, w.evidence.warehouse_id, exc)
             raise

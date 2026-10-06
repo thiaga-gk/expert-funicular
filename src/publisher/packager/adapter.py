@@ -342,6 +342,7 @@ def _candidate_contracts(
     evidence: Dict[str, rc.EvidenceRecord],
     finding_map: Dict[str, str],
     shared_cost_refs: Sequence[str],
+    cost_profile: Mapping[str, Any],
 ) -> Tuple[List[rc.CandidateRecommendation], Dict[str, rc.CandidateRecommendation]]:
     """Contract candidates in input order plus an internal-recommendation-id -> contract candidate map.
 
@@ -378,6 +379,7 @@ def _candidate_contracts(
             estimator_version=ESTIMATOR_VERSION,
             reviewer_version=REVIEWER_VERSION,
             decision_graph_version=DECISION_VERSION,
+            cost_profile=cost_profile,
         )
         item = rc.CandidateRecommendation(
             candidate_id=candidate_id,
@@ -490,6 +492,7 @@ def _scenario_contracts(
     candidates_by_old_id: Mapping[str, rc.CandidateRecommendation],
     candidate_contracts: Sequence[rc.CandidateRecommendation],
     compatibility_map: Mapping[Tuple[str, str], str],
+    cost_profile: Mapping[str, Any],
 ) -> Tuple[List[rc.Scenario], Dict[str, rc.Scenario]]:
     """Contract scenarios in input order plus an internal-scenario-id -> contract scenario map.
 
@@ -518,6 +521,7 @@ def _scenario_contracts(
             policy_version=POLICY_VERSION,
             bundle_estimator_version=BUNDLE_MODEL_VERSION,
             decision_graph_version=DECISION_VERSION,
+            cost_profile=cost_profile,
         )
         plan_steps: List[rc.PlanStep] = []
         next_step = 1

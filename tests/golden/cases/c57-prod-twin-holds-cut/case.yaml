@@ -1,0 +1,18 @@
+name: c57-prod-twin-holds-cut
+description: 'C57 Production twin of C56: the same evidence tagged environment=production stays balanced, and the p95 limit
+  holds the size cut.'
+expect:
+  scenario: C57
+  warehouse: wh-demo-001
+  assertions:
+  - path: cost_profile.name
+    equals: balanced
+  - path: cost_profile.source
+    equals: DEFAULT
+  - path: cost_profile.source_detail
+    equals: null
+  - path: candidates[knob=warehouse_size].status
+    equals: NO_CHANGE
+  - path: candidates[knob=warehouse_size].blockers
+    includes:
+    - P95_LATENCY_TOO_HIGH

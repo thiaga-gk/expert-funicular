@@ -65,7 +65,8 @@ warehouses with known month-end, quarter-end or yearly peaks.
 1. Run the three queries above and paste their output.
 2. Set up from a checkout (`python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`), then one live read-only publisher run on the account (`python -m publisher --profile <oauth-profile> --sql-warehouse-id <warehouse that runs the collector SQL> --source-region <aws-region> --output-dir <dir>`), keeping `evidence.json` for replay. Optional live checks: set `PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID` (and `PUBLISHER_LIVE_SERVERLESS_WAREHOUSE_ID`) and run `python -m unittest discover -s tests/integration -t .`.
 3. The backtest below on the same account.
-4. Review together: which assumptions held, which policy values to recalibrate (each recalibration goes through its own approval).
+4. The cost-profile replays below.
+5. Review together: which assumptions held, which policy values to recalibrate (each recalibration goes through its own approval).
 
 ## Backtest of the savings math (tracker G56)
 
@@ -79,6 +80,17 @@ annualized change, bias and spread. It calibrates the assumed values:
 | Auto-stop realization (optimistic/base/conservative) | 1.0 / 0.75 / 0.5 of the replayed idle saving | Billed change after past auto-stop changes vs the replay's prediction (example: C01 replay 124.1k removable, base reports 93.1k) |
 | Size slowdown on busy time | x1.10 / x1.30 / x1.55 (worst case widened to x2.0 in batch 8) | Busy time and billed cost after past size changes (example: C06 LARGE to MEDIUM saves 36.6k at x1.0, 31.7k at x1.3, 20.4k at x2.0) |
 | Floor realization | 1.0 / 0.5 / 0 of the cluster-minutes at the minimum | Billed change after past min-cluster changes |
+
+## Cost profile calibration
+
+The conservative and aggressive values in the cost-profile table (`docs/reference/thresholds.md`, Cost profiles) are starting points; only balanced has been reviewed, and none are calibrated on live data. Replay the kept `evidence.json` three times with `--cost-profile conservative`, `balanced` and `aggressive` (`python -m publisher --from-evidence <dir>/evidence.json --cost-profile <profile> --output-dir <dir>-<profile>`), then compare per warehouse which cuts each profile ships or holds, and on which limit.
+
+- **Too loose:** a cut the aggressive profile ships on a warehouse whose owner would reject it, such as latency-sensitive dashboards. Its limit moves toward balanced.
+- **Too tight:** a cut the conservative profile holds where the evidence is clearly safe. Its limit moves toward balanced.
+- **Backtest check:** for warehouses whose size, minimum clusters or auto-stop changed in the last 365 days, check whether the observed p95 change and queueing after the change would have passed each profile's canary rollback limit (`canary_p95_regression_pct`) and safe levels.
+- **Nonprod check:** check that the nonprod tag keys and values pick the intended warehouses, and that staging/UAT stay balanced.
+
+Each recalibrated profile value goes through its own approval, a policy version bump and golden regeneration.
 
 ## Assumptions to confirm (they move whole classes of numbers)
 

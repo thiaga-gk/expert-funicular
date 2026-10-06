@@ -761,6 +761,149 @@
       ],
       "type": "object"
     },
+    "CostProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "applied_thresholds": {
+          "additionalProperties": false,
+          "properties": {
+            "auto_stop": {
+              "additionalProperties": false,
+              "properties": {
+                "cold_start_added_share_max_pct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "cold_start_added_share_max_pct"
+              ],
+              "type": "object"
+            },
+            "cross_technique": {
+              "additionalProperties": false,
+              "properties": {
+                "canary_p95_regression_pct": {
+                  "type": "number"
+                },
+                "cost_change_min_annual_savings": {
+                  "type": "number"
+                },
+                "growth_hold_weekly_ratio": {
+                  "type": "number"
+                },
+                "queue_query_pct_safe": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "cost_change_min_annual_savings",
+                "queue_query_pct_safe",
+                "canary_p95_regression_pct",
+                "growth_hold_weekly_ratio"
+              ],
+              "type": "object"
+            },
+            "max_clusters": {
+              "additionalProperties": false,
+              "properties": {
+                "max_cluster_cut_headroom_pct": {
+                  "type": "number"
+                },
+                "time_at_max_pct_safe_reduce": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "time_at_max_pct_safe_reduce",
+                "max_cluster_cut_headroom_pct"
+              ],
+              "type": "object"
+            },
+            "min_clusters": {
+              "additionalProperties": false,
+              "properties": {
+                "min_cluster_busy_start_percentile": {
+                  "type": "number"
+                },
+                "queue_wait_p95_ms_safe": {
+                  "type": "number"
+                },
+                "time_at_min_pct_reduce": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "time_at_min_pct_reduce",
+                "queue_wait_p95_ms_safe",
+                "min_cluster_busy_start_percentile"
+              ],
+              "type": "object"
+            },
+            "size": {
+              "additionalProperties": false,
+              "properties": {
+                "p95_execution_ms_downsize_safe": {
+                  "type": "number"
+                },
+                "p99_execution_ms_downsize_safe": {
+                  "type": "number"
+                },
+                "spill_query_pct_downsize_safe": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "spill_query_pct_downsize_safe",
+                "p95_execution_ms_downsize_safe",
+                "p99_execution_ms_downsize_safe"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "size",
+            "max_clusters",
+            "min_clusters",
+            "auto_stop",
+            "cross_technique"
+          ],
+          "type": "object"
+        },
+        "name": {
+          "enum": [
+            "aggressive",
+            "balanced",
+            "conservative"
+          ]
+        },
+        "source": {
+          "enum": [
+            "DEFAULT",
+            "TAG_DEFAULT",
+            "CLI_ALL",
+            "CLI_WAREHOUSE"
+          ]
+        },
+        "source_detail": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "source_detail",
+        "applied_thresholds"
+      ],
+      "type": "object"
+    },
     "CurrentConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1458,7 +1601,7 @@
           "type": "string"
         },
         "contract_version": {
-          "const": "2.0.0"
+          "const": "3.0.0"
         },
         "decision_graph_version": {
           "minLength": 1,
@@ -2453,7 +2596,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:2.0.0",
+  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:3.0.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
@@ -2478,10 +2621,13 @@
       ]
     },
     "contract_version": {
-      "const": "2.0.0"
+      "const": "3.0.0"
     },
     "cost_baseline": {
       "$ref": "#/$defs/CostBaseline"
+    },
+    "cost_profile": {
+      "$ref": "#/$defs/CostProfile"
     },
     "current_config": {
       "$ref": "#/$defs/CurrentConfig"
@@ -2549,6 +2695,7 @@
     "package_economics",
     "realization",
     "provenance",
+    "cost_profile",
     "observed_change",
     "carried_forward_plan"
   ],

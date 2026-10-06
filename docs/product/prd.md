@@ -2,8 +2,8 @@
 
 **Document:** `docs/product/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v2.0.0 (locked)  
-**Workbook Contract:** v1.4.0 (locked)
+**Reporter JSON Contract:** v3.0.0 (locked)  
+**Workbook Contract:** v1.5.0 (locked)
 
 Role: product scope, requirements and acceptance criteria.
 
@@ -21,7 +21,7 @@ The product is designed to answer five questions for every in-scope SQL warehous
 4. **What are the candidate and scenario-level economic consequences, with confidence and guardrails?**
 5. **What should a human reviewer validate, canary, apply, remeasure, or reject?**
 
-The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v2.0.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.4.0 is a presentation-only projection of those locked packages.
+The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v3.0.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.5.0 is a presentation-only projection of those locked packages.
 
 The current implementation is **advisory only**. It does not mutate SQL warehouse configuration. Human-in-the-loop approval and canary validation are mandatory for changes that can materially alter workload behavior or runtime.
 
@@ -208,11 +208,15 @@ A future product increment may add deterministic migration-selection policy that
 
 One immutable package represents exactly:
 
-`workspace + warehouse + current configuration epoch + normalized evidence + policy/model versions`.
+`workspace + warehouse + current configuration epoch + normalized evidence + policy/model versions + cost profile`.
 
 A multi-warehouse run emits multiple independent package JSON files rather than one custom aggregate recommendation document.
 
-### 7.3 Candidate and scenario separation
+### 7.3 Cost profiles
+
+Risk appetite differs by environment: a development warehouse can take more performance risk for a saving than a production one. Every warehouse is evaluated under one cost profile, **aggressive**, **balanced** or **conservative** (FR-OPT-011). A profile moves only how much performance risk a cut that the evidence supports may take; it never lowers the evidence a decision needs, never changes what a change is predicted to save, and never makes the publisher add capacity more readily.
+
+### 7.4 Candidate and scenario separation
 
 - Candidate = one technique applied independently to one warehouse/current epoch.
 - Scenario = ordered bundle of candidates applied to evolving state.
@@ -420,7 +424,7 @@ A reduction may be proposed only when the configured maximum is demonstrably unu
 - the failed/cancelled query share is known and not above the capacity-cut-safe level (`failure_cancel_pct_downsize_safe`);
 - query volume is not growing (`growth_hold_weekly_ratio`, as in FR-OPT-003);
 - no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
-- the new maximum is below the current maximum. For Pro and Classic it is derived from peak concurrency, as in FR-OPT-005, from the larger of the recent peak and the whole current epoch's peak (the level reached in `peak_demand_min_minutes` busy minutes), so a seasonal peak outside the recent window is never cut away; peak concurrency must be collected and cover enough busy minutes. For Serverless it is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_headroom_pct` of the peak, rounded up, never below the minimum), where the peak is the larger of the recent-window peak and the whole current epoch's peak.
+- the new maximum is below the current maximum. For Pro and Classic it is derived from peak concurrency, as in FR-OPT-005, from the larger of the recent peak and the whole current epoch's peak (the level reached in `peak_demand_min_minutes` busy minutes), so a seasonal peak outside the recent window is never cut away; peak concurrency must be collected and cover enough busy minutes. For Serverless it is the peak plus headroom (the larger of `max_cluster_headroom_clusters` and `max_cluster_cut_headroom_pct` of the peak, rounded up, never below the minimum), where the peak is the larger of the recent-window peak and the whole current epoch's peak.
 
 Unreported queue frequency holds the reduction; queries that queued with an unreported capacity wait hold it too. A reduction the recent window allows but the epoch peak does not is held as `NO_CHANGE` with `PEAK_OUTSIDE_RECENT_WINDOW` (`docs/reference/blocker-codes.md`).
 
@@ -450,7 +454,7 @@ The optimizer shall choose, among the auto-stop values the warehouse type allows
 
 Running time past the current auto-stop with no query running (open sessions, result fetching, keep-alive) is reported and never counted as removable. The best net saving wins; among values within `auto_stop_near_best_pct` of it the smallest change wins.
 
-A lower value shall stay within a cold-start budget on Pro and Classic: the restarts it adds, as a share of queries, must not exceed `cold_start_added_share_max_pct` (`cold_start_added_share_max_pct_nonprod` for a warehouse tagged nonprod). Serverless starts in seconds and has no budget.
+A lower value shall stay within a cold-start budget on Pro and Classic: the restarts it adds, as a share of queries, must not exceed `cold_start_added_share_max_pct` (of the warehouse's cost profile, FR-OPT-011). Serverless starts in seconds and has no budget.
 
 Statuses:
 
@@ -474,6 +478,17 @@ The migration target shall be priced at its own cost-minimizing auto-stop on the
 ### FR-OPT-010 — Candidate completeness
 
 Every supported warehouse shall emit exactly one candidate state for every active candidate domain, including `NO_CHANGE`, `BLOCKED`, `INSUFFICIENT_EVIDENCE`, or `TEST_REQUIRED` outcomes.
+
+### FR-OPT-011 — Cost profile
+
+Every warehouse shall be evaluated under exactly one cost profile:
+
+- a warehouse listed in `--cost-profile PROFILE=WH[,WH...]` gets that profile; otherwise an all-warehouse `--cost-profile PROFILE` applies; otherwise a warehouse whose current-epoch tags mark it nonprod (`nonprod_tag_keys`, `nonprod_tag_values`) is aggressive, and every other warehouse is balanced;
+- a listed warehouse that was not collected, an unknown profile or one warehouse given two profiles shall refuse the run;
+- a profile shall change only the cost-profiled thresholds (the risk limits of size, max-cluster, min-cluster and auto-stop cuts, the materiality floor, the canary rollback limit and the growth hold); a candidate with the same recommended value shall have the same economics under every profile, except the Pro target of a Serverless-to-Pro migration, which is priced within the profile's cold-start budget;
+- the package shall publish the profile, why it was chosen and the values it applied, and the profile name and values shall enter every candidate, scenario and package identity, so packages built under different profiles never share an ID.
+
+Values: `docs/reference/thresholds.md` (Cost profiles).
 
 ---
 
@@ -643,7 +658,7 @@ A validation failure shall stop publication of the affected package rather than 
 
 ## 17. Public Reporter JSON Contract requirements
 
-The only authoritative public recommendation serialization is **Reporter JSON Contract v2.0.0**.
+The only authoritative public recommendation serialization is **Reporter JSON Contract v3.0.0**.
 
 ### FR-JSON-001
 
@@ -682,7 +697,7 @@ Volatile presentation metadata such as generation timestamp, workbook layout, fi
 
 ## 18. Workbook Contract requirements
 
-The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.4.0.
+The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.5.0.
 
 ### 18.1 Executive Summary
 
@@ -786,7 +801,7 @@ Logs shall provide meaningful lifecycle/provenance events while avoiding credent
 
 ### NFR-001 — Determinism
 
-Same normalized evidence + same thresholds + same policy/model/catalog/contract versions must produce identical:
+Same normalized evidence + same thresholds + same cost profile + same policy/model/catalog/contract versions must produce identical:
 
 - recommendation decisions,
 - IDs/hashes,
@@ -999,8 +1014,8 @@ Current product support remains intentionally narrower than every newly availabl
 
 ### Recorded in this PRD
 
-1. Reporter JSON Contract v2.0.0 is authoritative.
-2. Workbook Contract v1.4.0 is presentation-only.
+1. Reporter JSON Contract v3.0.0 is authoritative.
+2. Workbook Contract v1.5.0 is presentation-only.
 3. Phase-1 optimization is infrastructure/configuration only.
 4. Candidate economics are never additive.
 5. Scenario economics are stateful and package economics are scenario-envelope based.

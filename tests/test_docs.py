@@ -133,6 +133,17 @@ class DocsGuardTests(unittest.TestCase):
         for name, value in rows:
             self.assertEqual(getattr(Thresholds(), name), float(value), name)
 
+    def test_cost_profile_table_matches_the_code(self):
+        from publisher.governor.cost_profiles import profile_values
+        text = read(ROOT / "docs/reference/thresholds.md")
+        rows = re.findall(r"^\| (\w+) \| `(\w+)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|", text, re.M)
+        documented_groups = {}
+        for group, field, conservative, balanced, aggressive in rows:
+            documented_groups.setdefault(group, []).append(field)
+            for name, value in (("conservative", conservative), ("balanced", balanced), ("aggressive", aggressive)):
+                self.assertEqual(ast.literal_eval(value), profile_values(name)[field], f"{field} {name}")
+        self.assertEqual(documented_groups, {g: list(f) for g, f in rc.COST_PROFILE_GROUPS.items()})
+
     def test_product_constants_reference_matches_the_code(self):
         from publisher.config.defaults import PRODUCT_CONSTANTS
         text = read(ROOT / "docs/reference/product-constants.md")

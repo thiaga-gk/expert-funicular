@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from publisher.contracts import reporter_contract as rc
+from publisher.contracts.analysis import CostProfileChoice
 from publisher.contracts.candidate import CandidateRecommendation, WarehouseCandidates
 from publisher.contracts.scenario import PlanStep, Scenario
 from publisher.contracts.source import WarehouseEvidence
@@ -19,6 +20,7 @@ class WarehouseOptimization:
     candidates: List[CandidateRecommendation]
     scenarios: List[Scenario]
     recommended_scenario_id: Optional[str]
+    cost_profile: CostProfileChoice
 
     @property
     def recommended_scenario(self) -> Optional[Scenario]:

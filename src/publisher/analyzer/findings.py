@@ -25,10 +25,11 @@ from publisher.analyzer.metrics import (
     size_busy_share,
     window_days,
 )
-from publisher.analyzer.normalizer import hive_reference_count, is_nonprod
+from publisher.analyzer.normalizer import hive_reference_count
 from publisher.common.ids import finding_id
 from publisher.common.time import parse_datetime
 from publisher.config.defaults import QUERIES_PER_CLUSTER_PRO_CLASSIC
+from publisher.governor.cost_profiles import nonprod_tag_match
 from publisher.common.utils import as_string_list, clamp, optional_float, round_or_none, safe_float, safe_int
 from publisher.config.defaults import SIZE_ORDER
 from publisher.governor.thresholds import Thresholds
@@ -363,8 +364,8 @@ class Analyzer:
         grid = auto_stop_candidates(self.t, cfg.warehouse_type)
         floor_clusters = max(1, cfg.min_clusters)
         restart_cost = (self.t.restart_cost_cluster_minutes_serverless if serverless else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
-        nonprod = is_nonprod(ep.tags, self.t)
-        budget = None if serverless else (self.t.cold_start_added_share_max_pct_nonprod if nonprod else self.t.cold_start_added_share_max_pct)
+        nonprod = nonprod_tag_match(ep.tags, self.t) is not None
+        budget = None if serverless else self.t.cold_start_added_share_max_pct
         ri_queries = optional_float(gaps.get("running_idle_queries"))
         by_target = gaps.get("running_idle_by_target")
         running_available = isinstance(by_target, Mapping) and all(gaps.get(k) is not None for k in
@@ -394,7 +395,7 @@ class Analyzer:
             self._f(e,"auto_stop_minutes","running_share_of_clock_pct",running_clock_pct,unit="%",threshold=self.t.always_on_running_pct,comparator=">= always-on",table="system.compute.warehouse_events",field="cluster_count",window=window,interpretation="Share of the window the warehouse was running."),
             self._f(e,"auto_stop_minutes","busy_share_of_running_pct",busy_pct,unit="%",threshold=self.t.always_on_busy_pct_max,comparator="<= kept up by tiny queries",table="system.query.history",field="start_time/end_time",window=window,interpretation="Share of running time with a query running; a round-the-clock warehouse with a small share is kept up by frequent tiny queries (BI polling, keep-alive, dashboard refresh)."),
             self._f(e,"auto_stop_minutes","restart_cost_cluster_minutes",round(restart_cost,3),unit="cluster-minutes per restart",table="policy",field="restart cost",window="policy",interpretation="Priced cost of one restart (start time x floor clusters); Pro/Classic starting minutes are assumed billed (not documented)."),
-            self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value); only effect: the larger cold-start budget."),
+            self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value): selects the aggressive cost profile unless --cost-profile overrides it."),
             self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
             self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share."),
             self._f(e,"auto_stop_minutes","billed_days_of_settled_days_recent",None if billed_recent is None else [billed_recent["billed_days"],billed_recent["settled_days"]],unit="billed days, settled days",table="system.billing.usage",field="usage_date/usage_quantity",window=f"last {self.t.pressure_window_days} settled days within current epoch",interpretation="Days the warehouse was billed (ran) among the settled days; billed every day with no query and no retained warehouse event is a review item."),
@@ -402,7 +403,7 @@ class Analyzer:
         ]
         out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
             "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
-            "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,"nonprod":nonprod,
+            "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,
             "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or [],
             "billed_recent":billed_recent})
 
@@ -434,7 +435,7 @@ class Analyzer:
         target_values = auto_stop_candidates(self.t, target_type)
         per_start_current = restart_cost
         per_start_target = (self.t.restart_cost_cluster_minutes_serverless if target_type == "SERVERLESS" else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
-        target_budget = None if target_type == "SERVERLESS" else (self.t.cold_start_added_share_max_pct_nonprod if nonprod else self.t.cold_start_added_share_max_pct)
+        target_budget = None if target_type == "SERVERLESS" else self.t.cold_start_added_share_max_pct
         observed_running = optional_float(gaps.get("observed_running_cluster_minutes"))
         current_restarts = optional_float(gaps.get("restarts_for_queries"))
         target_option: Optional[Dict[str, Any]] = None

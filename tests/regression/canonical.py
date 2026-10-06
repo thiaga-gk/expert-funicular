@@ -89,7 +89,8 @@ def golden_recommendation(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:
     if (case.get("expect") or {}).get("recompute_forecast"):
         for e in evidence:
             recompute_forecast(p, e)
-    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, Thresholds())]
+    flags = tuple(case.get("cost_profiles") or ())
+    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags)]
 
 
 def golden_collector_evidence(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:

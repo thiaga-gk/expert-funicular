@@ -1,6 +1,6 @@
 # Databricks SQL Warehouse Optimizer
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v2.0.0** as the machine source of truth and **Workbook Reporter Contract v1.4.0** as the professional human projection.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v3.0.0** as the machine source of truth and **Workbook Reporter Contract v1.5.0** as the professional human projection.
 
 ## Install
 
@@ -26,8 +26,8 @@ flowchart LR
     R1 --> P[Packager<br/>scenarios, bundle estimator, contract assembly]
     P --> R2[Reviewer<br/>package gate]
     R2 --> RP[Reporter]
-    RP --> J[packages/*.json<br/>RecommendationPackage v2.0.0]
-    RP --> W[workbook.xlsx<br/>Workbook Contract v1.4.0]
+    RP --> J[packages/*.json<br/>RecommendationPackage v3.0.0]
+    RP --> W[workbook.xlsx<br/>Workbook Contract v1.5.0]
 ```
 
 `publish()` in `src/publisher/publisher.py` calls each capability once, in this order, and holds no domain logic; each capability lives in its own package under `src/publisher/` (`analyzer`, `governor`, `optimizer`, `reviewer`, `packager`, `reporter`, plus `contracts`, `config` and `common`). Architecture: [`docs/architecture/hld.md`](docs/architecture/hld.md).
@@ -38,7 +38,7 @@ The workbook never recalculates recommendations, confidence, IDs, or scenario ec
 
 Active warehouse types: `CLASSIC`, `PRO`, standard `SERVERLESS`. Any future/unknown warehouse type fails closed before optimization. Lakehouse Real-Time is not modeled by this release.
 
-Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
+Active candidate domains (one candidate per domain/warehouse): warehouse size, max clusters, min clusters, auto-stop, and warehouse-type migration. Each warehouse is evaluated under a cost profile: **aggressive** for nonprod-tagged warehouses, **balanced** otherwise, or whatever `--cost-profile` sets (`--cost-profile conservative` for every warehouse, `--cost-profile aggressive=<warehouse-id>[,...]` for some). The profile moves only how much performance risk a cut may take; values in `docs/reference/thresholds.md` (Cost profiles). Photon (observed from billing) and the warehouse channel (from the configuration) are reported but never recommended. Query rewrite, storage, schedule, Spot-policy, and statement-timeout optimization are outside this release.
 
 ## Output directory
 

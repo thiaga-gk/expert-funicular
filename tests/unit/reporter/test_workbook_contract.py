@@ -102,7 +102,7 @@ class WorkbookContractTests(unittest.TestCase):
                     self.assertEqual(spec.number_format,"@",spec.key)
 
     def test_workbook_contract_column_counts_and_long_identifier_rendering(self):
-        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(61,45,56))
+        self.assertEqual((len(wc.PORTFOLIO_COLUMNS),len(wc.SCENARIO_COLUMNS),len(wc.REGISTRY_COLUMNS)),(63,45,57))
         # Long digit-only identifiers are written as explicit text cells, so no apostrophe workaround is needed.
         self.assertEqual(wr._excel_text("1234567890123456"), "1234567890123456")
         self.assertEqual(wr._excel_text("wh-synth-001"), "wh-synth-001")
@@ -165,7 +165,7 @@ class WorkbookContractTests(unittest.TestCase):
             self.assertEqual(Path(files["workbook"]).name,"workbook.xlsx")
             self.assertTrue(Path(files["workbook"]).exists())
             manifest=json.loads(Path(files["manifest"]).read_text())
-            self.assertEqual(manifest["workbook_contract_version"],"1.4.0")
+            self.assertEqual(manifest["workbook_contract_version"],"1.5.0")
             self.assertEqual(manifest["workbook_status"],"GENERATED")
 
 

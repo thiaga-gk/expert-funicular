@@ -18,7 +18,9 @@ from publisher.analyzer.collector.workspace_api import collect_workspace_compati
 from publisher.analyzer.findings import Analyzer
 from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
+from publisher.config.cost_profiles import CostProfileSelection, parse_cost_profile_flags
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES
+from publisher.governor.cost_profiles import assign_cost_profiles, log_assignments, thresholds_for_profile
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import FleetAnalysis, WarehouseAnalysis
 from publisher.contracts.request import MODE_DEMO, MODE_REPLAY, PublisherRequest, RunContext
@@ -30,22 +32,28 @@ def _is_supported_warehouse(e: WarehouseEvidence) -> bool:
     return e.current_epoch.config.warehouse_type in SUPPORTED_WAREHOUSE_TYPES
 
 
-def analyze(evidence: Sequence[WarehouseEvidence], thresholds: Thresholds) -> List[WarehouseAnalysis]:
-    """Findings for every supported warehouse, in deterministic order.
+def analyze(evidence: Sequence[WarehouseEvidence], thresholds: Thresholds,
+            selection: CostProfileSelection = CostProfileSelection()) -> List[WarehouseAnalysis]:
+    """Findings for every supported warehouse, in deterministic order, each under its cost profile.
 
     Fails closed: an unsupported or future warehouse type is never analyzed (the Governor records its exclusion).
-    Workspace calibration runs over the supported warehouses only, before any per-knob analysis reads it.
+    The cost profiles are resolved once over every collected warehouse (the governor's policy; PublisherError for a
+    --cost-profile warehouse that was not collected). Workspace calibration runs over the supported warehouses only,
+    with the base thresholds, before any per-knob analysis reads it.
     """
     supported = [e for e in evidence if _is_supported_warehouse(e)]
     LOGGER.info("analyzer.analyze_start warehouses=%d supported=%d unsupported=%d", len(evidence), len(supported), len(evidence) - len(supported))
+    choices = assign_cost_profiles(evidence, selection, thresholds)
+    log_assignments({k: v for k, v in choices.items() if k in {(e.workspace_id, e.warehouse_id) for e in supported}})
     _prepare_workspace_calibration(supported, thresholds)
     ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
     results: List[WarehouseAnalysis] = []
     for e in ordered:
-        analyses = Analyzer(thresholds).analyze(e)
-        LOGGER.debug("analyzer.warehouse_analyzed workspace_id=%s warehouse_id=%s epochs=%d knobs=%d",
-                     e.workspace_id, e.warehouse_id, len(e.epochs), len(analyses))
-        results.append(WarehouseAnalysis(e, analyses))
+        choice = choices[(e.workspace_id, e.warehouse_id)]
+        analyses = Analyzer(thresholds_for_profile(thresholds, choice.name)).analyze(e)
+        LOGGER.debug("analyzer.warehouse_analyzed workspace_id=%s warehouse_id=%s epochs=%d knobs=%d cost_profile=%s",
+                     e.workspace_id, e.warehouse_id, len(e.epochs), len(analyses), choice.name)
+        results.append(WarehouseAnalysis(e, analyses, choice))
     LOGGER.info("analyzer.analyze_done analyzed=%d", len(results))
     return results
 
@@ -86,5 +94,6 @@ def run(context: RunContext) -> FleetAnalysis:
     supported warehouses only.
     """
     evidence, unseen, registry = collect(context.request, context.thresholds)
-    return FleetAnalysis(evidence=list(evidence), warehouses=analyze(evidence, context.thresholds),
+    selection = parse_cost_profile_flags(context.request.cost_profiles)
+    return FleetAnalysis(evidence=list(evidence), warehouses=analyze(evidence, context.thresholds, selection),
                          unseen_billed_warehouses=unseen, aws_price_registry=registry)

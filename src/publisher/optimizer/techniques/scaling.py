@@ -99,7 +99,7 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
             epoch_peak_label = f"{f['peak_concurrency_epoch']} concurrent queries"
         else:
             def ceiling_for(level: int) -> int:
-                return self._ceiling_for(level, cfg.min_clusters)
+                return self._ceiling_for(level, cfg.min_clusters, self.t.max_cluster_cut_headroom_pct)
             # Seasonality: the ceiling covers the highest level of the whole current epoch, not only the recent
             # window, so a quarter- or half-year-end peak outside the last pressure_window_days is not cut away.
             recent_max = ceiling_for(peak)
