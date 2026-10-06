@@ -10,6 +10,7 @@ line-length = 120
 
 [project.scripts]
 publisher = "publisher.cli.main:main"
+realizer = "realizer.cli.main:main"
 
 [project.optional-dependencies]
 test = ["pyyaml>=6"]
