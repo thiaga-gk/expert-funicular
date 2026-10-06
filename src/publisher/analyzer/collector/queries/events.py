@@ -10,6 +10,7 @@ from publisher.analyzer import metrics
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE
 from publisher.analyzer.metrics import auto_stop_targets
 from publisher.common.errors import PublisherError
+from publisher.config.defaults import QUERIES_PER_CLUSTER_PRO_CLASSIC
 from publisher.governor.thresholds import Thresholds
 
 
@@ -365,7 +366,9 @@ RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic bil
 
 # Daily resource time for the current epoch over the last 120 UTC days (Python trims to the billing basis). Warehouse-event
 # segments are split at midnight so every minute lands on its own UTC day; the peak excludes cluster-recycling transients
-# (cluster_count above max_clusters), which are counted separately.
+# (cluster_count above max_clusters), which are counted separately. Time at the floor is also split by the clusters each
+# minute's demand needed (running + queued queries, time-weighted, per documented queries per cluster; no query = 0) for
+# demand below the floor: the spare floor capacity a lower floor removes.
 RESOURCE_DAILY_SQL = r"""
 WITH __CONFIG_EPOCHS__,
 cur AS (
@@ -390,7 +393,7 @@ cur AS (
   FROM cur c LATERAL VIEW explode(sequence(CAST(DATE(c.w_start) AS TIMESTAMP), TIMESTAMPADD(DAY, -1, c.w_end), INTERVAL 1 DAY)) t AS d
 ), piece AS (
   SELECT d.workspace_id, d.warehouse_id, s.epoch_start, s.min_clusters, s.max_clusters, s.cluster_count,
-    DATE(d.day_start) AS usage_day,
+    DATE(d.day_start) AS usage_day, GREATEST(s.seg_start, d.day_start) AS p0, LEAST(s.seg_end, d.day_end) AS p1,
     GREATEST(0, TIMESTAMPDIFF(SECOND, GREATEST(s.seg_start, d.day_start), LEAST(s.seg_end, d.day_end))) / 60.0 AS m
   FROM days d JOIN seg s ON s.workspace_id = d.workspace_id AND s.warehouse_id = d.warehouse_id
     AND s.seg_start < d.day_end AND s.seg_end > d.day_start AND s.seg_end > s.seg_start
@@ -409,9 +412,49 @@ cur AS (
     MAX(CASE WHEN cluster_count <= max_clusters THEN cluster_count END) AS max_cluster_count
   FROM piece
   GROUP BY workspace_id, warehouse_id, epoch_start, usage_day
+), qx AS (
+  SELECT c.workspace_id, c.warehouse_id, GREATEST(x.start_time, c.w_start) AS s,
+    LEAST(COALESCE(x.end_time, TIMESTAMPADD(MILLISECOND, x.total_duration_ms, x.start_time), x.start_time), c.w_end) AS t
+  FROM system.query.history x
+  JOIN cur c ON x.workspace_id = c.workspace_id AND x.compute.warehouse_id = c.warehouse_id
+    AND x.start_time >= c.epoch_start AND x.start_time < c.w_end
+  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CAST(DATE_SUB(CURRENT_DATE(), 121) AS TIMESTAMP)
+), qmin AS (
+  -- Demand per minute in clusters: ceil(time-weighted running + queued queries / queries per cluster).
+  SELECT workspace_id, warehouse_id, minute_start, CAST(CEIL(CEIL(SUM(ms) / 60000.0) / __QPC__) AS INT) AS need
+  FROM (SELECT q.workspace_id, q.warehouse_id, m AS minute_start,
+          TIMESTAMPDIFF(MILLISECOND, GREATEST(q.s, m), LEAST(q.t, TIMESTAMPADD(MINUTE, 1, m))) AS ms
+        FROM qx q LATERAL VIEW EXPLODE(SEQUENCE(DATE_TRUNC('MINUTE', q.s), DATE_TRUNC('MINUTE', TIMESTAMPADD(MILLISECOND, -1, q.t)), INTERVAL 1 MINUTE)) mm AS m
+        WHERE q.t > q.s) y
+  GROUP BY workspace_id, warehouse_id, minute_start
+  HAVING SUM(ms) > 0
+), floor_busy AS (
+  -- Busy time at the floor by the clusters the minute's demand needed.
+  SELECT p.workspace_id, p.warehouse_id, p.usage_day, p.min_clusters, d.need,
+    SUM(GREATEST(0, TIMESTAMPDIFF(SECOND, GREATEST(p.p0, d.minute_start), LEAST(p.p1, TIMESTAMPADD(MINUTE, 1, d.minute_start))))) / 60.0 AS m
+  FROM piece p
+  JOIN qmin d ON d.workspace_id = p.workspace_id AND d.warehouse_id = p.warehouse_id
+    AND d.minute_start < p.p1 AND TIMESTAMPADD(MINUTE, 1, d.minute_start) > p.p0
+  WHERE p.cluster_count > 0 AND p.cluster_count = p.min_clusters
+  GROUP BY p.workspace_id, p.warehouse_id, p.usage_day, p.min_clusters, d.need
+), floor_rows AS (
+  -- Idle time at the floor (no query running) is demand 0; busy time only for demand below the floor.
+  SELECT dl.workspace_id, dl.warehouse_id, dl.usage_day, 0 AS need, dl.minutes_at_min - COALESCE(fb.busy, 0) AS m
+  FROM daily dl LEFT JOIN (SELECT workspace_id, warehouse_id, usage_day, SUM(m) AS busy FROM floor_busy GROUP BY workspace_id, warehouse_id, usage_day) fb
+    ON fb.workspace_id = dl.workspace_id AND fb.warehouse_id = dl.warehouse_id AND fb.usage_day = dl.usage_day
+  UNION ALL
+  SELECT workspace_id, warehouse_id, usage_day, need, m FROM floor_busy WHERE need < min_clusters
+), floor_demand AS (
+  SELECT workspace_id, warehouse_id, usage_day,
+    TO_JSON(MAP_FROM_ENTRIES(COLLECT_LIST(STRUCT(CAST(need AS STRING) AS k, ROUND(m, 3) AS v)))) AS floor_minutes_by_demand_clusters
+  FROM floor_rows WHERE m > 0
+  GROUP BY workspace_id, warehouse_id, usage_day
 )
-SELECT dl.*, COALESCE(st.starts, 0) AS starts, DATE_SUB(CURRENT_DATE(), 120) AS collected_from
+SELECT dl.*, COALESCE(st.starts, 0) AS starts, COALESCE(fd.floor_minutes_by_demand_clusters, '{}') AS floor_minutes_by_demand_clusters,
+  DATE_SUB(CURRENT_DATE(), 120) AS collected_from
 FROM daily dl LEFT JOIN starts st
   ON st.workspace_id = dl.workspace_id AND st.warehouse_id = dl.warehouse_id AND st.usage_day = dl.usage_day
+LEFT JOIN floor_demand fd
+  ON fd.workspace_id = dl.workspace_id AND fd.warehouse_id = dl.warehouse_id AND fd.usage_day = dl.usage_day
 ORDER BY dl.workspace_id, dl.warehouse_id, dl.usage_day
-""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
+""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE).replace("__QPC__", str(QUERIES_PER_CLUSTER_PRO_CLASSIC))

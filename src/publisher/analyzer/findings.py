@@ -14,6 +14,7 @@ from publisher.analyzer.epochs import (
     epoch_age_days,
 )
 from publisher.analyzer.metrics import (
+    floor_spare_shares,
     auto_stop_candidates,
     conditional_severity,
     histogram_percentile,
@@ -288,8 +289,9 @@ class Analyzer:
         out["warehouse_size"] = AnalysisResult(e.warehouse_id,"warehouse_size",ep.epoch_id,fs,{**common,"batch_profile":batch_profile,"job_share":job_share,"top_spill_share":top_spill_share,"spill_sources":None if spill_sources is None else int(spill_sources),"decision_queries":decision_queries,"spill_pct":spill_pct,"spill_p95":spill_p95,"spill_n":spill_n,"queue_pct":queue_pct,"failure_pct":failure_pct,"p95_exec":p95,"p99_exec":p99,"busy_share":busy_share})
 
         # Concurrency demand: per-minute running + queued queries (time-weighted), as clusters at the documented
-        # queries per cluster. P99.5 of busy minutes over the recent window and the whole current epoch; P95 of busy
-        # periods' peak demand in their first scale-up-lag minutes (before the autoscaler can add clusters).
+        # queries per cluster. P99.5 of the recent window's busy minutes; over the whole current epoch the level reached
+        # in peak_demand_min_minutes busy minutes; P95 of busy periods' peak demand in their first scale-up-lag minutes
+        # (before the autoscaler can add clusters).
         hist = q.get("concurrency_histogram") if isinstance(q.get("concurrency_histogram"), Mapping) else None
         qpc = QUERIES_PER_CLUSTER_PRO_CLASSIC
         def clusters_for(level: Optional[int]) -> Optional[int]:
@@ -316,7 +318,7 @@ class Analyzer:
         def concurrency_findings(knob: str) -> List[Finding]:
             return [
                 self._f(e,knob,"peak_concurrency_recent",conc_recent,unit="queries",threshold=self.t.max_cluster_target_percentile,comparator="percentile of busy minutes",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation=f"P{self.t.max_cluster_target_percentile:g} of running + queued queries per busy minute; one cluster per {qpc} concurrent queries on Pro/Classic."),
-                self._f(e,knob,"peak_concurrency_epoch",conc_epoch,unit="queries",threshold=self.t.max_cluster_target_percentile,comparator="percentile of busy minutes",table="system.query.history",field="start_time/end_time",window="current epoch (last 365 days)",interpretation="The same peak over the whole current epoch, so a seasonal peak outside the recent window keeps the ceiling."),
+                self._f(e,knob,"peak_concurrency_epoch",conc_epoch,unit="queries",threshold=self.t.peak_demand_min_minutes,comparator="busy minutes at or above this level",table="system.query.history",field="start_time/end_time",window="current epoch (last 365 days)",interpretation="The level the whole current epoch reached in at least that many busy minutes (a sustained peak), so a seasonal peak outside the recent window keeps the ceiling."),
                 self._f(e,knob,"busy_start_concurrency",conc_busy_start,unit="queries",threshold=self.t.min_cluster_busy_start_percentile,comparator="percentile of busy periods",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Peak running + queued queries in the first scale-up-lag minutes of busy periods: demand the floor must carry before the autoscaler adds clusters."),
                 self._f(e,knob,"busy_minutes_recent",None if busy_minutes_recent is None else int(busy_minutes_recent),unit="minutes",threshold=self.t.concurrency_min_busy_minutes,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Minutes with at least one query running or queued: the sample the peak percentile is taken over."),
                 self._f(e,knob,"busy_periods_recent",None if busy_periods is None else int(busy_periods),unit="periods",threshold=self.t.min_cluster_min_busy_periods,comparator=">= evidence minimum",table="system.query.history",field="start_time/end_time",window="last 30 days within current epoch",interpretation="Busy periods starting after at least the scale-up lag of idle time: the sample the floor percentile is taken over."),
@@ -359,10 +361,16 @@ class Analyzer:
             self._f(e,"min_clusters","p95_wait_capacity_ms_when_queued_30",round_or_none(wait),unit="ms",threshold=self.t.queue_wait_p95_ms_safe,comparator="<= safe",table="system.query.history",field="waiting_at_capacity_duration_ms",window="last 30 days within current epoch",interpretation="Queue latency guardrail among queued queries."),
             self._f(e,"min_clusters","time_at_max_pct",round_or_none(at_max,4),unit="%",threshold=self.t.time_at_max_pct_block_min_reduce,comparator=">= blocker",table="system.compute.warehouse_events",field="cluster_count",window=recent_label,interpretation="Sustained scale pressure blocks minimum reduction."),
         ]
+        # Spare floor capacity for each lower floor, on the DBU forecast's own days: the price of a floor cut.
+        spare, spare_info = floor_spare_shares(ep, e.forecast_metadata or {}, self.t, cfg.min_clusters) if cfg.min_clusters > 1 else (None, {})
+        spare_window = (f"DBU forecast basis: {spare_info['resource_window_start']} to {spare_info['resource_window_end']}" if spare is not None
+                        else "DBU forecast basis (floor demand not available: " + str(spare_info.get("reason") or "floor of 1") + ")")
+        fs.append(self._f(e,"min_clusters","spare_floor_cluster_share",spare,unit="ratio by lower floor",table="system.query.history + system.compute.warehouse_events",field="start_time/end_time, cluster_count",window=spare_window,
+            interpretation="Per lower floor: running cluster-minutes at the current floor that the demand of the minute did not need (floor minus the larger of the lower floor and demand clusters), as a share of running cluster-minutes. The most a lower floor removes."))
         fs.append(utilization_finding("min_clusters")); fs.append(growth_finding("min_clusters")); fs.extend(concurrency_findings("min_clusters")); fs.append(older_epoch_finding("min_clusters"))
         out["min_clusters"] = AnalysisResult(e.warehouse_id,"min_clusters",ep.epoch_id,fs,{**common,**concurrency,"queue_pct":queue_pct,"wait_capacity":wait,"at_min_pct":at_min,"at_max_pct":at_max,"resource_window_state":recent["state"],
-            # Whole-epoch totals on purpose: the min-cluster savings ratio and the bundle's resource track are both whole-epoch.
-            "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
+            "floor_spare_shares":spare,"floor_spare_basis":{k:v for k,v in spare_info.items() if k!="spare_cluster_minutes_per_day"} or None,
+            "floor_spare_cluster_minutes_per_day":spare_info.get("spare_cluster_minutes_per_day")})
 
         # Auto stop: every value on the type's grid, scored on running-idle evidence (idle gaps intersected with the
         # warehouse's observed RUNNING time) on the DBU forecast's own days, as per-day rates blended like the forecast.

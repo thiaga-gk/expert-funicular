@@ -28,7 +28,7 @@ from publisher.common.ids import epoch_id
 from publisher.common.logging import LOGGER
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SQL_DBU_PER_CLUSTER_HOUR, scale_up_lag_minutes
+from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, QUERIES_PER_CLUSTER_PRO_CLASSIC, SQL_DBU_PER_CLUSTER_HOUR, scale_up_lag_minutes
 from publisher.config.settings import REPO_ROOT
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import (
@@ -80,12 +80,34 @@ def synthesize_resource_daily(epoch: EpochEvidence, analysis_time: str) -> List[
     at_max = safe_float(ev.get("minutes_at_max"), uptime * safe_float(ev.get("time_at_max_pct")) / 100.0)
     per_day = {"uptime_minutes": uptime, "cluster_minutes": safe_float(ev.get("cluster_minutes")),
                "minutes_at_min": at_min, "minutes_at_max": at_max, "recycle_minutes": 0.0}
+    floor_demand = synthesize_floor_demand(epoch, at_min / days_observed)
     return [{
         "usage_day": (first + dt.timedelta(days=i)).isoformat(),
         **{k: round(v / days_observed, 6) for k, v in per_day.items()},
         "max_cluster_count": safe_int(ev.get("max_observed_clusters")),
         "starts": 0,
+        **({"floor_minutes_by_demand_clusters": floor_demand} if floor_demand is not None else {}),
     } for i in range((analysis_day - first).days)]
+
+
+def synthesize_floor_demand(epoch: EpochEvidence, minutes_at_min: float) -> Optional[Dict[str, float]]:
+    """Fixture floor-demand map for a day with ``minutes_at_min`` at the floor: idle time (running minus busy minutes, as a
+    share of running time) is demand 0, and the busy rest follows the recent concurrency histogram's demand clusters
+    (ceil(level / QUERIES_PER_CLUSTER_PRO_CLASSIC)); demand at or above the floor is dropped. None when the epoch has no
+    running time or no recent histogram. For demo and test fixtures only; real runs collect the map."""
+    floor = safe_int(epoch.config.min_clusters, 1)
+    uptime = safe_float(epoch.events.get("uptime_minutes"))
+    hist = (epoch.query.get("concurrency_histogram") or {}).get("RECENT") if isinstance(epoch.query.get("concurrency_histogram"), Mapping) else None
+    if uptime <= 0 or not isinstance(hist, Mapping) or not hist:
+        return None
+    busy_share = min(1.0, max(0.0, safe_float(epoch.gaps.get("busy_minutes")) / uptime))
+    total = sum(safe_float(w) for w in hist.values())
+    out: Dict[str, float] = {"0": minutes_at_min * (1.0 - busy_share)}
+    for level, weight in hist.items():
+        need = int(math.ceil(safe_int(level) / QUERIES_PER_CLUSTER_PRO_CLASSIC))
+        if need < floor and total > 0:
+            out[str(need)] = out.get(str(need), 0.0) + minutes_at_min * busy_share * safe_float(weight) / total
+    return {k: round(v, 6) for k, v in sorted(out.items(), key=lambda kv: int(kv[0])) if v > 0}
 
 
 def _demo_interp(x: float, points: Sequence[Tuple[float, float, int]]) -> Tuple[float, int]:
@@ -394,6 +416,16 @@ def _demo_config_at(spec: Mapping[str, Any], epochs: Sequence[Tuple[float, Optio
         if start <= t and (end is None or t < end):
             return cfg
     return epochs[0][2]
+
+
+def _demo_floor_demand(pieces: Sequence[Tuple[float, float, int, float, float]], floor: int) -> str:
+    """A day's time at the floor by the clusters its demand needed (below the floor), as the collector's JSON object."""
+    out: Dict[str, float] = {}
+    for a, b, cl, conc, _ in pieces:
+        need = int(math.ceil(conc / QUERIES_PER_CLUSTER_PRO_CLASSIC - 1e-9)) if conc > 0 else 0
+        if cl > 0 and cl == floor and need < floor and b > a:
+            out[str(need)] = out.get(str(need), 0.0) + (b - a)
+    return json.dumps({k: round(v, 3) for k, v in sorted(out.items(), key=lambda kv: int(kv[0]))})
 
 
 def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -711,6 +743,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                     "minutes_at_max": round(sum(b - a for a, b, cl, _, _ in dp if cl > 0 and cl == cfg["max_clusters"]), 3),
                     "recycle_minutes": 0.0, "max_cluster_count": max((cl for _, _, cl, _, _ in dp), default=0),
                     "starts": starts_by_day.get(int(lo_d // 1440.0), 0),
+                    "floor_minutes_by_demand_clusters": _demo_floor_demand(dp, cfg["min_clusters"]),
                     "collected_from": (analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)).isoformat(),
                 })
                 d += dt.timedelta(days=1)

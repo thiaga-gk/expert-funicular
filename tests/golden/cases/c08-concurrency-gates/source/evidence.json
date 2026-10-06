@@ -3622,7 +3622,10 @@
             "recycle_minutes": 0.0,
             "starts": 0,
             "uptime_minutes": 20000.0,
-            "usage_day": "2026-09-30"
+            "usage_day": "2026-09-30",
+            "floor_minutes_by_demand_clusters": {
+              "0": 16000.0
+            }
           }
         ],
         "tags": {

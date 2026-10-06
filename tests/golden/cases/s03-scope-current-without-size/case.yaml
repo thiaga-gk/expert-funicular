@@ -20,6 +20,6 @@ expect:
   - path: scenarios[status=RECOMMENDED].portfolio_economics.contingent_savings_365d
     equals: null
   - path: package_economics.estimated_savings_365d.base
-    equals: 25726.81
+    equals: 28299.48
   - path: run_scope.scenarios[scenario_type=IN_PLACE_OPTIMIZATION].knobs
     equals: [auto_stop_minutes, max_clusters, min_clusters]

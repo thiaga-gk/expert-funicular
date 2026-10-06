@@ -78,8 +78,9 @@ annualized change, bias and spread. It calibrates the assumed values:
 | Assumed value | Today | What the backtest measures |
 |---|---|---|
 | Auto-stop realization (optimistic/base/conservative) | 1.0 / 0.75 / 0.5 of the replayed idle removed (added restarts count in full) | Billed change after past auto-stop changes vs the replay's prediction (example: C01 replay 124.1k removable, base reports 93.1k). In a simulation without kept-alive sessions or billing noise the base understates a steady workload's forward saving by about 25%, enough to hold a real saving under the materiality floor; calibrate the base from this measurement rather than from synthetic data |
-| Size slowdown on busy time | x1.10 / x1.30 / x1.55 (worst case widened to x2.0 in batch 8) | Busy time and billed cost after past size changes (example: C06 LARGE to MEDIUM saves 36.6k at x1.0, 31.7k at x1.3, 20.4k at x2.0) |
-| Floor realization | 1.0 / 0.5 / 0 of the cluster-minutes at the minimum | Billed change after past min-cluster changes |
+| Size slowdown on busy time | x1.10 / x1.30 / x2.0 | Busy time and billed cost after past size changes (example: C06 LARGE to MEDIUM saves 36.6k at x1.0, 31.7k at x1.3, 20.4k at x2.0) |
+| Floor realization | the auto-stop realization tracks (1.0 / 0.75 / 0.5) of the spare floor capacity measured on the forecast's days | Billed change after past min-cluster changes vs the spare capacity measured before them; one calibration covers auto-stop and the floor |
+| Max-cluster increase added cost | base: clusters per busy minute's demand above the old ceiling; worst case: added clusters whenever at the ceiling | Billed change after past ceiling increases vs both bounds (simulation suggests the base understates bursty workloads by roughly 20 to 60%) |
 
 ## Cost profile calibration
 

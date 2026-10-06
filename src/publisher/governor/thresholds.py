@@ -139,13 +139,6 @@ class Thresholds:
     realization_conservative: float = 0.50
     realization_base: float = 0.75
     realization_optimistic: float = 1.00
-    min_cluster_savings_fraction_cap: float = 0.50
-    # Time at the min-cluster floor shows the autoscaler sat at the floor, not that a floor cluster was
-    # spare. The time-at-min figure is therefore an upper bound on removable capacity (optimistic = 100%),
-    # the floor capacity may have been needed (conservative = 0%), and base is the midpoint (audit H4).
-    min_cluster_realization_optimistic: float = 1.00
-    min_cluster_realization_base: float = 0.50
-    min_cluster_realization_conservative: float = 0.00
     max_cluster_base_uplift_weight: float = 0.50
     downsize_runtime_multiplier_conservative: float = 2.0  # fully linear slowdown: one size down halves the workers
     downsize_runtime_multiplier_base: float = 1.30
