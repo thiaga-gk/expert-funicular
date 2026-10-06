@@ -204,15 +204,21 @@ MEASUREMENT_SECTION = set(VALIDATION_SLOTS) | set(MEASUREMENT_SLOTS)
 
 def compare_measurement_section(test: Any, run: StagedRun) -> Optional[Tuple[Any, ...]]:
     """Assert (on *test*) that the validation and measurement entries the oracle appended in *run* are those the modular
-    stages decided, with per-append duplicate suppression, and that the Estimator and the Reviewer ran only when
+    stages decided, with per-append duplicate suppression, and that the Estimator and the Reviewer did nothing unless
     validation was due. Returns ``(context, analysis, governance, reconciliation, estimate, review)``, or ``None``."""
     section = [line for line in run.appended if line["event_type"] in MEASUREMENT_SECTION]
-    if not run.calls["estimator"]:
-        test.assertEqual(run.calls["reviewer"], [])
-        test.assertEqual(section, [], f"{run.scenario} run {run.index}")
-        return None
+    # Every stage runs once per realize; the Estimator and the Reviewer return an empty result unless validation is due.
+    ((_, reconciliation),) = run.calls["reconciler"]
     ((args, estimate),) = run.calls["estimator"]
     ((_, review),) = run.calls["reviewer"]
+    if not reconciliation.validation_due or reconciliation.halt is not None:
+        test.assertEqual(estimate, rc.RealizationEstimate())
+        test.assertIs(review.estimate, estimate)
+        test.assertIsNone(review.validation)
+        test.assertIsNone(review.recognition_status)
+        test.assertIsNone(review.halt)
+        test.assertEqual(section, [], f"{run.scenario} run {run.index}")
+        return None
     context, analysis, governance, reconciliation = args
     test.assertTrue(reconciliation.validation_due)
     test.assertIsNone(estimate.halt)

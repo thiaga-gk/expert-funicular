@@ -1,44 +1,45 @@
 #!/usr/bin/env python3
-"""Deterministic Databricks SQL Warehouse Realizer v1.0.0: the engine.
+"""Deterministic Databricks SQL Warehouse Realizer v1.0.0: the facade (the CLI is ``realizer.cli``).
 
-Working copy of the frozen single-file oracle (``legacy/realizer_single_file/realizer.py``) with the same behavior.
-The realizer reorganization (docs/architecture/realizer-repo-reorg-design.md, section 22) moves its parts into the
-capability subpackages phase by phase; so far the contracts (``realizer.contracts``), settings and loading
-(``realizer.config``), the shared helpers (``realizer.common``), the Analyzer (``realizer.analyzer``), the Governor
-(``realizer.governor``), the Reconciler (``realizer.reconciler``), the Estimator (``realizer.estimator``), the Reviewer
-(``realizer.reviewer``) and the Packager (``realizer.packager``) are extracted, and this module imports them. ``realize``
-records the lineage, runs the capabilities in order and hands their results to the Packager, which records the events
-and projects the snapshot; the engine then writes the realization package and the snapshot file.
+    Analyzer -> Governor -> Reconciler -> Estimator -> Reviewer -> Packager -> Reporter
+
+``realize_request`` orchestrates the capabilities and nothing else: normalization, policy, matching and lifecycle,
+realized-savings estimation, review, the ledger and the snapshot, and the files written live in their packages
+(docs/architecture/realizer-repo-reorg-design.md). The lineage entry is recorded first (``packager.begin``): a malformed
+observation fails in the Analyzer after it. The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
+never lose a failure: each keeps it as a ``halt`` with the facts decided before it, and the Packager records those and
+raises it, so a failed run leaves the ledger the single-file Realizer left. The Estimator and the Reviewer return an empty
+result when no validation is due.
 
 The engine never mutates a RecommendationPackage (PKG-*): it appends immutable ledger facts (RLE-*) and projects a
 separate RealizationPackage (RPKG-*) / snapshot (RSNAP-*). The execution path is replay/offline friendly: a
 validated PKG plus a normalized post-change observation is enough to exercise the entire application -> validation
 -> economics -> attribution -> regeneration loop. Live Databricks collection can feed the same normalized
 observation contract.
+
+Behavior is that of the frozen single-file oracle (``legacy/realizer_single_file/realizer.py``). Every name the
+single-file engine had stays importable from here (``realizer.realizer.<name>``).
 """
 from __future__ import annotations
 
-import argparse
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional
 
 from realizer.analyzer import analyzer
-from realizer.analyzer.collector.collector import demo_observation, load_observation
-from realizer.common.logging import setup_logging
-from realizer.common.utils import write_json
-from realizer.config.loader import load_package, load_policy_mapping, validate_package_shape
+from realizer.config.loader import validate_package_shape
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
-from realizer.contracts.realization import RealizationEstimate, ReviewResult, make_rpkg_id
+from realizer.contracts.realization import ReviewResult, make_rpkg_id
 from realizer.contracts.reconciliation import ReconciliationResult
+from realizer.contracts.report import RealizationReport
 from realizer.contracts.request import RealizationRequest, RunContext
-from realizer.governor import governor
 from realizer.estimator import estimator
+from realizer.governor import governor
 from realizer.governor.policy import RealizerPolicy
 from realizer.packager import packager
 from realizer.reconciler import reconciler
+from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
 # The engine keeps every name it had; the extracted ones stay importable from here (``realizer.realizer.<name>``).
@@ -57,22 +58,27 @@ from realizer.reconciler.matching import _directional_relation, choose_applicati
 from realizer.estimator.economics import calculate_economics, expected_annual_for_exact_step, make_cf_id  # noqa: F401,E402
 from realizer.estimator.attribution import attribution_result, authoritative_cumulative_realization  # noqa: F401,E402
 # (and the names the engine imported for them before they moved)
+import argparse  # noqa: F401,E402
 import copy  # noqa: F401,E402
 import datetime as dt  # noqa: F401,E402  (the engine keeps its module attributes; tests use realizer.dt)
+import json  # noqa: F401,E402
 import os  # noqa: F401,E402
 from decimal import Decimal  # noqa: F401,E402
-from typing import Tuple  # noqa: F401,E402
+from typing import Dict, List, Sequence, Tuple  # noqa: F401,E402
 from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id  # noqa: F401,E402
-from realizer.common.logging import LOGGER  # noqa: F401,E402
-from realizer.common.utils import decimal, money, ratio_string, utc_iso  # noqa: F401,E402
+from realizer.analyzer.collector.collector import demo_observation, load_observation  # noqa: F401,E402
+from realizer.common.logging import LOGGER, setup_logging  # noqa: F401,E402
+from realizer.common.utils import decimal, money, ratio_string, utc_iso, write_json  # noqa: F401,E402
+from realizer.config.loader import load_package, load_policy_mapping  # noqa: F401,E402
 from realizer.config.settings import (  # noqa: F401,E402
     ANALYZER_GATEWAY_VERSION, ATTRIBUTION_VERSION, ESTIMATOR_GATEWAY_VERSION, EXCLUSIVITY_VERSION, MODELER_GATEWAY_VERSION,
     POLICY_VERSION, PRODUCT_VERSION, PROJECTOR_VERSION, REALIZER_VERSION,
 )
-from realizer.contracts.realization import make_measurement_id, make_val_id  # noqa: F401,E402
+from realizer.contracts.realization import RealizationEstimate, make_measurement_id, make_val_id  # noqa: F401,E402
 from realizer.contracts.reconciliation import RegenerationRequest  # noqa: F401,E402
 from realizer.governor.policy import authority_eligible, economic_quality_result, readiness  # noqa: F401,E402
 from realizer.reconciler.lifecycle import regeneration_request  # noqa: F401,E402
+from realizer.reporter.reporter import legacy_compatibility  # noqa: F401,E402
 
 # ---------------------------------------------------------------------------
 # Realization orchestration
@@ -86,110 +92,53 @@ def build_context(request: RealizationRequest) -> RunContext:
     return RunContext(request=request, policy=policy, realization_package_id=make_rpkg_id(request.package["recommendation_package_id"]))
 
 
-def realize(
-    package: Mapping[str, Any], observation: Optional[Mapping[str, Any]], output_dir: Path,
-    *, policy: Optional[RealizerPolicy] = None, replay_through: Optional[str] = None,
-) -> rc.RealizationPackage:
-    context = build_context(RealizationRequest(
-        package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
-    ))
-    # The lineage entry is recorded first: a malformed observation fails inside the Analyzer after it, as it always did.
-    # The Governor, the Reconciler, the Estimator and the Reviewer never fail: each keeps its failure as a ``halt`` with
-    # the facts decided before it, and the Packager records those and raises it.
+def realize_request(request: RealizationRequest) -> RealizationReport:
+    """One realize run: every capability once, in order, returning what the Reporter wrote.
+
+    Side effects are the Packager's (the ledger, the evidence and regeneration files) and the Reporter's (the realization
+    package and the snapshot) under ``request.output_dir``. This function sequences the capabilities and holds no domain
+    logic.
+    """
+    context = build_context(request)
     packager.begin(context)
     analysis = analyzer.run(context)
     governance = governor.run(context, analysis)
     reconciliation = reconciler.run(context, analysis, governance)
-    reviewed = review(context, analysis, governance, reconciliation)
+    estimate = estimator.run(context, analysis, governance, reconciliation)
+    reviewed = reviewer.run(context, analysis, governance, reconciliation, estimate)
     packaged = packager.run(context, reviewed)
-    snapshot = packaged.realization
-    payload = snapshot.to_dict()
-    write_json(output_dir / "realization" / "packages" / f"{context.realization_package_id}.json", payload)
-    write_json(output_dir / "realization" / "snapshots" / f"{snapshot.snapshot_id}.json", payload)
-    return snapshot
+    return reporter.run(context, packaged)
+
+
+def realize(
+    package: Mapping[str, Any], observation: Optional[Mapping[str, Any]], output_dir: Path,
+    *, policy: Optional[RealizerPolicy] = None, replay_through: Optional[str] = None,
+) -> rc.RealizationPackage:
+    """The single-file Realizer's entry point: ``realize_request`` over the same inputs, returning the snapshot."""
+    return realize_request(RealizationRequest(
+        package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
+    )).realization
 
 
 def review(
     context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult, reconciliation: ReconciliationResult,
 ) -> ReviewResult:
-    """The Estimator's and the Reviewer's results when validation is due; an empty review otherwise (a reconciliation
-    that failed has none: the Packager raises its failure after the events decided before it)."""
-    if reconciliation.halt is None and reconciliation.validation_due:
-        estimate = estimator.run(context, analysis, governance, reconciliation)
-        return reviewer.run(context, analysis, governance, reconciliation, estimate)
-    return ReviewResult(analysis=analysis, governance=governance, reconciliation=reconciliation, estimate=RealizationEstimate())
+    """The Estimator's and the Reviewer's stages as one call (each returns an empty result when validation is not due).
+    ``realize_request`` calls the stages itself; this helper only keeps the engine's name for callers that use it."""
+    return reviewer.run(context, analysis, governance, reconciliation, estimator.run(context, analysis, governance, reconciliation))
 
 
-# ---------------------------------------------------------------------------
-# Compatibility projection (legacy Reporter v1.0.0 remains immutable)
-# ---------------------------------------------------------------------------
-
-
-def legacy_compatibility(snapshot: rc.RealizationPackage) -> Dict[str, Any]:
-    state = snapshot.current_state["realization_state"]
-    actor = snapshot.application.get("actor")
-    mapping = {
-        "NOT_APPLIED": "NOT_APPLIED",
-        "APPLIED": "APPLIED",
-        "VALIDATING": "VALIDATING",
-        "REALIZED": "REALIZED",
-        "UNDER_REALIZED": "REALIZED",
-        "VALIDATION_FAILED": "FAILED_VALIDATION",
-        "ROLLED_BACK": "ROLLED_BACK",
-        "MONITORING": "REALIZED",
-    }
-    if state not in mapping:
-        return {"status": rc.CompatibilityStatus.UNREPRESENTABLE.value, "legacy_realization_status": None, "reasons": [f"REALIZER_STATE_{state}_HAS_NO_LEGACY_MAPPING"]}
-    reasons: List[str] = []
-    quality = rc.CompatibilityStatus.LOSSLESS
-    if state in {"UNDER_REALIZED", "MONITORING"}:
-        quality = rc.CompatibilityStatus.LOSSY
-        reasons.append(f"{state}_COLLAPSES_TO_LEGACY_REALIZED")
-    if snapshot.application.get("state") == "APPLIED" and not snapshot.application.get("actor"):
-        quality = rc.CompatibilityStatus.LOSSY
-        reasons.append("LEGACY_APPLIED_BY_REQUIRED_BUT_ACTOR_UNKNOWN")
-    if snapshot.application.get("implementation_conformance") == "MODIFIED":
-        quality = rc.CompatibilityStatus.LOSSY
-        reasons.append("LEGACY_HAS_NO_MODIFIED_CONFORMANCE")
-    return {"status": quality.value, "legacy_realization_status": mapping[state], "reasons": reasons}
-
-
-# ---------------------------------------------------------------------------
-# CLI (the demo observation is realizer.analyzer.collector.collector)
-# ---------------------------------------------------------------------------
-
-
-def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse Realizer v1.0.0")
-    p.add_argument("--package", required=True, help="Path to immutable RecommendationPackage JSON")
-    p.add_argument("--observation", help="Path to normalized post-change observation JSON")
-    p.add_argument("--output-dir", default="./warehouse_optimizer_out")
-    p.add_argument("--policy", help="Optional Realizer policy override JSON")
-    p.add_argument("--demo", action="store_true", help="Use deterministic synthetic post-change observation")
-    p.add_argument("--demo-modified", action="store_true", help="Demo a modified size target when possible")
-    p.add_argument("--replay-through", help="Project only ledger entries recorded through this UTC time")
-    p.add_argument("--print-json", action="store_true")
-    p.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
-    return p.parse_args(argv)
-
-
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = parse_args(argv)
-    setup_logging(args.log_level)
-    package = load_package(args.package)
-    observation: Optional[Mapping[str, Any]] = None
-    if args.demo or args.demo_modified:
-        observation = demo_observation(package, modified=args.demo_modified)
-    elif args.observation:
-        observation = load_observation(args.observation)
-    policy = RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
-    snapshot = realize(package, observation, Path(args.output_dir), policy=policy, replay_through=args.replay_through)
-    if args.print_json:
-        print(json.dumps(snapshot.to_dict(), indent=2, sort_keys=True))
-    else:
-        print(Path(args.output_dir) / "realization" / "packages" / f"{snapshot.realization_package_id}.json")
-    return 0
+def __getattr__(name: str) -> Any:
+    """``parse_args`` and ``main`` stay importable from here; they live in ``realizer.cli`` (which imports this module)."""
+    if name == "parse_args":
+        from realizer.cli.realize import parse_args
+        return parse_args
+    if name == "main":
+        from realizer.cli.main import main
+        return main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from realizer.cli.main import main as _main
+    raise SystemExit(_main())
