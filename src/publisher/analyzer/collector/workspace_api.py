@@ -7,7 +7,9 @@ data-access config values are never logged or reported; logs carry the REST path
 The OAuth, REST GET and profile helpers are the shared read-only access layer (``workflow_shared.databricks.access``)
 bound to the publisher's identity, ``PUBLISHER_ACCESS``: the ``publisher`` logger, the
 ``sql-warehouse-optimizer/<version>`` user agent and ``PublisherError``. They stay module globals here, so the
-functions below (and patches of this module) resolve them by name.
+functions below resolve them by name and a patch of one of them applies to those functions. The shared functions call
+each other directly: a patch of ``_api_get`` does not reach ``_current_workspace_id``, and a patch of
+``_load_profile_values`` does not reach ``_resolve_cli_token``.
 """
 from __future__ import annotations
 
