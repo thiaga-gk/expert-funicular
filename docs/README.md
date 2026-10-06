@@ -2,31 +2,33 @@
 
 Contract versions are declared in code (`src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`) and in each contract document's header. File names carry no version.
 
-| Folder | Document | Read it when |
-|---|---|---|
-| `architecture/` | [`context.md`](architecture/context.md) | You are new: domain language, invariants and concepts. Read first. |
-| | [`hld.md`](architecture/hld.md) | You need the component architecture and its traceability to requirements. |
-| | [`lld.md`](architecture/lld.md) | You are changing code: module responsibilities, CLI, internal contracts. |
-| | [`repo-reorg-design.md`](architecture/repo-reorg-design.md) | You are working on the package reorganization: target layout and approved decisions. |
-| | [`realizer/repo-reorg-design.md`](architecture/realizer/repo-reorg-design.md) | You are working on the Realizer package layout: the target layout, phases, implementation rules and the outcome of the reorganization. |
-| | [`realizer/context.md`](architecture/realizer/context.md), [`hld.md`](architecture/realizer/hld.md), [`lld.md`](architecture/realizer/lld.md) | You need the Realizer's domain language, component architecture and low-level design (the v1.0.0 specification). |
-| `product/` | [`prd.md`](product/prd.md) | You need what the product must do, scope and acceptance criteria. |
-| | [`realizer/prd.md`](product/realizer/prd.md) | You need what the Realizer must do: scope, requirements and its definition of done. |
-| `contracts/` | [`reporter-json-contract.md`](contracts/reporter-json-contract.md) | You consume or change the `RecommendationPackage` JSON. |
-| | [`workbook-contract.md`](contracts/workbook-contract.md) | You consume or change the workbook projection. |
-| | [`evidence-format.md`](contracts/evidence-format.md) | You write, replay (`--from-evidence`) or change `evidence.json`. |
-| | [`realizer/ledger-contract.md`](contracts/realizer/ledger-contract.md), [`policy-contract.md`](contracts/realizer/policy-contract.md), [`source-evidence-contract.md`](contracts/realizer/source-evidence-contract.md), [`workbook-compatibility-contract.md`](contracts/realizer/workbook-compatibility-contract.md) | You consume or change the Realizer's JSON, ledger, policy, observation or workbook-compatibility contract (`schema/realization-package.schema.json`, `schema/realization-ledger-entry.schema.json`). |
-| `reference/` | [`source-mapping.md`](reference/source-mapping.md) | You need which system table or API feeds which field. |
-| | [`thresholds.md`](reference/thresholds.md) | You are tuning or explaining policy thresholds. |
-| | [`product-constants.md`](reference/product-constants.md) | You need a documented Databricks limit or behavior the rules rely on (scale-up lag, auto-stop range, cluster limits). |
-| | [`blocker-codes.md`](reference/blocker-codes.md) | You need what a blocker code means and which threshold gates it. |
-| | [`technique-catalog.md`](reference/technique-catalog.md) | You need stable technique IDs and the algorithm per knob. |
-| | [`aws-cost-model.md`](reference/aws-cost-model.md) | You are working on AWS (non-DBU) economics. |
-| | [`known-limitations.md`](reference/known-limitations.md) | You need the open limitations of the current release. |
-| (root) | [`skills.md`](skills.md) | You are building a publisher for another Databricks service. |
-| `proposals/` | [`remediation-runbook.md`](proposals/remediation-runbook.md), [`golden-scenarios.md`](proposals/golden-scenarios.md), [`real-data-run.md`](proposals/real-data-run.md), [`gap-review-2.8.0.md`](proposals/gap-review-2.8.0.md), [`tracker.md`](proposals/tracker.md), [`repo-reorg-parity.md`](proposals/repo-reorg-parity.md) | You are resolving open findings: the process, the scenario table and the design record. |
-| | [`realizer/repo-reorg-parity.md`](proposals/realizer/repo-reorg-parity.md), [`golden-scenarios.md`](proposals/realizer/golden-scenarios.md), [`implementation-release-plan.md`](proposals/realizer/implementation-release-plan.md), [`release-evidence.md`](proposals/realizer/release-evidence.md), [`readiness-review.md`](proposals/realizer/readiness-review.md) | You need the Realizer's reorganization record, golden scenarios, and the frozen v1.0.0 release plan, evidence and readiness review. |
-| `archive/` | Historical designs and audits | You need the rationale behind a shipped design. Not maintained. |
+Documents are grouped by type, then by product: `docs/<type>/<product>/`. The types are `product`, `architecture`, `contracts`, `reference`, `proposals` and `archive`. The products are `publisher`, `realizer` and `shared`; a `shared/` folder exists only where a document serves both products.
+
+| Type | Product | Document | Read it when |
+|---|---|---|---|
+| `product/` | publisher | [`prd.md`](product/publisher/prd.md) | You need what the product must do, scope and acceptance criteria. |
+| | realizer | [`prd.md`](product/realizer/prd.md) | You need what the Realizer must do: scope, requirements and its definition of done. |
+| `architecture/` | publisher | [`context.md`](architecture/publisher/context.md) | You are new: domain language, invariants and concepts. Read first. |
+| | | [`hld.md`](architecture/publisher/hld.md) | You need the component architecture and its traceability to requirements. |
+| | | [`lld.md`](architecture/publisher/lld.md) | You are changing code: module responsibilities, CLI, internal contracts. |
+| | | [`repo-reorg-design.md`](architecture/publisher/repo-reorg-design.md) | You are working on the package reorganization: target layout and approved decisions. |
+| | realizer | [`repo-reorg-design.md`](architecture/realizer/repo-reorg-design.md) | You are working on the Realizer package layout: the target layout, phases, implementation rules and the outcome of the reorganization. |
+| | | [`context.md`](architecture/realizer/context.md), [`hld.md`](architecture/realizer/hld.md), [`lld.md`](architecture/realizer/lld.md) | You need the Realizer's domain language, component architecture and low-level design (the v1.0.0 specification). |
+| `contracts/` | shared | [`reporter-json-contract.md`](contracts/shared/reporter-json-contract.md) | You consume or change the `RecommendationPackage` JSON (the Publisher to Realizer hand-off). |
+| | publisher | [`workbook-contract.md`](contracts/publisher/workbook-contract.md) | You consume or change the workbook projection. |
+| | | [`evidence-format.md`](contracts/publisher/evidence-format.md) | You write, replay (`--from-evidence`) or change `evidence.json`. |
+| | realizer | [`ledger-contract.md`](contracts/realizer/ledger-contract.md), [`policy-contract.md`](contracts/realizer/policy-contract.md), [`source-evidence-contract.md`](contracts/realizer/source-evidence-contract.md), [`workbook-compatibility-contract.md`](contracts/realizer/workbook-compatibility-contract.md) | You consume or change the Realizer's JSON, ledger, policy, observation or workbook-compatibility contract (`schema/realization-package.schema.json`, `schema/realization-ledger-entry.schema.json`). |
+| `reference/` | publisher | [`source-mapping.md`](reference/publisher/source-mapping.md) | You need which system table or API feeds which field. |
+| | | [`thresholds.md`](reference/publisher/thresholds.md) | You are tuning or explaining policy thresholds. |
+| | | [`product-constants.md`](reference/publisher/product-constants.md) | You need a documented Databricks limit or behavior the rules rely on (scale-up lag, auto-stop range, cluster limits). |
+| | | [`blocker-codes.md`](reference/publisher/blocker-codes.md) | You need what a blocker code means and which threshold gates it. |
+| | | [`technique-catalog.md`](reference/publisher/technique-catalog.md) | You need stable technique IDs and the algorithm per knob. |
+| | | [`aws-cost-model.md`](reference/publisher/aws-cost-model.md) | You are working on AWS (non-DBU) economics. |
+| | | [`known-limitations.md`](reference/publisher/known-limitations.md) | You need the open limitations of the current release. |
+| | shared | [`skills.md`](reference/shared/skills.md) | You are building a publisher for another Databricks service. |
+| `proposals/` | publisher | [`remediation-runbook.md`](proposals/publisher/remediation-runbook.md), [`golden-scenarios.md`](proposals/publisher/golden-scenarios.md), [`real-data-run.md`](proposals/publisher/real-data-run.md), [`gap-review-2.8.0.md`](proposals/publisher/gap-review-2.8.0.md), [`tracker.md`](proposals/publisher/tracker.md), [`repo-reorg-parity.md`](proposals/publisher/repo-reorg-parity.md) | You are resolving open findings: the process, the scenario table and the design record. |
+| | realizer | [`repo-reorg-parity.md`](proposals/realizer/repo-reorg-parity.md), [`golden-scenarios.md`](proposals/realizer/golden-scenarios.md), [`implementation-release-plan.md`](proposals/realizer/implementation-release-plan.md), [`release-evidence.md`](proposals/realizer/release-evidence.md), [`readiness-review.md`](proposals/realizer/readiness-review.md) | You need the Realizer's reorganization record, golden scenarios, and the frozen v1.0.0 release plan, evidence and readiness review. |
+| `archive/` | publisher | `archive/publisher/` | Historical designs and audits. You need the rationale behind a shipped design. Not maintained. |
 
 ## Where each topic lives
 
@@ -34,21 +36,21 @@ Every topic is stated in one place. Other documents point to it instead of resta
 
 | Topic | Home |
 |---|---|
-| Product scope, requirements (FR-/NFR-), acceptance criteria, success metrics, personas, product decisions, out of scope | [`product/prd.md`](product/prd.md) |
-| Domain language, semantics, invariants, anti-patterns, worked example, glossary, persona-to-sheet mapping | [`architecture/context.md`](architecture/context.md) |
-| Component responsibilities, system context, runtime flows, topology, deployment, trade-offs, failure taxonomy | [`architecture/hld.md`](architecture/hld.md) |
-| Algorithm shape and formulas (with named parameters), SQL semantics, state machines, validation steps, failure table, CLI semantics, manifest contents, package evidence | [`architecture/lld.md`](architecture/lld.md) |
-| Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/reporter-json-contract.md`](contracts/reporter-json-contract.md) and `src/publisher/contracts/reporter_contract.py` |
-| Workbook sheets, grains, columns, presentation | [`contracts/workbook-contract.md`](contracts/workbook-contract.md) and `src/publisher/contracts/workbook_contract.py` |
-| Replay evidence | [`contracts/evidence-format.md`](contracts/evidence-format.md) |
-| Run scope: what `--scope`, `--scope-file` and `--warehouse` restrict and how each capability applies it | [`architecture/lld.md`](architecture/lld.md) section 5.4 (requirement FR-OPT-011 in [`product/prd.md`](product/prd.md); package field `run_scope` in the reporter contract; scope-file schema `schema/run-scope.schema.json`) |
-| Every numeric default | [`reference/thresholds.md`](reference/thresholds.md) and `Thresholds` in `src/publisher/governor/thresholds.py` |
-| Databricks product constants | [`reference/product-constants.md`](reference/product-constants.md) and `PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py` |
-| Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/blocker-codes.md`](reference/blocker-codes.md) |
-| Technique IDs | [`reference/technique-catalog.md`](reference/technique-catalog.md) |
-| Source-to-field mapping | [`reference/source-mapping.md`](reference/source-mapping.md) |
-| AWS cost formulas | [`reference/aws-cost-model.md`](reference/aws-cost-model.md) |
-| Known limitations | [`reference/known-limitations.md`](reference/known-limitations.md) |
+| Product scope, requirements (FR-/NFR-), acceptance criteria, success metrics, personas, product decisions, out of scope | [`product/publisher/prd.md`](product/publisher/prd.md) |
+| Domain language, semantics, invariants, anti-patterns, worked example, glossary, persona-to-sheet mapping | [`architecture/publisher/context.md`](architecture/publisher/context.md) |
+| Component responsibilities, system context, runtime flows, topology, deployment, trade-offs, failure taxonomy | [`architecture/publisher/hld.md`](architecture/publisher/hld.md) |
+| Algorithm shape and formulas (with named parameters), SQL semantics, state machines, validation steps, failure table, CLI semantics, manifest contents, package evidence | [`architecture/publisher/lld.md`](architecture/publisher/lld.md) |
+| Reporter hierarchy, IDs and hashes, enums, realization, package economics fields | [`contracts/shared/reporter-json-contract.md`](contracts/shared/reporter-json-contract.md) and `src/publisher/contracts/reporter_contract.py` |
+| Workbook sheets, grains, columns, presentation | [`contracts/publisher/workbook-contract.md`](contracts/publisher/workbook-contract.md) and `src/publisher/contracts/workbook_contract.py` |
+| Replay evidence | [`contracts/publisher/evidence-format.md`](contracts/publisher/evidence-format.md) |
+| Run scope: what `--scope`, `--scope-file` and `--warehouse` restrict and how each capability applies it | [`architecture/publisher/lld.md`](architecture/publisher/lld.md) section 5.4 (requirement FR-OPT-011 in [`product/publisher/prd.md`](product/publisher/prd.md); package field `run_scope` in the reporter contract; scope-file schema `schema/run-scope.schema.json`) |
+| Every numeric default | [`reference/publisher/thresholds.md`](reference/publisher/thresholds.md) and `Thresholds` in `src/publisher/governor/thresholds.py` |
+| Databricks product constants | [`reference/publisher/product-constants.md`](reference/publisher/product-constants.md) and `PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py` |
+| Every blocker and unavailability reason code: meaning, when it fires, gating parameter, resulting status | [`reference/publisher/blocker-codes.md`](reference/publisher/blocker-codes.md) |
+| Technique IDs | [`reference/publisher/technique-catalog.md`](reference/publisher/technique-catalog.md) |
+| Source-to-field mapping | [`reference/publisher/source-mapping.md`](reference/publisher/source-mapping.md) |
+| AWS cost formulas | [`reference/publisher/aws-cost-model.md`](reference/publisher/aws-cost-model.md) |
+| Known limitations | [`reference/publisher/known-limitations.md`](reference/publisher/known-limitations.md) |
 | Realizer: scope and requirements, domain language, architecture, ledger/policy/observation/workbook-compatibility contracts, golden scenarios, the reorganization and its parity record | [`product/realizer/prd.md`](product/realizer/prd.md), [`architecture/realizer/`](architecture/realizer/context.md), [`contracts/realizer/`](contracts/realizer/ledger-contract.md), [`proposals/realizer/`](proposals/realizer/golden-scenarios.md); code in `src/realizer/`, schemas `schema/realization-package.schema.json` and `schema/realization-ledger-entry.schema.json` |
 | Quickstart, install, output tree (run folders), run-scope examples | [`../README.md`](../README.md) |
 | Precedence and documentation rules | this file |
@@ -62,5 +64,5 @@ For behavior, the code and its tests are authoritative, then the locked contract
 - State a topic once, in its home, and point to it from everywhere else with one sentence.
 - Move a block into its home before replacing it with a pointer.
 - Never delete or renumber a numbered heading that other files cite; replace its body with a pointer.
-- Numbers come from `Thresholds` in `src/publisher/governor/thresholds.py` and live only in `reference/thresholds.md` (Databricks product constants: `reference/product-constants.md`); prose names the parameter.
+- Numbers come from `Thresholds` in `src/publisher/governor/thresholds.py` and live only in `reference/publisher/thresholds.md` (Databricks product constants: `reference/publisher/product-constants.md`); prose names the parameter.
 - Describe the current state in generic wording; keep finding and decision IDs out of these documents.

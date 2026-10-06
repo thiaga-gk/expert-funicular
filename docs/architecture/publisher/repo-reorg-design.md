@@ -1506,7 +1506,7 @@ These decisions bind the phases above where the generic plan meets the existing 
 
 - The code moves to the `src/publisher/` package exactly as in section 3. The root `publisher.py` is removed in Phase 1: the single file first moves unchanged to `src/publisher/publisher.py`, then shrinks phase by phase. A root module and a package both named `publisher` cannot coexist.
 - The CLI is the `publisher` console command (also `python -m publisher`) in `src/publisher/cli/`, an adapter in front of `publisher.publish` (see section 21.6), with `scripts/run_publisher.py` and `scripts/run_demo.py` as thin wrappers. Setup becomes `pip install -e .`; `pyproject.toml` declares the package and the `pyyaml` dependency already in `requirements.txt`.
-- `tools/` is merged into `scripts/` (section 3); every command in `CLAUDE.md`, `README.md`, `docs/` and `.claude/skills/` is updated in the phase that changes it, including the live-run commands in `docs/proposals/real-data-run.md`.
+- `tools/` is merged into `scripts/` (section 3); every command in `CLAUDE.md`, `README.md`, `docs/` and `.claude/skills/` is updated in the phase that changes it, including the live-run commands in `docs/proposals/publisher/real-data-run.md`.
 - The public Reporter JSON and Workbook contracts (today `contracts/reporter_contract.py`, `contracts/reporter_schema.py`, `contracts/workbook_contract.py`) merge into `src/publisher/contracts/` together with the internal typed boundaries. The committed JSON Schema in `schema/` and every serialized package stay byte-identical; only module paths change.
 
 ### 21.2 Domain constraints that override the generic structure
@@ -1535,7 +1535,7 @@ These decisions bind the phases above where the generic plan meets the existing 
 - The single-file oracle is the git tag `reorg-oracle-2.10.0` on the last single-file commit, plus stored normalized canonical outputs. `scripts/compare_single_file.py` re-runs the tag in a temporary worktree when a diff needs diagnosis. No in-tree copy of the old `publisher.py` is kept.
 - The test suite takes the section 3 layout in full: golden fixtures become `tests/golden/cases/<CASE>/` folders (`source/`, `pricing/`, `policy/`, `expected/recommendation.json`, `case.yaml` holding the assertion block), and tests live under `unit/`, `component/`, `integration/`, `golden/`, `regression/` and `fixtures/`. Each extraction phase relocates the existing tests that target its capability; Phase 10 relocates the rest.
 - Integration tests against a live SQL warehouse skip unless a Databricks profile is configured.
-- Phase 11 retires the single-file oracle once fixture-based parity is proven 1:1 (zero canonical-output diffs over the demo fleet and every golden case, and every single-file function accounted for in a new module). The real source-system run in `docs/proposals/real-data-run.md` then runs on the reorganized code; this replaces the section 14 Phase 11 and section 15 condition that real runs precede retirement.
+- Phase 11 retires the single-file oracle once fixture-based parity is proven 1:1 (zero canonical-output diffs over the demo fleet and every golden case, and every single-file function accounted for in a new module). The real source-system run in `docs/proposals/publisher/real-data-run.md` then runs on the reorganized code; this replaces the section 14 Phase 11 and section 15 condition that real runs precede retirement.
 
 ### 21.4 Execution
 
@@ -1545,7 +1545,7 @@ These decisions bind the phases above where the generic plan meets the existing 
 
 ### 21.5 Outcome
 
-All phases are complete and the single-file oracle is retired: 245 of its 246 top-level definitions live in the capability packages under the same name (`optimize_warehouse` is the composition of the Optimizer, the candidate gate, planning and the scenario gate), and the reorganized code reproduces the oracle's canonical outputs exactly. The parity record and its evidence are in [`docs/proposals/repo-reorg-parity.md`](../proposals/repo-reorg-parity.md). The real source-system run in `docs/proposals/real-data-run.md` runs on the reorganized code.
+All phases are complete and the single-file oracle is retired: 245 of its 246 top-level definitions live in the capability packages under the same name (`optimize_warehouse` is the composition of the Optimizer, the candidate gate, planning and the scenario gate), and the reorganized code reproduces the oracle's canonical outputs exactly. The parity record and its evidence are in [`docs/proposals/publisher/repo-reorg-parity.md`](../../proposals/publisher/repo-reorg-parity.md). The real source-system run in `docs/proposals/publisher/real-data-run.md` runs on the reorganized code.
 
 ### 21.6 CLI adapter (approved 2026-10-05)
 

@@ -14,7 +14,7 @@ cases/<name>/
 
 `tests/golden/__init__.py` loads a case (`case_names()`, `case_dir(name)`, `load_case(name)`), so a test reads a case without knowing the folder layout. `tests/golden/harness.py` holds the assertion and collector helpers.
 
-Every case is checked twice by `tests/golden/test_golden_publisher.py`: its `expected/` output must equal what the publisher produces now (the behavioral baseline), and a scenario case (`c<NN>-` / `a<NN>-`, the number is the catalog row) must also pass the assertions in its `case.yaml` `expect` block. The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length` / `between`, collector-level `snapshots` cases) is documented in the docstring of `tests/golden/test_golden_publisher.py`. The scenario catalog with status is `docs/proposals/golden-scenarios.md`.
+Every case is checked twice by `tests/golden/test_golden_publisher.py`: its `expected/` output must equal what the publisher produces now (the behavioral baseline), and a scenario case (`c<NN>-` / `a<NN>-`, the number is the catalog row) must also pass the assertions in its `case.yaml` `expect` block. The assertion DSL (path segments, `equals` / `includes` / `excludes` / `length` / `between`, collector-level `snapshots` cases) is documented in the docstring of `tests/golden/test_golden_publisher.py`. The scenario catalog with status is `docs/proposals/publisher/golden-scenarios.md`.
 
 The case list is the folder listing: each `case.yaml` `description` says what the case covers. Cases named `c<NN>-` or `a<NN>-` match a row of the scenario catalog; the unprefixed core cases are also used by `tests/golden/test_golden_expectations.py`.
 
@@ -30,7 +30,7 @@ Create `tests/golden/cases/<name>/` with `case.yaml` (name, description, `expect
 python scripts/update_goldens.py --case <name> --approved-change "<why>"
 ```
 
-A case may carry a top-level `cost_profiles` list of raw `--cost-profile` flags (for example `conservative=<workspace>/<warehouse>`); without it every warehouse gets its tag default. No test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/evidence-format.md`); `tests/unit/analyzer/test_evidence_format.py` fails otherwise. `expected/` is written only by `scripts/update_goldens.py`, which requires the approved-change reason; a decision-affecting change regenerates it in the same commit.
+A case may carry a top-level `cost_profiles` list of raw `--cost-profile` flags (for example `conservative=<workspace>/<warehouse>`); without it every warehouse gets its tag default. No test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/publisher/evidence-format.md`); `tests/unit/analyzer/test_evidence_format.py` fails otherwise. `expected/` is written only by `scripts/update_goldens.py`, which requires the approved-change reason; a decision-affecting change regenerates it in the same commit.
 
 ## Backfilling older cases
 

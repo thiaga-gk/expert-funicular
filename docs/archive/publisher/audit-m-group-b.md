@@ -1,6 +1,6 @@
 # Audit M-items, group B: design proposals (M1, M2, M3b, M4, M9)
 
-> **Archived.** Historical design drafts. M9 shipped (see `m9-contract-design.md`); M1, M2, M3b and M4 remain open and are summarized in `docs/reference/known-limitations.md`. The SQL below has never been executed.
+> **Archived.** Historical design drafts. M9 shipped (see `m9-contract-design.md`); M1, M2, M3b and M4 remain open and are summarized in `docs/reference/publisher/known-limitations.md`. The SQL below has never been executed.
 
 Status: **DRAFT DESIGN PROPOSAL. Documentation only.** No code, contract, schema, threshold or fixture has been changed. **All SQL in this file is UNEXECUTED**: it has never run against a Databricks workspace, and some function spellings are marked ASSUMED.
 

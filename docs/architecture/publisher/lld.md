@@ -1,6 +1,6 @@
 # Low-Level Design — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/architecture/lld.md`  
+**Document:** `docs/architecture/publisher/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Reporter JSON Contract:** v3.1.0  
 **Workbook Contract:** v1.6.0  
@@ -29,8 +29,8 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 3.1.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
-| Workbook Contract | 1.6.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
+| Reporter JSON Contract | 3.1.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/shared/reporter-json-contract.md` |
+| Workbook Contract | 1.6.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/publisher/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
 
@@ -46,7 +46,7 @@ Realization ingestion remains future scope; packages are initialized as `NOT_APP
 
 ## 3. Repository and module structure
 
-The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is the `publisher` console command or `python -m publisher` (adapter in `src/publisher/cli/`), entry `src/publisher/__main__.py`). It is organised by capability: `analyzer/` (collection in `collector/`, normalization, epochs, derived metrics, the forecast, blockers, calibration and findings), `governor/` (eligibility, the `Thresholds` policy, run constraints, migration compatibility), `optimizer/` (the per-knob `techniques/`, cross-technique `conflicts.py` and the candidate `estimator/`), `reviewer/` (the candidate gate, the scenario gate and the package gate), `packager/` (scenario planning, sequencing, the stateful bundle `estimator/`, package economics, the evidence registry, the contract adapter and the manifest), `reporter/` (writing packages, evidence and the workbook, and the CLI summary), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries between capabilities), `config/` (version identifiers, product defaults, repository-relative settings, request loading and CLI parsing) and `common/` (logging, internal join keys, canonical hashing, time and value helpers). `publisher.py` is the facade: `publish` calls each capability once, in order, and holds no domain logic. Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (the no-install CLI and demo launchers, validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit tests per capability, component, integration, golden and regression suites, and fixtures) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../README.md).
+The importable package is `src/publisher/` (install with `pip install -e .`; the CLI is the `publisher` console command or `python -m publisher` (adapter in `src/publisher/cli/`), entry `src/publisher/__main__.py`). It is organised by capability: `analyzer/` (collection in `collector/`, normalization, epochs, derived metrics, the forecast, blockers, calibration and findings), `governor/` (eligibility, the `Thresholds` policy, run constraints, migration compatibility), `optimizer/` (the per-knob `techniques/`, cross-technique `conflicts.py` and the candidate `estimator/`), `reviewer/` (the candidate gate, the scenario gate and the package gate), `packager/` (scenario planning, sequencing, the stateful bundle `estimator/`, package economics, the evidence registry, the contract adapter and the manifest), `reporter/` (writing packages, evidence and the workbook, and the CLI summary), `contracts/` (the public Reporter and Workbook contracts plus the internal typed boundaries between capabilities), `config/` (version identifiers, product defaults, repository-relative settings, request loading and CLI parsing) and `common/` (logging, internal join keys, canonical hashing, time and value helpers). `publisher.py` is the facade: `publish` calls each capability once, in order, and holds no domain logic. Outside the package: `schema/` (the committed JSON Schemas), `pricing/` (the versioned AWS price registry), `scripts/` (the no-install CLI and demo launchers, validators, golden regeneration and fixture helpers), `examples/` (contract example builder), `tests/` (unit tests per capability, component, integration, golden and regression suites, and fixtures) and `docs/`. The repository itself is the file inventory; the document map is [`docs/README.md`](../../README.md).
 
 ### 3.1 Module responsibilities
 
@@ -82,8 +82,8 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/__main__.py` | `python -m publisher`, same as the `publisher` console command | No |
 | `src/publisher/cli/main.py`, `publish.py` | the CLI adapter (`publisher` console command): `main` dispatches subcommands (`publish`; options without a subcommand go to `publish`) and maps `PublisherError` to exit status 2; `publish.py` parses the arguments (`parse_args`), validates the execution target, builds the `PublisherRequest`, sets up logging, calls `publisher.publish` and prints the summary (`print_summary`) | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`, `package.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) the orchestration result (`WarehouseOptimization`), the reviewer results (`CandidateReviewResult`, `PackageReviewResult`) and the Packager result (`PackagingResult`) | No |
-| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES` and the Databricks product constants (`PRODUCT_CONSTANTS`, [`docs/reference/product-constants.md`](../reference/product-constants.md)); repository root and committed schema paths | No |
-| `src/publisher/governor/thresholds.py` | `Thresholds`: every decision default; the Governor owns the policy parameters because they change what is recommended (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
+| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES` and the Databricks product constants (`PRODUCT_CONSTANTS`, [`docs/reference/publisher/product-constants.md`](../../reference/publisher/product-constants.md)); repository root and committed schema paths | No |
+| `src/publisher/governor/thresholds.py` | `Thresholds`: every decision default; the Governor owns the policy parameters because they change what is recommended (values in [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md)) | No |
 | `src/publisher/governor/cost_profiles.py` | cost profile policy: the aggressive and conservative values, `thresholds_for_profile`, `applied_thresholds`, the nonprod tag match and `assign_cost_profiles` (precedence: listed warehouse, all-warehouse flag, tag default) | No |
 | `src/publisher/config/cost_profiles.py` | `parse_cost_profile_flags`: validates the `--cost-profile` flags into a `CostProfileSelection` before anything is collected | No |
 | `src/publisher/config/loader.py` | `resolve_execution_mode`: the execution mode a request runs under (`EXECUTION_MODES` in `settings.py`; only `local` today) | No |
@@ -142,7 +142,7 @@ The publisher declares independent version identifiers for deterministic replay.
 | `REVIEWER_VERSION` | invariant policy |
 | `DECISION_VERSION` | dependency/order semantics |
 | `TECHNIQUE_CATALOG_VERSION` | stable technique mapping |
-| `EVIDENCE_FORMAT_VERSION` | replay evidence file format (`docs/contracts/evidence-format.md`) |
+| `EVIDENCE_FORMAT_VERSION` | replay evidence file format (`docs/contracts/publisher/evidence-format.md`) |
 
 Changing a decision-affecting implementation without changing the corresponding version is prohibited.
 
@@ -198,7 +198,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--log-level` | `DEBUG`, `INFO`, `WARNING` or `ERROR`; default `PUBLISHER_LOG_LEVEL`, else `INFO`. Sets the verbosity of the logger that writes to stderr and `publisher.log` (29); it never changes what is excluded from the log |
 | `--no-workbook` | suppress workbook while preserving canonical JSON |
 | `--print-json` | print exactly one package to stdout; a run that produces more or fewer than one package exits with an error |
-| `--cost-profile` | repeatable; `PROFILE` (`aggressive`, `balanced` or `conservative`) for every warehouse, or `PROFILE=WH[,WH...]` for the listed warehouses (a warehouse ID, or `workspace_id/warehouse_id` when the ID exists in several workspaces). Without it a nonprod-tagged warehouse is aggressive and every other one balanced. An unknown profile, a malformed or conflicting list, or a listed warehouse that was not collected exits with an error (14.2; values in [`docs/reference/thresholds.md`](../reference/thresholds.md), Cost profiles) |
+| `--cost-profile` | repeatable; `PROFILE` (`aggressive`, `balanced` or `conservative`) for every warehouse, or `PROFILE=WH[,WH...]` for the listed warehouses (a warehouse ID, or `workspace_id/warehouse_id` when the ID exists in several workspaces). Without it a nonprod-tagged warehouse is aggressive and every other one balanced. An unknown profile, a malformed or conflicting list, or a listed warehouse that was not collected exits with an error (14.2; values in [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md), Cost profiles) |
 
 ### 5.3 Execution target resolution
 
@@ -274,7 +274,7 @@ The Packager (`src/publisher/packager/packager.py`) plans the scenarios for the 
 | versioned AWS registry | region + instance family | Pro/Classic customer EC2 model |
 | read-only workspace SQL config API | current connected workspace only | compatibility evidence only |
 
-Configuration values from read-only APIs **must never override** `system.compute.warehouses`. Field-level source mapping: [`docs/reference/source-mapping.md`](../reference/source-mapping.md).
+Configuration values from read-only APIs **must never override** `system.compute.warehouses`. Field-level source mapping: [`docs/reference/publisher/source-mapping.md`](../../reference/publisher/source-mapping.md).
 
 ### 7.2 Collector projections
 
@@ -314,7 +314,7 @@ Aggregates query history into each warehouse epoch. Important 30-day/current-epo
 - external/client application counts for Power BI/Tableau/Looker/Databricks SQL Editor,
 - statement-text visibility (a statement counts as visible only when its text is non-null, not blank and not `<REDACTED>`) and the legacy Hive metastore reference count (null, not 0, when no statement text is visible; the compatibility check that reads it is then `UNKNOWN`),
 - epoch-level p95 execution, queue and spill percentages,
-- epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/source-mapping.md`),
+- epoch-level total task duration (`epoch_task_duration_ms`), the numerator of the task-time utilization evidence (`docs/reference/publisher/source-mapping.md`),
 - queries per complete UTC week (`queries_week_1` to `queries_week_8`; week 1 is the seven days before the analysis day), null for a week not wholly inside the current epoch, which feed the growth guard (15.3),
 - the decision population count (`decision_queries_30`) and p95 compilation and result-fetch time (evidence only).
 
@@ -336,7 +336,7 @@ Reconstructs event segments (the `LEAD` window orders by `event_time`, `event_ty
 - scale-up count,
 - scale-down count.
 
-`system.compute.warehouse_events` keeps 365 days, so running time is known only after a warehouse's first retained event. A warehouse running since before that event (for example an always-on warehouse that was never restarted) has no row until its next event; its event totals and capacity facts are unavailable rather than idle (`docs/reference/known-limitations.md`).
+`system.compute.warehouse_events` keeps 365 days, so running time is known only after a warehouse's first retained event. A warehouse running since before that event (for example an always-on warehouse that was never restarted) has no row until its next event; its event totals and capacity facts are unavailable rather than idle (`docs/reference/publisher/known-limitations.md`).
 
 #### `RESOURCE_DAILY_SQL`
 
@@ -377,7 +377,7 @@ The collector stores them as `gaps.running_idle_model` and `gaps.running_idle_wi
 
 #### Carried-evidence SQL
 
-`PERIODS_CTE` derives from the configuration history, per epoch, the start of its demand period (the last size, type or channel change) and of its capacity period (the last size, type, channel, min- or max-cluster change). Four collectors read the current epoch's evidence over those periods, only inside the last 30 days, only when the period started before the current epoch and only while the current epoch is younger than 30 days (otherwise its own 30 days are the whole window): `build_carried_query_metrics_sql()` (the epoch query-metrics collector over the period; labels `query_metrics_carried_demand` and `query_metrics_carried_capacity`), `build_carried_spill_source_sql()` (spill concentration over the demand period; label `spill_sources_carried`) and `build_carried_concurrency_sql()` (recent and busy-start concurrency histograms over the demand period; label `concurrency_carried`, minutes merged across the period's epochs, so a boundary minute is counted once). Which evidence carries across which change: 10.2. The rows are stored under the current epoch's `query.carried` ([`evidence-format.md`](../contracts/evidence-format.md)).
+`PERIODS_CTE` derives from the configuration history, per epoch, the start of its demand period (the last size, type or channel change) and of its capacity period (the last size, type, channel, min- or max-cluster change). Four collectors read the current epoch's evidence over those periods, only inside the last 30 days, only when the period started before the current epoch and only while the current epoch is younger than 30 days (otherwise its own 30 days are the whole window): `build_carried_query_metrics_sql()` (the epoch query-metrics collector over the period; labels `query_metrics_carried_demand` and `query_metrics_carried_capacity`), `build_carried_spill_source_sql()` (spill concentration over the demand period; label `spill_sources_carried`) and `build_carried_concurrency_sql()` (recent and busy-start concurrency histograms over the demand period; label `concurrency_carried`, minutes merged across the period's epochs, so a boundary minute is counted once). Which evidence carries across which change: 10.2. The rows are stored under the current epoch's `query.carried` ([`evidence-format.md`](../../contracts/publisher/evidence-format.md)).
 
 #### Canary guard SQL
 
@@ -385,7 +385,7 @@ The collector stores them as `gaps.running_idle_model` and `gaps.running_idle_wi
 
 #### `EPOCH_DAILY_COST_SQL`
 
-Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Each daily row also carries the retracted and restated DBU quantities (`retracted_dbu_quantity`, `restated_dbu_quantity`; `docs/reference/source-mapping.md`); every record type stays in the signed cost sums.
+Left-joins billing usage to the list price effective at each usage record's end time to produce daily SQL warehouse DBU list cost by warehouse/epoch/currency. Each usage record (`record_id`) takes one price row, the latest `price_start_time` when price rows overlap, so it is counted once. Usage with no matching price row (for example a promotional or not-yet-listed SKU) is kept and reported as `unpriced_dbu_quantity` instead of being dropped; its cost is unknown, not zero. Each daily row also carries the retracted and restated DBU quantities (`retracted_dbu_quantity`, `restated_dbu_quantity`; `docs/reference/publisher/source-mapping.md`); every record type stays in the signed cost sums.
 
 #### `BILLING_WATERMARK_SQL`
 
@@ -629,7 +629,7 @@ The forward DBU cost (`forecast_cost_365`) is published only when it is known. O
 - `UNPRICED_USAGE`: unpriced DBU inside the basis (11.4);
 - `NON_POSITIVE_RUN_RATE`: net billing corrections leave a run rate at or below zero.
 
-`cost_cv_84` is the population coefficient of variation for the last-`forecast_long_days` window when it holds at least `forecast_cv_min_days` observations. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Cost forecast and billing windows).
+`cost_cv_84` is the population coefficient of variation for the last-`forecast_long_days` window when it holds at least `forecast_cv_min_days` observations. Defaults: [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md) (Cost forecast and billing windows).
 
 ### 11.3 Forecast semantics
 
@@ -653,7 +653,7 @@ Unpriced DBU is unknown cost, never zero:
 - an epoch whose usage includes unpriced DBU has a null list cost;
 - forecast metadata records `unpriced_dbu_quantity_365`, `unpriced_dbu_quantity_in_basis` and `dbu_pricing_status` (`COMPLETE` | `UNPRICED_USAGE`); null costs survive evidence save/load.
 
-With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` or `INSUFFICIENT_BILLING_CYCLES` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
+With a null forward DBU baseline, the candidate estimator withholds every savings estimate and the warehouse-type migration candidate is `INSUFFICIENT_EVIDENCE`, both with the blocker chosen by `dbu_baseline_blocker`: `COST_HISTORY_INSUFFICIENT` when `cost_history_days` (the settled basis days of the current epoch) is below `min_economics_cost_history_days` (the re-evaluation window says when it clears), `BILLED_COST_DAYS_INSUFFICIENT` when that history is sufficient but the forecast status is `INSUFFICIENT_ACTIVE_COST_DAYS` or `INSUFFICIENT_BILLING_CYCLES` (not time-boxed), and `DBU_COST_UNAVAILABLE` otherwise (unpriced usage or a non-positive run rate) (`estimate_blocker` carries the same code; meanings and resulting statuses: [`docs/reference/publisher/blocker-codes.md`](../../reference/publisher/blocker-codes.md)), and scenario and package economics are withheld. The forward cost breakdown is `PARTIAL` for Pro/Classic (AWS cost is still modeled) and `UNAVAILABLE` when no component is known.
 
 ---
 
@@ -661,17 +661,17 @@ With a null forward DBU baseline, the candidate estimator withholds every saving
 
 ### 12.1 Serverless
 
-Standard Serverless SQL warehouses model no separate customer AWS EC2 cost; Databricks-managed infrastructure is embedded in the Serverless DBU price line. Formula and rationale: [`docs/reference/aws-cost-model.md`](../reference/aws-cost-model.md).
+Standard Serverless SQL warehouses model no separate customer AWS EC2 cost; Databricks-managed infrastructure is embedded in the Serverless DBU price line. Formula and rationale: [`docs/reference/publisher/aws-cost-model.md`](../../reference/publisher/aws-cost-model.md).
 
 ### 12.2 Pro/Classic
 
-For Pro/Classic, annual AWS cost is the annualized recent cluster-minutes (daily resource series on the DBU forecast's window, calendar and recent/long-window blend (`forecast_recent_days`, `forecast_long_days`), times the forecast trend adjustment and 365) divided by 60 and priced at the modeled cluster hourly price from the versioned regional registry. Formula, topology and registry rules: [`docs/reference/aws-cost-model.md`](../reference/aws-cost-model.md).
+For Pro/Classic, annual AWS cost is the annualized recent cluster-minutes (daily resource series on the DBU forecast's window, calendar and recent/long-window blend (`forecast_recent_days`, `forecast_long_days`), times the forecast trend adjustment and 365) divided by 60 and priced at the modeled cluster hourly price from the versioned regional registry. Formula, topology and registry rules: [`docs/reference/publisher/aws-cost-model.md`](../../reference/publisher/aws-cost-model.md).
 
 The resource window is the last `forecast_long_days` complete days ending at the billing basis end, clipped to the epoch start, with missing days zero-filled (days before the collected range are unknown, so the window shrinks), so DBU and AWS describe the same period.
 
 Under the cadence model (11.2) the cluster-minutes are annualized over the same whole billing cycles, from the first to the last run start inside event coverage, with no trend adjustment. When events cover fewer than `forecast_min_cycles` whole cycles the AWS baseline is unavailable (`CADENCE_CYCLES_NOT_COVERED_BY_EVENTS`).
 
-The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE`, and billed node types outside the modeled topology (the size's driver instance and the `i3.2xlarge` worker; billing does not distinguish driver from worker) give `AWS_NODE_TYPE_MISMATCH`. `aws_cost_model.node_type_check` records `VERIFIED` or `UNVERIFIED` (no billed node type) (meanings: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md)).
+The AWS baseline is `null`/unavailable, never zero, when its inputs are missing: a region with no entry in the registry gives `AWS_PRICE_REGION_NOT_IN_REGISTRY` (there is no default-region fallback), and a missing daily resource series gives `RECENT_RESOURCE_WINDOW_UNAVAILABLE`, and billed node types outside the modeled topology (the size's driver instance and the `i3.2xlarge` worker; billing does not distinguish driver from worker) give `AWS_NODE_TYPE_MISMATCH`. `aws_cost_model.node_type_check` records `VERIFIED` or `UNVERIFIED` (no billed node type) (meanings: [`docs/reference/publisher/blocker-codes.md`](../../reference/publisher/blocker-codes.md)).
 
 ---
 
@@ -688,7 +688,7 @@ Photon is inferred from signed current-epoch DBU billing evidence.
 
 ### 13.2 Thresholds
 
-Parameters (defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md), Photon observation):
+Parameters (defaults: [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md), Photon observation):
 
 - `photon_min_feature_coverage_pct`: minimum share of current-epoch DBU whose billing row carries a non-null Photon flag;
 - `photon_enabled_usage_pct`: share of known-flag DBU that must be Photon-enabled for `ENABLED`;
@@ -741,7 +741,7 @@ The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_
 
 ## 15. Optimizer decision algorithms
 
-`Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob. Each rule below states its conditions in words and names the `Thresholds` parameter that gates it; defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md). Meaning, gating parameter and resulting status of every blocker code: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md).
+`Optimizer.optimize()` must return exactly one `OptimizationDecision` per active knob. Each rule below states its conditions in words and names the `Thresholds` parameter that gates it; defaults: [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md). Meaning, gating parameter and resulting status of every blocker code: [`docs/reference/publisher/blocker-codes.md`](../../reference/publisher/blocker-codes.md).
 
 Rules shared by several knobs:
 
@@ -968,7 +968,7 @@ A max-cluster ceiling cut, a min-cluster change and an auto-stop change invalida
 
 ### 15.9 Canary rollback
 
-After a canary-type change, every run checks the new epoch's own evidence and recommends restoring the previous value when a fail-fast guard trips (requirement: [PRD FR-EPOCH-005](../product/prd.md)). The collector is the canary guard SQL (7.2); `canary_observation` is the rule.
+After a canary-type change, every run checks the new epoch's own evidence and recommends restoring the previous value when a fail-fast guard trips (requirement: [PRD FR-EPOCH-005](../../product/publisher/prd.md)). The collector is the canary guard SQL (7.2); `canary_observation` is the rule.
 
 - **Canary-type change.** The current epoch differs from the immediately preceding one, with the same warehouse type, by one size down or a lower minimum. A higher auto-stop is not a canary-type change: it changes running time and cold starts only, which no guard reads (its restart-billing assumption is a cost reading). Any other change, a missing previous epoch or missing guard rows: no guard is evaluated.
 - **Guards.** Each trips only when the current value is above its safe level and more than `canary_p95_regression_pct` above the previous epoch's (the p95 guard: the relative rise alone), with a minimum sample behind the current value:
@@ -991,7 +991,7 @@ After a canary-type change, every run checks the new epoch's own evidence and re
 
 Candidate confidence is deterministic evidence quality, **not probability that savings will materialize**.
 
-Components (parameters: [`docs/reference/thresholds.md`](../reference/thresholds.md), Confidence):
+Components (parameters: [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md), Confidence):
 
 ```text
 coverage       = clamp(cost_history_days / confidence_coverage_days, 0, 1)
@@ -1106,7 +1106,7 @@ The conservative downsize multiplier is a fully linear slowdown: one size down h
 
 `busy_cluster_time_share` is the analyzer's size finding over the whole current epoch (`uptime` and `cluster_minutes` from the event totals, `busy` from the idle-gap query); it is null when any input is unknown, and an unknown share treats all running time as busy. Candidate metadata records `busy_share`, `busy_runtime_multiplier_range` (the policy multipliers) and `runtime_multiplier_range` (the effective range). Example: Serverless LARGE to X_LARGE (DBU ratio 2.0) with half of the cluster time busy has a base factor of 2.0 x (0.5 x 0.70 + 0.5) = 1.70, not 1.40.
 
-The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No earlier epoch's workload evidence enters the size factor; earlier epochs only calibrate the workspace's billed DBU-per-cluster-hour rates. Defaults: [`docs/reference/thresholds.md`](../reference/thresholds.md) (Estimators and realization, Size price factor and value gate).
+The final factors are clamped to `cost_factor_floor`..`cost_factor_ceiling`. No earlier epoch's workload evidence enters the size factor; earlier epochs only calibrate the workspace's billed DBU-per-cluster-hour rates. Defaults: [`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md) (Estimators and realization, Size price factor and value gate).
 
 ### 17.6 Max-cluster increase estimator
 
@@ -1285,7 +1285,7 @@ Phase 1 always keeps Plan B as `ALTERNATIVE`.
 
 ### 19.5 Re-evaluation window
 
-`recommended_plan.reevaluation` (`compute_reevaluation`) is non-null exactly while a time-clearable gate hides the next step. The gates are readiness (`CURRENT_CONFIG_EPOCH_TOO_NEW`: fewer than `readiness_min_billed_days` settled billed days in the current epoch) and cost history (`COST_HISTORY_INSUFFICIENT`: fewer than `min_economics_cost_history_days` settled basis days). The earliest time is the later of the active gates: for readiness, 00:00Z of the analysis date plus 1 day (one more day can have settled: the settled basis ends two days before the analysis day), never before the epoch start; for cost history, 00:00Z of the epoch start date plus `min_economics_cost_history_days` days. It is the next chance only: billing ingestion lag, days without billing and query-sample gates can delay it. The method text says so. The gate lengths are embedded in the Reporter contract validator, so changing them is a contract version change ([`reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 14.1).
+`recommended_plan.reevaluation` (`compute_reevaluation`) is non-null exactly while a time-clearable gate hides the next step. The gates are readiness (`CURRENT_CONFIG_EPOCH_TOO_NEW`: fewer than `readiness_min_billed_days` settled billed days in the current epoch) and cost history (`COST_HISTORY_INSUFFICIENT`: fewer than `min_economics_cost_history_days` settled basis days). The earliest time is the later of the active gates: for readiness, 00:00Z of the analysis date plus 1 day (one more day can have settled: the settled basis ends two days before the analysis day), never before the epoch start; for cost history, 00:00Z of the epoch start date plus `min_economics_cost_history_days` days. It is the next chance only: billing ingestion lag, days without billing and query-sample gates can delay it. The method text says so. The gate lengths are embedded in the Reporter contract validator, so changing them is a contract version change ([`reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 14.1).
 
 ---
 
@@ -1353,7 +1353,7 @@ Withheld estimates (every range null; the public package reports them as `UNAVAI
 - `REQUIRES_COST_HISTORY`
 - `UNAVAILABLE`
 
-The codes that explain each withheld status: [`docs/reference/blocker-codes.md`](../reference/blocker-codes.md) (Not blockers, internal withheld-estimate statuses).
+The codes that explain each withheld status: [`docs/reference/publisher/blocker-codes.md`](../../reference/publisher/blocker-codes.md) (Not blockers, internal withheld-estimate statuses).
 
 ---
 
@@ -1413,7 +1413,7 @@ classDiagram
 
 ### 22.2 Stable top-level sections
 
-Top-level keys and their order: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 1. Stable keys are not omitted to represent missing information.
+Top-level keys and their order: [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 1. Stable keys are not omitted to represent missing information.
 
 ### 22.3 Null semantics
 
@@ -1421,11 +1421,11 @@ Top-level keys and their order: [`docs/contracts/reporter-json-contract.md`](../
 
 ### 22.4 Public candidate identity
 
-The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `src/publisher/contracts/reporter_contract.py` and are 24 hex characters; `src/publisher/common/ids.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
+The public `candidate_id` is content-addressed; its hash inputs are in [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 3 (Candidate hash inputs). Public IDs come only from the `make_*` helpers in `src/publisher/contracts/reporter_contract.py` and are 24 hex characters; `src/publisher/common/ids.py` keeps internal 16-hex join keys (`epoch_id`, `finding_id`, `recommendation_id`, `scenario_id`) that never reach packages, and a test pins that packages ignore them.
 
 ### 22.5 Technique IDs
 
-Stable technique IDs and their mapping to knobs: [`docs/reference/technique-catalog.md`](../reference/technique-catalog.md).
+Stable technique IDs and their mapping to knobs: [`docs/reference/publisher/technique-catalog.md`](../../reference/publisher/technique-catalog.md).
 
 ### 22.6 Deterministic content IDs
 
@@ -1449,7 +1449,7 @@ Canonical hash rules and the inputs of each ID: contract section 3 (Identity mod
 
 ### 22.7 Package hash payload
 
-The inputs of `recommendation_package_id` and the volatile metadata it excludes: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 3 (Package hash inputs).
+The inputs of `recommendation_package_id` and the volatile metadata it excludes: [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 3 (Package hash inputs).
 
 ---
 
@@ -1496,7 +1496,7 @@ flowchart TD
 
 ### 24.2 Package scenario envelope
 
-Only economically assessable scenarios are included. Blocked/unavailable scenarios are explicitly excluded with reason codes ([`docs/reference/blocker-codes.md`](../reference/blocker-codes.md), Scenario and planner; fields: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 15).
+Only economically assessable scenarios are included. Blocked/unavailable scenarios are explicitly excluded with reason codes ([`docs/reference/publisher/blocker-codes.md`](../../reference/publisher/blocker-codes.md), Scenario and planner; fields: [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 15).
 
 Package savings semantics:
 
@@ -1538,13 +1538,13 @@ Before a package is emitted it must pass:
 14. optional full package hash validation,
 15. JSON Schema Draft 2020-12 validation.
 
-Failure is fatal for publication of that run/package. The contract-level list of validations: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 18.
+Failure is fatal for publication of that run/package. The contract-level list of validations: [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 18.
 
 ---
 
 ## 26. Realization contract
 
-Phase 1 emits an initialized `realization` section (`status = NOT_APPLIED`, no records, zero aggregates; initial state: [`docs/contracts/reporter-json-contract.md`](../contracts/reporter-json-contract.md) section 16) even though the publisher does not yet ingest applied-change measurements.
+Phase 1 emits an initialized `realization` section (`status = NOT_APPLIED`, no records, zero aggregates; initial state: [`docs/contracts/shared/reporter-json-contract.md`](../../contracts/shared/reporter-json-contract.md) section 16) even though the publisher does not yet ingest applied-change measurements.
 
 Future `REAL-*` records reference the immutable package/scenario/candidate identity and capture applied config, validation window, observed cost, realized savings, rollback, and learning codes.
 
@@ -1558,7 +1558,7 @@ The workbook is generated from already-validated `RecommendationPackage` objects
 
 ### 27.1 Sheet grains
 
-Sheets, grains and the sheet list: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md).
+Sheets, grains and the sheet list: [`docs/contracts/publisher/workbook-contract.md`](../../contracts/publisher/workbook-contract.md).
 
 ### 27.2 Projection architecture
 
@@ -1578,11 +1578,11 @@ flowchart LR
 
 ### 27.3 Contract-owned columns
 
-Exact ordered columns and column groups live in `src/publisher/contracts/workbook_contract.py`; the renderer must not maintain a separate column list. Column groups per sheet: [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md). Tests pin the column counts from the contract declarations.
+Exact ordered columns and column groups live in `src/publisher/contracts/workbook_contract.py`; the renderer must not maintain a separate column list. Column groups per sheet: [`docs/contracts/publisher/workbook-contract.md`](../../contracts/publisher/workbook-contract.md). Tests pin the column counts from the contract declarations.
 
 ### 27.4 Presentation rules
 
-Presentation rules (title and header rows, frozen identity columns, number formats, explicit states for blanks, text IDs, audit JSON at the right edge, no formulas, hidden sheets or macros): [`docs/contracts/workbook-contract.md`](../contracts/workbook-contract.md).
+Presentation rules (title and header rows, frozen identity columns, number formats, explicit states for blanks, text IDs, audit JSON at the right edge, no formulas, hidden sheets or macros): [`docs/contracts/publisher/workbook-contract.md`](../../contracts/publisher/workbook-contract.md).
 
 A cost increase is a negative annual-impact number (shown in red parentheses) with Impact Type `COST_INCREASE`; the sign is never flipped.
 
@@ -1592,7 +1592,7 @@ The workbook must not alter the underlying JSON economics.
 
 ## 28. Packaging and output directory
 
-`package_locked_contract()` writes one `packages/<workspace>__<warehouse>.json` per package, `workbook.xlsx` (omitted only with `--no-workbook`), `evidence.json` and `manifest.json` into the run's output directory; the logger writes `publisher.log` there (29.1). The CLI resolves that directory before logging starts (`run_output_dir` in `src/publisher/cli/publish.py`, `partitioned_run_dir` in `src/publisher/config/output_layout.py`): a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under `--output-dir`, or `--output-dir` itself with `--flat-output`. The timestamp is the UTC start time and appears only in the path; a folder that exists is never reused (a `-NN` suffix is claimed atomically). `latest_run_dir` resolves a root to its newest run for the scripts that read output. Output tree: [`README.md`](../../README.md) (Output directory).
+`package_locked_contract()` writes one `packages/<workspace>__<warehouse>.json` per package, `workbook.xlsx` (omitted only with `--no-workbook`), `evidence.json` and `manifest.json` into the run's output directory; the logger writes `publisher.log` there (29.1). The CLI resolves that directory before logging starts (`run_output_dir` in `src/publisher/cli/publish.py`, `partitioned_run_dir` in `src/publisher/config/output_layout.py`): a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under `--output-dir`, or `--output-dir` itself with `--flat-output`. The timestamp is the UTC start time and appears only in the path; a folder that exists is never reused (a `-NN` suffix is claimed atomically). `latest_run_dir` resolves a root to its newest run for the scripts that read output. Output tree: [`README.md`](../../../README.md) (Output directory).
 
 ### 28.1 Package filenames
 
@@ -1604,7 +1604,7 @@ The manifest records `publisher_version`, `reporter_contract_version`, `workbook
 
 ### 28.3 Replay evidence
 
-`evidence.json` serializes normalized evidence for deterministic replay as a versioned envelope (`evidence_format_version` 1.0.0) validated against `schema/evidence.schema.json` on write and on load; any other version, or a bare list, is rejected (`docs/contracts/evidence-format.md`). Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity.
+`evidence.json` serializes normalized evidence for deterministic replay as a versioned envelope (`evidence_format_version` 1.0.0) validated against `schema/evidence.schema.json` on write and on load; any other version, or a bare list, is rejected (`docs/contracts/publisher/evidence-format.md`). Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity.
 
 ---
 
@@ -1701,7 +1701,7 @@ The full regression suite is the validation baseline; reproduce the results with
 
 ### 32.3 Golden scenarios
 
-Golden cases are folders under `tests/golden/cases/<name>/`: `case.yaml` (the `expect` block), `source/` (normalized evidence or collector snapshots) and `expected/` (canonical output generated by `scripts/update_goldens.py`). The layout and how to add a case: `tests/golden/README.md`; the assertion DSL: the docstring of `tests/golden/test_golden_publisher.py`; the scenario catalog: `docs/proposals/golden-scenarios.md`.
+Golden cases are folders under `tests/golden/cases/<name>/`: `case.yaml` (the `expect` block), `source/` (normalized evidence or collector snapshots) and `expected/` (canonical output generated by `scripts/update_goldens.py`). The layout and how to add a case: `tests/golden/README.md`; the assertion DSL: the docstring of `tests/golden/test_golden_publisher.py`; the scenario catalog: `docs/proposals/publisher/golden-scenarios.md`.
 
 Test layers: algorithm and integration tests (the capability case modules `tests/unit/<capability>/test_<capability>_cases.py` on the shared `tests/publisher_case.py` fixture, `tests/component/test_pipeline_cases.py`, `tests/unit/analyzer/test_resource_window.py`, `tests/unit/analyzer/test_config_epochs_sql.py`), Optimizer decision and candidate-estimate tests (`tests/unit/optimizer/`), golden-scenario tests, Reporter contract tests (`tests/unit/contracts/test_reporter_contract.py`), Packager unit and package-integration tests (`tests/unit/packager/`, which include `test_locked_reporter_integration.py`), replay-evidence format tests (`tests/unit/analyzer/test_evidence_format.py`), demo-fleet tests (`tests/golden/test_demo_fleet.py`), Reporter and workbook contract tests (`tests/unit/reporter/`) and documentation guards (`tests/test_docs.py`).
 
@@ -1743,15 +1743,15 @@ Tests verify:
 
 ### 34.1 Realization ingestion is not implemented
 
-Phase 1 initializes `realization.status = NOT_APPLIED` (26); measured realization is not writable. Open limitation: [`docs/reference/known-limitations.md`](../reference/known-limitations.md).
+Phase 1 initializes `realization.status = NOT_APPLIED` (26); measured realization is not writable. Open limitation: [`docs/reference/publisher/known-limitations.md`](../../reference/publisher/known-limitations.md).
 
 ### 34.2 Compatibility API remains optional evidence
 
-The read-only workspace compatibility API is intentionally non-authoritative and has a deterministic fallback (8.3). Any future dependency on it for a hard optimization decision requires a separately approved source contract. See [`docs/reference/known-limitations.md`](../reference/known-limitations.md).
+The read-only workspace compatibility API is intentionally non-authoritative and has a deterministic fallback (8.3). Any future dependency on it for a hard optimization decision requires a separately approved source contract. See [`docs/reference/publisher/known-limitations.md`](../../reference/publisher/known-limitations.md).
 
 ### 34.3 Threshold calibration
 
-Thresholds are conservative policy defaults ([`docs/reference/thresholds.md`](../reference/thresholds.md)), and the conservative and aggressive cost profiles are uncalibrated starting points. Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
+Thresholds are conservative policy defaults ([`docs/reference/publisher/thresholds.md`](../../reference/publisher/thresholds.md)), and the conservative and aggressive cost profiles are uncalibrated starting points. Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
 
 ---
 

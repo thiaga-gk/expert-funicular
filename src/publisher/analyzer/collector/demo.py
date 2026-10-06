@@ -263,7 +263,7 @@ DEMO_START_LATENCY_MS = {"CLASSIC": 240000, "PRO": 240000, "SERVERLESS": 5000}
 DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 
 
-# Demo fleet: each warehouse instantiates one golden scenario (docs/proposals/golden-scenarios.md, tag golden_scenario).
+# Demo fleet: each warehouse instantiates one golden scenario (docs/proposals/publisher/golden-scenarios.md, tag golden_scenario).
 # Its evidence is simulated from a workload, not hand-set: query windows and concurrency drive busy time; auto-stop
 # drives running time and restarts; clusters follow concurrency (one per 10 concurrent queries, within min/max, with a
 # scale-up lag); billed DBU = cluster-hours x published DBU/hour (+-3% daily noise) and cost = DBU x SKU list price.

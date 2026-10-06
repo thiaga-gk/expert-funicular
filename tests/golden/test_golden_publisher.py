@@ -1,4 +1,4 @@
-"""Golden cases from docs/proposals/golden-scenarios.md, one folder per case under tests/golden/cases/.
+"""Golden cases from docs/proposals/publisher/golden-scenarios.md, one folder per case under tests/golden/cases/.
 
 Every case is checked twice: its ``expected/`` output must equal what the publisher produces now (the behavioral
 baseline; ``scripts/update_goldens.py`` rewrites it only for an approved decision-affecting change), and a scenario

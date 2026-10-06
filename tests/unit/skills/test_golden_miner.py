@@ -27,7 +27,7 @@ import preflight  # noqa: E402
 import real_data_queries  # noqa: E402
 from publisher.cli.main import main as publisher_main  # noqa: E402
 
-REGISTRY = ROOT / "docs" / "proposals" / "golden-scenarios.md"
+REGISTRY = ROOT / "docs" / "proposals" / "publisher" / "golden-scenarios.md"
 FAKE_CLI = """#!/bin/sh
 case "$1 $2" in
   "--version "*) echo "Databricks CLI v0.230.0";;

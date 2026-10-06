@@ -1,4 +1,4 @@
-"""Policy parameters (Thresholds): every decision default the policy engine applies, documented in docs/reference/thresholds.md."""
+"""Policy parameters (Thresholds): every decision default the policy engine applies, documented in docs/reference/publisher/thresholds.md."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from publisher.config.defaults import GIB
 class Thresholds:
     """Central deterministic policy, evidence, confidence, and estimator thresholds (frozen; the Governor owns them).
 
-    Every field has a row in docs/reference/thresholds.md. A change here is decision-affecting: bump the affected
+    Every field has a row in docs/reference/publisher/thresholds.md. A change here is decision-affecting: bump the affected
     component versions and regenerate goldens. Units are in the field name or its comment (pct, ms, minutes, days).
     The defaults are the balanced cost profile; governor/cost_profiles.py derives the other profiles by replacing the
     risk-appetite fields only.

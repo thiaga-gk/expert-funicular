@@ -5,7 +5,7 @@ Usage:
   python .claude/skills/databricks-golden-miner/scripts/real_data_queries.py --profile <oauth-profile>
       --warehouse-id <id> --out mining_out/real_data_answers.json [--config-file <path>] [--list]
 
-The SQL has one home, docs/proposals/real-data-run.md: every section whose heading names a tracker item, e.g.
+The SQL has one home, docs/proposals/publisher/real-data-run.md: every section whose heading names a tracker item, e.g.
 "## SQL SKU names, tiers and prices (tracker G5)", contributes its ```sql block (several statements split on `;`).
 The output is {"source": <doc path>, "answers": {<item>: [{"statement": <sql>, "columns": [...], "rows": [...]}]}}.
 --list prints the items and statements without running anything. Exit 0 on success, 1 on a failed statement.
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cli_sql import CliError, execute  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[4]
-DOC = REPO / "docs" / "proposals" / "real-data-run.md"
+DOC = REPO / "docs" / "proposals" / "publisher" / "real-data-run.md"
 _SECTION = re.compile(r"^## .*\(tracker (?P<item>[A-Z]\d+[a-z]?)\)\s*$", re.M)
 _SQL = re.compile(r"```sql\n(?P<sql>.*?)```", re.S)
 

@@ -4,7 +4,7 @@
     Analyzer -> Governor -> Optimizer -> Reviewer (candidate gate) -> Packager -> Reviewer (package gate) -> Reporter
 
 ``publish`` orchestrates the capabilities and nothing else: SQL, policy, decisions, estimation, scenarios, review
-rules and rendering live in their packages (docs/architecture/repo-reorg-design.md). The runtime is read-only and has
+rules and rendering live in their packages (docs/architecture/publisher/repo-reorg-design.md). The runtime is read-only and has
 no LLM calls; identical normalized evidence and policy/model/contract versions produce identical packages.
 """
 from __future__ import annotations

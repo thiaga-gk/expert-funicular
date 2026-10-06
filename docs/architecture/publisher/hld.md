@@ -1,6 +1,6 @@
 # High-Level Design — Databricks SQL Warehouse Optimizer
 
-**Document:** `docs/architecture/hld.md`  
+**Document:** `docs/architecture/publisher/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
 **Reporter JSON Contract:** v3.1.0 (locked)  
 **Workbook Contract:** v1.6.0 (locked)
@@ -11,9 +11,9 @@ Role: component architecture, runtime flows and trade-offs.
 
 ## 1. Purpose
 
-This document defines the high-level architecture for the Databricks SQL Warehouse Optimizer described in the PRD (`docs/product/prd.md`). It establishes the system boundaries, component responsibilities, data flows, source authority, deterministic decision path, scenario/economic model, publication architecture, runtime modes, security posture, scale model, and failure behavior.
+This document defines the high-level architecture for the Databricks SQL Warehouse Optimizer described in the PRD (`docs/product/publisher/prd.md`). It establishes the system boundaries, component responsibilities, data flows, source authority, deterministic decision path, scenario/economic model, publication architecture, runtime modes, security posture, scale model, and failure behavior.
 
-This HLD intentionally remains above implementation-level class/field detail. Exact public field contracts, hash payloads and schemas belong in the locked contract artifacts (`docs/contracts/`); SQL projections and method behavior belong in `docs/architecture/lld.md`; numeric defaults belong in `docs/reference/thresholds.md`.
+This HLD intentionally remains above implementation-level class/field detail. Exact public field contracts, hash payloads and schemas belong in the locked contract artifacts (`docs/contracts/`); SQL projections and method behavior belong in `docs/architecture/publisher/lld.md`; numeric defaults belong in `docs/reference/publisher/thresholds.md`.
 
 The architecture is designed around one central rule:
 
@@ -202,7 +202,7 @@ It must:
 - avoid exporting raw SQL text,
 - retain enough source metadata for audit and replay.
 
-Collector SQL semantics: `docs/architecture/lld.md` section 7.2 and `docs/reference/source-mapping.md`. Defaults: `docs/reference/thresholds.md`.
+Collector SQL semantics: `docs/architecture/publisher/lld.md` section 7.2 and `docs/reference/publisher/source-mapping.md`. Defaults: `docs/reference/publisher/thresholds.md`.
 
 It must not:
 
@@ -267,7 +267,7 @@ The analyzer does not produce final recommendations and does not perform configu
 
 **Responsibility:** Apply versioned deterministic policy thresholds to analyzer facts and produce one decision state per active candidate domain.
 
-The decision states are the public recommendation statuses (`docs/contracts/reporter-json-contract.md`, shared enums); blocker meanings and gating parameters: `docs/reference/blocker-codes.md`.
+The decision states are the public recommendation statuses (`docs/contracts/shared/reporter-json-contract.md`, shared enums); blocker meanings and gating parameters: `docs/reference/publisher/blocker-codes.md`.
 
 The optimizer determines current/recommended config values, blockers, dependencies, invalidations, rationale, and objective. It does not own cost arithmetic.
 
@@ -365,7 +365,7 @@ It verifies, at minimum:
 
 **Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.1.0.
 
-The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
+The public top-level hierarchy and field semantics: `docs/contracts/shared/reporter-json-contract.md`.
 
 One public package represents exactly one warehouse/current configuration epoch.
 
@@ -386,7 +386,7 @@ Any failure prevents package publication.
 
 **Responsibility:** Render human decision views from valid public packages only.
 
-Sheets, grains and columns: `docs/contracts/workbook-contract.md`.
+Sheets, grains and columns: `docs/contracts/publisher/workbook-contract.md`.
 
 The workbook must not:
 
@@ -414,7 +414,7 @@ A cost increase is a negative annual-impact number (shown in red parentheses) wi
 | Versioned AWS price registry | Local/versioned | explicit regional Pro/Classic EC2 reference price |
 | Read-only Databricks REST | Workspace-scoped | execution-target validation and compatibility evidence only |
 
-Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Source latency affects confidence/freshness policy rather than changing source authority; billing latency is handled by the per-workspace watermark and settle buffer, not by treating late days as zero (`docs/architecture/context.md` section 8.2). Field-level source mapping: `docs/reference/source-mapping.md`.
+Databricks documents query history, warehouse events, and warehouse configuration system tables as regional, while billing usage and list pricing are account/global data surfaces. Source latency affects confidence/freshness policy rather than changing source authority; billing latency is handled by the per-workspace watermark and settle buffer, not by treating late days as zero (`docs/architecture/publisher/context.md` section 8.2). Field-level source mapping: `docs/reference/publisher/source-mapping.md`.
 
 ### 7.2 Authority rules
 
@@ -439,7 +439,7 @@ REST compatibility evidence may add blockers or validation context but cannot ov
 
 ### 7.3 Photon semantics
 
-Photon is observation-only: it is derived from current-epoch billing evidence, never read from configuration and never recommended (state model and parameters: `docs/reference/source-mapping.md` and `docs/reference/thresholds.md`).
+Photon is observation-only: it is derived from current-epoch billing evidence, never read from configuration and never recommended (state model and parameters: `docs/reference/publisher/source-mapping.md` and `docs/reference/publisher/thresholds.md`).
 
 ### 7.4 Owner and workload-source attribution
 
@@ -447,7 +447,7 @@ Photon is observation-only: it is derived from current-epoch billing evidence, n
 - query source is multi-label and can simultaneously include Databricks entity origin and client application;
 - absence of attribution remains explicit rather than guessed.
 
-Field mapping: `docs/reference/source-mapping.md`.
+Field mapping: `docs/reference/publisher/source-mapping.md`.
 
 ---
 
@@ -543,13 +543,13 @@ flowchart TD
     PY --> OUT[Packages / scenarios / candidates]
 ```
 
-The production decision path intentionally does not require pandas. Python processes bounded domain objects/dataclasses in deterministic batches (batch size: `docs/architecture/lld.md` section 5.2, `--batch-size`).
+The production decision path intentionally does not require pandas. Python processes bounded domain objects/dataclasses in deterministic batches (batch size: `docs/architecture/publisher/lld.md` section 5.2, `--batch-size`).
 
 ---
 
 ## 10. Economic architecture
 
-The system keeps the economic layers below separate. Definitions and semantics: `docs/architecture/context.md` sections 18 to 21 and `docs/contracts/reporter-json-contract.md`.
+The system keeps the economic layers below separate. Definitions and semantics: `docs/architecture/publisher/context.md` sections 18 to 21 and `docs/contracts/shared/reporter-json-contract.md`.
 
 ```mermaid
 flowchart TD
@@ -566,13 +566,13 @@ flowchart TD
 
 ### 10.1 Historical actual
 
-Observed historical Databricks DBU cost is retained separately from modeled forward cost. Usage with no matching list price is reported as unpriced DBU and makes the affected cost unavailable rather than understated (`docs/architecture/lld.md` section 11.4).
+Observed historical Databricks DBU cost is retained separately from modeled forward cost. Usage with no matching list price is reported as unpriced DBU and makes the affected cost unavailable rather than understated (`docs/architecture/publisher/lld.md` section 11.4).
 
-Historical customer AWS actual cost remains unavailable unless an authoritative customer billing/effective-rate source is integrated. The architecture forbids labeling an on-demand model as historical actual (`docs/reference/aws-cost-model.md`).
+Historical customer AWS actual cost remains unavailable unless an authoritative customer billing/effective-rate source is integrated. The architecture forbids labeling an on-demand model as historical actual (`docs/reference/publisher/aws-cost-model.md`).
 
 ### 10.2 Forward baseline
 
-The forward baseline is the expected next-365-day cost with no change, built from current-epoch-aware cost history and type-appropriate AWS treatment. It is published only when it is known: otherwise it is null (never $0 or a guessed run rate), the forecast metadata records why, and savings estimates and migration economics are withheld. Forecast algorithm: `docs/architecture/lld.md` section 11. Gating parameter: `min_economics_cost_history_days` (`docs/reference/thresholds.md`). Resulting codes: `docs/reference/blocker-codes.md` (section "DBU and AWS cost availability").
+The forward baseline is the expected next-365-day cost with no change, built from current-epoch-aware cost history and type-appropriate AWS treatment. It is published only when it is known: otherwise it is null (never $0 or a guessed run rate), the forecast metadata records why, and savings estimates and migration economics are withheld. Forecast algorithm: `docs/architecture/publisher/lld.md` section 11. Gating parameter: `min_economics_cost_history_days` (`docs/reference/publisher/thresholds.md`). Resulting codes: `docs/reference/publisher/blocker-codes.md` (section "DBU and AWS cost availability").
 
 ### 10.3 Candidate economics
 
@@ -584,7 +584,7 @@ The Packager's stateful bundle estimator owns scenario-level economics because i
 
 ### 10.5 Package economics
 
-Package economics are derived from scenario economics only, as an opportunity envelope rather than a statistical confidence interval; DBU/AWS components stay attached to the scenario that generated each envelope point. Field semantics: `docs/contracts/reporter-json-contract.md` section 15.
+Package economics are derived from scenario economics only, as an opportunity envelope rather than a statistical confidence interval; DBU/AWS components stay attached to the scenario that generated each envelope point. Field semantics: `docs/contracts/shared/reporter-json-contract.md` section 15.
 
 ### 10.6 Realization
 
@@ -630,7 +630,7 @@ flowchart TD
     REAL -. references immutable package/scenario/candidate .-> PKG
 ```
 
-Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. The internal join keys that `src/publisher/common/ids.py` keeps while a run is in memory never reach a package (`docs/architecture/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/reporter-json-contract.md`.
+Public IDs (`EPOCH-*`, `EVID-*`, `CAND-*`, `SCN-*`, `REAL-*`, `PKG-*`) come only from the contract helpers in `src/publisher/contracts/reporter_contract.py`. The internal join keys that `src/publisher/common/ids.py` keeps while a run is in memory never reach a package (`docs/architecture/publisher/lld.md` section 22.4). Identity formats, hash inputs and the hierarchy: `docs/contracts/shared/reporter-json-contract.md`.
 
 Volatile data such as `generated_at`, filenames, log paths, or workbook formatting must not influence recommendation identities.
 
@@ -644,7 +644,7 @@ The only authoritative recommendation serialization is Reporter JSON Contract v3
 
 - Python dataclasses: `src/publisher/contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
-- semantic specification: `docs/contracts/reporter-json-contract.md`
+- semantic specification: `docs/contracts/shared/reporter-json-contract.md`
 
 ### 12.2 Workbook contract
 
@@ -652,9 +652,9 @@ Workbook Contract v1.6.0 is an independently versioned presentation contract:
 
 - projection: `src/publisher/contracts/workbook_contract.py`
 - renderer: `src/publisher/reporter/workbook_reporter.py`
-- specification: `docs/contracts/workbook-contract.md`
+- specification: `docs/contracts/publisher/workbook-contract.md`
 
-The ordered workbook columns and column groups are declared only in the workbook contract module and consumed by the renderer, so renderer-only formatting changes cannot silently drop agreed fields. Sheets, grains and columns: `docs/contracts/workbook-contract.md`.
+The ordered workbook columns and column groups are declared only in the workbook contract module and consumed by the renderer, so renderer-only formatting changes cannot silently drop agreed fields. Sheets, grains and columns: `docs/contracts/publisher/workbook-contract.md`.
 
 Signed values: a cost increase is a negative annual-impact number (shown in red parentheses) with Impact Type `COST_INCREASE`; the sign is never flipped.
 
@@ -766,7 +766,7 @@ The architecture forbids silent fallbacks that convert unknown into:
 
 Each run writes packages, the workbook, replay evidence, a run manifest and a log; the output tree is in `README.md`.
 
-The manifest and log identify the run (publisher and contract versions, emitted packages and warehouses the Governor excluded as unsupported types) without duplicating metric evidence, which stays in the package and evidence artifacts. Manifest contents: `docs/architecture/lld.md` section 28.2. Policy, model and component versions are recorded in each package's provenance.
+The manifest and log identify the run (publisher and contract versions, emitted packages and warehouses the Governor excluded as unsupported types) without duplicating metric evidence, which stays in the package and evidence artifacts. Manifest contents: `docs/architecture/publisher/lld.md` section 28.2. Policy, model and component versions are recorded in each package's provenance.
 
 ---
 
@@ -836,7 +836,7 @@ This avoids a design in which local runtime performance scales linearly with raw
 
 ### 17.2 Downstream batching
 
-Normalized warehouses are processed in deterministic batches. The batch size is an execution/memory control, not a decision semantic input (default: `docs/architecture/lld.md` section 5.2, `--batch-size`).
+Normalized warehouses are processed in deterministic batches. The batch size is an execution/memory control, not a decision semantic input (default: `docs/architecture/publisher/lld.md` section 5.2, `--batch-size`).
 
 Changing batch size must not change package decisions or IDs.
 
@@ -893,7 +893,7 @@ flowchart TD
     E2E -.-> LV[Live integration tests: skipped without a profile]
 ```
 
-The architecture expects tests to prove both positive behavior and fail-closed behavior. Test design, golden scenarios and required contract assertions: `docs/architecture/lld.md` section 32. Reproduce results with the commands in `CLAUDE.md`.
+The architecture expects tests to prove both positive behavior and fail-closed behavior. Test design, golden scenarios and required contract assertions: `docs/architecture/publisher/lld.md` section 32. Reproduce results with the commands in `CLAUDE.md`.
 
 ---
 
@@ -939,7 +939,7 @@ The architecture expects tests to prove both positive behavior and fail-closed b
 
 ## 22. Implementation conformance
 
-Open limitations and unimplemented scope: `docs/reference/known-limitations.md`.
+Open limitations and unimplemented scope: `docs/reference/publisher/known-limitations.md`.
 
 ---
 
@@ -965,7 +965,7 @@ Any future decision-authority change requires a PRD/architecture revision rather
 
 ## 24. HLD acceptance criteria
 
-Product acceptance criteria: `docs/product/prd.md` section 23. The architecture additionally holds when:
+Product acceptance criteria: `docs/product/publisher/prd.md` section 23. The architecture additionally holds when:
 
 1. system-table source authority and read-only API boundaries are as stated in sections 7 and 13;
 2. live, replay, synthetic, and multi-region execution paths are represented (sections 8 and 9);
@@ -975,6 +975,6 @@ Product acceptance criteria: `docs/product/prd.md` section 23. The architecture 
 
 ## 25. Reference sources
 
-External platform references: `docs/product/prd.md` section 28.
+External platform references: `docs/product/publisher/prd.md` section 28.
 
 Repository source-of-truth references: the topic homes in `docs/README.md`, plus `src/publisher/contracts/reporter_contract.py`, `src/publisher/contracts/workbook_contract.py`, `src/publisher/analyzer/`, `src/publisher/governor/`, `src/publisher/optimizer/`, `src/publisher/reviewer/`, `src/publisher/packager/`, `src/publisher/publisher.py`, `src/publisher/reporter/workbook_reporter.py` and `tests/`.

@@ -49,7 +49,7 @@ ACTIVE_KNOBS = (
 SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
 
 
-# Databricks product facts: documented platform behavior and limits, not policy (docs/reference/product-constants.md).
+# Databricks product facts: documented platform behavior and limits, not policy (docs/reference/publisher/product-constants.md).
 # Minutes before a warehouse adds clusters for queued demand: the busy-period start window, and the idle minutes that
 # separate busy periods.
 SCALE_UP_LAG_MINUTES_PRO_CLASSIC = 5
