@@ -122,8 +122,8 @@ treat silence as approval.
    ```
    This writes `tests/golden/cases/<row>-<slug>/` with the raw evidence and a draft `expect` block that pins today's decision
    per knob. It refuses to overwrite an existing folder. Cut the draft down to the assertions that state the row's expected
-   behaviour, and keep the ones the user approved. For a mismatch the case should assert the *expected* behaviour; tell
-   the user it will fail until the fix lands, and track it as a fix item rather than committing a failing test unannounced.
+   behaviour, and keep the ones the user approved. Only cases that pass today go on the mining branch. A case for a bug or
+   premise item would fail, so it is not added here: it becomes the red test of that item's fix branch (step 5).
    Then generate the baseline:
    `python scripts/update_goldens.py --case <name> --approved-change "<the approval in one line>"`.
 3. **New row:** add it to `docs/proposals/golden-scenarios.md` and its signature to
@@ -133,16 +133,29 @@ treat silence as approval.
    - **Text-only.** Edit the row's Signature or Expected behaviour in `docs/proposals/golden-scenarios.md`, and its `expect`
      and `premises` in the catalog. Do this on the mining branch, as long as no publisher decision changes.
    - **Decision change.** The behaviour the row expects differs from what the code does, or the setting it rests on
-     (`assumes`, a `Thresholds` field or product constant) must change. Record it as a fix item in the tracker. It then
-     runs through the normal change loop on its own branch: CLAUDE.md change loop step 5,
-     `docs/proposals/remediation-runbook.md`, version bump, `update_goldens.py --approved-change`, and the docs that own
-     the setting. Never fold it into the mining branch, and never rewrite existing `expected/` outputs to match the new premise.
+     (`assumes`, a `Thresholds` field or product constant) must change. It becomes a fix brief (step 5). Never fold it into
+     the mining branch, and never rewrite existing `expected/` outputs to match the new premise.
    Until the decision change lands, keep the row's Status honest (`fail` if the code now contradicts the corrected row).
-5. **Real-data answers:** update `docs/proposals/real-data-run.md` and the tracker, then regenerate `docs/proposals/tracker.md`.
-6. Run the change loop: `python -m compileall -q src tests scripts examples`, then
+5. **Fix briefs** (hand-off to the fixing loop). Each approved publisher bug, and each premise item that needs a decision
+   change, becomes one tracker row. Add it to the live tracker when it is reachable, and always to
+   `docs/proposals/tracker.md`. The row has:
+   - ID `L<NN>`, the next free number;
+   - Title, Band (P1 for a bug on an in-scope row, P2 for a premise), Batch `mining-<date>`;
+   - Status `Open`, or `Needs input` when a policy value must be chosen first, such as the new value of the setting a
+     premise rests on;
+   - Note, written as the brief:
+     - kind (bug or premise) and rows;
+     - the live evidence: warehouses, the deciding numbers, today's decision against the expected one;
+     - the warehouse to build the red case from (`<ws>/<wh>`) and its run folder;
+     - the setting it rests on (`assumes`) and the components likely to need a version bump.
+
+   Put the `L<NN>` ID in each affected row's Tracker cell in `docs/proposals/golden-scenarios.md`. Fixing follows
+   "Fixing a golden-miner finding" in `docs/proposals/remediation-runbook.md`. That work is not part of this skill. Out-of-scope rows never get fix briefs.
+6. **Real-data answers:** update `docs/proposals/real-data-run.md` and the tracker, then regenerate `docs/proposals/tracker.md`.
+7. Run the change loop: `python -m compileall -q src tests scripts examples`, then
    `python -m unittest discover -s tests -v`, the demo with `python scripts/validate_workbook.py`, and
    `python scripts/validate_skill_suite.py`. Report failures with their output. Don't hide them.
-7. Commit only when the user asks.
+8. Commit only when the user asks.
 
 ## When the catalog itself changes
 

@@ -34,3 +34,9 @@ cases:
   - Classifies it as a row premise contradiction, not a publisher bug or signature false positive.
   - Proposes new row text with the live numbers and names the setting restart_cost_cluster_minutes_pro_classic.
   - Splits off the setting change as a separate versioned decision change (tracker item, own branch) and does not rewrite existing expected/ outputs.
+- id: fix-brief-handoff
+  prompt: I approved the C04 mismatch on BI Gateway as a publisher bug. Now fix it.
+  assertions:
+  - Writes an L<NN> fix brief (kind, rows, live numbers, warehouse and run folder, setting/components) to the tracker and the row's Tracker cell.
+  - Does not commit a failing live case on the mining branch; the case is the red test of the fix branch.
+  - Hands the fix to the remediation runbook loop ("Fixing a golden-miner finding") instead of patching publisher code inside the skill.

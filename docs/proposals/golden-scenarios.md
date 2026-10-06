@@ -5,7 +5,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 - **In scope:** yes = the optimizer should decide it (size, min/max clusters, auto-stop, warehouse type); no = observe, flag or ignore only.
 - **Code coverage:** covered = the code has a rule or evidence path for the scenario; not covered = none.
 - **Status:** pass = the code behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
-- **Tracker:** finding IDs that change the behaviour; — when nothing needs to change.
+- **Tracker:** finding IDs that change the behaviour (`L<NN>` for golden-miner findings); — when nothing needs to change.
 
 The `--demo` fleet has one simulated warehouse per scenario listed in `DEMO_FLEET` in `src/publisher/analyzer/collector/demo.py` (config tag `golden_scenario`); `tests/golden/test_demo_fleet.py` asserts the passing rows it contains. Each scenario with a hand-built case has its folder under `tests/golden/cases/` (for example `tests/golden/cases/c06-oversized-warehouse/`), run by `tests/golden/test_golden_publisher.py`. A case built from a live warehouse by the `databricks-golden-miner` skill has `origin: live` in its `case.yaml`.
 

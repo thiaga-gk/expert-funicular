@@ -1,6 +1,6 @@
-# Remediation runbook: gap review of publisher 2.8.0/2.9.0
+# Remediation runbook: tracker findings
 
-Purpose: resolve every tracker finding, one at a time, until every **in-scope** golden scenario in `docs/proposals/golden-scenarios.md` is **covered** and **pass**, except scenarios blocked only by items marked *Needs input*.
+Purpose: resolve every tracker finding, one at a time, until every **in-scope** golden scenario in `docs/proposals/golden-scenarios.md` is **covered** and **pass**, except scenarios blocked only by items marked *Needs input*. The loop was written for the gap review of publisher 2.8.0/2.9.0 and applies unchanged to the `L<NN>` findings from a golden-miner run, with the differences in [Fixing a golden-miner finding](#fixing-a-golden-miner-finding).
 
 ## Sources of truth
 
@@ -43,7 +43,17 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 
 ### Per-issue summary (shown at every merge)
 
-Inside an `AskUserQuestion` preview, because chat prose may not be visible: the problem in one sentence, the fix, a worked example with before/after numbers from the real code, test results (counts), the golden rows that moved to pass, and the commit hash. Merge without waiting for a reply **unless** the issue hits a stop condition.
+In chat prose, with only a short approval question in `AskUserQuestion` (dialog previews do not render reliably): the problem in one sentence, the fix, a worked example with before/after numbers from the real code, test results (counts), the golden rows that moved to pass, and the commit hash. Merge without waiting for a reply **unless** the issue hits a stop condition.
+
+## Fixing a golden-miner finding
+
+The `databricks-golden-miner` skill (`.claude/skills/databricks-golden-miner/SKILL.md`) writes one tracker row per approved bug or premise item, ID `L<NN>`. The row's note is the fix brief: kind (bug or premise), rows, live evidence, the warehouse and run folder to build the red case from, and the setting and components involved. Take those rows through the per-issue loop above, with these differences:
+
+- **Red:** build the case from the brief's warehouse with `.claude/skills/databricks-golden-miner/scripts/make_case.py --run-dir <run folder> --warehouse <ws>/<wh> --row <CNN> --slug <name> --description "..."`. Cut the draft `expect` block down to the row's **expected** behaviour, not today's decision, then confirm it fails for the reason in the brief. The case commits the warehouse's evidence as collected, including real identities and costs. The run folder (`mining_out/`) is local and gitignored. Without it, the brief cannot be reproduced: mark the row *Needs input* and ask for a new mining run.
+- **Premise items:** choosing the setting's new value is a stop condition (a policy value not yet decided). Present the live numbers and candidate values, and change nothing until the user picks one. With the change, update the setting's documentation row (`docs/reference/thresholds.md` or `docs/reference/product-constants.md`), the row text and the premise's `assumes` value in `.claude/skills/databricks-golden-miner/references/signature-catalog.yaml` (`tests/unit/skills/test_golden_miner.py` checks them against the code).
+- **Versions:** as in step 5. The first decision-affecting merge of a mining cycle moves `PUBLISHER_VERSION` to the next minor, and existing `expected/` outputs change only through `scripts/update_goldens.py --approved-change` in the same commit.
+- **Verify on the same evidence:** replay the brief's run with the fixed code (`python -m publisher --from-evidence <run folder>/evidence.json --output-dir <dir>`), then mine the replay (`mine_patterns.py --run-dir <dir>`). The brief's mismatch or premise contradiction must be gone, and no new ones may appear. Record both counts in the per-issue summary.
+- **Close:** the row's Tracker cell keeps its `L<NN>` ID. The row's Status moves to *pass* under step 6.
 
 ## Stop conditions (ask, do not merge)
 
@@ -56,7 +66,7 @@ Set the row to *Needs input*, record why in `note`, and continue with the next O
 
 ## Exit
 
-Stop when no tracker row is *Open* or *In progress*. Then report: rows *Done*, rows *Needs input* with their questions, rows *Deferred*, and the golden table tally (in scope: covered/pass counts; every in-scope row not passing must be blocked only by a *Needs input* item). Remove the worktree only after the user confirms.
+Stop when no tracker row is *Open* or *In progress* (for a mining cycle: no `L<NN>` row from that run). Then report: rows *Done*, rows *Needs input* with their questions, rows *Deferred*, and the golden table tally (in scope: covered/pass counts; every in-scope row not passing must be blocked only by a *Needs input* item). Remove the worktree only after the user confirms.
 
 ## Model and delegation
 
