@@ -1,0 +1,26 @@
+{
+  "captured_at_utc": "2026-10-09T12:00:00Z",
+  "evidence_id": "REVID-255B94818101F6BD27CC88F3",
+  "evidence_type": "OBSERVED_CONFIGURATION",
+  "observation_window": {
+    "end_utc": "2026-10-09T12:00:00Z"
+  },
+  "payload": {
+    "config": {
+      "auto_stop_minutes": 120,
+      "enable_photon": true,
+      "max_clusters": 3,
+      "min_clusters": 2,
+      "warehouse_channel": "CURRENT",
+      "warehouse_size": "MEDIUM",
+      "warehouse_type": "PRO"
+    },
+    "observed_at_utc": "2026-10-09T12:00:00Z",
+    "source": "DEMO_NORMALIZED_OBSERVATION"
+  },
+  "payload_hash": "SHA256:47347533CA3DE8DCA69E6CDBC8E1920D00B56E96D2348D1E453C3144FED1BE88",
+  "quality": "SUFFICIENT",
+  "source": "DEMO_NORMALIZED_OBSERVATION",
+  "warehouse_id": "wh-synth-001",
+  "workspace_id": "1234567890123456"
+}

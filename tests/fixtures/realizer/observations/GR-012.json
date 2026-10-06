@@ -1,0 +1,50 @@
+{
+  "derivation": "demo_observation; set_ratio(0.40)",
+  "package": "PKG-C1928BFAD6E14C166A0F518D.json",
+  "runs": [
+    {
+      "observation": {
+        "actor": "demo-user",
+        "applied_at_utc": "2026-10-01T12:00:00Z",
+        "config": {
+          "auto_stop_minutes": 120,
+          "enable_photon": true,
+          "max_clusters": 4,
+          "min_clusters": 2,
+          "warehouse_channel": "CURRENT",
+          "warehouse_size": "MEDIUM",
+          "warehouse_type": "PRO"
+        },
+        "economics": {
+          "counterfactual_method": "MATCHED_HISTORICAL",
+          "counterfactual_old_cost": "10000",
+          "currency": "USD",
+          "economic_basis": "ECONOMIC_COST",
+          "expected_annual_savings_actual_scope": "12000",
+          "observed_new_cost": "9605.479452054794520547945206",
+          "period_days": 30
+        },
+        "elapsed_days": 8,
+        "evidence_quality": "SUFFICIENT",
+        "intent_state": "ACCEPTED",
+        "observed_at_utc": "2026-10-09T12:00:00Z",
+        "origin_attribution": "CONFIRMED",
+        "performance": {
+          "correctness_pass": true,
+          "normalized_p95_runtime_regression_pct": "2",
+          "reliability_pass": true
+        },
+        "query_count": 250,
+        "recorded_at_utc": "2026-10-09T12:00:00Z",
+        "representative_regime": true,
+        "source": "DEMO_NORMALIZED_OBSERVATION",
+        "window_end_utc": "2026-10-09T12:00:00Z",
+        "window_start_utc": "2026-10-02T12:00:00Z"
+      },
+      "policy": null,
+      "replay_through": null
+    }
+  ],
+  "scenario_id": "GR-012",
+  "title": "Safe Below 50 Requests Reopt"
+}
