@@ -2,6 +2,8 @@
 
 > Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](repo-reorg-parity.md).
 
+> The paths this plan cites (`docs/realizer/`) are in the tag `realizer-reorg-oracle-1.0.0` under `legacy/realizer_single_file/` (now moved to `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](repo-reorg-parity.md)); read one with `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/<path>"`. `docs/phase2/migration-release-plan.md` is not in the tag or anywhere in this repository's history.
+
 **Status:** LOCKED FOR EXECUTION  
 **Baseline:** Product v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)  
 **Release:** `REL-REALIZER-1.0.0`  
@@ -29,7 +31,7 @@ One Phase-1 product release/worktree with sequential epics. Keep `publisher.py` 
 
 ### Stories
 
-- E0-S1 Create `docs/realizer/*`, contracts/schema/test locations in existing repo.
+- E0-S1 Create `docs/realizer/*` (in the tag under `legacy/realizer_single_file/docs/realizer/`), contracts/schema/test locations in existing repo.
 - E0-S2 Align `WORKBOOK_CONTRACT_VERSION` implementation with locked v1.1.0 without semantic change.
 - E0-S3 Add explicit Realizer extension notice to README/CLAUDE.
 - E0-S4 Fix Publisher authoritative Plan-A scenario pricing so pricing stops at first invalidating/canary boundary; downstream pending steps become contingent/unpriced for authoritative plan economics.
@@ -178,4 +180,4 @@ Merge `release/sqlwhopt-v2.8.0-realizer-v1.0.0` to `develop` only when E0-E8 pas
 
 ## 13. Phase-2 handoff
 
-This plan ends at the Phase-1 release gate. The subsequent scale-out is governed by `docs/phase2/migration-release-plan.md`; do not mix Phase-2 implementation into the Phase-1 release worktree.
+This plan ends at the Phase-1 release gate. The subsequent scale-out is governed by `docs/phase2/migration-release-plan.md` (a path that never existed in this repository or in the tag); do not mix Phase-2 implementation into the Phase-1 release worktree.

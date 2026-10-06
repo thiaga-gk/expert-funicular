@@ -2,6 +2,8 @@
 
 > Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](repo-reorg-parity.md).
 
+> The artifacts this record cites by path (`examples/test-results.txt`, `examples/realizer_demo/`, `examples/realizer_jsons/`, `docs/realizer/`) are in the tag `realizer-reorg-oracle-1.0.0` under `legacy/realizer_single_file/`; read one with `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/<path>"`. `docs/phase2/` is not in the tag or anywhere in this repository's history.
+
 **Release:** `REL-REALIZER-1.0.0`  
 **Evidence date:** 2026-10-03  
 **Product release:** v2.8.0  
@@ -18,7 +20,7 @@
 - `schema/realization-ledger-entry.schema.json`
 - `contracts/realizer_workbook_contract.py`
 - `reporters/realizer_workbook_reporter.py`
-- complete `docs/realizer/` contract/design set.
+- complete `docs/realizer/` contract/design set (in the tag under `legacy/realizer_single_file/docs/realizer/`; now in `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](repo-reorg-parity.md)).
 - `.claude/skills/realizer-delivery/SKILL.md`.
 
 ## 2. Final compile command
@@ -42,7 +44,7 @@ Ran 63 tests
 OK
 ```
 
-Detailed output: `examples/test-results.txt`.
+Detailed output: `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/examples/test-results.txt"`.
 
 Coverage by suite:
 
@@ -137,7 +139,7 @@ This proves Realizer measures the actual target instead of pretending the recomm
 
 ## 8. Workbook extension evidence
 
-Artifact: `examples/realizer_demo/publisher-realizer-workbook.xlsx`.
+Artifact: `examples/realizer_demo/publisher-realizer-workbook.xlsx`, in the tag only (`legacy/realizer_single_file/examples/realizer_demo/publisher-realizer-workbook.xlsx`; not restored, the `.xlsx` writer is retired).
 
 Verified with `artifact_tool`:
 
@@ -178,14 +180,14 @@ This is not a substitute for the organization's required `/code-review low` gate
 
 ## 9.1 JSON example bundle
 
-The repo now includes side-by-side exact and modified canonical examples under `examples/realizer_jsons/`. Each contains source PKG, normalized observation, RPKG, RSNAP, append-only RLE JSONL, REVID evidence, and regeneration request.
+The repo now includes side-by-side exact and modified canonical examples under `examples/realizer_jsons/` (in the tag under `legacy/realizer_single_file/examples/realizer_jsons/`; the two observations are restored as `examples/realizer/`). Each contains source PKG, normalized observation, RPKG, RSNAP, append-only RLE JSONL, REVID evidence, and regeneration request.
 
 Exact snapshot: `RSNAP-B4E0622B53B53930421A90E3`.  
 Modified snapshot: `RSNAP-709E1EC13A10E423918D76AB`.
 
 ## 9.2 Phase-2 separation
 
-Future scale-out design is separated from the Phase-1 Realizer docs under `docs/phase2/` with its own PRD/HLD/LLD/Context and migration-release plan. Phase 2 is not runtime authority in v2.8.0.
+Future scale-out design is separated from the Phase-1 Realizer docs under `docs/phase2/` (a path that never existed in this repository or in the tag) with its own PRD/HLD/LLD/Context and migration-release plan. Phase 2 is not runtime authority in v2.8.0.
 
 ## 10. External gate evidence
 
