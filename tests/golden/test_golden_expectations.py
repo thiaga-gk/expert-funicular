@@ -175,9 +175,11 @@ class GoldenScenarioTests(unittest.TestCase):
         ev = self.severity_evidence("idle-expensive-warehouse", compute_wait_queries_30=30, p95_wait_compute_ms_when_waited_30=120000)
         self.assertEqual(self.candidate(ev, "auto_stop_minutes").status, "ACTIONABLE")
         ev = self.severity_evidence("idle-expensive-warehouse")
-        rows = ev[0].current_epoch.gaps["running_idle_by_target"]
-        rows["10"]["additional_starts"] = 241  # 2.008% of 12,000 queries: over the 2% budget
-        rows["15"]["additional_starts"] = 240  # exactly 2%: within it
+        for window in ev[0].current_epoch.gaps["running_idle_windows"].values():  # the same share blended and recently
+            window["queries"] = 12000
+            rows = window["running_idle_by_target"]
+            rows["10"]["additional_starts"] = 241  # 2.008% of 12,000 queries: over the 2% budget
+            rows["15"]["additional_starts"] = 240  # exactly 2%: within it
         c = self.candidate(ev, "auto_stop_minutes")
         self.assertEqual(c.status, "ACTIONABLE")
         self.assertNotEqual(c.recommended_config["auto_stop_minutes"], 10)

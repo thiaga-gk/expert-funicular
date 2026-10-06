@@ -7,7 +7,7 @@ Logging carries counts and workspace/warehouse IDs only: never SQL text, owner e
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.collector.billing import (
     _is_unpriced_only_row,
@@ -28,6 +28,7 @@ from publisher.analyzer.collector.queries.events import (
     RESOURCE_DAILY_COLLECT_DAYS,
     RESOURCE_DAILY_SQL,
     RUNNING_IDLE_TARGET_FIELDS,
+    RUNNING_IDLE_WINDOW_FIELDS,
     build_epoch_gap_metrics_sql,
     build_running_idle_sql,
     build_running_idle_targets_sql,
@@ -47,6 +48,7 @@ from publisher.analyzer.collector.queries.query_history import (
 from publisher.analyzer.collector.sql_executor import SqlClient, with_ingestion_cutoff
 from publisher.analyzer.epochs import carried_query_view, observed_epoch_calendar_days
 from publisher.analyzer.forecast import Modeler
+from publisher.analyzer.metrics import running_idle_basis
 from publisher.analyzer.normalizer import (
     clean_owner,
     derive_query_source_profile,
@@ -78,6 +80,38 @@ def _index_epoch_rows(rows: Iterable[Dict[str, Any]]) -> Dict[Tuple[str, str, st
     for r in rows:
         out[_row_key(r)] = r
     return out
+
+
+def _attach_running_idle(client: SqlClient, thresholds: Thresholds, requests: Sequence[Tuple[EpochEvidence, Mapping[str, Any]]]) -> int:
+    """Second pass: running idle of each current epoch on the windows its DBU forecast chose (``running_idle_basis``).
+
+    Sets ``gaps.running_idle_model`` and ``gaps.running_idle_windows`` (label -> bounds, window totals and the sparse
+    ``running_idle_by_target`` map, where an auto-stop value without a row is a known zero) only when every window was
+    collected; otherwise the keys stay absent (not collected) and auto-stop fails closed. Returns how many epochs got them.
+    """
+    windows = [{"workspace_id": ep.workspace_id, "warehouse_id": ep.warehouse_id, "label": label,
+                "start": None if days is None else days[0], "end": None if days is None else days[1]}
+               for ep, basis in requests for label, days in sorted(basis["windows"].items())]
+    if not windows:
+        return 0
+    by_key = {(ep.workspace_id, ep.warehouse_id, ep.epoch_start): (ep, basis) for ep, basis in requests}
+    found: Dict[Tuple[str, str, str], Dict[str, Dict[str, Any]]] = {}
+    for r in client.query(build_running_idle_sql(thresholds, windows), label="running_idle"):
+        key, label = _row_key(r), str(r.get("window_label") or "")
+        if key in by_key and label in by_key[key][1]["windows"]:
+            found.setdefault(key, {})[label] = {"window_start": iso(r.get("window_start")), "window_end": iso(r.get("window_end")),
+                                                **{f: r.get(f) for f in RUNNING_IDLE_WINDOW_FIELDS}, "running_idle_by_target": {}}
+    for r in client.query(build_running_idle_targets_sql(thresholds, windows), label="running_idle_targets"):
+        window = found.get(_row_key(r), {}).get(str(r.get("window_label") or ""))
+        if window is not None:
+            window["running_idle_by_target"][str(safe_int(r.get("target_min")))] = {f: r.get(f) for f in RUNNING_IDLE_TARGET_FIELDS}
+    collected = 0
+    for key, (ep, basis) in by_key.items():
+        if set(found.get(key, {})) == set(basis["windows"]):
+            ep.gaps["running_idle_model"] = basis["model"]
+            ep.gaps["running_idle_windows"] = found[key]
+            collected += 1
+    return collected
 
 
 def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None, *, ingestion_cutoff: Optional[str] = None, analysis_time: Optional[str] = None) -> List[WarehouseEvidence]:
@@ -134,16 +168,6 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     LOGGER.info("collector.phase_start phase=event_evidence")
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
-    running_idle_idx = _index_epoch_rows(client.query(build_running_idle_sql(thresholds),label="running_idle"))
-    for r in running_idle_idx.values():
-        for k in ("running_idle_window_start", "running_idle_window_end"):
-            if r.get(k) is not None:
-                r[k] = iso(r[k])
-        r["running_idle_by_target"] = {}  # collected: an auto-stop value without a row is a known zero
-    for r in client.query(build_running_idle_targets_sql(thresholds),label="running_idle_targets"):
-        header = running_idle_idx.get(_row_key(r))
-        if header is not None:
-            header["running_idle_by_target"][str(safe_int(r.get("target_min")))] = {k: r.get(k) for k in RUNNING_IDLE_TARGET_FIELDS}
     concurrency_idx: Dict[Tuple[str, str, str], Dict[str, Dict[str, float]]] = {}
     for r in client.query(build_concurrency_sql(),label="concurrency"):
         scope = str(r.get("scope") or "")
@@ -248,8 +272,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
                                                                          **concurrency_idx.get(key, {})}}
                                                 if (end is None or parse_datetime(end) > parse_datetime(analysis_time) - dt.timedelta(days=365)) else {})},
             events=event_idx.get(key, {}),
-            # Running-idle evidence (current epoch only) joins the gap facts; absent keys mean not collected.
-            gaps={**gap_idx.get(key, {}), **(running_idle_idx.get(key, {}) if bool(r.get("is_current")) else {})},
+            # Running-idle evidence (current epoch only) joins the gap facts after the forecast (warehouse assembly).
+            gaps=dict(gap_idx.get(key, {})),
             cost=epoch_cost,
             # Current epoch only; [] means collected with no activity (a known zero), unlike None (not collected).
             resource_daily=sorted(resource_daily_idx.get(key, []), key=lambda d: d["usage_day"]) if bool(r.get("is_current")) else None,
@@ -259,6 +283,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     LOGGER.info("collector.phase_start phase=warehouse_assembly")
     modeler = Modeler(thresholds)
     result: List[WarehouseEvidence] = []
+    idle_requests: List[Tuple[EpochEvidence, Dict[str, Any]]] = []
     for wk, epochs in grouped.items():
         workspace_id, wh = wk
         epochs.sort(key=lambda e: e.epoch_start)
@@ -299,6 +324,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         model["billing_watermark_source"] = watermark_source
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff
+        idle_requests.append((current, running_idle_basis(current.epoch_start, current.events.get("event_coverage_start"), model, thresholds)))
         account_sku_prices = sku_prices_by_account.get(current.account_id, {})
         attribution_row = attribution_idx.get((workspace_id, wh, current.epoch_start), {})
         node_types = as_string_list(attribution_row.get("observed_node_types"))
@@ -351,5 +377,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             attribution=attribution,
         ))
     LOGGER.info("collector.phase_done phase=warehouse_assembly warehouses=%d", len(result))
+    LOGGER.info("collector.phase_start phase=running_idle")
+    collected = _attach_running_idle(client, thresholds, idle_requests)
+    LOGGER.info("collector.phase_done phase=running_idle warehouses=%d collected=%d", len(idle_requests), collected)
     LOGGER.info("collector.done warehouses=%d epochs=%d", len(result), sum(len(x.epochs) for x in result))
     return sorted(result, key=lambda e: (e.warehouse_name.lower(), e.workspace_id, e.warehouse_id))

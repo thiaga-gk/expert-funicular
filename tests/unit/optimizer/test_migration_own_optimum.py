@@ -10,9 +10,9 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
-from publisher.analyzer.collector.queries.events import RUNNING_IDLE_TARGET_FIELDS  # noqa: E402
+from publisher.analyzer.metrics import RUNNING_IDLE_TARGET_FIELDS  # noqa: E402
 from publisher.analyzer.findings import Analyzer  # noqa: E402
-from publisher.analyzer.metrics import auto_stop_candidates  # noqa: E402
+from publisher.analyzer.metrics import auto_stop_candidates, running_idle_rates  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 
 
@@ -62,11 +62,11 @@ class MigrationTargetBudgetTests(unittest.TestCase):
         logging.disable(logging.CRITICAL)
         try:
             e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C02")
-            q = e.current_epoch.gaps["running_idle_queries"]
-            for t in auto_stop_candidates(Thresholds(), "PRO"):
-                if t < 30:
-                    row = e.current_epoch.gaps["running_idle_by_target"].setdefault(str(t), dict.fromkeys(RUNNING_IDLE_TARGET_FIELDS, 0))
-                    row["additional_starts"] = q // 2
+            for window in e.current_epoch.gaps["running_idle_windows"].values():
+                for t in auto_stop_candidates(Thresholds(), "PRO"):
+                    if t < 30:
+                        row = window["running_idle_by_target"].setdefault(str(t), dict.fromkeys(RUNNING_IDLE_TARGET_FIELDS, 0))
+                        row["additional_starts"] = window["queries"] // 2
             a = Analyzer(Thresholds()).analyze(e)["warehouse_type"].facts
         finally:
             logging.disable(logging.NOTSET)
@@ -83,26 +83,28 @@ class MigrationTargetRestartTests(unittest.TestCase):
             a = Analyzer(Thresholds()).analyze(e)["warehouse_type"].facts
         finally:
             logging.disable(logging.NOTSET)
-        g = e.current_epoch.gaps
+        ri = running_idle_rates(e, Thresholds())
         o = a["migration_target_option"]
-        restarts = g["restarts_for_queries"] + o["added_starts"]
+        restarts = ri["restarts_per_day"] + o["added_starts_per_day"]
         self.assertGreater(restarts, 0)
-        self.assertGreaterEqual(o["target_running_cluster_minutes"], g["observed_running_cluster_minutes"] - o["gain_cluster_minutes"] + restarts * 3.9 - 1e-6)
+        self.assertGreaterEqual(o["target_running_cluster_minutes_per_day"],
+                                ri["running_cluster_minutes_per_day"] - o["gain_cluster_minutes_per_day"] + restarts * 3.9 - 1e-6)
 
 
 class MigrationBasisTests(unittest.TestCase):
     def test_today_basis_carries_today_restarts_at_today_cost(self):
         # Measured running time excludes starting time, so the fraction is target cost over (today's running + today's
-        # restarts at today's restart cost), never today's running minus restarts it never contained.
+        # restarts at today's restart cost), never today's running minus restarts it never contained (per day, on the
+        # forecast's days).
         logging.disable(logging.CRITICAL)
         try:
             e = next(x for x in synthetic_demo_evidence() if x.current_epoch.tags["golden_scenario"] == "C49")
             a = Analyzer(Thresholds()).analyze(e)["warehouse_type"].facts
         finally:
             logging.disable(logging.NOTSET)
-        g = e.current_epoch.gaps
-        basis = g["observed_running_cluster_minutes"] + g["restarts_for_queries"] * 4.0
-        self.assertAlmostEqual(a["migration_running_fraction"], round(a["migration_target_option"]["target_running_cluster_minutes"] / basis, 6), places=6)
+        ri = running_idle_rates(e, Thresholds())
+        basis = ri["running_cluster_minutes_per_day"] + ri["restarts_per_day"] * 4.0
+        self.assertAlmostEqual(a["migration_running_fraction"], round(a["migration_target_option"]["target_running_cluster_minutes_per_day"] / basis, 6), places=6)
 
 
 if __name__ == "__main__":

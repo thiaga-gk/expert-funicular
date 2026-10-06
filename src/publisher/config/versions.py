@@ -4,34 +4,34 @@ from __future__ import annotations
 from publisher.contracts import reporter_contract as rc
 
 
-PUBLISHER_VERSION = "2.12.0"
+PUBLISHER_VERSION = "2.13.0"
 
 
 CONTRACT_VERSION = rc.CONTRACT_VERSION
 
 
-POLICY_VERSION = "sql-warehouse-policy-v2.11.0"
+POLICY_VERSION = "sql-warehouse-policy-v2.13.0"
 
 
-ANALYZER_VERSION = "sql-warehouse-analyzer-v2.11.0"
+ANALYZER_VERSION = "sql-warehouse-analyzer-v2.13.0"
 
 
-OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.12.0"
+OPTIMIZER_VERSION = "sql-warehouse-optimizer-v2.13.0"
 
 
 MODEL_VERSION = "epoch-runrate-v2.10.0"
 
 
-ESTIMATOR_VERSION = "counterfactual-v2.11.0"
+ESTIMATOR_VERSION = "counterfactual-v2.13.0"
 
 
-BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.10.0"
+BUNDLE_MODEL_VERSION = "stateful-resource-bundle-v2.13.0"
 
 
-REVIEWER_VERSION = "recommendation-reviewer-v2.12.0"
+REVIEWER_VERSION = "recommendation-reviewer-v2.13.0"
 
 
-DECISION_VERSION = "warehouse-decision-graph-v2.12.0"
+DECISION_VERSION = "warehouse-decision-graph-v2.13.0"
 
 
 TECHNIQUE_CATALOG_VERSION = "technique-catalog-v2"

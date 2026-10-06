@@ -1,13 +1,14 @@
 """Scenario construction: Plan A (current type) and Plan B (migration) from the reviewed candidates, and the recommended scenario."""
 from __future__ import annotations
 
+import dataclasses
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from publisher.common.ids import scenario_id
 from publisher.common.utils import safe_float
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.candidate import CandidateRecommendation
-from publisher.contracts.scenario import PlanStep, Scenario
+from publisher.contracts.scenario import PlanStep, PortfolioEstimate, Scenario
 from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.contracts.source import WarehouseEvidence
 from publisher.governor.compatibility import migration_compatibility
@@ -44,7 +45,8 @@ class ScenarioPlanner(PlanOrdering):
         """Governor-owned migration compatibility checks against the target type (the planner only attaches them)."""
         return migration_compatibility(e,target_type)
 
-    def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation],scope:RunScope=FULL_SCOPE)->Tuple[List[Scenario],Optional[str]]:
+    def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation],scope:RunScope=FULL_SCOPE,
+                  materiality_floor:Optional[float]=None)->Tuple[List[Scenario],Optional[str]]:
         """Return the in-scope scenarios ([Plan A, Plan B] in the full scope) and the recommended internal scenario id.
 
         Plan A holds the ACTIONABLE/TEST_REQUIRED/REVIEW candidates of the current-type knobs present in dependency
@@ -61,7 +63,7 @@ class ScenarioPlanner(PlanOrdering):
         rollback=any("CANARY_GUARDRAIL_BREACHED" in c.blockers for c in in_place)
         out: List[Scenario] = []
         if scope.scenario_enabled("current") or rollback:
-            out.append(self._plan_a(e,in_place,by_id))
+            out.append(self._plan_a(e,in_place,by_id,self.t.cost_change_min_annual_savings if materiality_floor is None else materiality_floor))
         else:
             out.append(self._baseline(e,by_id))
         if "warehouse_type" in by_knob:
@@ -76,7 +78,7 @@ class ScenarioPlanner(PlanOrdering):
             [],self.bundle.estimate(e,[],by_id),[],True,{"target_warehouse_type":e.current_epoch.config.warehouse_type,"assessment":"CURRENT_TYPE"},
             self._scenario_confidence([]),scenario_type="NO_CHANGE_BASELINE")
 
-    def _plan_a(self,e:WarehouseEvidence,in_place:Sequence[CandidateRecommendation],by_id:Dict[str,CandidateRecommendation])->Scenario:
+    def _plan_a(self,e:WarehouseEvidence,in_place:Sequence[CandidateRecommendation],by_id:Dict[str,CandidateRecommendation],materiality_floor:float)->Scenario:
         """Plan A: the current-type steps in dependency order, priced as one stateful chain."""
         steps=[]; pending_invalidated=set()
         for c in self._plan_order(list(in_place)):
@@ -88,7 +90,39 @@ class ScenarioPlanner(PlanOrdering):
             steps.append(PlanStep(len(steps)+1,c.recommendation_id,c.knob,c.current_config,c.recommended_config,c.status,gate,self.t.remeasure_days_after_invalidating_change if c.invalidates else 0,c.invalidates,c.dependencies,state,instruction,confidence=dict(c.confidence)))
             pending_invalidated.update(c.invalidates)
         plan_a_id=scenario_id(e.workspace_id,e.warehouse_id,"Plan A",[s.recommendation_id for s in steps])
-        return Scenario(plan_a_id,e.warehouse_id,e.workspace_id,"Plan A — Optimize current warehouse type","Apply ordered tuning without changing warehouse type. Re-analyze downstream knobs after invalidating changes.",steps,self.bundle.estimate(e,steps,by_id),[],True,{"target_warehouse_type":e.current_epoch.config.warehouse_type,"assessment":"CURRENT_TYPE"},self._scenario_confidence(steps))
+        return Scenario(plan_a_id,e.warehouse_id,e.workspace_id,"Plan A — Optimize current warehouse type","Apply ordered tuning without changing warehouse type. Re-analyze downstream knobs after invalidating changes.",steps,self._estimate_with_marginal_hold(e,steps,by_id,materiality_floor),[],True,{"target_warehouse_type":e.current_epoch.config.warehouse_type,"assessment":"CURRENT_TYPE"},self._scenario_confidence(steps))
+
+    def _estimate_with_marginal_hold(self,e:WarehouseEvidence,steps:List[PlanStep],by_id:Dict[str,CandidateRecommendation],materiality_floor:float)->PortfolioEstimate:
+        """Price Plan A; an auto-stop step whose own saving after the steps applied before it falls below the materiality
+        floor that its standalone saving cleared is held (BLOCKED, not applied, not priced) and the plan is priced again.
+
+        Applied before it means in execution order, not plan order: approval-only steps go first and canaries start on a
+        later run (the sequencing note), so an approval-only auto-stop follows only the approval-only steps listed before
+        it, and an auto-stop canary every approval-only step and the canaries listed before it. Its candidate keeps its
+        standalone status: the hold is about this plan, not the change."""
+        estimate=self.bundle.estimate(e,steps,by_id)
+        ready=("READY_FOR_HITL","READY_FOR_CANARY")
+        wave=lambda x:ready.index(x.execution_state)
+        held=False
+        for i,st in enumerate(steps):
+            c=by_id[st.recommendation_id]
+            if (c.knob!="auto_stop_minutes" or st.execution_state not in ready
+                    or c.estimated_savings_365 is None or c.estimated_savings_365<materiality_floor):
+                continue
+            before=[x for j,x in enumerate(steps) if j!=i and x.execution_state in ready and (wave(x),j)<(wave(st),i)]
+            if not before:
+                continue  # applied first: its marginal saving is its standalone saving
+            chain=[dataclasses.replace(x) for x in sorted(before,key=lambda x:(wave(x),steps.index(x)))]+[dataclasses.replace(st)]
+            self.bundle.estimate(e,chain,by_id)
+            last=chain[-1]
+            if last.step_dbu_savings_range_365 is None:
+                continue  # the steps before it cannot be priced (a canary measures them): nothing to hold on
+            marginal=last.step_dbu_savings_range_365.base+(last.step_aws_savings_range_365.base if last.step_aws_savings_range_365 is not None else 0.0)
+            if marginal<materiality_floor:
+                st.execution_state="BLOCKED"; st.validation_gate="HELD_MARGINAL_SAVINGS_BELOW_MATERIALITY"; held=True
+                st.instruction=(f"Held in this plan: after the steps before it, its own saving is {marginal:,.2f} {e.currency} a year, below the "
+                                f"materiality floor of {materiality_floor:,.2f}. Its standalone saving clears the floor; re-evaluate after those steps are applied.")
+        return self.bundle.estimate(e,steps,by_id) if held else estimate
 
     def _plan_b(self,e:WarehouseEvidence,type_c:CandidateRecommendation,by_id:Dict[str,CandidateRecommendation])->Scenario:
         """Plan B: the migration experiment as a separate one-step branch, or a step-less 'not evaluated' branch; always

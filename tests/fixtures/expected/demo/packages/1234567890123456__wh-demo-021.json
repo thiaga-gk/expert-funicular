@@ -35,7 +35,7 @@
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-EF9702A9AD65E00C605140F7",
+      "candidate_id": "CAND-20EEC9AF0D6D7AB3E6B43EE8",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -112,7 +112,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-ADFC6DE31DF2113223A8C51B",
+      "candidate_id": "CAND-FBE8CCE98C7BA44547E1A8EB",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -213,7 +213,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-E423E925CD06FCEF1EDCC058",
+      "candidate_id": "CAND-CF8825A66EF929A4DF3E7160",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -318,7 +318,7 @@
     },
     {
       "blockers": [],
-      "candidate_id": "CAND-D99DDE25605412A5817BA200",
+      "candidate_id": "CAND-2C69C9FCEF67DDA88AC43862",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -336,17 +336,21 @@
       "evidence_refs": [
         "EVID-EB9DD8F048C2BB9F0918CF82",
         "EVID-57A4B1C1CFE68B61AF4886AD",
-        "EVID-2F242331FD1E82CB4048EE06",
-        "EVID-35DB07402594713541571C70",
-        "EVID-F3CB7460C1DDAEF716C87AD8",
-        "EVID-4588EC6E6D77AC28D9B1B19E",
+        "EVID-0D3C11640A152F77A4AC6ED7",
+        "EVID-D4E19BA695D2385C37B4EA03",
+        "EVID-6776C50EA34C2571315BF976",
+        "EVID-4876EFBA8B75623A1D830F3E",
+        "EVID-EEA5952E36CA490B9D782407",
+        "EVID-328B278AE246B1356CA4497A",
         "EVID-B2CBAD85E5433F417F66B49D",
         "EVID-C0F08E60B30AD63DDB9D1983",
         "EVID-C308008FECB76AA554D24019",
         "EVID-9C6FB0C5D5491B4E624F040B",
-        "EVID-693C2C0A6194EE1BDF309AAB",
+        "EVID-916A3154CEF5F888C47891D0",
         "EVID-734576C6350D5018AB8D0F01",
-        "EVID-321EC4B32AE17FE00773EFBA",
+        "EVID-773623CF62E843FEC08F12EA",
+        "EVID-80C86C887B4D6EB45B4286C5",
+        "EVID-F18C27EAB82C47C0146B81F4",
         "EVID-0225B557E8052B88C2A8008B",
         "EVID-78506D44D60E383C08CAAFBC",
         "EVID-5686D24AEBDEC9F859EA6711",
@@ -364,38 +368,38 @@
         },
         "estimated_cost_365d": {
           "aws": {
-            "base": 17455.74,
-            "high": 22582.72,
-            "low": 12328.77
+            "base": 17466.88,
+            "high": 22611.86,
+            "low": 12321.9
           },
           "dbu": {
-            "base": 30617.71,
-            "high": 39610.52,
-            "low": 21624.89
+            "base": 30637.24,
+            "high": 39661.63,
+            "low": 21612.84
           },
           "total": {
-            "base": 48073.45,
-            "high": 62193.24,
-            "low": 33953.66
+            "base": 48104.12,
+            "high": 62273.49,
+            "low": 33934.74
           }
         },
         "estimation_status": "MODELED_RANGE",
         "is_additive": false,
         "savings_365d": {
           "aws": {
-            "base": 15380.93,
-            "high": 20507.9,
-            "low": 10253.95
+            "base": 15369.79,
+            "high": 20514.77,
+            "low": 10224.81
           },
           "dbu": {
-            "base": 26978.44,
-            "high": 35971.26,
-            "low": 17985.63
+            "base": 26958.91,
+            "high": 35983.31,
+            "low": 17934.52
           },
           "total": {
-            "base": 42359.37,
-            "high": 56479.16,
-            "low": 28239.58
+            "base": 42328.7,
+            "high": 56498.08,
+            "low": 28159.33
           }
         }
       },
@@ -413,7 +417,7 @@
       "blockers": [
         "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-C49F822305BDEB21A8FE5E5B",
+      "candidate_id": "CAND-5110C6A0E9F080DC1EB9E200",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -443,8 +447,8 @@
         "EVID-97D7438B0786BB7FB687E6DC",
         "EVID-05EB16DEBFD5A42BAC243AC5",
         "EVID-992C6C37C0F16B7124E36AAB",
-        "EVID-6AB7D0D552FAAF09A088F25B",
-        "EVID-2FD96ACA7DE51812F0910C7D",
+        "EVID-1D98DBD91ABC50C473CFC263",
+        "EVID-B1927AEB241DC0BE3C169456",
         "EVID-0225B557E8052B88C2A8008B",
         "EVID-78506D44D60E383C08CAAFBC",
         "EVID-5686D24AEBDEC9F859EA6711",
@@ -467,12 +471,12 @@
             "low": 0.0
           },
           "dbu": {
-            "base": 26350.83,
+            "base": 26334.66,
             "high": 73471.65,
             "low": 4376.04
           },
           "total": {
-            "base": 26350.83,
+            "base": 26334.66,
             "high": 73471.65,
             "low": 4376.04
           }
@@ -486,12 +490,12 @@
             "low": 32836.67
           },
           "dbu": {
-            "base": 31245.32,
+            "base": 31261.49,
             "high": 53220.11,
             "low": -15875.5
           },
           "total": {
-            "base": 64081.99,
+            "base": 64098.16,
             "high": 86056.78,
             "low": 16961.17
           }
@@ -638,6 +642,43 @@
       "unit": "%",
       "value": 100.0
     },
+    "EVID-0D3C11640A152F77A4AC6ED7": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-0D3C11640A152F77A4AC6ED7",
+      "interpretation": "The days auto-stop evidence is measured on: the DBU forecast's own (whole weeks, the recent/long blend and trend, or whole billing cycles), so a saving annualizes like the baseline it is a share of.",
+      "metric": "running_idle_basis",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.billing.usage + system.compute.warehouse_events",
+      "source_field": "forecast basis",
+      "threshold": null,
+      "unit": "windows",
+      "value": {
+        "blend_weights_per_day": [
+          [
+            "recent",
+            0.023214286
+          ],
+          [
+            "long",
+            0.004166667
+          ]
+        ],
+        "model": "RUN_RATE",
+        "recent_check_window": "recent",
+        "trend_adjustment_factor": 1.001196,
+        "windows": {
+          "long": [
+            "2026-07-08T00:00:00+00:00",
+            "2026-09-30T00:00:00+00:00"
+          ],
+          "recent": [
+            "2026-09-02T00:00:00+00:00",
+            "2026-09-30T00:00:00+00:00"
+          ]
+        }
+      }
+    },
     "EVID-0E2ABA3944C385F0126EFA3C": {
       "comparator": "",
       "epoch_scope": "CURRENT",
@@ -677,67 +718,31 @@
       "unit": "value",
       "value": 2
     },
-    "EVID-2F242331FD1E82CB4048EE06": {
-      "comparator": ">= evidence minimum",
+    "EVID-1D98DBD91ABC50C473CFC263": {
+      "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-2F242331FD1E82CB4048EE06",
-      "interpretation": "Running cluster-minutes: the basis idle-time savings are a share of.",
-      "metric": "cluster_minutes",
-      "observation_window": "current epoch since the first retained warehouse event",
+      "evidence_id": "EVID-1D98DBD91ABC50C473CFC263",
+      "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
+      "metric": "migration_target_auto_stop",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "running-idle per auto-stop value",
+      "threshold": null,
+      "unit": "minutes",
+      "value": 5
+    },
+    "EVID-328B278AE246B1356CA4497A": {
+      "comparator": ">= always-on",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-328B278AE246B1356CA4497A",
+      "interpretation": "Share of the day the warehouse was running.",
+      "metric": "running_share_of_clock_pct",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
       "source": "system.compute.warehouse_events",
-      "source_field": "cluster_count/event_time",
-      "threshold": 1.0,
-      "unit": "cluster-minutes",
-      "value": 484380.0
-    },
-    "EVID-2FD96ACA7DE51812F0910C7D": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-2FD96ACA7DE51812F0910C7D",
-      "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
-      "metric": "migration_target_running_fraction",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "running-idle per auto-stop value",
-      "threshold": null,
-      "unit": "ratio",
-      "value": 0.358653
-    },
-    "EVID-321EC4B32AE17FE00773EFBA": {
-      "comparator": "added cold-start share <= budget (%)",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-321EC4B32AE17FE00773EFBA",
-      "interpretation": "The auto-stop value with the largest net saving among those within the cold-start budget.",
-      "metric": "auto_stop_best_option_within_budget",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "running-idle per auto-stop value",
-      "threshold": 2.0,
-      "unit": "per value",
-      "value": {
-        "added_cold_start_share_pct": 0.4177,
-        "added_starts": 241,
-        "direction": "LOWER",
-        "gain_cluster_minutes": 309480.0,
-        "loss_cluster_minutes": 964.0,
-        "net_cluster_minutes": 308516.0,
-        "removable_wall_minutes": 309480.0,
-        "target": 10,
-        "within_cold_start_budget": true
-      }
-    },
-    "EVID-35DB07402594713541571C70": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-35DB07402594713541571C70",
-      "interpretation": "Queries over the running-idle window; added restarts are judged as a share of them.",
-      "metric": "running_idle_queries",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history",
-      "source_field": "start_time",
-      "threshold": null,
-      "unit": "queries",
-      "value": 57700
+      "source_field": "cluster_count",
+      "threshold": 90.0,
+      "unit": "%",
+      "value": 100.0
     },
     "EVID-3C18F4301DFC261719C9655E": {
       "comparator": "<= safe",
@@ -797,18 +802,18 @@
       "unit": "ms",
       "value": 0
     },
-    "EVID-4588EC6E6D77AC28D9B1B19E": {
-      "comparator": ">= always-on",
+    "EVID-4876EFBA8B75623A1D830F3E": {
+      "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-4588EC6E6D77AC28D9B1B19E",
-      "interpretation": "Share of the window the warehouse was running.",
-      "metric": "running_share_of_clock_pct",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.compute.warehouse_events",
-      "source_field": "cluster_count",
-      "threshold": 90.0,
-      "unit": "%",
-      "value": 100.0
+      "evidence_id": "EVID-4876EFBA8B75623A1D830F3E",
+      "interpretation": "Queries in the basis window; added restarts are judged as a share of the queries (blended, and in the recent window alone).",
+      "metric": "basis_queries",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history",
+      "source_field": "start_time",
+      "threshold": null,
+      "unit": "queries",
+      "value": 14400
     },
     "EVID-49B9AB335522ED5FD5C0BC4F": {
       "comparator": "",
@@ -930,41 +935,18 @@
       "unit": "clusters",
       "value": 1
     },
-    "EVID-693C2C0A6194EE1BDF309AAB": {
-      "comparator": "added cold-start share <= budget (%)",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-693C2C0A6194EE1BDF309AAB",
-      "interpretation": "The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share.",
-      "metric": "auto_stop_best_net_option",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "running-idle per auto-stop value",
-      "threshold": 2.0,
-      "unit": "per value",
-      "value": {
-        "added_cold_start_share_pct": 0.4177,
-        "added_starts": 241,
-        "direction": "LOWER",
-        "gain_cluster_minutes": 309480.0,
-        "loss_cluster_minutes": 964.0,
-        "net_cluster_minutes": 308516.0,
-        "removable_wall_minutes": 309480.0,
-        "target": 10,
-        "within_cold_start_budget": true
-      }
-    },
-    "EVID-6AB7D0D552FAAF09A088F25B": {
+    "EVID-6776C50EA34C2571315BF976": {
       "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-6AB7D0D552FAAF09A088F25B",
-      "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
-      "metric": "migration_target_auto_stop",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "running-idle per auto-stop value",
+      "evidence_id": "EVID-6776C50EA34C2571315BF976",
+      "interpretation": "Running cluster-minutes per day, blended like the DBU forecast.",
+      "metric": "running_cluster_minutes_per_day",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.compute.warehouse_events",
+      "source_field": "cluster_count/event_time",
       "threshold": null,
-      "unit": "minutes",
-      "value": 5
+      "unit": "cluster-minutes per day",
+      "value": 1440.0
     },
     "EVID-6FBFF0820A83059F923DA488": {
       "comparator": "",
@@ -1007,6 +989,30 @@
         30,
         30
       ]
+    },
+    "EVID-773623CF62E843FEC08F12EA": {
+      "comparator": "added cold-start share <= budget (%)",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-773623CF62E843FEC08F12EA",
+      "interpretation": "The auto-stop value with the largest net saving among those within the cold-start budget.",
+      "metric": "auto_stop_best_option_within_budget",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "running-idle per auto-stop value",
+      "threshold": 2.0,
+      "unit": "per value, per day",
+      "value": {
+        "added_cold_start_share_pct": 0.4167,
+        "added_starts_per_day": 0.714286,
+        "direction": "LOWER",
+        "gain_cluster_minutes_per_day": 920.357143,
+        "loss_cluster_minutes_per_day": 2.857144,
+        "net_cluster_minutes_per_day": 917.499999,
+        "recent_added_cold_start_share_pct": 0.4167,
+        "removable_wall_minutes_per_day": 920.357143,
+        "target": 10,
+        "within_cold_start_budget": true
+      }
     },
     "EVID-781FFC44E890EF7DFC89B0AB": {
       "comparator": "<= reduce-safe",
@@ -1072,6 +1078,1742 @@
       "threshold": null,
       "unit": "value",
       "value": "SMALL"
+    },
+    "EVID-80C86C887B4D6EB45B4286C5": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-80C86C887B4D6EB45B4286C5",
+      "interpretation": "Per auto-stop value that saves within the cold-start budget: reclaimable cluster-hours a year net of restarts, the idle cluster-hours removed (or added) and the restart cluster-hours added (or saved), and the restarts added a year; per-day rates x 365 x the forecast trend.",
+      "metric": "auto_stop_annual_cluster_hours_by_value",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "running-idle per auto-stop value",
+      "threshold": null,
+      "unit": "cluster-hours per year",
+      "value": {
+        "10": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5605.5,
+          "net_cluster_hours": 5588.1,
+          "restart_cluster_hours": -17.4
+        },
+        "100": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5214.0,
+          "net_cluster_hours": 5196.6,
+          "restart_cluster_hours": -17.4
+        },
+        "1000": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2264.4,
+          "net_cluster_hours": 2260.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1005": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2260.1,
+          "net_cluster_hours": 2256.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1010": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2255.7,
+          "net_cluster_hours": 2252.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1015": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2251.4,
+          "net_cluster_hours": 2247.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1020": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2247.0,
+          "net_cluster_hours": 2243.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1025": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2242.6,
+          "net_cluster_hours": 2239.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1030": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2238.3,
+          "net_cluster_hours": 2234.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1035": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2233.9,
+          "net_cluster_hours": 2230.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1040": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2229.6,
+          "net_cluster_hours": 2226.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1045": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2225.2,
+          "net_cluster_hours": 2221.8,
+          "restart_cluster_hours": -3.5
+        },
+        "105": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5192.2,
+          "net_cluster_hours": 5174.8,
+          "restart_cluster_hours": -17.4
+        },
+        "1050": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2220.9,
+          "net_cluster_hours": 2217.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1055": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2216.5,
+          "net_cluster_hours": 2213.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1060": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2212.2,
+          "net_cluster_hours": 2208.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1065": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2207.8,
+          "net_cluster_hours": 2204.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1070": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2203.5,
+          "net_cluster_hours": 2200.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1075": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2199.1,
+          "net_cluster_hours": 2195.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1080": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2194.8,
+          "net_cluster_hours": 2191.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1085": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2190.4,
+          "net_cluster_hours": 2187.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1090": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2186.1,
+          "net_cluster_hours": 2182.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1095": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2181.7,
+          "net_cluster_hours": 2178.3,
+          "restart_cluster_hours": -3.5
+        },
+        "110": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5170.5,
+          "net_cluster_hours": 5153.1,
+          "restart_cluster_hours": -17.4
+        },
+        "1100": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2177.4,
+          "net_cluster_hours": 2173.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1105": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2173.0,
+          "net_cluster_hours": 2169.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1110": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2168.7,
+          "net_cluster_hours": 2165.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1115": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2164.3,
+          "net_cluster_hours": 2160.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1120": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2160.0,
+          "net_cluster_hours": 2156.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1125": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2155.6,
+          "net_cluster_hours": 2152.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1130": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2151.3,
+          "net_cluster_hours": 2147.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1135": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2146.9,
+          "net_cluster_hours": 2143.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1140": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2142.6,
+          "net_cluster_hours": 2139.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1145": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2138.2,
+          "net_cluster_hours": 2134.8,
+          "restart_cluster_hours": -3.5
+        },
+        "115": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5148.7,
+          "net_cluster_hours": 5131.3,
+          "restart_cluster_hours": -17.4
+        },
+        "1150": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2133.9,
+          "net_cluster_hours": 2130.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1155": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2129.5,
+          "net_cluster_hours": 2126.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1160": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2125.2,
+          "net_cluster_hours": 2121.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1165": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2120.8,
+          "net_cluster_hours": 2117.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1170": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2116.5,
+          "net_cluster_hours": 2113.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1175": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2112.1,
+          "net_cluster_hours": 2108.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1180": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2107.8,
+          "net_cluster_hours": 2104.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1185": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2103.4,
+          "net_cluster_hours": 2100.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1190": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2099.1,
+          "net_cluster_hours": 2095.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1195": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2094.7,
+          "net_cluster_hours": 2091.3,
+          "restart_cluster_hours": -3.5
+        },
+        "120": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5127.0,
+          "net_cluster_hours": 5109.6,
+          "restart_cluster_hours": -17.4
+        },
+        "1200": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2090.4,
+          "net_cluster_hours": 2086.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1205": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2086.0,
+          "net_cluster_hours": 2082.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1210": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2081.7,
+          "net_cluster_hours": 2078.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1215": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2077.3,
+          "net_cluster_hours": 2073.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1220": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2073.0,
+          "net_cluster_hours": 2069.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1225": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2068.6,
+          "net_cluster_hours": 2065.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1230": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2064.3,
+          "net_cluster_hours": 2060.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1235": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2059.9,
+          "net_cluster_hours": 2056.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1240": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2055.6,
+          "net_cluster_hours": 2052.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1245": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2051.2,
+          "net_cluster_hours": 2047.7,
+          "restart_cluster_hours": -3.5
+        },
+        "125": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5105.2,
+          "net_cluster_hours": 5087.8,
+          "restart_cluster_hours": -17.4
+        },
+        "1250": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2046.9,
+          "net_cluster_hours": 2043.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1255": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2042.5,
+          "net_cluster_hours": 2039.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1260": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2038.2,
+          "net_cluster_hours": 2034.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1265": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2033.8,
+          "net_cluster_hours": 2030.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1270": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2029.5,
+          "net_cluster_hours": 2026.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1275": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2025.1,
+          "net_cluster_hours": 2021.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1280": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2020.8,
+          "net_cluster_hours": 2017.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1285": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2016.4,
+          "net_cluster_hours": 2012.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1290": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2012.1,
+          "net_cluster_hours": 2008.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1295": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2007.7,
+          "net_cluster_hours": 2004.2,
+          "restart_cluster_hours": -3.5
+        },
+        "130": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5083.5,
+          "net_cluster_hours": 5066.1,
+          "restart_cluster_hours": -17.4
+        },
+        "1300": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2003.4,
+          "net_cluster_hours": 1999.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1305": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1999.0,
+          "net_cluster_hours": 1995.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1310": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1994.7,
+          "net_cluster_hours": 1991.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1315": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1990.3,
+          "net_cluster_hours": 1986.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1320": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1986.0,
+          "net_cluster_hours": 1982.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1325": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1981.6,
+          "net_cluster_hours": 1978.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1330": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1977.3,
+          "net_cluster_hours": 1973.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1335": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1972.9,
+          "net_cluster_hours": 1969.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1340": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1968.6,
+          "net_cluster_hours": 1965.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1345": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1964.2,
+          "net_cluster_hours": 1960.7,
+          "restart_cluster_hours": -3.5
+        },
+        "135": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5061.7,
+          "net_cluster_hours": 5044.3,
+          "restart_cluster_hours": -17.4
+        },
+        "1350": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1959.9,
+          "net_cluster_hours": 1956.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1355": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1955.5,
+          "net_cluster_hours": 1952.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1360": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1951.2,
+          "net_cluster_hours": 1947.7,
+          "restart_cluster_hours": -3.5
+        },
+        "1365": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1946.8,
+          "net_cluster_hours": 1943.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1370": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1942.5,
+          "net_cluster_hours": 1939.0,
+          "restart_cluster_hours": -3.5
+        },
+        "1375": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1938.1,
+          "net_cluster_hours": 1934.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1380": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1933.8,
+          "net_cluster_hours": 1930.3,
+          "restart_cluster_hours": -3.5
+        },
+        "1385": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1929.4,
+          "net_cluster_hours": 1925.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1390": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1925.1,
+          "net_cluster_hours": 1921.6,
+          "restart_cluster_hours": -3.5
+        },
+        "1395": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1920.7,
+          "net_cluster_hours": 1917.2,
+          "restart_cluster_hours": -3.5
+        },
+        "140": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5040.0,
+          "net_cluster_hours": 5022.6,
+          "restart_cluster_hours": -17.4
+        },
+        "1400": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1916.4,
+          "net_cluster_hours": 1912.9,
+          "restart_cluster_hours": -3.5
+        },
+        "1405": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1912.0,
+          "net_cluster_hours": 1908.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1410": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1907.7,
+          "net_cluster_hours": 1904.2,
+          "restart_cluster_hours": -3.5
+        },
+        "1415": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1903.3,
+          "net_cluster_hours": 1899.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1420": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1899.0,
+          "net_cluster_hours": 1895.5,
+          "restart_cluster_hours": -3.5
+        },
+        "1425": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1894.6,
+          "net_cluster_hours": 1891.1,
+          "restart_cluster_hours": -3.5
+        },
+        "1430": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1890.3,
+          "net_cluster_hours": 1886.8,
+          "restart_cluster_hours": -3.5
+        },
+        "1435": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1885.9,
+          "net_cluster_hours": 1882.4,
+          "restart_cluster_hours": -3.5
+        },
+        "1440": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 1881.6,
+          "net_cluster_hours": 1878.1,
+          "restart_cluster_hours": -3.5
+        },
+        "145": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5018.2,
+          "net_cluster_hours": 5000.8,
+          "restart_cluster_hours": -17.4
+        },
+        "15": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5583.8,
+          "net_cluster_hours": 5566.4,
+          "restart_cluster_hours": -17.4
+        },
+        "150": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4996.5,
+          "net_cluster_hours": 4979.1,
+          "restart_cluster_hours": -17.4
+        },
+        "155": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4974.7,
+          "net_cluster_hours": 4957.3,
+          "restart_cluster_hours": -17.4
+        },
+        "160": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4953.0,
+          "net_cluster_hours": 4935.6,
+          "restart_cluster_hours": -17.4
+        },
+        "165": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4931.2,
+          "net_cluster_hours": 4913.8,
+          "restart_cluster_hours": -17.4
+        },
+        "170": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4909.5,
+          "net_cluster_hours": 4892.1,
+          "restart_cluster_hours": -17.4
+        },
+        "175": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4887.7,
+          "net_cluster_hours": 4870.3,
+          "restart_cluster_hours": -17.4
+        },
+        "180": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4866.0,
+          "net_cluster_hours": 4848.6,
+          "restart_cluster_hours": -17.4
+        },
+        "185": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4844.2,
+          "net_cluster_hours": 4826.8,
+          "restart_cluster_hours": -17.4
+        },
+        "190": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4822.5,
+          "net_cluster_hours": 4805.1,
+          "restart_cluster_hours": -17.4
+        },
+        "195": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4800.7,
+          "net_cluster_hours": 4783.3,
+          "restart_cluster_hours": -17.4
+        },
+        "20": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5562.0,
+          "net_cluster_hours": 5544.6,
+          "restart_cluster_hours": -17.4
+        },
+        "200": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4779.0,
+          "net_cluster_hours": 4761.6,
+          "restart_cluster_hours": -17.4
+        },
+        "205": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4757.2,
+          "net_cluster_hours": 4739.8,
+          "restart_cluster_hours": -17.4
+        },
+        "210": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4735.4,
+          "net_cluster_hours": 4718.0,
+          "restart_cluster_hours": -17.4
+        },
+        "215": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4713.7,
+          "net_cluster_hours": 4696.3,
+          "restart_cluster_hours": -17.4
+        },
+        "220": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4691.9,
+          "net_cluster_hours": 4674.5,
+          "restart_cluster_hours": -17.4
+        },
+        "225": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4670.2,
+          "net_cluster_hours": 4652.8,
+          "restart_cluster_hours": -17.4
+        },
+        "230": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4648.4,
+          "net_cluster_hours": 4631.0,
+          "restart_cluster_hours": -17.4
+        },
+        "235": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4626.7,
+          "net_cluster_hours": 4609.3,
+          "restart_cluster_hours": -17.4
+        },
+        "240": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4604.9,
+          "net_cluster_hours": 4587.5,
+          "restart_cluster_hours": -17.4
+        },
+        "245": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4583.2,
+          "net_cluster_hours": 4565.8,
+          "restart_cluster_hours": -17.4
+        },
+        "25": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5540.3,
+          "net_cluster_hours": 5522.9,
+          "restart_cluster_hours": -17.4
+        },
+        "250": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4561.4,
+          "net_cluster_hours": 4544.0,
+          "restart_cluster_hours": -17.4
+        },
+        "255": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4539.7,
+          "net_cluster_hours": 4522.3,
+          "restart_cluster_hours": -17.4
+        },
+        "260": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4517.9,
+          "net_cluster_hours": 4500.5,
+          "restart_cluster_hours": -17.4
+        },
+        "265": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4496.2,
+          "net_cluster_hours": 4478.8,
+          "restart_cluster_hours": -17.4
+        },
+        "270": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4474.4,
+          "net_cluster_hours": 4457.0,
+          "restart_cluster_hours": -17.4
+        },
+        "275": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4452.7,
+          "net_cluster_hours": 4435.3,
+          "restart_cluster_hours": -17.4
+        },
+        "280": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4430.9,
+          "net_cluster_hours": 4413.5,
+          "restart_cluster_hours": -17.4
+        },
+        "285": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4409.2,
+          "net_cluster_hours": 4391.8,
+          "restart_cluster_hours": -17.4
+        },
+        "290": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4387.4,
+          "net_cluster_hours": 4370.0,
+          "restart_cluster_hours": -17.4
+        },
+        "295": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4365.7,
+          "net_cluster_hours": 4348.3,
+          "restart_cluster_hours": -17.4
+        },
+        "30": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5518.5,
+          "net_cluster_hours": 5501.1,
+          "restart_cluster_hours": -17.4
+        },
+        "300": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4343.9,
+          "net_cluster_hours": 4326.5,
+          "restart_cluster_hours": -17.4
+        },
+        "305": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4322.2,
+          "net_cluster_hours": 4304.8,
+          "restart_cluster_hours": -17.4
+        },
+        "310": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4300.4,
+          "net_cluster_hours": 4283.0,
+          "restart_cluster_hours": -17.4
+        },
+        "315": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4278.7,
+          "net_cluster_hours": 4261.3,
+          "restart_cluster_hours": -17.4
+        },
+        "320": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4256.9,
+          "net_cluster_hours": 4239.5,
+          "restart_cluster_hours": -17.4
+        },
+        "325": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4235.1,
+          "net_cluster_hours": 4217.7,
+          "restart_cluster_hours": -17.4
+        },
+        "330": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4213.4,
+          "net_cluster_hours": 4196.0,
+          "restart_cluster_hours": -17.4
+        },
+        "335": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4191.6,
+          "net_cluster_hours": 4174.2,
+          "restart_cluster_hours": -17.4
+        },
+        "340": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4169.9,
+          "net_cluster_hours": 4152.5,
+          "restart_cluster_hours": -17.4
+        },
+        "345": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4148.1,
+          "net_cluster_hours": 4130.7,
+          "restart_cluster_hours": -17.4
+        },
+        "35": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5496.8,
+          "net_cluster_hours": 5479.4,
+          "restart_cluster_hours": -17.4
+        },
+        "350": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4126.4,
+          "net_cluster_hours": 4109.0,
+          "restart_cluster_hours": -17.4
+        },
+        "355": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4104.6,
+          "net_cluster_hours": 4087.2,
+          "restart_cluster_hours": -17.4
+        },
+        "360": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4082.9,
+          "net_cluster_hours": 4065.5,
+          "restart_cluster_hours": -17.4
+        },
+        "365": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4061.1,
+          "net_cluster_hours": 4043.7,
+          "restart_cluster_hours": -17.4
+        },
+        "370": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4039.4,
+          "net_cluster_hours": 4022.0,
+          "restart_cluster_hours": -17.4
+        },
+        "375": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 4017.6,
+          "net_cluster_hours": 4000.2,
+          "restart_cluster_hours": -17.4
+        },
+        "380": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3995.9,
+          "net_cluster_hours": 3978.5,
+          "restart_cluster_hours": -17.4
+        },
+        "385": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3974.1,
+          "net_cluster_hours": 3956.7,
+          "restart_cluster_hours": -17.4
+        },
+        "390": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3952.4,
+          "net_cluster_hours": 3935.0,
+          "restart_cluster_hours": -17.4
+        },
+        "395": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3930.6,
+          "net_cluster_hours": 3913.2,
+          "restart_cluster_hours": -17.4
+        },
+        "40": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5475.0,
+          "net_cluster_hours": 5457.6,
+          "restart_cluster_hours": -17.4
+        },
+        "400": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3908.9,
+          "net_cluster_hours": 3891.5,
+          "restart_cluster_hours": -17.4
+        },
+        "405": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3887.1,
+          "net_cluster_hours": 3869.7,
+          "restart_cluster_hours": -17.4
+        },
+        "410": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3865.4,
+          "net_cluster_hours": 3848.0,
+          "restart_cluster_hours": -17.4
+        },
+        "415": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3843.6,
+          "net_cluster_hours": 3826.2,
+          "restart_cluster_hours": -17.4
+        },
+        "420": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3821.9,
+          "net_cluster_hours": 3804.5,
+          "restart_cluster_hours": -17.4
+        },
+        "425": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3800.1,
+          "net_cluster_hours": 3782.7,
+          "restart_cluster_hours": -17.4
+        },
+        "430": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3778.4,
+          "net_cluster_hours": 3761.0,
+          "restart_cluster_hours": -17.4
+        },
+        "435": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3756.6,
+          "net_cluster_hours": 3739.2,
+          "restart_cluster_hours": -17.4
+        },
+        "440": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3734.8,
+          "net_cluster_hours": 3717.4,
+          "restart_cluster_hours": -17.4
+        },
+        "445": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3713.1,
+          "net_cluster_hours": 3695.7,
+          "restart_cluster_hours": -17.4
+        },
+        "45": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5453.3,
+          "net_cluster_hours": 5435.9,
+          "restart_cluster_hours": -17.4
+        },
+        "450": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3691.3,
+          "net_cluster_hours": 3673.9,
+          "restart_cluster_hours": -17.4
+        },
+        "455": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3669.6,
+          "net_cluster_hours": 3652.2,
+          "restart_cluster_hours": -17.4
+        },
+        "460": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3647.8,
+          "net_cluster_hours": 3630.4,
+          "restart_cluster_hours": -17.4
+        },
+        "465": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3626.1,
+          "net_cluster_hours": 3608.7,
+          "restart_cluster_hours": -17.4
+        },
+        "470": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3604.3,
+          "net_cluster_hours": 3586.9,
+          "restart_cluster_hours": -17.4
+        },
+        "475": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3582.6,
+          "net_cluster_hours": 3565.2,
+          "restart_cluster_hours": -17.4
+        },
+        "480": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3560.8,
+          "net_cluster_hours": 3543.4,
+          "restart_cluster_hours": -17.4
+        },
+        "485": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3539.1,
+          "net_cluster_hours": 3521.7,
+          "restart_cluster_hours": -17.4
+        },
+        "490": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3517.3,
+          "net_cluster_hours": 3499.9,
+          "restart_cluster_hours": -17.4
+        },
+        "495": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3495.6,
+          "net_cluster_hours": 3478.2,
+          "restart_cluster_hours": -17.4
+        },
+        "50": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5431.5,
+          "net_cluster_hours": 5414.1,
+          "restart_cluster_hours": -17.4
+        },
+        "500": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3473.8,
+          "net_cluster_hours": 3456.4,
+          "restart_cluster_hours": -17.4
+        },
+        "505": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3452.1,
+          "net_cluster_hours": 3434.7,
+          "restart_cluster_hours": -17.4
+        },
+        "510": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3430.3,
+          "net_cluster_hours": 3412.9,
+          "restart_cluster_hours": -17.4
+        },
+        "515": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3408.6,
+          "net_cluster_hours": 3391.2,
+          "restart_cluster_hours": -17.4
+        },
+        "520": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3386.8,
+          "net_cluster_hours": 3369.4,
+          "restart_cluster_hours": -17.4
+        },
+        "525": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3365.1,
+          "net_cluster_hours": 3347.7,
+          "restart_cluster_hours": -17.4
+        },
+        "530": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3343.3,
+          "net_cluster_hours": 3325.9,
+          "restart_cluster_hours": -17.4
+        },
+        "535": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3321.6,
+          "net_cluster_hours": 3304.2,
+          "restart_cluster_hours": -17.4
+        },
+        "540": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3299.8,
+          "net_cluster_hours": 3282.4,
+          "restart_cluster_hours": -17.4
+        },
+        "545": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3278.1,
+          "net_cluster_hours": 3260.7,
+          "restart_cluster_hours": -17.4
+        },
+        "55": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5409.8,
+          "net_cluster_hours": 5392.4,
+          "restart_cluster_hours": -17.4
+        },
+        "550": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3256.3,
+          "net_cluster_hours": 3238.9,
+          "restart_cluster_hours": -17.4
+        },
+        "555": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3234.5,
+          "net_cluster_hours": 3217.1,
+          "restart_cluster_hours": -17.4
+        },
+        "560": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3212.8,
+          "net_cluster_hours": 3195.4,
+          "restart_cluster_hours": -17.4
+        },
+        "565": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3191.0,
+          "net_cluster_hours": 3173.6,
+          "restart_cluster_hours": -17.4
+        },
+        "570": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3169.3,
+          "net_cluster_hours": 3151.9,
+          "restart_cluster_hours": -17.4
+        },
+        "575": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3147.5,
+          "net_cluster_hours": 3130.1,
+          "restart_cluster_hours": -17.4
+        },
+        "580": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3125.8,
+          "net_cluster_hours": 3108.4,
+          "restart_cluster_hours": -17.4
+        },
+        "585": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3104.0,
+          "net_cluster_hours": 3086.6,
+          "restart_cluster_hours": -17.4
+        },
+        "590": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3082.3,
+          "net_cluster_hours": 3064.9,
+          "restart_cluster_hours": -17.4
+        },
+        "595": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3060.5,
+          "net_cluster_hours": 3043.1,
+          "restart_cluster_hours": -17.4
+        },
+        "60": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5388.0,
+          "net_cluster_hours": 5370.6,
+          "restart_cluster_hours": -17.4
+        },
+        "600": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3038.8,
+          "net_cluster_hours": 3021.4,
+          "restart_cluster_hours": -17.4
+        },
+        "605": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 3017.0,
+          "net_cluster_hours": 2999.6,
+          "restart_cluster_hours": -17.4
+        },
+        "610": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2995.3,
+          "net_cluster_hours": 2977.9,
+          "restart_cluster_hours": -17.4
+        },
+        "615": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2973.5,
+          "net_cluster_hours": 2956.1,
+          "restart_cluster_hours": -17.4
+        },
+        "620": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2951.8,
+          "net_cluster_hours": 2934.4,
+          "restart_cluster_hours": -17.4
+        },
+        "625": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2930.0,
+          "net_cluster_hours": 2912.6,
+          "restart_cluster_hours": -17.4
+        },
+        "630": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2908.3,
+          "net_cluster_hours": 2890.9,
+          "restart_cluster_hours": -17.4
+        },
+        "635": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2886.5,
+          "net_cluster_hours": 2869.1,
+          "restart_cluster_hours": -17.4
+        },
+        "640": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2864.8,
+          "net_cluster_hours": 2847.4,
+          "restart_cluster_hours": -17.4
+        },
+        "645": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2843.0,
+          "net_cluster_hours": 2825.6,
+          "restart_cluster_hours": -17.4
+        },
+        "65": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5366.3,
+          "net_cluster_hours": 5348.9,
+          "restart_cluster_hours": -17.4
+        },
+        "650": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2821.3,
+          "net_cluster_hours": 2803.9,
+          "restart_cluster_hours": -17.4
+        },
+        "655": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2799.5,
+          "net_cluster_hours": 2782.1,
+          "restart_cluster_hours": -17.4
+        },
+        "660": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2777.8,
+          "net_cluster_hours": 2760.4,
+          "restart_cluster_hours": -17.4
+        },
+        "665": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2756.0,
+          "net_cluster_hours": 2738.6,
+          "restart_cluster_hours": -17.4
+        },
+        "670": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2734.2,
+          "net_cluster_hours": 2716.8,
+          "restart_cluster_hours": -17.4
+        },
+        "675": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2712.5,
+          "net_cluster_hours": 2695.1,
+          "restart_cluster_hours": -17.4
+        },
+        "680": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2690.7,
+          "net_cluster_hours": 2673.3,
+          "restart_cluster_hours": -17.4
+        },
+        "685": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2669.0,
+          "net_cluster_hours": 2651.6,
+          "restart_cluster_hours": -17.4
+        },
+        "690": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2647.2,
+          "net_cluster_hours": 2629.8,
+          "restart_cluster_hours": -17.4
+        },
+        "695": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2625.5,
+          "net_cluster_hours": 2608.1,
+          "restart_cluster_hours": -17.4
+        },
+        "70": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5344.5,
+          "net_cluster_hours": 5327.1,
+          "restart_cluster_hours": -17.4
+        },
+        "700": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2603.7,
+          "net_cluster_hours": 2586.3,
+          "restart_cluster_hours": -17.4
+        },
+        "705": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2582.0,
+          "net_cluster_hours": 2564.6,
+          "restart_cluster_hours": -17.4
+        },
+        "710": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2560.2,
+          "net_cluster_hours": 2542.8,
+          "restart_cluster_hours": -17.4
+        },
+        "715": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2538.5,
+          "net_cluster_hours": 2521.1,
+          "restart_cluster_hours": -17.4
+        },
+        "720": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2516.7,
+          "net_cluster_hours": 2499.3,
+          "restart_cluster_hours": -17.4
+        },
+        "725": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2503.7,
+          "net_cluster_hours": 2486.3,
+          "restart_cluster_hours": -17.4
+        },
+        "730": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2499.3,
+          "net_cluster_hours": 2481.9,
+          "restart_cluster_hours": -17.4
+        },
+        "735": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2495.0,
+          "net_cluster_hours": 2477.6,
+          "restart_cluster_hours": -17.4
+        },
+        "740": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2490.6,
+          "net_cluster_hours": 2473.2,
+          "restart_cluster_hours": -17.4
+        },
+        "745": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2486.3,
+          "net_cluster_hours": 2468.9,
+          "restart_cluster_hours": -17.4
+        },
+        "75": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5322.8,
+          "net_cluster_hours": 5305.4,
+          "restart_cluster_hours": -17.4
+        },
+        "750": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2481.9,
+          "net_cluster_hours": 2464.5,
+          "restart_cluster_hours": -17.4
+        },
+        "755": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2477.6,
+          "net_cluster_hours": 2460.2,
+          "restart_cluster_hours": -17.4
+        },
+        "760": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2473.2,
+          "net_cluster_hours": 2455.8,
+          "restart_cluster_hours": -17.4
+        },
+        "765": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2468.9,
+          "net_cluster_hours": 2451.5,
+          "restart_cluster_hours": -17.4
+        },
+        "770": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2464.5,
+          "net_cluster_hours": 2447.1,
+          "restart_cluster_hours": -17.4
+        },
+        "775": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2460.2,
+          "net_cluster_hours": 2442.8,
+          "restart_cluster_hours": -17.4
+        },
+        "780": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2455.8,
+          "net_cluster_hours": 2438.4,
+          "restart_cluster_hours": -17.4
+        },
+        "785": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2451.5,
+          "net_cluster_hours": 2434.1,
+          "restart_cluster_hours": -17.4
+        },
+        "790": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 2447.1,
+          "net_cluster_hours": 2429.7,
+          "restart_cluster_hours": -17.4
+        },
+        "795": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2442.8,
+          "net_cluster_hours": 2439.3,
+          "restart_cluster_hours": -3.5
+        },
+        "80": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5301.0,
+          "net_cluster_hours": 5283.6,
+          "restart_cluster_hours": -17.4
+        },
+        "800": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2438.4,
+          "net_cluster_hours": 2434.9,
+          "restart_cluster_hours": -3.5
+        },
+        "805": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2434.1,
+          "net_cluster_hours": 2430.6,
+          "restart_cluster_hours": -3.5
+        },
+        "810": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2429.7,
+          "net_cluster_hours": 2426.2,
+          "restart_cluster_hours": -3.5
+        },
+        "815": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2425.4,
+          "net_cluster_hours": 2421.9,
+          "restart_cluster_hours": -3.5
+        },
+        "820": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2421.0,
+          "net_cluster_hours": 2417.5,
+          "restart_cluster_hours": -3.5
+        },
+        "825": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2416.7,
+          "net_cluster_hours": 2413.2,
+          "restart_cluster_hours": -3.5
+        },
+        "830": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2412.3,
+          "net_cluster_hours": 2408.8,
+          "restart_cluster_hours": -3.5
+        },
+        "835": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2408.0,
+          "net_cluster_hours": 2404.5,
+          "restart_cluster_hours": -3.5
+        },
+        "840": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2403.6,
+          "net_cluster_hours": 2400.1,
+          "restart_cluster_hours": -3.5
+        },
+        "845": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2399.3,
+          "net_cluster_hours": 2395.8,
+          "restart_cluster_hours": -3.5
+        },
+        "85": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5279.3,
+          "net_cluster_hours": 5261.9,
+          "restart_cluster_hours": -17.4
+        },
+        "850": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2394.9,
+          "net_cluster_hours": 2391.4,
+          "restart_cluster_hours": -3.5
+        },
+        "855": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2390.6,
+          "net_cluster_hours": 2387.1,
+          "restart_cluster_hours": -3.5
+        },
+        "860": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2386.2,
+          "net_cluster_hours": 2382.7,
+          "restart_cluster_hours": -3.5
+        },
+        "865": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2381.9,
+          "net_cluster_hours": 2378.4,
+          "restart_cluster_hours": -3.5
+        },
+        "870": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2377.5,
+          "net_cluster_hours": 2374.0,
+          "restart_cluster_hours": -3.5
+        },
+        "875": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2373.2,
+          "net_cluster_hours": 2369.7,
+          "restart_cluster_hours": -3.5
+        },
+        "880": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2368.8,
+          "net_cluster_hours": 2365.3,
+          "restart_cluster_hours": -3.5
+        },
+        "885": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2364.5,
+          "net_cluster_hours": 2361.0,
+          "restart_cluster_hours": -3.5
+        },
+        "890": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2360.1,
+          "net_cluster_hours": 2356.6,
+          "restart_cluster_hours": -3.5
+        },
+        "895": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2355.8,
+          "net_cluster_hours": 2352.3,
+          "restart_cluster_hours": -3.5
+        },
+        "90": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5257.5,
+          "net_cluster_hours": 5240.1,
+          "restart_cluster_hours": -17.4
+        },
+        "900": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2351.4,
+          "net_cluster_hours": 2347.9,
+          "restart_cluster_hours": -3.5
+        },
+        "905": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2347.1,
+          "net_cluster_hours": 2343.6,
+          "restart_cluster_hours": -3.5
+        },
+        "910": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2342.7,
+          "net_cluster_hours": 2339.2,
+          "restart_cluster_hours": -3.5
+        },
+        "915": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2338.4,
+          "net_cluster_hours": 2334.9,
+          "restart_cluster_hours": -3.5
+        },
+        "920": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2334.0,
+          "net_cluster_hours": 2330.5,
+          "restart_cluster_hours": -3.5
+        },
+        "925": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2329.7,
+          "net_cluster_hours": 2326.2,
+          "restart_cluster_hours": -3.5
+        },
+        "930": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2325.3,
+          "net_cluster_hours": 2321.8,
+          "restart_cluster_hours": -3.5
+        },
+        "935": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2321.0,
+          "net_cluster_hours": 2317.5,
+          "restart_cluster_hours": -3.5
+        },
+        "940": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2316.6,
+          "net_cluster_hours": 2313.1,
+          "restart_cluster_hours": -3.5
+        },
+        "945": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2312.3,
+          "net_cluster_hours": 2308.8,
+          "restart_cluster_hours": -3.5
+        },
+        "95": {
+          "added_starts": 261.0,
+          "idle_cluster_hours": 5235.7,
+          "net_cluster_hours": 5218.3,
+          "restart_cluster_hours": -17.4
+        },
+        "950": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2307.9,
+          "net_cluster_hours": 2304.4,
+          "restart_cluster_hours": -3.5
+        },
+        "955": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2303.6,
+          "net_cluster_hours": 2300.1,
+          "restart_cluster_hours": -3.5
+        },
+        "960": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2299.2,
+          "net_cluster_hours": 2295.7,
+          "restart_cluster_hours": -3.5
+        },
+        "965": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2294.9,
+          "net_cluster_hours": 2291.4,
+          "restart_cluster_hours": -3.5
+        },
+        "970": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2290.5,
+          "net_cluster_hours": 2287.0,
+          "restart_cluster_hours": -3.5
+        },
+        "975": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2286.2,
+          "net_cluster_hours": 2282.7,
+          "restart_cluster_hours": -3.5
+        },
+        "980": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2281.8,
+          "net_cluster_hours": 2278.3,
+          "restart_cluster_hours": -3.5
+        },
+        "985": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2277.5,
+          "net_cluster_hours": 2274.0,
+          "restart_cluster_hours": -3.5
+        },
+        "990": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2273.1,
+          "net_cluster_hours": 2269.6,
+          "restart_cluster_hours": -3.5
+        },
+        "995": {
+          "added_starts": 52.2,
+          "idle_cluster_hours": 2268.8,
+          "net_cluster_hours": 2265.3,
+          "restart_cluster_hours": -3.5
+        }
+      }
     },
     "EVID-80FF5718FD064A49D064B7F0": {
       "comparator": ">= evidence minimum for increase",
@@ -1168,6 +2910,30 @@
       "threshold": null,
       "unit": "queries",
       "value": null
+    },
+    "EVID-916A3154CEF5F888C47891D0": {
+      "comparator": "added cold-start share <= budget (%)",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-916A3154CEF5F888C47891D0",
+      "interpretation": "The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved per day and the added cold-start share (blended and in the recent window).",
+      "metric": "auto_stop_best_net_option",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "running-idle per auto-stop value",
+      "threshold": 2.0,
+      "unit": "per value, per day",
+      "value": {
+        "added_cold_start_share_pct": 0.4167,
+        "added_starts_per_day": 0.714286,
+        "direction": "LOWER",
+        "gain_cluster_minutes_per_day": 920.357143,
+        "loss_cluster_minutes_per_day": 2.857144,
+        "net_cluster_minutes_per_day": 917.499999,
+        "recent_added_cold_start_share_pct": 0.4167,
+        "removable_wall_minutes_per_day": 920.357143,
+        "target": 10,
+        "within_cold_start_budget": true
+      }
     },
     "EVID-930439B18A713089435E60B5": {
       "comparator": "<= downsize-safe",
@@ -1315,6 +3081,19 @@
       "threshold": 500,
       "unit": "queries",
       "value": 4752
+    },
+    "EVID-B1927AEB241DC0BE3C169456": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-B1927AEB241DC0BE3C169456",
+      "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
+      "metric": "migration_target_running_fraction",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "running-idle per auto-stop value",
+      "threshold": null,
+      "unit": "ratio",
+      "value": 0.358433
     },
     "EVID-B2CBAD85E5433F417F66B49D": {
       "comparator": "<= kept up by tiny queries",
@@ -1553,6 +3332,19 @@
       "unit": "%",
       "value": 0.0
     },
+    "EVID-D4E19BA695D2385C37B4EA03": {
+      "comparator": ">= evidence minimum",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-D4E19BA695D2385C37B4EA03",
+      "interpretation": "Running cluster-minutes in the basis window: the running time idle savings are a share of.",
+      "metric": "basis_running_cluster_minutes",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.compute.warehouse_events",
+      "source_field": "cluster_count/event_time",
+      "threshold": 1.0,
+      "unit": "cluster-minutes",
+      "value": 120960.0
+    },
     "EVID-DE25A2B7E216D298EA6137C1": {
       "comparator": "percentile of busy periods",
       "epoch_scope": "CURRENT",
@@ -1605,6 +3397,19 @@
       "unit": "minutes",
       "value": 0
     },
+    "EVID-EEA5952E36CA490B9D782407": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-EEA5952E36CA490B9D782407",
+      "interpretation": "Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it.",
+      "metric": "kept_alive_wall_minutes_per_day",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "end_time, cluster_count",
+      "threshold": null,
+      "unit": "minutes per day",
+      "value": 0.0
+    },
     "EVID-F0F61C4E1B8D3EF11985D010": {
       "comparator": "",
       "epoch_scope": "CURRENT",
@@ -1618,18 +3423,18 @@
       "unit": "queries",
       "value": 5280
     },
-    "EVID-F3CB7460C1DDAEF716C87AD8": {
+    "EVID-F18C27EAB82C47C0146B81F4": {
       "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-F3CB7460C1DDAEF716C87AD8",
-      "interpretation": "Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it.",
-      "metric": "kept_alive_wall_minutes",
-      "observation_window": "current epoch since the first retained warehouse event",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "end_time, cluster_count",
+      "evidence_id": "EVID-F18C27EAB82C47C0146B81F4",
+      "interpretation": "Forward DBU cost per running cluster-hour on the same days: the price reclaimable cluster-hours are saved at (DBU baseline / annualized running cluster-hours).",
+      "metric": "cost_per_cluster_hour",
+      "observation_window": "DBU forecast basis: last 84 days ending 2026-09-30, blended with the last 28",
+      "source": "system.billing.usage + system.compute.warehouse_events",
+      "source_field": "forecast cost / running cluster-hours",
       "threshold": null,
-      "unit": "minutes",
-      "value": 0.0
+      "unit": "USD per cluster-hour",
+      "value": 6.567
     },
     "EVID-F909DE8A4FC026BCCFD8DC92": {
       "comparator": "",
@@ -1674,11 +3479,11 @@
     "excluded_scenarios": [
       {
         "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
-        "scenario_id": "SCN-A939AB29634C677DB2FC1E8B"
+        "scenario_id": "SCN-ED8DDAD27999AD17E92AE061"
       },
       {
         "reason_code": "RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE",
-        "scenario_id": "SCN-E1F0EF6E382617BAC93E13FC"
+        "scenario_id": "SCN-BF6C3601D1123917EC7BB5ED"
       }
     ],
     "included_scenario_ids": [],
@@ -1694,18 +3499,18 @@
     }
   },
   "provenance": {
-    "analyzer_version": "sql-warehouse-analyzer-v2.11.0",
-    "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
+    "analyzer_version": "sql-warehouse-analyzer-v2.13.0",
+    "bundle_estimator_version": "stateful-resource-bundle-v2.13.0",
     "contract_version": "3.1.0",
-    "decision_graph_version": "warehouse-decision-graph-v2.12.0",
-    "estimator_version": "counterfactual-v2.11.0",
-    "evidence_fingerprint": "SHA256:FF60BE061513FC232D6C3EFD717FCF60CB70B22F95B7116B3EDED4A202CB9E38",
+    "decision_graph_version": "warehouse-decision-graph-v2.13.0",
+    "estimator_version": "counterfactual-v2.13.0",
+    "evidence_fingerprint": "SHA256:9F7E5C963AE9CE6409E0BC3CAB260509A652EAE8B4E46ED7ED16DA189C693F4F",
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
-    "optimizer_version": "sql-warehouse-optimizer-v2.12.0",
-    "package_hash_full_sha256": "09576CD2191D50423C25B96F7E7436758A754ECD3735BD74431EC288F37D25CB",
-    "policy_version": "sql-warehouse-policy-v2.11.0",
-    "reviewer_version": "recommendation-reviewer-v2.12.0",
+    "optimizer_version": "sql-warehouse-optimizer-v2.13.0",
+    "package_hash_full_sha256": "E322952EEBE680C12EC52059599DD66846439E84C416F337693009A3EBBD0546",
+    "policy_version": "sql-warehouse-policy-v2.13.0",
+    "reviewer_version": "recommendation-reviewer-v2.13.0",
     "source_regions": [
       "us-east-1"
     ],
@@ -1730,21 +3535,21 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-09576CD2191D50423C25B96F",
+  "recommendation_package_id": "PKG-E322952EEBE680C12EC52059",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes. Apply the ready no-canary steps (auto_stop_minutes) first; start the warehouse_size canary once the next run shows their new configuration ready (2 settled billed days), so the canary's cost reading is not mixed with their savings.",
     "next_action": "REVIEW_AND_EXECUTE_FIRST_READY_STEP",
     "reevaluation": null,
     "requires_hitl": true,
-    "scenario_id": "SCN-A939AB29634C677DB2FC1E8B",
+    "scenario_id": "SCN-ED8DDAD27999AD17E92AE061",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "run_scope": null,
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-D99DDE25605412A5817BA200",
-        "CAND-EF9702A9AD65E00C605140F7"
+        "CAND-2C69C9FCEF67DDA88AC43862",
+        "CAND-20EEC9AF0D6D7AB3E6B43EE8"
       ],
       "compatibility": {
         "checks": [],
@@ -1760,17 +3565,21 @@
       "evidence_refs": [
         "EVID-EB9DD8F048C2BB9F0918CF82",
         "EVID-57A4B1C1CFE68B61AF4886AD",
-        "EVID-2F242331FD1E82CB4048EE06",
-        "EVID-35DB07402594713541571C70",
-        "EVID-F3CB7460C1DDAEF716C87AD8",
-        "EVID-4588EC6E6D77AC28D9B1B19E",
+        "EVID-0D3C11640A152F77A4AC6ED7",
+        "EVID-D4E19BA695D2385C37B4EA03",
+        "EVID-6776C50EA34C2571315BF976",
+        "EVID-4876EFBA8B75623A1D830F3E",
+        "EVID-EEA5952E36CA490B9D782407",
+        "EVID-328B278AE246B1356CA4497A",
         "EVID-B2CBAD85E5433F417F66B49D",
         "EVID-C0F08E60B30AD63DDB9D1983",
         "EVID-C308008FECB76AA554D24019",
         "EVID-9C6FB0C5D5491B4E624F040B",
-        "EVID-693C2C0A6194EE1BDF309AAB",
+        "EVID-916A3154CEF5F888C47891D0",
         "EVID-734576C6350D5018AB8D0F01",
-        "EVID-321EC4B32AE17FE00773EFBA",
+        "EVID-773623CF62E843FEC08F12EA",
+        "EVID-80C86C887B4D6EB45B4286C5",
+        "EVID-F18C27EAB82C47C0146B81F4",
         "EVID-0225B557E8052B88C2A8008B",
         "EVID-78506D44D60E383C08CAAFBC",
         "EVID-5686D24AEBDEC9F859EA6711",
@@ -1798,7 +3607,7 @@
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-D99DDE25605412A5817BA200",
+          "candidate_id": "CAND-2C69C9FCEF67DDA88AC43862",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1820,36 +3629,36 @@
             "pricing_basis": "AUTHORITATIVE",
             "running_savings_365d": {
               "aws": {
-                "base": 15380.93,
-                "high": 20507.9,
-                "low": 10253.95
+                "base": 15369.79,
+                "high": 20514.77,
+                "low": 10224.81
               },
               "dbu": {
-                "base": 26978.44,
-                "high": 35971.26,
-                "low": 17985.63
+                "base": 26958.91,
+                "high": 35983.31,
+                "low": 17934.52
               },
               "total": {
-                "base": 42359.37,
-                "high": 56479.16,
-                "low": 28239.58
+                "base": 42328.7,
+                "high": 56498.08,
+                "low": 28159.33
               }
             },
             "step_savings_365d": {
               "aws": {
-                "base": 15380.93,
-                "high": 20507.9,
-                "low": 10253.95
+                "base": 15369.79,
+                "high": 20514.77,
+                "low": 10224.81
               },
               "dbu": {
-                "base": 26978.44,
-                "high": 35971.26,
-                "low": 17985.63
+                "base": 26958.91,
+                "high": 35983.31,
+                "low": 17934.52
               },
               "total": {
-                "base": 42359.37,
-                "high": 56479.16,
-                "low": 28239.58
+                "base": 42328.7,
+                "high": 56498.08,
+                "low": 28159.33
               }
             }
           },
@@ -1866,7 +3675,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-EF9702A9AD65E00C605140F7",
+          "candidate_id": "CAND-20EEC9AF0D6D7AB3E6B43EE8",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -1960,14 +3769,14 @@
           "total": null
         }
       },
-      "scenario_id": "SCN-A939AB29634C677DB2FC1E8B",
+      "scenario_id": "SCN-ED8DDAD27999AD17E92AE061",
       "scenario_name": "Plan A \u2014 Optimize current warehouse type",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
     },
     {
       "candidate_refs": [
-        "CAND-C49F822305BDEB21A8FE5E5B"
+        "CAND-5110C6A0E9F080DC1EB9E200"
       ],
       "compatibility": {
         "checks": [
@@ -2050,8 +3859,8 @@
         "EVID-97D7438B0786BB7FB687E6DC",
         "EVID-05EB16DEBFD5A42BAC243AC5",
         "EVID-992C6C37C0F16B7124E36AAB",
-        "EVID-6AB7D0D552FAAF09A088F25B",
-        "EVID-2FD96ACA7DE51812F0910C7D",
+        "EVID-1D98DBD91ABC50C473CFC263",
+        "EVID-B1927AEB241DC0BE3C169456",
         "EVID-0225B557E8052B88C2A8008B",
         "EVID-78506D44D60E383C08CAAFBC",
         "EVID-5686D24AEBDEC9F859EA6711",
@@ -2093,7 +3902,7 @@
         },
         {
           "action": null,
-          "candidate_id": "CAND-C49F822305BDEB21A8FE5E5B",
+          "candidate_id": "CAND-5110C6A0E9F080DC1EB9E200",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -2125,12 +3934,12 @@
                 "low": 32836.67
               },
               "dbu": {
-                "base": 31245.32,
+                "base": 31261.49,
                 "high": 53220.11,
                 "low": -15875.5
               },
               "total": {
-                "base": 64081.99,
+                "base": 64098.16,
                 "high": 86056.78,
                 "low": 16961.17
               }
@@ -2142,12 +3951,12 @@
                 "low": 32836.67
               },
               "dbu": {
-                "base": 31245.32,
+                "base": 31261.49,
                 "high": 53220.11,
                 "low": -15875.5
               },
               "total": {
-                "base": 64081.99,
+                "base": 64098.16,
                 "high": 86056.78,
                 "low": 16961.17
               }
@@ -2218,12 +4027,12 @@
             "low": 0.0
           },
           "dbu": {
-            "base": 26350.83,
+            "base": 26334.66,
             "high": 73471.65,
             "low": 4376.04
           },
           "total": {
-            "base": 26350.83,
+            "base": 26334.66,
             "high": 73471.65,
             "low": 4376.04
           }
@@ -2238,18 +4047,18 @@
             "low": 32836.67
           },
           "dbu": {
-            "base": 31245.32,
+            "base": 31261.49,
             "high": 53220.11,
             "low": -15875.5
           },
           "total": {
-            "base": 64081.99,
+            "base": 64098.16,
             "high": 86056.78,
             "low": 16961.17
           }
         }
       },
-      "scenario_id": "SCN-E1F0EF6E382617BAC93E13FC",
+      "scenario_id": "SCN-BF6C3601D1123917EC7BB5ED",
       "scenario_name": "Plan B \u2014 Serverless migration experiment",
       "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
       "status": "ALTERNATIVE"

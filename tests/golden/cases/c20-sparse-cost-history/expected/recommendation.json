@@ -36,7 +36,7 @@
         "blockers": [
           "A_B_PERFORMANCE_VALIDATION_REQUIRED"
         ],
-        "candidate_id": "CAND-16909E3E3CC4AE5C4C5718E5",
+        "candidate_id": "CAND-78E9FD8A0DA1E61F78170555",
         "confidence": {
           "components": {
             "coverage": 0.322,
@@ -113,7 +113,7 @@
       },
       {
         "blockers": [],
-        "candidate_id": "CAND-8473EEA810104E4B2C9EE413",
+        "candidate_id": "CAND-F4AE5907CA44EB031C511310",
         "confidence": {
           "components": {
             "coverage": 0.322,
@@ -193,7 +193,7 @@
           "A_B_PERFORMANCE_VALIDATION_REQUIRED",
           "SPARE_FLOOR_CAPACITY_UNPROVEN"
         ],
-        "candidate_id": "CAND-655AD607F38C2EB7C49BCD95",
+        "candidate_id": "CAND-D6A56C65D4BA3F3FE27B93D1",
         "confidence": {
           "components": {
             "coverage": 0.322,
@@ -276,7 +276,7 @@
         "blockers": [
           "BILLED_COST_DAYS_INSUFFICIENT"
         ],
-        "candidate_id": "CAND-0CB75B598734D628E4BF69A3",
+        "candidate_id": "CAND-96FFDE71ACB93B6942F3B0EA",
         "confidence": {
           "components": {
             "coverage": 0.322,
@@ -294,17 +294,21 @@
         "evidence_refs": [
           "EVID-8A9D684D970420A435BC20F0",
           "EVID-DCA4D8BA69F93C2DD62C0E6C",
-          "EVID-F4FE1E669230078F40089C02",
-          "EVID-C59E07B6F714633E62A028E0",
-          "EVID-6E8DE3C600E765AAD248F8D6",
-          "EVID-7F45F4A45BD6F7C130EBBFDA",
+          "EVID-7CC377DA89DFFBF03E07658E",
+          "EVID-6226E3DB4943204D8E376241",
+          "EVID-6379C0E2681EAA927138B24C",
+          "EVID-FD26042C3C734D46DB113C5B",
+          "EVID-2FE38134278FE284BB3922AA",
+          "EVID-501FE9B993A5BFE86D245D58",
           "EVID-19976A06E27595F4DB8C2411",
           "EVID-AA55257E79A18F180F1914E5",
           "EVID-578E2D893B6AE9309DC71A67",
           "EVID-8A2A803808B8DD07F999515F",
-          "EVID-A01541BB1635BF02E8D545D8",
+          "EVID-164BF348F1E5DBC8A061FC5D",
           "EVID-D0E9BDE5C19585F0A7B83DA4",
-          "EVID-A6A46C9B63B867E0B574F200",
+          "EVID-F839CA5EFC597B2CF2A9B810",
+          "EVID-C78E3A5E377F3D7D3DFF9CB5",
+          "EVID-BA3299C4893F9F2B917C3D8D",
           "EVID-E27CFF6E58A3248A36EF0CF7",
           "EVID-14235D9979202C58B5D59682",
           "EVID-1A13F14747D9905F77B17865",
@@ -347,7 +351,7 @@
         "blockers": [
           "BILLED_COST_DAYS_INSUFFICIENT"
         ],
-        "candidate_id": "CAND-EA3B63FFEAA3D2BCA45461C5",
+        "candidate_id": "CAND-62E0F1783210DA7DB13931FF",
         "confidence": {
           "components": {
             "coverage": 0.322,
@@ -377,8 +381,8 @@
           "EVID-50D0D97642C4F686E4A503AF",
           "EVID-798443EF0D5801D4BCB000C5",
           "EVID-9784B41F3524D0143180818A",
-          "EVID-535DE6466680A55CA038BA7D",
-          "EVID-F6000ACA225DCA3E1B0ACED8",
+          "EVID-9666DA1DDDCC7CC137947DA4",
+          "EVID-6CD3832CC8C737BB8A32CCB4",
           "EVID-E27CFF6E58A3248A36EF0CF7",
           "EVID-14235D9979202C58B5D59682",
           "EVID-1A13F14747D9905F77B17865",
@@ -582,6 +586,30 @@
         "unit": "%",
         "value": 42.0
       },
+      "EVID-164BF348F1E5DBC8A061FC5D": {
+        "comparator": "added cold-start share <= budget (%)",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-164BF348F1E5DBC8A061FC5D",
+        "interpretation": "The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved per day and the added cold-start share (blended and in the recent window).",
+        "metric": "auto_stop_best_net_option",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "running-idle per auto-stop value",
+        "threshold": 2.0,
+        "unit": "per value, per day",
+        "value": {
+          "added_cold_start_share_pct": 0.0,
+          "added_starts_per_day": 0.0,
+          "direction": "LOWER",
+          "gain_cluster_minutes_per_day": 819.672143,
+          "loss_cluster_minutes_per_day": 0.0,
+          "net_cluster_minutes_per_day": 819.672143,
+          "recent_added_cold_start_share_pct": 0.0,
+          "removable_wall_minutes_per_day": 409.836071,
+          "target": 10,
+          "within_cold_start_budget": true
+        }
+      },
       "EVID-16B9882B3E3D8DE02B46A0EF": {
         "comparator": ">= capacity-cut hold",
         "epoch_scope": "CURRENT",
@@ -673,6 +701,19 @@
         "unit": "value",
         "value": 4
       },
+      "EVID-2FE38134278FE284BB3922AA": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-2FE38134278FE284BB3922AA",
+        "interpretation": "Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it.",
+        "metric": "kept_alive_wall_minutes_per_day",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "end_time, cluster_count",
+        "threshold": null,
+        "unit": "minutes per day",
+        "value": 0.0
+      },
       "EVID-333AB425847FF802B1626AA7": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -751,6 +792,19 @@
         "unit": "%",
         "value": 0.0
       },
+      "EVID-501FE9B993A5BFE86D245D58": {
+        "comparator": ">= always-on",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-501FE9B993A5BFE86D245D58",
+        "interpretation": "Share of the day the warehouse was running.",
+        "metric": "running_share_of_clock_pct",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.compute.warehouse_events",
+        "source_field": "cluster_count",
+        "threshold": 90.0,
+        "unit": "%",
+        "value": 45.537
+      },
       "EVID-50D0D97642C4F686E4A503AF": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -776,19 +830,6 @@
         "threshold": 2.0,
         "unit": "%",
         "value": 0.0
-      },
-      "EVID-535DE6466680A55CA038BA7D": {
-        "comparator": "",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-535DE6466680A55CA038BA7D",
-        "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
-        "metric": "migration_target_auto_stop",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "running-idle per auto-stop value",
-        "threshold": null,
-        "unit": "minutes",
-        "value": 5
       },
       "EVID-54F884A4D568220B0CB5D1C9": {
         "comparator": "",
@@ -881,6 +922,32 @@
         "unit": "ms",
         "value": 10000
       },
+      "EVID-6226E3DB4943204D8E376241": {
+        "comparator": ">= evidence minimum",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-6226E3DB4943204D8E376241",
+        "interpretation": "Running cluster-minutes in the basis window: the running time idle savings are a share of.",
+        "metric": "basis_running_cluster_minutes",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.compute.warehouse_events",
+        "source_field": "cluster_count/event_time",
+        "threshold": 1.0,
+        "unit": "cluster-minutes",
+        "value": 27540.98
+      },
+      "EVID-6379C0E2681EAA927138B24C": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-6379C0E2681EAA927138B24C",
+        "interpretation": "Running cluster-minutes per day, blended like the DBU forecast.",
+        "metric": "running_cluster_minutes_per_day",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.compute.warehouse_events",
+        "source_field": "cluster_count/event_time",
+        "threshold": null,
+        "unit": "cluster-minutes per day",
+        "value": 983.606571
+      },
       "EVID-68E180889B6BA39C87F6EE19": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -920,18 +987,18 @@
         "unit": "ratio",
         "value": null
       },
-      "EVID-6E8DE3C600E765AAD248F8D6": {
+      "EVID-6CD3832CC8C737BB8A32CCB4": {
         "comparator": "",
         "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-6E8DE3C600E765AAD248F8D6",
-        "interpretation": "Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it.",
-        "metric": "kept_alive_wall_minutes",
-        "observation_window": "current epoch since the first retained warehouse event",
+        "evidence_id": "EVID-6CD3832CC8C737BB8A32CCB4",
+        "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
+        "metric": "migration_target_running_fraction",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
         "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "end_time, cluster_count",
+        "source_field": "running-idle per auto-stop value",
         "threshold": null,
-        "unit": "minutes",
-        "value": 0.0
+        "unit": "ratio",
+        "value": 0.1
       },
       "EVID-73F0A5ADF8929F43CC5AA717": {
         "comparator": ">= reduction signal",
@@ -985,18 +1052,42 @@
         "unit": "%",
         "value": 0.0
       },
-      "EVID-7F45F4A45BD6F7C130EBBFDA": {
-        "comparator": ">= always-on",
+      "EVID-7CC377DA89DFFBF03E07658E": {
+        "comparator": "",
         "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-7F45F4A45BD6F7C130EBBFDA",
-        "interpretation": "Share of the window the warehouse was running.",
-        "metric": "running_share_of_clock_pct",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.compute.warehouse_events",
-        "source_field": "cluster_count",
-        "threshold": 90.0,
-        "unit": "%",
-        "value": 45.537
+        "evidence_id": "EVID-7CC377DA89DFFBF03E07658E",
+        "interpretation": "The days auto-stop evidence is measured on: the DBU forecast's own (whole weeks, the recent/long blend and trend, or whole billing cycles), so a saving annualizes like the baseline it is a share of.",
+        "metric": "running_idle_basis",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.billing.usage + system.compute.warehouse_events",
+        "source_field": "forecast basis",
+        "threshold": null,
+        "unit": "windows",
+        "value": {
+          "blend_weights_per_day": [
+            [
+              "recent",
+              0.026785714
+            ],
+            [
+              "long",
+              0.008928571
+            ]
+          ],
+          "model": "RUN_RATE",
+          "recent_check_window": "recent",
+          "trend_adjustment_factor": 1.0,
+          "windows": {
+            "long": [
+              "2026-09-02T00:00:00+00:00",
+              "2026-09-30T00:00:00+00:00"
+            ],
+            "recent": [
+              "2026-09-02T00:00:00+00:00",
+              "2026-09-30T00:00:00+00:00"
+            ]
+          }
+        }
       },
       "EVID-8A2A803808B8DD07F999515F": {
         "comparator": "",
@@ -1054,6 +1145,19 @@
         "unit": "clusters",
         "value": null
       },
+      "EVID-9666DA1DDDCC7CC137947DA4": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-9666DA1DDDCC7CC137947DA4",
+        "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
+        "metric": "migration_target_auto_stop",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "running-idle per auto-stop value",
+        "threshold": null,
+        "unit": "minutes",
+        "value": 5
+      },
       "EVID-9784B41F3524D0143180818A": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -1093,29 +1197,6 @@
         "unit": "%",
         "value": 25.0
       },
-      "EVID-A01541BB1635BF02E8D545D8": {
-        "comparator": "added cold-start share <= budget (%)",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-A01541BB1635BF02E8D545D8",
-        "interpretation": "The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share.",
-        "metric": "auto_stop_best_net_option",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "running-idle per auto-stop value",
-        "threshold": 2.0,
-        "unit": "per value",
-        "value": {
-          "added_cold_start_share_pct": 0.0,
-          "added_starts": 0,
-          "direction": "LOWER",
-          "gain_cluster_minutes": 25000.0,
-          "loss_cluster_minutes": 0.0,
-          "net_cluster_minutes": 25000.0,
-          "removable_wall_minutes": 12500.0,
-          "target": 10,
-          "within_cold_start_budget": true
-        }
-      },
       "EVID-A0A4093A41A4CC8CFEE26F5C": {
         "comparator": ">= evidence minimum",
         "epoch_scope": "CURRENT",
@@ -1128,29 +1209,6 @@
         "threshold": 200,
         "unit": "minutes",
         "value": 1000
-      },
-      "EVID-A6A46C9B63B867E0B574F200": {
-        "comparator": "added cold-start share <= budget (%)",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-A6A46C9B63B867E0B574F200",
-        "interpretation": "The auto-stop value with the largest net saving among those within the cold-start budget.",
-        "metric": "auto_stop_best_option_within_budget",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "running-idle per auto-stop value",
-        "threshold": 2.0,
-        "unit": "per value",
-        "value": {
-          "added_cold_start_share_pct": 0.0,
-          "added_starts": 0,
-          "direction": "LOWER",
-          "gain_cluster_minutes": 25000.0,
-          "loss_cluster_minutes": 0.0,
-          "net_cluster_minutes": 25000.0,
-          "removable_wall_minutes": 12500.0,
-          "target": 10,
-          "within_cold_start_budget": true
-        }
       },
       "EVID-AA55257E79A18F180F1914E5": {
         "comparator": "",
@@ -1217,6 +1275,19 @@
         "unit": "ratio",
         "value": null
       },
+      "EVID-BA3299C4893F9F2B917C3D8D": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-BA3299C4893F9F2B917C3D8D",
+        "interpretation": "Forward DBU cost per running cluster-hour on the same days: the price reclaimable cluster-hours are saved at (DBU baseline / annualized running cluster-hours).",
+        "metric": "cost_per_cluster_hour",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.billing.usage + system.compute.warehouse_events",
+        "source_field": "forecast cost / running cluster-hours",
+        "threshold": null,
+        "unit": "USD per cluster-hour",
+        "value": null
+      },
       "EVID-BB6296753EDE8EEB3102DF91": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -1230,18 +1301,109 @@
         "unit": "%",
         "value": 0.0
       },
-      "EVID-C59E07B6F714633E62A028E0": {
+      "EVID-C78E3A5E377F3D7D3DFF9CB5": {
         "comparator": "",
         "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-C59E07B6F714633E62A028E0",
-        "interpretation": "Queries over the running-idle window; added restarts are judged as a share of them.",
-        "metric": "running_idle_queries",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history",
-        "source_field": "start_time",
+        "evidence_id": "EVID-C78E3A5E377F3D7D3DFF9CB5",
+        "interpretation": "Per auto-stop value that saves within the cold-start budget: reclaimable cluster-hours a year net of restarts, the idle cluster-hours removed (or added) and the restart cluster-hours added (or saved), and the restarts added a year; per-day rates x 365 x the forecast trend.",
+        "metric": "auto_stop_annual_cluster_hours_by_value",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "running-idle per auto-stop value",
         "threshold": null,
-        "unit": "queries",
-        "value": 12000
+        "unit": "cluster-hours per year",
+        "value": {
+          "10": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 4986.3,
+            "net_cluster_hours": 4986.3,
+            "restart_cluster_hours": -0.0
+          },
+          "15": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 4587.4,
+            "net_cluster_hours": 4587.4,
+            "restart_cluster_hours": -0.0
+          },
+          "20": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 4255.0,
+            "net_cluster_hours": 4255.0,
+            "restart_cluster_hours": -0.0
+          },
+          "25": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 3922.6,
+            "net_cluster_hours": 3922.6,
+            "restart_cluster_hours": -0.0
+          },
+          "30": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 3590.2,
+            "net_cluster_hours": 3590.2,
+            "restart_cluster_hours": -0.0
+          },
+          "35": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 3257.7,
+            "net_cluster_hours": 3257.7,
+            "restart_cluster_hours": -0.0
+          },
+          "40": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 2925.3,
+            "net_cluster_hours": 2925.3,
+            "restart_cluster_hours": -0.0
+          },
+          "45": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 2592.9,
+            "net_cluster_hours": 2592.9,
+            "restart_cluster_hours": -0.0
+          },
+          "50": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 2260.5,
+            "net_cluster_hours": 2260.5,
+            "restart_cluster_hours": -0.0
+          },
+          "55": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 1928.1,
+            "net_cluster_hours": 1928.1,
+            "restart_cluster_hours": -0.0
+          },
+          "60": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 1595.6,
+            "net_cluster_hours": 1595.6,
+            "restart_cluster_hours": -0.0
+          },
+          "65": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 1263.2,
+            "net_cluster_hours": 1263.2,
+            "restart_cluster_hours": -0.0
+          },
+          "70": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 930.8,
+            "net_cluster_hours": 930.8,
+            "restart_cluster_hours": -0.0
+          },
+          "75": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 598.4,
+            "net_cluster_hours": 598.4,
+            "restart_cluster_hours": -0.0
+          },
+          "80": {
+            "added_starts": 0.0,
+            "idle_cluster_hours": 265.9,
+            "net_cluster_hours": 265.9,
+            "restart_cluster_hours": -0.0
+          }
+        }
       },
       "EVID-CC930E31DA6EF5129113E075": {
         "comparator": ">= evidence minimum for upsize",
@@ -1415,31 +1577,42 @@
         "unit": "days",
         "value": 4
       },
-      "EVID-F4FE1E669230078F40089C02": {
-        "comparator": ">= evidence minimum",
+      "EVID-F839CA5EFC597B2CF2A9B810": {
+        "comparator": "added cold-start share <= budget (%)",
         "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-F4FE1E669230078F40089C02",
-        "interpretation": "Running cluster-minutes: the basis idle-time savings are a share of.",
-        "metric": "cluster_minutes",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.compute.warehouse_events",
-        "source_field": "cluster_count/event_time",
-        "threshold": 1.0,
-        "unit": "cluster-minutes",
-        "value": 30000.0
-      },
-      "EVID-F6000ACA225DCA3E1B0ACED8": {
-        "comparator": "",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-F6000ACA225DCA3E1B0ACED8",
-        "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
-        "metric": "migration_target_running_fraction",
-        "observation_window": "current epoch since the first retained warehouse event",
+        "evidence_id": "EVID-F839CA5EFC597B2CF2A9B810",
+        "interpretation": "The auto-stop value with the largest net saving among those within the cold-start budget.",
+        "metric": "auto_stop_best_option_within_budget",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
         "source": "system.query.history + system.compute.warehouse_events",
         "source_field": "running-idle per auto-stop value",
+        "threshold": 2.0,
+        "unit": "per value, per day",
+        "value": {
+          "added_cold_start_share_pct": 0.0,
+          "added_starts_per_day": 0.0,
+          "direction": "LOWER",
+          "gain_cluster_minutes_per_day": 819.672143,
+          "loss_cluster_minutes_per_day": 0.0,
+          "net_cluster_minutes_per_day": 819.672143,
+          "recent_added_cold_start_share_pct": 0.0,
+          "removable_wall_minutes_per_day": 409.836071,
+          "target": 10,
+          "within_cold_start_budget": true
+        }
+      },
+      "EVID-FD26042C3C734D46DB113C5B": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-FD26042C3C734D46DB113C5B",
+        "interpretation": "Queries in the basis window; added restarts are judged as a share of the queries (blended, and in the recent window alone).",
+        "metric": "basis_queries",
+        "observation_window": "DBU forecast basis: last 28 days ending 2026-09-30, blended with the last 28",
+        "source": "system.query.history",
+        "source_field": "start_time",
         "threshold": null,
-        "unit": "ratio",
-        "value": 0.1
+        "unit": "queries",
+        "value": 11016
       },
       "EVID-FE4CB0A91492422FBFB02F61": {
         "comparator": "<= safe",
@@ -1471,11 +1644,11 @@
       "excluded_scenarios": [
         {
           "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
-          "scenario_id": "SCN-3E4ACAD5671AC908DB6DA6C4"
+          "scenario_id": "SCN-2B29A763B9DF0CEB19ACA5C0"
         },
         {
           "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
-          "scenario_id": "SCN-F2F7794CB11723A71A2E4C6F"
+          "scenario_id": "SCN-D44046D6A4F9CA1E8EBA973B"
         }
       ],
       "included_scenario_ids": [],
@@ -1491,18 +1664,18 @@
       }
     },
     "provenance": {
-      "analyzer_version": "sql-warehouse-analyzer-v2.11.0",
-      "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
+      "analyzer_version": "sql-warehouse-analyzer-v2.13.0",
+      "bundle_estimator_version": "stateful-resource-bundle-v2.13.0",
       "contract_version": "3.1.0",
-      "decision_graph_version": "warehouse-decision-graph-v2.12.0",
-      "estimator_version": "counterfactual-v2.11.0",
-      "evidence_fingerprint": "SHA256:9E2341C80103C0EFB92DE6D496C0C46C0ADCA56EAF8E85B86C39F8095207DA24",
+      "decision_graph_version": "warehouse-decision-graph-v2.13.0",
+      "estimator_version": "counterfactual-v2.13.0",
+      "evidence_fingerprint": "SHA256:401B7674D254311EE4253F25FBC5FC15F36F0D38C14923A947A14FF507D454AD",
       "generated_at": "2026-10-01T12:00:00Z",
       "modeler_version": "epoch-runrate-v2.10.0",
-      "optimizer_version": "sql-warehouse-optimizer-v2.12.0",
-      "package_hash_full_sha256": "49394804E10E7A0190303837243069E812E51C5BB5C58B18941CEF132B2C4AD9",
-      "policy_version": "sql-warehouse-policy-v2.11.0",
-      "reviewer_version": "recommendation-reviewer-v2.12.0",
+      "optimizer_version": "sql-warehouse-optimizer-v2.13.0",
+      "package_hash_full_sha256": "1413B7646BA00410C9CB583BF8B1132EB81EE343CA40027EBABF3598574E5582",
+      "policy_version": "sql-warehouse-policy-v2.13.0",
+      "reviewer_version": "recommendation-reviewer-v2.13.0",
       "source_regions": [
         "us-east-1"
       ],
@@ -1527,22 +1700,22 @@
       "realization_records": [],
       "status": "NOT_APPLIED"
     },
-    "recommendation_package_id": "PKG-49394804E10E7A0190303837",
+    "recommendation_package_id": "PKG-1413B7646BA00410C9CB583B",
     "recommended_plan": {
       "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
       "next_action": "RUN_WAREHOUSE_SIZE_CANARY",
       "reevaluation": null,
       "requires_hitl": true,
-      "scenario_id": "SCN-3E4ACAD5671AC908DB6DA6C4",
+      "scenario_id": "SCN-2B29A763B9DF0CEB19ACA5C0",
       "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
     },
     "run_scope": null,
     "scenarios": [
       {
         "candidate_refs": [
-          "CAND-16909E3E3CC4AE5C4C5718E5",
-          "CAND-8473EEA810104E4B2C9EE413",
-          "CAND-655AD607F38C2EB7C49BCD95"
+          "CAND-78E9FD8A0DA1E61F78170555",
+          "CAND-F4AE5907CA44EB031C511310",
+          "CAND-D6A56C65D4BA3F3FE27B93D1"
         ],
         "compatibility": {
           "checks": [],
@@ -1601,7 +1774,7 @@
         "execution_plan": [
           {
             "action": null,
-            "candidate_id": "CAND-16909E3E3CC4AE5C4C5718E5",
+            "candidate_id": "CAND-78E9FD8A0DA1E61F78170555",
             "confidence": {
               "components": {
                 "coverage": 0.322,
@@ -1643,7 +1816,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-8473EEA810104E4B2C9EE413",
+            "candidate_id": "CAND-F4AE5907CA44EB031C511310",
             "confidence": {
               "components": {
                 "coverage": 0.322,
@@ -1688,7 +1861,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-655AD607F38C2EB7C49BCD95",
+            "candidate_id": "CAND-D6A56C65D4BA3F3FE27B93D1",
             "confidence": {
               "components": {
                 "coverage": 0.322,
@@ -1790,7 +1963,7 @@
             "total": null
           }
         },
-        "scenario_id": "SCN-3E4ACAD5671AC908DB6DA6C4",
+        "scenario_id": "SCN-2B29A763B9DF0CEB19ACA5C0",
         "scenario_name": "Plan A \u2014 Optimize current warehouse type",
         "scenario_type": "IN_PLACE_OPTIMIZATION",
         "status": "RECOMMENDED"
@@ -1835,7 +2008,7 @@
             "total": null
           }
         },
-        "scenario_id": "SCN-F2F7794CB11723A71A2E4C6F",
+        "scenario_id": "SCN-D44046D6A4F9CA1E8EBA973B",
         "scenario_name": "Plan B \u2014 Migration not evaluated",
         "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
         "status": "ALTERNATIVE"

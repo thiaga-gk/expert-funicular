@@ -77,7 +77,7 @@ annualized change, bias and spread. It calibrates the assumed values:
 
 | Assumed value | Today | What the backtest measures |
 |---|---|---|
-| Auto-stop realization (optimistic/base/conservative) | 1.0 / 0.75 / 0.5 of the replayed idle saving | Billed change after past auto-stop changes vs the replay's prediction (example: C01 replay 124.1k removable, base reports 93.1k) |
+| Auto-stop realization (optimistic/base/conservative) | 1.0 / 0.75 / 0.5 of the replayed idle removed (added restarts count in full) | Billed change after past auto-stop changes vs the replay's prediction (example: C01 replay 124.1k removable, base reports 93.1k). In a simulation without kept-alive sessions or billing noise the base understates a steady workload's forward saving by about 25%, enough to hold a real saving under the materiality floor; calibrate the base from this measurement rather than from synthetic data |
 | Size slowdown on busy time | x1.10 / x1.30 / x1.55 (worst case widened to x2.0 in batch 8) | Busy time and billed cost after past size changes (example: C06 LARGE to MEDIUM saves 36.6k at x1.0, 31.7k at x1.3, 20.4k at x2.0) |
 | Floor realization | 1.0 / 0.5 / 0 of the cluster-minutes at the minimum | Billed change after past min-cluster changes |
 
@@ -103,5 +103,6 @@ Each recalibrated profile value goes through its own approval, a policy version 
 
 - Whether a warehouse with no state change emits any `system.compute.warehouse_events` row within 365 days (affects
   warehouses running all year with no event).
-- `cluster_count` on STARTING/STOPPING events.
+- `cluster_count` on STARTING/STOPPING events. If STARTING rows carry a positive count, measured running time includes starting time and the priced restart cost counts it twice: compare running minutes inside STARTING spans with the restart cost.
+- Auto-stop replay fidelity: for warehouses with a steady current auto-stop, check that the stops the events show follow the setting (running stops about `auto_stop` minutes after the last query of a gap, within the kept-alive tolerances), and compare the replayed running time at the current value with the observed running time. A large gap means the replay misses something that keeps warehouses up or stops them, and the auto-stop savings are biased the same way.
 - Whether a tag or rename creates a `system.compute.warehouses` row.

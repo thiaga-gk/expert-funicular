@@ -257,7 +257,8 @@ class OptimizerCases(PublisherCase):
         self.assertEqual(auto.blockers, ["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"])
         self.assertIsNone(auto.estimated_savings_365)
         ev = demo_evidence()
-        ev[0].current_epoch.events["cluster_minutes"] = 0
+        for window in ev[0].current_epoch.gaps["running_idle_windows"].values():
+            window["observed_running_cluster_minutes"] = 0  # no running time on the forecast's days
         auto = next(c for c in p.evaluate_warehouses(ev, self.t)[0].candidates if c.knob == "auto_stop_minutes")
         self.assertEqual(auto.status, "INSUFFICIENT_EVIDENCE")
         self.assertIn("INSUFFICIENT_EVENT_RESOURCE_EVIDENCE", auto.blockers)

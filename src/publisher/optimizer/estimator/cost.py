@@ -108,20 +108,30 @@ class CostModel:
         if knob=="auto_stop_minutes":
             target=safe_int(d.recommended_config.get("auto_stop_minutes"))
             opt=next((o for o in a.facts.get("options") or [] if o["target"]==target),None)
-            cluster=safe_float(a.facts.get("cluster_minutes"))
-            if opt is None or cluster<=0:
-                reason="The auto-stop step cannot be priced without the warehouse's running time (no retained warehouse event); economics are withheld."
-                return None,{"method":"estimate withheld: no running-idle evidence for the recommended auto-stop",
+            running=safe_float(a.facts.get("running_cluster_minutes_per_day"))
+            if opt is None or running<=0 or not a.facts.get("priced_basis"):
+                # Priced only on the DBU forecast's own days; the whole-period fallback (no covered basis) decides but is not priced.
+                reason="The auto-stop step cannot be priced without the warehouse's running time on the DBU forecast's days (no retained warehouse event covering them); economics are withheld."
+                return None,{"method":"estimate withheld: no running-idle evidence on the forecast basis for the recommended auto-stop",
+                             "estimate_blocker":"RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE",
                              "bundle_effect":{"type":"estimate_withheld","status":"UNAVAILABLE","reason":reason},**meta}
-            # Net cluster-minutes saved (idle removed minus restarts added, or restarts saved minus idle added) as a share
-            # of running cluster-minutes over the same period; the realization range applies to that net.
-            raw=clamp(opt["net_cluster_minutes"]/cluster,0,1)
-            factors=Range3(1-raw*self.t.realization_optimistic,1-raw*self.t.realization_base,1-raw*self.t.realization_conservative)
+            # Reclaimable cluster-minutes per day as a share of running cluster-minutes per day on the forecast's days, so
+            # share x the DBU forecast = reclaimable cluster-hours a year x the forecast's cost per cluster-hour. The
+            # realization tracks scale only the idle a lower value removes; restarts (added or saved) and the idle a
+            # higher value adds are mechanical and count in full on every track, so the conservative track stays
+            # conservative about restarts (a raise's restart billing is the canary's to measure).
+            gain=opt["gain_cluster_minutes_per_day"]/running; loss=opt["loss_cluster_minutes_per_day"]/running
+            realized,fixed=(gain,-loss) if opt["direction"]=="LOWER" else (0.0,gain-loss)
+            shares=[min(1.0,realized*r+fixed) for r in (self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative)]
+            factors=Range3(*(max(0.0,1.0-s) for s in shares))
+            trend=safe_float(a.facts.get("trend_adjustment_factor"),1.0)
             return factors,{
-                "method":"running idle time (idle gaps intersected with observed RUNNING time) at the recommended auto-stop, net of priced restarts",
-                "raw_savings_fraction":round(raw,4),"auto_stop_option":dict(opt),
+                "method":"reclaimable running cluster-hours (idle gaps intersected with observed RUNNING time) at the recommended auto-stop, net of priced restarts, on the DBU forecast's days, annualized like the forecast",
+                "savings_share_range":as_serializable(Range3(*shares)),"gain_share":round(gain,9),"loss_share":round(loss,9),"auto_stop_option":dict(opt),
+                "running_cluster_minutes_per_day":running,"annual_net_cluster_hours":round(opt["net_cluster_minutes_per_day"]*365.0*trend/60.0,1),
+                "cost_per_cluster_hour":a.facts.get("cost_per_cluster_hour"),
                 "restart_cost_assumption":"Pro/Classic starting minutes are assumed billed at the floor cluster count (start time about 4 minutes, documented; billing not documented); Serverless restarts cost about nothing.",
-                "bundle_effect":{"type":"idle_cluster_minute_reduction","gain_cluster_minutes":opt["gain_cluster_minutes"],"loss_cluster_minutes":opt["loss_cluster_minutes"],
+                "bundle_effect":{"type":"idle_cluster_minute_reduction","realized_share":round(realized,9),"fixed_share":round(fixed,9),
                                  "floor_clusters":safe_int(a.facts.get("floor_clusters"),1)},
                 **meta,
             }
@@ -198,7 +208,7 @@ class CostModel:
                 "busy_share":busy_share,
                 "busy_runtime_multiplier_range":as_serializable(busy_runtime),
                 "runtime_multiplier_range":as_serializable(runtime),
-                "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(runtime)},
+                "bundle_effect":{"type":"multiplicative_cost_factor","resource_runtime_factor_range":as_serializable(runtime),"busy_share":share},
                 **meta,
             }
 

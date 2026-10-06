@@ -253,9 +253,10 @@ class PublisherCase(unittest.TestCase):
         ep = ev.current_epoch
         ep.config = dataclasses.replace(ep.config, min_clusters=1)
         ep.query.update(queued_query_pct_30=0.6, queued_queries_30=72, p95_wait_capacity_ms_when_queued_30=1000)
-        for row in ep.gaps["running_idle_by_target"].values():
-            row["removable_running_cluster_minutes"] = ep.events["cluster_minutes"] * idle_multiple
-            row["removable_running_wall_minutes"] = row["removable_running_cluster_minutes"]
+        for window in ep.gaps["running_idle_windows"].values():
+            for row in window["running_idle_by_target"].values():
+                row["removable_running_cluster_minutes"] = window["observed_running_cluster_minutes"] * idle_multiple
+                row["removable_running_wall_minutes"] = row["removable_running_cluster_minutes"]
         w = p.evaluate_warehouses([ev], self.t)[0]
         cand = next(c for c in w.candidates if c.knob == "auto_stop_minutes")
         plan = next(s for s in w.scenarios if [st.knob for st in s.steps] == ["auto_stop_minutes"])

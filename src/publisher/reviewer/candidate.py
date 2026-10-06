@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.defaults import AUTO_STOP_FLOOR_PRO_CLASSIC, MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT, SIZE_ORDER
+from publisher.config.defaults import AUTO_STOP_MAX_MINUTES, MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT, SIZE_ORDER, auto_stop_floor
 from publisher.contracts.candidate import CandidateRecommendation
 from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.contracts.source import WarehouseEvidence
@@ -70,6 +70,12 @@ class CandidateGate:
             if c.knob=="auto_stop_minutes":
                 x=safe_int(c.recommended_config.get("auto_stop_minutes"),cfg.auto_stop_minutes)
                 if x < 0: raise ValueError("auto_stop_minutes < 0")
-                if x != cfg.auto_stop_minutes and cfg.warehouse_type != "SERVERLESS" and x < AUTO_STOP_FLOOR_PRO_CLASSIC:
-                    raise ValueError("auto_stop_minutes below the Pro/Classic minimum")
+                # A change lands on the type's grid: never off (0), never below the type's floor, never above the maximum
+                # (a value set below the console grid through the API is only ever kept).
+                if x != cfg.auto_stop_minutes and x == 0:
+                    raise ValueError("auto_stop_minutes change to 0 (never stop)")
+                if x != cfg.auto_stop_minutes and x < auto_stop_floor(cfg.warehouse_type):
+                    raise ValueError(f"auto_stop_minutes below the {cfg.warehouse_type} minimum")
+                if x != cfg.auto_stop_minutes and x > AUTO_STOP_MAX_MINUTES:
+                    raise ValueError("auto_stop_minutes above the maximum")
             if str(c.metadata.get("currency"))!=e.currency: raise ValueError("Currency mismatch")

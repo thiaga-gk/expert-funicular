@@ -348,12 +348,24 @@ Reads a daily resource series for the current epoch over the last `RESOURCE_DAIL
 
 #### Running-idle SQL
 
-Auto-stop is priced on idle time the warehouse actually ran. `build_running_idle_sql()` and `build_running_idle_targets_sql()` build, for the current epoch only, the idle gaps (the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now, or from the window start when there is no query) and intersect them with the `RUNNING` segments of `system.compute.warehouse_events`. The period is the same as the event totals (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision. Two queries share one set of CTEs:
+Auto-stop is priced on idle time the warehouse actually ran, measured on the DBU forecast's own days. The collector reads it in a second pass, after each warehouse's forecast (11.2): `running_idle_basis()` chooses the windows, and `build_running_idle_sql()` and `build_running_idle_targets_sql()` aggregate per window.
 
-- one row per warehouse: the window, the query count, the running segment count, the observed running cluster-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive);
-- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `AUTO_STOP_MAX_MINUTES`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
+**Windows** (`running_idle_basis()`, from the first whole day of both the epoch and the warehouse-event coverage, as ISO days):
 
-The normalizer stores them as `gaps.running_idle_*` keys and the sparse `gaps.running_idle_by_target` map keyed by minutes; a value without a row is a known zero, while missing keys mean the evidence was not collected (auto-stop then fails closed, 15.6). `running_idle_metrics()` is the Python reference of the same arithmetic and is what the tests pin. A value covers a gap only when it is `auto_stop_bridge_margin_pct` longer than the gap, and a gap counts as running throughout when the warehouse ran at least `running_idle_full_window_fraction` of it.
+- run-rate model: `long`, whole weeks ending at the billing basis end, at most `forecast_long_days`, and `recent`, its last `forecast_recent_days`;
+- cadence model: `cycles`, the whole run-to-run billing cycles the events cover (at least `forecast_min_cycles`), and `last_cycle`, the latest one;
+- otherwise (no basis end, no event coverage, too few covered cycles): one `epoch` window, the whole evidence period. Decisions read it, but no saving is priced on it (17.3).
+
+The statements carry the windows as a validated `VALUES` list (plain identifiers, known labels, ISO days as UTC-midnight bounds), and their first line repeats them as JSON (`-- running_idle_windows: ...`) so a replaying client (the demo, test fixtures) can answer for the windows asked.
+
+**Gaps** are built and classified once, for the current epoch over the period the event totals cover (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision: the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now (from the period start when there is no query), intersected with the `RUNNING` segments of `system.compute.warehouse_events`. A window counts the time inside it (running, kept-alive, removable and added idle time) and the restarts whose next query starts inside it. Two queries share one set of CTEs:
+
+- one row per warehouse and window: its bounds, the queries starting in it, the running segment count, the observed running cluster- and wall-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive), and the restarts for queries;
+- one row per warehouse, window and auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `AUTO_STOP_MAX_MINUTES`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall and cluster minutes a higher value adds (from where the warehouse stopped until `min(gap, value)` minutes into the gap, at the cluster count it stopped at: that of the gap's last running segment, the floor when it did not run).
+
+The collector stores them as `gaps.running_idle_model` and `gaps.running_idle_windows` (label to bounds, window totals and the sparse `running_idle_by_target` map keyed by minutes), only when every window was collected; a value without a row is a known zero, while missing keys mean the evidence was not collected (auto-stop then fails closed, 15.6). The analyzer recomputes the windows from the evidence and treats windows collected for other days as not collected. `running_idle_metrics()` is the Python reference of the same arithmetic and is what the tests pin. A value covers a gap only when it is `auto_stop_bridge_margin_pct` longer than the gap, and a gap counts as running throughout when the warehouse ran at least `running_idle_full_window_fraction` of it.
+
+**Rates.** `running_idle_rates()` turns the window totals into per-day rates with the forecast's own blend (`running_idle_blend()`): run-rate, `forecast_weight_28_long` of the recent window's daily mean plus the rest of the long window's when the long window holds `forecast_long_days`, `forecast_weight_28_mid` when it holds at least `forecast_recent_days`, else the long window alone; cadence, the cycles' daily mean; epoch, its daily mean. The recent check window is `recent` (run-rate) or `last_cycle` (cadence).
 
 #### Concurrency SQL
 
@@ -884,36 +896,38 @@ Auto-stop is not a fixed target by workload class: it jumps to the value that co
 
 **Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`AUTO_STOP_FLOOR_PRO_CLASSIC` for Pro and Classic, `AUTO_STOP_FLOOR_SERVERLESS` for standard Serverless) up to `AUTO_STOP_MAX_MINUTES`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
 
-**Objective per value**, in cluster-minutes (the floor cluster count is the current minimum, at least 1):
+**Objective per value**, in cluster-minutes per day on the forecast basis (7.2, Running-idle SQL: each term is the window totals blended like the DBU forecast; the floor cluster count is the current minimum, at least 1):
 
 ```text
 lowering:  net = removable running cluster-minutes
                  - additional restarts * restart_cost
 raising:   net = restarts avoided * restart_cost
-                 - added idle wall minutes * floor clusters
+                 - added idle cluster-minutes (at the cluster count each gap stopped at)
 restart_cost = restart_cost_cluster_minutes_{pro_classic|serverless} * floor clusters
 ```
 
 The restart cost is the documented start time (about 4 minutes on Pro and Classic, 2 to 6 seconds on Serverless, priced at the upper end). Databricks does not document whether starting minutes are billed, so on Pro and Classic the restart cost is a priced assumption: a raise, whose saving is entirely avoided restarts, is therefore always a canary. Running time past the current auto-stop (kept-alive time: open sessions, result fetching) is reported and never removable by a lower value. A gap run past the current auto-stop by more than a late stop event explains (more than `kept_alive_gap_tolerance_minutes` when it ran through to the next query or the window end, more than `kept_alive_stopped_gap_minutes` when it stopped before the next query) was kept alive by something other than queries and would not stop at a lower value either, so it contributes no removable time and no added restart; added restarts are otherwise counted only in gaps within the current setting. A migration alternative is priced on its own cost basis: today's running time, minus the idle time its auto-stop removes (or plus the idle it adds), plus every restart it still has at its own restart cost, against today's running time plus today's restarts at today's cost (measured running time excludes starting time). A query with no end time ends at its start time plus its total duration when that is known; with neither, it counts as still running only if it started within the last day, and an older one ends at its start.
 
-**Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries over the same window, must stay within `cold_start_added_share_max_pct` of the warehouse's cost profile (14.2; a nonprod-tagged warehouse is aggressive by default and gets the larger budget).
+**Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries, must stay within `cold_start_added_share_max_pct` of the warehouse's cost profile (14.2; a nonprod-tagged warehouse is aggressive by default and gets the larger budget) twice: on the blended rates and in the recent check window alone (`recent`, or `last_cycle` on the cadence model; none on the whole-period fallback), so a recent change in demand cannot push a value chosen at the budget's edge over it. A window without queries passes only when the value adds no restart there.
 
-**Choice.** Among the values within budget that save money, the best net wins; among values whose net is within `auto_stop_near_best_pct` of the best, the smallest change from the current value wins (an always-on value of 0 counts as infinitely long, so the largest such value is the smallest change). The candidate is priced at its net divided by the observed running cluster-minutes, scaled by the realization tracks (17.3).
+**Choice.** Among the values within budget that save money, the best net wins; among values whose net is within `auto_stop_near_best_pct` of the best, the smallest change from the current value wins (an always-on value of 0 counts as infinitely long, so the largest such value is the smallest change). The candidate is priced on the same per-day rates as a share of the running cluster-minutes per day, which is the reclaimable cluster-hours a year at the forecast's cost per cluster-hour (17.3).
 
 **Outcomes**, in the order the optimizer checks them:
 
 - Serverless value below its floor: `NO_CHANGE`, left alone;
-- running-idle evidence not collected (older evidence, or no retained warehouse event): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`, except for a zero-query warehouse that billing shows ran every day: when the configuration is ready, no query ran in the last 30 days, the warehouse was billed on every one of the last `pressure_window_days` settled days of the current epoch's forecast basis (at least `min_economics_cost_history_days` of them), the forward DBU cost is known and auto-stop is off or the lowest auto-stop on the type's grid is below the current value, the decision is `REVIEW` with `NO_QUERIES_WHILE_RUNNING` at that lowest value. The rationale gives the billed days, their billed cost and the forward annual cost. No saving is priced: without a retained warehouse event there is no running time to measure, so the candidate economics are null and the bundle effect is withheld (the plan's economics are null, not zero). The analyzer emits `billed_days_of_settled_days_recent` (billed days, settled days) for this rule;
-- fewer than `min_cluster_minutes_for_cost_model` running cluster-minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`;
-- a lower value removes more running cluster-minutes than the events recorded: `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price;
+- running-idle evidence not collected on the forecast's days (older evidence, no retained warehouse event, or windows collected for other days than the forecast basis chooses): `INSUFFICIENT_EVIDENCE` with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`, except for a zero-query warehouse that billing shows ran every day: when the configuration is ready, no query ran in the last 30 days, the warehouse was billed on every one of the last `pressure_window_days` settled days of the current epoch's forecast basis (at least `min_economics_cost_history_days` of them), the forward DBU cost is known and auto-stop is off or the lowest auto-stop on the type's grid is below the current value, the decision is `REVIEW` with `NO_QUERIES_WHILE_RUNNING` at that lowest value. The rationale gives the billed days, their billed cost and the forward annual cost. No saving is priced: without a retained warehouse event there is no running time to measure, so the candidate economics are null and the bundle effect is withheld (the plan's economics are null, not zero). The analyzer emits `billed_days_of_settled_days_recent` (billed days, settled days) for this rule;
+- fewer than `min_cluster_minutes_for_cost_model` running cluster-minutes in the basis window (`long`, `cycles` or `epoch`): `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_EVENT_RESOURCE_EVIDENCE`;
+- a lower value removes more running cluster-minutes per day than the events recorded: `INSUFFICIENT_EVIDENCE` with `IDLE_EVIDENCE_EXCEEDS_RUNTIME`, no change and no price;
 - configuration not ready: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW`;
-- no queries while running: `REVIEW` at the floor value when it removes running time (`NO_QUERIES_WHILE_RUNNING`), otherwise `NO_CHANGE` with the same code;
-- no value saves money: `NO_CHANGE` (the current value is cost-optimal), with `SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING` when the warehouse runs at least `always_on_running_pct` of the window while queries are busy at most `always_on_busy_pct_max` of its running time (frequent tiny queries such as BI polling or dashboard refresh keep it up; the rationale names the client applications);
+- no queries in the basis window while running: `REVIEW` at the floor value when it removes running time (`NO_QUERIES_WHILE_RUNNING`), otherwise `NO_CHANGE` with the same code;
+- no value saves money: `NO_CHANGE` (the current value is cost-optimal), with `SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING` when the warehouse runs at least `always_on_running_pct` of the day (blended) while queries are busy at most `always_on_busy_pct_max` of its running time (frequent tiny queries such as BI polling or dashboard refresh keep it up; the rationale names the client applications);
 - every value that saves money is over the cold-start budget: `NO_CHANGE` with `COLD_START_BUDGET_EXCEEDED`;
 - the chosen value lowers auto-stop: `ACTIONABLE`, unless the reliability guard holds the cut, which makes it `BLOCKED`;
 - the chosen value raises auto-stop: `TEST_REQUIRED` with `RESTART_BILLING_UNVERIFIED`, a canary that measures billed cost after the change.
 
 **Non-work activity.** With any outcome, when kept-alive minutes are at least `kept_alive_flag_pct` of running time the decision also carries the advisory `ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING` and its rationale states the share; that time is never priced as removable. The analyzer emits `running_share_of_clock_pct` and `busy_share_of_running_pct` findings for the flags above.
+
+**Evidence of the annualization.** The analyzer also emits `running_idle_basis` (model, windows, blend weights per day, recent check window, trend factor), `running_cluster_minutes_per_day`, `auto_stop_annual_cluster_hours_by_value` (per value that saves within the budget: the reclaimable cluster-hours a year net of restarts, the idle cluster-hours removed or added, the restart cluster-hours added or saved and the restarts added a year: per-day rates × 365 × the forecast trend) and `cost_per_cluster_hour` (the forward DBU cost over the annualized running cluster-hours on the same days). They reach the package as evidence the auto-stop candidate cites, and the workbook's evidence JSON.
 
 A warehouse whose auto-stop decision carries `NO_QUERIES_WHILE_RUNNING` (either case above) is probably not needed at all, so its warehouse-type migration is `NO_CHANGE` with the same code and no Plan B experiment is built until a review decides whether the warehouse is still needed (15.7).
 
@@ -1007,7 +1021,7 @@ Decision sample by knob:
 | Size | queries not served from the result cache, last 30 days | `strong_query_sample_size` |
 | Max clusters | busy minutes in the recent window | `confidence_strong_busy_minutes` |
 | Min clusters | busy periods in the recent window | `confidence_strong_busy_periods` |
-| Auto-stop | queries over the running-idle window | `strong_query_sample_size` |
+| Auto-stop | queries in the running-idle basis window (`long`, `cycles` or `epoch`) | `strong_query_sample_size` |
 | Migration | queries, last 30 days | `strong_query_sample_size` |
 
 The score is clamped to a cap by candidate status: `confidence_cap_actionable` for `ACTIONABLE`, `confidence_cap_test_required` for `TEST_REQUIRED`, `confidence_cap_insufficient_evidence` for `INSUFFICIENT_EVIDENCE` (below the MEDIUM cut-off) and `confidence_cap_default` for every other status (below the HIGH cut-off): a candidate that changes nothing is never `HIGH`, and one without enough evidence is `LOW`. The score is mapped to a level with `confidence_high_threshold` and `confidence_medium_threshold` (`HIGH`, `MEDIUM`, otherwise `LOW`). A scenario's confidence is the minimum of its step confidences; a scenario with no steps has no score (`UNKNOWN`).
@@ -1036,10 +1050,21 @@ Value gate: a change whose objective is cost (a size reduction, a lower minimum 
 The estimator prices the recommended value from the option the optimizer chose (15.6), not from a generic cap:
 
 ```text
-raw_savings_fraction = clamp(net_cluster_minutes / observed_running_cluster_minutes, 0, 1)
+gain_share = gain_cluster_minutes_per_day / running_cluster_minutes_per_day
+loss_share = loss_cluster_minutes_per_day / running_cluster_minutes_per_day
+lowering: savings_share(track) = min(1, gain_share * realization(track) - loss_share)
+raising:  savings_share(track) = min(1, gain_share - loss_share)            (every track)
+cost_factor(track) = max(0, 1 - savings_share(track))
 ```
 
-`net_cluster_minutes` is idle running time removed minus restarts added (or restarts saved minus idle added when raising), and the denominator is the running cluster-minutes the events recorded over the same period, so the ratio covers one period. Realization tracks scale the fraction by `realization_optimistic`, `realization_base` and `realization_conservative` (high, base and low savings). There is no separate savings cap: only idle time the warehouse actually ran can be removed. The candidate metadata records the chosen option and the restart-cost assumption (Pro and Classic starting minutes are assumed billed; Databricks does not document it). Idle time above the recorded running time is rejected upstream (15.6), not clamped.
+All terms are per-day rates on the DBU forecast's own days and blend (7.2, Running-idle SQL), so the share times the forward DBU baseline is the reclaimable cluster-hours a year at the forecast's cost per cluster-hour:
+
+```text
+annual saving = net cluster-minutes per day x 365 x trend / 60      (reclaimable cluster-hours a year)
+              x forecast_365 / (running cluster-minutes per day x 365 x trend / 60)   (cost per cluster-hour)
+```
+
+The gain is the idle running time a lower value removes (or the restarts a higher value saves), the loss the restarts it adds (or the idle time it adds). The realization tracks (`realization_optimistic`, `realization_base`, `realization_conservative`: high, base and low savings) scale only the idle running time a lower value removes. Restarts, added or saved, and the idle time a higher value adds are mechanical and count in full on every track: the conservative track stays conservative about restarts, a track whose realized idle is below the restarts it adds is a cost increase, and a raise has one value on every track (its restart billing assumption is what its canary measures). There is no separate savings cap: only idle time the warehouse actually ran can be removed. The candidate metadata records the chosen option, the share range, the annual net cluster-hours, the cost per cluster-hour and the restart-cost assumption (Pro and Classic starting minutes are assumed billed; Databricks does not document it). Idle time above the recorded running time is rejected upstream (15.6), not clamped. On the whole-period fallback (no covered forecast basis) the estimate is withheld with `RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE`.
 
 ### 17.4 Min-cluster estimator
 
@@ -1162,7 +1187,7 @@ It validates:
 - warehouse-size target belongs to known size order,
 - min/max cluster target bounds,
 - `min <= max` consistency against current config,
-- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `AUTO_STOP_FLOOR_PRO_CLASSIC`,
+- nonnegative auto-stop, and a changed auto-stop never 0 (never stop), at or above its type's floor (`AUTO_STOP_FLOOR_PRO_CLASSIC`, `AUTO_STOP_FLOOR_SERVERLESS`) and at most `AUTO_STOP_MAX_MINUTES`,
 - package currency consistency.
 
 ```mermaid
@@ -1193,6 +1218,8 @@ knob_rank: warehouse_size, max_clusters, min_clusters, auto_stop_minutes
 ```
 
 `base_savings_365` is the candidate's independent base savings (total when the AWS line is known, DBU otherwise) and `confidence_score` its score (section 16). A canary rollback (15.9) is placed first, whatever later steps invalidate, because it restores its knob regardless. The rest of the sorted list is scheduled so that no step precedes a step that invalidates it (15.8): at each position the planner takes the highest-ranked remaining step whose invalidators are all placed. Steps that another plan step invalidates (always pending re-evaluation) then come after every ready step, in value order, so what can be applied now is listed before what waits, and the last pending step's running savings equal the contingent savings of the scenario.
+
+**Marginal value hold.** After pricing, an auto-stop step that is ready (`READY` or `READY_FOR_CANARY`) and whose standalone base savings clear the warehouse's materiality floor (`cost_change_min_annual_savings` of its cost profile) is held when its own savings after the steps applied before it (a size change prices its idle at the new rate, a floor cut already removed some of its idle) fall below that floor. Applied before it follows the execution order of the sequencing sentence below, not the plan order: approval-only steps go first and canaries start on a later run, so an approval-only auto-stop is priced after the approval-only steps listed before it, and an auto-stop canary after every approval-only step and the canaries listed before it; an auto-stop applied first is never held. A held step: the step stays visible with `execution_state = BLOCKED`, gate `HELD_MARGINAL_SAVINGS_BELOW_MATERIALITY` and an instruction that states its marginal savings and the floor, is not priced (no projected economics), and the plan is priced again without it. Its candidate keeps its standalone status and economics: the hold is about this plan's order, not the change, and the next run re-evaluates it after the earlier steps are applied.
 
 **Sequencing sentence.** When the recommended plan has both ready approval-only steps (`READY`) and ready canaries (`READY_FOR_CANARY`), `recommended_plan.decision_summary` appends: apply the ready no-canary steps (their knobs) first, and start the canary (its knobs) once the next run shows their new configuration ready (`readiness_min_billed_days` settled billed days), so the canary's cost reading is not mixed with their savings. When the plan has a canary rollback, the summary first says to apply the rollback (its knobs) before any other step: a change applied first starts a new configuration, and the next run no longer sees the change being rolled back. The canary sentence then leaves the rollback out: it says to apply the other ready no-canary steps next, or, when there are none, to start the canary once the next run shows the restored configuration ready. Both sentences are text only: step order, `next_action` and savings are unchanged.
 
@@ -1290,7 +1317,7 @@ The floor is kept per track because a min-cluster cut is realized differently on
 | Bundle effect | Behavior |
 |---|---|
 | `no_cost_change` | state unchanged |
-| `multiplicative_cost_factor` | multiply evolving DBU/AWS cost; optionally resource runtime |
+| `multiplicative_cost_factor` | multiply evolving DBU/AWS cost; with a resource runtime factor, the price part (factor / runtime) multiplies and the runtime part moves the remaining cluster-minutes by a fixed amount: for a size change, today's busy cluster-minutes (busy share × original cluster-minutes, never more than the cluster-minutes left) × (busy multiplier − 1); for a ceiling increase, the original cluster-minutes × (factor − 1) |
 | `min_cluster_reduction` | remove realized cluster-minutes from remaining state |
 | `idle_cluster_minute_reduction` | remove realized idle cluster-minutes from remaining state |
 | `migration_cost_override` | replace evolving state with migration counterfactual |
@@ -1308,7 +1335,7 @@ flowchart LR
     REM2 --> COST[Scenario DBU/AWS costs]
 ```
 
-Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect is the net cluster-minutes (gain minus loss) measured at the floor the candidate saw, scaled by that track's current floor. Each auto-stop step records, per track, the net running wall-clock minutes per floor cluster it removed: for a lower auto-stop the idle time removed minus the restarts added, for a higher one the restarts saved minus the idle time added. A later min-cluster reduction removes only `max(0, removable_floor_minutes − auto_stop_wall_minutes × (track_floor − target_min))`: a stopped warehouse has no floor cluster to remove. In the other order the chain records the cluster-minutes the floor cut removed (`floor_cut_minutes`), and a later auto-stop step saves its full effect at the floor the candidate saw less its overlap with the cut (`unit × realization × (candidate_floor − track_floor)`), never giving back more than the cut removed. The plan total is the same in either step order on all three tracks, also when the floor cut's claim is clamped at zero.
+Min-cluster and auto-stop do not both claim the same original capacity minute, in either order. The auto-stop effect carries the idle a lower value removes (`realized_share`) and the mechanical rest (`fixed_share`: restarts added or saved, idle a higher value adds) as shares of today's running cluster-minutes on the forecast basis (17.3) and applies them to the original cluster-minutes, so one step alone reproduces the candidate; per track only the first is realized (`realized × realization + fixed`), measured at the floor the candidate saw and scaled by that track's current floor. Each auto-stop step records, per track, the net running wall-clock minutes per floor cluster it removed: for a lower auto-stop the idle time removed minus the restarts added, for a higher one the restarts saved minus the idle time added. A later min-cluster reduction removes only `max(0, removable_floor_minutes − auto_stop_wall_minutes × (track_floor − target_min))`: a stopped warehouse has no floor cluster to remove. In the other order the chain records the cluster-minutes the floor cut removed (`floor_cut_minutes`), and a later auto-stop step saves its full effect at the floor the candidate saw less its overlap with the cut (`(realized × realization + fixed) per floor cluster × (candidate_floor − track_floor)`), never giving back more than the cut removed. The plan total is the same in either step order on all three tracks, also when the floor cut's claim is clamped at zero. A size step and a ceiling increase move the remaining cluster-minutes by a fixed amount rather than a proportion (20.2), so auto-stop removals give the same plan total before or after them while the busy time a size change acts on is still running; with an unknown busy share all running time counts as busy, so after idle removals the size change acts on what is left (the conservative reading).
 
 ### 20.4 Scenario estimate statuses
 

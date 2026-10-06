@@ -185,7 +185,7 @@ def plan(reviewed: CandidateReviewResult, thresholds: Thresholds, scope: RunScop
     for w in reviewed.accepted:
         e, candidates = w.evidence, w.candidates
         planner = ScenarioPlanner(thresholds)
-        scenarios, recommended = planner.scenarios(e, candidates, scope)
+        scenarios, recommended = planner.scenarios(e, candidates, scope, thresholds_for_profile(thresholds, w.analysis.cost_profile.name).cost_change_min_annual_savings)
         status_counts: Dict[str, int] = {}
         for candidate in candidates:
             status_counts[candidate.status] = status_counts.get(candidate.status, 0) + 1

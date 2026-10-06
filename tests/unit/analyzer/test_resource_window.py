@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
-from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence, replay_demo_rows  # noqa: E402
 from publisher.analyzer.collector.pricing import model_aws_baseline_cost  # noqa: E402
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE  # noqa: E402
 from publisher.analyzer.collector.queries.events import EPOCH_EVENT_METRICS_SQL, RESOURCE_DAILY_SQL, build_epoch_gap_metrics_sql  # noqa: E402
@@ -45,7 +45,7 @@ def demo_rows_without_events():
 
     class Client:
         def query(self, statement, *, label="collector_sql"):
-            return [dict(r) for r in rows.get(label, [])]
+            return replay_demo_rows(rows, statement, label)
 
     registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
     return {"evidence": extract_evidence(Client(), Thresholds(), "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)[0]}
@@ -86,7 +86,7 @@ class ResourceWindowTests(unittest.TestCase):
     def collect(self, rows):
         class Client:
             def query(self, statement, *, label="collector_sql"):
-                return [dict(r) for r in rows.get(label, [])]
+                return replay_demo_rows(rows, statement, label)
         registry = json.loads((ROOT / "pricing" / "aws_ec2_on_demand.json").read_text())
         return extract_evidence(Client(), self.t, "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)[0]
 

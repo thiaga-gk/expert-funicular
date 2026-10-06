@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
-from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ANALYSIS_TIME, _demo_fleet_rows, demo_evidence, replay_demo_rows  # noqa: E402
 from publisher.analyzer.collector.pricing import model_aws_baseline_cost  # noqa: E402
 from publisher.analyzer.collector.queries.billing import EPOCH_BILLING_ATTRIBUTION_SQL  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
@@ -69,7 +69,7 @@ class BillingTopologyTests(unittest.TestCase):
 
         class Client:
             def query(self, statement, *, label="collector_sql"):
-                return [dict(x) for x in rows.get(label, [])]
+                return replay_demo_rows(rows, statement, label)
 
         e = extract_evidence(Client(), self.t, "us-east-1", REGISTRY, analysis_time=DEMO_ANALYSIS_TIME)[0]
         self.assertIsNone(e.aws_baseline_cost_365)

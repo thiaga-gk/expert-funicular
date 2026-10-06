@@ -32,7 +32,7 @@ class Estimator(CostModel, SavingsModel):
 
     # The sample each knob's decision is made on and its full-credit size; an unknown sample earns no credit.
     _DECISION_SAMPLE={"warehouse_size":("decision_queries","strong_query_sample_size"),"max_clusters":("busy_minutes_recent","confidence_strong_busy_minutes"),
-                      "min_clusters":("busy_periods_recent","confidence_strong_busy_periods"),"auto_stop_minutes":("running_idle_queries","strong_query_sample_size"),
+                      "min_clusters":("busy_periods_recent","confidence_strong_busy_periods"),"auto_stop_minutes":("basis_queries","strong_query_sample_size"),
                       "warehouse_type":("queries_30","strong_query_sample_size")}
 
     def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
@@ -98,7 +98,8 @@ class Estimator(CostModel, SavingsModel):
             blocker=c.metadata["estimate_blocker"]
             return {"reason_code":blocker,"status":"INSUFFICIENT_EVIDENCE","modeled_savings_365":None,"modeled_savings_range_365":None,
                     "floor_365":self.t.cost_change_min_annual_savings,"held_change":as_serializable(d.recommended_config),"original_status":d.status,
-                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced. {DBU_BASELINE_WITHHELD[blocker][1]}"}
+                    "rationale":f"Held: the {d.knob} change is applied without a canary, so it waits until its own savings can be priced. "
+                                 f"{DBU_BASELINE_WITHHELD[blocker][1] if blocker in DBU_BASELINE_WITHHELD else (c.metadata.get('bundle_effect') or {}).get('reason', '')}"}
         if save is None:
             return None  # unpriced (withheld) changes are canaries; there is nothing to gate on
         floor=self.t.cost_change_min_annual_savings

@@ -22,6 +22,8 @@ from publisher.analyzer.metrics import (
     recent_capacity_facts,
     recent_peak_at_rate,
     resource_window,
+    running_idle_rates,
+    running_idle_window_days,
     size_busy_share,
     window_days,
 )
@@ -134,30 +136,37 @@ class Analyzer:
         )
 
     @staticmethod
-    def _auto_stop_options(gaps: Mapping[str, Any], current_auto: int, values: Sequence[int], restart_cost: float, floor_clusters: int,
+    def _auto_stop_options(ri: Optional[Mapping[str, Any]], current_auto: int, values: Sequence[int], restart_cost: float,
                            budget: Optional[float]) -> List[Dict[str, Any]]:
-        """Score auto-stop values on running-idle evidence (lowering: idle removed minus restarts added; raising:
-        restarts saved minus idle added), with each value's added cold-start share against the budget (None: no budget)."""
-        by_target = gaps.get("running_idle_by_target") or {}
-        queries = optional_float(gaps.get("running_idle_queries"))
+        """Score auto-stop values on the running-idle rates (cluster-minutes per day on the forecast basis; lowering: idle
+        removed minus restarts added; raising: restarts saved minus idle added, at the cluster count it stopped at), with
+        each value's added cold-start share against the budget (None: no budget) on the blend and on the recent window."""
+        if ri is None:
+            return []
+        queries, recent = ri["queries_per_day"], ri["recent"]
         options: List[Dict[str, Any]] = []
         for x in values:
             if x == current_auto:
                 continue
-            row = by_target.get(str(x)) or {}  # collected, no row: nothing removed, added or avoided at this value
+            row = ri["by_target"].get(str(x)) or {}  # collected, no row: nothing removed, added or avoided at this value
             lower = current_auto == 0 or x < current_auto
             if lower:
-                gain = safe_float(row.get("removable_running_cluster_minutes")); starts = safe_int(row.get("additional_starts"))
+                gain = row.get("removable_running_cluster_minutes", 0.0); starts = row.get("additional_starts", 0.0)
                 loss = starts * restart_cost
             else:
-                starts = -safe_int(row.get("avoided_starts"))
-                gain = -starts * restart_cost; loss = safe_float(row.get("added_idle_wall_minutes")) * floor_clusters
-            share = None if not queries else round(100.0 * starts / queries, 4)
-            options.append({"target": x, "direction": "LOWER" if lower else "RAISE", "gain_cluster_minutes": round(gain, 3),
-                            "loss_cluster_minutes": round(loss, 3), "net_cluster_minutes": round(gain - loss, 3), "added_starts": starts,
-                            "removable_wall_minutes": safe_float(row.get("removable_running_wall_minutes")) if lower else 0.0,
-                            "added_cold_start_share_pct": share,
-                            "within_cold_start_budget": budget is None or starts <= 0 or (share is not None and share <= budget)})
+                starts = -row.get("avoided_starts", 0.0)
+                gain = -starts * restart_cost; loss = row.get("added_idle_cluster_minutes", 0.0)
+            share = None if queries <= 0 else round(100.0 * starts / queries, 4)
+            # The recent window alone (its own totals): a value must also fit the budget there, so a recent change in
+            # demand cannot push it over (no recent check on the whole-period fallback).
+            recent_starts = safe_int((recent["by_target"].get(str(x)) or {}).get("additional_starts")) if (lower and recent) else 0
+            recent_share = None if not recent or recent["queries"] <= 0 else round(100.0 * recent_starts / recent["queries"], 4)
+            within = budget is None or starts <= 0 or (share is not None and share <= budget and (recent_starts <= 0 or (recent_share is not None and recent_share <= budget)))
+            options.append({"target": x, "direction": "LOWER" if lower else "RAISE", "gain_cluster_minutes_per_day": round(gain, 6),
+                            "loss_cluster_minutes_per_day": round(loss, 6), "net_cluster_minutes_per_day": round(gain - loss, 6),
+                            "added_starts_per_day": round(starts, 6), "removable_wall_minutes_per_day": round(row.get("removable_running_wall_minutes", 0.0), 6) if lower else 0.0,
+                            "added_cold_start_share_pct": share, "recent_added_cold_start_share_pct": recent_share if lower else None,
+                            "within_cold_start_budget": within})
         return options
 
     def analyze(self, e: WarehouseEvidence) -> Dict[str, AnalysisResult]:
@@ -356,56 +365,82 @@ class Analyzer:
             "minutes_at_min":safe_float(ev.get("minutes_at_min")),"cluster_minutes":safe_float(ev.get("cluster_minutes"))})
 
         # Auto stop: every value on the type's grid, scored on running-idle evidence (idle gaps intersected with the
-        # warehouse's observed RUNNING time, over the same period as the event totals). Lowering removes running idle
-        # time and adds the restarts of gaps the warehouse used to run through; raising adds idle time and saves the
-        # restarts of gaps shorter than the new value. A restart costs restart-cost cluster-minutes per floor cluster.
-        cluster_minutes = safe_float(ev.get("cluster_minutes")); current_auto = cfg.auto_stop_minutes
+        # warehouse's observed RUNNING time) on the DBU forecast's own days, as per-day rates blended like the forecast.
+        # Lowering removes running idle time and adds the restarts of gaps the warehouse used to run through; raising
+        # adds idle time and saves the restarts of gaps shorter than the new value. A restart costs restart-cost
+        # cluster-minutes per floor cluster.
+        current_auto = cfg.auto_stop_minutes
         serverless = cfg.warehouse_type == "SERVERLESS"
         grid = auto_stop_candidates(self.t, cfg.warehouse_type)
         floor_clusters = max(1, cfg.min_clusters)
         restart_cost = (self.t.restart_cost_cluster_minutes_serverless if serverless else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
         nonprod = nonprod_tag_match(ep.tags, self.t) is not None
         budget = None if serverless else self.t.cold_start_added_share_max_pct
-        ri_queries = optional_float(gaps.get("running_idle_queries"))
-        by_target = gaps.get("running_idle_by_target")
-        running_available = isinstance(by_target, Mapping) and all(gaps.get(k) is not None for k in
-                                                                   ("running_idle_queries", "observed_running_cluster_minutes", "kept_alive_wall_minutes"))
-        options = self._auto_stop_options(gaps, current_auto, grid, restart_cost, floor_clusters, budget) if running_available else []
-        kept_alive = optional_float(gaps.get("kept_alive_wall_minutes"))
-        window = "current epoch since the first retained warehouse event"
+        ri = running_idle_rates(e, self.t)
+        running_available = ri is not None
+        options = self._auto_stop_options(ri, current_auto, grid, restart_cost, budget)
+        meta = e.forecast_metadata or {}
+        # The basis is priced only on the forecast's own days; the whole-period fallback serves decisions alone.
+        priced_basis = ri is not None and ri["model"] in ("RUN_RATE", "CADENCE")
+        trend = safe_float(meta.get("trend_adjustment_factor"), 1.0) if ri is not None and ri["model"] == "RUN_RATE" else 1.0
+        if ri is None:
+            window = "DBU forecast basis (running-idle evidence not collected)"
+        elif ri["model"] == "RUN_RATE":
+            days = {label: running_idle_window_days({"window_start": a, "window_end": b}) for label, (a, b) in ri["windows"].items()}
+            window = f"DBU forecast basis: last {days['long']:g} days ending {ri['windows']['long'][1][:10]}, blended with the last {days['recent']:g}"
+        elif ri["model"] == "CADENCE":
+            window = f"DBU forecast basis: whole billing cycles {ri['windows']['cycles'][0][:10]} to {ri['windows']['cycles'][1][:10]}"
+        else:
+            window = "current epoch since the first retained warehouse event (no forecast basis: decisions only, not priced)"
+        running_per_day = None if ri is None else ri["running_cluster_minutes_per_day"]
+        queries_basis = None if ri is None else ri["basis_queries"]
         uptime = optional_float(ev.get("uptime_minutes"))
-        w0, w1 = parse_datetime(gaps.get("running_idle_window_start")), parse_datetime(gaps.get("running_idle_window_end"))
-        window_minutes = (w1 - w0).total_seconds() / 60.0 if w0 and w1 and w1 > w0 else None
-        running_clock_pct = None if not uptime or not window_minutes else round(100.0 * min(uptime, window_minutes) / window_minutes, 3)
+        running_clock_pct = None if ri is None else round(min(100.0, 100.0 * ri["running_wall_minutes_per_day"] / 1440.0), 3)
         busy_minutes = optional_float(gaps.get("busy_minutes"))
         busy_pct = None if not uptime or busy_minutes is None else round(100.0 * min(busy_minutes, uptime) / uptime, 3)
-        kept_alive_pct = None if not uptime or kept_alive is None else round(100.0 * kept_alive / uptime, 3)
+        kept_alive_pct = None if not ri or not ri["running_wall_minutes_per_day"] else round(100.0 * ri["kept_alive_wall_minutes_per_day"] / ri["running_wall_minutes_per_day"], 3)
         # Billing alone: on how many of the last pressure-window settled days of the current epoch the warehouse was
         # billed (it ran), and what those days cost. Used only when no retained warehouse event gives running intervals.
         billed_recent = billed_days_recent(e, self.t.pressure_window_days)
-        positive = [o for o in options if o["net_cluster_minutes"] > 0]
-        best_any = max(positive, key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
-        best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes"], -o["target"]), default=None)
+        positive = [o for o in options if o["net_cluster_minutes_per_day"] > 0]
+        best_any = max(positive, key=lambda o: (o["net_cluster_minutes_per_day"], -o["target"]), default=None)
+        best_ok = max((o for o in positive if o["within_cold_start_budget"]), key=lambda o: (o["net_cluster_minutes_per_day"], -o["target"]), default=None)
+        # Annual reclaimable cluster-hours per saving value within the budget: per-day rates x 365 x the forecast trend.
+        annual = lambda per_day: round(per_day * 365.0 * trend / 60.0, 1)
+        hours_by_value = None if not priced_basis else {str(o["target"]): {
+            "net_cluster_hours": annual(o["net_cluster_minutes_per_day"]),
+            "idle_cluster_hours": annual(o["gain_cluster_minutes_per_day"] if o["direction"] == "LOWER" else -o["loss_cluster_minutes_per_day"]),
+            "restart_cluster_hours": annual(-o["loss_cluster_minutes_per_day"] if o["direction"] == "LOWER" else o["gain_cluster_minutes_per_day"]),
+            "added_starts": round(o["added_starts_per_day"] * 365.0 * trend, 1)} for o in positive if o["within_cold_start_budget"]}
+        cost_per_hour = (None if not priced_basis or e.baseline_forecast_cost_365 is None or not running_per_day
+                         else round(e.baseline_forecast_cost_365 / (running_per_day * 365.0 * trend / 60.0), 4))
         fs = [
             self._f(e,"auto_stop_minutes","auto_stop_minutes",current_auto,unit="minutes",table="system.compute.warehouses",field="auto_stop_minutes",window="current epoch",interpretation="Current idle termination setting."),
             self._f(e,"auto_stop_minutes","failure_cancel_pct_30",round_or_none(common["failure_pct"],4),unit="%",threshold=self.t.failure_cancel_pct_downsize_safe,comparator="<= cut-safe",table="system.query.history",field="execution_status",window="last 30 days within current epoch",interpretation="Failed or cancelled query share; a high or unknown rate holds every capacity cut."),
-            self._f(e,"auto_stop_minutes","cluster_minutes",round(cluster_minutes,2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window=window,interpretation="Running cluster-minutes: the basis idle-time savings are a share of."),
-            self._f(e,"auto_stop_minutes","running_idle_queries",None if ri_queries is None else int(ri_queries),unit="queries",table="system.query.history",field="start_time",window=window,interpretation="Queries over the running-idle window; added restarts are judged as a share of them."),
-            self._f(e,"auto_stop_minutes","kept_alive_wall_minutes",round_or_none(kept_alive,2),unit="minutes",table="system.query.history + system.compute.warehouse_events",field="end_time, cluster_count",window=window,interpretation="Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it."),
-            self._f(e,"auto_stop_minutes","running_share_of_clock_pct",running_clock_pct,unit="%",threshold=self.t.always_on_running_pct,comparator=">= always-on",table="system.compute.warehouse_events",field="cluster_count",window=window,interpretation="Share of the window the warehouse was running."),
-            self._f(e,"auto_stop_minutes","busy_share_of_running_pct",busy_pct,unit="%",threshold=self.t.always_on_busy_pct_max,comparator="<= kept up by tiny queries",table="system.query.history",field="start_time/end_time",window=window,interpretation="Share of running time with a query running; a round-the-clock warehouse with a small share is kept up by frequent tiny queries (BI polling, keep-alive, dashboard refresh)."),
+            self._f(e,"auto_stop_minutes","running_idle_basis",None if ri is None else {"model":ri["model"],"windows":ri["windows"],"blend_weights_per_day":ri["weights"],"recent_check_window":ri["check_window"],"trend_adjustment_factor":trend},unit="windows",table="system.billing.usage + system.compute.warehouse_events",field="forecast basis",window=window,interpretation="The days auto-stop evidence is measured on: the DBU forecast's own (whole weeks, the recent/long blend and trend, or whole billing cycles), so a saving annualizes like the baseline it is a share of."),
+            self._f(e,"auto_stop_minutes","basis_running_cluster_minutes",None if ri is None else round(ri["basis_running_cluster_minutes"],2),unit="cluster-minutes",threshold=self.t.min_cluster_minutes_for_cost_model,comparator=">= evidence minimum",table="system.compute.warehouse_events",field="cluster_count/event_time",window=window,interpretation="Running cluster-minutes in the basis window: the running time idle savings are a share of."),
+            self._f(e,"auto_stop_minutes","running_cluster_minutes_per_day",running_per_day,unit="cluster-minutes per day",table="system.compute.warehouse_events",field="cluster_count/event_time",window=window,interpretation="Running cluster-minutes per day, blended like the DBU forecast."),
+            self._f(e,"auto_stop_minutes","basis_queries",queries_basis,unit="queries",table="system.query.history",field="start_time",window=window,interpretation="Queries in the basis window; added restarts are judged as a share of the queries (blended, and in the recent window alone)."),
+            self._f(e,"auto_stop_minutes","kept_alive_wall_minutes_per_day",None if ri is None else ri["kept_alive_wall_minutes_per_day"],unit="minutes per day",table="system.query.history + system.compute.warehouse_events",field="end_time, cluster_count",window=window,interpretation="Running time after the current auto-stop should have stopped the warehouse: something other than queries (open sessions, result fetching) kept it running, so no auto-stop value removes it."),
+            self._f(e,"auto_stop_minutes","running_share_of_clock_pct",running_clock_pct,unit="%",threshold=self.t.always_on_running_pct,comparator=">= always-on",table="system.compute.warehouse_events",field="cluster_count",window=window,interpretation="Share of the day the warehouse was running."),
+            self._f(e,"auto_stop_minutes","busy_share_of_running_pct",busy_pct,unit="%",threshold=self.t.always_on_busy_pct_max,comparator="<= kept up by tiny queries",table="system.query.history",field="start_time/end_time",window="current epoch since the first retained warehouse event",interpretation="Share of running time with a query running; a round-the-clock warehouse with a small share is kept up by frequent tiny queries (BI polling, keep-alive, dashboard refresh)."),
             self._f(e,"auto_stop_minutes","restart_cost_cluster_minutes",round(restart_cost,3),unit="cluster-minutes per restart",table="policy",field="restart cost",window="policy",interpretation="Priced cost of one restart (start time x floor clusters); Pro/Classic starting minutes are assumed billed (not documented)."),
             self._f(e,"auto_stop_minutes","nonprod_profile",nonprod,unit="state",table="system.compute.warehouses",field="tags",window="current epoch",interpretation="Nonprod by warehouse tag (environment key with a dev/test value): selects the aggressive cost profile unless --cost-profile overrides it."),
             self._f(e,"auto_stop_minutes","auto_stop_values_evaluated",[grid[0],grid[-1],self.t.auto_stop_step_minutes] if grid else None,unit="first, last, step (minutes)",table="policy",field="auto-stop search",window="policy",interpretation="Auto-stop values scored: every step from the type's floor to the maximum; a value covers a gap only when it is the margin longer than the gap."),
-            self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved and the added cold-start share."),
+            self._f(e,"auto_stop_minutes","auto_stop_best_net_option",best_any,unit="per value, per day",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving before the cold-start budget: idle cluster-minutes removed or added, restarts added or avoided, net cluster-minutes saved per day and the added cold-start share (blended and in the recent window)."),
             self._f(e,"auto_stop_minutes","billed_days_of_settled_days_recent",None if billed_recent is None else [billed_recent["billed_days"],billed_recent["settled_days"]],unit="billed days, settled days",table="system.billing.usage",field="usage_date/usage_quantity",window=f"last {self.t.pressure_window_days} settled days within current epoch",interpretation="Days the warehouse was billed (ran) among the settled days; billed every day with no query and no retained warehouse event is a review item."),
-            self._f(e,"auto_stop_minutes","auto_stop_best_option_within_budget",best_ok,unit="per value",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving among those within the cold-start budget."),
+            self._f(e,"auto_stop_minutes","auto_stop_best_option_within_budget",best_ok,unit="per value, per day",threshold=budget,comparator="added cold-start share <= budget (%)",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="The auto-stop value with the largest net saving among those within the cold-start budget."),
+            self._f(e,"auto_stop_minutes","auto_stop_annual_cluster_hours_by_value",hours_by_value,unit="cluster-hours per year",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,interpretation="Per auto-stop value that saves within the cold-start budget: reclaimable cluster-hours a year net of restarts, the idle cluster-hours removed (or added) and the restart cluster-hours added (or saved), and the restarts added a year; per-day rates x 365 x the forecast trend."),
+            self._f(e,"auto_stop_minutes","cost_per_cluster_hour",cost_per_hour,unit=f"{e.currency} per cluster-hour",table="system.billing.usage + system.compute.warehouse_events",field="forecast cost / running cluster-hours",window=window,interpretation="Forward DBU cost per running cluster-hour on the same days: the price reclaimable cluster-hours are saved at (DBU baseline / annualized running cluster-hours)."),
         ]
         out["auto_stop_minutes"] = AnalysisResult(e.warehouse_id,"auto_stop_minutes",ep.epoch_id,fs,{**common,"running_available":running_available,"options":options,"grid":grid,
-            "cluster_minutes":cluster_minutes,"running_idle_queries":ri_queries,"kept_alive_wall_minutes":kept_alive,"floor_clusters":floor_clusters,
+            "running_idle_model":None if ri is None else ri["model"],"priced_basis":priced_basis,"trend_adjustment_factor":trend,
+            "running_cluster_minutes_per_day":running_per_day,"basis_running_cluster_minutes":None if ri is None else ri["basis_running_cluster_minutes"],
+            "basis_queries":queries_basis,"floor_clusters":floor_clusters,
             "restart_cost_cluster_minutes":restart_cost,"cold_start_budget_pct":budget,
             "kept_alive_pct":kept_alive_pct,"running_clock_pct":running_clock_pct,"busy_pct":busy_pct,"client_applications":as_string_list(q.get("client_applications_30")) or [],
-            "billed_recent":billed_recent})
+            "billed_recent":billed_recent,"cost_per_cluster_hour":cost_per_hour,
+            "running_restarts_per_day":None if ri is None else ri["restarts_per_day"]})
 
         # Type/serverless
         serverless_observed = bool(e.billing_features.get("workspace_serverless_observed_from_system_compute_warehouses")) or safe_float(e.billing_features.get("serverless_usage_pct_365")) > 0
@@ -436,32 +471,32 @@ class Analyzer:
         per_start_current = restart_cost
         per_start_target = (self.t.restart_cost_cluster_minutes_serverless if target_type == "SERVERLESS" else self.t.restart_cost_cluster_minutes_pro_classic) * floor_clusters
         target_budget = None if target_type == "SERVERLESS" else self.t.cold_start_added_share_max_pct
-        observed_running = optional_float(gaps.get("observed_running_cluster_minutes"))
-        current_restarts = optional_float(gaps.get("restarts_for_queries"))
+        observed_running = running_per_day  # per day on the forecast basis
+        current_restarts = None if ri is None else ri["restarts_per_day"]
         target_option: Optional[Dict[str, Any]] = None
         if running_available and observed_running and current_restarts is not None:
             def target_running(o: Mapping[str, Any]) -> float:
                 if o["direction"] == "LOWER":
-                    idle_delta = -o["gain_cluster_minutes"]
+                    idle_delta = -o["gain_cluster_minutes_per_day"]
                 elif o["direction"] == "RAISE":
-                    idle_delta = o["loss_cluster_minutes"]
+                    idle_delta = o["loss_cluster_minutes_per_day"]
                 else:
                     idle_delta = 0.0
-                restarts = current_restarts + o["added_starts"]  # added_starts is negative for restarts a raise avoids
+                restarts = current_restarts + o["added_starts_per_day"]  # negative for restarts a raise avoids
                 return observed_running + idle_delta + restarts * per_start_target
             # Restart costs are applied in target_running, so the options are scored on idle time only here.
-            options_t = self._auto_stop_options(gaps, current_auto, target_values, 0.0, floor_clusters, target_budget)
-            keep = {"target": current_auto, "direction": "KEEP", "gain_cluster_minutes": 0.0, "loss_cluster_minutes": 0.0, "added_starts": 0}
+            options_t = self._auto_stop_options(ri, current_auto, target_values, 0.0, target_budget)
+            keep = {"target": current_auto, "direction": "KEEP", "gain_cluster_minutes_per_day": 0.0, "loss_cluster_minutes_per_day": 0.0, "added_starts_per_day": 0.0}
             current_valid = current_auto == 0 or current_auto >= target_values[0]
             # Only values within the target's cold-start budget (a raise never adds restarts, so it always qualifies).
             pool = [o for o in options_t if o["within_cold_start_budget"]] + ([keep] if current_valid else [])
             if pool:
                 best = min(pool, key=lambda o: (target_running(o), o["target"]))
-                target_option = {**best, "target_running_cluster_minutes": round(target_running(best), 3)}
+                target_option = {**best, "target_running_cluster_minutes_per_day": round(target_running(best), 6)}
         # Measured running time excludes starting time (restarts are priced on top, as for auto-stop), so today's basis
         # carries today's restarts at today's cost and the target's carries its own.
         running_fraction = (None if target_option is None
-                            else round(clamp(target_option["target_running_cluster_minutes"] / (observed_running + current_restarts * per_start_current), 0.0, self.t.cost_factor_ceiling), 6))
+                            else round(clamp(target_option["target_running_cluster_minutes_per_day"] / (observed_running + current_restarts * per_start_current), 0.0, self.t.cost_factor_ceiling), 6))
         fs.append(self._f(e,"warehouse_type","migration_target_auto_stop",None if target_option is None else target_option["target"],unit="minutes",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,
             interpretation=f"Auto-stop the {target_type.title()} alternative is priced at: its own cost-minimizing value on the measured idle gaps."))
         fs.append(self._f(e,"warehouse_type","migration_target_running_fraction",running_fraction,unit="ratio",table="system.query.history + system.compute.warehouse_events",field="running-idle per auto-stop value",window=window,

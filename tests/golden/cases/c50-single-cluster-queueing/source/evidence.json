@@ -3281,41 +3281,87 @@
         "gaps": {
           "epoch_start": "2025-07-01T00:00:00+00:00",
           "gap_count": 260,
-          "kept_alive_gap_count": 0,
-          "kept_alive_wall_minutes": 0.0,
-          "observed_running_cluster_minutes": 161440.0,
           "p50_gap_minutes": 840.0,
           "p90_gap_minutes": 3720.0,
-          "restarts_for_queries": 0,
-          "running_idle_by_target": {
-            "10": {
-              "added_idle_wall_minutes": 0.0,
-              "additional_starts": 0,
-              "avoided_starts": 0,
-              "removable_running_cluster_minutes": 2600.0,
-              "removable_running_wall_minutes": 2600.0
-            },
-            "15": {
-              "added_idle_wall_minutes": 0.0,
-              "additional_starts": 0,
-              "avoided_starts": 0,
-              "removable_running_cluster_minutes": 1300.0,
-              "removable_running_wall_minutes": 1300.0
-            },
-            "5": {
-              "added_idle_wall_minutes": 0.0,
-              "additional_starts": 0,
-              "avoided_starts": 0,
-              "removable_running_cluster_minutes": 3900.0,
-              "removable_running_wall_minutes": 3900.0
-            }
-          },
-          "running_idle_queries": 445773,
-          "running_idle_window_end": "2026-10-01T12:00:00+00:00",
-          "running_idle_window_start": "2025-10-01T18:20:00+00:00",
-          "running_segment_count": 1,
           "warehouse_id": "wh-demo-035",
-          "workspace_id": "1234567890123456"
+          "workspace_id": "1234567890123456",
+          "running_idle_model": "RUN_RATE",
+          "running_idle_windows": {
+            "long": {
+              "window_start": "2026-07-08T00:00:00+00:00",
+              "window_end": "2026-09-30T00:00:00+00:00",
+              "queries": 102663,
+              "running_segment_count": 0,
+              "observed_running_cluster_minutes": 37180.196,
+              "observed_running_wall_minutes": 37180.196,
+              "kept_alive_wall_minutes": 0.0,
+              "kept_alive_gap_count": 0,
+              "restarts_for_queries": 0,
+              "running_idle_by_target": {
+                "10": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 598.789,
+                  "removable_running_wall_minutes": 598.789,
+                  "added_idle_cluster_minutes": 0.0
+                },
+                "15": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 299.395,
+                  "removable_running_wall_minutes": 299.395,
+                  "added_idle_cluster_minutes": 0.0
+                },
+                "5": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 898.184,
+                  "removable_running_wall_minutes": 898.184,
+                  "added_idle_cluster_minutes": 0.0
+                }
+              }
+            },
+            "recent": {
+              "window_start": "2026-09-02T00:00:00+00:00",
+              "window_end": "2026-09-30T00:00:00+00:00",
+              "queries": 34221,
+              "running_segment_count": 0,
+              "observed_running_cluster_minutes": 12393.399,
+              "observed_running_wall_minutes": 12393.399,
+              "kept_alive_wall_minutes": 0.0,
+              "kept_alive_gap_count": 0,
+              "restarts_for_queries": 0,
+              "running_idle_by_target": {
+                "10": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 199.596,
+                  "removable_running_wall_minutes": 199.596,
+                  "added_idle_cluster_minutes": 0.0
+                },
+                "15": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 99.798,
+                  "removable_running_wall_minutes": 99.798,
+                  "added_idle_cluster_minutes": 0.0
+                },
+                "5": {
+                  "added_idle_wall_minutes": 0.0,
+                  "additional_starts": 0,
+                  "avoided_starts": 0,
+                  "removable_running_cluster_minutes": 299.395,
+                  "removable_running_wall_minutes": 299.395,
+                  "added_idle_cluster_minutes": 0.0
+                }
+              }
+            }
+          }
         },
         "is_current": true,
         "query": {

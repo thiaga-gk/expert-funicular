@@ -9,16 +9,25 @@ auto-stop, the old auto-stop basis) and no running-idle keys gets them, as if th
 until its auto-stop: removable running wall minutes per auto-stop value (below the current one) interpolated linearly
 from the legacy values (and extended at the same slope below and above them, floored at 0), cluster minutes = wall
 minutes x min clusters, no added or avoided restarts, no restarts for queries and no kept-alive time; queries = 30-day queries; the window covers
-the event totals. Values with nothing removable get no row (a known zero). The legacy keys are then removed. Real evidence is never backfilled: missing running-idle evidence fails closed.
+the event totals. Values with nothing removable get no row (a known zero). The legacy keys are then removed.
+
+Whole-period running-idle keys (`gaps.running_idle_*` and the flat `running_idle_by_target` map, the collector's
+shape before it measured per forecast window) are then spread over the forecast-basis windows (`to_windows`). Real
+evidence is never backfilled: missing running-idle evidence fails closed.
 """
 import json
 import sys
 from pathlib import Path
 
+import yaml
+
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
-from publisher.analyzer.metrics import auto_stop_targets  # noqa: E402
+from publisher.analyzer.collector.demo import scale_running_idle_windows  # noqa: E402
+from publisher.analyzer.forecast import Modeler  # noqa: E402
+from publisher.analyzer.metrics import auto_stop_targets, running_idle_basis  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from tests.golden import evidence_source_path  # noqa: E402
 
@@ -80,6 +89,50 @@ def backfill(evidence):
     return changed
 
 
+FLAT_KEYS = ("running_idle_window_start", "running_idle_window_end", "running_idle_queries", "running_segment_count",
+             "observed_running_cluster_minutes", "kept_alive_wall_minutes", "kept_alive_gap_count", "restarts_for_queries", "running_idle_by_target")
+
+
+def to_windows(evidence, recompute_forecast=False):
+    """Spread whole-period running-idle keys (``gaps.running_idle_*`` and the flat ``running_idle_by_target`` map) over
+    the forecast-basis windows (``gaps.running_idle_windows``, ``gaps.running_idle_model``) in proportion to each
+    window's share of the period, as the hand-built demo does; returns how many epochs changed. Running wall minutes
+    are the event uptime of the same period; a raise's added idle cluster-minutes are its wall minutes at the floor.
+    With ``recompute_forecast`` the windows follow the forecast the golden harness recomputes from the daily rows."""
+    changed = 0
+    t = Thresholds()
+    for x in evidence:
+        for ep in x["epochs"]:
+            gaps = ep.get("gaps") or {}
+            if not ep.get("is_current") or "running_idle_by_target" not in gaps or "running_idle_windows" in gaps:
+                continue
+            meta = x.get("forecast_metadata") or {}
+            if recompute_forecast:
+                model = Modeler(t).forecast_from_daily_cost(x.get("daily_cost_365") or [], ep["epoch_start"], x["analysis_time"],
+                                                            billing_watermark=meta.get("billing_watermark"))
+                meta = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
+            events = ep.get("events") or {}
+            floor = max(1, int(ep["config"]["min_clusters"]))
+            flat = {"queries": gaps.get("running_idle_queries"), "running_segment_count": gaps.get("running_segment_count"),
+                    "observed_running_cluster_minutes": gaps.get("observed_running_cluster_minutes"),
+                    "observed_running_wall_minutes": events.get("uptime_minutes") or 0.0,
+                    "kept_alive_wall_minutes": gaps.get("kept_alive_wall_minutes"), "kept_alive_gap_count": gaps.get("kept_alive_gap_count"),
+                    "restarts_for_queries": gaps.get("restarts_for_queries"),
+                    "running_idle_by_target": {k: {**row, "added_idle_cluster_minutes": round(float(row.get("added_idle_wall_minutes") or 0.0) * floor, 3)}
+                                               for k, row in gaps["running_idle_by_target"].items()}}
+            basis = running_idle_basis(ep["epoch_start"], events.get("event_coverage_start"), meta, t)
+            period = (gaps.get("running_idle_window_start") or events.get("event_coverage_start") or ep["epoch_start"],
+                      gaps.get("running_idle_window_end") or x["analysis_time"])
+            windows = scale_running_idle_windows(flat, basis, period)
+            for k in FLAT_KEYS:
+                gaps.pop(k, None)
+            gaps["running_idle_model"] = basis["model"]
+            gaps["running_idle_windows"] = windows
+            ep["gaps"] = gaps
+            changed += 1
+    return changed
+
+
 def main(cases):
     """Rewrite each named case's evidence fixture when anything was backfilled; prints one line per file changed."""
     for case in cases:
@@ -87,7 +140,10 @@ def main(cases):
         if not path.is_file():
             continue  # collector-level case (raw rows go through the collector)
         evidence = json.loads(path.read_text())
-        if backfill(evidence):
+        spec = yaml.safe_load((path.parent.parent / "case.yaml").read_text()) or {}
+        changed = backfill(evidence)
+        changed += to_windows(evidence, bool((spec.get("expect") or {}).get("recompute_forecast")))
+        if changed:
             path.write_text(json.dumps(evidence, indent=2) + "\n")
             print(f"backfilled {path}")
 

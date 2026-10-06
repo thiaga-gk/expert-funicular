@@ -192,7 +192,7 @@ class PackagerCases(PublisherCase):
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.base, cand.dbu_365d_savings_estimate, places=2, msg=multiple)
             self.assertAlmostEqual(plan.portfolio_estimate.dbu_365d_savings_range.high, cand.dbu_365d_savings_range.high, places=2, msg=multiple)
         uncapped, _ = self.auto_stop_only(0.9)
-        self.assertEqual(uncapped.metadata["raw_savings_fraction"], 0.9)
+        self.assertAlmostEqual(uncapped.metadata["gain_share"], 0.9, places=6)
 
     def test_guardrail_changes_with_no_direct_savings_are_labeled_no_delta_modeled(self):
         # Demo max-cluster tightening (4 -> 3) is a guardrail: it carries no priced delta, so it is not a "modeled range".
@@ -224,8 +224,8 @@ class PackagerCases(PublisherCase):
         payload = load_case("concurrency-constrained")
         ev = [evidence_from_dict(payload["evidence"][0])]
         real = ScenarioPlanner.scenarios
-        def corrupt(planner, e, candidates, scope):
-            scenarios, recommended = real(planner, e, candidates, scope)
+        def corrupt(planner, e, candidates, scope, materiality_floor=None):
+            scenarios, recommended = real(planner, e, candidates, scope, materiality_floor)
             scenarios[0].steps[0].execution_state = "NOT_A_STATE"
             return scenarios, recommended
         with patch.object(ScenarioPlanner, "scenarios", corrupt):
