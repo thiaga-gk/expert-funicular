@@ -8,7 +8,7 @@ from publisher.analyzer.blockers import DBU_BASELINE_WITHHELD, dbu_baseline_bloc
 from publisher.analyzer.collector.pricing import classify_sql_sku
 from publisher.analyzer.metrics import annualized_resource_rates
 from publisher.common.utils import as_serializable, clamp, safe_float, safe_int
-from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR
+from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, QUERIES_PER_CLUSTER_PRO_CLASSIC, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR
 from publisher.config.versions import ESTIMATOR_VERSION
 from publisher.contracts.analysis import AnalysisResult
 from publisher.contracts.candidate import OptimizationDecision, Range3
@@ -213,7 +213,7 @@ class CostModel:
             if e.current_epoch.config.warehouse_type!="SERVERLESS" and hist and cluster>0:
                 # Base: each busy minute runs only the clusters its running + queued queries need under the new ceiling
                 # (one per documented queries-per-cluster), never more than the worst case.
-                qpc=self.t.queries_per_cluster_pro_classic
+                qpc=QUERIES_PER_CLUSTER_PRO_CLASSIC
                 added=sum(safe_float(w)*(min(math.ceil(int(level)/qpc),target)-min(math.ceil(int(level)/qpc),current)) for level,w in hist.items())
                 base=min(raw,max(0.0,added/cluster)); method="cost uplift from the clusters peak demand needs under the new ceiling (base) up to the added clusters running whenever the warehouse sat at its ceiling (worst case)"
             else:

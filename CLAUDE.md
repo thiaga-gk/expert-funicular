@@ -1,6 +1,6 @@
 # inframate-v1
 
-Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.10.0, Reporter JSON Contract v2.0.0, Workbook Contract v1.4.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
+Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.11.0, Reporter JSON Contract v3.0.0, Workbook Contract v1.5.0. Overview and CLI usage are in `README.md`; the doc map is `docs/README.md`.
 
 ## Commands
 Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`.
@@ -19,13 +19,13 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
 4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
 5. A decision-affecting change bumps the affected component versions in `src/publisher/config/versions.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/remediation-runbook.md`).
-6. A new `Thresholds` field needs a row in `docs/reference/thresholds.md`, and a new blocker code a row in `docs/reference/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
+6. A new `Thresholds` field needs a row in `docs/reference/thresholds.md`, a new Databricks product constant (`PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py`) a row in `docs/reference/product-constants.md`, and a new blocker code a row in `docs/reference/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
 7. Update the docs that describe the changed behavior in the same change. Each topic has one home (`docs/README.md`); `tests/test_docs.py` must pass.
 
 ## Invariants
 These summarize `docs/product/prd.md` (scope and requirements) and `docs/architecture/context.md` (domain semantics); on a conflict the PRD governs scope (`docs/README.md`).
 - IMPORTANT: `RecommendationPackage` (Reporter JSON Contract) is the public machine source of truth. The workbook is projection-only: never put optimization, estimation, confidence, ID/hash or selection logic in Excel.
-- IMPORTANT: identical normalized evidence + policy/model/contract versions must produce identical decisions, IDs, confidence and economics.
+- IMPORTANT: identical normalized evidence + cost profile + policy/model/contract versions must produce identical decisions, IDs, confidence and economics. A cost profile (aggressive, balanced, conservative; `src/publisher/governor/cost_profiles.py`) changes only risk-appetite thresholds of cuts, never evidence floors, product constants, estimator/confidence parameters or the rules that add capacity.
 - `SUPPORTED_WAREHOUSE_TYPES` (`CLASSIC`, `PRO`, standard `SERVERLESS`) is fail-closed: never route unknown or future types into existing algorithms.
 - One candidate per active domain: size, max clusters, min clusters, auto-stop, warehouse-type migration. Photon and the warehouse channel are observation-only and never recommended (Photon has no Databricks on/off price, so savings would be guessed; a channel move has no priced effect). Query rewrite, storage, schedule, Spot and statement-timeout tuning are out of scope.
 - Read-only: OAuth profiles only (reject static PATs), no mutation/apply API, and never log credentials, tokens, raw SQL text or unnecessary config values.

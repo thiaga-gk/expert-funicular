@@ -6,7 +6,7 @@ import statistics
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from publisher.analyzer.collector.billing import _is_unpriced_only_row, settle_reference_time
-from publisher.analyzer.metrics import whole_weeks
+from publisher.analyzer.metrics import blended_daily_rate, whole_weeks
 from publisher.common.time import parse_datetime
 from publisher.common.utils import clamp, optional_float, round_or_none, safe_float
 from publisher.governor.thresholds import Thresholds
@@ -199,12 +199,7 @@ class Modeler:
         last84 = rate[-long:]
         prev28 = rate[-2*recent:-recent] if len(rate) >= 2*recent else []
         mean28, mean84 = mean(last28), mean(last84)
-        if len(rate) >= long:
-            daily = self.t.forecast_weight_28_long * mean28 + (1 - self.t.forecast_weight_28_long) * mean84
-        elif len(rate) >= recent:
-            daily = self.t.forecast_weight_28_mid * mean28 + (1 - self.t.forecast_weight_28_mid) * mean(rate)
-        else:
-            daily = mean(rate)
+        daily = blended_daily_rate(rate, self.t)
 
         ratio = mean28 / mean(prev28) if prev28 and mean(prev28) > 0 else 1.0
         ratio = clamp(ratio, self.t.trend_ratio_floor, self.t.trend_ratio_ceiling)

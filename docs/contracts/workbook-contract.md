@@ -1,13 +1,15 @@
-# Workbook Reporter Contract v1.4.0
+# Workbook Reporter Contract v1.5.0
 
-**Version history:** 1.4.0 projects Reporter 1.3.0 per-step savings and separates plan savings from experiment upside. Execution-plan text (Warehouse Portfolio and Scenario Plans) appends `; step saves N/yr (base)` (or `; step costs N/yr more (base)`) to each priced step. *Recommendation Registry* adds `plan_step`, `plan_step_savings_base_365d` and `plan_step_pricing_basis` (group *Recommended plan step*) for candidates in the recommended scenario, and `—` for other candidates. *Executive Summary* adds the rows *Excluded (unsupported type)*, *Plan savings low/base/high* (section *Recommended plan savings*) and *Migration experiment high* (section *Experiment upside*). Sheets, grains and all other columns are unchanged.
+**Version history:** 1.5.0 projects the Reporter 3.0.0 `cost_profile`. *Warehouse Portfolio* adds `cost_profile` and `profile_source` (the source, with the tag or flag that chose it in parentheses) at the end of the *Identity / epoch* group; *Recommendation Registry* adds `cost_profile` at the end of the *Identity* group; *Executive Summary* adds a *Cost profiles* section with one row per profile (warehouse counts, zeros included). Sheets, grains and all other columns are unchanged.
+
+1.4.0 projects Reporter 1.3.0 per-step savings and separates plan savings from experiment upside. Execution-plan text (Warehouse Portfolio and Scenario Plans) appends `; step saves N/yr (base)` (or `; step costs N/yr more (base)`) to each priced step. *Recommendation Registry* adds `plan_step`, `plan_step_savings_base_365d` and `plan_step_pricing_basis` (group *Recommended plan step*) for candidates in the recommended scenario, and `—` for other candidates. *Executive Summary* adds the rows *Excluded (unsupported type)*, *Plan savings low/base/high* (section *Recommended plan savings*) and *Migration experiment high* (section *Experiment upside*). Sheets, grains and all other columns are unchanged.
 
 **Earlier history:** 1.3.0 adds three text columns to *Warehouse Portfolio* (`earliest_reevaluation_time`, `reevaluation_blockers`, `observed_change`, in the *Recommended plan* group) projecting the Reporter 1.2.0 `recommended_plan.reevaluation` and `observed_change`. Null values render as the explicit `—` state, never blank. `observed_change` text includes the change date, for example `warehouse_size MEDIUM→LARGE (2026-09-29)`. Sheets, grains and all other columns are unchanged.
 
 1.2.0 adds three Scenario Plans columns (`contingent_total_low/base/high_impact`, group *Contingent upside (pending re-evaluation)*) and a `; priced AUTHORITATIVE|CONTINGENT` tag per plan step in the execution-plan text. All other sheets, grains and columns are unchanged. Executive Summary and Warehouse Portfolio use authoritative values only.
 
 **Status:** Locked  
-**Source of truth:** validated Reporter JSON Contract v2.0.0 packages  
+**Source of truth:** validated Reporter JSON Contract v3.0.0 packages  
 **Implementation:** `src/publisher/contracts/workbook_contract.py` + `src/publisher/reporter/workbook_reporter.py`
 
 The workbook is a human decision/reporting projection of immutable `RecommendationPackage` JSON. It never recalculates optimization decisions, confidence, deterministic IDs, candidate economics, scenario economics, or package economics.
@@ -37,15 +39,15 @@ Presents coverage, including the count of warehouses excluded by the Governor as
 - **Pricing basis:** the *Forward 365d baseline* and *Plan savings* notes state that DBU cost is at the account's list price (negotiated discounts lower real savings proportionally) and AWS cost at on-demand EC2 prices (Spot, Reserved Instances and Savings Plans are not modeled).
 - **Experiment upside:** the sum of the positive total `high` of each package's priced, non-blocked migration-experiment scenario. It is an alternative to the recommended plan, not added to it, and unvalidated until the canary.
 
-The package scenario envelope (which an experiment can set), confidence posture and up to 15 highest-impact warehouses follow. Financial cells are numeric and chartable.
+The package scenario envelope (which an experiment can set), confidence posture, the number of warehouses evaluated under each cost profile (aggressive, balanced, conservative; zeros included) and up to 15 highest-impact warehouses follow. Financial cells are numeric and chartable.
 
 ## 2. Warehouse Portfolio
 
 **Grain:** one row per `recommendation_package_id`.
 
-Groups: identity/epoch; workload; current configuration; currency and actual/forward baseline; signed package low/base/high annual impacts and counterfactual costs; recommended scenario; assessment; compact human decision/plan views; traceability/audit JSON.
+Groups: identity/epoch (ending with the cost profile and how it was chosen); workload; current configuration; currency and actual/forward baseline; signed package low/base/high annual impacts and counterfactual costs; recommended scenario; assessment; compact human decision/plan views; traceability/audit JSON.
 
-The exact ordered set is `PORTFOLIO_COLUMNS` in `src/publisher/contracts/workbook_contract.py` (**61 columns**) and is regression-tested.
+The exact ordered set is `PORTFOLIO_COLUMNS` in `src/publisher/contracts/workbook_contract.py` (**63 columns**) and is regression-tested.
 
 ## 3. Scenario Plans
 
@@ -59,9 +61,9 @@ The exact ordered set is `SCENARIO_COLUMNS` (**45 columns**) and is regression-t
 
 **Grain:** one row per `candidate_id`.
 
-Groups: package/candidate/technique identity; decision/current/recommended value; confidence; currency and independent counterfactual economics; realization summary; decision rule; candidate-specific evidence, thresholds, dependencies, invalidations, blockers, scenario membership and realization audit JSON. The *Recommended plan step* group (after independent economics) shows the candidate's step number, its own base savings and its pricing basis in the recommended scenario: `—` when the candidate is not in that scenario, `UNAVAILABLE` when the step is unpriced.
+Groups: package/candidate/technique identity (ending with the warehouse's cost profile); decision/current/recommended value; confidence; currency and independent counterfactual economics; realization summary; decision rule; candidate-specific evidence, thresholds, dependencies, invalidations, blockers, scenario membership and realization audit JSON. The *Recommended plan step* group (after independent economics) shows the candidate's step number, its own base savings and its pricing basis in the recommended scenario: `—` when the candidate is not in that scenario, `UNAVAILABLE` when the step is unpriced.
 
-The exact ordered set is `REGISTRY_COLUMNS` (**56 columns**) and is regression-tested.
+The exact ordered set is `REGISTRY_COLUMNS` (**57 columns**) and is regression-tested.
 
 ## Excel presentation contract
 

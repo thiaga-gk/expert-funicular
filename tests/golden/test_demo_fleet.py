@@ -330,12 +330,12 @@ class DemoFleetTests(unittest.TestCase):
         # Queries every 45 minutes: the warehouse already restarts for each one, so 10 adds no restart.
         self.assertEqual(self.auto_stop("C13")[:2], ("ACTIONABLE", 10))
 
-    def test_c39_nonprod_tag_gets_the_larger_cold_start_budget(self):
+    def test_c39_nonprod_tag_selects_the_aggressive_profile_and_its_larger_cold_start_budget(self):
         import copy
         status, value, _ = self.auto_stop("C39")
-        self.assertEqual((status, value), ("ACTIONABLE", 10))  # adds restarts for about 5% of queries: within 10%
+        self.assertEqual((status, value), ("ACTIONABLE", 10))  # adds restarts for about 5% of queries: within aggressive's 10%
         e = copy.deepcopy(self.by_scenario["C39"][0])
-        e.current_epoch.tags["environment"] = "staging"  # staging stays production: 2% budget
+        e.current_epoch.tags["environment"] = "staging"  # staging stays production: balanced, 2% budget
         c = next(c for c in p.evaluate_warehouses([e], self.t)[0].candidates if c.knob == "auto_stop_minutes")
         self.assertEqual((c.status, c.blockers), ("NO_CHANGE", ["COLD_START_BUDGET_EXCEEDED"]))
 

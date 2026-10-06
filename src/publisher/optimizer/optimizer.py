@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from publisher.analyzer.epochs import ready_billed_days
 from publisher.common.logging import LOGGER
+from publisher.governor.cost_profiles import thresholds_for_profile
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.analysis import AnalysisResult, FleetAnalysis, WarehouseAnalysis
 from publisher.contracts.candidate import OptimizationDecision, OptimizationResult, WarehouseCandidates
@@ -28,9 +29,10 @@ class Optimizer:
     def __init__(self, thresholds: Thresholds):
         self.t = thresholds
 
-    def _ceiling_for(self, level: int, min_clusters: int) -> int:
-        """Ceiling for an observed peak: the peak plus headroom, never below the minimum."""
-        headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(self.t.max_cluster_headroom_pct / 100.0 * level))
+    def _ceiling_for(self, level: int, min_clusters: int, headroom_pct: float) -> int:
+        """Ceiling for an observed peak: the peak plus headroom (at least max_cluster_headroom_clusters, else
+        ``headroom_pct`` of the peak), never below the minimum."""
+        headroom = max(self.t.max_cluster_headroom_clusters, math.ceil(headroom_pct / 100.0 * level))
         return max(min_clusters, level + headroom)
 
     def _growing(self, facts: Mapping[str, Any]) -> bool:
@@ -65,10 +67,11 @@ class Optimizer:
 
 
 def optimize(w: WarehouseAnalysis, thresholds: Thresholds) -> WarehouseCandidates:
-    """Decisions for one eligible warehouse, each priced as an isolated (non-additive) candidate."""
+    """Decisions for one eligible warehouse under its cost profile, each priced as an isolated (non-additive) candidate."""
     e, analyses = w.evidence, w.analyses
-    decisions = Optimizer(thresholds).optimize(e, analyses)
-    candidates = Estimator(thresholds).candidates(e, analyses, decisions)
+    t = thresholds_for_profile(thresholds, w.cost_profile.name)
+    decisions = Optimizer(t).optimize(e, analyses)
+    candidates = Estimator(t).candidates(e, analyses, decisions)
     return WarehouseCandidates(w, decisions, candidates)
 
 

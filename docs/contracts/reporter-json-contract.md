@@ -1,6 +1,8 @@
-# Reporter JSON Contract v2.0.0 — Locked
+# Reporter JSON Contract v3.0.0 — Locked
 
-**Version history:** 2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next chance for another settled day (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
+**Version history:** 3.0.0 (MAJOR, §19: a required field and a hash input are added) adds the required top-level `cost_profile` (section 17.1): the cost profile the warehouse was evaluated under (aggressive, balanced or conservative), why it got it, and the effective value of every threshold the profile sets, grouped by technique. Its `name` and `applied_thresholds` enter every candidate, scenario and package hash; `source` and `source_detail` do not, so the same effective profile gives the same ids however it was chosen. No existing field or value changes.
+
+2.0.0 (MAJOR, §19: a gate changes meaning) replaces the 1.2.0 epoch-age re-evaluation gate with readiness: `CURRENT_CONFIG_EPOCH_TOO_NEW` is active while the current epoch has fewer than two settled billed days (new required package evidence record `billed_cost_days`), and its earliest re-evaluation time is the next chance for another settled day (section 14.1). A candidate carrying `CANARY_GUARDRAIL_BREACHED` restores the previous value of a canary-type change (section 14.2), and evidence carried across a configuration change uses `epoch_scope = CARRIED_ACROSS_CHANGE`. No field is added, removed or renamed; `contract_version` is in every hash, so all IDs differ from 1.3.0 packages.
 
 1.3.0 adds the required, nullable `StepProjection.step_savings_365d`: each plan step's own savings on its pricing chain (section 13). No existing field or value changes. `contract_version` is hashed into every identity, so all `EPOCH-/EVID-/CAND-/SCN-/REAL-/PKG-` ids differ from 1.2.0 packages.
 
@@ -35,6 +37,7 @@ recommended_plan
 package_economics
 realization
 provenance
+cost_profile
 observed_change
 carried_forward_plan
 ```
@@ -160,6 +163,7 @@ optimizer_version
 estimator_version
 reviewer_version
 decision_graph_version
+cost_profile (name and applied_thresholds; section 17.1)
 ```
 
 ### Scenario hash inputs
@@ -175,6 +179,7 @@ compatibility_status
 policy_version
 bundle_estimator_version
 decision_graph_version
+cost_profile (name and applied_thresholds)
 ```
 
 ### Package hash inputs
@@ -200,6 +205,7 @@ ordered scenario_ids
 reevaluation (status, earliest_reevaluation_time, blocking_codes; null when absent; method prose excluded)
 observed_change_fingerprint (SHA256 of the canonical observed_change; null when absent)
 carried_forward_fingerprint (SHA256 of the canonical whole carried_forward_plan block; null when absent)
+cost_profile (name and applied_thresholds; source and source_detail excluded)
 ```
 
 ### Realization hash inputs
@@ -266,7 +272,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `2.0.0` |
+| `contract_version` | string | Yes | No | Constant `3.0.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
@@ -279,6 +285,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | `package_economics` | `PackageEconomics` | Yes | No | Executive opportunity envelope across assessable scenarios |
 | `realization` | `Realization` | Yes | No | Present from day one; initially `NOT_APPLIED` with zero records |
 | `provenance` | `Provenance` | Yes | No | Reproducibility/version/source metadata |
+| `cost_profile` | `CostProfile` | Yes | No | Cost profile the warehouse was evaluated under, why, and the thresholds it applied (section 17.1) |
 | `observed_change` | `ObservedConfigChange` | Yes | **Yes** | Observed config diff at the start of the current epoch; null for a first epoch or an empty diff (section 14.2) |
 | `carried_forward_plan` | `CarriedForwardPlan` | Yes | **Yes** | Reserved for Stage 2; always null in current producers (section 14.3) |
 
@@ -784,7 +791,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal the contract version of this document (`2.0.0`) |
+| `contract_version` | Must equal the contract version of this document (`3.0.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -799,6 +806,27 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 | `source_regions` | Unique non-empty region list |
 | `generated_at` | ISO-8601 output metadata; excluded from IDs |
 | `package_hash_full_sha256` | Full 64-char package identity SHA-256 |
+
+## 17.1 `cost_profile` (new in 3.0.0)
+
+The risk appetite the warehouse was evaluated under: how much performance risk a cut that the evidence supports may take. A profile changes only the thresholds listed below; evidence minimums, product constants, estimator and forecast parameters, confidence and the rules that add capacity are the same under every profile, so a candidate with the same recommended value has the same economics under every profile. The values per profile, and why, are policy (`docs/reference/thresholds.md`, Cost profiles); the field names and groups are this contract (`COST_PROFILE_GROUPS` in `src/publisher/contracts/reporter_contract.py`).
+
+| Field | Type | Req. | Nullable | Semantics / constraints |
+|---|---|---:|---:|---|
+| `name` | enum `aggressive`, `balanced`, `conservative` | Yes | No | Hashed |
+| `source` | enum `DEFAULT`, `TAG_DEFAULT`, `CLI_ALL`, `CLI_WAREHOUSE` | Yes | No | Why the warehouse got the profile; not hashed |
+| `source_detail` | string | Yes | **Yes** | null for `DEFAULT`; `tag <key>=<value>` (the allow-listed nonprod tag that matched, lower case) for `TAG_DEFAULT`; `--cost-profile <name>` for `CLI_ALL`; `--cost-profile <name>=<warehouse>` for `CLI_WAREHOUSE`; not hashed |
+| `applied_thresholds` | object of objects of numbers | Yes | No | The effective value of every profiled threshold, grouped by technique (below); hashed |
+
+| Group | Thresholds |
+|---|---|
+| `size` | `spill_query_pct_downsize_safe`, `p95_execution_ms_downsize_safe`, `p99_execution_ms_downsize_safe` |
+| `max_clusters` | `time_at_max_pct_safe_reduce`, `max_cluster_cut_headroom_pct` |
+| `min_clusters` | `time_at_min_pct_reduce`, `queue_wait_p95_ms_safe`, `min_cluster_busy_start_percentile` |
+| `auto_stop` | `cold_start_added_share_max_pct` |
+| `cross_technique` | `cost_change_min_annual_savings`, `queue_query_pct_safe`, `canary_p95_regression_pct`, `growth_hold_weekly_ratio` |
+
+A `DEFAULT` profile is `balanced` and a `TAG_DEFAULT` profile is `aggressive`. The publisher's package gate also checks that `applied_thresholds` equals what the named profile applies.
 
 ---
 
@@ -834,7 +862,8 @@ JSON Schema enforces shape, types, enums, nullability, patterns, and basic numer
 26. `carried_forward_plan` (when present) satisfies the structural rules in section 14.3 and the cross-references to `observed_change` and `reevaluation`;
 27. plan steps may only use the `AUTHORITATIVE` or `CONTINGENT_PENDING_REEVALUATION` pricing basis;
 28. `step_savings_365d` null parity, first-step equality and authoritative-chain bracketing (section 13);
-29. a candidate with `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change` lists its knob, and its `recommended_value` equals that change's `previous_value` (section 14.2).
+29. a candidate with `CANARY_GUARDRAIL_BREACHED` is `ACTIONABLE`, `observed_change` lists its knob, and its `recommended_value` equals that change's `previous_value` (section 14.2);
+30. `cost_profile.applied_thresholds` holds exactly the groups and fields of section 17.1 as finite numbers, and `source_detail` has the form its `source` requires (section 17.1).
 
 ---
 
@@ -867,4 +896,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/unit/contracts/test_reporter_contract.py`
 
-The workbook is not part of Reporter Contract v2.0.0. It is specified separately in `workbook-contract.md` as a projection of these packages.
+The workbook is not part of Reporter Contract v3.0.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

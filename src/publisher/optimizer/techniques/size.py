@@ -87,7 +87,7 @@ def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, Analysis
         # Seasonality: the canary's 30-day evidence cannot see a peak the epoch reached beyond the recent ceiling.
         mf = analyses["max_clusters"].facts
         if mf.get("max_observed") is not None and mf.get("epoch_max_observed") is not None \
-                and safe_int(mf["epoch_max_observed"]) > self._ceiling_for(safe_int(mf["max_observed"]), cfg.min_clusters):
+                and safe_int(mf["epoch_max_observed"]) > self._ceiling_for(safe_int(mf["max_observed"]), cfg.min_clusters, self.t.max_cluster_headroom_pct):
             blockers.append("PEAK_OUTSIDE_RECENT_WINDOW")
         if self._growing(f): blockers.append("QUERY_VOLUME_GROWING")
         if f.get("older_epoch_demand_higher"): blockers.append("OLDER_EPOCH_PEAK_DEMAND_HIGHER")

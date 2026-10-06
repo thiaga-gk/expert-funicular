@@ -120,7 +120,7 @@ class ReadinessTests(unittest.TestCase):
         t = Thresholds()
         self.assertEqual((rc.REEVALUATION_READY_BILLED_DAYS, rc.REEVALUATION_COST_HISTORY_DAYS),
                          (t.readiness_min_billed_days, t.min_economics_cost_history_days))
-        self.assertEqual(rc.CONTRACT_VERSION, "2.0.0")
+        self.assertEqual(rc.CONTRACT_VERSION, "3.0.0")
 
 
 if __name__ == "__main__":

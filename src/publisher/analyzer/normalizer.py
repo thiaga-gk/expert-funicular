@@ -10,12 +10,6 @@ from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import PhotonObservation, QuerySourceProfile
 
 
-def is_nonprod(tags: Mapping[str, Any], t: Thresholds) -> bool:
-    """Nonprod profile by warehouse tag: a known environment key (case-insensitive) with a known nonprod value."""
-    keys, values = set(t.nonprod_tag_keys), set(t.nonprod_tag_values)
-    return any(str(k).strip().lower() in keys and str(v).strip().lower() in values for k, v in (tags or {}).items())
-
-
 def normalize_size(value: Any) -> str:
     """Canonical size label (upper case, `-` to `_`); "UNKNOWN" when the source gave none. Not validated against SIZE_ORDER."""
     return "UNKNOWN" if value is None else str(value).strip().upper().replace("-", "_")

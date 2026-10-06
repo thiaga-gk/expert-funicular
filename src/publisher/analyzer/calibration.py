@@ -41,14 +41,14 @@ def _billed_dbu_per_cluster_hour(x: WarehouseEvidence, ep: EpochEvidence, t: Thr
     return dbu / (cluster_minutes / 60.0) if dbu > 0 and cluster_minutes > 0 else None
 
 
-def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresholds: Optional[Thresholds] = None) -> None:
+def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresholds: Thresholds) -> None:
     """Attach workspace-level capability/calibration observations derived only from collected system-table evidence.
 
     Mutates each evidence's `billing_features` in place with: whether the workspace has ever run a Serverless or a
     Pro/Classic warehouse (any epoch), and the median billed Pro/Classic DBU per cluster-hour by size across all of
     the workspace's epochs. Older epochs are calibration evidence only here; they never choose a change.
     """
-    t = thresholds or Thresholds()
+    t = thresholds
     serverless_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type == "SERVERLESS" for ep in x.epochs)}
     pro_classic_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type in {"PRO", "CLASSIC"} for ep in x.epochs)}
     pro_rates: Dict[str, Dict[str, List[float]]] = {}

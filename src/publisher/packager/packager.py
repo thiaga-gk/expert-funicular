@@ -8,6 +8,7 @@ from publisher.analyzer.epochs import epoch_age_days
 from publisher.common.hashing import canonical_json
 from publisher.common.logging import LOGGER
 from publisher.common.time import _iso_z
+from publisher.governor.cost_profiles import applied_thresholds, thresholds_for_profile
 from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import (
     ANALYZER_VERSION,
@@ -21,7 +22,7 @@ from publisher.config.versions import (
     TECHNIQUE_CATALOG_VERSION,
 )
 from publisher.contracts import reporter_contract as rc
-from publisher.contracts.analysis import FleetAnalysis
+from publisher.contracts.analysis import CostProfileChoice, FleetAnalysis
 from publisher.contracts.candidate import CandidateRecommendation
 from publisher.contracts.governance import GovernanceResult
 from publisher.contracts.package import PackagingResult
@@ -52,8 +53,12 @@ def _build_locked_recommendation_package(
     candidates: Sequence[CandidateRecommendation],
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
+    cost_profile: CostProfileChoice,
 ) -> rc.RecommendationPackage:
     """Build one immutable Reporter JSON Contract package from reviewed decisions.
+
+    ``thresholds`` are the run's base thresholds (the package-level assessment, workload profile and re-evaluation read
+    no cost-profiled value); ``cost_profile`` is published with the effective values of its profiled thresholds.
 
     Write order is fixed: assemble the frozen package with a placeholder ID, set the content-addressed ``PKG-`` ID
     (``expected_package_id``), then the full package hash into provenance, then semantic ``validate()``. Schema
@@ -68,14 +73,19 @@ def _build_locked_recommendation_package(
         min_clusters=ep.config.min_clusters, max_clusters=ep.config.max_clusters,
         auto_stop_minutes=ep.config.auto_stop_minutes, warehouse_channel=ep.config.warehouse_channel,
     )
+    profile = rc.CostProfile(
+        name=rc.CostProfileName(cost_profile.name), source=rc.CostProfileSource(cost_profile.source),
+        source_detail=cost_profile.source_detail,
+        applied_thresholds=applied_thresholds(thresholds_for_profile(thresholds, cost_profile.name)),
+    )
     evidence_registry, finding_map, compatibility_map, shared_cost_refs = _build_evidence_registry(
         e, candidates, scenarios, contract_epoch_id
     )
     candidate_contracts, candidates_by_internal_id = _candidate_contracts(
-        e, candidates, contract_epoch_id, evidence_registry, finding_map, shared_cost_refs
+        e, candidates, contract_epoch_id, evidence_registry, finding_map, shared_cost_refs, profile.hash_payload()
     )
     scenario_contracts, _ = _scenario_contracts(
-        e, scenarios, contract_epoch_id, candidates_by_internal_id, candidate_contracts, compatibility_map
+        e, scenarios, contract_epoch_id, candidates_by_internal_id, candidate_contracts, compatibility_map, profile.hash_payload()
     )
     reevaluation = compute_reevaluation(e, thresholds, start_time=start_time, epoch_age=epoch_age_days(ep, e.analysis_time))
     recommended = _recommended_plan(scenario_contracts, reevaluation, candidate_contracts)
@@ -136,6 +146,7 @@ def _build_locked_recommendation_package(
             aggregate=rc.RealizationAggregate(0, 0, 0, e.currency, 0.0, 0.0),
         ),
         provenance=provenance,
+        cost_profile=profile,
         observed_change=derive_observed_change(e),
         carried_forward_plan=None,  # Stage 2 (carried-forward preview) is reserved and not produced yet
     )
@@ -164,7 +175,7 @@ def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[Wareho
             "warehouse.decisions workspace_id=%s warehouse_id=%s statuses=%s scenarios=%d recommended_scenario=%s",
             e.workspace_id, e.warehouse_id, canonical_json(status_counts), len(scenarios), recommended or "NONE",
         )
-        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended))
+        results.append(WarehouseOptimization(e.warehouse_id, e.workspace_id, e, candidates, scenarios, recommended, w.analysis.cost_profile))
     return results
 
 
@@ -180,7 +191,7 @@ def assemble(
     packages: List[rc.RecommendationPackage] = []
     for result in optimizations:
         e = evidence_by_key[(result.workspace_id, result.warehouse_id)]
-        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds)
+        package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds, result.cost_profile)
         packages.append(package)
         LOGGER.info(
             "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",

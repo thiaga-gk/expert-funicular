@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v2.0.0  
-**Workbook Contract:** v1.4.0  
+**Reporter JSON Contract:** v3.0.0  
+**Workbook Contract:** v1.5.0  
 
 Role: implementation design of the current publisher.
 
@@ -29,8 +29,8 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 2.0.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
-| Workbook Contract | 1.4.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
+| Reporter JSON Contract | 3.0.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/reporter-json-contract.md` |
+| Workbook Contract | 1.5.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
 
@@ -38,7 +38,7 @@ The publisher implements the design directly:
 
 1. the fail-closed supported-type check (the Analyzer analyzes, and the Governor admits, only `CLASSIC`, `PRO`, and standard `SERVERLESS`);
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
-3. Workbook Contract v1.4.0 is a numeric-first presentation projection of the public packages.
+3. Workbook Contract v1.5.0 is a numeric-first presentation projection of the public packages.
 
 Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
 
@@ -82,8 +82,10 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/__main__.py` | `python -m publisher`, same as the `publisher` console command | No |
 | `src/publisher/cli/main.py`, `publish.py` | the CLI adapter (`publisher` console command): `main` dispatches subcommands (`publish`; options without a subcommand go to `publish`) and maps `PublisherError` to exit status 2; `publish.py` parses the arguments (`parse_args`), validates the execution target, builds the `PublisherRequest`, sets up logging, calls `publisher.publish` and prints the summary (`print_summary`) | No |
 | `src/publisher/contracts/source.py`, `analysis.py`, `candidate.py`, `scenario.py`, `review.py`, `package.py` | internal typed boundaries: normalized evidence (`WarehouseConfig`, `PhotonObservation`, `QuerySourceProfile`, `WarehouseAttribution`, `EpochEvidence`, `WarehouseEvidence`), findings (`Finding`, `AnalysisResult`), decisions and candidates (`OptimizationDecision`, `Range3`, `CandidateRecommendation`), scenarios (`PlanStep`, `PortfolioEstimate`, `Scenario`) the orchestration result (`WarehouseOptimization`), the reviewer results (`CandidateReviewResult`, `PackageReviewResult`) and the Packager result (`PackagingResult`) | No |
-| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES`; repository root and committed schema paths | No |
+| `src/publisher/config/versions.py`, `defaults.py`, `settings.py` | component version identifiers; warehouse sizes, published DBU and AWS topology tables, active knobs, `SUPPORTED_WAREHOUSE_TYPES` and the Databricks product constants (`PRODUCT_CONSTANTS`, [`docs/reference/product-constants.md`](../reference/product-constants.md)); repository root and committed schema paths | No |
 | `src/publisher/governor/thresholds.py` | `Thresholds`: every decision default; the Governor owns the policy parameters because they change what is recommended (values in [`docs/reference/thresholds.md`](../reference/thresholds.md)) | No |
+| `src/publisher/governor/cost_profiles.py` | cost profile policy: the aggressive and conservative values, `thresholds_for_profile`, `applied_thresholds`, the nonprod tag match and `assign_cost_profiles` (precedence: listed warehouse, all-warehouse flag, tag default) | No |
+| `src/publisher/config/cost_profiles.py` | `parse_cost_profile_flags`: validates the `--cost-profile` flags into a `CostProfileSelection` before anything is collected | No |
 | `src/publisher/config/loader.py` | `resolve_execution_mode`: the execution mode a request runs under (`EXECUTION_MODES` in `settings.py`; only `local` today) | No |
 | `src/publisher/contracts/request.py` | `PublisherRequest` and `RunContext`: what one run was asked to do and the policy it runs under | No |
 | `src/publisher/contracts/governance.py` | `GovernanceResult`: the eligible analyzed warehouses and the per-warehouse exclusions | No |
@@ -109,7 +111,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 flowchart LR
     SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
     ANA --> PUB[src/publisher/optimizer/ and packager/ decision engine]
-    PUB --> RC[Reporter Contract v2.0.0]
+    PUB --> RC[Reporter Contract v3.0.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -131,7 +133,7 @@ The publisher declares independent version identifiers for deterministic replay.
 |---|---|
 | `PUBLISHER_VERSION` | implementation release |
 | `CONTRACT_VERSION` | public Reporter contract version (from `src/publisher/contracts/reporter_contract.py`) |
-| `POLICY_VERSION` | threshold/policy semantics |
+| `POLICY_VERSION` | threshold/policy semantics, including the cost profile values |
 | `ANALYZER_VERSION` | analyzer semantics |
 | `OPTIMIZER_VERSION` | decision semantics |
 | `MODEL_VERSION` | forward forecast |
@@ -192,6 +194,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--log-level` | `DEBUG`, `INFO`, `WARNING` or `ERROR`; default `PUBLISHER_LOG_LEVEL`, else `INFO`. Sets the verbosity of the logger that writes to stderr and `publisher.log` (29); it never changes what is excluded from the log |
 | `--no-workbook` | suppress workbook while preserving canonical JSON |
 | `--print-json` | print exactly one package to stdout; a run that produces more or fewer than one package exits with an error |
+| `--cost-profile` | repeatable; `PROFILE` (`aggressive`, `balanced` or `conservative`) for every warehouse, or `PROFILE=WH[,WH...]` for the listed warehouses (a warehouse ID, or `workspace_id/warehouse_id` when the ID exists in several workspaces). Without it a nonprod-tagged warehouse is aggressive and every other one balanced. An unknown profile, a malformed or conflicting list, or a listed warehouse that was not collected exits with an error (14.2; values in [`docs/reference/thresholds.md`](../reference/thresholds.md), Cost profiles) |
 
 ### 5.3 Execution target resolution
 
@@ -333,13 +336,13 @@ Reads a daily resource series for the current epoch over the last `RESOURCE_DAIL
 Auto-stop is priced on idle time the warehouse actually ran. `build_running_idle_sql()` and `build_running_idle_targets_sql()` build, for the current epoch only, the idle gaps (the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now, or from the window start when there is no query) and intersect them with the `RUNNING` segments of `system.compute.warehouse_events`. The period is the same as the event totals (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision. Two queries share one set of CTEs:
 
 - one row per warehouse: the window, the query count, the running segment count, the observed running cluster-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive);
-- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `auto_stop_max_minutes`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
+- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `AUTO_STOP_MAX_MINUTES`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
 
 The normalizer stores them as `gaps.running_idle_*` keys and the sparse `gaps.running_idle_by_target` map keyed by minutes; a value without a row is a known zero, while missing keys mean the evidence was not collected (auto-stop then fails closed, 15.6). `running_idle_metrics()` is the Python reference of the same arithmetic and is what the tests pin. A value covers a gap only when it is `auto_stop_bridge_margin_pct` longer than the gap, and a gap counts as running throughout when the warehouse ran at least `running_idle_full_window_fraction` of it.
 
 #### Concurrency SQL
 
-`build_concurrency_sql()` measures per UTC minute the time-weighted number of running plus queued queries (a query occupies `[start_time, end_time)`, millisecond precision); the level of a minute is that number rounded up. It writes histograms (level to number of minutes) per epoch for the last 365 days under `query.concurrency_histogram`: `EPOCH` (busy minutes) for every epoch, and for the current epoch also `RECENT` (the last 30 days) and `BUSY_START` (for each busy period that starts after at least the scale-up lag of idle minutes, its highest level in its first lag minutes, so the weight is the number of periods). The lag is `scale_up_lag_minutes_pro_classic` or `scale_up_lag_minutes_serverless`. A missing histogram means it was not collected and every rule that needs it fails closed. `concurrency_histograms()` is the Python reference.
+`build_concurrency_sql()` measures per UTC minute the time-weighted number of running plus queued queries (a query occupies `[start_time, end_time)`, millisecond precision); the level of a minute is that number rounded up. It writes histograms (level to number of minutes) per epoch for the last 365 days under `query.concurrency_histogram`: `EPOCH` (busy minutes) for every epoch, and for the current epoch also `RECENT` (the last 30 days) and `BUSY_START` (for each busy period that starts after at least the scale-up lag of idle minutes, its highest level in its first lag minutes, so the weight is the number of periods). The lag is `SCALE_UP_LAG_MINUTES_PRO_CLASSIC` or `SCALE_UP_LAG_MINUTES_SERVERLESS`. A missing histogram means it was not collected and every rule that needs it fails closed. `concurrency_histograms()` is the Python reference.
 
 #### Spill-source SQL
 
@@ -696,10 +699,14 @@ The analyzer emits **facts and findings**, never a recommendation. Each finding 
 | `warehouse_size` | size, decision-population query count, spill %, spilled-query count, p95 spill bytes among spilled queries, share of spilled bytes from the top statement sources, queue %, p95/p99 execution, job-query share (batch profile), active days, p95 compilation and result-fetch time (evidence only), IO cache, task-time utilization, query-volume growth ratio, older-epoch peak concurrency |
 | `max_clusters` | max config, observed max clusters, whole-epoch peak, queue %, queued-query count, p95 capacity wait among queued queries, time at max, peak query concurrency (recent window and whole epoch), busy minutes, query-volume growth ratio, older-epoch peak concurrency |
 | `min_clusters` | min config, time/minutes at min, time at max, queue %, p95 capacity wait among queued queries, task-time utilization, busy-period start concurrency and busy periods, query-volume growth ratio, older-epoch peak concurrency |
-| `auto_stop_minutes` | current auto-stop, the type's auto-stop values with their net saving, added restarts and added cold-start share (from running idle time), observed running cluster-minutes, kept-alive minutes, running share of the clock, busy share of running time, billed days among the recent settled days (billing only, used when no running intervals exist), restart cost, nonprod profile |
+| `auto_stop_minutes` | current auto-stop, the type's auto-stop values with their net saving, added restarts and added cold-start share (from running idle time), observed running cluster-minutes, kept-alive minutes, running share of the clock, busy share of running time, billed days among the recent settled days (billing only, used when no running intervals exist), restart cost, nonprod tag |
 | `warehouse_type` | current type, observed workspace Serverless/Pro-Classic capability, billed SQL tiers (evidence only), the target type's own best auto-stop and running fraction, source/compatibility evidence |
 
 Common facts include query count, active days, queries per active day, epoch age, epoch query count, cost-history days, and cost variability.
+
+### 14.2 Cost profile
+
+`analyze` resolves every collected warehouse's cost profile once, before any finding, with the Governor's policy (`assign_cost_profiles`): a warehouse listed in `--cost-profile PROFILE=WH` gets that profile, otherwise an all-warehouse `--cost-profile PROFILE`, otherwise aggressive when a current-epoch tag key in `nonprod_tag_keys` (case-insensitive) has a value in `nonprod_tag_values`, otherwise balanced. Staging and UAT stay production. A listed warehouse that was not collected, or a bare warehouse ID found in several workspaces, refuses the run. Each warehouse is then analyzed with `thresholds_for_profile(base, name)`, which replaces only the profiled fields, and the Optimizer and candidate estimator use the same thresholds; workspace calibration, the workload profile, the re-evaluation window and scenario pricing use the base thresholds, which no profile changes. The choice travels on `WarehouseAnalysis.cost_profile` to the package's `cost_profile` (contract section 17.1).
 
 The task-time utilization finding (`task_minutes_per_cluster_minute`) is `epoch_task_duration_ms / 60000 / cluster_minutes` over the whole current epoch (both terms cover the same period), rounded to 6 places; it is null when either term is missing or zero. It is emitted on the `warehouse_size` and `min_clusters` candidates as evidence only: no optimizer decision reads it, and it is not yet calibrated on real data.
 
@@ -716,6 +723,7 @@ Rules shared by several knobs:
 - **Growth guard** for the size downsize, the max-cluster reduction and the min-cluster reduction: the query-volume growth ratio is the smallest of the last four complete weekly query counts divided by the median of the four weeks before. At or above `growth_hold_weekly_ratio` the cut is `NO_CHANGE` with `QUERY_VOLUME_GROWING`. Using every recent week keeps one month-, quarter- or year-end burst week from looking like growth. The ratio is unknown, and holds nothing, when the epoch has fewer than eight complete weeks or the earlier median is zero. Auto-stop and increases are not held by it.
 - **Older-epoch hold** for the size downsize, the max-cluster reduction and the min-cluster reduction: the cut is `NO_CHANGE` with `OLDER_EPOCH_PEAK_DEMAND_HIGHER` when an earlier configuration of the warehouse within the last 365 days peaked at more clusters of demand than the recent window (10.2). Older epochs never choose a change, its target or its economics.
 - **Missing evidence is never read as zero.** An unreported spill, queue, latency or severity value holds the change with an `*_EVIDENCE_UNAVAILABLE` code.
+- **Cost profile.** Every rule reads its thresholds under the warehouse's cost profile (14.2); a profile moves only the risk limits of cuts, never an evidence minimum or a rule that adds capacity.
 - **Recent capacity facts** (time at max, time at min, observed peak) come from the last `pressure_window_days` of the daily resource window, not the whole epoch. When the series was not collected the max/min-cluster change is held with `RECENT_RESOURCE_WINDOW_UNAVAILABLE`; when it was collected but the warehouse did not run in the window, it is held with `NO_RECENT_RUNNING_TIME`.
 
 ### 15.1 Channel
@@ -750,7 +758,7 @@ Every case that is not an upsize is evaluated for a downsize of exactly one size
 - queued-query share above `queue_query_pct_safe` (`QUEUE_PRESSURE_PRESENT`), or not reported (`QUEUE_EVIDENCE_UNAVAILABLE`);
 - the reliability guard (`FAILURE_CANCEL_RATE_HIGH`, `FAILURE_CANCEL_EVIDENCE_UNAVAILABLE`);
 - the growth guard (`QUERY_VOLUME_GROWING`);
-- the whole current epoch's peak cluster count above the recent window's ceiling (recent peak plus headroom), so the 30-day canary evidence cannot see a seasonal peak the epoch reached (`PEAK_OUTSIDE_RECENT_WINDOW`; skipped when either peak is unknown);
+- the whole current epoch's peak cluster count above the recent window's ceiling (recent peak plus headroom: `max_cluster_headroom_clusters`, `max_cluster_headroom_pct`, which no cost profile changes), so the 30-day canary evidence cannot see a seasonal peak the epoch reached (`PEAK_OUTSIDE_RECENT_WINDOW`; skipped when either peak is unknown);
 - the older-epoch hold (`OLDER_EPOCH_PEAK_DEMAND_HIGHER`);
 - p95 execution above `p95_execution_ms_downsize_safe` (`P95_LATENCY_TOO_HIGH`), p99 above `p99_execution_ms_downsize_safe` (`P99_LATENCY_TOO_HIGH`), or either not reported (`LATENCY_EVIDENCE_UNAVAILABLE`).
 
@@ -764,13 +772,13 @@ Otherwise the result is `NO_CHANGE` with the blockers preserved. At the smallest
 
 ### 15.4 Max clusters
 
-Pro/Classic ceilings follow query concurrency. The collector measures the running plus queued queries of every busy UTC minute (7.2, Concurrency SQL); one Pro/Classic cluster serves `queries_per_cluster_pro_classic` concurrent queries, so peak demand in queries becomes clusters. Two peaks are used:
+Pro/Classic ceilings follow query concurrency. The collector measures the running plus queued queries of every busy UTC minute (7.2, Concurrency SQL); one Pro/Classic cluster serves `QUERIES_PER_CLUSTER_PRO_CLASSIC` concurrent queries, so peak demand in queries becomes clusters. Two peaks are used:
 
 - the recent peak: the `max_cluster_target_percentile` percentile of the busy minutes of the last 30 days (needs at least `concurrency_min_busy_minutes` busy minutes);
 - the epoch peak: the level reached in at least `peak_demand_min_minutes` busy minutes of the whole current epoch. A long window uses this instead of a percentile because a two-hour quarter-end peak is a tiny share of months of busy minutes. It only matters when it needs more clusters than the recent window's peak read at the same rate (the level reached in `peak_demand_min_minutes` × recent days / epoch days of its busy minutes, at least one; recent days = 30 or the epoch's age when younger): then the peak lies outside the recent window, a cut targets the epoch peak, and a cut held by it carries `PEAK_OUTSIDE_RECENT_WINDOW`. A histogram with fewer busy minutes than that has no sustained peak.
 
 ```text
-target(peak_clusters) = min(max_clusters_supported_limit,
+target(peak_clusters) = min(MAX_CLUSTERS_SUPPORTED_LIMIT,
                             max(min_clusters, peak_clusters + max_cluster_target_headroom_clusters))
 ```
 
@@ -787,11 +795,11 @@ An increase is considered when all of these hold:
 Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 
 - queue share and saturation reached but the capacity wait was not reported: `INSUFFICIENT_EVIDENCE` with `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`;
-- all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
+- all signals reached and `max_clusters` is already at `MAX_CLUSTERS_SUPPORTED_LIMIT`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
 - all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (configuration not ready), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
 - Pro/Classic with no concurrency evidence: `INSUFFICIENT_EVIDENCE` with `CONCURRENCY_EVIDENCE_UNAVAILABLE`; with fewer than `concurrency_min_busy_minutes` busy minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_BUSY_MINUTE_SAMPLE`;
 - Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE` with `QUEUEING_WITH_DEMAND_WITHIN_CEILING`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
-- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `max_clusters_supported_limit`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
+- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `MAX_CLUSTERS_SUPPORTED_LIMIT`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
 - Serverless: `ACTIONABLE`, one cluster more, at low confidence; the change invalidates min clusters.
 
 When the recent resource window is unavailable, saturation cannot be judged and the decision is `NO_CHANGE` with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected but the warehouse did not run in the window).
@@ -813,7 +821,7 @@ Serverless target:
 ```text
 peak     = max(recent_window_peak, epoch_max_observed_clusters)
 headroom = max(max_cluster_headroom_clusters,
-               ceil(max_cluster_headroom_pct / 100 * peak))
+               ceil(max_cluster_cut_headroom_pct / 100 * peak))
 target   = max(min_clusters, peak + headroom)
 ```
 
@@ -835,7 +843,7 @@ The floor carries the demand a busy period starts with until the autoscaler adds
 
 ```text
 floor_target = max(1, ceil(P(min_cluster_busy_start_percentile) of busy-period start demand
-                           / queries_per_cluster_pro_classic))
+                           / QUERIES_PER_CLUSTER_PRO_CLASSIC))
 ```
 
 A floor is lowered, in one canary, only when the target is below the current minimum; a floor raise is never recommended. A target at or above the current minimum is `NO_CHANGE` (the current floor is needed). It applies to every supported type, so a Serverless floor is judged on the same demand with its shorter lag.
@@ -859,7 +867,7 @@ With no blocker and a target below the current minimum the status is `TEST_REQUI
 
 Auto-stop is not a fixed target by workload class: it jumps to the value that costs least on the warehouse's own measured running idle time (7.2, Running-idle SQL). Idle time is only a cost while the warehouse runs, and a lower value saves idle minutes but adds restarts for the gaps it no longer bridges.
 
-**Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`auto_stop_floor_pro_classic` for Pro and Classic, `auto_stop_floor_serverless` for standard Serverless) up to `auto_stop_max_minutes`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
+**Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`AUTO_STOP_FLOOR_PRO_CLASSIC` for Pro and Classic, `AUTO_STOP_FLOOR_SERVERLESS` for standard Serverless) up to `AUTO_STOP_MAX_MINUTES`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
 
 **Objective per value**, in cluster-minutes (the floor cluster count is the current minimum, at least 1):
 
@@ -873,7 +881,7 @@ restart_cost = restart_cost_cluster_minutes_{pro_classic|serverless} * floor clu
 
 The restart cost is the documented start time (about 4 minutes on Pro and Classic, 2 to 6 seconds on Serverless, priced at the upper end). Databricks does not document whether starting minutes are billed, so on Pro and Classic the restart cost is a priced assumption: a raise, whose saving is entirely avoided restarts, is therefore always a canary. Running time past the current auto-stop (kept-alive time: open sessions, result fetching) is reported and never removable by a lower value. A gap run past the current auto-stop by more than a late stop event explains (more than `kept_alive_gap_tolerance_minutes` when it ran through to the next query or the window end, more than `kept_alive_stopped_gap_minutes` when it stopped before the next query) was kept alive by something other than queries and would not stop at a lower value either, so it contributes no removable time and no added restart; added restarts are otherwise counted only in gaps within the current setting. A migration alternative is priced on its own cost basis: today's running time, minus the idle time its auto-stop removes (or plus the idle it adds), plus every restart it still has at its own restart cost, against today's running time plus today's restarts at today's cost (measured running time excludes starting time). A query with no end time ends at its start time plus its total duration when that is known; with neither, it counts as still running only if it started within the last day, and an older one ends at its start.
 
-**Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries over the same window, must stay within `cold_start_added_share_max_pct`, or `cold_start_added_share_max_pct_nonprod` for a warehouse tagged nonprod. Nonprod means a tag whose key is one of `nonprod_tag_keys` (case-insensitive) with a value in `nonprod_tag_values`; staging and UAT stay production, and the only effect of nonprod is the larger budget.
+**Cold-start budget** (Pro and Classic only; Serverless starts in seconds and has none): the restarts a lower value adds, as a share of the queries over the same window, must stay within `cold_start_added_share_max_pct` of the warehouse's cost profile (14.2; a nonprod-tagged warehouse is aggressive by default and gets the larger budget).
 
 **Choice.** Among the values within budget that save money, the best net wins; among values whose net is within `auto_stop_near_best_pct` of the best, the smallest change from the current value wins (an always-on value of 0 counts as infinitely long, so the largest such value is the smallest change). The candidate is priced at its net divided by the observed running cluster-minutes, scaled by the realization tracks (17.3).
 
@@ -1071,7 +1079,7 @@ cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, 
 
 The best case is no added cost (factor 1.0): the same queries run on more clusters at once, so total running time does not grow. The worst case runs every added cluster whenever the warehouse sat at its ceiling. Direct savings are not expected; the range represents a cost increase for performance.
 
-For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / queries_per_cluster_pro_classic), target)` clusters instead of `min(ceil(level / queries_per_cluster_pro_classic), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
+For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / QUERIES_PER_CLUSTER_PRO_CLASSIC), target)` clusters instead of `min(ceil(level / QUERIES_PER_CLUSTER_PRO_CLASSIC), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
 
 ### 17.7 Migration estimator
 
@@ -1139,7 +1147,7 @@ It validates:
 - warehouse-size target belongs to known size order,
 - min/max cluster target bounds,
 - `min <= max` consistency against current config,
-- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `auto_stop_floor_pro_classic`,
+- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `AUTO_STOP_FLOOR_PRO_CLASSIC`,
 - package currency consistency.
 
 ```mermaid
@@ -1331,7 +1339,7 @@ A package is final only after the Reviewer package gate has passed its scenarios
 
 ---
 
-## 22. Public Reporter JSON Contract v2.0.0
+## 22. Public Reporter JSON Contract v3.0.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1357,6 +1365,7 @@ classDiagram
     RecommendationPackage --> ObservedConfigChange: observed_change
     RecommendationPackage --> CarriedForwardPlan: carried_forward_plan
     RecommendationPackage --> Provenance: provenance
+    RecommendationPackage --> CostProfile: cost_profile
 ```
 
 ### 22.2 Stable top-level sections
@@ -1500,7 +1509,7 @@ Realization never changes the original `PKG-*` identity.
 
 ---
 
-## 27. Workbook Contract v1.4.0
+## 27. Workbook Contract v1.5.0
 
 The workbook is generated from already-validated `RecommendationPackage` objects.
 
@@ -1570,7 +1579,7 @@ Levels: `INFO` run milestones and aggregate counts, at most once per phase or wa
 - auth/execution target metadata,
 - compatibility mode/status,
 - collector phase start/done, query labels and aggregate counts,
-- pipeline batches/warehouse identities,
+- pipeline batches/warehouse identities and each warehouse's cost profile and its source,
 - reviewer gate outcomes, package validation and IDs,
 - files written (path and counts),
 - final package/candidate/scenario counts.
@@ -1699,7 +1708,7 @@ The read-only workspace compatibility API is intentionally non-authoritative and
 
 ### 34.3 Threshold calibration
 
-Thresholds are conservative policy defaults ([`docs/reference/thresholds.md`](../reference/thresholds.md)). Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
+Thresholds are conservative policy defaults ([`docs/reference/thresholds.md`](../reference/thresholds.md)), and the conservative and aggressive cost profiles are uncalibrated starting points. Live testing should calibrate them only through versioned policy changes backed by golden/regression evidence.
 
 ---
 
@@ -1715,7 +1724,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A order (value key, then invalidation precedence) is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v2.0.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v3.0.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.

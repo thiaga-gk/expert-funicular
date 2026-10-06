@@ -119,7 +119,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         demand = carried.get(_row_key(r), {}).get("demand")
         if demand is not None:
             demand.update({"spill_sources_30": safe_int(r.get("spill_sources_30")), "top_spill_source_share_pct_30": optional_float(r.get("top_spill_source_share_pct_30"))})
-    for r in client.query(build_carried_concurrency_sql(thresholds),label="concurrency_carried"):
+    for r in client.query(build_carried_concurrency_sql(),label="concurrency_carried"):
         demand = carried.get(_row_key(r), {}).get("demand")
         scope = str(r.get("scope") or "")
         if demand is not None and scope in ("RECENT", "BUSY_START"):
@@ -145,7 +145,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         if header is not None:
             header["running_idle_by_target"][str(safe_int(r.get("target_min")))] = {k: r.get(k) for k in RUNNING_IDLE_TARGET_FIELDS}
     concurrency_idx: Dict[Tuple[str, str, str], Dict[str, Dict[str, float]]] = {}
-    for r in client.query(build_concurrency_sql(thresholds),label="concurrency"):
+    for r in client.query(build_concurrency_sql(),label="concurrency"):
         scope = str(r.get("scope") or "")
         if scope in CONCURRENCY_SCOPES:
             concurrency_idx.setdefault(_row_key(r), {}).setdefault(scope, {})[str(safe_int(r.get("level")))] = safe_float(r.get("weight"))

@@ -13,6 +13,8 @@ class Thresholds:
 
     Every field has a row in docs/reference/thresholds.md. A change here is decision-affecting: bump the affected
     component versions and regenerate goldens. Units are in the field name or its comment (pct, ms, minutes, days).
+    The defaults are the balanced cost profile; governor/cost_profiles.py derives the other profiles by replacing the
+    risk-appetite fields only.
     """
     # Evidence sufficiency / epoch stability
     min_query_sample_size: int = 100
@@ -68,32 +70,26 @@ class Thresholds:
     time_at_max_pct_safe_reduce: float = 1.0
     # Saturation = real time at the configured ceiling. A peak above max is not evidence (cluster recycling can briefly exceed it).
     time_at_max_pct_saturated: float = 5.0
-    # A reduced ceiling must leave growth room above the observed peak: max(clusters, ceil(pct x peak)).
+    # A ceiling must leave growth room above an observed peak: max(clusters, ceil(pct x peak)). The size-down hold for a
+    # peak outside the recent window uses max_cluster_headroom_pct; the Serverless max-cluster cut uses the cost-profiled
+    # max_cluster_cut_headroom_pct.
     max_cluster_headroom_clusters: int = 1
     max_cluster_headroom_pct: float = 25.0
-    # Concurrency-derived cluster targets (Pro/Classic add one cluster per this many concurrent queries, documented).
-    queries_per_cluster_pro_classic: int = 10
+    max_cluster_cut_headroom_pct: float = 25.0
+    # Concurrency-derived cluster targets (Pro/Classic queries per cluster: config/defaults.py).
     max_cluster_target_percentile: float = 99.5  # of busy minutes' running + queued queries (recent window and whole epoch)
     max_cluster_target_headroom_clusters: int = 1
     min_cluster_busy_start_percentile: float = 95.0  # of busy periods' peak demand in their first scale-up-lag minutes
-    scale_up_lag_minutes_pro_classic: int = 5
-    scale_up_lag_minutes_serverless: int = 1
     concurrency_min_busy_minutes: int = 200  # a P99.5 needs at least this many busy minutes
     # Long windows (the whole current epoch, older epochs) measure peak demand as the level reached in at least this
     # many busy minutes: a percentile over months dilutes a two-hour quarter-end peak below its tail.
     peak_demand_min_minutes: int = 30
     min_cluster_min_busy_periods: int = 20  # a P95 of busy-period starts needs at least this many periods
-    max_clusters_supported_limit: int = 40
-    min_clusters_supported_limit: int = 30
 
     # Auto-stop
     min_cluster_minutes_for_cost_model: float = 1.0
-    # Auto-stop values evaluated: every step from the type's floor up to the maximum (minutes). Pro/Classic never go
-    # below 10; Serverless values below 5 set through the API are left alone.
-    auto_stop_floor_pro_classic: int = 10
-    auto_stop_floor_serverless: int = 5
+    # Auto-stop values evaluated: every step from the type's floor up to the maximum (floors and maximum: config/defaults.py).
     auto_stop_step_minutes: int = 5
-    auto_stop_max_minutes: int = 1440
     # A value covers an idle gap (keeps the warehouse up until the next query) only when it is at least this much longer
     # than the gap, so a small schedule drift does not turn every gap into a restart.
     auto_stop_bridge_margin_pct: float = 10.0
@@ -112,13 +108,12 @@ class Thresholds:
     restart_cost_cluster_minutes_pro_classic: float = 4.0
     restart_cost_cluster_minutes_serverless: float = 0.1
     # Cold-start budget: restarts a lower auto-stop adds, as a share of queries over the same window (Pro/Classic only;
-    # nonprod warehouses by tag get the larger budget).
+    # cost-profiled, so a nonprod warehouse on the aggressive profile gets the larger budget).
     cold_start_added_share_max_pct: float = 2.0
-    cold_start_added_share_max_pct_nonprod: float = 10.0
     # Among auto-stop values whose net saving is within this share of the best, the smallest change is chosen.
     auto_stop_near_best_pct: float = 2.0
-    # Nonprod profile: a warehouse tag whose key (case-insensitive) is one of these keys and whose value is one of these
-    # values. Staging and UAT stay production.
+    # Nonprod tag: a warehouse tag whose key (case-insensitive) is one of these keys and whose value is one of these
+    # values selects the aggressive cost profile by default. Staging and UAT stay production.
     nonprod_tag_keys: Tuple[str, ...] = ("env", "environment", "stage", "tier")
     nonprod_tag_values: Tuple[str, ...] = ("dev", "development", "test", "testing", "qa", "sandbox", "nonprod", "non-prod")
     # Non-work activity flags (observations; nothing is priced from them): running time after the current auto-stop
@@ -184,15 +179,33 @@ class Thresholds:
     confidence_signal_no_change: float = 0.70
     confidence_cap_test_required: float = 0.78
     confidence_cap_actionable: float = 0.93
-    confidence_cap_default: float = 0.79  # every status but ACTIONABLE/TEST_REQUIRED: a decision that changes nothing is never HIGH
-    confidence_cap_insufficient_evidence: float = 0.59  # below the MEDIUM cut-off: a candidate without enough evidence is LOW
     # Full credit of the sample component for the knobs that do not decide on a query count (5x their evidence minimum).
     confidence_strong_busy_minutes: int = 1000
     confidence_strong_busy_periods: int = 100
-    # Serverless scales differently from the documented Pro/Classic rule, so its queue-based ceiling increase is shown
-    # at low confidence (below confidence_medium_threshold).
-    confidence_cap_serverless_ceiling_increase: float = 0.59
     remeasure_days_after_invalidating_change: int = 7
     growth_hold_weekly_ratio: float = 1.10  # capacity cuts wait while every one of the last 4 weeks has >= this x the prior 4-week median of queries
     plan_risk_hitl_change: float = 1.0  # plan order divides base savings x confidence by this for an ACTIONABLE step
     plan_risk_canary_change: float = 2.0  # ... and by this for a TEST_REQUIRED step (a canary costs a measurement cycle)
+
+    def __post_init__(self) -> None:
+        weights = (self.confidence_base_weight, self.confidence_coverage_weight, self.confidence_sample_weight,
+                   self.confidence_stability_weight, self.confidence_epoch_weight, self.confidence_signal_weight)
+        if abs(sum(weights) - 1.0) > 1e-9:
+            raise ValueError(f"confidence weights must sum to 1.0, got {sum(weights)}")
+
+    # Caps derived from the confidence cut-offs, so a cap can never drift above the level it keeps a candidate below.
+    @property
+    def confidence_cap_default(self) -> float:
+        """Every status but ACTIONABLE/TEST_REQUIRED/INSUFFICIENT_EVIDENCE: just below HIGH, so a decision that changes nothing is never HIGH."""
+        return round(self.confidence_high_threshold - 0.01, 2)
+
+    @property
+    def confidence_cap_insufficient_evidence(self) -> float:
+        """Just below the MEDIUM cut-off: a candidate without enough evidence is LOW."""
+        return round(self.confidence_medium_threshold - 0.01, 2)
+
+    @property
+    def confidence_cap_serverless_ceiling_increase(self) -> float:
+        """Serverless scales differently from the documented Pro/Classic rule, so its queue-based ceiling increase is
+        shown LOW (just below the MEDIUM cut-off)."""
+        return round(self.confidence_medium_threshold - 0.01, 2)

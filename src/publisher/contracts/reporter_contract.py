@@ -1,4 +1,4 @@
-"""Reporter contract v2.0.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v3.0.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from the publisher pipeline.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -34,7 +34,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "2.0.0"
+CONTRACT_VERSION = "3.0.0"
 # Re-evaluation gates (contract 2.0.0: readiness replaces the 1.2.0 epoch-age gate). The validator embeds them, so
 # changing the matching publisher policy thresholds (readiness_min_billed_days, min_economics_cost_history_days)
 # requires a contract version bump.
@@ -42,6 +42,16 @@ REEVALUATION_READY_BILLED_DAYS = 2
 REEVALUATION_COST_HISTORY_DAYS = 7
 REEVALUATION_BLOCKING_CODES = ("COST_HISTORY_INSUFFICIENT", "CURRENT_CONFIG_EPOCH_TOO_NEW")
 HASH_HEX_LENGTH = 24  # 96-bit display identifier; full SHA-256 remains available in provenance.
+# Cost profile (contract 3.0.0): the risk-appetite thresholds a cost profile sets, grouped by technique. The group and
+# field names are part of the contract; their values per profile are publisher policy, checked by the package gate.
+COST_PROFILE_GROUPS: Dict[str, tuple] = {
+    "size": ("spill_query_pct_downsize_safe", "p95_execution_ms_downsize_safe", "p99_execution_ms_downsize_safe"),
+    "max_clusters": ("time_at_max_pct_safe_reduce", "max_cluster_cut_headroom_pct"),
+    "min_clusters": ("time_at_min_pct_reduce", "queue_wait_p95_ms_safe", "min_cluster_busy_start_percentile"),
+    "auto_stop": ("cold_start_added_share_max_pct",),
+    "cross_technique": ("cost_change_min_annual_savings", "queue_query_pct_safe", "canary_p95_regression_pct", "growth_hold_weekly_ratio"),
+}
+_WAREHOUSE_REF_PATTERN = re.compile(r"^(?:[A-Za-z0-9_-]+/)?[A-Za-z0-9_-]+$")
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +329,21 @@ class ValidationOutcome(str, Enum):
     FAIL = "FAIL"
     PARTIAL = "PARTIAL"
     PENDING = "PENDING"
+
+
+class CostProfileName(str, Enum):
+    """Risk appetite a warehouse was evaluated under: how much performance risk a supported cut may take."""
+    AGGRESSIVE = "aggressive"
+    BALANCED = "balanced"
+    CONSERVATIVE = "conservative"
+
+
+class CostProfileSource(str, Enum):
+    """Why the warehouse got its cost profile: the default, a nonprod warehouse tag, or a --cost-profile override."""
+    DEFAULT = "DEFAULT"
+    TAG_DEFAULT = "TAG_DEFAULT"
+    CLI_ALL = "CLI_ALL"
+    CLI_WAREHOUSE = "CLI_WAREHOUSE"
 
 
 class RealizationOutcomeStatus(str, Enum):
@@ -622,11 +647,13 @@ def make_candidate_id(
     estimator_version: str,
     reviewer_version: str,
     decision_graph_version: str,
+    cost_profile: Mapping[str, Any],
 ) -> str:
     """CAND- ID of one technique decision against one warehouse/epoch/evidence set.
 
-    Hashed: workspace, warehouse, epoch, technique, knob, current and recommended value, the sorted unique evidence_refs and
-    every component version (policy, analyzer, optimizer, estimator, reviewer, decision graph). Economics and prose are not hashed.
+    Hashed: workspace, warehouse, epoch, technique, knob, current and recommended value, the sorted unique evidence_refs,
+    every component version (policy, analyzer, optimizer, estimator, reviewer, decision graph) and the cost profile's hash
+    payload (name and applied thresholds). Economics and prose are not hashed.
     """
     payload = {
         "contract_version": CONTRACT_VERSION,
@@ -644,6 +671,7 @@ def make_candidate_id(
         "estimator_version": estimator_version,
         "reviewer_version": reviewer_version,
         "decision_graph_version": decision_graph_version,
+        "cost_profile": dict(cost_profile),
     }
     return content_id("CAND", payload)
 
@@ -659,11 +687,13 @@ def make_scenario_id(
     policy_version: str,
     bundle_estimator_version: str,
     decision_graph_version: str,
+    cost_profile: Mapping[str, Any],
 ) -> str:
     """SCN- ID of one mutually exclusive execution path.
 
     Hashed: workspace, warehouse, epoch, scenario_type, the ORDERED candidate ids (order is execution order), compatibility
-    status and the policy, bundle-estimator and decision-graph versions. Economics and prose are not hashed.
+    status, the policy, bundle-estimator and decision-graph versions and the cost profile's hash payload. Economics and
+    prose are not hashed.
     """
     payload = {
         "contract_version": CONTRACT_VERSION,
@@ -676,6 +706,7 @@ def make_scenario_id(
         "policy_version": policy_version,
         "bundle_estimator_version": bundle_estimator_version,
         "decision_graph_version": decision_graph_version,
+        "cost_profile": dict(cost_profile),
     }
     return content_id("SCN", payload)
 
@@ -1868,6 +1899,57 @@ class Realization:
 
 
 # ---------------------------------------------------------------------------
+# Cost profile
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CostProfile:
+    """The cost profile one warehouse was evaluated under (contract 3.0.0).
+
+    ``applied_thresholds`` holds the effective value of every profiled threshold, grouped by technique
+    (COST_PROFILE_GROUPS). ``name`` and ``applied_thresholds`` enter every candidate, scenario and package id;
+    ``source`` and ``source_detail`` say how the profile was chosen and are presentation only (the same effective
+    profile gives the same ids however it was chosen). ``source_detail`` is None for DEFAULT, ``tag <key>=<value>``
+    (the allow-listed nonprod tag that matched) for TAG_DEFAULT, ``--cost-profile <name>`` for CLI_ALL and
+    ``--cost-profile <name>=<warehouse>`` for CLI_WAREHOUSE.
+    """
+    name: CostProfileName
+    source: CostProfileSource
+    source_detail: Optional[str]
+    applied_thresholds: Dict[str, Dict[str, float]]
+
+    def hash_payload(self) -> Dict[str, Any]:
+        """The identity part of the profile: name and applied thresholds (never source or source_detail)."""
+        return {"name": CostProfileName(self.name).value, "applied_thresholds": self.applied_thresholds}
+
+    def validate(self) -> None:
+        """Reject an unknown name or source, applied thresholds whose groups and fields differ from COST_PROFILE_GROUPS
+        or that are not finite numbers, and a source_detail that does not match its source."""
+        name, source = CostProfileName(self.name), CostProfileSource(self.source)
+        _require({k: sorted(v) for k, v in self.applied_thresholds.items()} == {k: sorted(v) for k, v in COST_PROFILE_GROUPS.items()},
+                 "cost_profile.applied_thresholds must hold exactly the COST_PROFILE_GROUPS fields")
+        for group in self.applied_thresholds.values():
+            for key, value in group.items():
+                _require(isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and abs(value) != float("inf"),
+                         f"cost_profile.applied_thresholds.{key} must be a finite number")
+        detail = self.source_detail
+        if source == CostProfileSource.DEFAULT:
+            _require(detail is None, "cost_profile.source_detail must be null for DEFAULT")
+            _require(name == CostProfileName.BALANCED, "a DEFAULT cost profile is balanced")
+        elif source == CostProfileSource.TAG_DEFAULT:
+            _require(detail is not None and re.fullmatch(r"tag [a-z0-9_-]+=[a-z0-9_-]+", detail) is not None,
+                     "TAG_DEFAULT source_detail must be 'tag <key>=<value>'")
+            _require(name == CostProfileName.AGGRESSIVE, "a TAG_DEFAULT cost profile is aggressive")
+        elif source == CostProfileSource.CLI_ALL:
+            _require(detail == f"--cost-profile {name.value}", "CLI_ALL source_detail must be '--cost-profile <name>'")
+        else:
+            prefix = f"--cost-profile {name.value}="
+            _require(detail is not None and detail.startswith(prefix) and _WAREHOUSE_REF_PATTERN.match(detail[len(prefix):]) is not None,
+                     "CLI_WAREHOUSE source_detail must be '--cost-profile <name>=<warehouse>'")
+
+
+# ---------------------------------------------------------------------------
 # Provenance and top-level package
 # ---------------------------------------------------------------------------
 
@@ -1936,6 +2018,7 @@ class RecommendationPackage:
     package_economics: PackageEconomics
     realization: Realization
     provenance: Provenance
+    cost_profile: CostProfile
     observed_change: Optional[ObservedConfigChange] = None
     carried_forward_plan: Optional[CarriedForwardPlan] = None
 
@@ -1955,6 +2038,8 @@ class RecommendationPackage:
         self.cost_baseline.validate()
         self.assessment.validate()
         self.provenance.validate()
+        self.cost_profile.validate()
+        profile = self.cost_profile.hash_payload()
 
         expected_epoch = make_epoch_id(
             workspace_id=self.warehouse.workspace_id,
@@ -1996,7 +2081,7 @@ class RecommendationPackage:
                 evidence_refs=candidate.evidence_refs, policy_version=self.provenance.policy_version,
                 analyzer_version=self.provenance.analyzer_version, optimizer_version=self.provenance.optimizer_version,
                 estimator_version=self.provenance.estimator_version, reviewer_version=self.provenance.reviewer_version,
-                decision_graph_version=self.provenance.decision_graph_version,
+                decision_graph_version=self.provenance.decision_graph_version, cost_profile=profile,
             )
             _require(candidate.candidate_id == expected_candidate_id, f"candidate id mismatch: expected {expected_candidate_id}")
 
@@ -2009,7 +2094,7 @@ class RecommendationPackage:
                 epoch_id=self.warehouse.current_epoch.epoch_id, scenario_type=scenario.scenario_type.value,
                 ordered_candidate_ids=scenario.candidate_refs, compatibility_status=scenario.compatibility.status.value,
                 policy_version=self.provenance.policy_version, bundle_estimator_version=self.provenance.bundle_estimator_version,
-                decision_graph_version=self.provenance.decision_graph_version,
+                decision_graph_version=self.provenance.decision_graph_version, cost_profile=profile,
             )
             _require(scenario.scenario_id == expected_scenario_id, f"scenario id mismatch: expected {expected_scenario_id}")
 
@@ -2197,8 +2282,8 @@ class RecommendationPackage:
         """Explicit payload behind the package id and full hash.
 
         Hashed: contract and component versions, workspace/warehouse/epoch, current_config, evidence fingerprint, ordered candidate and scenario ids, the
-        re-evaluation status, time and codes (not its prose method) and the observed-change and carried-forward fingerprints. Not hashed: generated_at,
-        prose and other volatile presentation metadata.
+        re-evaluation status, time and codes (not its prose method), the observed-change and carried-forward fingerprints and the cost profile's name
+        and applied thresholds. Not hashed: generated_at, the cost profile's source and source_detail, prose and other volatile presentation metadata.
         """
         return {
             "contract_version": self.contract_version,
@@ -2227,6 +2312,7 @@ class RecommendationPackage:
             },
             "observed_change_fingerprint": None if self.observed_change is None else self.observed_change.fingerprint(),
             "carried_forward_fingerprint": None if self.carried_forward_plan is None else self.carried_forward_plan.fingerprint(),
+            "cost_profile": self.cost_profile.hash_payload(),
         }
 
     def expected_package_id(self) -> str:
@@ -2260,6 +2346,7 @@ def make_recommendation_package_id_from_parts(
     reevaluation: Optional[Mapping[str, Any]] = None,
     observed_change_fingerprint: Optional[str] = None,
     carried_forward_fingerprint: Optional[str] = None,
+    cost_profile: Mapping[str, Any],
 ) -> str:
     """PKG- id from the same fields as RecommendationPackage.package_hash_payload, for callers that have not built the package yet."""
     payload = {
@@ -2283,5 +2370,6 @@ def make_recommendation_package_id_from_parts(
         "reevaluation": None if reevaluation is None else dict(reevaluation),
         "observed_change_fingerprint": observed_change_fingerprint,
         "carried_forward_fingerprint": carried_forward_fingerprint,
+        "cost_profile": dict(cost_profile),
     }
     return content_id("PKG", payload)

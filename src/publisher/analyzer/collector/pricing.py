@@ -72,7 +72,7 @@ def aws_cluster_hourly_price(size: str, region: str, registry: Mapping[str, Any]
     }
 
 
-def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None, *, observed_node_types: Optional[Sequence[str]] = None) -> Tuple[Optional[float], Dict[str, Any]]:
+def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Thresholds, *, observed_node_types: Optional[Sequence[str]] = None) -> Tuple[Optional[float], Dict[str, Any]]:
     """Annual customer AWS (EC2) baseline for the current epoch, kept separate from DBU cost; ``(cost, model)``.
 
     Annualizes the current epoch's cluster-minutes (same basis as the DBU forecast) times the topology's hourly price.
@@ -99,8 +99,7 @@ def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis
         return None, {**topo, "status": "UNAVAILABLE", "blocker": "AWS_NODE_TYPE_MISMATCH", "observed_node_types": billed_nodes,
                       "expected_node_types": sorted({topo["driver_instance"], topo["worker_instance"]})}
     topo = {**topo, "node_type_check": "VERIFIED" if billed_nodes else "UNVERIFIED", "observed_node_types": billed_nodes}
-    t = thresholds or Thresholds()
-    rates, info = annualized_resource_rates(current, forecast_metadata, t, ("cluster_minutes",))
+    rates, info = annualized_resource_rates(current, forecast_metadata, thresholds, ("cluster_minutes",))
     if rates is None:
         return None, {**topo, "status": "UNAVAILABLE", **info}
     cluster_minutes = info["window_cluster_minutes"]

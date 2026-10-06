@@ -15,6 +15,7 @@ from typing import List, Optional, Sequence, Tuple
 from publisher.analyzer import analyzer
 from publisher.analyzer.collector.demo import DEMO_FLEET
 from publisher.common.logging import LOGGER
+from publisher.config.cost_profiles import parse_cost_profile_flags
 from publisher.config.loader import resolve_execution_mode
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts.analysis import FleetAnalysis
@@ -34,9 +35,11 @@ from publisher.reviewer import reviewer
 def build_context(request: PublisherRequest, thresholds: Optional[Thresholds] = None) -> RunContext:
     """The immutable context every capability receives: the request plus the policy thresholds (defaults when None).
 
-    Raises PublisherError when the request's execution mode is not supported (resolved by the config layer).
+    Raises PublisherError when the request's execution mode is not supported or its --cost-profile flags are invalid
+    (both checked by the config layer before any evidence is collected).
     """
     resolve_execution_mode(request.execution_mode)
+    parse_cost_profile_flags(request.cost_profiles)
     return RunContext(request=request, thresholds=thresholds if thresholds is not None else Thresholds())
 
 
@@ -74,14 +77,16 @@ def publish(request: PublisherRequest) -> ReportContract:
 
 
 def _reviewed_candidates(
-    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int
+    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int, cost_profiles: Sequence[str]
 ) -> Tuple[RunContext, FleetAnalysis, GovernanceResult, CandidateReviewResult]:
     """Evidence already in hand (a replay) through the Analyzer, Governor, Optimizer and the candidate gate.
 
     Shared by the in-memory entry points below; writes nothing (the request's output_dir is a placeholder).
+    ``cost_profiles`` are raw --cost-profile flags; without them every warehouse gets its tag default.
     """
-    context = build_context(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
-    analysis = FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds))
+    request = PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size, cost_profiles=tuple(cost_profiles))
+    context = build_context(request, thresholds)
+    analysis = FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds, parse_cost_profile_flags(request.cost_profiles)))
     governance = governor.govern(analysis)
     _log_pipeline_start(analysis, governance, batch_size)
     optimization = optimizer.run(context, analysis, governance)
@@ -89,18 +94,18 @@ def _reviewed_candidates(
 
 
 def evaluate_warehouses(
-    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
+    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100, *, cost_profiles: Sequence[str] = ()
 ) -> List[WarehouseOptimization]:
     """Evidence in hand through both Reviewer gates, without assembling public packages."""
-    context, _, _, reviewed = _reviewed_candidates(evidence, thresholds, batch_size)
+    context, _, _, reviewed = _reviewed_candidates(evidence, thresholds, batch_size, cost_profiles)
     optimizations = packager.plan(reviewed, thresholds)
     reviewer.review_plans(context, optimizations)
     return optimizations
 
 
 def build_recommendation_packages(
-    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100
+    evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int = 100, *, cost_profiles: Sequence[str] = ()
 ) -> List[rc.RecommendationPackage]:
     """Evidence in hand to reviewed public packages, without writing anything."""
-    context, analysis, governance, reviewed = _reviewed_candidates(evidence, thresholds, batch_size)
+    context, analysis, governance, reviewed = _reviewed_candidates(evidence, thresholds, batch_size, cost_profiles)
     return reviewer.review_package(context, analysis, governance, packager.run(context, analysis, governance, reviewed)).packages

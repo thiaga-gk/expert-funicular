@@ -58,10 +58,9 @@ class ReporterContractTests(unittest.TestCase):
         props = build_schema()["$defs"]["CurrentConfig"]["properties"]
         self.assertEqual((props["min_clusters"]["minimum"], props["min_clusters"]["maximum"]), (1, 30))
         self.assertEqual((props["max_clusters"]["minimum"], props["max_clusters"]["maximum"]), (1, 40))
-        from publisher import publisher
-        limits = publisher.Thresholds()
-        self.assertEqual(limits.min_clusters_supported_limit, props["min_clusters"]["maximum"])
-        self.assertEqual(limits.max_clusters_supported_limit, props["max_clusters"]["maximum"])
+        from publisher.config.defaults import MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT
+        self.assertEqual(MIN_CLUSTERS_SUPPORTED_LIMIT, props["min_clusters"]["maximum"])
+        self.assertEqual(MAX_CLUSTERS_SUPPORTED_LIMIT, props["max_clusters"]["maximum"])
 
     def test_min_clusters_above_thirty_is_rejected_by_schema_and_validator(self) -> None:
         schema = json.loads((ROOT / "schema/recommendation-package.schema.json").read_text())

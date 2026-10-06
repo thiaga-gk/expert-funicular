@@ -49,13 +49,14 @@ def option_table():
 
 
 class OptionParityTests(unittest.TestCase):
-    def test_every_single_file_option_is_unchanged_and_only_mode_is_new(self):
+    def test_every_single_file_option_is_unchanged_and_only_mode_and_cost_profile_are_new(self):
         before = json.loads((ROOT / "tests" / "fixtures" / "expected" / "cli" / "options.json").read_text())["options"]
         after = option_table()
         self.assertEqual(after[:len(before)], before)
-        self.assertEqual([o["flags"] for o in after[len(before):]], [["--mode"]])
-        self.assertEqual(after[-1]["choices"], ["local"])
-        self.assertEqual(after[-1]["default"], "local")
+        self.assertEqual([o["flags"] for o in after[len(before):]], [["--mode"], ["--cost-profile"]])
+        self.assertEqual(after[-2]["choices"], ["local"])
+        self.assertEqual(after[-2]["default"], "local")
+        self.assertEqual((after[-1]["action"], after[-1]["default"]), ("_AppendAction", []))
 
 
 class DependencyDirectionTests(unittest.TestCase):
@@ -87,6 +88,22 @@ class BehaviourTests(unittest.TestCase):
             code, _, err = self.run_cli(["--demo", "--demo-count", "999", "--log-level", "ERROR", "--output-dir", tmp])
         self.assertEqual(code, 2)
         self.assertIn("--demo-count must be between 1 and", err)
+
+    def test_an_invalid_cost_profile_or_an_unknown_warehouse_refuses_the_run(self):
+        for flags, message in ((["--cost-profile", "reckless"], "Unknown cost profile"),
+                               (["--cost-profile", "aggressive=wh-typo"], "not among the collected warehouses")):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--output-dir", tmp, *flags])
+                self.assertEqual(code, 2)
+                self.assertIn(message, err)
+
+    def test_a_cost_profile_flag_reaches_every_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, _ = self.run_cli(["--demo", "--demo-count", "2", "--no-workbook", "--log-level", "ERROR", "--output-dir", tmp,
+                                       "--cost-profile", "conservative"])
+            self.assertEqual(code, 0)
+            profiles = {json.loads(f.read_text())["cost_profile"]["source_detail"] for f in Path(f"{tmp}/packages").glob("*.json")}
+        self.assertEqual(profiles, {"--cost-profile conservative"})
 
     def test_a_refused_run_is_recorded_in_publisher_log(self):
         with tempfile.TemporaryDirectory() as tmp:

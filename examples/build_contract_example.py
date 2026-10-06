@@ -25,13 +25,13 @@ WAREHOUSE = "wh-demo-001"
 REGION = "us-east-1"
 CURRENCY = "USD"
 
-POLICY_VERSION = "policy-v2.10.0"
-ANALYZER_VERSION = "2.10.0"
-OPTIMIZER_VERSION = "2.10.0"
+POLICY_VERSION = "policy-v2.11.0"
+ANALYZER_VERSION = "2.11.0"
+OPTIMIZER_VERSION = "2.11.0"
 MODELER_VERSION = "2.10.0"
-ESTIMATOR_VERSION = "2.10.0"
+ESTIMATOR_VERSION = "2.11.0"
 BUNDLE_VERSION = "2.10.0"
-REVIEWER_VERSION = "2.10.0"
+REVIEWER_VERSION = "2.11.0"
 DECISION_VERSION = "decision-graph-v2.10.0"
 CATALOG_VERSION = "technique-catalog-v2"
 
@@ -112,10 +112,23 @@ def build_package() -> RecommendationPackage:
     forward = cost(27000.0, 8793.82, dbu_basis=CostBasis.FORECAST, aws_basis=CostBasis.MODELED_AWS_LIST_PRICE)
     actual = cost(25000.0, 8150.0, dbu_basis=CostBasis.OBSERVED_DATABRICKS_BILLING, aws_basis=CostBasis.MODELED_AWS_LIST_PRICE)
 
+    # The balanced cost profile (the publisher's default thresholds), chosen by default: no nonprod tag, no override.
+    cost_profile = CostProfile(
+        name=CostProfileName.BALANCED, source=CostProfileSource.DEFAULT, source_detail=None,
+        applied_thresholds={
+            "size": {"spill_query_pct_downsize_safe": 0.1, "p95_execution_ms_downsize_safe": 5000, "p99_execution_ms_downsize_safe": 30000},
+            "max_clusters": {"time_at_max_pct_safe_reduce": 1.0, "max_cluster_cut_headroom_pct": 25.0},
+            "min_clusters": {"time_at_min_pct_reduce": 25.0, "queue_wait_p95_ms_safe": 5000, "min_cluster_busy_start_percentile": 95.0},
+            "auto_stop": {"cold_start_added_share_max_pct": 2.0},
+            "cross_technique": {"cost_change_min_annual_savings": 500.0, "queue_query_pct_safe": 0.5, "canary_p95_regression_pct": 25.0,
+                                "growth_hold_weekly_ratio": 1.1},
+        },
+    )
     versions = dict(
         policy_version=POLICY_VERSION, analyzer_version=ANALYZER_VERSION,
         optimizer_version=OPTIMIZER_VERSION, estimator_version=ESTIMATOR_VERSION,
         reviewer_version=REVIEWER_VERSION, decision_graph_version=DECISION_VERSION,
+        cost_profile=cost_profile.hash_payload(),
     )
 
     candidate_specs = [
@@ -176,6 +189,7 @@ def build_package() -> RecommendationPackage:
         scenario_type=ScenarioType.IN_PLACE_OPTIMIZATION.value,
         ordered_candidate_ids=plan_a_ids, compatibility_status=CompatibilityStatus.COMPATIBLE.value,
         policy_version=POLICY_VERSION,bundle_estimator_version=BUNDLE_VERSION,decision_graph_version=DECISION_VERSION,
+        cost_profile=cost_profile.hash_payload(),
     )
     plan_b_ids = [cand[TunableKnob.WAREHOUSE_TYPE].candidate_id]
     plan_b_id = make_scenario_id(
@@ -183,6 +197,7 @@ def build_package() -> RecommendationPackage:
         scenario_type=ScenarioType.WAREHOUSE_TYPE_MIGRATION.value,
         ordered_candidate_ids=plan_b_ids, compatibility_status=CompatibilityStatus.REQUIRES_VALIDATION.value,
         policy_version=POLICY_VERSION,bundle_estimator_version=BUNDLE_VERSION,decision_graph_version=DECISION_VERSION,
+        cost_profile=cost_profile.hash_payload(),
     )
 
     # Plan A headline economics are AUTHORITATIVE: only the size step is priced; the max/min/auto-stop steps
@@ -310,7 +325,7 @@ def build_package() -> RecommendationPackage:
         cost_baseline=CostBaseline(CURRENCY,actual,forward,ForecastInfo("runrate-v2.7",conf(0.91),["current epoch remains representative","AWS modeled from regional on-demand registry"])),
         assessment=assessment,evidence=evidence,candidates=candidates,scenarios=scenarios,
         recommended_plan=RecommendedPlan(plan_a_id,"CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE","RUN_SIZE_CANARY",True,"Validate one-size-down first; then remeasure and regenerate invalidated downstream recommendations."),
-        package_economics=package_economics,realization=realization,provenance=provenance,
+        package_economics=package_economics,realization=realization,provenance=provenance,cost_profile=cost_profile,
     )
     package = dataclasses.replace(package,recommendation_package_id=package.expected_package_id())
     package = dataclasses.replace(package,provenance=dataclasses.replace(package.provenance,package_hash_full_sha256=package.full_package_hash()))

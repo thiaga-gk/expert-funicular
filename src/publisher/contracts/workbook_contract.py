@@ -1,6 +1,6 @@
-"""Workbook Reporter Contract v1.4.0.
+"""Workbook Reporter Contract v1.5.0.
 
-A compact, human-facing projection of the locked Reporter JSON Contract (v2.0.0, ``rc.CONTRACT_VERSION``).
+A compact, human-facing projection of the locked Reporter JSON Contract (v3.0.0, ``rc.CONTRACT_VERSION``).
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from . import reporter_contract as rc
 
-WORKBOOK_CONTRACT_VERSION = "1.4.0"
+WORKBOOK_CONTRACT_VERSION = "1.5.0"
 SHEET_EXECUTIVE = "Executive Summary"
 SHEET_PORTFOLIO = "Warehouse Portfolio"
 SHEET_SCENARIOS = "Scenario Plans"
@@ -70,6 +70,8 @@ PORTFOLIO_COLUMNS = (
     ColumnSpec("region", "Region", 12),
     ColumnSpec("current_epoch_id", "Epoch ID", 23, "@"),
     ColumnSpec("epoch_age_days", "Epoch age (d)", 11, "#,##0"),
+    ColumnSpec("cost_profile", "Cost profile", 13),
+    ColumnSpec("profile_source", "Profile source", 30),
     ColumnSpec("primary_query_source", "Primary source", 15),
     ColumnSpec("queries_30d", "Queries 30d", 12, "#,##0"),
     ColumnSpec("active_days_30d", "Active days 30d", 13, "#,##0"),
@@ -125,7 +127,7 @@ PORTFOLIO_COLUMNS = (
     ColumnSpec("evidence_summary_json", "Evidence summary JSON", 22),
 )
 PORTFOLIO_GROUPS = (
-    ColumnGroup("Identity / epoch", "recommendation_package_id", "epoch_age_days"),
+    ColumnGroup("Identity / epoch", "recommendation_package_id", "profile_source"),
     ColumnGroup("Workload", "primary_query_source", "active_days_30d"),
     ColumnGroup("Current configuration", "warehouse_type", "photon_status"),
     ColumnGroup("Cost baseline", "currency", "forward_total_cost_365d"),
@@ -207,6 +209,7 @@ REGISTRY_COLUMNS = (
     ColumnSpec("warehouse_name", "Warehouse", 22),
     ColumnSpec("owner", "Owner", 24),
     ColumnSpec("epoch_id", "Epoch ID", 23, "@"),
+    ColumnSpec("cost_profile", "Cost profile", 13),
     ColumnSpec("knob", "Knob", 20),
     ColumnSpec("status", "Status", 18),
     ColumnSpec("objectives", "Objective", 18),
@@ -257,7 +260,7 @@ REGISTRY_COLUMNS = (
     ColumnSpec("realization_records_json", "Realization JSON", 22),
 )
 REGISTRY_GROUPS = (
-    ColumnGroup("Identity", "recommendation_package_id", "epoch_id"),
+    ColumnGroup("Identity", "recommendation_package_id", "cost_profile"),
     ColumnGroup("Decision", "knob", "rationale"),
     ColumnGroup("Confidence", "confidence_score", "confidence_level"),
     ColumnGroup("Independent economics", "economics_available", "is_additive"),
@@ -545,6 +548,12 @@ def observed_change_text(package: rc.RecommendationPackage) -> str:
     return f"{'; '.join(parts)} ({change.changed_at[:10]})"
 
 
+def _profile_source(profile: rc.CostProfile) -> str:
+    """How the cost profile was chosen: the source code, with the tag or flag that chose it in parentheses."""
+    source = _enum(profile.source)
+    return source if profile.source_detail is None else f"{source} ({profile.source_detail})"
+
+
 def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, Any]:
     """One Warehouse Portfolio row for a package (one row per recommendation_package_id).
 
@@ -560,6 +569,7 @@ def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, 
         "warehouse_id": package.warehouse.warehouse_id, "warehouse_name": package.warehouse.warehouse_name,
         "owner": _display(package.warehouse.owner, missing="UNKNOWN"), "region": package.warehouse.region,
         "current_epoch_id": package.warehouse.current_epoch.epoch_id, "epoch_age_days": package.warehouse.current_epoch.age_days,
+        "cost_profile": _enum(package.cost_profile.name), "profile_source": _profile_source(package.cost_profile),
         "primary_query_source": _display(package.workload_profile.primary_query_source, missing="UNKNOWN"),
         "queries_30d": activity.queries_30d, "active_days_30d": activity.active_days_30d,
         "query_source_profile_json": _json({"query_sources": package.workload_profile.query_sources, "client_applications": package.workload_profile.client_applications, "workload_characteristics": package.workload_profile.workload_characteristics, "multi_label": package.workload_profile.multi_label}),
@@ -652,7 +662,8 @@ def project_candidate(package: rc.RecommendationPackage, c: rc.CandidateRecommen
     row = {
         "recommendation_package_id": package.recommendation_package_id, "candidate_id": c.candidate_id, "technique_id": c.technique_id,
         "workspace_id": package.warehouse.workspace_id, "warehouse_id": package.warehouse.warehouse_id, "warehouse_name": package.warehouse.warehouse_name,
-        "owner": _display(package.warehouse.owner, missing="UNKNOWN"), "epoch_id": package.warehouse.current_epoch.epoch_id, "knob": _enum(c.knob), "status": _enum(c.status),
+        "owner": _display(package.warehouse.owner, missing="UNKNOWN"), "epoch_id": package.warehouse.current_epoch.epoch_id,
+        "cost_profile": _enum(package.cost_profile.name), "knob": _enum(c.knob), "status": _enum(c.status),
         "objectives": ", ".join(_enum(x) for x in c.objectives) or DISPLAY_NA, "current_value": _json(c.current_value) if isinstance(c.current_value, (dict, list)) else _display(c.current_value),
         "recommended_value": _json(c.recommended_value) if isinstance(c.recommended_value, (dict, list)) else _display(c.recommended_value), "rationale": c.rationale,
         "confidence_score": _display(c.confidence.score, missing="UNKNOWN"), "confidence_level": _enum(c.confidence.level),
@@ -751,6 +762,17 @@ def project_executive(
         {"section":"Confidence","metric":"HIGH recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="HIGH"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Confidence","metric":"MEDIUM recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="MEDIUM"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
         {"section":"Confidence","metric":"LOW recommended scenario","value":sum(1 for r in portfolio_rows if r.get("scenario_confidence_level")=="LOW"),"currency":DISPLAY_NA,"notes":DISPLAY_NA},
+    ]
+    # Workbook 1.5.0: warehouses per cost profile (zeros included), counted from the packages.
+    profile_notes = {
+        rc.CostProfileName.AGGRESSIVE: "Highest savings, most performance risk; nonprod-tagged warehouses by default",
+        rc.CostProfileName.BALANCED: "Default for every other warehouse",
+        rc.CostProfileName.CONSERVATIVE: "Lowest performance risk; only through --cost-profile",
+    }
+    metrics += [
+        {"section":"Cost profiles","metric":f"Warehouses: {name.value}","value":sum(1 for p in packages if rc.CostProfileName(p.cost_profile.name) == name),
+         "currency":DISPLAY_NA,"notes":profile_notes[name]}
+        for name in rc.CostProfileName
     ]
 
     package_by_id = {p.recommendation_package_id: p for p in packages}

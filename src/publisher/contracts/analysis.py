@@ -35,11 +35,21 @@ class AnalysisResult:
     facts: Dict[str, Any]
 
 
+@dataclass(frozen=True)
+class CostProfileChoice:
+    """The cost profile a warehouse is evaluated under and why: ``name`` (aggressive, balanced, conservative), ``source``
+    (DEFAULT, TAG_DEFAULT, CLI_ALL, CLI_WAREHOUSE) and ``source_detail`` (the tag or flag that chose it; None for DEFAULT)."""
+    name: str
+    source: str
+    source_detail: Optional[str]
+
+
 @dataclass
 class WarehouseAnalysis:
-    """Per-knob findings for one supported, calibrated warehouse."""
+    """Per-knob findings for one supported, calibrated warehouse, analyzed under its cost profile."""
     evidence: WarehouseEvidence
     analyses: Dict[str, AnalysisResult]
+    cost_profile: CostProfileChoice
 
 
 @dataclass

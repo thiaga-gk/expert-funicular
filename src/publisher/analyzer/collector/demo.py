@@ -28,7 +28,7 @@ from publisher.common.ids import epoch_id
 from publisher.common.logging import LOGGER
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SQL_DBU_PER_CLUSTER_HOUR
+from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SQL_DBU_PER_CLUSTER_HOUR, scale_up_lag_minutes
 from publisher.config.settings import REPO_ROOT
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import (
@@ -38,6 +38,9 @@ from publisher.contracts.source import (
     WarehouseConfig,
     WarehouseEvidence,
 )
+
+# The default policy the demo collector simulates with (the collector itself only reads unprofiled values).
+_DEMO_THRESHOLDS = Thresholds()
 
 
 def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str, dbu_total: float) -> List[Dict[str, Any]]:
@@ -183,11 +186,11 @@ def demo_evidence() -> List[WarehouseEvidence]:
         _demo_daily(dt.date(2025, 10, 1), 106, 2640.0, workspace, wh, old_start, 4800.0)
         + _demo_daily(dt.date(2026, 1, 15), 259, 11000.0, workspace, wh, cur_start, 20000.0)
     )
-    model = Modeler(Thresholds()).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
+    model = Modeler(_DEMO_THRESHOLDS).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
     forecast = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
     registry=load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
     cur.resource_daily=synthesize_resource_daily(cur,analysis_time)
-    aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry)
+    aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry,_DEMO_THRESHOLDS)
     e=WarehouseEvidence(
         warehouse_id=wh, workspace_id=workspace, account_id=cur.account_id, warehouse_name=cur.warehouse_name,
         source_region="us-east-1", analysis_time=analysis_time, current_epoch_id=cur.epoch_id, epochs=[old, cur],
@@ -677,13 +680,13 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         # starts for the current epoch.
         conc = concurrency_histograms([(a, b, c) for a, b, c in ep_runs], (max(ep_start, window_365), hi_t),
                                       max(ep_start, window_30) if ep_end is None else None,
-                                      Thresholds().scale_up_lag_minutes_serverless if cfg["warehouse_type"] == "SERVERLESS" else Thresholds().scale_up_lag_minutes_pro_classic)
+                                      scale_up_lag_minutes(cfg["warehouse_type"]))
         rows["concurrency"].extend({"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "scope": sc, "level": int(level), "weight": w}
                                    for sc, hist in sorted(conc.items()) for level, w in sorted(hist.items(), key=lambda x: int(x[0])))
         # Running-idle evidence (current epoch): query gaps intersected with the simulated running timeline, over the
         # same period as the event totals; queries from a day before the window seed the busy frontier.
         if ep_end is None and cov is not None:
-            th = Thresholds()
+            th = _DEMO_THRESHOLDS
             ri = running_idle_metrics([(a, b) for a, b, _ in ep_runs if b > cov - 1440.0], [(a, b, cl) for a, b, cl, _, _ in live if cl > 0],
                                       (cov, hi_t), cfg["auto_stop_minutes"], auto_stop_targets(th), th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
                                       th.kept_alive_gap_tolerance_minutes, th.kept_alive_stopped_gap_minutes)
@@ -790,7 +793,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         key = {"workspace_id": workspace, "warehouse_id": wh, "cur_start": stamp(epochs[-1][0])}
         rows.setdefault(f"query_metrics_carried_{family}", []).append({**key, **row})
         if family == "demand":
-            lag = Thresholds().scale_up_lag_minutes_serverless if base_cfg["warehouse_type"] == "SERVERLESS" else Thresholds().scale_up_lag_minutes_pro_classic
+            lag = scale_up_lag_minutes(base_cfg["warehouse_type"])
             conc = concurrency_histograms([(a, b, c) for a, b, c in rns], (lo30, now_t), lo30, lag)
             rows.setdefault("concurrency_carried", []).extend(
                 {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": stamp(epochs[-1][0]), "scope": sc, "level": int(level), "weight": w}
@@ -863,7 +866,7 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
             return [dict(r) for r in rows.get(label, [])]
 
     registry = load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
-    evidence = extract_evidence(_DemoClient(), Thresholds(), "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]
+    evidence = extract_evidence(_DemoClient(), _DEMO_THRESHOLDS, "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]
     for e in evidence:
         e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "workspace_id": e.workspace_id, "enable_serverless_compute": True,
                                     "external_legacy_hive_metastore_detected": False, "external_legacy_hive_metastore_config_keys": [],

@@ -1,7 +1,5 @@
-"""Product defaults: warehouse sizes, published DBU and AWS topology tables, the active recommendation knobs and the supported (fail-closed) warehouse types."""
+"""Product defaults: warehouse sizes, published DBU and AWS topology tables, the active recommendation knobs, the supported (fail-closed) warehouse types and the Databricks product constants."""
 from __future__ import annotations
-
-
 
 
 GIB = 1024 ** 3
@@ -49,3 +47,39 @@ ACTIVE_KNOBS = (
 
 
 SUPPORTED_WAREHOUSE_TYPES = frozenset({"CLASSIC", "PRO", "SERVERLESS"})
+
+
+# Databricks product facts: documented platform behavior and limits, not policy (docs/reference/product-constants.md).
+# Minutes before a warehouse adds clusters for queued demand: the busy-period start window, and the idle minutes that
+# separate busy periods.
+SCALE_UP_LAG_MINUTES_PRO_CLASSIC = 5
+SCALE_UP_LAG_MINUTES_SERVERLESS = 1
+# Lowest auto-stop (minutes) the API accepts for Pro/Classic; Serverless values below 5 set through the API are left alone.
+AUTO_STOP_FLOOR_PRO_CLASSIC = 10
+AUTO_STOP_FLOOR_SERVERLESS = 5
+AUTO_STOP_MAX_MINUTES = 1440
+MAX_CLUSTERS_SUPPORTED_LIMIT = 40
+MIN_CLUSTERS_SUPPORTED_LIMIT = 30
+# Pro/Classic add one cluster per this many concurrent queries (documented scaling rule).
+QUERIES_PER_CLUSTER_PRO_CLASSIC = 10
+
+PRODUCT_CONSTANTS = {
+    "SCALE_UP_LAG_MINUTES_PRO_CLASSIC": SCALE_UP_LAG_MINUTES_PRO_CLASSIC,
+    "SCALE_UP_LAG_MINUTES_SERVERLESS": SCALE_UP_LAG_MINUTES_SERVERLESS,
+    "AUTO_STOP_FLOOR_PRO_CLASSIC": AUTO_STOP_FLOOR_PRO_CLASSIC,
+    "AUTO_STOP_FLOOR_SERVERLESS": AUTO_STOP_FLOOR_SERVERLESS,
+    "AUTO_STOP_MAX_MINUTES": AUTO_STOP_MAX_MINUTES,
+    "MAX_CLUSTERS_SUPPORTED_LIMIT": MAX_CLUSTERS_SUPPORTED_LIMIT,
+    "MIN_CLUSTERS_SUPPORTED_LIMIT": MIN_CLUSTERS_SUPPORTED_LIMIT,
+    "QUERIES_PER_CLUSTER_PRO_CLASSIC": QUERIES_PER_CLUSTER_PRO_CLASSIC,
+}
+
+
+def scale_up_lag_minutes(warehouse_type: str) -> int:
+    """Scale-up lag (minutes) of a warehouse type."""
+    return SCALE_UP_LAG_MINUTES_SERVERLESS if warehouse_type == "SERVERLESS" else SCALE_UP_LAG_MINUTES_PRO_CLASSIC
+
+
+def auto_stop_floor(warehouse_type: str) -> int:
+    """Lowest auto-stop (minutes) evaluated for a warehouse type."""
+    return AUTO_STOP_FLOOR_SERVERLESS if warehouse_type == "SERVERLESS" else AUTO_STOP_FLOOR_PRO_CLASSIC

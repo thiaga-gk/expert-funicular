@@ -3,7 +3,7 @@ description: 'C48 Long-unchanged warehouse: the only configuration snapshot is f
   analysis; the warehouse is still analyzed with mature-epoch gates.'
 expect:
   assertions:
-  - equals: EPOCH-026C15922420369C890427EE
+  - equals: EPOCH-6A202F0AC04869983C0C103E
     path: warehouse.current_epoch.epoch_id
   - equals: ACTIONABLE
     path: candidates[knob=auto_stop_minutes].status
