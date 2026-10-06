@@ -1,4 +1,8 @@
-"""Synthetic collector for --demo: one simulated warehouse per golden scenario, run through the real collector."""
+"""Synthetic collector for --demo: one simulated warehouse per golden scenario, run through the real collector.
+
+Everything here is deterministic (hash-derived noise, no global RNG, fixed analysis time) and fabricated: owners, IDs and
+prices are placeholders, and no Databricks API or system table is touched. Not used for real runs.
+"""
 from __future__ import annotations
 
 import bisect
@@ -21,6 +25,7 @@ from publisher.analyzer.forecast import Modeler
 from publisher.analyzer.metrics import auto_stop_targets, concurrency_histograms, running_idle_metrics
 from publisher.analyzer.normalizer import derive_query_source_profile
 from publisher.common.ids import epoch_id
+from publisher.common.logging import LOGGER
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float, safe_int
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, GIB, SQL_DBU_PER_CLUSTER_HOUR
@@ -36,6 +41,7 @@ from publisher.contracts.source import (
 
 
 def _demo_daily(start: dt.date, days: int, total: float, workspace_id: str, warehouse_id: str, epoch_start: str, dbu_total: float) -> List[Dict[str, Any]]:
+    """``days`` daily cost rows from ``start`` with a fixed weekly shape, scaled so costs sum to ``total`` and DBU to ``dbu_total``."""
     base = total / days
     rows: List[Dict[str, Any]] = []
     for i in range(days):
@@ -89,6 +95,10 @@ def _demo_interp(x: float, points: Sequence[Tuple[float, float, int]]) -> Tuple[
 
 
 def demo_evidence() -> List[WarehouseEvidence]:
+    """The hand-built single-warehouse evidence fixture ("BI - Sales", two epochs, PRO), used by docs and tests.
+
+    Unlike ``synthetic_demo_evidence`` it does not go through the collector; values are set by hand.
+    """
     workspace = "1234567890123456"
     wh = "wh-demo-001"
     analysis_time = "2026-10-01T12:00:00+00:00"
@@ -349,11 +359,13 @@ def _demo_unit(*parts: Any) -> float:
 
 
 def _demo_minutes(hhmm: str) -> int:
+    """Minutes since midnight of an "HH:MM" string."""
     h, m = hhmm.split(":")
     return int(h) * 60 + int(m)
 
 
 def _demo_day_matches(rule: str, day: dt.date) -> bool:
+    """Whether a workload component runs on ``day`` under its day rule (all, weekdays, month_end, half_year_end); ValueError otherwise."""
     if rule == "all":
         return True
     if rule == "weekdays":
@@ -374,6 +386,7 @@ def _demo_day_matches(rule: str, day: dt.date) -> bool:
 
 
 def _demo_config_at(spec: Mapping[str, Any], epochs: Sequence[Tuple[float, Optional[float], Dict[str, Any]]], t: float) -> Dict[str, Any]:
+    """Configuration in force at simulation minute ``t`` (the first epoch's if none covers it); ``spec`` is unused."""
     for start, end, cfg in epochs:
         if start <= t and (end is None or t < end):
             return cfg
@@ -391,9 +404,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     window_30 = now_t - 30 * 1440.0
 
     def at(day: dt.date, minute: float = 0.0) -> float:
+        """Simulation minute (since ``t0``) of ``day`` 00:00 UTC plus ``minute``."""
         return (dt.datetime.combine(day, dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0 + minute
 
     def stamp(t: float) -> str:
+        """ISO UTC timestamp of simulation minute ``t``."""
         return (t0 + dt.timedelta(minutes=t)).isoformat()
 
     workspace = DEMO_WORKSPACES[spec["ws"]]
@@ -532,6 +547,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
 
     # Split pieces at midnight so daily series and billing land on their UTC day.
     def split_daily(items: Iterable[Tuple[float, float, int, float, float]]) -> List[Tuple[float, float, int, float, float]]:
+        """Cut each (start, end, ...) piece at UTC midnights, keeping its other fields."""
         out = []
         for a, b, cl, c, qc in items:
             while a < b:
@@ -739,6 +755,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     # Carried evidence: the current epoch's query metrics over its demand period (since the last size or type change)
     # and capacity period (since the last size, type, min- or max-cluster change), when those started earlier.
     def period_start(keys: Sequence[str]) -> float:
+        """Start of the current carry period: back to the earliest epoch whose ``keys`` all equal the current epoch's."""
         i = len(epoch_defs) - 1
         while i > 0 and all(epoch_defs[i - 1][1][k] == epoch_defs[i][1][k] for k in keys):
             i -= 1
@@ -809,10 +826,15 @@ _DEMO_ROWS_CACHE: Dict[Tuple[int, str], Dict[str, List[Dict[str, Any]]]] = {}
 
 
 def _demo_fleet_rows(count: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Collector rows of the first ``count`` demo warehouses, merged per query label, plus the account-level billing watermark and SKU price rows.
+
+    Per-warehouse simulations are cached per process; every call returns fresh copies so callers cannot mutate the cache.
+    """
     merged: Dict[str, List[Dict[str, Any]]] = {}
     for i, spec in enumerate(DEMO_FLEET[:count], start=1):
         # The simulation is deterministic, so each warehouse is simulated once per process; callers get copies.
         if (i, analysis_time) not in _DEMO_ROWS_CACHE:
+            LOGGER.debug("demo.simulate index=%d scenario=%s", i, spec["scenario"])
             _DEMO_ROWS_CACHE[(i, analysis_time)] = _simulate_demo_warehouse(spec, i, analysis_time)
         for label, items in _DEMO_ROWS_CACHE[(i, analysis_time)].items():
             merged.setdefault(label, []).extend(json.loads(json.dumps(items)))
@@ -832,9 +854,11 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
     """
     if not (1 <= count <= len(DEMO_FLEET)):
         raise ValueError(f"demo count must be between 1 and {len(DEMO_FLEET)}")
+    LOGGER.info("demo.start warehouses=%d", count)
     rows = _demo_fleet_rows(count, DEMO_ANALYSIS_TIME)
 
     class _DemoClient:
+        """Replays the simulated rows by query label; statements are ignored and unknown labels return no rows."""
         def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
             return [dict(r) for r in rows.get(label, [])]
 
@@ -845,4 +869,5 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
                                     "external_legacy_hive_metastore_detected": False, "external_legacy_hive_metastore_config_keys": [],
                                     "s3_access_policy_status": "UNKNOWN", "enabled_warehouse_types": {"PRO": True, "SERVERLESS": True},
                                     "source": "synthetic compatibility fixture"}
+    LOGGER.info("demo.done warehouses=%d epochs=%d", len(evidence), sum(len(e.epochs) for e in evidence))
     return evidence

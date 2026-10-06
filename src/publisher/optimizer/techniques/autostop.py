@@ -15,10 +15,19 @@ if TYPE_CHECKING:
 
 def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
            billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Append this knob's decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers)."""
+    """Append the auto_stop_minutes decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers).
+
+    Rules in order: serverless values below the console grid are left alone; missing or inconsistent running-time
+    evidence, a young epoch or too little running time -> INSUFFICIENT_EVIDENCE (nothing priced, never guessed);
+    running with no queries -> REVIEW/NO_CHANGE for a human; otherwise the near-best value on the type's grid that
+    saves net cluster-minutes within the cold-start budget (smallest change among near-best): LOWER is ACTIONABLE
+    unless failure guardrails BLOCK it, RAISE is TEST_REQUIRED because the restart saving assumes starting minutes
+    are billed. Kept-alive activity without queries is flagged on every outcome and never priced.
+    """
     # Auto stop: jump to the cost-minimizing value on the type's grid.
     a=analyses["auto_stop_minutes"]; f=a.facts; cur_auto=cfg.auto_stop_minutes
     def auto_stop(status:str,target:int,blockers:List[str],rationale:str)->None:
+        """Emit the knob's single decision; blockers are de-duplicated and sorted so the list is deterministic."""
         # Non-work activity is reported with every outcome; no auto-stop value removes it, so nothing is priced.
         if f.get("kept_alive_pct") is not None and f["kept_alive_pct"]>=self.t.kept_alive_flag_pct:
             blockers=blockers+["ACTIVITY_WITHOUT_QUERIES_KEEPS_WAREHOUSE_RUNNING"]

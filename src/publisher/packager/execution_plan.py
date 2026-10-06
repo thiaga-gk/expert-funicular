@@ -12,6 +12,13 @@ def _recommended_plan(
     reevaluation: Optional[rc.ReevaluationWindow] = None,
     candidates: Sequence[rc.CandidateRecommendation] = (),
 ) -> rc.RecommendedPlan:
+    """Public recommended-plan block for the RECOMMENDED scenario: selection reason, next action and summary text.
+
+    With no recommended scenario the plan is NO_RECOMMENDED_SCENARIO. When no step is ready and a re-evaluation
+    window exists, the next action is WAIT_FOR_REEVALUATION (immature epoch vs. billing history still accruing).
+    Otherwise the next action follows the first step. Always requires human review (HITL); the text only describes
+    the plan, it does not change any decision.
+    """
     recommended = next((s for s in scenarios if s.status == rc.ScenarioStatus.RECOMMENDED), None)
     if recommended is None:
         return rc.RecommendedPlan(None, "NO_RECOMMENDED_SCENARIO", "REVIEW_EVIDENCE", True, "No scenario currently satisfies the deterministic selection policy.", reevaluation)

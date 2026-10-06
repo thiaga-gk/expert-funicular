@@ -29,6 +29,7 @@ from tests.regression import canonical  # noqa: E402
 
 
 def write_files(target: Path, files: dict) -> None:
+    """Replace *target* with the given {relative path: text} files (the old directory is removed first)."""
     if target.exists():
         shutil.rmtree(target)
     for rel, text in files.items():
@@ -38,6 +39,7 @@ def write_files(target: Path, files: dict) -> None:
 
 
 def main(argv=None) -> int:
+    """Regenerate the selected baselines; returns 0. Writes only under tests/ (golden expected/, demo and contract digests)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--approved-change", required=True, help="the approved decision-affecting change this baseline update belongs to")
     ap.add_argument("--case", action="append", default=[], help="regenerate only this golden case (repeatable)")

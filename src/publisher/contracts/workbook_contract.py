@@ -1,10 +1,13 @@
 """Workbook Reporter Contract v1.4.0.
 
-A compact, human-facing projection of locked Reporter JSON Contract v1.3.0.
+A compact, human-facing projection of the locked Reporter JSON Contract (v2.0.0, ``rc.CONTRACT_VERSION``).
 The workbook never recomputes optimizer decisions, confidence, IDs, or
 counterfactual economics.  Signed savings from JSON are rendered as explicit
 ``SAVINGS`` / ``COST_INCREASE`` presentation values so a negative number is
 never mislabeled as savings.
+
+This module is the only home of the column order and groups (the renderer consumes them) and of the row projections. Unknown values are
+explicit markers (``UNAVAILABLE`` or the dash), not blank cells.
 
 Grains
 ------
@@ -42,6 +45,7 @@ PERCENT_FORMAT = '0.0%;[Red](0.0%);-'
 
 @dataclass(frozen=True)
 class ColumnSpec:
+    """One workbook column: stable data key, header text, width and optional Excel number format. The order of the column tuples is the order on the sheet."""
     key: str
     header: str
     width: float = 16.0
@@ -51,6 +55,7 @@ class ColumnSpec:
 
 @dataclass(frozen=True)
 class ColumnGroup:
+    """A banner over a contiguous run of columns on one sheet, from start_key to end_key inclusive."""
     title: str
     start_key: str
     end_key: str
@@ -267,6 +272,10 @@ def _contract_keys(columns: Sequence[ColumnSpec]) -> set[str]:
 
 @dataclass(frozen=True)
 class WorkbookProjection:
+    """Row dictionaries for the four sheets, projected from validated packages (no decisions, IDs or economics are computed here).
+
+    Grains: one portfolio row per package, one scenario row per scenario_id, one registry row per candidate_id; executive rows aggregate packages.
+    """
     executive_metrics: List[Dict[str, Any]]
     executive_opportunities: List[Dict[str, Any]]
     warehouse_portfolio: List[Dict[str, Any]]
@@ -274,6 +283,11 @@ class WorkbookProjection:
     recommendation_registry: List[Dict[str, Any]]
 
     def validate(self, packages: Sequence[rc.RecommendationPackage]) -> None:
+        """Check grain and shape against the source packages.
+
+        Asserts one row per package, scenario and candidate with matching ids, each sheet's keys exactly equal to its column contract, and no
+        None or blank-string cell anywhere (unknown values are explicit markers such as UNAVAILABLE). Raises AssertionError.
+        """
         package_ids = {p.recommendation_package_id for p in packages}
         scenario_ids = {s.scenario_id for p in packages for s in p.scenarios}
         candidate_ids = {c.candidate_id for p in packages for c in p.candidates}
@@ -301,6 +315,7 @@ def _enum(v: Any) -> Any:
 
 
 def _json(v: Any) -> str:
+    """Compact, key-sorted JSON text for audit cells (objects with to_dict use it; others go through to_primitive)."""
     if hasattr(v, "to_dict"):
         v = v.to_dict()
     else:
@@ -313,10 +328,12 @@ def _money(v: Optional[float]) -> Optional[float]:
 
 
 def _money_or_unavailable(v: Optional[float]) -> Any:
+    """Round to cents; an unknown (None) amount becomes the UNAVAILABLE marker, never 0."""
     return DISPLAY_UNAVAILABLE if v is None else round(float(v), 2)
 
 
 def _display(v: Any, *, missing: str = DISPLAY_NA) -> Any:
+    """Make a value cell-safe: None or a blank string becomes ``missing``; enums become their value."""
     if v is None:
         return missing
     if isinstance(v, str) and not v.strip():
@@ -333,12 +350,14 @@ def _range_component(component: Optional[rc.Range3], bound: str) -> Optional[flo
 
 
 def _candidate_scalar(v: Any) -> Any:
+    """A single-key mapping is shown as its bare value; anything else is unchanged."""
     if isinstance(v, Mapping) and len(v) == 1:
         return next(iter(v.values()))
     return v
 
 
 def _effect(value: Optional[float], *, epsilon: float = 0.005) -> str:
+    """Impact type of a signed amount: SAVINGS above +epsilon, COST_INCREASE below -epsilon, else NO_CHANGE; None is UNAVAILABLE."""
     if value is None:
         return ECON_UNAVAILABLE
     if value > epsilon:
@@ -373,6 +392,7 @@ def _sanitize_row(row: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def candidate_view_text(package: rc.RecommendationPackage) -> str:
+    """One-line candidate summary per knob in a fixed knob order, as ``Label current->recommended [STATUS]`` joined by ' | '; the dash marker when there are no candidates."""
     labels = {
         rc.TunableKnob.ENABLE_PHOTON: "Photon",
         rc.TunableKnob.WAREHOUSE_SIZE: "Size",
@@ -428,6 +448,10 @@ def _recommended_step(package: rc.RecommendationPackage, candidate_id: str) -> O
 
 
 def execution_plan_text(package: rc.RecommendationPackage) -> str:
+    """Recommended scenario as one text cell: name, then each ordered step with state, pricing tag, own base savings and remeasure days.
+
+    Reads ``No recommended scenario | Next: <action>`` when the package recommends none.
+    """
     sid = package.recommended_plan.scenario_id
     scenario = next((s for s in package.scenarios if s.scenario_id == sid), None)
     if scenario is None:
@@ -448,6 +472,7 @@ def execution_plan_text(package: rc.RecommendationPackage) -> str:
 
 
 def execution_plan_text_for_scenario(s: rc.Scenario) -> str:
+    """Same step text as execution_plan_text, for any scenario (used by the Scenario Plans sheet)."""
     parts = [s.scenario_name]
     for step in sorted(s.execution_plan, key=lambda x: x.step):
         if step.step_type == rc.PlanStepType.CANDIDATE:
@@ -521,6 +546,11 @@ def observed_change_text(package: rc.RecommendationPackage) -> str:
 
 
 def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, Any]:
+    """One Warehouse Portfolio row for a package (one row per recommendation_package_id).
+
+    Impacts are the package envelope (signed: positive = savings, negative = cost increase; UNAVAILABLE when unpriced), impact_pct is base impact over
+    forward total cost, and unknown values are explicit markers, never blank or zero.
+    """
     b, pe = package.cost_baseline, package.package_economics
     recommended = next((s for s in package.scenarios if s.scenario_id == package.recommended_plan.scenario_id), None)
     activity, summary = package.workload_profile.activity, package.assessment.summary
@@ -570,6 +600,10 @@ def project_warehouse_portfolio(package: rc.RecommendationPackage) -> Dict[str, 
     return _sanitize_row(row)
 
 def project_scenario(package: rc.RecommendationPackage, s: rc.Scenario) -> Dict[str, Any]:
+    """One Scenario Plans row for a scenario (one row per scenario_id).
+
+    DBU/AWS/total low/base/high impacts are the scenario's own stateful savings (signed), plus the separate contingent upside; unknown is UNAVAILABLE.
+    """
     e, steps = s.portfolio_economics, sorted(s.execution_plan, key=lambda x: x.step)
     contingent_total = e.contingent_savings_365d.total if e.contingent_savings_365d is not None else None
     invalidations = sorted({_enum(k) for st in steps for k in st.invalidates})
@@ -605,6 +639,11 @@ def project_scenario(package: rc.RecommendationPackage, s: rc.Scenario) -> Dict[
     return _sanitize_row(row)
 
 def project_candidate(package: rc.RecommendationPackage, c: rc.CandidateRecommendation) -> Dict[str, Any]:
+    """One Recommendation Registry row for a candidate (one row per candidate_id).
+
+    Impacts are the candidate's isolated, non-additive savings (signed). The plan_step columns are filled only for candidates in the recommended
+    scenario and are the dash marker otherwise; realization columns come from the package's realization records.
+    """
     e, evidence, thresholds = c.independent_economics, _candidate_evidence(package, c), _candidate_thresholds(package, c)
     realization = _candidate_realization_fields(package, c.candidate_id)
     plan_step = _recommended_step(package, c.candidate_id)
@@ -642,6 +681,13 @@ def project_executive(
     portfolio_rows: Sequence[Mapping[str, Any]],
     excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Executive Summary rows: (metric rows, top-15 opportunity rows).
+
+    Currency-bearing sums are computed only when every package shares one currency (otherwise currency reads MIXED and the sums UNAVAILABLE). Actual and
+    forward totals and the scenario envelope low/high sums are UNAVAILABLE when any package lacks the figure; recommended-plan and experiment sums skip
+    unpriced packages (excluded, not counted as zero). Plan savings and migration-experiment upside are reported separately, and envelope sums are
+    labelled as not a plan total. Opportunities rank SAVINGS, NO_CHANGE, COST_INCREASE, UNAVAILABLE in that order, then by absolute impact.
+    """
     currencies = sorted({p.cost_baseline.currency for p in packages})
     same_currency = len(currencies) == 1
     currency = currencies[0] if same_currency else "MIXED"
@@ -731,6 +777,7 @@ def project_executive(
 def project_workbook(
     packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
 ) -> WorkbookProjection:
+    """Project validated packages (and the unsupported-type exclusions, if run) into all four sheets' rows and validate the projection grain and shape."""
     portfolio = [project_warehouse_portfolio(p) for p in packages]
     scenarios = [project_scenario(p, s) for p in packages for s in p.scenarios]
     registry = [project_candidate(p, c) for p in packages for c in p.candidates]

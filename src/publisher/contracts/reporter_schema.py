@@ -48,10 +48,12 @@ from .reporter_contract import (
 
 
 def enum_values(enum_cls: Any) -> list[str]:
+    """Values of an Enum class in declaration order."""
     return [x.value for x in enum_cls]
 
 
 def obj(properties: Dict[str, Any], required: Iterable[str] | None = None, *, additional: bool = False) -> Dict[str, Any]:
+    """Closed object schema: every property required unless ``required`` is given, additional properties rejected unless ``additional``."""
     return {
         "type": "object",
         "properties": properties,
@@ -61,14 +63,17 @@ def obj(properties: Dict[str, Any], required: Iterable[str] | None = None, *, ad
 
 
 def nullable(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Allow null in addition to ``schema`` (the contract represents unknown as an explicit null)."""
     return {"anyOf": [schema, {"type": "null"}]}
 
 
 def ref(name: str) -> Dict[str, Any]:
+    """JSON Schema reference to a definition under $defs."""
     return {"$ref": f"#/$defs/{name}"}
 
 
 def arr(items: Dict[str, Any], *, unique: bool = False, min_items: int | None = None) -> Dict[str, Any]:
+    """Array schema with optional uniqueItems and minItems."""
     out: Dict[str, Any] = {"type": "array", "items": items}
     if unique:
         out["uniqueItems"] = True
@@ -78,14 +83,17 @@ def arr(items: Dict[str, Any], *, unique: bool = False, min_items: int | None = 
 
 
 def enum_schema(enum_cls: Any) -> Dict[str, Any]:
+    """String schema restricted to an Enum class's values, so the schema cannot drift from the Python enum."""
     return {"type": "string", "enum": enum_values(enum_cls)}
 
 
 def id_schema(prefix: str) -> Dict[str, Any]:
+    """String schema for a content ID: PREFIX- followed by 24 uppercase hex characters."""
     return {"type": "string", "pattern": rf"^{prefix}-[A-F0-9]{{24}}$"}
 
 
 def config_value_schema() -> Dict[str, Any]:
+    """Schema for a configuration value of any knob (string, integer, number, boolean or null)."""
     return {
         "anyOf": [
             {"type": "string"},
@@ -98,6 +106,11 @@ def config_value_schema() -> Dict[str, Any]:
 
 
 def build_schema() -> Dict[str, Any]:
+    """Build the Draft 2020-12 JSON Schema of RecommendationPackage as a dict.
+
+    Enums, ID patterns, CONTRACT_VERSION and re-evaluation codes come from reporter_contract so the two agree. Objects are closed and all keys
+    required; unknown or unavailable values are explicit nulls. Cross-field rules live in the semantic validators, not here.
+    """
     defs: Dict[str, Any] = {}
 
     defs["Confidence"] = obj({
@@ -537,6 +550,7 @@ def build_schema() -> Dict[str, Any]:
 
 
 def write_schema(path: str | Path) -> None:
+    """Write the schema as key-sorted, indented JSON (the committed artifact is checked byte-for-byte against it)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(build_schema(), indent=2, sort_keys=True) + "\n", encoding="utf-8")

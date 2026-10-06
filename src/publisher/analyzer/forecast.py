@@ -70,6 +70,15 @@ class Modeler:
         self.t = thresholds
 
     def forecast_from_daily_cost(self, rows: Sequence[Dict[str, Any]], current_epoch_start: str, analysis_time: str, billing_watermark: Optional[str] = None, ingestion_cutoff: Optional[str] = None) -> Dict[str, Any]:
+        """No-change DBU baseline for the current epoch from daily list-cost rows (all epochs in `rows`; only the current one forecasts).
+
+        The basis is the settled, watermark-covered UTC days from the epoch start (at most 365 days back); today and
+        unsettled days are excluded. The forecast is a recent-weighted whole-week run rate with a bounded trend
+        adjustment, or the cadence model for periodic workloads. Unknown cost is None, never zero: unpriced usage,
+        too few billed days and a non-positive run rate each set `dbu_forecast_status` and leave `forecast_cost_365`
+        None. Raises ValueError on an invalid analysis time or epoch start, or on mixed currencies. Pure and
+        deterministic: no wall clock is read.
+        """
         analysis_dt = parse_datetime(analysis_time)
         current_start = parse_datetime(current_epoch_start)
         if not analysis_dt:
@@ -180,6 +189,7 @@ class Modeler:
             }
 
         def mean(x: Sequence[float]) -> float:
+            """Arithmetic mean; 0.0 for an empty series."""
             return statistics.mean(x) if x else 0.0
 
         recent = self.t.forecast_recent_days

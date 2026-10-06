@@ -32,6 +32,7 @@ class Range3:
     high: float
 
     def rounded(self) -> "Range3":
+        """Copy with each bound rounded to cents."""
         return Range3(round(self.low, 2), round(self.base, 2), round(self.high, 2))
 
 
@@ -83,10 +84,12 @@ class WarehouseCandidates:
 
     @property
     def evidence(self) -> WarehouseEvidence:
+        """Normalized evidence of the warehouse (from its analysis)."""
         return self.analysis.evidence
 
     @property
     def analyses(self) -> Dict[str, AnalysisResult]:
+        """Per-knob analysis results of the warehouse (from its analysis)."""
         return self.analysis.analyses
 
 

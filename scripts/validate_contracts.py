@@ -1,4 +1,11 @@
-"""Validate the canonical reporter contract example against both JSON Schema and dataclass semantics."""
+"""Validate the canonical reporter contract example against both JSON Schema and dataclass semantics.
+
+Usage: python scripts/validate_contracts.py
+
+Checks that ``examples/recommendation-package.example.json`` passes the generated Draft 2020-12 schema, and that it is
+equal, as a dict, to what ``examples/build_contract_example.py`` builds, whose package also passes semantic
+``validate()``. Exit 1 on any difference (regenerate with ``python examples/build_contract_example.py``), else 0.
+"""
 from __future__ import annotations
 
 import json
@@ -17,6 +24,7 @@ from examples.build_contract_example import build_package  # noqa: E402
 
 
 def main() -> int:
+    """Run the checks; prints the first failure's details or an OK line with the contract and package ID."""
     example = json.loads((ROOT / "examples/recommendation-package.example.json").read_text())
     errors = sorted(
         Draft202012Validator(build_schema(), format_checker=FormatChecker()).iter_errors(example),

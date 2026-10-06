@@ -22,15 +22,18 @@ class WarehouseOptimization:
 
     @property
     def recommended_scenario(self) -> Optional[Scenario]:
+        """The scenario whose id equals recommended_scenario_id, or None."""
         return next((s for s in self.scenarios if s.scenario_id == self.recommended_scenario_id), None)
 
     @property
     def recommended_execution_plan(self) -> List[PlanStep]:
+        """Steps of the recommended scenario, or an empty list when none is recommended."""
         scenario = self.recommended_scenario
         return [] if scenario is None else scenario.steps
 
     @property
     def query_source_profile(self) -> Dict[str, Any]:
+        """Query-source profile as plain data: the attributed profile when present, else derived from the current epoch's carried query view."""
         from publisher.analyzer.epochs import carried_query_view
         from publisher.analyzer.normalizer import derive_query_source_profile
         from publisher.common.utils import as_serializable
@@ -41,10 +44,12 @@ class WarehouseOptimization:
 
     @property
     def aws_365d_baseline_cost(self) -> Optional[float]:
+        """Forward AWS baseline from the evidence; None when unknown."""
         return self.evidence.aws_baseline_cost_365
 
     @property
     def total_365d_baseline_cost(self) -> Optional[float]:
+        """DBU plus AWS forward baseline from the evidence; None unless both are known."""
         return self.evidence.total_365d_baseline_cost
 
 

@@ -16,6 +16,7 @@ class WarehouseConfig:
     auto_stop_minutes: int
 
     def as_dict(self) -> Dict[str, Any]:
+        """Plain dict of the six configuration fields."""
         return asdict(self)
 
 
@@ -106,16 +107,19 @@ class WarehouseEvidence:
 
     @property
     def dbu_365d_baseline_cost(self) -> Optional[float]:
+        """Forward no-change DBU cost for 365 days; None when unknown."""
         return self.baseline_forecast_cost_365
 
     @property
     def total_365d_baseline_cost(self) -> Optional[float]:
+        """DBU plus AWS forward baseline rounded to cents; None unless both are known (unknown is never zero)."""
         if self.aws_baseline_cost_365 is None or self.baseline_forecast_cost_365 is None:
             return None
         return round(self.baseline_forecast_cost_365 + self.aws_baseline_cost_365, 2)
 
     @property
     def current_epoch(self) -> EpochEvidence:
+        """The epoch matching current_epoch_id; raises ValueError when it is missing."""
         for e in self.epochs:
             if e.epoch_id == self.current_epoch_id:
                 return e

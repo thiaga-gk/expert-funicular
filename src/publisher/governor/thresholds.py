@@ -9,7 +9,11 @@ from publisher.config.defaults import GIB
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Central deterministic policy, evidence, confidence, and estimator thresholds."""
+    """Central deterministic policy, evidence, confidence, and estimator thresholds (frozen; the Governor owns them).
+
+    Every field has a row in docs/reference/thresholds.md. A change here is decision-affecting: bump the affected
+    component versions and regenerate goldens. Units are in the field name or its comment (pct, ms, minutes, days).
+    """
     # Evidence sufficiency / epoch stability
     min_query_sample_size: int = 100
     strong_query_sample_size: int = 500

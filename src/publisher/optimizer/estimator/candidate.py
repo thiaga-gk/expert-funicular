@@ -8,6 +8,7 @@ from publisher.analyzer.blockers import DBU_BASELINE_WITHHELD
 from publisher.analyzer.epochs import epoch_age_days
 from publisher.analyzer.metrics import cost_stability
 from publisher.common.ids import recommendation_id
+from publisher.common.logging import LOGGER
 from publisher.common.utils import as_serializable, clamp, round_or_none, safe_float, safe_int
 from publisher.governor.thresholds import Thresholds
 from publisher.config.versions import ANALYZER_VERSION, OPTIMIZER_VERSION, POLICY_VERSION
@@ -19,7 +20,13 @@ from publisher.optimizer.estimator.savings import SavingsModel
 
 
 class Estimator(CostModel, SavingsModel):
-    """Price independent candidate counterfactuals and attach deterministic confidence."""
+    """Price independent candidate counterfactuals and attach deterministic confidence.
+
+    Each candidate is priced as if it were the only change: candidate economics are non-additive
+    (``candidate_savings_must_not_be_summed``); stateful combinations are priced later by the bundle estimator in the
+    packager. DBU and AWS stay separate, and an unknown component is None, never zero (the one exception is
+    Serverless, whose cloud infrastructure is part of the DBU line, so its AWS component is a true zero).
+    """
     def __init__(self, thresholds: Thresholds):
         self.t=thresholds
 
@@ -29,6 +36,7 @@ class Estimator(CostModel, SavingsModel):
                       "warehouse_type":("queries_30","strong_query_sample_size")}
 
     def _confidence(self,e:WarehouseEvidence,a:AnalysisResult,signal:float=1.0,cap:float=1.0)->Dict[str,Any]:
+        """Deterministic 0..1 score (base + weighted coverage, decision sample, cost stability, epoch maturity, signal), capped by status; unknown inputs earn no credit."""
         fact,strong=self._DECISION_SAMPLE[a.knob]
         coverage=clamp(e.cost_history_days/self.t.confidence_coverage_days,0,1); sample=clamp(safe_float(a.facts.get(fact))/getattr(self.t,strong),0,1)
         stability=cost_stability(e.cost_cv_84); epoch=clamp(epoch_age_days(e.current_epoch, e.analysis_time)/self.t.confidence_epoch_maturity_days,0,1)
@@ -44,6 +52,7 @@ class Estimator(CostModel, SavingsModel):
                 "components":{"coverage":round(coverage,3),"sample":round(sample,3),"stability":None if stability is None else round(stability,3),"epoch_maturity":round(epoch,3),"signal":round(signal,3)}}
 
     def candidates(self,e:WarehouseEvidence,analyses:Dict[str,AnalysisResult],decisions:Sequence[OptimizationDecision])->List[CandidateRecommendation]:
+        """One priced candidate per decision, in decision order; a change whose own modeled savings fail the value gate is replaced by a held NO_CHANGE/INSUFFICIENT_EVIDENCE candidate that keeps the modeled economics visible."""
         out=[]; ep=e.current_epoch
         dbu_baseline=round_or_none(e.baseline_forecast_cost_365,2); aws_baseline=None if e.aws_baseline_cost_365 is None else round(e.aws_baseline_cost_365,2)
         total_baseline=None if aws_baseline is None or dbu_baseline is None else round(dbu_baseline+aws_baseline,2)
@@ -58,9 +67,18 @@ class Estimator(CostModel, SavingsModel):
                     invalidates=[],reanalysis_required=[],rationale=gate["rationale"])
                 out[-1]=self._candidate(e,ep,a,held,dbu_baseline,aws_baseline,total_baseline)
                 out[-1].metadata["value_gate"]=gate
+                LOGGER.debug("estimator.value_gate.hold workspace_id=%s warehouse_id=%s knob=%s reason=%s",
+                             e.workspace_id, e.warehouse_id, d.knob, gate["reason_code"])
         return out
 
     def _value_gate(self,d:OptimizationDecision,c:"CandidateRecommendation")->Optional[Dict[str,Any]]:
+        """Hold reason for a change that does not pay for itself, or None to ship it.
+
+        Migration: held when even the best-case total savings are not positive (total only; DBU alone is not
+        comparable across types). COST-objective changes: held when their own savings are <= 0 or below the
+        materiality floor; an unpriced ACTIONABLE change (no canary to validate it) waits for its price. Unpriced
+        canaries are never gated: there is nothing to compare.
+        """
         if d.knob=="warehouse_type" and d.status in {"ACTIONABLE","TEST_REQUIRED"} and d.current_config!=d.recommended_config:
             # A migration whose best case still costs more is not worth a canary (it may still be wanted for other
             # reasons, which is a human decision outside this cost model).
@@ -95,6 +113,7 @@ class Estimator(CostModel, SavingsModel):
                 "rationale":f"Held: the {d.knob} change was proposed to save money but {why}."}
 
     def _candidate(self,e:WarehouseEvidence,ep:EpochEvidence,a:AnalysisResult,d:OptimizationDecision,dbu_baseline:Optional[float],aws_baseline:Optional[float],total_baseline:Optional[float])->"CandidateRecommendation":
+        """Assemble one isolated candidate: cost/savings ranges per component (DBU, AWS, total; None when unpriceable), status-capped confidence and the internal recommendation id."""
         factors,meta=self._factors(e,d,a)
         dbu_costs=dbu_savings=None; aws_costs=aws_savings=None; total_costs=total_savings=None
         est=save=None

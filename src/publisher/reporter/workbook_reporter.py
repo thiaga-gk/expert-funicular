@@ -1,7 +1,7 @@
 """Excel workbook reporter for Workbook Contract v1.4.0.
 
-The workbook is a presentation-only projection of locked Reporter JSON Contract
-v1.3.0.  Exact detailed-sheet columns and section groups are owned by
+The workbook is a presentation-only projection of the locked Reporter JSON Contract
+packages (``rc.CONTRACT_VERSION``).  It holds no optimization, estimation, confidence, ID or hash logic.  Exact detailed-sheet columns and section groups are owned by
 ``contracts.workbook_contract``; this renderer cannot silently drop fields.
 
 Rendered with ``openpyxl`` (pip-installable); no proprietary runtime is required.
@@ -18,6 +18,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+from publisher.common.logging import LOGGER
 from publisher.contracts import reporter_contract as rc
 from publisher.contracts import workbook_contract as wc
 
@@ -46,10 +47,12 @@ TRUNCATION_MARKER = " …[truncated; full content in the package JSON]"
 
 
 def _col_letter(n: int) -> str:
+    """Excel column letter for a 1-based column index."""
     return get_column_letter(n)
 
 
 def _rgb(color: str) -> str:
+    """openpyxl wants hex colors without the leading "#"."""
     return color.lstrip("#")
 
 
@@ -62,6 +65,7 @@ def _font(color: str = TEXT, size: int = 9, bold: bool = False, italic: bool = F
 
 
 def _cells(sheet: Any, ref: str) -> Iterator[Any]:
+    """Every cell in an A1 reference, whether it names one cell, a row, a column or a block."""
     block = sheet[ref]
     if not isinstance(block, tuple):
         yield block
@@ -77,6 +81,7 @@ def _style(
     sheet: Any, ref: str, *, fill: Optional[str] = None, font: Optional[Font] = None, number_format: Optional[str] = None,
     horizontal: Optional[str] = None, vertical: Optional[str] = None, wrap: Optional[bool] = None,
 ) -> None:
+    """Apply only the style attributes that are given to every cell in *ref*; alignment parts not given are kept."""
     for cell in _cells(sheet, ref):
         if fill:
             cell.fill = _fill(fill)
@@ -92,11 +97,13 @@ def _style(
 
 
 def _row_height(sheet: Any, first_row: int, last_row: int, height: float) -> None:
+    """Set the height of rows first_row..last_row inclusive."""
     for r in range(first_row, last_row + 1):
         sheet.row_dimensions[r].height = height
 
 
 def _normalize(v: Any) -> Any:
+    """A projected contract value as a cell value: None becomes the contract's display placeholder (DISPLAY_NA), an enum its value."""
     if v is None:
         return wc.DISPLAY_NA
     if hasattr(v, "value"):
@@ -125,12 +132,14 @@ def _put(sheet: Any, row: int, col: int, value: Any) -> Any:
 
 
 def _add_table(sheet: Any, ref: str, name: str, style: str) -> None:
+    """Register *ref* as a named Excel table (filter buttons, row stripes); display names must be unique per workbook."""
     table = Table(displayName=name, ref=ref)
     table.tableStyleInfo = TableStyleInfo(name=style, showRowStripes=True, showColumnStripes=False)
     sheet.add_table(table)
 
 
 def _sheet_title(sheet: Any, title: str, subtitle: str, end_col: int) -> None:
+    """Rows 1-2 of a sheet: merged title and subtitle banners spanning at least eight columns."""
     end = _col_letter(max(end_col, 8))
     sheet.merge_cells(f"A1:{end}1")
     sheet["A1"] = title
@@ -143,6 +152,7 @@ def _sheet_title(sheet: Any, title: str, subtitle: str, end_col: int) -> None:
 
 
 def _write_group_row(sheet: Any, columns: Sequence[wc.ColumnSpec], groups: Sequence[wc.ColumnGroup], row: int = 3) -> None:
+    """Merged section-group header above the column headers; each group spans its start_key..end_key contract columns."""
     by_key = {c.key: idx + 1 for idx, c in enumerate(columns)}
     for i, group in enumerate(groups):
         start, end = by_key[group.start_key], by_key[group.end_key]
@@ -169,6 +179,12 @@ def _write_contract_table(
     json_keys: Sequence[str] = (),
     row_height: float = 24,
 ) -> None:
+    """Render one detailed sheet from the contract: group row (3), headers (4), then one row per projected record.
+
+    Column order, headers, widths and number formats all come from *columns* (workbook_contract); this function only
+    styles them. Identifier columns (format "@") are written as text. *wrap_keys* wrap text, *json_keys* use the small
+    muted audit font, and the first *freeze_columns* columns are frozen with the header rows.
+    """
     _write_group_row(sheet, columns, groups, 3)
     end_row = 4 + len(rows)
     end_col = len(columns)
@@ -226,10 +242,12 @@ def _write_contract_table(
 
 
 def _add_fill_rule(sheet: Any, ref: str, formula: str, color: str) -> None:
+    """Add a conditional-format rule; the formula lives in the format rule, never in a data cell."""
     sheet.conditional_formatting.add(ref, FormulaRule(formula=[formula], fill=_fill(color)))
 
 
 def _apply_status_formatting(sheet: Any, key_to_col: Mapping[str, int], start_row: int, end_row: int) -> None:
+    """Color status, confidence, impact-type and boolean-flag columns by value (presentation only; cell values unchanged)."""
     if end_row < start_row:
         return
     for key in (
@@ -260,6 +278,7 @@ def _apply_status_formatting(sheet: Any, key_to_col: Mapping[str, int], start_ro
 
 
 def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
+    """Executive Summary sheet: portfolio metrics (A:E), top warehouse impacts (G:T) and the impact chart."""
     sheet = wb.create_sheet(wc.SHEET_EXECUTIVE)
     _sheet_title(
         sheet,
@@ -343,6 +362,7 @@ def _build_executive(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def _build_portfolio(wb: Any, projection: wc.WorkbookProjection) -> None:
+    """Warehouse Portfolio sheet: one row per recommendation package."""
     sheet = wb.create_sheet(wc.SHEET_PORTFOLIO)
     _sheet_title(sheet, "Warehouse Portfolio", "One row per recommendation package. All agreed contract columns are retained; verbose audit fields are placed at the far right.", len(wc.PORTFOLIO_COLUMNS))
     _write_contract_table(
@@ -354,6 +374,7 @@ def _build_portfolio(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def _build_scenarios(wb: Any, projection: wc.WorkbookProjection) -> None:
+    """Scenario Plans sheet: one row per scenario."""
     sheet = wb.create_sheet(wc.SHEET_SCENARIOS)
     _sheet_title(sheet, "Scenario Plans", "One row per scenario. Economics are numeric and sortable; signed annual impact is positive for savings and negative for cost increase.", len(wc.SCENARIO_COLUMNS))
     _write_contract_table(
@@ -365,6 +386,7 @@ def _build_scenarios(wb: Any, projection: wc.WorkbookProjection) -> None:
 
 
 def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
+    """Recommendation Registry sheet: one row per candidate."""
     sheet = wb.create_sheet(wc.SHEET_REGISTRY)
     _sheet_title(sheet, "Recommendation Registry", f"One row per candidate. Decision, economics, realization and audit evidence align to Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION}.", len(wc.REGISTRY_COLUMNS))
     _write_contract_table(
@@ -378,10 +400,17 @@ def _build_registry(wb: Any, projection: wc.WorkbookProjection) -> None:
 def write_workbook(
     path: str | Path, packages: Sequence[rc.RecommendationPackage], excluded_warehouses: Optional[Sequence[Mapping[str, Any]]] = None
 ) -> Path:
-    """Generate the locked four-sheet workbook projection and save it to *path*."""
+    """Generate the locked four-sheet workbook projection and save it to *path*; returns the path written.
+
+    Each package is semantically re-validated first (a failure raises before anything is written), the projection is
+    computed by ``workbook_contract.project_workbook`` and this renderer only lays it out: no decisions or economics
+    are derived here. Creates parent directories and overwrites an existing file.
+    """
     for package in packages:
         package.validate()
     projection = wc.project_workbook(packages, excluded_warehouses)
+    LOGGER.debug("workbook.v1.rows portfolio=%d scenarios=%d candidates=%d excluded=%d", len(projection.warehouse_portfolio),
+                 len(projection.scenario_plans), len(projection.recommendation_registry), len(excluded_warehouses or ()))
     wb = Workbook()
     wb.remove(wb.active)  # drop the default empty sheet: the contract has exactly four visible sheets
     _build_executive(wb, projection)
@@ -391,4 +420,5 @@ def write_workbook(
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(target))
+    LOGGER.debug("workbook.v1.saved path=%s sheets=%d", target, len(wb.worksheets))
     return target

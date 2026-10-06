@@ -6,6 +6,7 @@ import statistics
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from publisher.analyzer.metrics import resource_window
+from publisher.common.logging import LOGGER
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float
 from publisher.governor.thresholds import Thresholds
@@ -41,7 +42,12 @@ def _billed_dbu_per_cluster_hour(x: WarehouseEvidence, ep: EpochEvidence, t: Thr
 
 
 def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresholds: Optional[Thresholds] = None) -> None:
-    """Attach workspace-level capability/calibration observations derived only from collected system-table evidence."""
+    """Attach workspace-level capability/calibration observations derived only from collected system-table evidence.
+
+    Mutates each evidence's `billing_features` in place with: whether the workspace has ever run a Serverless or a
+    Pro/Classic warehouse (any epoch), and the median billed Pro/Classic DBU per cluster-hour by size across all of
+    the workspace's epochs. Older epochs are calibration evidence only here; they never choose a change.
+    """
     t = thresholds or Thresholds()
     serverless_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type == "SERVERLESS" for ep in x.epochs)}
     pro_classic_workspaces = {x.workspace_id for x in evidence if any(ep.config.warehouse_type in {"PRO", "CLASSIC"} for ep in x.epochs)}
@@ -60,3 +66,5 @@ def _prepare_workspace_calibration(evidence: Sequence[WarehouseEvidence], thresh
         x.billing_features["workspace_serverless_observed_from_system_compute_warehouses"] = x.workspace_id in serverless_workspaces
         x.billing_features["workspace_pro_classic_observed_from_system_compute_warehouses"] = x.workspace_id in pro_classic_workspaces
         x.billing_features["workspace_pro_dbu_per_cluster_hour_by_size"] = rate_registry.get(x.workspace_id, {})
+    LOGGER.debug("analyzer.calibration_done workspaces_serverless=%d workspaces_pro_classic=%d workspaces_with_rates=%d",
+                 len(serverless_workspaces), len(pro_classic_workspaces), len(rate_registry))

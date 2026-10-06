@@ -1558,18 +1558,21 @@ The manifest records `publisher_version`, `reporter_contract_version`, `workbook
 
 ## 29. Logging and sensitive-data handling
 
-### 29.1 Log destination
+### 29.1 Log destination and format
 
-`publisher.log` is always created under the chosen output directory.
+`publisher.log` is always created under the chosen output directory; the same lines go to stderr. Every line is `<UTC timestamp>Z <LEVEL> <component>.<event> key=value ...`, written through the single `publisher` logger (`publisher.common.logging.LOGGER`) with lazy `%` arguments. Log files and stdout are never canonical: timestamps and output paths vary run to run, and no decision, ID or economics value depends on logging.
+
+Levels: `INFO` run milestones and aggregate counts, at most once per phase or warehouse; `DEBUG` per-item detail (optimizer decisions, gate passes, package hashes); `WARNING` a degraded or fallback path, a fail-closed exclusion, or a reviewer gate rejection (`reviewer.gate.reject` with `gate=` and a violation label, then the error is raised unchanged); `ERROR` marks how a run ended abnormally: `publisher.refused` (a `PublisherError`, with its user-facing message, exit 2) or `publisher.crashed` (an unexpected exception, by type only because its message may carry data values; the traceback goes to stderr, not the log). Every fallback or skipped input carries a machine-readable `reason=`.
 
 ### 29.2 Logged categories
 
-- publisher/version start,
+- publisher/version start and the resolved run settings (mode, profile name, region, flags),
 - auth/execution target metadata,
 - compatibility mode/status,
-- collector query labels and aggregate counts,
+- collector phase start/done, query labels and aggregate counts,
 - pipeline batches/warehouse identities,
-- package validation and IDs,
+- reviewer gate outcomes, package validation and IDs,
+- files written (path and counts),
 - final package/candidate/scenario counts.
 
 ### 29.3 Must not be logged/published
@@ -1578,6 +1581,7 @@ The manifest records `publisher_version`, `reporter_contract_version`, `workbook
 - secrets,
 - raw data-access configuration values,
 - raw SQL statement text,
+- owner emails, tags, warehouse and cluster names,
 - unbounded query/event rows.
 
 Statement text is used only through collector aggregates such as visibility percentage or legacy metastore-reference counts.

@@ -1,4 +1,9 @@
-"""Read-only Databricks REST: OAuth from a CLI profile, execution-target validation and workspace compatibility evidence."""
+"""Read-only Databricks REST: OAuth from a CLI profile, execution-target validation and workspace compatibility evidence.
+
+Only GET requests are issued; there is no mutation or apply API. Authentication is an OAuth U2M token minted by the
+Databricks CLI for a profile; a profile holding a static PAT is rejected. Tokens, Authorization headers and
+data-access config values are never logged or reported; logs carry the REST path, status and exception class only.
+"""
 from __future__ import annotations
 
 import configparser
@@ -20,7 +25,11 @@ from publisher.config.versions import PUBLISHER_VERSION
 
 @dataclass(frozen=True)
 class AuthContext:
-    """Resolved local OAuth authentication context; token is never reported or logged."""
+    """Resolved local OAuth authentication context; token is never reported or logged.
+
+    ``http_path`` is the SQL connector path for ``execution_kind`` ("warehouse" or "cluster") and ``execution_id``.
+    ``workspace_id`` is None when it could not be resolved (a warehouse target does not need it to connect).
+    """
     profile: str
     host: str
     http_path: str
@@ -32,6 +41,11 @@ class AuthContext:
 
 
 def _load_profile_values(profile: str, config_file: Optional[str] = None) -> Dict[str, str]:
+    """Raw key/values of a Databricks CLI profile (config_file, DATABRICKS_CONFIG_FILE or ~/.databrickscfg).
+
+    May contain secrets, so callers read only the keys they need and nothing here is logged. Raises PublisherError
+    when the file or profile is missing ("DEFAULT" reads the file's defaults section).
+    """
     path = Path(config_file or os.getenv("DATABRICKS_CONFIG_FILE") or Path.home() / ".databrickscfg")
     if not path.exists():
         raise PublisherError(f"Databricks CLI config not found: {path}")
@@ -47,6 +61,7 @@ def _load_profile_values(profile: str, config_file: Optional[str] = None) -> Dic
 
 
 def _load_profile_host(profile: str, config_file: Optional[str] = None) -> str:
+    """Workspace host of the profile without scheme or trailing slash; PublisherError when the profile has none."""
     section = _load_profile_values(profile, config_file)
     host = str(section.get("host") or "").strip()
     if not host:
@@ -55,6 +70,11 @@ def _load_profile_host(profile: str, config_file: Optional[str] = None) -> str:
 
 
 def _resolve_cli_token(profile: str, config_file: Optional[str] = None) -> Tuple[str, str, Optional[str]]:
+    """Mint an OAuth access token through ``databricks auth token`` and return ``(host, token, expiry)``.
+
+    Fails closed (PublisherError) when the profile carries a static PAT, the CLI is missing or fails, or it returns no
+    token. DATABRICKS_TOKEN is removed from the child environment so an ambient PAT can never be used.
+    """
     values = _load_profile_values(profile, config_file)
     if values.get("token"):
         raise PublisherError(f"Profile {profile} contains a PAT token. Use an OAuth U2M Databricks CLI profile.")
@@ -80,6 +100,11 @@ def _resolve_cli_token(profile: str, config_file: Optional[str] = None) -> Tuple
 
 
 def _api_get(host: str, token: str, path: str, params: Optional[Mapping[str, Any]] = None, *, return_headers: bool = False) -> Any:
+    """GET ``path`` with the bearer token and return the parsed JSON (plus response headers when asked).
+
+    Network, HTTP and JSON errors are logged by class and re-raised unchanged; the caller decides whether to fall back.
+    Only the path is logged: query parameters and the Authorization header are not.
+    """
     url = f"https://{host.rstrip('/')}{path}"
     if params:
         url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
@@ -98,22 +123,29 @@ def _api_get(host: str, token: str, path: str, params: Optional[Mapping[str, Any
 
 
 def _current_workspace_id(host: str, token: str) -> Optional[str]:
+    """Workspace ID from the ``x-databricks-org-id`` header of a SCIM ``Me`` call, or None when it cannot be read.
+
+    Best effort by design: any failure yields None (logged as a warning) and the caller decides what that means.
+    """
     try:
         _payload, headers = _api_get(host, token, "/api/2.0/preview/scim/v2/Me", return_headers=True)
         for key, value in headers.items():
             if key.lower() == "x-databricks-org-id" and str(value).strip():
                 return str(value).strip()
-    except Exception:
+    except Exception as exc:
+        LOGGER.warning("auth.workspace_id_unavailable reason=WORKSPACE_ID_LOOKUP_FAILED error=%s", type(exc).__name__)
         return None
+    LOGGER.warning("auth.workspace_id_unavailable reason=ORG_ID_HEADER_MISSING")
     return None
 
 
 def _validate_all_purpose_cluster(host: str, token: str, cluster_id: str) -> Dict[str, Any]:
+    """Read the cluster and reject a jobs-compute cluster, which the SQL connector cannot use; returns its summary."""
     payload = _api_get(host, token, "/api/2.1/clusters/get", {"cluster_id": cluster_id})
     source = str(payload.get("cluster_source") or "").upper()
     if source == "JOB":
         raise PublisherError("The Databricks SQL Connector does not support jobs compute. Supply an all-purpose cluster ID.")
-    LOGGER.info("execution.cluster validated cluster_id=%s name=%s source=%s state=%s", cluster_id, payload.get("cluster_name"), source or "UNKNOWN", payload.get("state"))
+    LOGGER.info("execution.cluster validated cluster_id=%s source=%s state=%s", cluster_id, source or "UNKNOWN", payload.get("state"))
     return {"cluster_id": cluster_id, "cluster_name": payload.get("cluster_name"), "cluster_source": source, "state": payload.get("state")}
 
 
@@ -122,7 +154,10 @@ def resolve_cli_oauth(profile: str, execution_kind: str, execution_id: Optional[
 
     Read-only REST is used only when necessary to resolve/validate an all-purpose
     cluster execution target. It is never a source of recommendation configs.
-    Backward compatibility: resolve_cli_oauth(profile, warehouse_id, config_file).
+    Backward compatibility: resolve_cli_oauth(profile, warehouse_id, config_file) is still accepted (a first argument
+    that is not "warehouse"/"cluster" is read as the warehouse ID and the second as the config file).
+    For a cluster the workspace ID comes from the argument, DATABRICKS_WORKSPACE_ID, then a read-only REST lookup;
+    PublisherError when it cannot be resolved. A warehouse target needs no REST call.
     """
     if execution_kind.lower().strip() not in {"warehouse","cluster"}:
         legacy_warehouse_id=execution_kind
@@ -149,6 +184,10 @@ def resolve_cli_oauth(profile: str, execution_kind: str, execution_id: Optional[
 
 
 def _external_hive_config_keys(data_access_config: Any) -> List[str]:
+    """Sorted, de-duplicated config key names that indicate an external legacy Hive metastore.
+
+    Only key names are inspected and returned; the values (which may hold credentials) are never read.
+    """
     risky_tokens=("hive.metastore.uris","javax.jdo.option.connectionurl","datanucleus.connectionurl")
     keys=[]
     for item in data_access_config or []:
@@ -161,6 +200,10 @@ def _external_hive_config_keys(data_access_config: Any) -> List[str]:
 
 def collect_workspace_compatibility_evidence(auth: AuthContext, mode: str = "auto") -> Dict[str, Any]:
     """Use read-only workspace SQL config when available; otherwise fall back to HITL.
+
+    ``mode`` "off" skips the REST call (status API_DISABLED); any other value tries it. Every failure degrades to a
+    HITL fallback record (WORKSPACE_ID_UNAVAILABLE or READ_ONLY_API_UNAVAILABLE) and never raises, so the governor
+    treats migration compatibility as unproven rather than assumed.
 
     Data-access values are never retained or logged. Only config key names needed
     to detect an external legacy Hive metastore are kept.

@@ -28,6 +28,11 @@ def _add_evidence(
     interpretation: str,
     epoch_scope: str = "CURRENT",
 ) -> str:
+    """Register one evidence record under its content-derived ``EVID-`` ID and return the ID.
+
+    The ID hashes the metric, value, unit, source, window, threshold and comparator, so identical evidence
+    de-duplicates; the same ID with a different record is a collision and raises.
+    """
     evidence_id = rc.make_evidence_id(
         workspace_id=e.workspace_id,
         warehouse_id=e.warehouse_id,
@@ -66,7 +71,13 @@ def _build_evidence_registry(
     scenarios: Sequence[Scenario],
     contract_epoch_id: str,
 ) -> Tuple[Dict[str, rc.EvidenceRecord], Dict[str, str], Dict[Tuple[str, str], str], List[str]]:
-    """Build one deduplicated evidence registry and return old-finding/check mappings plus shared cost refs."""
+    """Build one deduplicated evidence registry and return old-finding/check mappings plus shared cost refs.
+
+    Returns (registry, internal finding ID -> EVID, (scenario name, check) -> EVID, shared cost EVIDs). Shared cost
+    refs are attached to every candidate (economics are decision-relevant and part of the evidence fingerprint);
+    the billing-correction and Preview-channel records are package evidence only: no candidate references them, so
+    no decision or ID depends on them. Registry insertion order is deterministic (findings, costs, checks).
+    """
     registry: Dict[str, rc.EvidenceRecord] = {}
     finding_map: Dict[str, str] = {}
     compatibility_map: Dict[Tuple[str, str], str] = {}

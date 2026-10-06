@@ -9,7 +9,11 @@ from publisher.contracts import reporter_contract as rc
 
 
 def validate_locked_package_schema(payload: Mapping[str, Any]) -> None:
-    """Validate the serialized package against the locked Draft 2020-12 schema."""
+    """Validate the serialized package against the locked Draft 2020-12 schema.
+
+    Raises RuntimeError when ``jsonschema`` is missing (a gate that cannot run must not pass) and the library's
+    ValidationError on a violation.
+    """
     try:
         import jsonschema  # type: ignore
     except ImportError as exc:

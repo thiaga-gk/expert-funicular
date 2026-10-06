@@ -1,7 +1,7 @@
 [
   {
     "account_id": "acct-demo",
-    "analysis_time": "<wall-clock>",
+    "analysis_time": "2026-10-01T12:00:00+00:00",
     "attribution": {
       "observed_owners": [],
       "owner": null,
@@ -48,7 +48,7 @@
       "workspace_id": "1234567890123456"
     },
     "cost_cv_84": null,
-    "cost_history_days": 125,
+    "cost_history_days": 121,
     "currency": "USD",
     "current_cost_365": 0,
     "current_epoch_id": "EPOCH-C29B5CF9E22DCE00",
@@ -103,7 +103,7 @@
         },
         "cost": {
           "active_cost_days": 0,
-          "cost_days": 126,
+          "cost_days": 122,
           "currency": "USD",
           "dbu_quantity": 0,
           "list_cost": 0,
@@ -114,7 +114,7 @@
         "epoch_start": "2026-06-01T00:00:00+00:00",
         "events": {
           "resource_coverage_from": null,
-          "resource_daily_from": "2026-06-07"
+          "resource_daily_from": "2026-06-03"
         },
         "gaps": {},
         "is_current": true,
@@ -137,7 +137,7 @@
     ],
     "forecast_metadata": {
       "active_cost_days": 0,
-      "billing_complete_through": "2026-10-03",
+      "billing_complete_through": "2026-09-29",
       "billing_completeness": "UNVERIFIED_ASSUMED_COMPLETE_THROUGH_PRIOR_DAY",
       "billing_correction_dbu_share_365": null,
       "billing_cycles": 0,
@@ -153,11 +153,11 @@
       "cadence_window_end": null,
       "cadence_window_start": null,
       "cost_cv_84": null,
-      "cost_history_days": 125,
+      "cost_history_days": 121,
       "dbu_forecast_status": "INSUFFICIENT_ACTIVE_COST_DAYS",
       "dbu_pricing_status": "COMPLETE",
       "excluded_incomplete_days": 1,
-      "forecast_basis_end": "2026-10-03",
+      "forecast_basis_end": "2026-09-29",
       "forecast_basis_start": "2026-06-01",
       "forecast_method": "epoch-runrate-v2.10.0",
       "forecast_model": "RUN_RATE",
@@ -170,7 +170,7 @@
       "trend_ratio": 1.0,
       "unpriced_dbu_quantity_365": 0,
       "unpriced_dbu_quantity_in_basis": 0,
-      "zero_cost_days_in_basis": 125
+      "zero_cost_days_in_basis": 121
     },
     "photon_observation": {
       "confidence": {

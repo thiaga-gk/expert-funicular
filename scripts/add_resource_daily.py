@@ -4,7 +4,7 @@ Usage: python scripts/add_resource_daily.py tests/golden/cases/*   (case folders
 
 Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
-Each current epoch without `resource_daily` gets publisher.synthesize_resource_daily (its event totals spread evenly over
+Each current epoch without `resource_daily` gets publisher.analyzer.collector.demo.synthesize_resource_daily (its event totals spread evenly over
 its observed days), so recent-window capacity facts and AWS run rates equal the old whole-epoch values. Real evidence
 is never backfilled: missing series must fail closed.
 """
@@ -21,6 +21,7 @@ from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 
 
 def backfill(evidence):
+    """Add the synthetic series to each current epoch lacking one, in place; returns how many epochs changed."""
     changed = 0
     for x in evidence:
         e = evidence_from_dict(x)
@@ -32,6 +33,7 @@ def backfill(evidence):
 
 
 def main(cases):
+    """Rewrite each named case's evidence fixture when anything was backfilled; prints one line per file changed."""
     for case in cases:
         path = evidence_source_path(case)
         if not path.is_file():

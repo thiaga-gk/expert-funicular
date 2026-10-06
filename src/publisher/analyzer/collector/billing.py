@@ -12,6 +12,10 @@ from publisher.common.utils import optional_float, round_or_none, safe_float
 
 
 def _is_unpriced_only_row(row: Mapping[str, Any]) -> bool:
+    """True for a daily cost row that is usage with no list price (no currency, null cost, unpriced DBU > 0).
+
+    Such rows are kept as unpriced DBU, never costed at zero, and must not contribute a currency.
+    """
     return row.get("currency_code") is None and row.get("list_cost") is None and safe_float(row.get("unpriced_dbu_quantity")) > 0
 
 
@@ -73,13 +77,16 @@ def effective_billing_watermark(workspace_watermark: Any, account_watermark: Opt
 
 def collect_unseen_billed_warehouses(client: SqlClient, *, ingestion_cutoff: Optional[str] = None) -> List[Dict[str, Any]]:
     """SQL warehouses billed in the last 30 days that have no configuration snapshot: logged as a warning and listed
-    in the manifest. Their configuration is unknown, so no package is written for them."""
+    in the manifest. Their configuration is unknown, so no package is written for them.
+
+    Returns one dict per warehouse sorted by ``(workspace_id, warehouse_id)``; billed DBU is rounded and unknown values
+    stay None. Read-only reporting: it never adds the warehouses to the analysis."""
     rows = client.query(with_ingestion_cutoff(UNSEEN_BILLED_WAREHOUSES_SQL, ingestion_cutoff), label="unseen_billed_warehouses")
     unseen = sorted(({"workspace_id": str(r.get("workspace_id") or ""), "warehouse_id": str(r.get("warehouse_id") or ""),
                       "billed_dbu_30": round_or_none(optional_float(r.get("billed_dbu_30")), 6), "last_usage_date": None if r.get("last_usage_date") is None else str(r.get("last_usage_date"))[:10],
                       "reason_code": "NO_CONFIGURATION_SNAPSHOT"} for r in rows), key=lambda x: (x["workspace_id"], x["warehouse_id"]))
     if unseen:
-        LOGGER.warning("collector.unseen_billed_warehouses %d billed SQL warehouse(s) have no configuration snapshot in "
+        LOGGER.warning("collector.unseen_billed_warehouses reason=NO_CONFIGURATION_SNAPSHOT %d billed SQL warehouse(s) have no configuration snapshot in "
                        "system.compute.warehouses (retention?); not analyzed: %s", len(unseen),
                        ", ".join(f"{x['workspace_id']}/{x['warehouse_id']}" for x in unseen))
     else:

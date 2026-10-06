@@ -3,6 +3,7 @@ description: 'C36 Tag / rename churn: a real size change on 2026-06-01, then a t
   Only the size change starts a configuration period; the cosmetic snapshots do not reset its start (maturity gates, cost
   history, forecast basis) and the current name and tags are the latest.'
 now: '2026-10-01 12:00:00'
+analysis_time: '2026-10-01T12:00:00+00:00'
 expect:
   evidence_assertions:
   - length: 2

@@ -33,6 +33,7 @@ SENTINELS = {wc.DISPLAY_NA, wc.DISPLAY_UNAVAILABLE, "MIXED"}
 
 
 def expected_grains(packages: Sequence[Any]) -> dict:
+    """Expected data-row counts per detailed sheet from package JSON dicts: one portfolio row per package, one scenario row per scenario, one registry row per candidate."""
     return {
         "portfolio": len(packages),
         "scenarios": sum(len(p["scenarios"]) for p in packages),
@@ -41,6 +42,7 @@ def expected_grains(packages: Sequence[Any]) -> dict:
 
 
 def validate_workbook(path: Path, packages: Optional[Sequence[Any]] = None) -> List[str]:
+    """Problems found in the workbook at *path* (empty when it conforms). Row-count checks run only when *packages* (package JSON dicts) are given."""
     from openpyxl import load_workbook
 
     errors: List[str] = []
@@ -83,6 +85,7 @@ def validate_workbook(path: Path, packages: Optional[Sequence[Any]] = None) -> L
 
 
 def main(argv: Sequence[str]) -> int:
+    """CLI: exit 0 when valid, 1 with up to 50 problems printed, 2 on a usage error."""
     if len(argv) != 2:
         print(__doc__)
         return 2

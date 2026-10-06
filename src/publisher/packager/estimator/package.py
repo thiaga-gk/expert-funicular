@@ -9,6 +9,7 @@ from publisher.packager.adapter import _forward_cost_breakdown
 
 
 def _economics_point_from_scenario(s: rc.Scenario, bound: rc.BoundName, *, savings: bool) -> rc.EconomicsPoint:
+    """DBU/AWS/total point of one scenario at a savings bound; the cost range is read inverted (low savings = high cost). Unknown components stay None."""
     ranges = s.portfolio_economics.savings_365d if savings else s.portfolio_economics.estimated_cost_365d
     attr = {rc.BoundName.LOW: "low", rc.BoundName.BASE: "base", rc.BoundName.HIGH: "high"}[bound]
     # Cost range has inverse relation to savings range: LOW savings corresponds HIGH cost.
@@ -24,6 +25,11 @@ def _package_economics(
     scenarios: Sequence[rc.Scenario],
     recommended_scenario_id: Optional[str],
 ) -> rc.PackageEconomics:
+    """Package economics as a scenario envelope (min / recommended base / max savings across priced scenarios), not a probability interval and not a sum.
+
+    Only scenarios with an authoritative total price are included, and only when the recommended scenario is itself
+    priced; otherwise savings and cost are None (never zero) and every scenario is listed with an exclusion reason.
+    """
     baseline = _forward_cost_breakdown(e)
     own_priced = [
         s for s in scenarios

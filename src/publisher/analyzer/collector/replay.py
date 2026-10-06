@@ -1,4 +1,8 @@
-"""Replay evidence files (evidence.json): versioned envelope, schema validation, load/merge and save."""
+"""Replay evidence files (evidence.json): versioned envelope, schema validation, load/merge and save.
+
+Evidence holds owner emails and tags, so nothing from the payload is logged: only file and warehouse counts, and
+workspace/warehouse IDs. There are no legacy shims: other format versions and bare lists are rejected.
+"""
 from __future__ import annotations
 
 import json
@@ -9,6 +13,7 @@ from publisher.analyzer.collector.billing import _is_unpriced_only_row
 from publisher.analyzer.normalizer import clean_owner
 from publisher.common.errors import PublisherError
 from publisher.common.hashing import canonical_json
+from publisher.common.logging import LOGGER
 from publisher.common.utils import as_serializable, round_or_none, safe_float, safe_int
 from publisher.config.settings import _EVIDENCE_SCHEMA_PATH
 from publisher.config.versions import EVIDENCE_FORMAT_VERSION, PUBLISHER_VERSION
@@ -45,18 +50,29 @@ def validate_evidence_payload(payload: Any) -> None:
 
 
 def save_evidence(path:Path,evidence:Sequence[WarehouseEvidence])->None:
+    """Write the evidence envelope to ``path`` as sorted-key JSON, validated against the schema before writing.
+
+    A payload that fails validation raises before any file content is written. The file is sensitive (owner emails, tags).
+    """
     payload = {"evidence_format_version": EVIDENCE_FORMAT_VERSION, "publisher_version": PUBLISHER_VERSION, "warehouses": as_serializable(evidence)}
     validate_evidence_payload(payload)
     path.write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    LOGGER.info("replay.save warehouses=%d evidence_format_version=%s", len(evidence), EVIDENCE_FORMAT_VERSION)
 
 
 def _epoch_from_dict(x:Mapping[str,Any])->EpochEvidence:
+    """Rebuild an EpochEvidence from its serialized dict; ``resource_daily`` None (not collected) stays distinct from []."""
     return EpochEvidence(epoch_id=str(x["epoch_id"]),warehouse_id=str(x["warehouse_id"]),workspace_id=str(x.get("workspace_id") or ""),account_id=str(x.get("account_id") or ""),warehouse_name=str(x.get("warehouse_name") or x["warehouse_id"]),
                          epoch_start=str(x["epoch_start"]),epoch_end=x.get("epoch_end"),is_current=bool(x.get("is_current")),config=WarehouseConfig(**x["config"]),tags=dict(x.get("tags") or {}),query=dict(x.get("query") or {}),events=dict(x.get("events") or {}),gaps=dict(x.get("gaps") or {}),cost=dict(x.get("cost") or {}),
                          resource_daily=None if x.get("resource_daily") is None else sorted((dict(r) for r in x["resource_daily"]), key=lambda r: str(r.get("usage_day"))))
 
 
 def evidence_from_dict(x: Mapping[str, Any]) -> WarehouseEvidence:
+    """Rebuild a WarehouseEvidence from its serialized dict (already schema-validated by the caller).
+
+    Missing optional parts stay None/empty rather than defaulted to a value (photon_observation, attribution). Owners
+    are re-cleaned so a replayed file cannot reintroduce a non-owner identity.
+    """
     return WarehouseEvidence(
         warehouse_id=str(x["warehouse_id"]),
         workspace_id=str(x.get("workspace_id") or ""),
@@ -97,6 +113,8 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
     across workspaces, so workspace_id is always part of the identity.
     """
     merged: Dict[Tuple[str, str], WarehouseEvidence] = {}
+    duplicates = 0
+    LOGGER.info("replay.load start files=%d", len(paths))
 
     for filename in paths:
         try:
@@ -115,6 +133,8 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
                 continue
 
             prior = merged[key]
+            duplicates += 1
+            LOGGER.debug("replay.merge workspace_id=%s warehouse_id=%s", key[0], key[1])
             # Top-level modeled values must describe the same observation cut.
             comparable = (
                 prior.analysis_time, prior.current_epoch_id, prior.currency,
@@ -169,4 +189,5 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
                 attribution=prior.attribution or e.attribution,
             )
 
+    LOGGER.info("replay.load done files=%d warehouses=%d merged_overlaps=%d", len(paths), len(merged), duplicates)
     return sorted(merged.values(), key=lambda e: (e.warehouse_name.lower(), e.workspace_id, e.warehouse_id))

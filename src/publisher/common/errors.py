@@ -1,4 +1,4 @@
-"""Shared errors."""
+"""Shared errors: the refusal exception raised by capabilities and mapped to exit status 2 by the CLI."""
 
 
 class PublisherError(Exception):

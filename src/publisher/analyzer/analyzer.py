@@ -1,4 +1,8 @@
-"""Analyzer facade: collect evidence for the requested source and analyze every supported warehouse."""
+"""Analyzer facade: collect evidence for the requested source and analyze every supported warehouse.
+
+Observes only: no eligibility, recommendation or economics decision is made here. Unsupported warehouse types fail
+closed (never analyzed); the Governor records their exclusion.
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -22,6 +26,7 @@ from publisher.contracts.source import WarehouseEvidence
 
 
 def _is_supported_warehouse(e: WarehouseEvidence) -> bool:
+    """Fail-closed type gate on the current epoch's warehouse type (`SUPPORTED_WAREHOUSE_TYPES`); shared with the Governor."""
     return e.current_epoch.config.warehouse_type in SUPPORTED_WAREHOUSE_TYPES
 
 
@@ -32,24 +37,37 @@ def analyze(evidence: Sequence[WarehouseEvidence], thresholds: Thresholds) -> Li
     Workspace calibration runs over the supported warehouses only, before any per-knob analysis reads it.
     """
     supported = [e for e in evidence if _is_supported_warehouse(e)]
+    LOGGER.info("analyzer.analyze_start warehouses=%d supported=%d unsupported=%d", len(evidence), len(supported), len(evidence) - len(supported))
     _prepare_workspace_calibration(supported, thresholds)
     ordered = sorted(supported, key=lambda x: (x.workspace_id, x.warehouse_name.lower(), x.warehouse_id))
-    return [WarehouseAnalysis(e, Analyzer(thresholds).analyze(e)) for e in ordered]
+    results: List[WarehouseAnalysis] = []
+    for e in ordered:
+        analyses = Analyzer(thresholds).analyze(e)
+        LOGGER.debug("analyzer.warehouse_analyzed workspace_id=%s warehouse_id=%s epochs=%d knobs=%d",
+                     e.workspace_id, e.warehouse_id, len(e.epochs), len(analyses))
+        results.append(WarehouseAnalysis(e, analyses))
+    LOGGER.info("analyzer.analyze_done analyzed=%d", len(results))
+    return results
 
 
 def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[WarehouseEvidence], Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
     """Evidence for the requested source: the demo simulation, replay files, or the live system tables.
 
-    Returns the evidence, the unseen billed warehouses (live only) and the AWS price registry (live only).
+    Returns the evidence, the unseen billed warehouses (live only) and the AWS price registry (live only). Raises
+    PublisherError for an out-of-range --demo-count. Live runs use OAuth profiles only and read system tables read-only.
     """
     if request.mode == MODE_DEMO:
         if not (1 <= request.demo_count <= len(DEMO_FLEET)):
             raise PublisherError(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
         LOGGER.info("mode.demo synthetic_collector_warehouses=%d", request.demo_count)
-        return synthetic_demo_evidence(request.demo_count), None, None
+        demo = synthetic_demo_evidence(request.demo_count)
+        LOGGER.info("analyzer.collect_done mode=demo warehouses=%d", len(demo))
+        return demo, None, None
     if request.mode == MODE_REPLAY:
         LOGGER.info("mode.from_evidence files=%d", len(request.evidence_files))
-        return load_evidence_files(list(request.evidence_files)), None, None
+        replayed = load_evidence_files(list(request.evidence_files))
+        LOGGER.info("analyzer.collect_done mode=replay warehouses=%d", len(replayed))
+        return replayed, None, None
     auth = resolve_cli_oauth(request.profile, request.execution_kind, request.execution_id, request.config_file, request.workspace_id)
     compat = collect_workspace_compatibility_evidence(auth, request.compatibility_api_mode)
     LOGGER.info("compatibility.mode=%s status=%s workspace_id=%s", compat.get("mode"), compat.get("status"), compat.get("workspace_id"))
@@ -57,11 +75,16 @@ def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[War
     with SqlClient(auth) as client:
         evidence = extract_evidence(client, thresholds, request.source_region, registry, compat, ingestion_cutoff=request.billing_ingested_through)
         unseen = collect_unseen_billed_warehouses(client, ingestion_cutoff=request.billing_ingested_through)
+    LOGGER.info("analyzer.collect_done mode=live warehouses=%d unseen_billed=%d", len(evidence), len(unseen or []))
     return evidence, unseen, registry
 
 
 def run(context: RunContext) -> FleetAnalysis:
-    """What is happening: collect and normalize evidence, then analyze every supported warehouse."""
+    """What is happening: collect and normalize evidence, then analyze every supported warehouse.
+
+    The returned FleetAnalysis keeps all collected evidence (including unsupported types) beside findings for the
+    supported warehouses only.
+    """
     evidence, unseen, registry = collect(context.request, context.thresholds)
     return FleetAnalysis(evidence=list(evidence), warehouses=analyze(evidence, context.thresholds),
                          unseen_billed_warehouses=unseen, aws_price_registry=registry)

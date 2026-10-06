@@ -88,6 +88,25 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("--demo-count must be between 1 and", err)
 
+    def test_a_refused_run_is_recorded_in_publisher_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad.json"
+            bad.write_text("[]")
+            code, _, err = self.run_cli(["--from-evidence", str(bad), "--output-dir", f"{tmp}/out"])
+            log = Path(f"{tmp}/out/publisher.log").read_text()
+        self.assertEqual(code, 2)
+        self.assertIn(" ERROR publisher.refused exit=2 error=", log)
+        self.assertIn("evidence_format_version", log)
+
+    def test_an_unexpected_crash_is_logged_by_type_only_and_reraised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(cli_publish, "publish", side_effect=RuntimeError("owner@example.com")):
+                with self.assertRaises(RuntimeError):
+                    self.run_cli(["--demo", "--output-dir", tmp])
+            log = Path(f"{tmp}/publisher.log").read_text()
+        self.assertIn(" ERROR publisher.crashed error_type=RuntimeError", log)
+        self.assertNotIn("owner@example.com", log)
+
     def test_unknown_execution_mode_is_rejected(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):

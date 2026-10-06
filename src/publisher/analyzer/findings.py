@@ -40,9 +40,9 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
 
     Compares the current epoch with the immediately preceding one on the canary guard collector's rows. A guard trips when
     the current value is above its safe level AND more than canary_p95_regression_pct above the previous epoch's, with a
-    minimum sample; the p95 guard
-    compares execution time on statement sources seen in both epochs. Returns {"changes": {knob: previous value},
-    "guards": [codes], "details": {...}}; no change or no rows: no guards.
+    minimum sample; the p95 guard compares execution time on statement sources seen in both epochs. Returns
+    {"changes": {knob: previous value}, "guards": [codes], "details": {...}, "previous": {previous config}}; no change or
+    no rows: no guards. Uses the immediately preceding epoch only, and only for the rollback decision.
     """
     cur = e.current_epoch
     prev = next((x for x in e.epochs if not x.is_current and x.epoch_end is not None
@@ -66,6 +66,7 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
         return out
     margin = 1 + t.canary_p95_regression_pct / 100.0
     def worse(field: str, safe: float, count_field: str, min_count: float) -> bool:
+        """True when `field` is known in both epochs, above `safe`, clearly above the previous value, with at least `min_count` samples."""
         # Above the safe level AND clearly worse than before (the same relative margin as the p95 guard), so window
         # noise on a warehouse that already queued or failed does not roll a change back.
         a, b = optional_float(now.get(field)), optional_float(before.get(field))
@@ -88,6 +89,7 @@ def canary_observation(e: "WarehouseEvidence", t: Thresholds) -> Dict[str, Any]:
 
 
 def canary_rationale(obs: Mapping[str, Any], t: Thresholds) -> str:
+    """Human-readable "; "-joined reason for each tripped guard in a `canary_observation` result (empty when none tripped)."""
     now, before = obs["details"]["current"], obs["details"]["previous"]
     parts = []
     fmt = lambda v: "unknown" if v is None else f"{safe_float(v):.1f}"
@@ -110,6 +112,11 @@ class Analyzer:
         self.t = thresholds
 
     def _f(self, e: WarehouseEvidence, knob: str, metric: str, value: Any, *, unit: str = "", threshold: Any = None, comparator: str = "", table: str, field: str, window: str, interpretation: str) -> Finding:
+        """Build one Finding for the current epoch with its deterministic ID.
+
+        Metrics read from carried (cross-change) evidence get their window rewritten and `epoch_scope`
+        CARRIED_ACROSS_CHANGE, so a reader can tell current-epoch facts from carried ones. Reads `self._carry`, set by `analyze`.
+        """
         ep = e.current_epoch
         scope = "CURRENT"
         periods = getattr(self, "_carry", None) or {}
@@ -152,6 +159,13 @@ class Analyzer:
         return options
 
     def analyze(self, e: WarehouseEvidence) -> Dict[str, AnalysisResult]:
+        """Facts and findings per knob (warehouse_size, max_clusters, min_clusters, auto_stop_minutes, warehouse_type) for one warehouse.
+
+        Decides nothing: the Optimizer reads these facts. Missing evidence stays None (unknown), never zero, so
+        capacity cuts fail closed on it. Current-epoch evidence controls; the exceptions are carried demand/queue
+        evidence, the older-epoch peak-concurrency hold and the canary guard's previous epoch. Not re-entrant: it
+        sets `self._carry` for the duration of the call.
+        """
         ep = e.current_epoch
         ev, gaps, cfg = ep.events, ep.gaps, ep.config
         q, self._carry = carried_query_view(ep.query)

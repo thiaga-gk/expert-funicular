@@ -19,7 +19,14 @@ class ScenarioGate:
         scenarios: Sequence[Scenario],
         recommended_scenario_id: Optional[str],
     ) -> None:
-        """Validate dependency ordering, confidence propagation, and portfolio ranges."""
+        """Raise ValueError on the first violated invariant of one warehouse's scenarios; mutates nothing.
+
+        Checks: exactly one recommended scenario; steps match their candidate (config, confidence); invalidated
+        downstream steps are pending re-evaluation and no step precedes its invalidator (a canary rollback is a first,
+        ready step); economics ranges are ordered; the pricing basis matches the execution state (pending steps are
+        contingent only); authoritative and contingent savings equal the last matching step's running savings; Plan A
+        never contains the migration and Plan B stays a one-step branch.
+        """
         by_id={c.recommendation_id:c for c in candidates}
         ids={s.scenario_id for s in scenarios}
         if recommended_scenario_id not in ids:
@@ -59,7 +66,7 @@ class ScenarioGate:
             for r in (pe.estimated_cost_range_365, pe.estimated_savings_range_365, pe.dbu_365d_estimated_cost_range, pe.aws_365d_estimated_cost_range, pe.total_365d_estimated_cost_range, pe.dbu_365d_savings_range, pe.aws_365d_savings_range, pe.total_365d_savings_range):
                 if r is not None and not (r.low<=r.base<=r.high):
                     raise ValueError(f"Scenario range is not ordered: {sc.scenario_id}")
-            # Authoritative economics may not include steps whose evidence was invalidated upstream (audit H1).
+            # Authoritative economics may not include steps whose evidence was invalidated upstream.
             for st in sc.steps:
                 pending=st.execution_state=="PENDING_REEVALUATION"
                 if pending != (st.pricing_basis==PRICING_CONTINGENT):

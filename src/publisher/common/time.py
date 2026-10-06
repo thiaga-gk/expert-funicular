@@ -6,6 +6,8 @@ from typing import Any, Optional
 
 
 def parse_datetime(value: Any) -> Optional[dt.datetime]:
+    """A timezone-aware datetime from a datetime, date or ISO-8601 string ("Z" accepted); naive values are taken as UTC.
+    None for None or an unparseable value, never an exception."""
     if value is None:
         return None
     if isinstance(value, dt.datetime):
@@ -22,6 +24,7 @@ def parse_datetime(value: Any) -> Optional[dt.datetime]:
 
 
 def iso(value: Any) -> Optional[str]:
+    """ISO-8601 string in UTC with a "+00:00" offset, or None when *value* does not parse."""
     parsed = parse_datetime(value)
     return parsed.astimezone(dt.timezone.utc).isoformat() if parsed else None
 

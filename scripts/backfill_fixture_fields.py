@@ -25,10 +25,12 @@ from tests.golden import evidence_source_path  # noqa: E402
 
 
 def _decision(query):
+    """30-day queries that reach the warehouse: total minus the result-cache share."""
     return int(round(query["queries_30"] * max(0.0, 1.0 - (query.get("result_cache_pct_30") or 0.0) / 100.0)))
 
 
 def backfill(evidence):
+    """Add the missing collector fields in place; returns how many values were added."""
     changed = 0
     for x in evidence:
         ratio = {}
@@ -61,6 +63,7 @@ def backfill(evidence):
 
 
 def main(cases):
+    """Rewrite each named case's evidence fixture when anything was backfilled; prints one line per file changed."""
     for case in cases:
         path = evidence_source_path(case)
         if not path.is_file():

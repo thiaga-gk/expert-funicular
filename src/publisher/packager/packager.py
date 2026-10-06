@@ -53,7 +53,13 @@ def _build_locked_recommendation_package(
     scenarios: Sequence[Scenario],
     thresholds: Thresholds,
 ) -> rc.RecommendationPackage:
-    """Build one immutable Reporter JSON Contract package from reviewed decisions."""
+    """Build one immutable Reporter JSON Contract package from reviewed decisions.
+
+    Write order is fixed: assemble the frozen package with a placeholder ID, set the content-addressed ``PKG-`` ID
+    (``expected_package_id``), then the full package hash into provenance, then semantic ``validate()``. Schema
+    validation and the JSON write happen later (reviewer package gate, reporter). Volatile presentation metadata
+    never enters the hashed payload. Pure: logging and I/O are the callers' concern.
+    """
     ep = e.current_epoch
     start_time = _iso_z(ep.epoch_start)
     contract_epoch_id = rc.make_epoch_id(
@@ -142,7 +148,10 @@ def _build_locked_recommendation_package(
 
 
 def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[WarehouseOptimization]:
-    """Scenarios for each warehouse whose candidates passed the candidate gate, in order."""
+    """Scenarios for each warehouse whose candidates passed the candidate gate, in order.
+
+    Plan A/B construction and stateful pricing are delegated to ``ScenarioPlanner``; this only collects results.
+    """
     results: List[WarehouseOptimization] = []
     for w in reviewed.accepted:
         e, candidates = w.evidence, w.candidates
@@ -162,7 +171,10 @@ def plan(reviewed: CandidateReviewResult, thresholds: Thresholds) -> List[Wareho
 def assemble(
     analysis: FleetAnalysis, optimizations: Sequence[WarehouseOptimization], thresholds: Thresholds
 ) -> List[rc.RecommendationPackage]:
-    """Assemble one locked public package per reviewed, planned warehouse."""
+    """Assemble one locked public package per reviewed, planned warehouse, in order.
+
+    The evidence is looked up by ``(workspace_id, warehouse_id)`` so the identity is never conflated across workspaces.
+    """
     evidence = analysis.evidence
     evidence_by_key = {(e.workspace_id, e.warehouse_id): e for e in evidence}
     packages: List[rc.RecommendationPackage] = []
@@ -173,6 +185,11 @@ def assemble(
         LOGGER.info(
             "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",
             e.workspace_id, e.warehouse_id, package.recommendation_package_id, len(package.candidates), len(package.scenarios),
+        )
+        LOGGER.debug(
+            "packager.package.hashed workspace_id=%s warehouse_id=%s package_id=%s hash_prefix=%s scenario_ids=%s",
+            e.workspace_id, e.warehouse_id, package.recommendation_package_id,
+            (package.provenance.package_hash_full_sha256 or "")[:12], ",".join(s.scenario_id for s in package.scenarios),
         )
     LOGGER.info(
         "pipeline.done warehouses=%d packages=%d candidates=%d scenarios=%d",

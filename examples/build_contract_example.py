@@ -1,3 +1,11 @@
+"""Build the canonical Reporter Contract example package and write ``examples/recommendation-package.example.json``.
+
+Usage: python examples/build_contract_example.py     (regenerate when the contract or component versions change)
+
+The package is assembled from the contract dataclasses with the IDs and hash set by the contract's own ``make_*`` and
+``expected_package_id()`` helpers, then semantically validated. ``scripts/validate_contracts.py`` checks the committed
+JSON against both the schema and this builder. Figures are illustrative, not derived from a real warehouse.
+"""
 from __future__ import annotations
 
 import dataclasses
@@ -29,23 +37,27 @@ CATALOG_VERSION = "technique-catalog-v2"
 
 
 def conf(score: float, method: str = "deterministic_weighted_evidence") -> Confidence:
+    """Confidence with the level derived from the score (>= 0.80 HIGH, >= 0.60 MEDIUM, else LOW)."""
     level = ConfidenceLevel.HIGH if score >= 0.80 else ConfidenceLevel.MEDIUM if score >= 0.60 else ConfidenceLevel.LOW
     return Confidence(score=score, level=level, components={"coverage": min(1.0, score + 0.05), "signal": score}, method=method)
 
 
 def cost(dbu: float | None, aws: float | None, *, dbu_basis: CostBasis, aws_basis: CostBasis) -> CostBreakdown:
+    """Cost breakdown whose total is null unless both components are known (unknown cost is never zero)."""
     total = None if dbu is None or aws is None else round(dbu + aws, 2)
     availability = CostAvailability.COMPLETE if total is not None else CostAvailability.PARTIAL if dbu is not None or aws is not None else CostAvailability.UNAVAILABLE
     return CostBreakdown(dbu, aws, total, availability, dbu_basis, aws_basis)
 
 
 def ranges(dbu, aws, total) -> ComponentRanges:
+    """Per-component low/base/high ranges from (low, base, high) tuples; a None component stays None."""
     return ComponentRanges(dbu=Range3(*dbu) if dbu is not None else None,
                            aws=Range3(*aws) if aws is not None else None,
                            total=Range3(*total) if total is not None else None)
 
 
 def build_package() -> RecommendationPackage:
+    """The example package: one PRO warehouse with evidence, candidates, scenarios, economics and provenance, IDs and hash set, validated."""
     epoch_id = make_epoch_id(
         workspace_id=WORKSPACE, warehouse_id=WAREHOUSE, start_time="2026-07-12T14:32:00Z",
         warehouse_type="PRO", warehouse_size="LARGE", min_clusters=2, max_clusters=4,
@@ -308,6 +320,7 @@ def build_package() -> RecommendationPackage:
     return package
 
 def main() -> None:
+    """Write the example JSON beside this file and print its path and package ID."""
     package = build_package()
     out = Path(__file__).with_name("recommendation-package.example.json")
     out.write_text(json.dumps(package.to_dict(),indent=2,sort_keys=True)+"\n",encoding="utf-8")
