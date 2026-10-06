@@ -1,0 +1,584 @@
+# Machine-checkable signatures of the golden-scenario registry rows (docs/proposals/golden-scenarios.md).
+#
+# Each row:
+#   id / title / status   -- the registry row (status = pass | fail, copied from the registry's Status column)
+#   role                  -- primary: a workload or capacity shape; modifier: a cross-cutting attribute (type, billing,
+#                            tags, maturity). A warehouse that matches no primary row is a gap.
+#   signature             -- all conditions hold over the feature vector of scripts/mine_patterns.py features();
+#                            {feature, <op>: value} with op eq|ne|in|not_in|gt|gte|lt|lte|is_null|not_null, or
+#                            {any: [conditions]}. Rows without a signature are checked by hand (listed as manual).
+#   expect                -- the row's expected behaviour as assertions on the warehouse's package, in the golden
+#                            assertion DSL (tests/golden/test_golden_publisher.py docstring) plus `in` / `not_in` per
+#                            value and `any: [assertions]`. Candidates carry `direction` (up/down/same/change).
+#                            A failed assertion is a behaviour mismatch.
+#   drift                 -- features whose live range is compared with the demo-fleet warehouse of the row.
+#
+# Premises (top-level `premises`): an assumption that the expected behaviour of the listed rows rests on.
+#   assumes   -- the publisher setting that encodes it (a Thresholds field or a config/defaults constant) and its value;
+#                tests/unit/skills/test_golden_miner.py fails when the setting changes, so the premise is re-read then.
+#   when      -- conditions that scope it to the warehouses it applies to.
+#   check     -- conditions that hold when live evidence agrees with the assumption. Checked only on warehouses that
+#                match one of `rows`; a missing feature value makes it unknown, never contradicted. The numbers are a
+#                tolerance band around the assumed value, not policy.
+#
+# Thresholds here describe what a pattern looks like; they are not publisher policy. Policy values live in
+# src/publisher/governor/thresholds.py and docs/reference/thresholds.md. Edit this catalog when a registry row is
+# added or its signature changes; tests/unit/skills/test_golden_miner.py checks that every demo-fleet warehouse
+# matches its own row.
+version: 1.1.0
+premises:
+  - id: P-RESTART-PRO
+    text: A Pro/Classic restart takes about 4 minutes, so it costs about 4 cluster-minutes per started cluster and the first query after a stop waits about that long.
+    assumes: {name: restart_cost_cluster_minutes_pro_classic, value: 4.0}
+    rows: [C01, C02, C05, C13, C25, C49, C51, C53, C54]
+    when:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+    check:
+      - {feature: p95_wait_compute_ms_when_waited_30, lte: 480000}  # within 2x of 4 minutes
+  - id: P-RESTART-SERVERLESS
+    text: A Serverless restart takes seconds (about 0.1 cluster-minutes), so a lower auto-stop adds almost no restart cost or wait.
+    assumes: {name: restart_cost_cluster_minutes_serverless, value: 0.1}
+    rows: [C02, C14, A01]
+    when:
+      - {feature: warehouse_type, eq: SERVERLESS}
+    check:
+      - {feature: p95_wait_compute_ms_when_waited_30, lte: 60000}
+  - id: P-SIZE-RATE
+    text: Billed Pro/Classic DBU per cluster-hour follows the published size ratio within the accepted band, so a one-size change is priced from the workspace's own rates.
+    assumes: {name: size_rate_published_band, value: 0.25}
+    rows: [C06, C07, C22, C47, C55]
+    when:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+    check:
+      - {feature: size_rate_deviation, lte: 0.25}
+  - id: P-QUERIES-PER-CLUSTER
+    text: One Pro/Classic cluster serves about 10 concurrent queries, so queueing at the ceiling starts near 10 concurrent queries per cluster and the max-cluster target is concurrency / 10.
+    assumes: {name: QUERIES_PER_CLUSTER_PRO_CLASSIC, value: 10}
+    rows: [C08, C09, C42, C50]
+    when:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+      - {feature: queued_query_pct_30, gte: 5}
+      - {feature: time_at_max_pct, gte: 50}
+    check:
+      - {feature: concurrency_per_cluster_at_peak, gte: 5}  # queueing at max with < 5 queries per cluster: capacity is lower
+rows:
+  - id: C01
+    title: Always-on idle
+    status: pass
+    role: primary
+    signature:
+      - {feature: auto_stop_minutes, eq: 0}
+      - {feature: busy_ratio, lt: 0.3}
+    expect:
+      - any:
+          - {path: "candidates[knob=auto_stop_minutes].status", in: [ACTIONABLE, TEST_REQUIRED, REVIEW]}
+          - {path: "candidates[knob=auto_stop_minutes].blockers", includes: [SHORT_QUERIES_KEEP_WAREHOUSE_RUNNING]}
+    drift: [busy_ratio, queries_30, active_days_30]
+  - id: C02
+    title: Long auto-stop, bursty BI
+    status: pass
+    role: primary
+    signature:
+      - {feature: auto_stop_minutes, gte: 20}
+      - {feature: gap_p90_below_auto_stop, eq: true}
+      - {feature: busy_ratio, lt: 0.3}
+      - {feature: active_days_30, lt: 28}
+    drift: [busy_ratio, p90_gap_minutes, auto_stop_minutes]
+  - id: C03
+    title: Uptime with zero queries
+    status: pass
+    role: primary
+    signature:
+      - {feature: queries_30, eq: 0}
+      - {feature: billed_days_30, gt: 0}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].status", equals: REVIEW}
+      - {path: "candidates[knob=auto_stop_minutes].blockers", includes: [NO_QUERIES_WHILE_RUNNING]}
+    drift: [billed_days_30, auto_stop_minutes]
+  - id: C04
+    title: Metadata / keep-alive polling
+    status: fail
+    role: primary
+    signature:
+      - {feature: auto_stop_minutes, gt: 0}
+      - {feature: gap_p90_below_auto_stop, eq: true}
+      - {feature: busy_ratio, lt: 0.15}
+      - {feature: active_days_30, gte: 28}
+      - {feature: starts_30, lte: 2}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].status", not_in: [ACTIONABLE, TEST_REQUIRED]}
+    drift: [busy_ratio, p90_gap_minutes, queries_30]
+  - id: C05
+    title: Scheduled ETL, idle most of the day
+    status: pass
+    role: primary
+    signature:
+      - {feature: pct_job, gte: 50}
+      - {feature: auto_stop_minutes, gte: 30}
+      - {feature: p50_gap_minutes, gte: 60}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", in: [down, same]}
+    drift: [p50_gap_minutes, p95_execution_ms_30, auto_stop_minutes]
+  - id: C06
+    title: Over-sized
+    status: pass
+    role: primary
+    signature:
+      - {feature: size_rank, gte: 3}
+      - {feature: spill_query_pct_30, lt: 1}
+      - {feature: queued_query_pct_30, lt: 1}
+      - {feature: p95_execution_ms_30, lte: 10000}
+      - {feature: busy_ratio, lt: 0.5}
+      - {feature: cost_history_days, gte: 14}
+    expect:
+      - {path: "candidates[knob=warehouse_size].direction", in: [down, same]}
+    drift: [p95_execution_ms_30, busy_ratio, peak_concurrency_recent]
+  - id: C07
+    title: Under-sized (spill)
+    status: pass
+    role: primary
+    signature:
+      - {feature: spill_query_pct_30, gte: 10}
+    expect:
+      - {path: "candidates[knob=warehouse_size].direction", in: [up, same]}
+    drift: [spill_query_pct_30, total_spill_gib_30, p95_execution_ms_30]
+  - id: C08
+    title: Concurrency-constrained
+    status: pass
+    role: primary
+    signature:
+      - {feature: queued_query_pct_30, gte: 5}
+      - {feature: time_at_max_pct, gte: 50}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+      - {path: "candidates[knob=warehouse_size].direction", in: [up, same]}
+    drift: [queued_query_pct_30, p95_wait_capacity_ms_when_queued_30, peak_concurrency_recent, time_at_max_pct]
+  - id: C09
+    title: Unused max-cluster ceiling
+    status: pass
+    role: primary
+    signature:
+      - {feature: ceiling_headroom, gte: 3}
+      - {feature: time_at_max_pct, lt: 5}
+      - {feature: peak_concurrency_recent, gte: 2}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [down, same]}
+    drift: [ceiling_headroom, peak_concurrency_recent, max_clusters]
+  - id: C10
+    title: Over-provisioned floor
+    status: pass
+    role: primary
+    signature:
+      - {feature: min_clusters, gte: 2}
+      - {feature: time_at_min_pct, gte: 80}
+    expect:
+      - {path: "candidates[knob=min_clusters].direction", in: [down, same]}
+    drift: [min_clusters, time_at_min_pct, peak_concurrency_recent]
+  - id: C11
+    title: Pinned min = max > 1
+    status: pass
+    role: primary
+    signature:
+      - {feature: pinned, eq: true}
+    drift: [min_clusters, peak_concurrency_recent, queued_query_pct_30]
+  - id: C12
+    title: Bursty morning peaks
+    status: pass
+    role: primary
+    signature:
+      - {feature: scale_ups_30, gte: 40}
+      - {feature: queued_query_pct_30, gt: 1}
+    expect:
+      - {path: "candidates[knob=min_clusters].direction", in: [up, same]}
+    drift: [scale_ups_30, queued_query_pct_30, peak_concurrency_recent]
+  - id: C13
+    title: Cold-start-sensitive interactive (Pro/Classic)
+    status: pass
+    role: primary
+    signature:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+      - {feature: compute_wait_share, gte: 0.2}
+      - {feature: gap_p50_above_auto_stop, eq: true}
+    drift: [compute_wait_share, p50_gap_minutes, auto_stop_minutes]
+  - id: C14
+    title: Serverless auto-stop above the floor
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_type, eq: SERVERLESS}
+      - {feature: auto_stop_minutes, gt: 5}
+    expect:
+      - any:
+          - {path: "candidates[knob=auto_stop_minutes].direction", equals: same}
+          - {path: "candidates[knob=auto_stop_minutes].recommended_value", between: [5, 30]}
+    drift: [auto_stop_minutes, busy_ratio]
+  - id: C15
+    title: Pro/Classic to Serverless, intermittent use
+    status: fail
+    role: modifier
+    signature:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+      - {feature: busy_ratio, lt: 0.3}
+    drift: [busy_ratio]
+  - id: C16
+    title: Serverless to Pro, steady 24/7 load
+    status: pass
+    role: primary
+    signature:
+      - {feature: warehouse_type, eq: SERVERLESS}
+      - {feature: busy_ratio, gte: 0.9}
+      - {feature: active_days_30, gte: 28}
+    drift: [busy_ratio, peak_concurrency_recent]
+  - id: C17
+    title: Classic to Pro
+    status: fail
+    role: modifier
+    signature:
+      - {feature: warehouse_type, eq: CLASSIC}
+  - id: C18
+    title: Preview channel
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_channel, eq: PREVIEW}
+  - id: C19
+    title: Newly changed config
+    status: pass
+    role: modifier
+    signature:
+      - {feature: epoch_count, gte: 2}
+      - {feature: cost_history_days, lt: 14}
+    expect:
+      - any:
+          - {path: "assessment.overall_status", equals: INSUFFICIENT_EVIDENCE}
+          - {path: "candidates[knob=warehouse_size].blockers", includes: [CANARY_GUARDRAIL_BREACHED]}
+    drift: [current_epoch_age_days, cost_history_days]
+  - id: C20
+    title: Sparse / new warehouse
+    status: pass
+    role: primary
+    signature:
+      - {feature: epoch_count, eq: 1}
+      - {feature: cost_history_days, lt: 14}
+    expect:
+      - {path: "candidates[*].status", not_in: [ACTIONABLE, TEST_REQUIRED]}
+    drift: [cost_history_days, queries_30]
+  - id: C21
+    title: Result-cache-heavy BI
+    status: fail
+    role: modifier
+    signature:
+      - {feature: result_cache_pct_30, gte: 50}
+    drift: [result_cache_pct_30]
+  - id: C22
+    title: A few heavy queries drive spill
+    status: pass
+    role: primary
+    signature:
+      - {feature: spill_query_pct_30, gt: 0}
+      - {feature: spill_query_pct_30, lt: 10}
+    expect:
+      - {path: "candidates[knob=warehouse_size].direction", in: [down, same]}
+    drift: [spill_query_pct_30, total_spill_gib_30]
+  - id: C23
+    title: Mixed ETL and BI on one warehouse
+    status: fail
+    role: primary
+    signature:
+      - {feature: pct_job, gte: 20}
+      - {feature: pct_bi, gte: 20}
+    drift: [pct_job, pct_bi]
+  - {id: C24, title: Many small duplicate warehouses, status: fail, role: modifier}
+  - id: C25
+    title: Off-hours / weekend idle
+    status: pass
+    role: primary
+    signature:
+      - {feature: active_days_30, lte: 23}
+      - {feature: active_days_30, gte: 15}
+      - any:
+          - {feature: auto_stop_minutes, eq: 0}
+          - {feature: auto_stop_minutes, gte: 60}
+    expect:
+      - any:
+          - {path: "candidates[knob=auto_stop_minutes].status", in: [ACTIONABLE, TEST_REQUIRED, REVIEW]}
+          - {path: "candidates[knob=auto_stop_minutes].direction", in: [down, same]}
+    drift: [active_days_30, busy_ratio]
+  - id: C26
+    title: Failure-heavy warehouse
+    status: pass
+    role: modifier
+    signature:
+      - {feature: failure_cancel_pct_30, gte: 10}
+    expect:
+      - {path: "candidates[knob=warehouse_size].direction", in: [up, same]}
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+      - {path: "candidates[knob=min_clusters].direction", in: [up, same]}
+    drift: [failure_cancel_pct_30]
+  - id: C27
+    title: Long queries keep warehouse alive
+    status: fail
+    role: modifier
+    signature:
+      - {feature: max_execution_ms_30, gte: 86400000}
+  - {id: C28, title: Cluster recycling transients, status: pass, role: modifier}
+  - {id: C29, title: Deleted / recreated warehouse, status: pass, role: modifier}
+  - id: C30
+    title: Billing corrections
+    status: pass
+    role: modifier
+    signature:
+      - {feature: billing_correction_share, gt: 0}
+    expect:
+      - {path: "evidence[metric=billing_correction_dbu_share_365d].value", between: [0.000001, 1.0]}
+    drift: [billing_correction_share]
+  - id: C31
+    title: Multi-region account
+    status: pass
+    role: modifier
+    signature:
+      - {feature: region_count, gte: 2}
+  - id: C32
+    title: Unpriced / promotional SKU
+    status: pass
+    role: modifier
+    signature:
+      - {feature: unpriced_dbu_365, gt: 0}
+    expect:
+      - {path: "cost_baseline.forward_365d.dbu_cost", equals: null}
+    drift: [unpriced_dbu_365]
+  - id: C33
+    title: Photon
+    status: pass
+    role: modifier
+    signature:
+      - {feature: photon_status, not_null: true}
+      - {feature: photon_status, ne: ENABLED}
+    expect:
+      - {path: "candidates[*].knob", not_in: [photon, enable_photon, warehouse_photon]}
+  - id: C34
+    title: 5X-Large
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_size, eq: 5X_LARGE}
+  - {id: C35, title: Spot policy, status: pass, role: modifier}
+  - {id: C36, title: Tag / rename churn, status: pass, role: modifier}
+  - id: C37
+    title: Month / quarter-end seasonality
+    status: pass
+    role: modifier
+    signature:
+      - {feature: epoch_peak_ratio, gte: 2}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+      - {path: "candidates[knob=warehouse_size].direction", in: [up, same]}
+    drift: [epoch_peak_ratio, peak_concurrency_epoch]
+  - id: C38
+    title: Growth trend
+    status: pass
+    role: modifier
+    signature:
+      - {feature: growth_ratio_8w, gte: 1.5}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+      - {path: "candidates[knob=warehouse_size].direction", in: [up, same]}
+    drift: [growth_ratio_8w]
+  - id: C39
+    title: Dev / test warehouses
+    status: pass
+    role: modifier
+    signature:
+      - {feature: nonprod, eq: true}
+    expect:
+      - any:
+          - {path: "cost_profile.source", equals: TAG_DEFAULT}
+          - {path: "cost_profile.source", in: [CLI_WAREHOUSE, CLI_DEFAULT]}
+  - {id: C40, title: Serverless budget / usage policies, status: pass, role: modifier}
+  - id: C41
+    title: Genie / AI-BI dashboards
+    status: pass
+    role: modifier
+    signature:
+      - {feature: pct_genie, gt: 0}
+    expect:
+      - {path: "candidates[knob=warehouse_type].recommended_value", in: [PRO, SERVERLESS]}
+  - id: C42
+    title: Queue near the 1,000 limit
+    status: pass
+    role: primary
+    signature:
+      - {feature: peak_concurrency_recent, gte: 500}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+    drift: [peak_concurrency_recent, queued_query_pct_30]
+  - {id: C43, title: Serverless networking / egress, status: fail, role: modifier}
+  - id: C44
+    title: Result fetch / open sessions keep warehouse active
+    status: pass
+    role: primary
+    signature:
+      - {feature: kept_alive_gap_count, gt: 0}
+    drift: [kept_alive_gap_count]
+  - id: C45
+    title: Steady 24/7 Pro at high utilization
+    status: pass
+    role: primary
+    signature:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+      - {feature: busy_ratio, gte: 0.9}
+      - {feature: active_days_30, gte: 28}
+      - {feature: time_at_min_pct, gte: 90}
+    expect:
+      - {path: "candidates[knob=min_clusters].direction", in: [up, same]}
+    drift: [busy_ratio, min_clusters, peak_concurrency_recent]
+  - id: C46
+    title: Queueing below the ceiling
+    status: pass
+    role: primary
+    signature:
+      - {feature: queued_query_pct_30, gte: 10}
+      - {feature: time_at_max_pct, lt: 5}
+    expect:
+      - any:
+          - {path: "candidates[knob=max_clusters].blockers", includes: [QUEUEING_BELOW_CEILING]}
+          - {path: "candidates[knob=max_clusters].direction", equals: up}
+    drift: [queued_query_pct_30, time_at_max_pct, scale_ups_30]
+  - id: C47
+    title: Already at the smallest size
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_size, eq: 2X_SMALL}
+    expect:
+      - any:
+          - {path: "candidates[knob=warehouse_size].blockers", includes: [ALREADY_AT_SMALLEST_SIZE]}
+          - {path: "candidates[knob=warehouse_size].direction", equals: up}
+    drift: [p95_execution_ms_30]
+  - id: C48
+    title: Long-unchanged warehouse
+    status: pass
+    role: modifier
+    signature:
+      - {feature: current_epoch_age_days, gte: 365}
+    drift: [current_epoch_age_days]
+  - id: C49
+    title: Auto-stop too low
+    status: pass
+    role: primary
+    signature:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+      - {feature: auto_stop_minutes, gt: 0}
+      - {feature: auto_stop_minutes, lte: 15}
+      - {feature: starts_30, gte: 200}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", in: [up, same]}
+    drift: [starts_30, compute_wait_share, p50_gap_minutes]
+  - id: C50
+    title: Single-cluster warehouse with heavy queueing
+    status: pass
+    role: primary
+    signature:
+      - {feature: max_clusters, eq: 1}
+      - {feature: queued_query_pct_30, gte: 10}
+    expect:
+      - {path: "candidates[knob=max_clusters].direction", in: [up, same]}
+    drift: [queued_query_pct_30, peak_concurrency_recent]
+  - id: C51
+    title: Mostly idle warehouse, long auto-stop
+    status: pass
+    role: primary
+    signature:
+      - {feature: busy_ratio, lt: 0.1}
+      - {feature: auto_stop_minutes, gte: 60}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", in: [down, same]}
+    drift: [busy_ratio, auto_stop_minutes]
+  - id: C52
+    title: Periodic low-frequency workload
+    status: pass
+    role: primary
+    signature:
+      - {feature: cost_history_days, gte: 60}
+      - any:
+          - {feature: forecast_model, eq: CADENCE}
+          - {feature: active_days_30, lte: 8}
+    drift: [active_days_30, billed_days_30]
+  - id: C53
+    title: Long auto-stop, gaps of 1-4 hours
+    status: pass
+    role: primary
+    signature:
+      - {feature: auto_stop_minutes, gte: 120}
+      - {feature: p50_gap_minutes, gte: 30}
+      - {feature: gap_p50_above_auto_stop, eq: false}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", in: [down, same]}
+    drift: [p50_gap_minutes, auto_stop_minutes]
+  - id: C54
+    title: Very long auto-stop, two daily jobs hours apart
+    status: pass
+    role: primary
+    signature:
+      - {feature: auto_stop_minutes, gte: 240}
+      - {feature: pct_job, gte: 50}
+      - {feature: p50_gap_minutes, gte: 60}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", in: [down, same]}
+    drift: [p50_gap_minutes, auto_stop_minutes]
+  - id: C55
+    title: Canary regression after a downsize
+    status: pass
+    role: modifier
+    signature:
+      - {feature: prior_size_step, lt: 0}
+      - {feature: current_epoch_age_days, lte: 30}
+      - {feature: p95_vs_prior, gte: 1.3}
+    expect:
+      - {path: "candidates[knob=warehouse_size].status", equals: ACTIONABLE}
+      - {path: "candidates[knob=warehouse_size].blockers", includes: [CANARY_GUARDRAIL_BREACHED]}
+    drift: [p95_vs_prior]
+  - {id: C56, title: Nonprod warehouse under the aggressive profile, status: pass, role: modifier}
+  - {id: C57, title: Production twin of C56, status: pass, role: modifier}
+  - {id: C58, title: Warehouse override to conservative, status: pass, role: modifier}
+  - id: A01
+    title: Serverless auto-stop below 5 via API
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_type, eq: SERVERLESS}
+      - {feature: auto_stop_minutes, gt: 0}
+      - {feature: auto_stop_minutes, lt: 5}
+    expect:
+      - {path: "candidates[knob=auto_stop_minutes].direction", equals: same}
+  - id: A02
+    title: Pro/Classic auto-stop below 10
+    status: pass
+    role: modifier
+    signature:
+      - {feature: warehouse_type, in: [PRO, CLASSIC]}
+    expect:
+      - any:
+          - {path: "candidates[knob=auto_stop_minutes].direction", equals: same}
+          - {path: "candidates[knob=auto_stop_minutes].recommended_value", between: [10, 100000]}
+  - {id: A03, title: Serverless sizing and concurrency, status: pass, role: modifier}
+  - {id: A04, title: Cluster limits, status: pass, role: modifier}
+  - {id: A05, title: Region or networking blocks Serverless, status: pass, role: modifier}
+  - {id: A06, title: Starter warehouse left running, status: pass, role: modifier}
+  - {id: A07, title: Billing freshness, status: pass, role: modifier}
+  - id: A08
+    title: Owner attribution
+    status: pass
+    role: modifier
+    signature:
+      - {feature: owner_known, eq: false}
+  - {id: A09, title: Statement-timeout change restarts warehouse, status: pass, role: modifier}
+  - id: A10
+    title: Scheduled dashboard refresh keeps warehouse alive
+    status: pass
+    role: modifier
+    signature:
+      - {feature: pct_dashboard, gte: 80}
+      - {feature: gap_p90_below_auto_stop, eq: true}
+  - {id: A11, title: Cache warm-up after stop, status: pass, role: modifier}
+  - {id: A12, title: Per-query cost attribution, status: pass, role: modifier}

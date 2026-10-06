@@ -1,4 +1,4 @@
-version: 1.1.0
+version: 1.2.0
 name: databricks-publisher-skill-suite
 reference_exemplar:
   product: databricks-sql-warehouse-optimizer
@@ -40,6 +40,9 @@ skills:
     depends_on: [databricks-publisher-builder]
   - name: databricks-release-sealer
     role: RELEASE_GATE
+    depends_on: [databricks-publisher-validator]
+  - name: databricks-golden-miner
+    role: VALIDATION_LEARNING
     depends_on: [databricks-publisher-validator]
 principles:
   - artifacts_are_cross_skill_api
