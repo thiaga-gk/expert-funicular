@@ -1,15 +1,25 @@
+"""Golden realization scenarios GR-001..GR-040 against the frozen single-file oracle.
+
+Each test keeps its original inline construction from ``demo_observation``; the same observations are frozen under
+tests/fixtures/realizer/observations/GR-*.json with their canonical outputs in tests/fixtures/realizer/expected/
+(test_single_file_compatibility.py). The scenario registry is tests/fixtures/realizer/golden-registry.json.
+"""
 import copy
 import datetime as dt
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from decimal import Decimal
 
-import publisher
-import realizer
-from contracts import reporter_contract as prc
-from contracts import realizer_contract as rc
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tests.regression.realizer import canonical, oracle  # noqa: E402
+
+realizer = oracle.engine()
+rc = oracle.rc()
 
 
 def _iso_add(value: str, days: int = 0, hours: int = 0) -> str:
@@ -20,10 +30,7 @@ def _iso_add(value: str, days: int = 0, hours: int = 0) -> str:
 class RealizerGoldenTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        evidence = publisher.synthetic_demo_evidence(1)
-        report = publisher.build_report(evidence, publisher.Thresholds())
-        pkg = publisher.build_locked_recommendation_packages(report, evidence, publisher.Thresholds())[0]
-        cls.package = prc.to_primitive(pkg)
+        cls.package = canonical.load_scenario('example-exact')['package_doc']
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -377,6 +384,19 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.maturity['state'], 'MATURE')
         self.assertEqual(s.economics['mature_ttm_realized_savings'], '11000.00')
         self.assertNotEqual(s.economics['mature_ttm_realized_savings'], s.economics['annualized_realized_savings'])
+
+
+
+class GoldenRegistryTests(unittest.TestCase):
+    def test_registry_lists_gr_001_to_040_and_each_test_exists(self):
+        registry = json.loads((canonical.FIXTURES / 'golden-registry.json').read_text(encoding='utf-8'))
+        ids = [s['scenario_id'] for s in registry['scenarios']]
+        self.assertEqual(ids, [f'GR-{n:03d}' for n in range(1, 41)])
+        self.assertEqual(registry['scenario_count'], 40)
+        for s in registry['scenarios']:
+            module, cls, method = s['test_id'].rsplit('.', 2)
+            self.assertEqual((module, cls), ('tests.regression.realizer.test_realizer_golden', 'RealizerGoldenTests'), s['test_id'])
+            self.assertTrue(hasattr(RealizerGoldenTests, method), s['test_id'])
 
 
 if __name__ == '__main__':

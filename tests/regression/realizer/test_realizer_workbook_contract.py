@@ -1,20 +1,22 @@
+"""Realizer Workbook Extension projection of the frozen single-file oracle (the .xlsx renderer needs artifact_tool)."""
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import publisher
-import realizer
-from contracts import reporter_contract as prc
-from contracts import realizer_workbook_contract as rwc
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tests.regression.realizer import canonical, oracle  # noqa: E402
+
+realizer = oracle.engine()
+rwc = oracle.realizer_workbook_contract()
 
 
 class RealizerWorkbookContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        ev = publisher.synthetic_demo_evidence(1)
-        rep = publisher.build_report(ev, publisher.Thresholds())
-        cls.pkg_obj = publisher.build_locked_recommendation_packages(rep, ev, publisher.Thresholds())[0]
-        cls.pkg = prc.to_primitive(cls.pkg_obj)
+        cls.pkg = canonical.load_scenario('example-exact')['package_doc']
 
     def test_projection_has_one_summary_row_and_ledger_timeline(self):
         with tempfile.TemporaryDirectory() as td:
@@ -37,6 +39,14 @@ class RealizerWorkbookContractTests(unittest.TestCase):
                 proj.realization_summary[0]['annualized_realized_savings'],
                 round(float(snap.economics['annualized_realized_savings']), 2),
             )
+
+
+
+@unittest.skipUnless(oracle.reporters_available(), "the workbook renderers need the artifact_tool runtime")
+class RealizerWorkbookRendererTests(unittest.TestCase):
+    def test_renderer_loads(self):
+        reporter = oracle.reporters()
+        self.assertTrue(callable(reporter.write_realizer_extension_workbook))
 
 
 if __name__ == '__main__':

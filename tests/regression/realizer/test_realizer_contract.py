@@ -1,11 +1,19 @@
-import json
+"""Realizer contract helpers of the frozen single-file oracle."""
+import sys
 import unittest
 from decimal import Decimal
+from pathlib import Path
 
 import jsonschema
 
-from contracts import realizer_contract as rc
-from contracts.realizer_schema import ledger_entry_schema, realization_package_schema
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tests.regression.realizer import oracle  # noqa: E402
+
+rc = oracle.rc()
+ledger_entry_schema = oracle.realizer_schema().ledger_entry_schema
+realization_package_schema = oracle.realizer_schema().realization_package_schema
 
 
 class RealizerContractTests(unittest.TestCase):

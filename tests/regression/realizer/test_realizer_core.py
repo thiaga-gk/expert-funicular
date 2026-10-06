@@ -1,25 +1,27 @@
+"""Core behavior of the frozen single-file Realizer oracle, on the frozen v2.8-era PKG fixture."""
 import copy
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import jsonschema
 
-import publisher
-import realizer
-from contracts import reporter_contract as prc
-from contracts import realizer_contract as rc
-from contracts.realizer_schema import realization_package_schema
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tests.regression.realizer import canonical, oracle  # noqa: E402
+
+realizer = oracle.engine()
+rc = oracle.rc()
+realization_package_schema = oracle.realizer_schema().realization_package_schema
 
 
 class RealizerCoreTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        evidence = publisher.synthetic_demo_evidence(1)
-        report = publisher.build_report(evidence, publisher.Thresholds())
-        cls.pkg_obj = publisher.build_locked_recommendation_packages(report, evidence, publisher.Thresholds())[0]
-        cls.pkg = prc.to_primitive(cls.pkg_obj)
+        cls.pkg = canonical.load_scenario('example-exact')['package_doc']
 
     def test_source_package_is_not_mutated(self):
         pkg = copy.deepcopy(self.pkg)
