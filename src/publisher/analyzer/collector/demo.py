@@ -422,7 +422,7 @@ def _demo_floor_demand(pieces: Sequence[Tuple[float, float, int, float, float]],
     """A day's time at the floor by the clusters its demand needed (below the floor), as the collector's JSON object."""
     out: Dict[str, float] = {}
     for a, b, cl, conc, _ in pieces:
-        need = int(math.ceil(conc / 10.0 - 1e-9)) if conc > 0 else 0
+        need = int(math.ceil(conc / QUERIES_PER_CLUSTER_PRO_CLASSIC - 1e-9)) if conc > 0 else 0
         if cl > 0 and cl == floor and need < floor and b > a:
             out[str(need)] = out.get(str(need), 0.0) + (b - a)
     return json.dumps({k: round(v, 3) for k, v in sorted(out.items(), key=lambda kv: int(kv[0]))})
