@@ -58,7 +58,11 @@ class PortfolioEstimate:
 
 @dataclass
 class Scenario:
-    """Mutually exclusive execution-plan branch with ordered steps and portfolio estimate."""
+    """Mutually exclusive execution-plan branch with ordered steps and portfolio estimate.
+
+    ``scenario_type`` is set for the migration branch (``WAREHOUSE_TYPE_MIGRATION``, with or without its step) and the
+    no-change baseline (``NO_CHANGE_BASELINE``); when None the public type follows the steps.
+    """
     scenario_id: str
     warehouse_id: str
     workspace_id: str
@@ -70,6 +74,7 @@ class Scenario:
     recommended: bool = False
     compatibility: Dict[str, Any] = field(default_factory=dict)
     confidence: Dict[str, Any] = field(default_factory=dict)
+    scenario_type: Optional[str] = None
 
 
 PRICING_AUTHORITATIVE = "AUTHORITATIVE"

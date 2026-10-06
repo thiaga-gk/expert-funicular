@@ -40,8 +40,8 @@ def build(evidence):
 
 class ContractConstantsTests(unittest.TestCase):
     def test_versions_and_gate_constants_match_policy(self):
-        self.assertEqual(rc.CONTRACT_VERSION, "3.0.0")
-        self.assertEqual(wc.WORKBOOK_CONTRACT_VERSION, "1.5.0")
+        self.assertEqual(rc.CONTRACT_VERSION, "3.1.0")
+        self.assertEqual(wc.WORKBOOK_CONTRACT_VERSION, "1.6.0")
         t = Thresholds()
         # The validator embeds these gates; changing the policy thresholds therefore requires a contract bump.
         self.assertEqual(rc.REEVALUATION_READY_BILLED_DAYS, t.readiness_min_billed_days)
@@ -333,7 +333,7 @@ class SchemaAndWorkbookTests(unittest.TestCase):
             self.assertIn(key, schema["required"])
             self.assertIn(key, payload)
         self.assertIn("reevaluation", payload["recommended_plan"])
-        self.assertEqual(schema["properties"]["contract_version"], {"const": "3.0.0"})
+        self.assertEqual(schema["properties"]["contract_version"], {"const": "3.1.0"})
 
     def test_schema_rejects_savings_on_observed_change_and_unknown_gate_codes(self):
         import jsonschema

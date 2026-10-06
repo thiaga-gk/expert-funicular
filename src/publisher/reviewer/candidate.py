@@ -4,18 +4,20 @@ from __future__ import annotations
 from typing import Sequence
 
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.defaults import ACTIVE_KNOBS, AUTO_STOP_FLOOR_PRO_CLASSIC, MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT, SIZE_ORDER
+from publisher.config.defaults import AUTO_STOP_FLOOR_PRO_CLASSIC, MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT, SIZE_ORDER
 from publisher.contracts.candidate import CandidateRecommendation
+from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.contracts.source import WarehouseEvidence
 
 
 class CandidateGate:
-    """Candidate gate: identity, one candidate per active knob, cost, confidence, status/config consistency and knob bounds. Mixed into the Reviewer; fails fast with ValueError."""
+    """Candidate gate: identity, one candidate per in-scope knob, cost, confidence, status/config consistency and knob bounds. Mixed into the Reviewer; fails fast with ValueError."""
 
-    def review(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->None:
+    def review(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation],scope:RunScope=FULL_SCOPE)->None:
         """Raise ValueError on the first violated invariant of one warehouse's candidates; returns None and mutates nothing.
 
-        Checks: exactly one candidate per active knob; identity and unique IDs; non-negative costs; confidence in
+        Checks: exactly one candidate per in-scope knob (every active knob in the full scope), and a candidate for an
+        out-of-scope knob only when it is a canary rollback; identity and unique IDs; non-negative costs; confidence in
         0..1; status consistent with config change, blockers and savings; ordered ranges (a savings range may be
         negative: a cost increase); findings from the current epoch only (the serverless-usage metric is the one
         exception); knob bounds (the Pro/Classic auto-stop floor, the rollback floor fitting under its restored
@@ -23,8 +25,10 @@ class CandidateGate:
         """
         seen=set(); cfg=e.current_epoch.config
         knobs=[c.knob for c in candidates]
-        if set(knobs) != set(ACTIVE_KNOBS) or len(knobs) != len(ACTIVE_KNOBS):
-            raise ValueError(f"Expected exactly one candidate per active knob for {e.workspace_id}/{e.warehouse_id}: {knobs}")
+        if len(knobs) != len(set(knobs)) or not set(scope.knobs) <= set(knobs):
+            raise ValueError(f"Expected exactly one candidate per in-scope knob for {e.workspace_id}/{e.warehouse_id}: {knobs}")
+        if any(c.knob not in scope.knobs and "CANARY_GUARDRAIL_BREACHED" not in c.blockers for c in candidates):
+            raise ValueError(f"Out-of-scope candidate that is not a canary rollback for {e.workspace_id}/{e.warehouse_id}: {knobs}")
         for c in candidates:
             if c.workspace_id != e.workspace_id or c.warehouse_id != e.warehouse_id:
                 raise ValueError(f"Candidate identity mismatch: {c.recommendation_id}")

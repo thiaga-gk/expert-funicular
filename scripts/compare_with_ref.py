@@ -74,7 +74,8 @@ def inputs(work: Path, cases: List[str], demo: bool) -> List[Tuple[str, List[str
         path = work / f"{name}.evidence.json"
         path.write_text(json.dumps({"evidence_format_version": EVIDENCE_FORMAT_VERSION, "publisher_version": "compare",
                                     "warehouses": case["evidence"]}), encoding="utf-8")
-        jobs.append((f"case:{name}", ["--from-evidence", str(path)]))
+        scope = [arg for spec in case.get("scope") or () for arg in ("--scope", spec)]
+        jobs.append((f"case:{name}", ["--from-evidence", str(path), *scope]))
     return jobs
 
 

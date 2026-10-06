@@ -1,6 +1,6 @@
 [project]
 name = "databricks-sql-warehouse-optimizer"
-version = "2.11.0"
+version = "2.12.0"
 description = "Deterministic Databricks SQL Warehouse optimization publisher"
 requires-python = ">=3.10"
 dependencies = ["databricks-sql-connector>=4.2.6", "jsonschema>=4.23", "openpyxl>=3.1"]

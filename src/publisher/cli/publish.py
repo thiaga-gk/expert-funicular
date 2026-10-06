@@ -6,6 +6,7 @@ The CLI only parses and validates its own inputs, builds the PublisherRequest, c
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Optional, Sequence, Tuple
 from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER, setup_logging
 from publisher.config.cost_profiles import COST_PROFILES, parse_cost_profile_flags
+from publisher.config.output_layout import partitioned_run_dir
 from publisher.config.settings import EXECUTION_MODES, REPO_ROOT
 from publisher.config.versions import ANALYZER_VERSION, BUNDLE_MODEL_VERSION, ESTIMATOR_VERSION, OPTIMIZER_VERSION, POLICY_VERSION, PUBLISHER_VERSION
 from publisher.contracts import reporter_contract as rc
@@ -37,15 +39,27 @@ def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
     raise PublisherError("Execution target required: --serverless-warehouse-id, --sql-warehouse-id, --all-purpose-cluster-id, or --execution-kind/--execution-id")
 
 
-def request_from_args(args: argparse.Namespace) -> PublisherRequest:
+def run_output_dir(args: argparse.Namespace, now: Optional[dt.datetime] = None) -> Path:
+    """Where this run writes: a new ``run_date=/run_ts=`` folder under --output-dir (UTC start time), or --output-dir
+    itself with --flat-output."""
+    root = Path(args.output_dir)
+    if args.flat_output:
+        return root
+    return partitioned_run_dir(root, now or dt.datetime.now(dt.timezone.utc))
+
+
+def request_from_args(args: argparse.Namespace, output_dir: Optional[Path] = None) -> PublisherRequest:
     """The run request: demo when --demo, replay when --from-evidence, otherwise live with a resolved execution target.
 
-    Raises PublisherError for invalid --cost-profile flags before anything is collected.
+    ``output_dir`` is the resolved run folder (``--output-dir`` itself when None). Raises PublisherError for invalid
+    --cost-profile flags before anything is collected. The run-scope flags are passed on as raw strings; the config
+    layer validates and resolves them.
     """
     parse_cost_profile_flags(args.cost_profile)
-    common = dict(output_dir=Path(args.output_dir), batch_size=args.batch_size, generate_workbook=not args.no_workbook,
+    common = dict(output_dir=output_dir or Path(args.output_dir), batch_size=args.batch_size, generate_workbook=not args.no_workbook,
                   print_json=args.print_json, source_region=args.source_region,
-                  execution_mode=args.mode, cost_profiles=tuple(args.cost_profile))
+                  execution_mode=args.mode, cost_profiles=tuple(args.cost_profile), scope_specs=tuple(args.scope),
+                  scope_file=args.scope_file, warehouses=tuple(args.warehouse))
     if args.demo:
         return PublisherRequest(mode=MODE_DEMO, demo_count=args.demo_count, **common)
     if args.from_evidence:
@@ -91,6 +105,10 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--mode",choices=EXECUTION_MODES,default=os.getenv("PUBLISHER_EXECUTION_MODE","local"),help="Where the run executes (only local today)")
     p.add_argument("--cost-profile",action="append",default=[],metavar="PROFILE[=WH_ID,...]",
                    help=f"Cost profile ({', '.join(COST_PROFILES)}) for every warehouse, or with =WH_ID[,WH_ID...] (warehouse_id or workspace_id/warehouse_id) for the listed ones; repeatable. Default: aggressive for nonprod-tagged warehouses, balanced otherwise")
+    p.add_argument("--flat-output",action="store_true",help="Write directly into --output-dir; by default each run writes to its own run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/ folder under it")
+    p.add_argument("--scope",action="append",default=[],metavar="SCENARIO[:TECHNIQUE,...]",help="Recommend only these scenarios/techniques (repeatable): current[:size,max-clusters,min-clusters,auto-stop], migration[:warehouse-type]. Default: everything")
+    p.add_argument("--scope-file",default=None,help="JSON run-scope file (schema/run-scope.schema.json) with scenario/technique toggles and warehouses; not combined with --scope/--warehouse")
+    p.add_argument("--warehouse",action="append",default=[],metavar="all|WAREHOUSE_ID|WORKSPACE_ID/WAREHOUSE_ID",help="Report only these warehouses (repeatable). Default: all")
     return p.parse_args(argv)
 
 
@@ -105,6 +123,7 @@ def print_summary(report: ReportContract, log_path: Path, *, print_json: bool = 
         print(json.dumps(report.packages[0].to_dict(),indent=2,sort_keys=True))
     else:
         print(f"Analyzed {report.analyzed_count} warehouse(s); emitted {len(report.packages)} locked Reporter Contract v{rc.CONTRACT_VERSION} package(s), {report.candidate_count} candidates, and {report.scenario_count} scenarios; excluded {report.excluded_count} unsupported warehouse(s) (see manifest).")
+        print(f"run folder: {log_path.parent}")
         for k,v in report.files.items(): print(f"{k}: {v}")
         print(f"log: {log_path}")
 
@@ -114,12 +133,14 @@ def _log_settings(args: argparse.Namespace, request: PublisherRequest) -> None:
     kind, counts instead of file lists, and no execution IDs, config-file contents or credentials."""
     LOGGER.info(
         "cli.settings run_mode=%s execution_mode=%s output_dir=%s log_level=%s workbook=%s print_json=%s batch_size=%d",
-        request.mode, args.mode, args.output_dir, args.log_level, not args.no_workbook, args.print_json, args.batch_size,
+        request.mode, args.mode, request.output_dir, args.log_level, not args.no_workbook, args.print_json, args.batch_size,
     )
     selection = parse_cost_profile_flags(request.cost_profiles)
     LOGGER.info("cli.settings.cost_profile all_warehouses=%s warehouse_overrides=%d profiles=%s",
                 selection.all_profile or "TAG_DEFAULT", len(selection.by_warehouse),
                 ",".join(sorted({p for _, p in selection.by_warehouse} | ({selection.all_profile} if selection.all_profile else set()))) or "NONE")
+    LOGGER.info("cli.settings.scope scope_flags=%d scope_file=%s warehouse_flags=%d",
+                len(request.scope_specs), request.scope_file is not None, len(request.warehouses))
     if request.mode == MODE_LIVE:
         LOGGER.info("cli.settings.live profile=%s execution_kind=%s source_region=%s compatibility_api_mode=%s",
                     request.profile, request.execution_kind, request.source_region, request.compatibility_api_mode)
@@ -132,14 +153,15 @@ def _log_settings(args: argparse.Namespace, request: PublisherRequest) -> None:
 def run(argv: Optional[Sequence[str]] = None) -> int:
     """Run ``publisher publish``: parse, configure logging, build the request, publish, print the summary; returns 0.
 
-    Writes the run log to ``<output-dir>/publisher.log`` before anything else can fail. Raises PublisherError for a
-    refused run (``cli.main.main`` maps it to exit status 2).
+    Creates the run folder (see ``run_output_dir``) and writes the run log to ``<run folder>/publisher.log`` before
+    anything else can fail. Raises PublisherError for a refused run (``cli.main.main`` maps it to exit status 2).
     """
     args = parse_args(argv)
-    log_path = setup_logging(Path(args.output_dir), args.log_level)
+    output_dir = run_output_dir(args)
+    log_path = setup_logging(output_dir, args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",
                 POLICY_VERSION, ANALYZER_VERSION, OPTIMIZER_VERSION, ESTIMATOR_VERSION, BUNDLE_MODEL_VERSION)
-    request = request_from_args(args)
+    request = request_from_args(args, output_dir)
     _log_settings(args, request)
     report = publish(request)
     LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",

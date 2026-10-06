@@ -12,6 +12,7 @@ from publisher.contracts.analysis import AnalysisResult, FleetAnalysis, Warehous
 from publisher.contracts.candidate import OptimizationDecision, OptimizationResult, WarehouseCandidates
 from publisher.contracts.governance import GovernanceResult
 from publisher.contracts.request import RunContext
+from publisher.contracts.scope import FULL_SCOPE, RunScope
 from publisher.contracts.source import WarehouseEvidence
 from publisher.optimizer import conflicts
 from publisher.optimizer.estimator.candidate import Estimator
@@ -66,16 +67,27 @@ class Optimizer:
         return out
 
 
-def optimize(w: WarehouseAnalysis, thresholds: Thresholds) -> WarehouseCandidates:
-    """Decisions for one eligible warehouse under its cost profile, each priced as an isolated (non-additive) candidate."""
+def in_scope(decisions: Sequence[OptimizationDecision], scope: RunScope) -> List[OptimizationDecision]:
+    """The decisions a run publishes: the in-scope knobs, plus any canary rollback (a safety action, kept in every scope).
+
+    Every knob is decided first, so cross-technique holds (a rollback holding a conflicting cut, migration reading the
+    auto-stop decision) are the same in every scope; scope only removes decisions afterwards, in order.
+    """
+    return [d for d in decisions if d.knob in scope.knobs or "CANARY_GUARDRAIL_BREACHED" in d.blockers]
+
+
+def optimize(w: WarehouseAnalysis, thresholds: Thresholds, scope: RunScope = FULL_SCOPE) -> WarehouseCandidates:
+    """Decisions for one eligible warehouse under its cost profile and within the run scope, each priced as an isolated
+    (non-additive) candidate."""
     e, analyses = w.evidence, w.analyses
     t = thresholds_for_profile(thresholds, w.cost_profile.name)
-    decisions = Optimizer(t).optimize(e, analyses)
+    decisions = in_scope(Optimizer(t).optimize(e, analyses), scope)
     candidates = Estimator(t).candidates(e, analyses, decisions)
     return WarehouseCandidates(w, decisions, candidates)
 
 
-def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresholds, batch_size: int = 100) -> OptimizationResult:
+def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresholds, batch_size: int = 100,
+                      scope: RunScope = FULL_SCOPE) -> OptimizationResult:
     """Optimize the eligible warehouses in batches, in order.
 
     Batching only bounds the log granularity; results and their order do not depend on ``batch_size``.
@@ -91,11 +103,11 @@ def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresho
                 "warehouse.start workspace_id=%s warehouse_id=%s epoch_id=%s",
                 e.workspace_id, e.warehouse_id, e.current_epoch_id,
             )
-            results.append(optimize(w, thresholds))
+            results.append(optimize(w, thresholds, scope))
         LOGGER.info("pipeline.batch.done batch_index=%d processed=%d", offset // batch + 1, len(chunk))
     return OptimizationResult(results)
 
 
 def run(context: RunContext, analysis: FleetAnalysis, governance: GovernanceResult) -> OptimizationResult:
-    """What should change: decisions and isolated candidate estimates for every eligible warehouse."""
-    return optimize_eligible(governance.eligible, context.thresholds, context.request.batch_size)
+    """What should change: decisions and isolated candidate estimates for every eligible warehouse, within the run scope."""
+    return optimize_eligible(governance.eligible, context.thresholds, context.request.batch_size, governance.scope)

@@ -2,8 +2,8 @@
 
 **Document:** `docs/architecture/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.0.0 (locked)  
-**Workbook Contract:** v1.5.0 (locked)
+**Reporter JSON Contract:** v3.1.0 (locked)  
+**Workbook Contract:** v1.6.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
 
@@ -290,7 +290,7 @@ Key architecture rules:
 
 Examples include:
 
-- exactly one candidate per active domain,
+- exactly one candidate per active domain in the run scope (only a canary rollback may fall outside it),
 - deterministic/valid identifiers,
 - current-epoch consistency,
 - valid configuration transitions,
@@ -310,6 +310,8 @@ Phase-1 scenario policy:
 - **Plan B:** evaluate warehouse-type migration as an alternative experiment.
 
 For a current Serverless warehouse, the migration alternative targets Pro. For current Classic/Pro, the migration alternative targets Serverless.
+
+A run scope (LLD §5.4) builds only the plans it enables: Plan A from the enabled current-type techniques (plus any canary rollback), Plan B only when the migration is enabled, and a step-less no-change baseline as the recommended scenario when Plan A is not built. Ordering and invalidation apply to the steps present, so a technique that is out of scope neither runs first nor leaves other steps pending.
 
 Plan A orders its steps by expected value (base savings × confidence ÷ risk) and never places a step before the step that invalidates it (formula: LLD §19.1):
 
@@ -361,7 +363,7 @@ It verifies, at minimum:
 
 ### 6.11 Packager: public contract assembly
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.0.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.1.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/reporter-json-contract.md`.
 
@@ -638,7 +640,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v3.0.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v3.1.0:
 
 - Python dataclasses: `src/publisher/contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
@@ -646,7 +648,7 @@ The only authoritative recommendation serialization is Reporter JSON Contract v3
 
 ### 12.2 Workbook contract
 
-Workbook Contract v1.5.0 is an independently versioned presentation contract:
+Workbook Contract v1.6.0 is an independently versioned presentation contract:
 
 - projection: `src/publisher/contracts/workbook_contract.py`
 - renderer: `src/publisher/reporter/workbook_reporter.py`

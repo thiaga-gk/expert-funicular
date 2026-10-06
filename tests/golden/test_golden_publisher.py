@@ -2,7 +2,7 @@
 
 Every case is checked twice: its ``expected/`` output must equal what the publisher produces now (the behavioral
 baseline; ``scripts/update_goldens.py`` rewrites it only for an approved decision-affecting change), and a scenario
-case (``c<NN>-``/``a<NN>-``) must also pass the assertions in its ``case.yaml`` ``expect`` block:
+case (``c<NN>-``/``a<NN>-``, or ``s<NN>-`` for a run-scope case) must also pass the assertions in its ``case.yaml`` ``expect`` block:
 
     expect:
       scenario: C32
@@ -20,7 +20,9 @@ every given value), ``excludes`` (list contains none of them), ``length`` (list 
 inclusive, for numbers).
 
 An optional top-level ``cost_profiles`` list holds raw ``--cost-profile`` flags (``PROFILE`` or ``PROFILE=WH[,WH...]``)
-the case is built with; without it every warehouse gets its tag default. With ``recompute_forecast: true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
+the case is built with; without it every warehouse gets its tag default. A top-level ``scope`` list (``--scope`` values,
+e.g. ``[current:auto-stop]``) runs the case under that run scope; without it the case runs under the full scope.
+With ``recompute_forecast: true`` in ``expect``, the real Modeler is re-run on each warehouse's ``daily_cost_365``
 rows (as the collector does) before the package is built, so a case can exercise the forecast itself. With ``[*]`` or a filter the operator applies
 to every matched item, and at least one item must match.
 
@@ -41,12 +43,12 @@ from publisher.common.utils import as_serializable  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.reviewer.package import validate_locked_package_schema  # noqa: E402
 from tests.golden import case_dir, case_names, load_case  # noqa: E402
-from tests.golden.harness import check, collector_evidence, recompute_forecast  # noqa: E402
+from tests.golden.harness import case_scope, check, collector_evidence, recompute_forecast  # noqa: E402
 from tests.regression import canonical  # noqa: E402
 
 
 def scenario_cases():
-    return [n for n in case_names() if re.match(r"^[ca]\d{2}-", n)]
+    return [n for n in case_names() if re.match(r"^[cas]\d{2}-", n)]
 
 
 class GoldenScenarioTests(unittest.TestCase):
@@ -81,7 +83,7 @@ class GoldenScenarioTests(unittest.TestCase):
                     for e in evidence:
                         recompute_forecast(p, e)
                 flags = tuple(payload.get("cost_profiles") or ())
-                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags)}
+                packages = {pkg.warehouse.warehouse_id: pkg for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags, scope=case_scope(payload))}
                 package = packages[expect["warehouse"]].to_dict()
                 validate_locked_package_schema(package)
                 failures = [msg for msg in (check(package, a) for a in expect["assertions"]) if msg]

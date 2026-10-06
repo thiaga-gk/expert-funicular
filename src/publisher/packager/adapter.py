@@ -510,7 +510,12 @@ def _scenario_contracts(
         compatibility = _compatibility_contract(s, compatibility_map)
         ordered_candidates = [candidates_by_old_id[st.recommendation_id] for st in s.steps if st.recommendation_id in candidates_by_old_id]
         candidate_refs = [c.candidate_id for c in ordered_candidates]
-        scenario_type = rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION if any(c.knob == rc.TunableKnob.WAREHOUSE_TYPE for c in ordered_candidates) else rc.ScenarioType.IN_PLACE_OPTIMIZATION
+        if s.scenario_type is not None:
+            scenario_type = rc.ScenarioType(s.scenario_type)
+        elif any(c.knob == rc.TunableKnob.WAREHOUSE_TYPE for c in ordered_candidates):
+            scenario_type = rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION
+        else:
+            scenario_type = rc.ScenarioType.IN_PLACE_OPTIMIZATION
         scenario_id = rc.make_scenario_id(
             workspace_id=e.workspace_id,
             warehouse_id=e.warehouse_id,
@@ -525,7 +530,8 @@ def _scenario_contracts(
         )
         plan_steps: List[rc.PlanStep] = []
         next_step = 1
-        if scenario_type == rc.ScenarioType.WAREHOUSE_TYPE_MIGRATION and compatibility.status == rc.CompatibilityStatus.REQUIRES_VALIDATION:
+        migrates = any(c.knob == rc.TunableKnob.WAREHOUSE_TYPE for c in ordered_candidates)
+        if migrates and compatibility.status == rc.CompatibilityStatus.REQUIRES_VALIDATION:
             plan_steps.append(rc.PlanStep(
                 step=next_step,
                 step_type=rc.PlanStepType.COMPATIBILITY_VALIDATION,

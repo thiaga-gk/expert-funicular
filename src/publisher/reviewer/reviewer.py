@@ -52,7 +52,7 @@ def review_candidates(context: RunContext, analysis: FleetAnalysis, governance: 
     """Candidate gate for every optimized warehouse, in order; raises ValueError on the first violated invariant."""
     for w in optimization.warehouses:
         try:
-            Reviewer(context.thresholds).review(w.evidence, w.candidates)
+            Reviewer(context.thresholds).review(w.evidence, w.candidates, governance.scope)
         except Exception as exc:
             _reject("candidate", w.evidence.workspace_id, w.evidence.warehouse_id, exc)
             raise

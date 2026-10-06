@@ -13,7 +13,7 @@ There is one format version, **1.0.0**, declared in `evidence_format_version`. T
 ```json
 {
   "evidence_format_version": "1.0.0",
-  "publisher_version": "2.10.0",
+  "publisher_version": "2.12.0",
   "warehouses": [ { "...": "one normalized WarehouseEvidence per workspace/warehouse" } ]
 }
 ```

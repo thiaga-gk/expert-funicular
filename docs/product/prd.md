@@ -2,8 +2,8 @@
 
 **Document:** `docs/product/prd.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.0.0 (locked)  
-**Workbook Contract:** v1.5.0 (locked)
+**Reporter JSON Contract:** v3.1.0 (locked)  
+**Workbook Contract:** v1.6.0 (locked)
 
 Role: product scope, requirements and acceptance criteria.
 
@@ -21,7 +21,7 @@ The product is designed to answer five questions for every in-scope SQL warehous
 4. **What are the candidate and scenario-level economic consequences, with confidence and guardrails?**
 5. **What should a human reviewer validate, canary, apply, remeasure, or reject?**
 
-The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v3.0.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.5.0 is a presentation-only projection of those locked packages.
+The product intentionally separates deterministic decision logic from presentation. The immutable per-warehouse `RecommendationPackage` JSON under Reporter Contract v3.1.0 is the source of truth. `workbook.xlsx` under Workbook Contract v1.6.0 is a presentation-only projection of those locked packages.
 
 The current implementation is **advisory only**. It does not mutate SQL warehouse configuration. Human-in-the-loop approval and canary validation are mandatory for changes that can materially alter workload behavior or runtime.
 
@@ -164,7 +164,7 @@ It uses query-level telemetry as evidence but does not rewrite, refactor, or aut
 
 ### 6.4 Active recommendation candidates
 
-Each supported warehouse must produce exactly one candidate decision for each active candidate domain:
+Each supported warehouse must produce exactly one candidate decision for each active candidate domain in the run scope (every domain by default; FR-OPT-011):
 
 | Candidate domain | Purpose | Product classification |
 |---|---|---|
@@ -200,7 +200,7 @@ For Phase 1, **Plan A — optimize the current warehouse type** is the determini
 
 A warehouse-type migration is emitted as an **alternative experimental scenario** requiring compatibility validation and a canary even if its modeled range appears economically attractive.
 
-This is a deliberate Phase-1 safety policy, not an assertion that Plan A is economically superior.
+This is a deliberate Phase-1 safety policy, not an assertion that Plan A is economically superior. When a run's scope leaves out current-type tuning (FR-OPT-011), a step-less no-change baseline is the recommended scenario and the migration stays the alternative experiment.
 
 A future product increment may add deterministic migration-selection policy that can promote a migration scenario to `RECOMMENDED` when compatibility, confidence, savings, runtime guardrails, and canary evidence meet explicit thresholds.
 
@@ -477,7 +477,11 @@ The migration target shall be priced at its own cost-minimizing auto-stop on the
 
 ### FR-OPT-010 — Candidate completeness
 
-Every supported warehouse shall emit exactly one candidate state for every active candidate domain, including `NO_CHANGE`, `BLOCKED`, `INSUFFICIENT_EVIDENCE`, or `TEST_REQUIRED` outcomes.
+Every supported warehouse shall emit exactly one candidate state for every active candidate domain in the run scope (every domain by default), including `NO_CHANGE`, `BLOCKED`, `INSUFFICIENT_EVIDENCE`, or `TEST_REQUIRED` outcomes.
+
+### FR-OPT-011 — Run scope
+
+A run may be restricted to some scenarios (current-type tuning, warehouse-type migration), to some techniques within them (size, max clusters, min clusters, auto-stop; warehouse type), and to selected warehouses. Scope restricts what is recommended, not what is observed or decided: evidence is collected unchanged, every domain is still decided so cross-technique rules hold, out-of-scope candidates are not emitted, and scenarios are built and priced from the in-scope candidates only, starting from the current configuration (out-of-scope knobs keep their current values). A fail-fast canary rollback is always emitted, even outside the scope. A migration is never promoted to the recommended scenario by scope. Each package records the scope it was produced under (null for a full run), and a full-scope run is unchanged. Invalid scope input, or a selected warehouse that is not in the evidence, refuses the run.
 
 ### FR-OPT-011 — Cost profile
 
@@ -626,7 +630,7 @@ Confidence shall mean **quality/sufficiency of evidence for the decision**, not 
 
 Before scenario planning, the reviewer shall validate candidate invariants including:
 
-- exactly one candidate per active domain,
+- exactly one candidate per active domain in the run scope (only a canary rollback may fall outside it),
 - deterministic identity,
 - current-epoch reference integrity,
 - confidence range,
@@ -658,7 +662,7 @@ A validation failure shall stop publication of the affected package rather than 
 
 ## 17. Public Reporter JSON Contract requirements
 
-The only authoritative public recommendation serialization is **Reporter JSON Contract v3.0.0**.
+The only authoritative public recommendation serialization is **Reporter JSON Contract v3.1.0**.
 
 ### FR-JSON-001
 
@@ -697,7 +701,7 @@ Volatile presentation metadata such as generation timestamp, workbook layout, fi
 
 ## 18. Workbook Contract requirements
 
-The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.5.0.
+The workbook shall be a pure projection of locked package JSONs and shall contain exactly four sheets under Workbook Contract v1.6.0.
 
 ### 18.1 Executive Summary
 
@@ -1014,8 +1018,8 @@ Current product support remains intentionally narrower than every newly availabl
 
 ### Recorded in this PRD
 
-1. Reporter JSON Contract v3.0.0 is authoritative.
-2. Workbook Contract v1.5.0 is presentation-only.
+1. Reporter JSON Contract v3.1.0 is authoritative.
+2. Workbook Contract v1.6.0 is presentation-only.
 3. Phase-1 optimization is infrastructure/configuration only.
 4. Candidate economics are never additive.
 5. Scenario economics are stateful and package economics are scenario-envelope based.

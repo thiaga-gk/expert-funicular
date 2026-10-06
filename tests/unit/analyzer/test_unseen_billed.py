@@ -118,7 +118,7 @@ class UnseenBilledWarehouseTests(unittest.TestCase):
                     patch("publisher.analyzer.analyzer.SqlClient", return_value=client), \
                     patch("publisher.analyzer.analyzer.extract_evidence", return_value=evidence):
                 with contextlib.redirect_stdout(io.StringIO()):
-                    code = cli_main(["--profile", "X", "--sql-warehouse-id", "abc", "--source-region", "us-east-1", "--output-dir", td, "--no-workbook"])
+                    code = cli_main(["--profile", "X", "--sql-warehouse-id", "abc", "--source-region", "us-east-1", "--output-dir", td, "--flat-output", "--no-workbook"])
                 self.assertEqual(code, 0)
                 m = json.loads((Path(td) / "manifest.json").read_text())
                 self.assertEqual((m["unseen_billed_warehouse_check"], m["unseen_billed_warehouse_count"]), ("CHECKED", 2))

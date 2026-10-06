@@ -28,6 +28,9 @@ def package_locked_contract(
     *,
     generate_workbook: bool = True,
     unseen_billed_warehouses: Optional[Sequence[Mapping[str, Any]]] = None,
+    exclusions: Optional[Sequence[Mapping[str, str]]] = None,
+    run_scope: Optional[Mapping[str, Any]] = None,
+    warehouse_selection: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, str]:
     """Write the run outputs under *output_dir* and return a map of output key to file path.
 
@@ -37,10 +40,13 @@ def package_locked_contract(
     ``workbook`` (only when generated), ``manifest`` and ``evidence``.
 
     Every packages/*.json file remains the source of truth. workbook.xlsx is a presentation-only projection and is
-    never read back into the decision engine. A schema failure propagates (jsonschema ValidationError from the Reviewer's schema
+    never read back into the decision engine. ``exclusions`` are the governor's (recomputed from the evidence when
+    None); ``run_scope`` and ``warehouse_selection`` go to the manifest and the workbook as given. A schema failure propagates (jsonschema ValidationError from the Reviewer's schema
     check, which aborts the run before that package is written); a missing openpyxl raises RuntimeError with install guidance unless the workbook is disabled.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    if exclusions is None:
+        exclusions = unsupported_warehouse_exclusions(evidence)
     packages_dir = output_dir / "packages"
     packages_dir.mkdir(parents=True, exist_ok=True)
     LOGGER.info("contract.v1.package.start output_dir=%s packages=%d", output_dir, len(packages))
@@ -76,7 +82,7 @@ def package_locked_contract(
             LOGGER.warning("workbook.v1.failed reason=openpyxl_missing")
             raise RuntimeError("Workbook generation requires openpyxl (pip install openpyxl). Use --no-workbook only when producing JSON packages without it.") from exc
         try:
-            workbook_path = write_workbook(output_dir / "workbook.xlsx", packages, unsupported_warehouse_exclusions(evidence))
+            workbook_path = write_workbook(output_dir / "workbook.xlsx", packages, exclusions, warehouse_selection)
         except Exception as exc:
             LOGGER.warning("workbook.v1.failed error_type=%s", type(exc).__name__)  # type only: the message may echo cell content
             raise
@@ -85,8 +91,8 @@ def package_locked_contract(
     else:
         LOGGER.warning("workbook.v1.skipped reason=no_workbook packages=%d", len(packages))
     manifest_path = output_dir / "manifest.json"
-    exclusions = unsupported_warehouse_exclusions(evidence)
-    manifest = build_manifest(packages, entries, exclusions, unseen_billed_warehouses, workbook_path, evidence_path)
+    manifest = build_manifest(packages, entries, exclusions, unseen_billed_warehouses, workbook_path, evidence_path,
+                              run_scope, warehouse_selection)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     LOGGER.info("manifest.written path=%s packages=%d exclusions=%d", manifest_path, len(packages), len(exclusions))
     result["manifest"] = str(manifest_path)

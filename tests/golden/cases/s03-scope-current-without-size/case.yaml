@@ -1,0 +1,25 @@
+name: s03-scope-current-without-size
+description: 'S03 Run scope current without size on the idle-expensive warehouse: with no size step nothing invalidates
+  the cluster steps, so they are ready (not pending re-evaluation) and priced on the authoritative chain.'
+scope:
+- current:max-clusters,min-clusters,auto-stop
+expect:
+  scenario: S03
+  warehouse: wh-demo-001
+  assertions:
+  - path: candidates
+    length: 3
+  - path: scenarios
+    length: 1
+  - path: scenarios[status=RECOMMENDED].execution_plan
+    length: 3
+  - path: scenarios[status=RECOMMENDED].execution_plan[knob=min_clusters].execution_state
+    equals: READY_FOR_CANARY
+  - path: scenarios[status=RECOMMENDED].execution_plan[knob=max_clusters].execution_state
+    equals: READY
+  - path: scenarios[status=RECOMMENDED].portfolio_economics.contingent_savings_365d
+    equals: null
+  - path: package_economics.estimated_savings_365d.base
+    equals: 25726.81
+  - path: run_scope.scenarios[scenario_type=IN_PLACE_OPTIMIZATION].knobs
+    equals: [auto_stop_minutes, max_clusters, min_clusters]

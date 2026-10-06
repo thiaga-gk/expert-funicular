@@ -31,6 +31,43 @@ def analysis_of(fleet, registry=None):
     return FleetAnalysis(fleet, analyzer.analyze(fleet, Thresholds()), aws_price_registry=registry)
 
 
+class WarehouseSelectionTests(unittest.TestCase):
+    """The run scope's warehouse selection narrows what the Governor lets through; it fails closed on a bad selector."""
+
+    def scope(self, *values):
+        from publisher.config.loader import resolve_scope
+        return resolve_scope(warehouses=list(values))
+
+    def test_selection_keeps_only_the_named_warehouses(self):
+        fleet = synthetic_demo_evidence(4)
+        result = governor.govern(analysis_of(fleet), self.scope(fleet[2].warehouse_id))
+        self.assertEqual([w.evidence.warehouse_id for w in result.eligible], [fleet[2].warehouse_id])
+        self.assertEqual(len(result.not_selected), 3)
+        self.assertNotIn(fleet[2].warehouse_id, {x["warehouse_id"] for x in result.not_selected})
+        self.assertEqual(set(result.not_selected[0]), {"workspace_id", "warehouse_id"})
+
+    def test_exclusions_cover_selected_warehouses_only(self):
+        fleet = fleet_with_unsupported(4, index=1)
+        unselected = governor.govern(analysis_of(fleet), self.scope(fleet[0].warehouse_id))
+        self.assertEqual(unselected.exclusions, [])
+        selected = governor.govern(analysis_of(fleet), self.scope(fleet[1].warehouse_id))
+        self.assertEqual([x["warehouse_id"] for x in selected.exclusions], [fleet[1].warehouse_id])
+        self.assertEqual(selected.eligible, [])
+
+    def test_qualified_selector_and_fail_closed_cases(self):
+        fleet = synthetic_demo_evidence(2)
+        twin = copy.deepcopy(fleet[0])
+        twin.workspace_id = "999"
+        fleet = fleet + [twin]
+        analysis = analysis_of(fleet)
+        with self.assertRaisesRegex(PublisherError, "exists in 2 workspaces"):
+            governor.govern(analysis, self.scope(fleet[0].warehouse_id))
+        with self.assertRaisesRegex(PublisherError, "not in the evidence"):
+            governor.govern(analysis, self.scope("wh-missing"))
+        result = governor.govern(analysis, self.scope(f"999/{fleet[0].warehouse_id}"))
+        self.assertEqual([(w.evidence.workspace_id, w.evidence.warehouse_id) for w in result.eligible], [("999", fleet[0].warehouse_id)])
+
+
 class EligibilityTests(unittest.TestCase):
     def test_unsupported_warehouses_are_excluded_one_entry_each(self):
         fleet = fleet_with_unsupported()

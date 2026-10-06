@@ -64,7 +64,13 @@ def workbook_cells(path: Path) -> Dict[str, Any]:
 
 
 def output_dir_canonical(out: Path) -> Dict[str, Any]:
-    """Canonical view of one publisher output directory: relative path -> parsed JSON or workbook cell dump."""
+    """Canonical view of one publisher run: relative path -> parsed JSON or workbook cell dump.
+
+    *out* is a run folder (flat output) or an ``--output-dir`` root holding ``run_date=*/run_ts=*`` run folders, in
+    which case the newest run is read (``latest_run_dir``), so flat and partitioned layouts compare alike.
+    """
+    from publisher.config.output_layout import latest_run_dir
+    out = latest_run_dir(out)
     view: Dict[str, Any] = {}
     for path in sorted(out.rglob("*")):
         if not path.is_file():
@@ -83,14 +89,14 @@ def output_dir_canonical(out: Path) -> Dict[str, Any]:
 
 def golden_recommendation(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Packages built from an evidence-level case, in publisher order, exactly as the golden harness builds them."""
-    from tests.golden.harness import recompute_forecast
+    from tests.golden.harness import case_scope, recompute_forecast
 
     evidence = [evidence_from_dict(x) for x in case["evidence"]]
     if (case.get("expect") or {}).get("recompute_forecast"):
         for e in evidence:
             recompute_forecast(p, e)
     flags = tuple(case.get("cost_profiles") or ())
-    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags)]
+    return [pkg.to_dict() for pkg in p.build_recommendation_packages(evidence, Thresholds(), cost_profiles=flags, scope=case_scope(case))]
 
 
 def golden_collector_evidence(p, case: Dict[str, Any]) -> List[Dict[str, Any]]:

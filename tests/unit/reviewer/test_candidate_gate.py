@@ -33,7 +33,7 @@ class CandidateGateTests(unittest.TestCase):
         Reviewer(self.t).review(self.result.evidence, self.candidates())
 
     def test_one_candidate_per_active_knob(self):
-        self.assertRejected(self.candidates()[:-1], "Expected exactly one candidate per active knob")
+        self.assertRejected(self.candidates()[:-1], "Expected exactly one candidate per in-scope knob")
 
     def test_identity_must_match_the_warehouse(self):
         c = self.candidates()

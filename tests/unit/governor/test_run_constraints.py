@@ -60,12 +60,12 @@ class AwsRegionPriceGuardTests(unittest.TestCase):
                 patch("publisher.analyzer.analyzer.extract_evidence", return_value=self.evidence):
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                code = cli_main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
+                code = cli_main(["--output-dir", tmp, "--flat-output", "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook"])
             self.assertEqual(code, 2)
             self.assertIn("--allow-missing-aws-price", err.getvalue())
             self.assertFalse((Path(tmp) / "packages").exists())
             # The escape flag publishes with AWS cost unavailable.
-            self.assertEqual(cli_main(["--output-dir", tmp, "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
+            self.assertEqual(cli_main(["--output-dir", tmp, "--flat-output", "--sql-warehouse-id", "abc", "--source-region", "unknown", "--no-workbook", "--allow-missing-aws-price"]), 0)
             self.assertTrue(any((Path(tmp) / "packages").glob("*.json")))
 
 

@@ -1,4 +1,4 @@
-"""Build the locked Reporter Contract JSON Schema v3.0.0.
+"""Build the locked Reporter Contract JSON Schema (version: CONTRACT_VERSION).
 
 The generated file is committed under schema/recommendation-package.schema.json and
 is checked byte-for-byte in tests so the Python schema source and artifact cannot drift.
@@ -38,6 +38,7 @@ from .reporter_contract import (
     PricingBasis,
     RealizationOutcomeStatus,
     REEVALUATION_BLOCKING_CODES,
+    SCOPE_SCENARIO_KNOBS,
     ReevaluationStatus,
     RealizationStatus,
     RecommendationStatus,
@@ -494,6 +495,21 @@ def build_schema() -> Dict[str, Any]:
         "aggregate": ref("RealizationAggregate"),
     })
 
+    in_place_knobs = [k.value for k in SCOPE_SCENARIO_KNOBS[ScenarioType.IN_PLACE_OPTIMIZATION]]
+    defs["ScopedScenario"] = obj({
+        "scenario_type": {"type": "string", "enum": [t.value for t in SCOPE_SCENARIO_KNOBS]},
+        "knobs": arr({"type": "string", "enum": sorted({k.value for knobs in SCOPE_SCENARIO_KNOBS.values() for k in knobs})}, unique=True, min_items=1),
+    })
+    defs["SafetyInclusion"] = obj({
+        "candidate_id": id_schema("CAND"),
+        "knob": {"type": "string", "enum": in_place_knobs},
+        "reason_code": {"const": "CANARY_GUARDRAIL_BREACHED"},
+    })
+    defs["RunScope"] = obj({
+        "scenarios": arr(ref("ScopedScenario"), min_items=1),
+        "safety_inclusions": arr(ref("SafetyInclusion")),
+    })
+
     defs["Provenance"] = obj({
         "contract_version": {"const": CONTRACT_VERSION},
         "policy_version": {"type": "string", "minLength": 1},
@@ -550,12 +566,13 @@ def build_schema() -> Dict[str, Any]:
             "cost_profile": ref("CostProfile"),
             "observed_change": nullable(ref("ObservedConfigChange")),
             "carried_forward_plan": nullable(ref("CarriedForwardPlan")),
+            "run_scope": nullable(ref("RunScope")),
         },
         "required": [
             "recommendation_package_id", "contract_version", "warehouse", "current_config",
             "workload_profile", "cost_baseline", "assessment", "evidence", "candidates",
             "scenarios", "recommended_plan", "package_economics", "realization", "provenance",
-            "cost_profile", "observed_change", "carried_forward_plan",
+            "cost_profile", "observed_change", "carried_forward_plan", "run_scope",
         ],
         "$defs": defs,
     }

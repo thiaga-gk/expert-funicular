@@ -1,0 +1,29 @@
+name: s01-scope-current-auto-stop
+description: 'S01 Run scope current:auto-stop on the idle-expensive warehouse: one auto-stop candidate, priced exactly as in
+  the full run, and a one-step Plan A whose savings equal it; no migration scenario.'
+scope:
+- current:auto-stop
+expect:
+  scenario: S01
+  warehouse: wh-demo-001
+  assertions:
+  - path: candidates
+    length: 1
+  - path: candidates[knob=auto_stop_minutes].status
+    equals: ACTIONABLE
+  - path: candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total.base
+    equals: 22371.14
+  - path: scenarios
+    length: 1
+  - path: scenarios[status=RECOMMENDED].scenario_type
+    equals: IN_PLACE_OPTIMIZATION
+  - path: scenarios[status=RECOMMENDED].execution_plan
+    length: 1
+  - path: package_economics.estimated_savings_365d.base
+    equals: 22371.14
+  - path: run_scope.scenarios
+    length: 1
+  - path: run_scope.scenarios[scenario_type=IN_PLACE_OPTIMIZATION].knobs
+    equals: [auto_stop_minutes]
+  - path: run_scope.safety_inclusions
+    length: 0

@@ -1,4 +1,4 @@
-"""Reporter contract v3.0.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v3.1.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from the publisher pipeline.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -34,7 +34,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "3.0.0"
+CONTRACT_VERSION = "3.1.0"
 # Re-evaluation gates (contract 2.0.0: readiness replaces the 1.2.0 epoch-age gate). The validator embeds them, so
 # changing the matching publisher policy thresholds (readiness_min_billed_days, min_economics_cost_history_days)
 # requires a contract version bump.
@@ -1997,12 +1997,85 @@ class Provenance:
             _require(len(self.package_hash_full_sha256) == 64, "package_hash_full_sha256 must be 64 hex characters")
 
 
+# Knobs each scoped scenario type may name (contract 3.1.0); the no-change baseline is never a scoped scenario.
+SCOPE_SCENARIO_KNOBS = {
+    ScenarioType.IN_PLACE_OPTIMIZATION: (
+        TunableKnob.AUTO_STOP_MINUTES, TunableKnob.MAX_CLUSTERS, TunableKnob.MIN_CLUSTERS, TunableKnob.WAREHOUSE_SIZE,
+    ),
+    ScenarioType.WAREHOUSE_TYPE_MIGRATION: (TunableKnob.WAREHOUSE_TYPE,),
+}
+
+
+@dataclass(frozen=True)
+class ScopedScenario:
+    """One scenario a restricted run assessed and the knobs (sorted by value) it was allowed to recommend."""
+    scenario_type: ScenarioType
+    knobs: List[TunableKnob]
+
+    def validate(self) -> None:
+        """Reject the no-change baseline, an empty or unsorted knob list, duplicates and knobs of another scenario type."""
+        allowed = SCOPE_SCENARIO_KNOBS.get(self.scenario_type)
+        _require(allowed is not None, f"run_scope scenario type {self.scenario_type.value} cannot be scoped")
+        values = [k.value for k in self.knobs]
+        _require(len(values) >= 1, "run_scope scenario needs at least one knob")
+        _require(values == sorted(set(values)), "run_scope knobs must be unique and sorted")
+        _require(all(k in allowed for k in self.knobs), f"run_scope knobs do not belong to {self.scenario_type.value}")
+
+
+@dataclass(frozen=True)
+class SafetyInclusion:
+    """A candidate kept outside the run scope because it is a safety action (a fail-fast canary rollback)."""
+    candidate_id: str
+    knob: TunableKnob
+    reason_code: str
+
+    def validate(self) -> None:
+        """Reject a malformed candidate ID and any reason other than CANARY_GUARDRAIL_BREACHED."""
+        _validate_identifier(self.candidate_id, "CAND")
+        _require(self.reason_code == "CANARY_GUARDRAIL_BREACHED", "safety inclusion reason must be CANARY_GUARDRAIL_BREACHED")
+
+
+@dataclass(frozen=True)
+class RunScope:
+    """The restricted scope a package was produced under (contract 3.1.0); the package's ``run_scope`` is None for the full scope.
+
+    ``scenarios`` are sorted by type; ``safety_inclusions`` are sorted by knob. A scope that names every knob of
+    every scoped scenario type is the full scope and must be null instead.
+    """
+    scenarios: List[ScopedScenario]
+    safety_inclusions: List[SafetyInclusion] = field(default_factory=list)
+
+    def knobs(self) -> List[TunableKnob]:
+        """Every in-scope knob."""
+        return [k for s in self.scenarios for k in s.knobs]
+
+    def scenario_types(self) -> List[ScenarioType]:
+        """The scoped scenario types, in order."""
+        return [s.scenario_type for s in self.scenarios]
+
+    def validate(self) -> None:
+        """Reject an empty, unsorted or duplicated scenario list, a full scope, and unsorted or duplicated safety inclusions."""
+        _require(len(self.scenarios) >= 1, "run_scope needs at least one scenario")
+        types = [s.scenario_type.value for s in self.scenarios]
+        _require(types == sorted(set(types)), "run_scope scenarios must be unique and sorted by type")
+        for s in self.scenarios:
+            s.validate()
+        full = {k for knobs in SCOPE_SCENARIO_KNOBS.values() for k in knobs}
+        _require(set(self.knobs()) != full, "a full scope is represented by run_scope null")
+        for x in self.safety_inclusions:
+            x.validate()
+            _require(x.knob not in self.knobs(), "a safety inclusion must be outside the run scope")
+        knobs = [x.knob.value for x in self.safety_inclusions]
+        _require(knobs == sorted(set(knobs)), "safety inclusions must be unique and sorted by knob")
+
+
 @dataclass(frozen=True)
 class RecommendationPackage:
     """Public machine source of truth: one immutable, content-addressed package per warehouse and current configuration epoch.
 
     Candidate economics are isolated and non-additive, scenario economics are stateful, package economics is a scenario envelope. The PKG- id hashes
-    package_hash_payload (never generated_at or prose). observed_change and carried_forward_plan are None when absent.
+    package_hash_payload (never generated_at or prose). observed_change and carried_forward_plan are None when absent; run_scope is None for the
+    full scope (every candidate domain and scenario assessed).
     """
     recommendation_package_id: str
     contract_version: str
@@ -2021,6 +2094,7 @@ class RecommendationPackage:
     cost_profile: CostProfile
     observed_change: Optional[ObservedConfigChange] = None
     carried_forward_plan: Optional[CarriedForwardPlan] = None
+    run_scope: Optional[RunScope] = None
 
     def validate(self, *, verify_content_id: bool = True) -> None:
         """Semantic validation of the whole package (raises ValueError).
@@ -2107,6 +2181,7 @@ class RecommendationPackage:
             _require(recommended[0].scenario_id == self.recommended_plan.scenario_id, "RECOMMENDED scenario mismatch")
 
         self._validate_reevaluation_and_change(scenario_by_id_for_plan={x.scenario_id: x for x in self.scenarios})
+        self._validate_run_scope()
 
         self.package_economics.validate(
             scenario_ids=scenario_ids,
@@ -2249,6 +2324,36 @@ class RecommendationPackage:
             if carried.match_outcome == MatchOutcome.MATCHED:
                 _require(len(change.changes) == 1, "MATCHED requires exactly one observed knob change")
 
+    def _validate_run_scope(self) -> None:
+        """A restricted run's package holds exactly one candidate per in-scope knob plus its safety inclusions, and only
+        scenarios of in-scope types (the no-change baseline when current-type tuning is outside the scope)."""
+        scope = self.run_scope
+        if scope is None:
+            _require(all(s.scenario_type != ScenarioType.NO_CHANGE_BASELINE for s in self.scenarios),
+                     "a NO_CHANGE_BASELINE scenario requires a run_scope")
+            return
+        scope.validate()
+        in_scope = set(scope.knobs())
+        knobs = [c.knob for c in self.candidates]
+        _require(len(knobs) == len(set(knobs)), "a scoped package has at most one candidate per knob")
+        _require(in_scope <= set(knobs), "a scoped package needs one candidate per in-scope knob")
+        by_id = {c.candidate_id: c for c in self.candidates}
+        safety = {x.knob: x for x in scope.safety_inclusions}
+        for c in self.candidates:
+            if c.knob in in_scope:
+                continue
+            x = safety.get(c.knob)
+            _require(x is not None and x.candidate_id == c.candidate_id, f"candidate {c.candidate_id} is outside the run scope")
+        for x in scope.safety_inclusions:
+            c = by_id.get(x.candidate_id)
+            _require(c is not None and c.knob == x.knob and "CANARY_GUARDRAIL_BREACHED" in c.blockers,
+                     "a safety inclusion must reference a CANARY_GUARDRAIL_BREACHED candidate of its knob")
+        allowed = set(scope.scenario_types())
+        if ScenarioType.IN_PLACE_OPTIMIZATION not in allowed:
+            allowed.add(ScenarioType.IN_PLACE_OPTIMIZATION if scope.safety_inclusions else ScenarioType.NO_CHANGE_BASELINE)
+        for s in self.scenarios:
+            _require(s.scenario_type in allowed, f"scenario {s.scenario_id} ({s.scenario_type.value}) is outside the run scope")
+
     def to_dict(self) -> Dict[str, Any]:
         """JSON-compatible primitives of the whole package (see to_primitive)."""
         return to_primitive(self)
@@ -2282,8 +2387,9 @@ class RecommendationPackage:
         """Explicit payload behind the package id and full hash.
 
         Hashed: contract and component versions, workspace/warehouse/epoch, current_config, evidence fingerprint, ordered candidate and scenario ids, the
-        re-evaluation status, time and codes (not its prose method), the observed-change and carried-forward fingerprints and the cost profile's name
-        and applied thresholds. Not hashed: generated_at, the cost profile's source and source_detail, prose and other volatile presentation metadata.
+        re-evaluation status, time and codes (not its prose method), the observed-change and carried-forward fingerprints, the cost profile's name
+        and applied thresholds, and the run scope. Not hashed: generated_at, the cost profile's source and source_detail, prose and other volatile
+        presentation metadata.
         """
         return {
             "contract_version": self.contract_version,
@@ -2313,6 +2419,8 @@ class RecommendationPackage:
             "observed_change_fingerprint": None if self.observed_change is None else self.observed_change.fingerprint(),
             "carried_forward_fingerprint": None if self.carried_forward_plan is None else self.carried_forward_plan.fingerprint(),
             "cost_profile": self.cost_profile.hash_payload(),
+            # contract 3.1.0: a restricted scope changes what the package contains (null = full scope).
+            "run_scope": self.run_scope,
         }
 
     def expected_package_id(self) -> str:
@@ -2347,6 +2455,7 @@ def make_recommendation_package_id_from_parts(
     observed_change_fingerprint: Optional[str] = None,
     carried_forward_fingerprint: Optional[str] = None,
     cost_profile: Mapping[str, Any],
+    run_scope: Optional[RunScope] = None,
 ) -> str:
     """PKG- id from the same fields as RecommendationPackage.package_hash_payload, for callers that have not built the package yet."""
     payload = {
@@ -2371,5 +2480,6 @@ def make_recommendation_package_id_from_parts(
         "observed_change_fingerprint": observed_change_fingerprint,
         "carried_forward_fingerprint": carried_forward_fingerprint,
         "cost_profile": dict(cost_profile),
+        "run_scope": run_scope,
     }
     return content_id("PKG", payload)

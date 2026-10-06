@@ -6,7 +6,8 @@ equal the declared contract columns in order; row grains match the package JSON;
 financial cells numeric (or an explicit unavailable sentinel), never strings such as ``Save USD ...``; identifier
 columns stored as text.
 
-Usage:  python scripts/validate_workbook.py <output_dir>      # expects workbook.xlsx and packages/*.json inside
+Usage:  python scripts/validate_workbook.py <output_dir>      # a run folder (workbook.xlsx, packages/*.json) or the
+                                                             # --output-dir root, where the newest run is checked
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
+from publisher.config.output_layout import latest_run_dir  # noqa: E402
 from publisher.contracts import workbook_contract as wc  # noqa: E402
 
 DETAILED = (
@@ -89,7 +91,11 @@ def main(argv: Sequence[str]) -> int:
     if len(argv) != 2:
         print(__doc__)
         return 2
-    out = Path(argv[1])
+    try:
+        out = latest_run_dir(Path(argv[1]))
+    except FileNotFoundError as exc:
+        print(f"workbook validation FAILED: {exc}")
+        return 1
     workbook = out / "workbook.xlsx"
     package_files = sorted((out / "packages").glob("*.json"))
     packages = [json.loads(f.read_text()) for f in package_files] if package_files else None
