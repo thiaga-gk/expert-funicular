@@ -27,7 +27,7 @@ from typing import Any, Mapping, Optional
 
 from realizer.analyzer import analyzer
 from realizer.analyzer.collector.collector import demo_observation, load_observation
-from realizer.config.loader import validate_package_shape
+from realizer.config.loader import validate_package
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.contracts.report import RealizationReport
@@ -46,7 +46,7 @@ __all__ = ["RealizerPolicy", "build_context", "demo_observation", "load_observat
 
 def build_context(request: RealizationRequest) -> RunContext:
     """Validate the source package, apply the policy default and mint the realization package id."""
-    validate_package_shape(request.package)
+    validate_package(request.package)
     policy = request.policy or RealizerPolicy()
     return RunContext(request=request, policy=policy, realization_package_id=make_rpkg_id(request.package["recommendation_package_id"]))
 

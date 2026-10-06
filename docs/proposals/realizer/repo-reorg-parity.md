@@ -504,3 +504,27 @@ Regeneration, deliberately: `python scripts/update_realizer_goldens.py --approve
 | Real source-system run | Not met: blocked by the contract-1.0.0 package and the missing live collector (Decision above) |
 | Code review completes | Run per phase on the branches before merge; Phase 11 review pending with the merge |
 | Release evidence captured | This record, the stored baseline and `docs/proposals/realizer/release-evidence.md` (frozen at v1.0.0) |
+
+## After the reorganization: contract 3.1.0 input (gap review RD01)
+
+The Realizer gap review ([`gap-review.md`](gap-review.md)) retired the contract-1.0.0 input recorded above. The Realizer now reads exactly the Reporter JSON Contract 3.1.0 the Publisher writes (`validate_package` in `src/realizer/config/loader.py`: version, committed schema, recomputed package id and full hash, empty `realization` placeholder, no carried-forward plan).
+
+Fixtures. The two 1.0.0 package fixtures were deleted. `scripts/build_realizer_fixtures.py` rebuilds the package fixtures from real Publisher output: the demo run deterministically (`--demo --flat-output --no-workbook`, fixed demo analysis time) for `wh-demo-006` (`inplace-size-canary`: a READY_FOR_CANARY size cut that invalidates the cluster knobs, a READY auto-stop step, a PENDING_REEVALUATION step, a REMEASURE step and a priced migration alternative with a compatibility step), `wh-demo-009` (`two-ready-steps`: two authority-eligible steps followed by a pending step) and `wh-demo-003` (`unpriced-candidate`), and the package of the golden case `s02-scope-migration-only` (`scope-migration-only`: step-less NO_CHANGE_BASELINE). The script checks each package still has the plan shape it stands for and validates it as the Realizer does; `--check` reports drift from the Publisher's current output.
+
+Scenarios. The 41 stored scenarios were re-pointed: GR-019 at `two-ready-steps` (both authority-eligible steps applied), every other at `inplace-size-canary`; the observed configurations keep the same role per knob (the size step's target, a contrary or a more aggressive size, the pending step's own target, the migration's type); `applied_scenario_id` names the new migration scenario. Observations built on the stock demo economics take the new demo economics (`demo_observation` now sizes its 30-day savings to the applied step's published base savings, so a demo realizes about what the package expected); observations with their own economics are scaled by the ratio of the new to the old denominator, so each keeps its ratio class.
+
+Decision-equivalence check. Every scenario was run on the branch and compared with master's stored outputs (the 1.0.0 fixture) on: implementation conformance, application state and scope, modification relation, validation state and rule results, maturity, realization state and classification detail, source package disposition, recognition status of every measurement, attribution claim status, attribution state and hard disqualifiers, denominator source, ratio class (null, negative, below 0.5, below 0.8, at least 0.8), plan progress state, regeneration status, drift state, the legacy compatibility projection of every run, the number of evidence and regeneration files, the same fields for every intermediate snapshot, and the ordered ledger event-type sequence. Result: 41 of 41 scenarios identical; only ids and amounts differ.
+
+| Final realization state | Scenarios |
+|---|---|
+| REALIZED | GR-002, 003, 005, 010, 017, 018, 019, 021, 022, 026, 027, 030, 031, 032, 033, 038, 040, example-exact, example-modified, financial-quality-gates, restatement-reprocessed |
+| UNDER_REALIZED | GR-011, 012, 028, 029 |
+| VALIDATION_FAILED | GR-013, 014, 034 |
+| BLOCKED | GR-015 |
+| MONITORING | GR-016 |
+| APPLIED | GR-006, 008, 009, 037 |
+| DRIFTED | GR-023, 024 |
+| ROLLED_BACK | GR-025 |
+| NOT_APPLIED | GR-001, 007, 020, replay-through-generation |
+
+The single-file oracle (git tag `realizer-reorg-oracle-1.0.0`) reads only 1.0.0 packages, so `scripts/compare_realizer_with_ref.py --ref realizer-reorg-oracle-1.0.0` no longer applies to the stored scenarios; this check is the equivalence record for the move to 3.1.0.

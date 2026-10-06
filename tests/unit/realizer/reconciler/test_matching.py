@@ -13,13 +13,13 @@ from decimal import Decimal
 from enum import Enum
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import canonical, fixture_package, outcome  # noqa: E402
-from realizer.analyzer.analysis import observed_config, package_config  # noqa: E402
+from tests.unit.realizer.helpers import canonical, fixture_package, migration_scenario_id, outcome  # noqa: E402
+from realizer.analyzer.analysis import candidate_steps, observed_config, package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import PlanMatch  # noqa: E402
 from realizer.reconciler import matching  # noqa: E402
 
-MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
+MIGRATION = migration_scenario_id(fixture_package())
 VALUES = [None, 0, 1, 2, 3, 4, -1, 30, 120, "1", "2.5", " 3 ", "abc", "", True, False, 1.5, float("nan"), "NaN", "Infinity",
           Decimal("2"), [1], {"a": 1}, "MEDIUM", "LARGE", "SMALL", "X_LARGE", "medium", "PRO", "SERVERLESS"]
 KNOBS = ["warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes", "enable_photon", "warehouse_type",
@@ -51,8 +51,7 @@ def scenario_observations():
 
 def packages():
     fixture = fixture_package()
-    two_step = json.loads((canonical.PACKAGES / "GR-019-two-ready-steps.json").read_text(encoding="utf-8"))
-    return [fixture, two_step]
+    return [fixture, fixture_package("two-ready-steps")]
 
 
 def plan_steps(package):
@@ -122,10 +121,11 @@ class ChooseApplicationTests(unittest.TestCase):
 
     def test_primary_is_the_first_authoritative_change_and_one_of_the_matches(self):
         package = packages()[1]
-        obs_cfg = observed_config({"config": {"warehouse_size": "MEDIUM", "max_clusters": 3}}, package)
+        size, auto_stop = (s for s in candidate_steps(package) if s["step"] in (1, 2))
+        obs_cfg = observed_config({"config": {size["knob"]: size["recommended_value"], auto_stop["knob"]: auto_stop["recommended_value"]}}, package)
         results, primary = matching.choose_application(package, obs_cfg)
         self.assertIs(primary, results[0])
-        self.assertEqual([r["implementation_conformance"] for r in results], ["EXACT", "EXACT", "NOT_APPLIED", "NOT_APPLIED"])
+        self.assertEqual([r["implementation_conformance"] for r in results], ["EXACT", "EXACT", "NOT_APPLIED"])   # size and auto-stop applied, max clusters not
         self.assertEqual(primary["step"], 1)
 
     def test_malformed_packages_raise(self):

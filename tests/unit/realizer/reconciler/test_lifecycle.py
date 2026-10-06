@@ -16,8 +16,8 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, outcome, tree  # noqa: E402
-from realizer.analyzer.analysis import package_config  # noqa: E402
+from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, migration_scenario_id, outcome, tree  # noqa: E402
+from realizer.analyzer.analysis import candidate_steps, package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import ActiveApplication, PlannedApplication, ReconciliationResult, RegenerationRequest  # noqa: E402
 from realizer.governor.policy import RealizerPolicy  # noqa: E402
@@ -25,7 +25,7 @@ from realizer.packager.packager import request_regeneration  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
 from realizer.reconciler import lifecycle, reconciler  # noqa: E402
 
-MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
+MIGRATION = migration_scenario_id(fixture_package())
 REASONS = ("CONFIGURATION_DRIFT", "CONTRARY_IMPLEMENTATION", "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM")
 RECORDED = "2026-10-09T12:00:00Z"
 APP = "APP-" + "0123456789AB" * 2   # a well-formed application episode id (the ledger entry validates it)
@@ -159,6 +159,8 @@ class LifecycleScenarioTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.base = demo_observation(cls.pkg)
         cls.source = package_config(cls.pkg)
+        # the plan's pending downstream step (max_clusters): applying it opens no episode of its own
+        cls.pending = next(s for s in candidate_steps(cls.pkg) if s["knob"] == "max_clusters")
 
     def later(self, day, **patch):
         stamp = f"2026-10-{day:02d}T12:00:00Z"
@@ -193,20 +195,21 @@ class LifecycleScenarioTests(unittest.TestCase):
         self.assertTrue(second.validation_due)
 
     def test_reused_episode_still_records_other_changes(self):
-        both = {**self.base, "config": {**self.base["config"], "max_clusters": 3}}
+        both = {**self.base, "config": {**self.base["config"], "max_clusters": self.pending["recommended_value"]}}
         first, second = [r for _, r in reconcile_runs(self, self.pkg, [both, self.later(10, config=both["config"])])]
         self.assertEqual([a.event_type.value for a in first.applications], ["APPLICATION_OBSERVED", "INDEPENDENT_CHANGE_OBSERVED"])
         self.assertTrue(second.active.is_previous)
-        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", 2)])
+        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", self.pending["step"])])
 
     def test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one(self):
-        # A plan that repeats a step number (a second eligible step 1 on the warehouse type) and an observation older
-        # than the recorded application: no drift and no reuse, so the size step opens a new episode, and the repeated
-        # step 1 that follows is recorded, because the active episode is no longer the previous application.
+        # A plan that repeats a step number (a second eligible step 1 on the warehouse type, copied from the migration
+        # alternative's step so that the package stays valid) and an observation older than the recorded application: no
+        # drift and no reuse, so the size step opens a new episode, and the repeated step 1 that follows is recorded,
+        # because the active episode is no longer the previous application.
         package = copy.deepcopy(self.pkg)
         plan = next(s for s in package["scenarios"] if s["scenario_id"] == package["recommended_plan"]["scenario_id"])["execution_plan"]
-        plan.insert(1, {"step": 1, "step_type": "CANDIDATE", "knob": "warehouse_type", "current_value": "PRO",
-                        "recommended_value": "SERVERLESS", "execution_state": "READY_FOR_CANARY", "invalidates": []})
+        migration_step = next(s for s in next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"] if s.get("knob") == "warehouse_type")
+        plan.insert(1, {**copy.deepcopy(migration_step), "step": 1, "invalidates": []})
         earlier = {**self.base, "observed_at_utc": "2026-10-05T12:00:00Z", "recorded_at_utc": "2026-10-05T12:00:00Z",
                    "config": {**self.base["config"], "warehouse_type": "CLASSIC"}}
         (a1, first), (a2, second) = reconcile_runs(self, package, [self.base, earlier])
@@ -232,10 +235,10 @@ class LifecycleScenarioTests(unittest.TestCase):
         self.assertIsNone(second.upstream_regeneration)
 
     def test_drift_skips_authoritative_steps_but_records_independent_ones(self):
-        drifted = self.later(10, config={**self.base["config"], "warehouse_size": "SMALL", "max_clusters": 3})
+        drifted = self.later(10, config={**self.base["config"], "warehouse_size": "SMALL", "max_clusters": self.pending["recommended_value"]})
         _, second = [r for _, r in reconcile_runs(self, self.pkg, [self.base, drifted])]
         self.assertIsNotNone(second.drift)
-        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", 2)])
+        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", self.pending["step"])])
 
     def test_rollback_attaches_to_the_active_or_previous_episode(self):
         package, observations = self.scenario("GR-025")
@@ -276,7 +279,9 @@ class LifecycleScenarioTests(unittest.TestCase):
         self.assertEqual(app.payload["application_scope"], "SCENARIO")
         self.assertEqual(app.payload["applied_step_refs"], [{"scenario_id": app.payload["scenario_id"], "step": 1, "conformance": "EXACT"},
                                                             {"scenario_id": app.payload["scenario_id"], "step": 2, "conformance": "EXACT"}])
-        self.assertEqual(app.payload["invalidates"], ["min_clusters"])
+        steps = [s for s in candidate_steps(package) if s["step"] in (1, 2)]
+        self.assertEqual(app.payload["invalidates"], sorted({knob for s in steps for knob in s["invalidates"]}))
+        self.assertEqual(app.payload["invalidates"], ["max_clusters", "min_clusters"])   # the size step's; the auto-stop step invalidates nothing
         self.assertEqual(only.active.application_episode_id, app.application_episode_id)
         self.assertTrue(only.validation_due)
 
@@ -301,7 +306,8 @@ class LifecycleScenarioTests(unittest.TestCase):
         package, observations = self.scenario("GR-020")
         ((_, only),) = reconcile_runs(self, package, observations)
         (app,) = only.applications
-        self.assertEqual((app.event_type.value, app.payload["authority_eligible"], app.payload["step"]), ("INDEPENDENT_CHANGE_OBSERVED", False, 2))
+        pending = next(s for s in candidate_steps(package) if s["knob"] == "max_clusters")
+        self.assertEqual((app.event_type.value, app.payload["authority_eligible"], app.payload["step"]), ("INDEPENDENT_CHANGE_OBSERVED", False, pending["step"]))
         self.assertIsNone(only.active)
         self.assertIsNone(only.intent_episode_id)
         self.assertFalse(only.validation_due)

@@ -2,25 +2,25 @@
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/bad id": {
   "value": [
    "ValueError",
-   "invalid recommendation_package_id"
+   "package fails the Reporter JSON Contract 3.1.0 schema at recommendation_package_id"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/contract 9.9.9": {
   "value": [
    "ValueError",
-   "unsupported Publisher contract: 9.9.9"
+   "unsupported Publisher contract: 9.9.9 (this Realizer reads 3.1.0)"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/empty": {
   "value": [
    "ValueError",
-   "PKG missing required fields: ['recommendation_package_id', 'contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
+   "unsupported Publisher contract: None (this Realizer reads 3.1.0)"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/no candidates": {
   "value": [
    "ValueError",
-   "PKG missing required fields: ['candidates']"
+   "package fails the Reporter JSON Contract 3.1.0 schema at <root>"
   ]
  }
 }

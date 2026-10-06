@@ -71,8 +71,14 @@ def outcome(fn: Callable[..., Any], *args: Any, **kwargs: Any):
         return type(exc).__name__, str(exc)
 
 
-def fixture_package() -> Dict[str, Any]:
-    return json.loads(next(canonical.PACKAGES.glob("PKG-*.json")).read_text(encoding="utf-8"))
+def fixture_package(name: str = "inplace-size-canary") -> Dict[str, Any]:
+    """A Reporter JSON Contract 3.1.0 fixture package (``tests/fixtures/realizer/packages/<name>.json``), parsed."""
+    return json.loads((canonical.PACKAGES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def migration_scenario_id(package: Mapping[str, Any]) -> str:
+    """The id of the package's standalone warehouse-type migration alternative."""
+    return next(s["scenario_id"] for s in package["scenarios"] if s["scenario_type"] == "WAREHOUSE_TYPE_MIGRATION")
 
 
 def tree(out: Path) -> Dict[str, Optional[str]]:
@@ -108,19 +114,34 @@ def compact_tree(run_tree: Mapping[str, Optional[str]]) -> Dict[str, Any]:
     }
 
 
-def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None):
+@contextlib.contextmanager
+def package_gate_open() -> Iterator[None]:
+    """Run the engine without the loader's package gate (``validate_package``).
+
+    The gate refuses every package that does not pass the Publisher's schema and hash checks, so a package a stage
+    must survive (a step number that is not a number, a plan step that is not a mapping) never reaches the stages in
+    production. The stage-level failure-ordering tests still feed such packages to the engine, to pin what each stage
+    leaves behind when it raises; this opens the gate for them, and only for them.
+    """
+    with mock.patch.object(_facade, "validate_package", lambda package: None):
+        yield
+
+
+def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None, *, gate: bool = True):
     """Run each observation through ``realize`` into one fresh directory, continuing past a failure.
 
     Returns ``(outcomes, tree)``: per observation ``("ok", snapshot id)`` or ``(exception type, message)``, and the
-    files and directories left behind (so a crash is compared together with the ledger it left half written).
+    files and directories left behind (so a crash is compared together with the ledger it left half written). With
+    ``gate=False`` the package is not checked by the loader's gate (``package_gate_open``).
     """
     with tempfile.TemporaryDirectory(prefix="realizer-run-") as tmp:
         out = Path(tmp)
         outcomes: List[Any] = []
-        for observation in observations:
-            kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
-            result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
-            outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
+        with contextlib.nullcontext() if gate else package_gate_open():
+            for observation in observations:
+                kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
+                result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
+                outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
         return outcomes, tree(out)
 
 

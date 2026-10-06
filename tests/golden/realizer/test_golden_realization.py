@@ -198,7 +198,10 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_017_first_plan_a_step_realized_downstream_pending(self):
         s = self.realize_case(self.obs())
         self.assertEqual(s.application['plan_progress']['state'], 'PARTIALLY_COMPLETED')
-        self.assertEqual(s.application['plan_progress']['pending_reevaluation_steps'], 3)
+        plan = next(x for x in self.pkg['scenarios'] if x['scenario_id'] == self.pkg['recommended_plan']['scenario_id'])['execution_plan']
+        pending = [x for x in plan if x['execution_state'] == 'PENDING_REEVALUATION']
+        self.assertGreater(len(pending), 0)
+        self.assertEqual(s.application['plan_progress']['pending_reevaluation_steps'], len(pending))
         self.assertEqual(s.regeneration['status'], 'REQUESTED')
 
     # GR-018
@@ -211,14 +214,14 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-019
     def test_gr_019_multiple_compatible_changes_scenario_scope(self):
-        p = copy.deepcopy(self.pkg)
+        # the fixture whose plan has two authority-eligible steps (size READY_FOR_CANARY, auto-stop READY); both are applied
+        p = canonical.load_scenario('GR-019')['package_doc']
         scn = next(x for x in p['scenarios'] if x['scenario_id'] == p['recommended_plan']['scenario_id'])
-        candidate_steps = [x for x in scn['execution_plan'] if x['step_type'] == 'CANDIDATE']
-        candidate_steps[0]['invalidates'] = []
-        candidate_steps[1]['execution_state'] = 'READY_FOR_CANARY'
+        eligible = [x for x in scn['execution_plan'] if x['step_type'] == 'CANDIDATE' and x['execution_state'] in ('READY', 'READY_FOR_CANARY')]
+        self.assertEqual([x['knob'] for x in eligible], ['warehouse_size', 'auto_stop_minutes'])
         o = demo_observation(p)
-        o['config']['warehouse_size'] = candidate_steps[0]['recommended_value']
-        o['config']['max_clusters'] = candidate_steps[1]['recommended_value']
+        for step in eligible:
+            o['config'][step['knob']] = step['recommended_value']
         o['economics']['expected_annual_savings_actual_scope'] = '15000'
         s = self.realize_case(o, package=p)
         self.assertEqual(s.application['application_scope'], 'SCENARIO')
@@ -227,7 +230,10 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-020
     def test_gr_020_pending_downstream_change_not_credited(self):
-        o = self.obs(); o['config'] = package_config(self.pkg); o['config']['max_clusters'] = 3
+        o = self.obs(); o['config'] = package_config(self.pkg)
+        plan = next(x for x in self.pkg['scenarios'] if x['scenario_id'] == self.pkg['recommended_plan']['scenario_id'])['execution_plan']
+        pending = next(x for x in plan if x['knob'] == 'max_clusters' and x['execution_state'] == 'PENDING_REEVALUATION')
+        o['config']['max_clusters'] = pending['recommended_value']
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'NOT_APPLIED')
         self.assertFalse(s.economics.get('available', False))

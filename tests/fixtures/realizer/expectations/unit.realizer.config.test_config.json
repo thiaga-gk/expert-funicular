@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8464,
-  "sha256": "f024fb65e3a70ba6fd63f58b18745aea319f63d08e47e38c996541567e8a9a43",
+  "length": 8440,
+  "sha256": "1292711e80c3adbccdc2e7d2c4070020e7ae30bb93c4511464cf05e6c7ea43fd",
   "spot": {
    "logging": [
     [],
@@ -10,15 +10,15 @@
      "level": 10
     }
    ],
-   "stdout_characters": 7510
+   "stdout_characters": 7486
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
-  "value": "<tmp>/p/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+  "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
-  "length": 4072,
-  "sha256": "25a5acbc77e4de398b4c135b32d2ea747a5e818832dd48afa99d40cce9853639",
+  "length": 4076,
+  "sha256": "8a79fc93521565261e0a44b0d70e449b82d2165910438b7c7b3f8ff286b937e9",
   "spot": {
    "logging": [
     [],
@@ -27,12 +27,12 @@
      "level": 10
     }
    ],
-   "stdout_characters": 3608
+   "stdout_characters": 3612
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 8441,
-  "sha256": "a980f568c9224551651662f2b70791d122bb026a2e2d0d3ec5ef5065a5a45057",
+  "length": 8446,
+  "sha256": "6dc048d75a768183fff650f397f15133232edd0eeb49ec19c523461ef98ed66a",
   "spot": {
    "logging": [
     [],
@@ -41,59 +41,8 @@
      "level": 10
     }
    ],
-   "stdout_characters": 7489
+   "stdout_characters": 7494
   }
- },
- "LoaderTests.test_package_shape_gate/bad id": {
-  "value": [
-   "ValueError",
-   "invalid recommendation_package_id"
-  ]
- },
- "LoaderTests.test_package_shape_gate/contract 3.1.0": {
-  "value": [
-   "ValueError",
-   "unsupported Publisher contract: 3.1.0"
-  ]
- },
- "LoaderTests.test_package_shape_gate/contract None": {
-  "value": [
-   "ValueError",
-   "unsupported Publisher contract: None"
-  ]
- },
- "LoaderTests.test_package_shape_gate/missing all": {
-  "value": [
-   "ValueError",
-   "PKG missing required fields: ['recommendation_package_id', 'contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
-  ]
- },
- "LoaderTests.test_package_shape_gate/missing provenance": {
-  "value": [
-   "ValueError",
-   "PKG missing required fields: ['provenance']"
-  ]
- },
- "LoaderTests.test_package_shape_gate/missing recommendation_package_id": {
-  "value": [
-   "ValueError",
-   "PKG missing required fields: ['recommendation_package_id']"
-  ]
- },
- "LoaderTests.test_package_shape_gate/missing warehouse": {
-  "value": [
-   "ValueError",
-   "PKG missing required fields: ['warehouse']"
-  ]
- },
- "LoaderTests.test_package_shape_gate/numeric id": {
-  "value": [
-   "ValueError",
-   "invalid recommendation_package_id"
-  ]
- },
- "LoaderTests.test_package_shape_gate/valid": {
-  "value": null
  },
  "PolicyTests.test_defaults/policy": {
   "value": {

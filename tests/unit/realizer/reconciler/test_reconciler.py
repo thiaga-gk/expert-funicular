@@ -7,6 +7,7 @@ validation episode when validation is due, or nothing; and the downstream regene
 ``run`` never raises, writes and logs nothing, and keeps a failure as ``halt`` with the exception stored in
 ``tests/fixtures/realizer/expectations/``.
 """
+import contextlib
 import copy
 import dataclasses
 import json
@@ -16,7 +17,7 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Unprintable, Untestable, as_line, fixture_package, ledger_lines, outcome, staged_scenario_runs, tree  # noqa: E402
+from tests.unit.realizer.helpers import Unprintable, Untestable, as_line, fixture_package, ledger_lines, outcome, package_gate_open, staged_scenario_runs, tree  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -151,7 +152,9 @@ class RunTests(unittest.TestCase):
         cls.base = demo_observation(cls.pkg)
 
     def reconcile(self, observation, out, package=None, policy=None):
-        context = build_context(RealizationRequest(package or self.pkg, observation, out, policy=policy))
+        # a package passed in is a deliberately malformed one, which the loader's gate would refuse before any stage ran
+        with package_gate_open() if package is not None else contextlib.nullcontext():
+            context = build_context(RealizationRequest(package or self.pkg, observation, out, policy=policy))
         analysis = analyzer.run(context)
         return reconciler.run(context, analysis, governor.run(context, analysis))
 

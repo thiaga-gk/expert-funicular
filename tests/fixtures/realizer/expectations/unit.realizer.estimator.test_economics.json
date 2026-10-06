@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 7669953,
-  "sha256": "f9b21783b23bd011a10d460b1d1c0311468531dd3f8aebb1385e50c689bb0f34",
+  "length": 7662199,
+  "sha256": "4df4fcbd4453c94a697ceda895630efe48236722cebfc26b3bc0c6f4c7ad3f64",
   "spot": {
    "classes": [
     [
@@ -67,7 +67,7 @@
     [
      "UNDER_REALIZED",
      "UNDER_REALIZED",
-     "REESTIMATED_APPLIED_SCOPE"
+     "PUBLISHER_SCENARIO"
     ],
     [
      "UNDER_REALIZED",
@@ -78,11 +78,6 @@
      "UNDER_REALIZED",
      "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
      "PUBLISHER_SCENARIO"
-    ],
-    [
-     "UNDER_REALIZED",
-     "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
-     "REESTIMATED_APPLIED_SCOPE"
     ],
     [
      "VALIDATION_FAILED",
@@ -173,17 +168,17 @@
     "dbu_realized": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
-    "expected_same_scope_annual_savings": "12029.52",
+    "expected_same_scope_annual_savings": "31792.93",
     "mature_ttm_realized_savings": null,
-    "observed_economic_delta": "1000.00",
-    "observed_new_cost": "9000.00",
+    "observed_economic_delta": "2613.12",
+    "observed_new_cost": "7386.88",
     "period_days": "-30",
     "realization_ratio": null,
     "realization_state": "MONITORING",
-    "realized_savings_period": "1000.00",
-    "realized_savings_since_application": "1000.00",
+    "realized_savings_period": "2613.12",
+    "realized_savings_since_application": "2613.12",
     "reoptimization_recommended": false,
-    "successful_realized_savings": "1000.00"
+    "successful_realized_savings": "2613.12"
    }
   ]
  },
@@ -243,11 +238,11 @@
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 7021,
-  "sha256": "c3a81bfe2ae1117aabe0f4f9416148028739b1bcbada1de4aa92325ac50a78f2",
+  "sha256": "0746c3b549f7bbf0b8cbb50fb68cf6f6a15a48a449c40f1184a42b2a07ca9073",
   "spot": {
    "count": 234,
    "distinct": 42,
-   "first": "CF-0C3017A9DB0418C4500E9B5B"
+   "first": "CF-8F315172EB8DBA09E425370B"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {
@@ -322,69 +317,77 @@
    ]
   ]
  },
- "ExpectedAnnualTests.test_every_plan_step_of_both_packages/steps": {
+ "ExpectedAnnualTests.test_every_plan_step_of_every_fixture_package/steps": {
   "value": {
-   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/1": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/2": [
-    "12418.79",
+   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/1": [
+    "31792.93",
     "PUBLISHER_CANDIDATE"
    ],
-   "GR-019-two-ready-steps/SCN-1DFDCB17E0622D63C6758AB4/3": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/1": [
-    "12029.52",
+   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/2": [
+    "559.91",
     "PUBLISHER_CANDIDATE"
    ],
-   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/2": [
+   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/3": [
     "0.0",
     "PUBLISHER_CANDIDATE"
    ],
-   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/3": [
-    "11617.53",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/4": [
-    "11501.35",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "GR-019-two-ready-steps/SCN-669E0ED750DDE520F0F03317/5": [
+   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/4": [
     null,
     "UNAVAILABLE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/1": [
+   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/1": [
     null,
     "UNAVAILABLE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/2": [
-    "12418.79",
+   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/2": [
+    "18901.04",
     "PUBLISHER_CANDIDATE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-1DFDCB17E0622D63C6758AB4/3": [
+   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/3": [
     null,
     "UNAVAILABLE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/1": [
-    "12029.52",
+   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/1": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/2": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/3": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/1": [
+    "38527.17",
     "PUBLISHER_CANDIDATE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/2": [
+   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/2": [
+    "672.84",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/3": [
     "0.0",
     "PUBLISHER_CANDIDATE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/3": [
-    "11617.53",
+   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/4": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/1": [
+    null,
+    "UNAVAILABLE"
+   ],
+   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/2": [
+    "21908.97",
     "PUBLISHER_CANDIDATE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/4": [
-    "11501.35",
-    "PUBLISHER_CANDIDATE"
+   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/3": [
+    null,
+    "UNAVAILABLE"
    ],
-   "PKG-C1928BFAD6E14C166A0F518D/SCN-669E0ED750DDE520F0F03317/5": [
+   "unpriced-candidate/SCN-619EAD0E16C25AFAFDBE597A/1": [
     null,
     "UNAVAILABLE"
    ]

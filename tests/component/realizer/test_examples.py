@@ -1,6 +1,6 @@
 """The Publisher to Realizer examples under examples/realizer/ keep the identities and outcomes their README documents.
 
-Each example is the frozen Publisher package fixture plus one normalized observation. The test realizes it into a temporary
+Each example is the Publisher package fixture (Reporter JSON Contract 3.1.0) plus one normalized observation. The test realizes it into a temporary
 directory and compares the written files and the snapshot with the README, so the README and the example cannot drift.
 """
 import json
@@ -19,16 +19,16 @@ from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
 
 EXAMPLES = ROOT / "examples" / "realizer"
-PACKAGE = canonical.PACKAGES / "PKG-C1928BFAD6E14C166A0F518D.json"
+PACKAGE = canonical.PACKAGES / "inplace-size-canary.json"
 README = EXAMPLES / "README.md"
 
 EXPECTED = {
     "exact": {
         "ids": {
-            "RPKG": "RPKG-9BCA3C3DFB12CC37AA7CA775",
-            "RSNAP": "RSNAP-B4E0622B53B53930421A90E3",
-            "REVID": "REVID-C82136407213010727CEAB98",
-            "RERUN": "RERUN-5EAFEBC878ED2364E53E171A",
+            "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
+            "RSNAP": "RSNAP-370D181E943A40CCB9809E31",
+            "REVID": "REVID-37F7F275591908182339F44B",
+            "RERUN": "RERUN-E859EB99CB326CE38DB20043",
         },
         "outcome": {
             "implementation_conformance": "EXACT",
@@ -40,10 +40,10 @@ EXPECTED = {
     },
     "modified": {
         "ids": {
-            "RPKG": "RPKG-9BCA3C3DFB12CC37AA7CA775",
-            "RSNAP": "RSNAP-709E1EC13A10E423918D76AB",
-            "REVID": "REVID-783EE1BC18D972E51EBFC4AE",
-            "RERUN": "RERUN-BE6D14C9D53D954C51BE6C47",
+            "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
+            "RSNAP": "RSNAP-91309FCF9B7A30CDA765B0F7",
+            "REVID": "REVID-0054A9DB9BEB251DB6B705DA",
+            "RERUN": "RERUN-3908769AAF62FB3768C5C200",
         },
         "outcome": {
             "implementation_conformance": "MODIFIED",

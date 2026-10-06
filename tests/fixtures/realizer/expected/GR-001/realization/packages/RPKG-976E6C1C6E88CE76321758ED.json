@@ -1,0 +1,110 @@
+{
+  "application": {
+    "active_episode_id": null,
+    "actor": null,
+    "application_scope": null,
+    "applied_step_refs": [],
+    "effective_from_utc": null,
+    "effective_time_quality": null,
+    "effective_to_utc": null,
+    "implementation_conformance": "NOT_APPLIED",
+    "intent_state": "UNKNOWN",
+    "knob": null,
+    "modification_relation": null,
+    "observed_applied_value": null,
+    "observed_config": null,
+    "plan_progress": {
+      "applied_steps": 0,
+      "authoritative_actionable_steps": 2,
+      "pending_reevaluation_steps": 1,
+      "state": "NOT_STARTED"
+    },
+    "recommended_value": null,
+    "scenario_id": null,
+    "source_value": null,
+    "state": "NOT_APPLIED",
+    "step": null
+  },
+  "as_of_utc": "2026-10-01T12:00:00Z",
+  "attribution": {
+    "attribution_claim_status": "NOT_ATTRIBUTABLE",
+    "attribution_state": "NOT_ATTRIBUTABLE",
+    "origin_attribution": "UNKNOWN",
+    "recommendation_attributed_realized_savings": "0.00",
+    "validated_observed_realization": null
+  },
+  "contract_version": "1.0.0",
+  "current_state": {
+    "maturity_state": "NOT_APPLIED",
+    "realization_state": "NOT_APPLIED",
+    "source_package_disposition": "ACTIVE",
+    "validation_state": "NOT_READY"
+  },
+  "drift": {
+    "state": "NONE"
+  },
+  "economics": {
+    "annualized_realized_savings": null,
+    "available": false,
+    "expected_same_scope_annual_savings": null,
+    "mature_ttm_realized_savings": null,
+    "observed_economic_delta": null,
+    "realization_ratio": null,
+    "successful_realized_savings": null
+  },
+  "history": {
+    "application_episode_count": 0,
+    "correction_count": 0,
+    "entry_count": 1,
+    "first_entry_id": "RLE-43CE3E553F852E732746AC84",
+    "latest_effective_at_utc": "2026-10-01T12:00:00Z",
+    "latest_entry_id": "RLE-43CE3E553F852E732746AC84",
+    "latest_recorded_at_utc": "2026-10-01T12:00:00Z",
+    "ledger_checkpoint_hash": "SHA256:77DE4DD306DFCC0682173FCFD8F56A21A970C178A0F475DCF201EF6BF338213F",
+    "measurement_count": 0,
+    "validation_episode_count": 0
+  },
+  "maturity": {
+    "state": "NOT_APPLIED"
+  },
+  "provenance": {
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.0.0",
+    "attribution_version": "realizer-attribution-v1.0.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.0.0",
+    "exclusivity_version": "realizer-exclusivity-v1.0.0",
+    "modeler_gateway_version": "m08-realization-adapter-v1.0.0",
+    "policy_version": "realizer-policy-v1.0.0",
+    "product_version": "2.8.0",
+    "projector_version": "realizer-projector-v1.0.0",
+    "realizer_contract_version": "1.0.0",
+    "realizer_version": "1.0.0"
+  },
+  "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
+  "regeneration": {
+    "regeneration_request_id": null,
+    "replacement_package_id": null,
+    "status": "NOT_REQUIRED"
+  },
+  "snapshot_id": "RSNAP-721D4229152775581D5978CF",
+  "source_recommendation": {
+    "disposition": "ACTIVE",
+    "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
+    "generated_at_utc": "2026-10-01T12:00:00Z",
+    "package_hash_full_sha256": "EDCCB34F2D2EE33248087825D753542DC9524F87BB5815AEF02EA268024CEF44",
+    "publisher_contract_version": "3.1.0",
+    "recommendation_package_id": "PKG-EDCCB34F2D2EE33248087825",
+    "recommended_scenario_id": "SCN-2939C3996D4BBAC63D4F9484",
+    "superseded_by_package_id": null
+  },
+  "validation": {
+    "readiness": null,
+    "rules": [],
+    "state": "NOT_READY"
+  },
+  "warehouse": {
+    "region": "us-east-1",
+    "warehouse_id": "wh-demo-006",
+    "warehouse_name": "Sales Analytics",
+    "workspace_id": "1234567890123456"
+  }
+}

@@ -17,7 +17,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -31,7 +31,7 @@
     ],
     [
      "ok",
-     "RSNAP-B4E0622B53B53930421A90E3"
+     "RSNAP-370D181E943A40CCB9809E31"
     ]
    ],
    {
@@ -55,11 +55,11 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
-     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "33145e9e29f042e5",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "82c315bbe3c83e24",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
+     "realization/snapshots/RSNAP-370D181E943A40CCB9809E31.json": "82c315bbe3c83e24"
     }
    }
   ]
@@ -68,21 +68,14 @@
   "value": [
    [
     [
-     "AttributeError",
-     "'str' object has no attribute 'get'"
+     "ValueError",
+     "package fails the Reporter JSON Contract 3.1.0 schema at current_config"
     ]
    ],
    {
-    "directories": [
-     "realization",
-     "realization/ledger"
-    ],
-    "events": [
-     "REALIZATION_CREATED"
-    ],
-    "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  },
@@ -90,21 +83,14 @@
   "value": [
    [
     [
-     "AttributeError",
-     "'str' object has no attribute 'get'"
+     "ValueError",
+     "package fails the Reporter JSON Contract 3.1.0 schema at current_config/photon"
     ]
    ],
    {
-    "directories": [
-     "realization",
-     "realization/ledger"
-    ],
-    "events": [
-     "REALIZATION_CREATED"
-    ],
-    "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  },
@@ -112,8 +98,8 @@
   "value": [
    [
     [
-     "TypeError",
-     "string indices must be integers, not 'str'"
+     "ValueError",
+     "package fails the Reporter JSON Contract 3.1.0 schema at warehouse"
     ]
    ],
    {
@@ -127,8 +113,8 @@
   "value": [
    [
     [
-     "KeyError",
-     "'warehouse_id'"
+     "ValueError",
+     "package fails the Reporter JSON Contract 3.1.0 schema at warehouse"
     ]
    ],
    {
@@ -155,7 +141,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -177,7 +163,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -199,7 +185,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -221,7 +207,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -243,7 +229,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -265,7 +251,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -287,7 +273,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]
@@ -309,7 +295,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88"
     }
    }
   ]

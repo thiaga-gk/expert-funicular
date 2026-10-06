@@ -223,7 +223,7 @@ class NoDomainLogicTests(unittest.TestCase):
                 self.assertNotIsInstance(node, forbidden, f"{name}: {ast.dump(node)[:80]}")
 
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
-        allowed = {"build_context", "validate_package_shape", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
+        allowed = {"build_context", "validate_package", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
                    "packager.begin", "reporter.run"}
         seen = set()
@@ -249,7 +249,7 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "realize", "realize_request",
-            "validate_package_shape",
+            "validate_package",
         })
 
     def test_the_cli_pass_throughs_are_the_capability_functions(self):

@@ -11,6 +11,7 @@ for _path in (ROOT, ROOT / "src"):
         sys.path.insert(0, str(_path))
 from tests import realizer_expect as expect  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
+from tests.unit.realizer.helpers import fixture_package  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
 from realizer.contracts.realization import make_rpkg_id  # noqa: E402
@@ -39,11 +40,10 @@ class RealizationRequestTests(unittest.TestCase):
 
 
 class RunContextTests(unittest.TestCase):
-    """``build_context`` is the first three statements of ``realize``: shape gate, policy default, RPKG id."""
+    """``build_context`` is the first three statements of ``realize``: package gate, policy default, RPKG id."""
 
     def setUp(self):
-        import json
-        self.pkg = json.loads(next(canonical.PACKAGES.glob("PKG-*.json")).read_text(encoding="utf-8"))
+        self.pkg = fixture_package()
 
     def test_context_carries_the_request_the_default_policy_and_the_rpkg_id(self):
         request = RealizationRequest(self.pkg, None, Path("out"))

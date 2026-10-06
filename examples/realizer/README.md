@@ -1,12 +1,12 @@
 # Publisher to Realizer example
 
-A deterministic, synthetic example of the Realizer: one frozen Publisher package and two normalized post-change observations, one that applies the recommended step exactly and one that applies a modified one. Each observation is a file here; the package is a test fixture.
+A deterministic, synthetic example of the Realizer: one Publisher package and two normalized post-change observations, one that applies the recommended step exactly and one that applies a modified one. Each observation is a file here; the package is a test fixture.
 
 | File | What it is |
 |---|---|
-| `tests/fixtures/realizer/packages/PKG-C1928BFAD6E14C166A0F518D.json` | The source RecommendationPackage (Reporter JSON Contract 1.0.0, the version the Realizer accepts). |
+| `tests/fixtures/realizer/packages/inplace-size-canary.json` | The source RecommendationPackage (Reporter JSON Contract 3.1.0, the only version the Realizer accepts, built from a real Publisher run by `scripts/build_realizer_fixtures.py`). |
 | `exact/observation.json` | The recommended step applied as recommended. The same observation `--demo` generates. |
-| `modified/observation.json` | A different size applied (SMALL instead of the recommended MEDIUM). The same observation `--demo-modified` generates. |
+| `modified/observation.json` | A different size applied (SMALL instead of the recommended step 1, LARGE to MEDIUM). The same observation `--demo-modified` generates. |
 
 All economics in this example are synthetic and must not be read as production value claims.
 
@@ -15,21 +15,21 @@ All economics in this example are synthetic and must not be read as production v
 From a checkout, with the package installed (`pip install -e .`) or `PYTHONPATH=src`:
 
 ```bash
-realizer --package tests/fixtures/realizer/packages/PKG-C1928BFAD6E14C166A0F518D.json \
+realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json \
   --observation examples/realizer/exact/observation.json --output-dir ./realizer_out
 
-realizer --package tests/fixtures/realizer/packages/PKG-C1928BFAD6E14C166A0F518D.json \
+realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json \
   --observation examples/realizer/modified/observation.json --output-dir ./realizer_out_modified
 ```
 
 `--demo` and `--demo-modified` generate the same two observations from the package, so these produce the same files:
 
 ```bash
-realizer --package tests/fixtures/realizer/packages/PKG-C1928BFAD6E14C166A0F518D.json --demo --output-dir ./realizer_out
-realizer --package tests/fixtures/realizer/packages/PKG-C1928BFAD6E14C166A0F518D.json --demo-modified --output-dir ./realizer_out_modified
+realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo --output-dir ./realizer_out
+realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo-modified --output-dir ./realizer_out_modified
 ```
 
-Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
+Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
 
 ## Expected result
 
@@ -38,10 +38,10 @@ Both variants realize the same package, so the realization package ID is the sam
 ### exact
 
 ```text
-RPKG  RPKG-9BCA3C3DFB12CC37AA7CA775
-RSNAP RSNAP-B4E0622B53B53930421A90E3
-REVID REVID-C82136407213010727CEAB98
-RERUN RERUN-5EAFEBC878ED2364E53E171A
+RPKG  RPKG-976E6C1C6E88CE76321758ED
+RSNAP RSNAP-370D181E943A40CCB9809E31
+REVID REVID-37F7F275591908182339F44B
+RERUN RERUN-E859EB99CB326CE38DB20043
 ```
 
 ```text
@@ -55,10 +55,10 @@ denominator_source          = PUBLISHER_CANDIDATE
 ### modified
 
 ```text
-RPKG  RPKG-9BCA3C3DFB12CC37AA7CA775
-RSNAP RSNAP-709E1EC13A10E423918D76AB
-REVID REVID-783EE1BC18D972E51EBFC4AE
-RERUN RERUN-BE6D14C9D53D954C51BE6C47
+RPKG  RPKG-976E6C1C6E88CE76321758ED
+RSNAP RSNAP-91309FCF9B7A30CDA765B0F7
+REVID REVID-0054A9DB9BEB251DB6B705DA
+RERUN RERUN-3908769AAF62FB3768C5C200
 ```
 
 ```text

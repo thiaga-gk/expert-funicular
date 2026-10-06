@@ -3,7 +3,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -26,21 +26,21 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
-     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "33145e9e29f042e5",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "82c315bbe3c83e24",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
+     "realization/snapshots/RSNAP-370D181E943A40CCB9809E31.json": "82c315bbe3c83e24"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9181,
-  "sha256": "f56b0aaf5a854c736a732d8f8d13adf35aa41252f4dbb22a11bb1ef07e8e0105"
+  "length": 9157,
+  "sha256": "0902f36f30f269115b05d43adcf5cf50a5e2e8410bbf26d7a0b9903ed5ecfd4e"
  },
  "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 0": {
-  "value": "ValueError: PKG missing required fields: ['contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
+  "value": "ValueError: unsupported Publisher contract: None (this Realizer reads 3.1.0)"
  },
  "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 1": {
   "value": "FileNotFoundError: [Errno 2] No such file or directory: '<tmp>/missing.json'"
@@ -52,7 +52,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -65,9 +65,9 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
-     "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7e31a21666e0730e",
+     "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "7e31a21666e0730e"
     }
    }
   ]
@@ -76,7 +76,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -99,18 +99,18 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-783EE1BC18D972E51EBFC4AE.json": "d53613a7b9c447de",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "85aaff62336f9816",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "52c0f2098aeed218",
-     "realization/regeneration/RERUN-BE6D14C9D53D954C51BE6C47.json": "301e97ff8857ce79",
-     "realization/snapshots/RSNAP-709E1EC13A10E423918D76AB.json": "52c0f2098aeed218"
+     "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "72a466b33ab12150",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "4a3566f6fc1f844d",
+     "realization/regeneration/RERUN-3908769AAF62FB3768C5C200.json": "f2dd416d4820174d",
+     "realization/snapshots/RSNAP-91309FCF9B7A30CDA765B0F7.json": "4a3566f6fc1f844d"
     }
    }
   ]
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4370,
-  "sha256": "0c5d60415308d7ee53c609aa37936b0fb79d01805f507c8dcbe208839c84cd0a"
+  "sha256": "2eb97212a79eedbc326115ecc287fbc6b5ec9f378bde3af184632db23850fea0"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "value": [

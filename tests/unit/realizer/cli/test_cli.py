@@ -28,7 +28,7 @@ from realizer.realizer import realize  # noqa: E402
 
 CAPABILITIES = ("analyzer", "governor", "reconciler", "estimator", "reviewer", "packager", "reporter")
 CLI_DIR = ROOT / "src" / "realizer" / "cli"
-PACKAGE = next(canonical.PACKAGES.glob("PKG-*.json"))
+PACKAGE = canonical.PACKAGES / "inplace-size-canary.json"
 
 
 def imported_modules(path):

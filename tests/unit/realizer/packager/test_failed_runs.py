@@ -41,8 +41,8 @@ class CommitPositionTests(unittest.TestCase):
 
     def compare(self, label, observations, policy=None, package=None):
         """Run *observations* into one directory and check the outcomes and the output tree against the stored expectation."""
-        package = self.pkg if package is None else package
-        outcomes, tree_ = run_sequence(package, observations, policy)
+        # a package passed in is a deliberately malformed one: the loader's gate would refuse it before any stage ran
+        outcomes, tree_ = run_sequence(self.pkg if package is None else package, observations, policy, gate=package is None)
         expect.check(self, label, (outcomes, compact_tree(tree_)))
         return outcomes, tree_
 

@@ -1,16 +1,16 @@
 {
-  "derivation": "demo_observation; counterfactual 150000, observed 120000, expected 365000, period 365",
-  "package": "PKG-C1928BFAD6E14C166A0F518D.json",
+  "derivation": "demo_observation; counterfactual 150000, observed 120000, expected 365000, period 365; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01)",
+  "package": "inplace-size-canary.json",
   "runs": [
     {
       "observation": {
         "actor": "demo-user",
         "applied_at_utc": "2026-10-01T12:00:00Z",
         "config": {
-          "auto_stop_minutes": 120,
-          "enable_photon": true,
+          "auto_stop_minutes": 15,
+          "enable_photon": false,
           "max_clusters": 4,
-          "min_clusters": 2,
+          "min_clusters": 1,
           "warehouse_channel": "CURRENT",
           "warehouse_size": "MEDIUM",
           "warehouse_type": "PRO"

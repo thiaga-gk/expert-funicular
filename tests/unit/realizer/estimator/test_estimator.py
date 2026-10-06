@@ -11,6 +11,7 @@ import dataclasses
 import logging
 import tempfile
 import unittest
+from decimal import Decimal
 from pathlib import Path
 
 from tests import realizer_expect as expect
@@ -100,7 +101,8 @@ class RunTests(unittest.TestCase):
         self.assertIsInstance(estimate.counterfactual, CounterfactualRecord)
         self.assertTrue(estimate.counterfactual.counterfactual_id.startswith("CF-"))
         self.assertEqual(estimate.counterfactual.payload["counterfactual_old_cost"], "10000.00")
-        self.assertEqual(estimate.economics["realized_savings_period"], "1000.00")
+        demo = self.base["economics"]   # the demo realizes the applied step's published savings pro rata over its 30 days
+        self.assertEqual(estimate.economics["realized_savings_period"], str(Decimal(demo["counterfactual_old_cost"]) - Decimal(demo["observed_new_cost"])))
         self.assertTrue(estimate.measurement.measurement_id.startswith("MEAS-"))
         self.assertEqual(estimate.measurement.counterfactual_id, estimate.counterfactual.counterfactual_id)
         self.assertEqual(estimate.measurement.correction_status, "ORIGINAL")

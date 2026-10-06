@@ -215,7 +215,7 @@ class IdBuilderTests(unittest.TestCase):
 
     def test_rpkg_id_and_stored_output(self):
         pkg_id = self.pkg["recommendation_package_id"]
-        self.assertEqual(rc.make_rpkg_id(pkg_id), "RPKG-9BCA3C3DFB12CC37AA7CA775")
+        self.assertEqual(rc.make_rpkg_id(pkg_id), "RPKG-976E6C1C6E88CE76321758ED")
 
     def test_evidence_id_and_stored_output(self):
         ids = []
@@ -228,7 +228,7 @@ class IdBuilderTests(unittest.TestCase):
         payload = {"config": observed_config(obs, self.pkg), "observed_at_utc": observed_at,
                    "source": obs.get("source", "NORMALIZED_OBSERVATION")}
         revid = rc.make_evidence_id("OBSERVED_CONFIGURATION", self.pkg, obs, payload)
-        self.assertEqual(revid, "REVID-C82136407213010727CEAB98")
+        self.assertEqual(revid, "REVID-37F7F275591908182339F44B")
         self.assertTrue((canonical.EXPECTED / "example-exact" / "realization" / "evidence" / f"{revid}.json").is_file())
 
     def test_episode_counterfactual_and_measurement_ids(self):
