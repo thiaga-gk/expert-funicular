@@ -3,11 +3,12 @@
 
 Usage: python scripts/validate_skill_suite.py
 
-Checks the suite.yaml manifest (semver version, entrypoint, skill set equal to the folders on disk, the six optimization
+Checks the suite.yaml manifest (semver version, entrypoint, every listed skill present on disk, the six optimization
 framework axes), then per skill: SKILL.md frontmatter and description, body size, framework reference, no TODOs or
 forbidden auxiliary files, 10 positive + 10 negative trigger cases, at least 3 functional evals, referenced files that
 exist and bundled scripts that compile; plus the technique-catalog and discovery assets and the cross-service eval set.
-Prints every error and exits 1, or an OK summary and exit 0. Needs PyYAML.
+Skill folders the manifest does not list (general-purpose skills such as brainstorm) are not part of the suite and are
+not checked. Prints every error and exits 1, or an OK summary and exit 0. Needs PyYAML.
 """
 from __future__ import annotations
 import re, sys
@@ -38,7 +39,8 @@ def main():
     if not re.fullmatch(r'\d+\.\d+\.\d+', version): errs.append(f'suite version must be semver, got {version!r}')
     if manifest.get('entrypoint')!='databricks-publisher-orchestrator': errs.append('suite entrypoint mismatch')
     expected={x.get('name') for x in manifest.get('skills',[])}
-    if skills!=expected: errs.append(f'skill set mismatch: manifest={sorted(expected)} on disk={sorted(skills)}')
+    if expected-skills: errs.append(f'suite skills missing on disk: {sorted(expected-skills)}')
+    skills&=expected  # other skill folders are not suite members
     fw=(manifest.get('optimization_framework') or {}).get('axes') or []
     if fw!=FRAMEWORK: errs.append(f'optimization framework axes must equal {FRAMEWORK}')
     framework_ref=root/'databricks-publisher-orchestrator/references/optimization-thinking-framework.md'
