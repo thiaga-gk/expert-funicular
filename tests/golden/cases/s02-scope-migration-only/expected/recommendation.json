@@ -37,7 +37,7 @@
           "A_B_COST_PERFORMANCE_VALIDATION_REQUIRED",
           "SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES"
         ],
-        "candidate_id": "CAND-D2103CCFA6B0C48AF674B627",
+        "candidate_id": "CAND-AAD42414B7ECC19FE9A4DFA6",
         "confidence": {
           "components": {
             "coverage": 1.0,
@@ -67,8 +67,8 @@
           "EVID-3D7C2C755FBCF094900BE9C7",
           "EVID-B5A462C3E6595ACFFE308701",
           "EVID-B107D222489E09654027DA92",
-          "EVID-3BC7E6F776046F7FD82F48BE",
-          "EVID-764249BC3369FBCAF29B1F63",
+          "EVID-147CDEC1DD2EA02C7DD98243",
+          "EVID-7B9929E9B8AB7ED54882C055",
           "EVID-1444E8C74949401F6B5FCC52",
           "EVID-2EE1E17AB97D1A8CD182BFF6",
           "EVID-19E237CAAC239C5F2FC86B33",
@@ -257,6 +257,19 @@
         "unit": "USD",
         "value": 25000.0
       },
+      "EVID-147CDEC1DD2EA02C7DD98243": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-147CDEC1DD2EA02C7DD98243",
+        "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
+        "metric": "migration_target_auto_stop",
+        "observation_window": "DBU forecast basis: last 84 days ending 2026-10-01, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "running-idle per auto-stop value",
+        "threshold": null,
+        "unit": "minutes",
+        "value": 5
+      },
       "EVID-19E237CAAC239C5F2FC86B33": {
         "comparator": "",
         "epoch_scope": "CURRENT",
@@ -308,19 +321,6 @@
         "threshold": 2,
         "unit": "days",
         "value": 259
-      },
-      "EVID-3BC7E6F776046F7FD82F48BE": {
-        "comparator": "",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-3BC7E6F776046F7FD82F48BE",
-        "interpretation": "Auto-stop the Serverless alternative is priced at: its own cost-minimizing value on the measured idle gaps.",
-        "metric": "migration_target_auto_stop",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "running-idle per auto-stop value",
-        "threshold": null,
-        "unit": "minutes",
-        "value": 5
       },
       "EVID-3D7C2C755FBCF094900BE9C7": {
         "comparator": "",
@@ -393,19 +393,6 @@
         "unit": "days",
         "value": 259
       },
-      "EVID-764249BC3369FBCAF29B1F63": {
-        "comparator": "",
-        "epoch_scope": "CURRENT",
-        "evidence_id": "EVID-764249BC3369FBCAF29B1F63",
-        "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
-        "metric": "migration_target_running_fraction",
-        "observation_window": "current epoch since the first retained warehouse event",
-        "source": "system.query.history + system.compute.warehouse_events",
-        "source_field": "running-idle per auto-stop value",
-        "threshold": null,
-        "unit": "ratio",
-        "value": 0.1
-      },
       "EVID-7A2E73157F821F68F965DA7F": {
         "comparator": "compatibility_check",
         "epoch_scope": "CURRENT",
@@ -421,6 +408,19 @@
           "evidence": "Read-only compatibility API unavailable or workspace not directly connected",
           "status": "UNKNOWN"
         }
+      },
+      "EVID-7B9929E9B8AB7ED54882C055": {
+        "comparator": "",
+        "epoch_scope": "CURRENT",
+        "evidence_id": "EVID-7B9929E9B8AB7ED54882C055",
+        "interpretation": "The alternative's running cluster-minutes as a share of today's: its own auto-stop removes or adds idle time, and its restarts cost its own start time.",
+        "metric": "migration_target_running_fraction",
+        "observation_window": "DBU forecast basis: last 84 days ending 2026-10-01, blended with the last 28",
+        "source": "system.query.history + system.compute.warehouse_events",
+        "source_field": "running-idle per auto-stop value",
+        "threshold": null,
+        "unit": "ratio",
+        "value": 0.1
       },
       "EVID-880B19A9191BB5F9F87D4C03": {
         "comparator": "",
@@ -638,11 +638,11 @@
       "excluded_scenarios": [
         {
           "reason_code": "SCENARIO_ECONOMICS_UNAVAILABLE",
-          "scenario_id": "SCN-EADC4F12CF9C86A128EFDC61"
+          "scenario_id": "SCN-51661959C0B4C76D11E5DE1C"
         }
       ],
       "included_scenario_ids": [
-        "SCN-33D23CEAE1A778D4A909AD11"
+        "SCN-F49A58548DA7205F0BFA347A"
       ],
       "scenario_envelope": {
         "maximum_savings": {
@@ -657,7 +657,7 @@
             "dbu": 0.0,
             "total": 0.0
           },
-          "scenario_id": "SCN-33D23CEAE1A778D4A909AD11"
+          "scenario_id": "SCN-F49A58548DA7205F0BFA347A"
         },
         "minimum_savings": {
           "bound": "LOW",
@@ -671,7 +671,7 @@
             "dbu": 0.0,
             "total": 0.0
           },
-          "scenario_id": "SCN-33D23CEAE1A778D4A909AD11"
+          "scenario_id": "SCN-F49A58548DA7205F0BFA347A"
         },
         "recommended_base": {
           "bound": "BASE",
@@ -685,7 +685,7 @@
             "dbu": 0.0,
             "total": 0.0
           },
-          "scenario_id": "SCN-33D23CEAE1A778D4A909AD11"
+          "scenario_id": "SCN-F49A58548DA7205F0BFA347A"
         }
       },
       "semantics": {
@@ -695,18 +695,18 @@
       }
     },
     "provenance": {
-      "analyzer_version": "sql-warehouse-analyzer-v2.11.0",
-      "bundle_estimator_version": "stateful-resource-bundle-v2.10.0",
+      "analyzer_version": "sql-warehouse-analyzer-v2.13.0",
+      "bundle_estimator_version": "stateful-resource-bundle-v2.13.0",
       "contract_version": "3.1.0",
-      "decision_graph_version": "warehouse-decision-graph-v2.12.0",
-      "estimator_version": "counterfactual-v2.11.0",
-      "evidence_fingerprint": "SHA256:B1234D994F6653DBFFE6657C1C9077BDC4C39A9C6545EEB60AA5A43AD7D118C1",
+      "decision_graph_version": "warehouse-decision-graph-v2.13.0",
+      "estimator_version": "counterfactual-v2.13.0",
+      "evidence_fingerprint": "SHA256:661527679122C4112341EEDEC2A3F84C1D6DF3137989B7495E33928E515032D0",
       "generated_at": "2026-10-01T12:00:00Z",
       "modeler_version": "epoch-runrate-v2.10.0",
-      "optimizer_version": "sql-warehouse-optimizer-v2.12.0",
-      "package_hash_full_sha256": "C1E4EA693EB644019BF9DE4AE548E51ABE0CC6A49E05AE6B5BBBDE240779286B",
-      "policy_version": "sql-warehouse-policy-v2.11.0",
-      "reviewer_version": "recommendation-reviewer-v2.12.0",
+      "optimizer_version": "sql-warehouse-optimizer-v2.13.0",
+      "package_hash_full_sha256": "D79BEC90F0E751A71612DBD27C3DC0C4174D520D3EC06CEB22CBF5A09B8A6D39",
+      "policy_version": "sql-warehouse-policy-v2.13.0",
+      "reviewer_version": "recommendation-reviewer-v2.13.0",
       "source_regions": [
         "us-east-1"
       ],
@@ -731,13 +731,13 @@
       "realization_records": [],
       "status": "NOT_APPLIED"
     },
-    "recommendation_package_id": "PKG-C1E4EA693EB644019BF9DE4A",
+    "recommendation_package_id": "PKG-D79BEC90F0E751A71612DBD2",
     "recommended_plan": {
       "decision_summary": "Current-type tuning is outside this run's scope, so the current configuration is kept; any migration in scope is an alternative experiment that needs compatibility validation and a canary.",
       "next_action": "REVIEW_SCENARIO",
       "reevaluation": null,
       "requires_hitl": true,
-      "scenario_id": "SCN-33D23CEAE1A778D4A909AD11",
+      "scenario_id": "SCN-F49A58548DA7205F0BFA347A",
       "selection_reason_code": "CURRENT_TYPE_OUT_OF_RUN_SCOPE"
     },
     "run_scope": {
@@ -816,14 +816,14 @@
             }
           }
         },
-        "scenario_id": "SCN-33D23CEAE1A778D4A909AD11",
+        "scenario_id": "SCN-F49A58548DA7205F0BFA347A",
         "scenario_name": "No change \u2014 keep the current configuration",
         "scenario_type": "NO_CHANGE_BASELINE",
         "status": "RECOMMENDED"
       },
       {
         "candidate_refs": [
-          "CAND-D2103CCFA6B0C48AF674B627"
+          "CAND-AAD42414B7ECC19FE9A4DFA6"
         ],
         "compatibility": {
           "checks": [
@@ -906,8 +906,8 @@
           "EVID-3D7C2C755FBCF094900BE9C7",
           "EVID-B5A462C3E6595ACFFE308701",
           "EVID-B107D222489E09654027DA92",
-          "EVID-3BC7E6F776046F7FD82F48BE",
-          "EVID-764249BC3369FBCAF29B1F63",
+          "EVID-147CDEC1DD2EA02C7DD98243",
+          "EVID-7B9929E9B8AB7ED54882C055",
           "EVID-1444E8C74949401F6B5FCC52",
           "EVID-2EE1E17AB97D1A8CD182BFF6",
           "EVID-19E237CAAC239C5F2FC86B33",
@@ -949,7 +949,7 @@
           },
           {
             "action": null,
-            "candidate_id": "CAND-D2103CCFA6B0C48AF674B627",
+            "candidate_id": "CAND-AAD42414B7ECC19FE9A4DFA6",
             "confidence": {
               "components": {
                 "coverage": 1.0,
@@ -1045,7 +1045,7 @@
             "total": null
           }
         },
-        "scenario_id": "SCN-EADC4F12CF9C86A128EFDC61",
+        "scenario_id": "SCN-51661959C0B4C76D11E5DE1C",
         "scenario_name": "Plan B \u2014 Serverless migration experiment",
         "scenario_type": "WAREHOUSE_TYPE_MIGRATION",
         "status": "ALTERNATIVE"

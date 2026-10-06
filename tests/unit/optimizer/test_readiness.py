@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.collector import extract_evidence  # noqa: E402
-from publisher.analyzer.collector.demo import DEMO_ACCOUNT_ID, DEMO_ANALYSIS_TIME, DEMO_FLEET, DEMO_SKU_PRICES, DEMO_WORKSPACES, _simulate_demo_warehouse, synthetic_demo_evidence  # noqa: E402
+from publisher.analyzer.collector.demo import DEMO_ACCOUNT_ID, DEMO_ANALYSIS_TIME, DEMO_FLEET, DEMO_SKU_PRICES, DEMO_WORKSPACES, _simulate_demo_warehouse, replay_demo_rows, synthetic_demo_evidence  # noqa: E402
 from publisher.analyzer.collector.pricing import load_aws_price_registry  # noqa: E402
 from publisher.analyzer.epochs import ready_billed_days  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
@@ -55,7 +55,7 @@ def changed(scenario, knob, value, days, t=None, rows_hook=None):
 
     class Client:
         def query(self, sql, *, label="collector_sql"):
-            return [dict(r) for r in rows.get(label, [])]
+            return replay_demo_rows(rows, sql, label)
 
     reg = load_aws_price_registry(str(ROOT / "pricing" / "aws_ec2_on_demand.json"))
     e = extract_evidence(Client(), t, "us-east-1", reg, analysis_time=AT)[0]

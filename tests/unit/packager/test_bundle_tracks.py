@@ -5,6 +5,7 @@ track, none on the conservative one), so a later auto-stop step scales its idle 
 by the target floor on every track.
 """
 import copy
+from types import SimpleNamespace
 import logging
 import sys
 import unittest
@@ -15,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
+from publisher.contracts.candidate import Range3  # noqa: E402
 from publisher.contracts.scenario import PlanStep  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.packager.estimator.scenario import StatefulBundleEstimator  # noqa: E402
@@ -114,3 +116,47 @@ class BundleTrackFloorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BundleOrderTests(unittest.TestCase):
+    """A size change slows or speeds busy time, and auto-stop removes idle time: in either order the plan costs the same."""
+
+    @classmethod
+    def setUpClass(cls):
+        logging.disable(logging.CRITICAL)
+        cls.t = Thresholds()
+        cls.e = next(e for e in synthetic_demo_evidence() if e.current_epoch.tags["golden_scenario"] == "C11")
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+
+    def candidates(self, busy_share):
+        base, aws = self.e.dbu_365d_baseline_cost, self.e.aws_baseline_cost_365
+        runtime = [busy_share * m + 1 - busy_share for m in (1.1, 1.3, 1.55)]
+        size = SimpleNamespace(
+            recommendation_id="size", knob="warehouse_size", status="ACTIONABLE", dbu_365d_baseline_cost=base, aws_365d_baseline_cost=aws,
+            dbu_365d_estimated_cost_range=Range3(*(base * 0.6 * r for r in runtime)),
+            aws_365d_estimated_cost_range=None if aws is None else Range3(*(aws * 0.6 * r for r in runtime)),
+            metadata={"bundle_effect": {"type": "multiplicative_cost_factor", "busy_share": busy_share,
+                                        "resource_runtime_factor_range": {"low": runtime[0], "base": runtime[1], "high": runtime[2]}}})
+        auto = SimpleNamespace(recommendation_id="auto", knob="auto_stop_minutes", status="ACTIONABLE", metadata={"bundle_effect": {
+            "type": "idle_cluster_minute_reduction", "realized_share": 0.5, "fixed_share": -0.02, "floor_clusters": self.e.current_epoch.config.min_clusters}})
+        return {"size": size, "auto": auto}
+
+    def total(self, order, busy_share):
+        by_id = self.candidates(busy_share)
+        steps = [PlanStep(i + 1, k, by_id[k].knob, {}, {}, "ACTIONABLE", "GATE", 0, [], [], "READY_FOR_HITL") for i, k in enumerate(order)]
+        r = StatefulBundleEstimator(self.t).estimate(self.e, steps, by_id).dbu_365d_estimated_cost_range
+        return (r.low, r.base, r.high)
+
+    def test_size_and_auto_stop_commute_when_the_busy_share_is_known(self):
+        for a, b in zip(self.total(["auto", "size"], 0.3), self.total(["size", "auto"], 0.3)):
+            self.assertAlmostEqual(a, b, places=6)
+
+    def test_unknown_busy_share_slows_only_the_running_time_left_after_idle_removal(self):
+        # All running time counts as busy, but auto-stop already removed half of it as idle: the size change after it
+        # slows what is left, never the removed idle (the plan then costs at most the size-first total).
+        after, first = self.total(["auto", "size"], 1.0), self.total(["size", "auto"], 1.0)
+        for a, b in zip(after, first):
+            self.assertLessEqual(a, b + 1e-6)

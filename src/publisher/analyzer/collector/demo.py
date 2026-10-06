@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.collector.collector import extract_evidence
 from publisher.analyzer.collector.pricing import load_aws_price_registry, model_aws_baseline_cost
-from publisher.analyzer.collector.queries.events import RESOURCE_DAILY_COLLECT_DAYS
+from publisher.analyzer.collector.queries.events import RESOURCE_DAILY_COLLECT_DAYS, running_idle_windows_from_statement
 from publisher.analyzer.epochs import (
     DEMAND_CARRY_FIELDS,
     QUEUE_CARRY_FIELDS,
@@ -22,7 +22,7 @@ from publisher.analyzer.epochs import (
     observed_epoch_calendar_days,
 )
 from publisher.analyzer.forecast import Modeler
-from publisher.analyzer.metrics import auto_stop_targets, concurrency_histograms, running_idle_metrics
+from publisher.analyzer.metrics import RUNNING_IDLE_WINDOW_FIELDS, auto_stop_targets, concurrency_histograms, running_idle_basis, running_idle_metrics
 from publisher.analyzer.normalizer import derive_query_source_profile
 from publisher.common.ids import epoch_id
 from publisher.common.logging import LOGGER
@@ -164,20 +164,7 @@ def demo_evidence() -> List[WarehouseEvidence]:
             "max_observed_clusters": 2, "max_observed_clusters_within_ceiling": 2, "starts_30": 8, "scale_ups_30": 3, "scale_downs_30": 3,
             "event_coverage_start": cur_start, "resource_coverage_from": None,
         },
-        gaps={
-            "gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0,
-            # Running-idle evidence: idle running time at the minimum (2 clusters) and the restarts each value adds.
-            "running_idle_window_start": cur_start, "running_idle_window_end": analysis_time, "running_idle_queries": 110000,
-            "running_segment_count": 1000, "observed_running_cluster_minutes": 30000.0, "kept_alive_wall_minutes": 0.0, "kept_alive_gap_count": 0,
-            "restarts_for_queries": 900,
-            # Idle running time at the minimum (2 clusters) removed by each auto-stop value and the restarts it adds:
-            # linear between the measured points, nothing at or above the current 120 minutes.
-            "running_idle_by_target": {str(t): {"removable_running_wall_minutes": wall, "removable_running_cluster_minutes": 2 * wall, "additional_starts": starts,
-                                                "avoided_starts": 0, "added_idle_wall_minutes": 0.0}
-                                       for t in range(5, 120, 5)
-                                       for wall, starts in [_demo_interp(t, ((5, 13000.0, 300), (10, 12500.0, 210), (15, 11500.0, 170), (20, 10500.0, 150),
-                                                                            (30, 9000.0, 120), (45, 6500.0, 90), (60, 5000.0, 70), (90, 2500.0, 40), (120, 0.0, 0)))]},
-        },
+        gaps={"gap_count": 480, "p50_gap_minutes": 8.0, "p90_gap_minutes": 95.0},
         cost={"list_cost": 11000.0, "dbu_quantity": 20000.0, "cost_days": 259, "active_cost_days": 259, "currency": "USD"},
     )
 
@@ -189,6 +176,19 @@ def demo_evidence() -> List[WarehouseEvidence]:
     model = Modeler(_DEMO_THRESHOLDS).forecast_from_daily_cost(daily, cur_start, analysis_time, billing_watermark="2026-10-01T06:00:00+00:00")
     forecast = {k: v for k, v in model.items() if k not in {"current_cost_365", "forecast_cost_365", "currency"}}
     registry=load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
+    # Running-idle evidence over the whole epoch, spread over the forecast's windows: idle running time at the minimum
+    # (2 clusters) removed by each auto-stop value and the restarts it adds, linear between the measured points,
+    # nothing at or above the current 120 minutes.
+    basis = running_idle_basis(cur_start, cur_start, forecast, _DEMO_THRESHOLDS)
+    cur.gaps.update(running_idle_model=basis["model"], running_idle_windows=scale_running_idle_windows({
+        "queries": 110000, "running_segment_count": 1000, "observed_running_cluster_minutes": 30000.0, "observed_running_wall_minutes": 20000.0,
+        "kept_alive_wall_minutes": 0.0, "kept_alive_gap_count": 0, "restarts_for_queries": 900,
+        "running_idle_by_target": {str(t): {"removable_running_wall_minutes": wall, "removable_running_cluster_minutes": 2 * wall, "additional_starts": starts,
+                                            "avoided_starts": 0, "added_idle_wall_minutes": 0.0, "added_idle_cluster_minutes": 0.0}
+                                   for t in range(5, 120, 5)
+                                   for wall, starts in [_demo_interp(t, ((5, 13000.0, 300), (10, 12500.0, 210), (15, 11500.0, 170), (20, 10500.0, 150),
+                                                                        (30, 9000.0, 120), (45, 6500.0, 90), (60, 5000.0, 70), (90, 2500.0, 40), (120, 0.0, 0)))]},
+    }, basis, (cur_start, analysis_time)))
     cur.resource_daily=synthesize_resource_daily(cur,analysis_time)
     aws_cost,aws_model=model_aws_baseline_cost(cur,"us-east-1",analysis_time,forecast,registry,_DEMO_THRESHOLDS)
     e=WarehouseEvidence(
@@ -565,7 +565,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     for s0 in starts:
         starts_by_day[int(s0 // 1440.0)] = starts_by_day.get(int(s0 // 1440.0), 0) + 1
 
-    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "canary_guard", "warehouse_events", "idle_gaps", "running_idle", "running_idle_targets", "concurrency", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
+    rows: Dict[str, List[Dict[str, Any]]] = {k: [] for k in ("config_epochs", "query_metrics", "canary_guard", "warehouse_events", "idle_gaps", "running_idle_inputs", "concurrency", "resource_daily", "billing_daily_cost", "billing_features", "billing_attribution_photon_owner")}
     # Behaviour after the last configuration change (spec after_change): the current epoch's latency and failure rate.
     after = spec.get("after_change") or {}
     guard_window: Dict[float, Dict[str, Any]] = {}  # per epoch: its last 30 days, for the canary guard
@@ -685,16 +685,17 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                                    for sc, hist in sorted(conc.items()) for level, w in sorted(hist.items(), key=lambda x: int(x[0])))
         # Running-idle evidence (current epoch): query gaps intersected with the simulated running timeline, over the
         # same period as the event totals; queries from a day before the window seed the busy frontier.
+        # The collector asks for it per window only after the forecast, so the simulation keeps its inputs (query runs,
+        # running segments, queries per UTC day) and the demo client computes the rows for the windows asked for.
         if ep_end is None and cov is not None:
-            th = _DEMO_THRESHOLDS
-            ri = running_idle_metrics([(a, b) for a, b, _ in ep_runs if b > cov - 1440.0], [(a, b, cl) for a, b, cl, _, _ in live if cl > 0],
-                                      (cov, hi_t), cfg["auto_stop_minutes"], auto_stop_targets(th), th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
-                                      th.kept_alive_gap_tolerance_minutes, th.kept_alive_stopped_gap_minutes)
-            key_cols = {"workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso}
-            rows["running_idle"].append({**key_cols, "running_idle_window_start": stamp(cov), "running_idle_window_end": stamp(hi_t),
-                                         "running_idle_queries": int(round(queries_between(cov, hi_t)[0])),
-                                         **{k: v for k, v in ri.items() if k != "running_idle_by_target"}})
-            rows["running_idle_targets"].extend({**key_cols, "target_min": int(x), **v} for x, v in ri["running_idle_by_target"].items())
+            rows["running_idle_inputs"].append({
+                "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "t0": t0.isoformat(),
+                "busy": [[a, b] for a, b, _ in ep_runs if b > cov - 1440.0], "segments": [[a, b, cl] for a, b, cl, _, _ in live if cl > 0],
+                "epoch_window": [cov, hi_t], "auto_stop": cfg["auto_stop_minutes"], "floor_clusters": cfg["min_clusters"],
+                "queries_epoch": queries_between(cov, hi_t)[0],
+                "queries_by_day": {str(k): queries_between(max(cov, k * 1440.0), min(hi_t, (k + 1) * 1440.0))[0]
+                                   for k in range(int(cov // 1440.0), int(hi_t // 1440.0) + 1)},
+            })
         # Daily resource series for the current epoch (last 120 days before the analysis date).
         if ep_end is None and coverage is not None:
             series_from = max(ep_start, coverage, at(analysis_day - dt.timedelta(days=RESOURCE_DAILY_COLLECT_DAYS)))
@@ -826,6 +827,78 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
 
 
 _DEMO_ROWS_CACHE: Dict[Tuple[int, str], Dict[str, List[Dict[str, Any]]]] = {}
+_DEMO_RUNNING_IDLE_CACHE: Dict[Tuple[int, str], Dict[str, Dict[str, List[Dict[str, Any]]]]] = {}  # per fleet (size, analysis time), then windows asked
+
+
+def demo_running_idle_rows(inputs: Sequence[Mapping[str, Any]], windows: Sequence[Mapping[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Rows of the running-idle collector (by label: running_idle, running_idle_targets) for the windows a statement
+    asks for, computed by the reference arithmetic from each simulated warehouse's inputs (``running_idle_inputs``)."""
+    th = _DEMO_THRESHOLDS
+    asked: Dict[Tuple[str, str], List[Mapping[str, Any]]] = {}
+    for w in windows:
+        asked.setdefault((str(w["workspace_id"]), str(w["warehouse_id"])), []).append(w)
+    out: Dict[str, List[Dict[str, Any]]] = {"running_idle": [], "running_idle_targets": []}
+    for x in inputs:
+        wins = asked.get((x["workspace_id"], x["warehouse_id"]))
+        if not wins:
+            continue
+        t0 = parse_datetime(x["t0"])
+        assert t0 is not None
+        minute = lambda day, shift=0: (dt.datetime.combine(dt.date.fromisoformat(day) + dt.timedelta(days=shift), dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0
+        stamp = lambda t: (t0 + dt.timedelta(minutes=t)).isoformat()
+        cov, hi_t = x["epoch_window"]
+        bounds = {str(w["label"]): ((cov, hi_t) if w.get("start") is None else (max(cov, minute(w["start"])), min(hi_t, minute(w["end"], 1)))) for w in wins}
+        ri = running_idle_metrics([tuple(b) for b in x["busy"]], [tuple(s) for s in x["segments"]], (cov, hi_t), bounds, x["auto_stop"],
+                                  auto_stop_targets(th), x["floor_clusters"], th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
+                                  th.kept_alive_gap_tolerance_minutes, th.kept_alive_stopped_gap_minutes)
+        for name, (a, b) in sorted(bounds.items()):
+            key = {"workspace_id": x["workspace_id"], "warehouse_id": x["warehouse_id"], "epoch_start": x["epoch_start"], "window_label": name}
+            queries = x["queries_epoch"] if name == "epoch" else sum(v for d, v in x["queries_by_day"].items() if a <= int(d) * 1440.0 < b)
+            out["running_idle"].append({**key, "window_start": stamp(a), "window_end": stamp(b), "queries": int(round(queries)),
+                                        **{k: v for k, v in ri[name].items() if k != "running_idle_by_target"}})
+            out["running_idle_targets"].extend({**key, "target_min": int(t), **v} for t, v in ri[name]["running_idle_by_target"].items())
+    return out
+
+
+def replay_demo_rows(rows: Mapping[str, Sequence[Mapping[str, Any]]], statement: str, label: str,
+                     cache: Optional[Dict[str, Dict[str, List[Dict[str, Any]]]]] = None) -> List[Dict[str, Any]]:
+    """What a collector query returns from simulated rows (``_simulate_demo_warehouse``): the rows of its label, except
+    running idle, which is computed for the windows the statement asks for (both labels at once). ``cache`` keeps those
+    rows per windows asked; it must belong to these ``rows``, since the same windows over other rows give other rows."""
+    if label in ("running_idle", "running_idle_targets"):
+        windows = running_idle_windows_from_statement(statement)
+        key = json.dumps(windows, sort_keys=True)
+        computed = cache.get(key) if cache is not None else None
+        if computed is None:
+            computed = demo_running_idle_rows(rows.get("running_idle_inputs", []), windows)
+            if cache is not None:
+                cache[key] = computed
+        return [dict(r) for r in computed[label]]
+    return [dict(r) for r in rows.get(label, [])]
+
+
+def scale_running_idle_windows(flat: Mapping[str, Any], basis: Mapping[str, Any], period: Tuple[str, str]) -> Dict[str, Dict[str, Any]]:
+    """Hand-built evidence only (the single-warehouse demo, test fixtures): running-idle windows from whole-period
+    totals (``flat``: the window fields and a ``running_idle_by_target`` map) spread over each window of ``basis``
+    (``running_idle_basis``) in proportion to its share of ``period`` (start, end), counts rounded. Collected evidence
+    is measured per window, never scaled."""
+    p0, p1 = parse_datetime(period[0]), parse_datetime(period[1])
+    assert p0 is not None and p1 is not None
+    out: Dict[str, Dict[str, Any]] = {}
+    for label, days in sorted(basis["windows"].items()):
+        a = p0 if days is None else max(p0, dt.datetime.combine(dt.date.fromisoformat(days[0]), dt.time(), dt.timezone.utc))
+        b = p1 if days is None else min(p1, dt.datetime.combine(dt.date.fromisoformat(days[1]) + dt.timedelta(days=1), dt.time(), dt.timezone.utc))
+        length = (p1 - p0).total_seconds()
+        share = 0.0 if length <= 0 else max(0.0, (b - a).total_seconds()) / length  # an empty period spreads nothing
+        scale = lambda k, v: int(round(safe_float(v) * share)) if k in _COUNT_FIELDS else round(safe_float(v) * share, 3)
+        by_target = {t: {k: scale(k, v) for k, v in row.items()} for t, row in (flat.get("running_idle_by_target") or {}).items()}
+        out[label] = {"window_start": a.isoformat(), "window_end": b.isoformat(),
+                      **{k: scale(k, flat.get(k)) for k in RUNNING_IDLE_WINDOW_FIELDS},
+                      "running_idle_by_target": {t: row for t, row in by_target.items() if any(row.values())}}
+    return out
+
+
+_COUNT_FIELDS = {"queries", "running_segment_count", "kept_alive_gap_count", "restarts_for_queries", "additional_starts", "avoided_starts"}
 
 
 def _demo_fleet_rows(count: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -861,9 +934,11 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
     rows = _demo_fleet_rows(count, DEMO_ANALYSIS_TIME)
 
     class _DemoClient:
-        """Replays the simulated rows by query label; statements are ignored and unknown labels return no rows."""
+        """Replays the simulated rows by query label; unknown labels return no rows. Statements are ignored except the
+        running-idle windows they carry, for which the rows are computed from the simulation."""
         def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
-            return [dict(r) for r in rows.get(label, [])]
+            # The fleet's rows are deterministic per size and analysis time, so its running idle is computed once per process.
+            return replay_demo_rows(rows, statement, label, _DEMO_RUNNING_IDLE_CACHE.setdefault((count, DEMO_ANALYSIS_TIME), {}))
 
     registry = load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
     evidence = extract_evidence(_DemoClient(), _DEMO_THRESHOLDS, "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]

@@ -454,7 +454,9 @@ The optimizer shall choose, among the auto-stop values the warehouse type allows
 
 Running time past the current auto-stop with no query running (open sessions, result fetching, keep-alive) is reported and never counted as removable. The best net saving wins; among values within `auto_stop_near_best_pct` of it the smallest change wins.
 
-A lower value shall stay within a cold-start budget on Pro and Classic: the restarts it adds, as a share of queries, must not exceed `cold_start_added_share_max_pct` (of the warehouse's cost profile, FR-OPT-011). Serverless starts in seconds and has no budget.
+The running idle time shall be measured on the DBU forecast's own days (its whole weeks and recent/long blend, or its whole billing cycles), so an auto-stop saving annualizes like the baseline it is a share of: reclaimable cluster-hours a year, net of restarts, at the forecast's cost per cluster-hour. The savings range shall realize only the idle a lower value removes; restarts (added or saved) and the idle a higher value adds count in full on every track.
+
+A lower value shall stay within a cold-start budget on Pro and Classic: the restarts it adds, as a share of queries, must not exceed `cold_start_added_share_max_pct` (of the warehouse's cost profile, FR-OPT-011), both on the blended days and in the recent window alone. Serverless starts in seconds and has no budget.
 
 Statuses:
 

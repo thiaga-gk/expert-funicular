@@ -1,7 +1,7 @@
 """Candidate confidence measures the evidence for the decision itself (LLD section 16, PRD FR-CONF-005).
 
 The sample component uses the sample each knob decides on (non-cache queries for size, busy minutes for the ceiling,
-busy periods for the floor, queries over the running-idle window for auto-stop, 30-day queries for migration); a
+busy periods for the floor, queries in the running-idle basis window for auto-stop, 30-day queries for migration); a
 candidate that changes nothing is never HIGH and one without enough evidence is LOW; a scenario with no steps has no
 score (UNKNOWN).
 """
@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from publisher import publisher as p  # noqa: E402
 from publisher.analyzer.collector.demo import synthetic_demo_evidence  # noqa: E402
 from publisher.analyzer.findings import Analyzer  # noqa: E402
+from publisher.analyzer.metrics import running_idle_rates  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.optimizer.estimator.candidate import Estimator  # noqa: E402
 
@@ -66,10 +67,13 @@ class ConfidenceTests(unittest.TestCase):
         self.assertIsNone(c.confidence["components"]["stability"])
 
     def test_auto_stop_sample_is_its_idle_window(self):
-        # Mostly idle: 88 queries in 30 days, but the auto-stop decision is measured on 1,044 over its idle window.
+        # Mostly idle: 88 queries in 30 days, but the auto-stop decision is measured on the queries of its basis window
+        # (the forecast's last 84 days), so the sample earns more than the 30-day count would.
         c = self.cands["C51"]["auto_stop_minutes"]
-        self.assertEqual(c.confidence["components"]["sample"], 1.0)
-        self.assertEqual((c.confidence["score"], c.confidence["level"]), (0.93, "HIGH"))
+        basis = running_idle_rates(self.by["C51"], self.t)["basis_queries"]
+        self.assertGreater(basis, 88)
+        self.assertEqual(c.confidence["components"]["sample"], round(min(1.0, basis / self.t.strong_query_sample_size), 3))
+        self.assertGreater(c.confidence["components"]["sample"], 88 / self.t.strong_query_sample_size)
 
     def test_floor_sample_is_busy_periods(self):
         c = self.cands["C10"]["min_clusters"]  # 23 busy periods

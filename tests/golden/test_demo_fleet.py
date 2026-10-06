@@ -353,8 +353,8 @@ class DemoFleetTests(unittest.TestCase):
         status, value, _ = self.auto_stop("C51")
         self.assertEqual((status, value), ("ACTIONABLE", 10))
         w = p.evaluate_warehouses([e], self.t)[0]
-        raw = next(c for c in w.candidates if c.knob == "auto_stop_minutes").metadata["raw_savings_fraction"]
-        self.assertGreater(raw, 0.8)
+        meta = next(c for c in w.candidates if c.knob == "auto_stop_minutes").metadata
+        self.assertGreater(meta["gain_share"], 0.8)  # idle removed: more than 80% of running time on the forecast's days
 
     def test_c53_c54_long_auto_stop_drops_to_the_value_covering_daytime_gaps(self):
         # Gaps of ~87 minutes (C53) and ~190 minutes (C54): the smallest 5-minute value at least 10% longer than the gap

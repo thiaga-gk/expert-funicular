@@ -31,14 +31,16 @@ class AutoStopEvidenceTests(unittest.TestCase):
         return {c.knob: c for c in p.evaluate_warehouses([e], self.t)[0].candidates}["auto_stop_minutes"]
 
     def with_gaps(self, removable_cluster_minutes, cluster_minutes):
+        """Every forecast window records ``cluster_minutes`` running and ``removable_cluster_minutes`` removable per value."""
         e = copy.deepcopy(self.e)
-        e.current_epoch.events["cluster_minutes"] = cluster_minutes
-        for row in e.current_epoch.gaps["running_idle_by_target"].values():
-            row["removable_running_cluster_minutes"] = removable_cluster_minutes
+        for window in e.current_epoch.gaps["running_idle_windows"].values():
+            window["observed_running_cluster_minutes"] = cluster_minutes
+            for row in window["running_idle_by_target"].values():
+                row["removable_running_cluster_minutes"] = removable_cluster_minutes
         return e
 
     def test_idle_larger_than_running_time_is_insufficient_evidence(self):
-        # Events record 500 cluster-minutes; the running-idle rows claim 31,680 removable cluster-minutes.
+        # Each window records 500 running cluster-minutes; the running-idle rows claim 31,680 removable cluster-minutes.
         c = self.auto_stop(self.with_gaps(31680.0, 500.0))
         self.assertEqual(c.status, "INSUFFICIENT_EVIDENCE")
         self.assertIn("IDLE_EVIDENCE_EXCEEDS_RUNTIME", c.blockers)

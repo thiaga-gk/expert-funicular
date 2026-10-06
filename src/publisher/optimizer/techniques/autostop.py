@@ -52,27 +52,27 @@ def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, Analysis
                 "no retained warehouse event gives its running time.")
         else:
             auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["RUNNING_INTERVAL_EVIDENCE_UNAVAILABLE"],
-                "Idle time intersected with the warehouse's running time was not collected (older evidence or no retained warehouse event); no auto-stop change is priced.")
-    elif safe_float(f.get("cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
+                "Idle time intersected with the warehouse's running time was not collected on the DBU forecast's days (older evidence, no retained warehouse event, or evidence collected for other days); no auto-stop change is priced.")
+    elif safe_float(f.get("basis_running_cluster_minutes"))<self.t.min_cluster_minutes_for_cost_model:
         auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["INSUFFICIENT_EVENT_RESOURCE_EVIDENCE"],"The warehouse recorded too little running time to price an auto-stop change.")
-    elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes"]>safe_float(f.get("cluster_minutes"))+0.01 for o in options.values()):
+    elif any(o["direction"]=="LOWER" and o["gain_cluster_minutes_per_day"]>safe_float(f.get("running_cluster_minutes_per_day"))+0.01 for o in options.values()):
         # Running idle time is part of running time by construction; more of it than the events recorded means the
         # two collectors saw different periods or data, so nothing can be priced.
         auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["IDLE_EVIDENCE_EXCEEDS_RUNTIME"],
             "Removable idle time exceeds the running time warehouse events recorded; the evidence is inconsistent, so no auto-stop change is priced.")
     elif young:
         auto_stop("INSUFFICIENT_EVIDENCE",cur_auto,["CURRENT_CONFIG_EPOCH_TOO_NEW"],"The current configuration is not ready yet (too few settled billed days) to measure its idle gaps; auto-stop is re-evaluated once it is.")
-    elif not f.get("running_idle_queries"):
+    elif not f.get("basis_queries"):
         # No queries but running time: a human decides whether the warehouse is still needed or what keeps it up.
         floor=min(grid); o=options.get(floor)
-        if o is not None and o["direction"]=="LOWER" and o["net_cluster_minutes"]>0:
+        if o is not None and o["direction"]=="LOWER" and o["net_cluster_minutes_per_day"]>0:
             auto_stop("REVIEW",floor,["NO_QUERIES_WHILE_RUNNING"],
                 "The warehouse ran with no queries in the window; review whether it is still needed. The lowest auto-stop value is priced on its measured idle time.")
         else:
             auto_stop("NO_CHANGE",cur_auto,["NO_QUERIES_WHILE_RUNNING"],
                 "The warehouse ran with no queries in the window, and no lower auto-stop removes that running time; review whether it is still needed or what keeps it running.")
     else:
-        saving=[o for o in options.values() if o["net_cluster_minutes"]>0]
+        saving=[o for o in options.values() if o["net_cluster_minutes_per_day"]>0]
         allowed=[o for o in saving if o["within_cold_start_budget"]]
         if not allowed:
             polling=(not saving and f.get("running_clock_pct") is not None and f["running_clock_pct"]>=self.t.always_on_running_pct
@@ -83,8 +83,8 @@ def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, Analysis
                 f"The warehouse runs {f['running_clock_pct']:g}% of the time while queries are busy only {f['busy_pct']:g}% of it: frequent tiny queries ({clients}) keep it up, so no auto-stop value can stop it. Review the polling, keep-alive or refresh schedule." if polling else
                 "No auto-stop value saves money on the measured idle gaps; the current value is cost-optimal.")
         else:
-            best=max(o["net_cluster_minutes"] for o in allowed)
-            near=[o for o in allowed if o["net_cluster_minutes"]>=(1-self.t.auto_stop_near_best_pct/100.0)*best]
+            best=max(o["net_cluster_minutes_per_day"] for o in allowed)
+            near=[o for o in allowed if o["net_cluster_minutes_per_day"]>=(1-self.t.auto_stop_near_best_pct/100.0)*best]
             # The smallest change among near-best values (an always-on warehouse changes least at the largest value).
             pick=min(near,key=lambda o:((abs(o["target"]-cur_auto) if cur_auto>0 else -o["target"]),o["target"]))
             blockers=failure_blockers(f["failure_pct"], self.t) if pick["direction"]=="LOWER" else []

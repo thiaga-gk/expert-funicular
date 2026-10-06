@@ -96,29 +96,48 @@ class StatefulBundleEstimator:
         elif typ=="multiplicative_cost_factor":
             df=self._factors_from_range(c.dbu_365d_baseline_cost,c.dbu_365d_estimated_cost_range)
             af=self._factors_from_range(c.aws_365d_baseline_cost,c.aws_365d_estimated_cost_range)
-            if df:
-                for i in range(3): st.dbu_tracks[i]*=max(0.0,df[i])
-            if st.aws_tracks is not None and af:
-                for i in range(3): st.aws_tracks[i]*=max(0.0,af[i])
             rr=effect.get("resource_runtime_factor_range")
+            rf=None
             if rr and original_resource>0:
                 rf=[safe_float(rr.get("low")),safe_float(rr.get("base")),safe_float(rr.get("high"))] if isinstance(rr,Mapping) else list(rr)
-                for i in range(3): st.resource_tracks[i]*=max(0.0,rf[i])
+            busy=effect.get("busy_share")
+            for i in range(3):
+                before=st.resource_tracks[i]
+                if rf is not None and rf[i]>0 and before>0:
+                    # A runtime change moves the running time it acts on by a fixed amount rather than a proportion, so it
+                    # commutes with auto-stop and min-cluster removals: the factor's price part (factor / runtime)
+                    # applies as is, its runtime part as that amount. A size change slows or speeds today's busy time
+                    # (runtime - 1 = busy share x (multiplier - 1)), never more than the running time still left (an
+                    # unknown busy share counts all running time as busy, so after idle removals it is what is left); a
+                    # ceiling increase adds cluster-minutes on today's time at the ceiling.
+                    acted=original_resource if busy is None else (min(safe_float(busy)*original_resource,before)/safe_float(busy) if safe_float(busy)>0 else 0.0)
+                    after=max(0.0,before+acted*(rf[i]-1.0))
+                    ratio=after/before
+                    st.resource_tracks[i]=after
+                    if df: st.dbu_tracks[i]*=max(0.0,df[i]/rf[i])*ratio
+                    if st.aws_tracks is not None and af: st.aws_tracks[i]*=max(0.0,af[i]/rf[i])*ratio
+                    continue
+                if rf is not None: st.resource_tracks[i]*=max(0.0,rf[i])
+                if df: st.dbu_tracks[i]*=max(0.0,df[i])
+                if st.aws_tracks is not None and af: st.aws_tracks[i]*=max(0.0,af[i])
         elif typ=="idle_cluster_minute_reduction":
-            # Auto-stop: net cluster-minutes (idle removed minus restarts added, or restarts saved minus idle added)
-            # measured at the floor the candidate saw; both terms scale with the track's current floor.
+            # Auto-stop: the idle a lower value removes (realized per track) and the mechanical rest (restarts added or
+            # saved, idle a higher value adds; in full on every track), as shares of today's running cluster-minutes on
+            # the forecast basis, applied to the same resource pool as the other steps and measured at the floor the
+            # candidate saw. A track whose realized idle is below the restarts it adds ends up costing more.
             floor0=max(1,safe_int(effect.get("floor_clusters"),1))
-            unit=(safe_float(effect.get("gain_cluster_minutes"))-safe_float(effect.get("loss_cluster_minutes")))/floor0
+            realized=safe_float(effect.get("realized_share"))*original_resource; fixed=safe_float(effect.get("fixed_share"))*original_resource
             for i,realization in enumerate(realizations):
                 before=st.resource_tracks[i]
-                if before<=0 or unit<=0: continue
+                unit=(realized*realization+fixed)/floor0
+                if before<=0 or unit==0: continue
                 # The saving at the floor the candidate saw, less its overlap with an earlier floor cut (the floor
                 # clusters that cut already removed), never more than that cut removed.
-                overlap=min(unit*realization*max(0.0,floor0-st.floor_tracks[i]),st.floor_cut_minutes[i])
+                overlap=min(unit*max(0.0,floor0-st.floor_tracks[i]),st.floor_cut_minutes[i]) if unit>0 else 0.0
                 st.floor_cut_minutes[i]-=overlap
-                removed=min(before,unit*floor0*realization-overlap)
-                if removed<=0: continue
-                st.auto_stop_wall_minutes[i]+=removed/max(1.0,st.floor_tracks[i])
+                removed=min(before,unit*floor0-overlap)
+                if removed==0: continue
+                st.auto_stop_wall_minutes[i]+=max(0.0,removed)/max(1.0,st.floor_tracks[i])
                 ratio=(before-removed)/before
                 st.dbu_tracks[i]*=ratio
                 if st.aws_tracks is not None: st.aws_tracks[i]*=ratio
@@ -174,6 +193,14 @@ class StatefulBundleEstimator:
         realizations=[self.t.realization_optimistic,self.t.realization_base,self.t.realization_conservative]
 
         for step in steps:
+            if step.execution_state=="BLOCKED":
+                # Held in this plan (its marginal saving is below the materiality floor): not applied, so not priced.
+                step.pricing_basis=PRICING_AUTHORITATIVE
+                step.running_estimated_cost_range_365=step.running_estimated_savings_range_365=None
+                step.running_dbu_cost_range_365=step.running_aws_cost_range_365=None
+                step.running_dbu_savings_range_365=step.running_aws_savings_range_365=None
+                step.step_dbu_savings_range_365=step.step_aws_savings_range_365=None
+                continue
             c=candidate_by_id[step.recommendation_id]
             effect=c.metadata.get("bundle_effect") or {"type":"no_cost_change"}
             pending=step.execution_state=="PENDING_REEVALUATION"
@@ -193,8 +220,8 @@ class StatefulBundleEstimator:
             step.step_dbu_savings_range_365=self._step_range(before_dbu,chain.dbu_tracks) if snap else None
             step.step_aws_savings_range_365=self._step_range(before_aws,chain.aws_tracks) if snap and snap.aws_365d_savings_range is not None else None
 
-        priced=[x for x in steps if x.pricing_basis==PRICING_AUTHORITATIVE]
-        has_pending=len(priced)<len(steps)
+        priced=[x for x in steps if x.pricing_basis==PRICING_AUTHORITATIVE and x.execution_state!="BLOCKED"]
+        has_pending=any(x.execution_state=="PENDING_REEVALUATION" for x in steps)
         has_migration=lambda group: any(candidate_by_id[x.recommendation_id].knob=="warehouse_type" for x in group)
         method=("Stateful DBU+AWS bundle. Each step changes the evolving cost/resource state. Min-cluster and auto-stop remove remaining cluster-minutes rather than adding standalone savings; migration steps replace the state with a DBU+AWS pre-canary counterfactual.")
         if has_pending:
