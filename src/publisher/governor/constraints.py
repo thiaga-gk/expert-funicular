@@ -11,6 +11,8 @@ def aws_region_price_guard(evidence: Sequence[WarehouseEvidence], source_region:
 
     Without the region's instance prices every Pro/Classic AWS, total and package figure would silently be null (or,
     with a wrong label, priced for the wrong region); a live run stops instead unless the operator opts in.
+    Returns None when `allow_missing` is set, the region is in the registry, or no supported Pro/Classic warehouse
+    needs AWS prices (Serverless has no AWS component). Only the message is built here; the caller raises it.
     """
     if allow_missing:
         return None

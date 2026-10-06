@@ -17,6 +17,7 @@ def is_nonprod(tags: Mapping[str, Any], t: Thresholds) -> bool:
 
 
 def normalize_size(value: Any) -> str:
+    """Canonical size label (upper case, `-` to `_`); "UNKNOWN" when the source gave none. Not validated against SIZE_ORDER."""
     return "UNKNOWN" if value is None else str(value).strip().upper().replace("-", "_")
 
 
@@ -45,6 +46,10 @@ def infer_photon_observation(row: Mapping[str, Any], analysis_time: str, thresho
     quantities and restatements carry corrected positive quantities. The inference
     is intentionally conservative: insufficient coverage, stale evidence, or a
     mixed workload produces UNKNOWN/MIXED instead of pretending to know config.
+
+    `row` holds the current epoch's DBU totals by `product_features.is_photon` (true/false/null) and the latest usage
+    time; `analysis_time` fixes freshness deterministically. Photon is observation-only: the result is never a
+    recommendation input. Confidence is capped below MEDIUM for UNKNOWN and MIXED.
     """
     true_dbu = max(0.0, safe_float(row.get("photon_true_dbu")))
     false_dbu = max(0.0, safe_float(row.get("photon_false_dbu")))
@@ -109,7 +114,12 @@ def infer_photon_observation(row: Mapping[str, Any], analysis_time: str, thresho
 
 
 def derive_query_source_profile(query: Mapping[str, Any]) -> QuerySourceProfile:
-    """Create a deterministic multi-label source profile from query history aggregates."""
+    """Create a deterministic multi-label source profile from query history aggregates.
+
+    Counts are 30-day per-source query totals; percentages are of `queries_30` (0.0 when it is zero). The primary
+    category is the largest count (ties by name), or UNATTRIBUTED when every source count is zero. Applications are
+    deduplicated and sorted so the profile hashes identically across runs.
+    """
     categories = {
         "DASHBOARD": safe_int(query.get("dashboard_queries_30")),
         "JOB": safe_int(query.get("job_queries_30")),

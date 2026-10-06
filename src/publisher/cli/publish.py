@@ -22,6 +22,9 @@ from publisher.publisher import demo_fleet_size, publish
 
 
 def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
+    """The live collector's SQL execution target as (kind, id) from --execution-kind/--execution-id or exactly one
+    convenience flag (serverless/sql warehouse ID, all-purpose cluster ID). Raises PublisherError when none, several or
+    an inconsistent combination is given."""
     supplied=[("warehouse",args.serverless_warehouse_id),("warehouse",args.sql_warehouse_id),("cluster",args.all_purpose_cluster_id)]
     supplied=[x for x in supplied if x[1]]
     if args.execution_id:
@@ -52,6 +55,9 @@ def request_from_args(args: argparse.Namespace) -> PublisherRequest:
 
 
 def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
+    """Parse the ``publish`` options (defaults come from the documented environment variables). Argument errors exit
+    through argparse with status 2. Credentials are never accepted here: OAuth comes from the Databricks profile named by
+    --profile."""
     from publisher.contracts import workbook_contract as wc
     fleet_size=demo_fleet_size()
     p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION})")
@@ -82,7 +88,10 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
 
 
 def print_summary(report: ReportContract, log_path: Path, *, print_json: bool = False) -> None:
-    """CLI output: the single package as JSON (--print-json), or the run summary and the written files."""
+    """CLI output on stdout: the single package as JSON (--print-json), or the run summary and the written files.
+
+    Raises PublisherError when --print-json is used with anything other than exactly one package.
+    """
     if print_json:
         if len(report.packages) != 1:
             raise PublisherError("--print-json requires exactly one warehouse package; use the packages/ directory for multi-warehouse runs.")
@@ -93,12 +102,35 @@ def print_summary(report: ReportContract, log_path: Path, *, print_json: bool = 
         print(f"log: {log_path}")
 
 
+def _log_settings(args: argparse.Namespace, request: PublisherRequest) -> None:
+    """Log the resolved run settings once. Only non-sensitive values: the profile NAME (never tokens), the execution
+    kind, counts instead of file lists, and no execution IDs, config-file contents or credentials."""
+    LOGGER.info(
+        "cli.settings run_mode=%s execution_mode=%s output_dir=%s log_level=%s workbook=%s print_json=%s batch_size=%d",
+        request.mode, args.mode, args.output_dir, args.log_level, not args.no_workbook, args.print_json, args.batch_size,
+    )
+    if request.mode == MODE_LIVE:
+        LOGGER.info("cli.settings.live profile=%s execution_kind=%s source_region=%s compatibility_api_mode=%s",
+                    request.profile, request.execution_kind, request.source_region, request.compatibility_api_mode)
+    elif request.mode == MODE_REPLAY:
+        LOGGER.info("cli.settings.replay evidence_files=%d", len(request.evidence_files))
+    else:
+        LOGGER.info("cli.settings.demo demo_count=%d", request.demo_count)
+
+
 def run(argv: Optional[Sequence[str]] = None) -> int:
+    """Run ``publisher publish``: parse, configure logging, build the request, publish, print the summary; returns 0.
+
+    Writes the run log to ``<output-dir>/publisher.log`` before anything else can fail. Raises PublisherError for a
+    refused run (``cli.main.main`` maps it to exit status 2).
+    """
     args = parse_args(argv)
     log_path = setup_logging(Path(args.output_dir), args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",
                 POLICY_VERSION, ANALYZER_VERSION, OPTIMIZER_VERSION, ESTIMATOR_VERSION, BUNDLE_MODEL_VERSION)
-    report = publish(request_from_args(args))
+    request = request_from_args(args)
+    _log_settings(args, request)
+    report = publish(request)
     LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",
                 report.analyzed_count, report.excluded_count, len(report.packages), report.candidate_count, report.scenario_count, log_path)
     print_summary(report, log_path, print_json=args.print_json)

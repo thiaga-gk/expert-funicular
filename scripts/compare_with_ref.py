@@ -51,6 +51,7 @@ def entrypoint(tree: Path) -> Tuple[List[str], Dict[str, str]]:
 
 
 def run(tree: Path, args: List[str], out: Path) -> str:
+    """Run *tree*'s CLI with *args* into *out* and return its stdout; exits the script when the run fails."""
     cmd, env = entrypoint(tree)
     proc = subprocess.run(cmd + args + ["--output-dir", str(out)], cwd=tree, env=env, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -59,10 +60,12 @@ def run(tree: Path, args: List[str], out: Path) -> str:
 
 
 def non_canonical(text: str, out: Path) -> List[str]:
+    """Lines with the leading log timestamp removed and the output directory replaced, for like-for-like comparison."""
     return [_TIMESTAMP.sub("", line).replace(str(out), "<out>") for line in text.splitlines()]
 
 
 def inputs(work: Path, cases: List[str], demo: bool) -> List[Tuple[str, List[str]]]:
+    """The CLI jobs to compare as (label, arguments): the demo, and each evidence-level golden case as a --from-evidence file written under *work*."""
     jobs: List[Tuple[str, List[str]]] = [("demo", ["--demo"])] if demo else []
     for name in cases:
         case = load_case(name)
@@ -76,6 +79,7 @@ def inputs(work: Path, cases: List[str], demo: bool) -> List[Tuple[str, List[str
 
 
 def compare(label: str, old: Dict[str, str], new: Dict[str, str]) -> List[str]:
+    """Differences between two canonical file maps: files on one side only, and unified diffs (first 40 lines) of changed files."""
     problems = []
     for rel in sorted(set(old) | set(new)):
         if rel not in old or rel not in new:
@@ -87,6 +91,7 @@ def compare(label: str, old: Dict[str, str], new: Dict[str, str]) -> List[str]:
 
 
 def main(argv=None) -> int:
+    """Compare the ref and the working tree; returns 1 when any canonical output differs, else 0."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ref", required=True, help="git ref to compare the working tree against")
     ap.add_argument("--case", action="append", default=[])

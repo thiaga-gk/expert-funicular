@@ -26,6 +26,7 @@ LEGACY = "saved_idle_minutes_if_"
 
 
 def _interpolate(points, x):
+    """Linear interpolation of {auto-stop: minutes} at x, extended at the end slopes and floored at 0."""
     xs = sorted(points)
     if x <= xs[0]:
         a, b = xs[0], xs[1]
@@ -40,6 +41,7 @@ def _interpolate(points, x):
 
 
 def backfill(evidence):
+    """Convert legacy idle estimates to running-idle evidence in place; returns how many epochs changed."""
     changed = 0
     targets = auto_stop_targets(Thresholds())
     for x in evidence:
@@ -79,6 +81,7 @@ def backfill(evidence):
 
 
 def main(cases):
+    """Rewrite each named case's evidence fixture when anything was backfilled; prints one line per file changed."""
     for case in cases:
         path = evidence_source_path(case)
         if not path.is_file():

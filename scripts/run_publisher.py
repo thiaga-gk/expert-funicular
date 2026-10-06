@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Run the publisher CLI from a checkout without installing it: same arguments as ``python -m publisher``."""
+"""Run the publisher CLI from a checkout without installing it: same arguments as ``python -m publisher``.
+
+Usage: python scripts/run_publisher.py [publish] [options]   (exit status as the CLI: 0 ok, 2 refused run)
+"""
 import sys
 from pathlib import Path
 

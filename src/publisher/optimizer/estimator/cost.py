@@ -17,6 +17,11 @@ from publisher.optimizer.techniques.scaling import MAX_INCREASE_COST_BOUNDS
 
 
 def aws_cluster_hourly_from_evidence(e: WarehouseEvidence, size: str) -> Tuple[Optional[float], Dict[str, Any]]:
+    """Modeled on-demand EC2 USD per cluster-hour (driver + workers) for a size, plus provenance.
+
+    Returns (None, {status: UNAVAILABLE, blocker}) when the size topology or a regional instance price is missing:
+    an unknown AWS cost is unavailable, never zero. Spot, Reserved Instances and Savings Plans are not modeled.
+    """
     topology = AWS_SQL_WAREHOUSE_TOPOLOGY.get(size)
     prices = e.aws_cost_model.get("region_instance_prices") if isinstance(e.aws_cost_model, Mapping) else None
     if not topology or not isinstance(prices, Mapping):
@@ -29,6 +34,7 @@ def aws_cluster_hourly_from_evidence(e: WarehouseEvidence, size: str) -> Tuple[O
 
 
 def resolve_target_sku_price(sql_sku_prices: Mapping[str, Any], target_type: str) -> Tuple[Optional[float], Dict[str, Any]]:
+    """Unit price per DBU of the SQL SKUs classified as ``target_type``; None with a blocker when none is found or the SKUs disagree (ambiguous prices are never averaged)."""
     target = str(target_type).upper()
     candidates: List[Tuple[str, float]] = []
     for name, payload in sql_sku_prices.items():
@@ -69,6 +75,13 @@ class CostModel:
     """Candidate cost counterfactuals: per-knob DBU factors, AWS factors, resource bounds and migration costs. Mixed into the Estimator; ``self.t`` is the policy."""
 
     def _factors(self,e:WarehouseEvidence,d:OptimizationDecision,a:AnalysisResult)->Tuple[Optional[Range3],Dict[str,Any]]:
+        """Low/base/high multiplicative factors on the forward DBU baseline for one decision, plus metadata (method, ``bundle_effect`` for the stateful estimator).
+
+        Factor ranges are (optimistic, base, conservative) multipliers of baseline cost, so a factor below 1 is a
+        saving and above 1 a cost increase. Returns (None, meta) when the candidate cannot be priced (blocked,
+        insufficient evidence, canary rollback, missing baseline, unpublished or unvalidated rate): the economics
+        are then null, never zero, and ``estimate_blocker`` names why when a gate can wait on it.
+        """
         knob=d.knob
         meta:Dict[str,Any]={"estimator_version":ESTIMATOR_VERSION}
         if d.status in {"BLOCKED","INSUFFICIENT_EVIDENCE"}:
@@ -216,6 +229,7 @@ class CostModel:
         return Range3(1,1,1),{"method":"no direct modeled cost delta","bundle_effect":{"type":"no_cost_change"},**meta}
 
     def _aws_factor_range(self,e:WarehouseEvidence,d:OptimizationDecision,dbu_factors:Optional[Range3],meta:Mapping[str,Any])->Optional[Range3]:
+        """Factors for the AWS baseline: None when AWS cost is unknown; 1.0 for Serverless (no customer EC2); the DBU factors for non-size knobs; for a size change the EC2 cluster-hour ratio times the runtime multiplier."""
         if e.aws_baseline_cost_365 is None:
             return None
         if e.current_epoch.config.warehouse_type == "SERVERLESS":
@@ -234,6 +248,7 @@ class CostModel:
         return Range3(vals[0],vals[1],vals[2])
 
     def _annualized_resource_bounds(self,e:WarehouseEvidence)->Tuple[Optional[Range3],Dict[str,Any]]:
+        """Annualized current-epoch cluster-minutes as (uptime, run-rate, uptime x peak clusters) bounds; None with a status when the resource window is missing or empty. Current epoch only: running time never carries across epochs."""
         # Same window and model as the DBU forecast (run-rate blend, or whole billing cycles): AWS/resource bounds and
         # DBU describe the same year.
         rates,info=annualized_resource_rates(e.current_epoch,e.forecast_metadata or {},self.t,("uptime_minutes","cluster_minutes"))
@@ -270,6 +285,13 @@ class CostModel:
         return out
 
     def _migration_costs(self,e:WarehouseEvidence,d:OptimizationDecision,facts:Optional[Mapping[str,Any]]=None)->Dict[str,Any]:
+        """Pre-canary DBU, AWS and total annual cost ranges of the target warehouse type at the current size.
+
+        Returns ``{"available": False, "blocker": code, ...}`` whenever a required input is missing (resource
+        window, running fraction, target DBU rate, SKU price, reconciliation, EC2 price); no input is guessed. The
+        target is priced relative to billing (scaled by billed / modeled) so systematic model error cancels.
+        Serverless AWS cost is a true zero (infrastructure is inside the DBU line); Pro/Classic AWS is modeled.
+        """
         target=str(d.recommended_config.get("warehouse_type") or "").upper()
         size=e.current_epoch.config.warehouse_size
         current_resources,resource_meta=self._annualized_resource_bounds(e)

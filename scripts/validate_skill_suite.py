@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""Validate the reusable publisher skill suite under ``.claude/skills`` (read-only).
+
+Usage: python scripts/validate_skill_suite.py
+
+Checks the suite.yaml manifest (semver version, entrypoint, skill set equal to the folders on disk, the six optimization
+framework axes), then per skill: SKILL.md frontmatter and description, body size, framework reference, no TODOs or
+forbidden auxiliary files, 10 positive + 10 negative trigger cases, at least 3 functional evals, referenced files that
+exist and bundled scripts that compile; plus the technique-catalog and discovery assets and the cross-service eval set.
+Prints every error and exits 1, or an OK summary and exit 0. Needs PyYAML.
+"""
 from __future__ import annotations
 import re, sys
 from pathlib import Path
@@ -11,11 +21,13 @@ FORBIDDEN={'README.md','CHANGELOG.md','INSTALLATION_GUIDE.md','QUICK_REFERENCE.m
 FRAMEWORK=['F1_FIRST_PRINCIPLES','F2_CAUSAL_MECHANISM','F3_CONSTRAINTS_FIRST','F4_COUNTERFACTUAL','F5_SECOND_ORDER_EFFECTS','F6_VALIDATION_LEARNING']
 
 def frontmatter(text:str):
+    """Split a SKILL.md into (parsed YAML frontmatter, body); raises ValueError without a leading frontmatter block."""
     if not text.startswith('---\n'): raise ValueError('missing YAML frontmatter')
     _, raw, body=text.split('---',2)
     return yaml.safe_load(raw) or {}, body
 
 def main():
+    """Run every suite check; returns the exit status (0 OK, 1 with the errors printed)."""
     repo=Path(__file__).resolve().parents[1]; root=repo/'.claude/skills'; errs=[]
     skills={p.name for p in root.iterdir() if p.is_dir() and (p/'SKILL.md').exists()}
     manifest_path=root/'suite.yaml'

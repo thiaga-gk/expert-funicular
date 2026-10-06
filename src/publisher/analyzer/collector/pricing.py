@@ -7,6 +7,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.metrics import annualized_resource_rates
 from publisher.common.errors import PublisherError
+from publisher.common.logging import LOGGER
 from publisher.common.utils import safe_float
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY
 from publisher.governor.thresholds import Thresholds
@@ -14,6 +15,7 @@ from publisher.contracts.source import EpochEvidence
 
 
 def classify_sql_sku(sku_name: str) -> str:
+    """Classify a billing SKU name as SERVERLESS, PRO, CLASSIC (SQL SKUs) or OTHER (not a SQL SKU), by name only."""
     n = str(sku_name or "").upper()
     if "SQL" not in n:
         return "OTHER"
@@ -25,7 +27,13 @@ def classify_sql_sku(sku_name: str) -> str:
 
 
 def load_aws_price_registry(path: Optional[str]) -> Dict[str, Any]:
+    """Load the versioned regional EC2 on-demand price registry (JSON object), or {} when no path is given.
+
+    An empty registry is valid: every AWS baseline then comes back UNAVAILABLE (null), never a guessed price. A missing
+    file or a non-object payload raises PublisherError.
+    """
     if not path:
+        LOGGER.warning("pricing.registry_unavailable reason=NO_REGISTRY_PATH")
         return {}
     p = Path(path)
     if not p.exists():
@@ -33,10 +41,16 @@ def load_aws_price_registry(path: Optional[str]) -> Dict[str, Any]:
     payload = json.loads(p.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise PublisherError(f"AWS price registry must be a JSON object: {path}")
+    LOGGER.info("pricing.registry_loaded regions=%d", len(payload.get("regions") or {}) if isinstance(payload.get("regions"), Mapping) else 0)
     return dict(payload)
 
 
 def aws_cluster_hourly_price(size: str, region: str, registry: Mapping[str, Any]) -> Tuple[Optional[float], Dict[str, Any]]:
+    """Hourly AWS cost of one cluster of ``size`` (driver + workers from the documented topology) in ``region``.
+
+    Returns ``(price, info)``. ``price`` is None with an ``info`` blocker (size not in topology, region or instance
+    price missing from the registry) when it cannot be modeled; unknown is never priced at zero.
+    """
     topology = AWS_SQL_WAREHOUSE_TOPOLOGY.get(size)
     if not topology:
         return None, {"status": "UNAVAILABLE", "blocker": "WAREHOUSE_SIZE_NOT_IN_AWS_TOPOLOGY", "warehouse_size": size}
@@ -59,6 +73,14 @@ def aws_cluster_hourly_price(size: str, region: str, registry: Mapping[str, Any]
 
 
 def model_aws_baseline_cost(current: EpochEvidence, source_region: str, analysis_time: str, forecast_metadata: Mapping[str, Any], aws_registry: Mapping[str, Any], thresholds: Optional[Thresholds] = None, *, observed_node_types: Optional[Sequence[str]] = None) -> Tuple[Optional[float], Dict[str, Any]]:
+    """Annual customer AWS (EC2) baseline for the current epoch, kept separate from DBU cost; ``(cost, model)``.
+
+    Annualizes the current epoch's cluster-minutes (same basis as the DBU forecast) times the topology's hourly price.
+    SERVERLESS returns 0.0 with status NOT_CUSTOMER_BILLED (Databricks-managed infrastructure). Anything that cannot be
+    established returns ``(None, model)`` with a blocker (price missing, billed node types outside the topology,
+    insufficient cluster-minutes): unknown cost is null, never zero. ``analysis_time`` is accepted for signature
+    symmetry with the forecast and is not used here.
+    """
     if current.config.warehouse_type == "SERVERLESS":
         region_prices = dict((aws_registry.get("regions") or {}).get(source_region) or {})
         return 0.0, {

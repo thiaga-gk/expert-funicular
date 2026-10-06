@@ -24,6 +24,7 @@ class StatefulBundleEstimator:
 
     @staticmethod
     def _range_from_tracks(tracks: Sequence[float]) -> Range3:
+        """Cost range from the three tracks, sorted so low <= base <= high regardless of track order; negatives clamp to zero."""
         vals=sorted(max(0.0,float(x)) for x in tracks)
         return Range3(*(round(x,2) for x in vals))
 
@@ -37,15 +38,18 @@ class StatefulBundleEstimator:
 
     @staticmethod
     def _delta(baseline: Optional[float], cost: Optional[Range3]) -> Optional[Range3]:
+        """Signed savings range (baseline minus cost; negative = cost increase); None when either side is unknown, never zero."""
         if baseline is None or cost is None: return None
         return Range3(round(baseline-cost.high,2),round(baseline-cost.base,2),round(baseline-cost.low,2))
 
     @staticmethod
     def _factors_from_range(baseline: Optional[float], costs: Optional[Range3]) -> Optional[List[float]]:
+        """Per-track cost/baseline factors recovered from a candidate's cost range; None when the baseline is unknown or non-positive."""
         if baseline is None or baseline <= 0 or costs is None: return None
         return [costs.low/baseline,costs.base/baseline,costs.high/baseline]
 
     def _portfolio(self,e:WarehouseEvidence,status:str,dbu_tracks:Sequence[float],aws_tracks:Optional[Sequence[float]],method:str)->PortfolioEstimate:
+        """Priced PortfolioEstimate from the chain tracks, keeping DBU, AWS and total separate (AWS and total are None when AWS is unknown); the legacy fields fall back to DBU only when no total exists."""
         dbu_cost=self._range_from_tracks(dbu_tracks)
         aws_cost=self._range_from_tracks(aws_tracks) if aws_tracks is not None else None
         total_cost=(Range3(round(dbu_cost.low+aws_cost.low,2),round(dbu_cost.base+aws_cost.base,2),round(dbu_cost.high+aws_cost.high,2)) if aws_cost else None)
@@ -145,6 +149,9 @@ class StatefulBundleEstimator:
 
     def estimate(self,e:WarehouseEvidence,steps:List[PlanStep],candidate_by_id:Dict[str,CandidateRecommendation])->PortfolioEstimate:
         """Price an ordered plan as two chains over the same evolving-state model.
+
+        Mutates ``steps`` in place: sets each step's ``pricing_basis`` and its running/step savings ranges (None
+        once its chain is halted). Scenario economics are stateful, so they are not the sum of candidate savings.
 
         The *authoritative* chain prices only steps that are not PENDING_REEVALUATION: their evidence has not been
         invalidated by an upstream change. The *contingent* chain prices every step using pre-change evidence; it is

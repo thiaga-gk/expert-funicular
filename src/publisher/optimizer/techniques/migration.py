@@ -14,7 +14,14 @@ if TYPE_CHECKING:
 
 def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
            billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Append this knob's decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers)."""
+    """Append the warehouse_type migration decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers).
+
+    Migration is a standalone alternative, never combined with the current-type knobs: it is INSUFFICIENT_EVIDENCE
+    without a DBU baseline and cost history, NO_CHANGE while the warehouse ran without queries (review first), and
+    otherwise a TEST_REQUIRED canary (Serverless -> PRO, Pro/Classic -> SERVERLESS) that invalidates every other
+    knob. Workspace capability not confirmed from system tables is carried as a blocker. Unsupported types never
+    reach here: the analyzer fails closed.
+    """
     # Warehouse-type migration is always a separate scenario branch.
     a=analyses["warehouse_type"]; f=a.facts
     blockers=["A_B_COST_PERFORMANCE_VALIDATION_REQUIRED"]

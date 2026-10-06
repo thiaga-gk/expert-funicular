@@ -16,7 +16,15 @@ if TYPE_CHECKING:
 
 def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
            billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Append this knob's decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers)."""
+    """Append the warehouse_size decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers).
+
+    Branch order: unknown size -> BLOCKED; spill frequency without severity -> INSUFFICIENT_EVIDENCE; spill over
+    both upsize thresholds -> one size up as a TEST_REQUIRED canary (held as NO_CHANGE when the spill is
+    concentrated in a few statements, INSUFFICIENT_EVIDENCE when the sample is thin or the epoch young, BLOCKED
+    at the largest size); otherwise one size down as a TEST_REQUIRED canary only when every downsize safety check
+    is clear (blockers accumulate and force NO_CHANGE). A size move invalidates the capacity knobs. Speed-up and
+    cost of a resize are modeled, never observed, so a resize is never ACTIONABLE.
+    """
     # Size
     a = analyses["warehouse_size"]; f=a.facts
     blockers: List[str] = []
@@ -98,6 +106,7 @@ def decide(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, Analysis
 
 
 def previous_size(size: str) -> Optional[str]:
+    """One size down in SIZE_ORDER; None for an unknown size or the smallest one."""
     if size not in SIZE_ORDER:
         return None
     i = SIZE_ORDER.index(size)
@@ -105,6 +114,7 @@ def previous_size(size: str) -> Optional[str]:
 
 
 def next_size(size: str) -> Optional[str]:
+    """One size up in SIZE_ORDER; None for an unknown size or the largest known one."""
     if size not in SIZE_ORDER:
         return None
     i = SIZE_ORDER.index(size)

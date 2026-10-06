@@ -1,4 +1,8 @@
-"""Read-only SQL execution against a Databricks SQL warehouse or all-purpose cluster."""
+"""Read-only SQL execution against a Databricks SQL warehouse or all-purpose cluster.
+
+The client only ever runs the collector's SELECT statements (no DDL/DML, no apply API). Logs carry the query label,
+row count and elapsed time; the statement text and the access token are never logged.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -15,12 +19,21 @@ UTC_TIMEZONE_NAMES = frozenset({"UTC", "Etc/UTC", "Etc/UCT", "UCT", "Z", "+00:00
 
 
 class SqlClient:
-    """Thin read-only Databricks SQL connector wrapper with labeled query logging."""
+    """Thin read-only Databricks SQL connector wrapper with labeled query logging.
+
+    Use as a context manager: entering opens the connection with the session pinned to UTC and verifies it; leaving
+    closes it. ``query`` returns rows as plain dicts keyed by column name and logs the label, never the statement.
+    """
     def __init__(self, auth: AuthContext):
         self.auth = auth
         self._connection = None
 
     def __enter__(self) -> "SqlClient":
+        """Connect with the OAuth token from ``auth`` and fail closed unless the session time zone is UTC.
+
+        Raises PublisherError when the connector is not installed or the verified session time zone is not UTC (the
+        connection is closed first), so no collector query runs against a misaligned clock.
+        """
         try:
             from databricks import sql  # type: ignore
         except ImportError as exc:
@@ -39,13 +52,21 @@ class SqlClient:
         if timezone not in UTC_TIMEZONE_NAMES:
             self.__exit__(None, None, None)
             raise PublisherError(f"SQL session time zone is {timezone or 'unknown'}, not UTC; collector dates would not align with UTC billing dates.")
+        LOGGER.info("sql.session_ready time_zone_utc=true")
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
+        """Close the connection if one was opened; never suppresses an exception."""
         if self._connection is not None:
             self._connection.close()
+            LOGGER.debug("sql.closed")
 
     def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
+        """Execute one statement and return all rows as dicts; ``label`` is the only identifier that is logged.
+
+        Requires an open connection (use inside ``with``). Rows are fully fetched in memory; the collector's queries
+        are aggregates, one row per warehouse or epoch.
+        """
         assert self._connection is not None
         started=time.monotonic()
         LOGGER.info("sql.start label=%s", label)
@@ -59,7 +80,9 @@ class SqlClient:
 
 def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:
     """Pin a billing query to records ingested on or before `cutoff` (YYYY-MM-DD), so a re-collection reproduces an
-    earlier run after late corrections; without a cutoff the predicate is a no-op."""
+    earlier run after late corrections; without a cutoff the predicate is a no-op.
+
+    Raises PublisherError for a cutoff that is not an ISO date, so a malformed value can never reach the SQL text."""
     if cutoff is None:
         return statement.replace("__INGESTION_CUTOFF__", "CAST(NULL AS DATE)")
     try:

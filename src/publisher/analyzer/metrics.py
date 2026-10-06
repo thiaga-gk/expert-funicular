@@ -62,6 +62,7 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
     # sorted, F(x) = sum over starts < x of (x - start) minus sum over ends < x of (x - end), so any overlap is
     # F(b) - F(a) in O(log n).
     def prefix(points: List[Tuple[float, float]]) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
+        """Sorted xs with cumulative weight, weight*x, count and x sums (index k = first k points)."""
         points = sorted(points)
         xs = [x for x, _ in points]; cw, cwx, cn, cnx = [0.0], [0.0], [0.0], [0.0]
         for x, w in points:
@@ -70,6 +71,7 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
     starts, ends = prefix([(a, c) for a, _, c in segs]), prefix([(b, c) for _, b, c in segs])
 
     def cumulative(x: float, weighted: bool) -> float:
+        """F(x): running time (cluster-weighted when `weighted`) accumulated up to minute x."""
         total = 0.0
         for (xs, cw, cwx, cn, cnx), sign in ((starts, 1.0), (ends, -1.0)):
             k = bisect.bisect_left(xs, x)
@@ -77,6 +79,7 @@ def running_idle_metrics(busy: Sequence[Tuple[float, float]], segments: Sequence
         return total
 
     def overlap(a: float, b: float, weighted: bool = False) -> float:
+        """RUNNING minutes inside [a, b) (cluster-weighted when `weighted`)."""
         return max(0.0, cumulative(b, weighted) - cumulative(a, weighted)) if b > a else 0.0
 
     out: Dict[str, Any] = {"running_segment_count": len(segs),
@@ -154,6 +157,7 @@ def concurrency_histograms(intervals: Sequence[Tuple[float, float, float]], epoc
     out: Dict[str, Dict[str, float]] = {"EPOCH": {}}
 
     def add(hist: Dict[str, float], level: int, weight: float = 1.0) -> None:
+        """Add `weight` to the histogram bucket for `level` (string keys, as in the evidence)."""
         hist[str(level)] = hist.get(str(level), 0.0) + weight
 
     busy = sorted(m for m, c in per_minute.items() if c > 1e-9)
@@ -281,6 +285,7 @@ def resource_window_from(epoch: EpochEvidence, basis_end: Optional[str], t: Thre
 
 
 def resource_window(e: "WarehouseEvidence", t: Thresholds) -> Optional[Dict[str, Any]]:
+    """The current epoch's resource window on the warehouse's billing basis end (see `resource_window_from`); None when unavailable."""
     meta = e.forecast_metadata or {}
     return resource_window_from(e.current_epoch, meta.get("forecast_basis_end") or meta.get("billing_complete_through"), t)
 

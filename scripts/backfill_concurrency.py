@@ -21,6 +21,7 @@ from tests.golden import evidence_source_path  # noqa: E402
 
 
 def _hist(busy, peak_clusters):
+    """Two-level histogram {1: 99% of busy minutes, 10 x peak clusters: 1%} so the P99.5 equals the peak."""
     peak = 10 * max(1, int(peak_clusters or 1))
     if peak == 1:
         return {"1": float(busy)}
@@ -28,6 +29,7 @@ def _hist(busy, peak_clusters):
 
 
 def backfill(evidence):
+    """Add the missing concurrency histograms in place; returns how many epochs changed."""
     changed = 0
     for x in evidence:
         for ep in x["epochs"]:
@@ -49,6 +51,7 @@ def backfill(evidence):
 
 
 def main(cases):
+    """Rewrite each named case's evidence fixture when anything was backfilled; prints one line per file changed."""
     for case in cases:
         path = evidence_source_path(case)
         if not path.is_file():

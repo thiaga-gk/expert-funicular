@@ -32,6 +32,10 @@ from publisher.reviewer import reviewer
 
 
 def build_context(request: PublisherRequest, thresholds: Optional[Thresholds] = None) -> RunContext:
+    """The immutable context every capability receives: the request plus the policy thresholds (defaults when None).
+
+    Raises PublisherError when the request's execution mode is not supported (resolved by the config layer).
+    """
     resolve_execution_mode(request.execution_mode)
     return RunContext(request=request, thresholds=thresholds if thresholds is not None else Thresholds())
 
@@ -42,6 +46,7 @@ def demo_fleet_size() -> int:
 
 
 def _log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, batch_size: int) -> None:
+    """Log the fleet size once and a WARNING per warehouse the governor excluded (identity and reason code only)."""
     LOGGER.info("pipeline.start warehouses=%d batch_size=%d", len(analysis.evidence), batch_size)
     for excluded in governance.exclusions:
         LOGGER.warning(
@@ -51,7 +56,12 @@ def _log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, b
 
 
 def publish(request: PublisherRequest) -> ReportContract:
-    """One deterministic publisher run: every capability once, in order."""
+    """One deterministic publisher run: every capability once, in order, returning what the Reporter wrote.
+
+    Side effects are the Reporter's: packages/, evidence.json, manifest.json and (unless disabled) workbook.xlsx under
+    ``request.output_dir``. Raises PublisherError for a refused run (bad input, unusable source, policy refusal); the CLI
+    maps that to exit status 2. This function sequences the capabilities and holds no domain logic.
+    """
     context = build_context(request)
     analysis = analyzer.run(context)
     governance = governor.run(context, analysis)
@@ -66,7 +76,10 @@ def publish(request: PublisherRequest) -> ReportContract:
 def _reviewed_candidates(
     evidence: Sequence[WarehouseEvidence], thresholds: Thresholds, batch_size: int
 ) -> Tuple[RunContext, FleetAnalysis, GovernanceResult, CandidateReviewResult]:
-    """Evidence already in hand (a replay) through the Analyzer, Governor, Optimizer and the candidate gate."""
+    """Evidence already in hand (a replay) through the Analyzer, Governor, Optimizer and the candidate gate.
+
+    Shared by the in-memory entry points below; writes nothing (the request's output_dir is a placeholder).
+    """
     context = build_context(PublisherRequest(mode=MODE_REPLAY, output_dir=Path("."), batch_size=batch_size), thresholds)
     analysis = FleetAnalysis(list(evidence), analyzer.analyze(evidence, thresholds))
     governance = governor.govern(analysis)

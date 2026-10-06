@@ -46,6 +46,10 @@ def ready_billed_days(e: "WarehouseEvidence") -> int:
 
 
 def epoch_age_days(epoch: EpochEvidence, as_of: Optional[str] = None) -> int:
+    """Whole days from epoch start to its end (or `as_of` for the current epoch); 0 for an unparsable start.
+
+    Raises ValueError when an open epoch has no deterministic `as_of`: age never reads the wall clock.
+    """
     start = parse_datetime(epoch.epoch_start)
     if not start:
         return 0
@@ -56,6 +60,7 @@ def epoch_age_days(epoch: EpochEvidence, as_of: Optional[str] = None) -> int:
 
 
 def observed_epoch_calendar_days(epoch_start: str, epoch_end: Optional[str], analysis_time: str) -> int:
+    """Complete UTC calendar days of the epoch inside the 365-day window, excluding the (incomplete) analysis day; 0 when none."""
     start = parse_datetime(epoch_start)
     end = parse_datetime(epoch_end) or parse_datetime(analysis_time)
     analysis = parse_datetime(analysis_time)

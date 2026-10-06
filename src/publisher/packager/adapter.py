@@ -33,6 +33,7 @@ def _scalar_config(d: Mapping[str, Any]) -> Any:
     return dict(d)
 
 
+# Contract workload-profile categories: entity sources (what ran the query) and client applications (what connected).
 _ENTITY_QUERY_SOURCE_CATEGORIES = {"DASHBOARD", "JOB", "NOTEBOOK", "GENIE", "ALERT", "SQL_EDITOR", "OTHER", "UNKNOWN"}
 
 
@@ -52,6 +53,7 @@ def _contract_confidence(value: Optional[Mapping[str, Any]], *, method: Optional
 
 
 def _contract_range(value: Optional[Range3]) -> Optional[rc.Range3]:
+    """Internal range to contract range rounded to cents; None stays None (unknown, not zero)."""
     if value is None:
         return None
     return rc.Range3(round(float(value.low), 2), round(float(value.base), 2), round(float(value.high), 2))
@@ -60,6 +62,7 @@ def _contract_range(value: Optional[Range3]) -> Optional[rc.Range3]:
 def _contract_component_ranges(
     dbu: Optional[Range3], aws: Optional[Range3], total: Optional[Range3]
 ) -> rc.ComponentRanges:
+    """DBU/AWS/total ranges for the contract; an unknown component is None, never zero."""
     return rc.ComponentRanges(_contract_range(dbu), _contract_range(aws), _contract_range(total))
 
 
@@ -82,6 +85,7 @@ def _step_projection(step: PlanStep) -> Optional[rc.StepProjection]:
 
 
 def _forward_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
+    """Forward 365d baseline: DBU forecast and modeled AWS kept separate; the total exists only when both are known (availability COMPLETE/PARTIAL/UNAVAILABLE)."""
     dbu = round(e.dbu_365d_baseline_cost, 2) if e.dbu_365d_baseline_cost is not None else None
     aws = round(e.aws_baseline_cost_365, 2) if e.aws_baseline_cost_365 is not None else None
     total = round(dbu + aws, 2) if dbu is not None and aws is not None else None
@@ -123,6 +127,7 @@ def _actual_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
 
 
 def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
+    """Forecast confidence from billing-history coverage and cost stability; unknown stability earns no credit."""
     coverage = clamp(safe_float(e.cost_history_days) / max(1.0, float(t.forecast_long_days)), 0.0, 1.0)
     stability = cost_stability(e.cost_cv_84)
     score = round(0.65 * coverage + 0.35 * (stability or 0.0), 6)  # unknown stability earns no credit
@@ -133,6 +138,7 @@ def _forecast_confidence(e: WarehouseEvidence, t: Thresholds) -> rc.Confidence:
 
 
 def _workload_profile(e: WarehouseEvidence, t: Thresholds) -> rc.WorkloadProfile:
+    """Descriptive (non-decisional) workload profile from current-epoch query evidence: query-source and client mix, activity, latency class, concurrency and activity pattern. UNKNOWN below the query-sample floor."""
     ep = e.current_epoch
     q, _ = carried_query_view(ep.query)  # the same query evidence the decisions read
     profile = e.attribution.query_source if e.attribution else None
@@ -206,6 +212,7 @@ def _workload_profile(e: WarehouseEvidence, t: Thresholds) -> rc.WorkloadProfile
 
 
 def _photon_config_observation(e: WarehouseEvidence) -> rc.PhotonConfigObservation:
+    """Photon observation from current-epoch billing features. Observation-only: Photon is never a candidate, and absent evidence is UNKNOWN."""
     p = e.photon_observation
     if p is None:
         return rc.PhotonConfigObservation(
@@ -226,6 +233,7 @@ def _photon_config_observation(e: WarehouseEvidence) -> rc.PhotonConfigObservati
 
 
 def _technique_id(c: CandidateRecommendation) -> str:
+    """Technique catalog ID for a candidate from its knob and the direction of the change; an unmapped knob raises (fail closed)."""
     knob = c.knob
     cur = _scalar_config(c.current_config)
     rec = _scalar_config(c.recommended_config)
@@ -259,6 +267,7 @@ def _technique_id(c: CandidateRecommendation) -> str:
 
 
 def _objectives(c: CandidateRecommendation) -> List[rc.Objective]:
+    """Contract objectives for a candidate; migration is fixed, unknown internal objectives degrade to OPERATIONS."""
     objective = str(c.objective or "").upper()
     if c.knob == "warehouse_type":
         return [rc.Objective.MIGRATION, rc.Objective.COST_AND_PERFORMANCE, rc.Objective.OPERATIONS]
@@ -277,6 +286,7 @@ def _objectives(c: CandidateRecommendation) -> List[rc.Objective]:
 
 
 def _recommendation_status(value: str) -> rc.RecommendationStatus:
+    """Internal status string to the contract enum; an unknown status raises rather than degrading."""
     try:
         return rc.RecommendationStatus(value)
     except ValueError as exc:
@@ -284,6 +294,7 @@ def _recommendation_status(value: str) -> rc.RecommendationStatus:
 
 
 def _estimation_status(c: CandidateRecommendation) -> rc.EstimationStatus:
+    """How a candidate's independent economics were produced: UNAVAILABLE when nothing was priced, NO_DELTA_MODELED for no-change and guardrail changes, PRE_CANARY/PROVISIONAL for canaries, else MODELED_RANGE."""
     if c.status in {"NO_CHANGE", "NOT_APPLICABLE"}:
         return rc.EstimationStatus.NO_DELTA_MODELED
     if c.total_365d_estimated_cost_range is None and c.dbu_365d_estimated_cost_range is None:
@@ -300,6 +311,7 @@ def _estimation_status(c: CandidateRecommendation) -> rc.EstimationStatus:
 
 
 def _dependency_refs(values: Sequence[str]) -> List[rc.DependencyRef]:
+    """Knob dependency references, de-duplicated, in input order."""
     refs = []
     seen = set()
     for value in values:
@@ -311,6 +323,7 @@ def _dependency_refs(values: Sequence[str]) -> List[rc.DependencyRef]:
 
 
 def _tunable_knobs(values: Sequence[str]) -> List[rc.TunableKnob]:
+    """Contract knobs from internal knob names, de-duplicated in input order; names outside the contract enum are dropped."""
     out = []
     for value in values:
         try:
@@ -330,6 +343,11 @@ def _candidate_contracts(
     finding_map: Dict[str, str],
     shared_cost_refs: Sequence[str],
 ) -> Tuple[List[rc.CandidateRecommendation], Dict[str, rc.CandidateRecommendation]]:
+    """Contract candidates in input order plus an internal-recommendation-id -> contract candidate map.
+
+    Public ``CAND-`` IDs come from ``rc.make_candidate_id`` (never the legacy internal IDs). Evidence refs keep
+    first-seen order because the list feeds the hash payload. Candidate economics stay non-additive.
+    """
     baseline = _forward_cost_breakdown(e)
     out: List[rc.CandidateRecommendation] = []
     by_old_id: Dict[str, rc.CandidateRecommendation] = {}
@@ -396,6 +414,11 @@ def _compatibility_contract(
     s: Scenario,
     compatibility_map: Mapping[Tuple[str, str], str],
 ) -> rc.Compatibility:
+    """Contract compatibility from the planner's migration checks.
+
+    Only a scenario that actually migrates and passed every check is COMPATIBLE; a failed check is INCOMPATIBLE and
+    a migration that was not evaluated is UNKNOWN. PASS_WITH_LIMITATION maps to an UNKNOWN check that needs HITL.
+    """
     comp = s.compatibility or {}
     assessment = str(comp.get("assessment") or "CURRENT_TYPE")
     # A planner FAIL (a check failed) is incompatible and a migration whose every check passed is compatible. An empty
@@ -451,6 +474,7 @@ _CONTRACT_EXECUTION_STATE = {
 
 
 def _scenario_estimation_status(value: str) -> rc.EstimationStatus:
+    """Scenario estimate status: a plan with no steps is NO_DELTA_MODELED (known zero); an unrecognised status is UNAVAILABLE, never a guessed number."""
     if value == "NO_CHANGE":  # a plan with no steps changes nothing: a known zero, not an unavailable estimate
         return rc.EstimationStatus.NO_DELTA_MODELED
     try:
@@ -467,6 +491,14 @@ def _scenario_contracts(
     candidate_contracts: Sequence[rc.CandidateRecommendation],
     compatibility_map: Mapping[Tuple[str, str], str],
 ) -> Tuple[List[rc.Scenario], Dict[str, rc.Scenario]]:
+    """Contract scenarios in input order plus an internal-scenario-id -> contract scenario map.
+
+    Public ``SCN-`` IDs come from ``rc.make_scenario_id`` over the ordered contract candidate IDs. Adds the
+    compatibility-validation step for an unvalidated migration and a trailing remeasure step when any step
+    invalidates another. Scenario economics are the stateful bundle estimate (non-additive); contingent economics
+    cover pending-reevaluation steps only and never feed package economics. An unmapped planner execution state
+    raises instead of degrading to READY.
+    """
     baseline = _forward_cost_breakdown(e)
     out: List[rc.Scenario] = []
     by_old_id: Dict[str, rc.Scenario] = {}
@@ -614,6 +646,7 @@ def _scenario_contracts(
 
 
 def _assessment_contract(e: WarehouseEvidence, candidates: Sequence[rc.CandidateRecommendation], scenarios: Sequence[rc.Scenario], t: Thresholds) -> rc.Assessment:
+    """Per-status candidate counts, the overall status (see ``_overall_status``) and the evidence-quality block (query sample, cost history, epoch maturity, source coverage)."""
     counts = {status: 0 for status in rc.RecommendationStatus}
     for c in candidates:
         counts[c.status] += 1

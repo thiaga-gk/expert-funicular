@@ -20,6 +20,8 @@ def optional_float(value: Any) -> Optional[float]:
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
+    """Float, or *default* for None or an unparseable value. Unlike optional_float it substitutes a number, so use it only
+    where zero or the default is a real fallback, not for evidence that may be unknown."""
     try:
         return default if value is None else float(value)
     except (TypeError, ValueError):
@@ -27,6 +29,7 @@ def safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def safe_int(value: Any, default: int = 0) -> int:
+    """Int, or *default* for None or an unparseable value (see safe_float on when a default is acceptable)."""
     try:
         return default if value is None else int(value)
     except (TypeError, ValueError):
@@ -34,10 +37,12 @@ def safe_int(value: Any, default: int = 0) -> int:
 
 
 def round_or_none(value: Optional[float], digits: int = 0) -> Optional[float]:
+    """Round, keeping None as None (zero digits rounds to an int)."""
     return None if value is None else (round(value) if digits == 0 else round(value, digits))
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
+    """*value* limited to the closed range [lo, hi]."""
     return max(lo, min(hi, value))
 
 
@@ -59,6 +64,8 @@ def _map_pairs(value: Any) -> Optional[Dict[str, str]]:
 
 
 def normalize_map(value: Any) -> Dict[str, str]:
+    """A tag/map column as a string-to-string dict: a mapping, pairs, or a JSON string of either. None is empty; a value
+    that cannot be decoded is kept whole under the key "raw" rather than dropped."""
     if value is None:
         return {}
     if isinstance(value, str):
@@ -73,6 +80,7 @@ def normalize_map(value: Any) -> Dict[str, str]:
 
 
 def as_serializable(value: Any) -> Any:
+    """Recursively convert dataclasses, mappings, sequences and dates into JSON-compatible plain values (dates as ISO text)."""
     if is_dataclass(value):
         return as_serializable(asdict(value))
     if isinstance(value, Mapping):

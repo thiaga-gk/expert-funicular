@@ -13,6 +13,14 @@ class CandidateGate:
     """Candidate gate: identity, one candidate per active knob, cost, confidence, status/config consistency and knob bounds. Mixed into the Reviewer; fails fast with ValueError."""
 
     def review(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->None:
+        """Raise ValueError on the first violated invariant of one warehouse's candidates; returns None and mutates nothing.
+
+        Checks: exactly one candidate per active knob; identity and unique IDs; non-negative costs; confidence in
+        0..1; status consistent with config change, blockers and savings; ordered ranges (a savings range may be
+        negative: a cost increase); findings from the current epoch only (the serverless-usage metric is the one
+        exception); knob bounds (the Pro/Classic auto-stop floor, the rollback floor fitting under its restored
+        ceiling); currency. Unknown (None) economics pass: unknown is never treated as zero.
+        """
         seen=set(); cfg=e.current_epoch.config
         knobs=[c.knob for c in candidates]
         if set(knobs) != set(ACTIVE_KNOBS) or len(knobs) != len(ACTIVE_KNOBS):

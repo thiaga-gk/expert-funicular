@@ -17,6 +17,9 @@ Identity model
 Hashing uses SHA-256 over an explicitly constructed canonical payload.  Volatile
 presentation fields such as generated_at, filenames, logs, or workbook layout are
 excluded from IDs.
+
+Every dataclass has a ``validate()`` that raises ValueError; ``RecommendationPackage.validate()`` also recomputes every content ID and the
+evidence fingerprint. Unknown values are None, never zero; DBU and AWS stay separate.
 """
 
 from __future__ import annotations
@@ -47,6 +50,7 @@ HASH_HEX_LENGTH = 24  # 96-bit display identifier; full SHA-256 remains availabl
 
 
 class ConfidenceLevel(str, Enum):
+    """Band of a Confidence score: HIGH >= 0.80, MEDIUM >= 0.60, LOW below; UNKNOWN only with a null score."""
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
     LOW = "LOW"
@@ -54,6 +58,7 @@ class ConfidenceLevel(str, Enum):
 
 
 class PhotonStatus(str, Enum):
+    """Photon state observed from current-epoch billing usage (product_features.is_photon). Observation only, never recommended."""
     ENABLED = "ENABLED"
     DISABLED = "DISABLED"
     MIXED = "MIXED"
@@ -61,12 +66,14 @@ class PhotonStatus(str, Enum):
 
 
 class EvidenceQualityStatus(str, Enum):
+    """How much of the required evidence (query sample, cost history, epoch maturity, source coverage) is present."""
     SUFFICIENT = "SUFFICIENT"
     PARTIAL = "PARTIAL"
     INSUFFICIENT = "INSUFFICIENT"
 
 
 class AssessmentStatus(str, Enum):
+    """Package-level outcome across all candidates of one warehouse/epoch."""
     OPTIMIZATION_AVAILABLE = "OPTIMIZATION_AVAILABLE"
     NO_CHANGE = "NO_CHANGE"
     REVIEW_REQUIRED = "REVIEW_REQUIRED"
@@ -75,6 +82,10 @@ class AssessmentStatus(str, Enum):
 
 
 class RecommendationStatus(str, Enum):
+    """Per-candidate decision status.
+
+    NO_CHANGE keeps the current value; BLOCKED and INSUFFICIENT_EVIDENCE require blocker codes and carry no counterfactual.
+    """
     ACTIONABLE = "ACTIONABLE"
     TEST_REQUIRED = "TEST_REQUIRED"
     REVIEW = "REVIEW"
@@ -85,6 +96,7 @@ class RecommendationStatus(str, Enum):
 
 
 class ExecutionState(str, Enum):
+    """State of one plan step. PENDING_REEVALUATION means a time-clearable gate hides it; its pricing is CONTINGENT, never authoritative."""
     READY = "READY"
     READY_FOR_CANARY = "READY_FOR_CANARY"
     PENDING_REEVALUATION = "PENDING_REEVALUATION"
@@ -103,30 +115,36 @@ class PricingBasis(str, Enum):
 
 
 class ReevaluationStatus(str, Enum):
+    """State of the re-evaluation window; WAITING_FOR_EVIDENCE is the only value today."""
     WAITING_FOR_EVIDENCE = "WAITING_FOR_EVIDENCE"
 
 
 class MeasurementStatus(str, Enum):
+    """Whether an observed configuration change has been measured for savings; NOT_MEASURED is the only value today."""
     NOT_MEASURED = "NOT_MEASURED"
 
 
 class MatchPolicy(str, Enum):
+    """How a carried-forward plan is matched to the observed change; EXACT_SINGLE_KNOB is the only policy today."""
     EXACT_SINGLE_KNOB = "EXACT_SINGLE_KNOB"
 
 
 class MatchOutcome(str, Enum):
+    """Result of replaying the preceding epoch's plan against the observed change (MATCHED, MISMATCH, or NOT_REPLAYABLE)."""
     MATCHED = "MATCHED"
     MISMATCH = "MISMATCH"
     NOT_REPLAYABLE = "NOT_REPLAYABLE"
 
 
 class CarriedForwardDisposition(str, Enum):
+    """What became of one carried-forward step: done by the observed change, still waiting, or no longer valid."""
     COMPLETED = "COMPLETED"
     PENDING_REEVALUATION = "PENDING_REEVALUATION"
     INVALIDATED = "INVALIDATED"
 
 
 class ScenarioStatus(str, Enum):
+    """Role of a scenario in the package; at most one is RECOMMENDED and it must match recommended_plan.scenario_id."""
     RECOMMENDED = "RECOMMENDED"
     ALTERNATIVE = "ALTERNATIVE"
     BLOCKED = "BLOCKED"
@@ -134,12 +152,14 @@ class ScenarioStatus(str, Enum):
 
 
 class ScenarioType(str, Enum):
+    """Kind of mutually exclusive execution path: in-place knob changes, warehouse-type migration, or the no-change baseline."""
     IN_PLACE_OPTIMIZATION = "IN_PLACE_OPTIMIZATION"
     WAREHOUSE_TYPE_MIGRATION = "WAREHOUSE_TYPE_MIGRATION"
     NO_CHANGE_BASELINE = "NO_CHANGE_BASELINE"
 
 
 class CompatibilityStatus(str, Enum):
+    """Aggregate migration compatibility; UNKNOWN is never read as COMPATIBLE."""
     COMPATIBLE = "COMPATIBLE"
     REQUIRES_VALIDATION = "REQUIRES_VALIDATION"
     INCOMPATIBLE = "INCOMPATIBLE"
@@ -147,6 +167,7 @@ class CompatibilityStatus(str, Enum):
 
 
 class CompatibilityMode(str, Enum):
+    """Where compatibility evidence came from: read-only REST API (B), human-in-the-loop fallback (A), both, or system tables only."""
     B_READ_ONLY_API = "B_READ_ONLY_API"
     A_HITL_FALLBACK = "A_HITL_FALLBACK"
     B_READ_ONLY_API_WITH_A_FALLBACK = "B_READ_ONLY_API_WITH_A_FALLBACK"
@@ -154,6 +175,7 @@ class CompatibilityMode(str, Enum):
 
 
 class CheckStatus(str, Enum):
+    """Result of one compatibility check; UNKNOWN means not determined, not passed."""
     PASS = "PASS"
     FAIL = "FAIL"
     UNKNOWN = "UNKNOWN"
@@ -161,6 +183,12 @@ class CheckStatus(str, Enum):
 
 
 class EstimationStatus(str, Enum):
+    """How a savings/cost range was produced.
+
+    UNAVAILABLE must carry null ranges (unknown is never zero); NO_DELTA_MODELED is a known zero (no change, guardrail change or no steps);
+    PRE_CANARY_MODELED_RANGE (migration or canary-gated) and PROVISIONAL_MODELED_RANGE are modeled but unvalidated; MODELED_RANGE is the plain model;
+    MEASURED is for observed figures.
+    """
     MODELED_RANGE = "MODELED_RANGE"
     PROVISIONAL_MODELED_RANGE = "PROVISIONAL_MODELED_RANGE"
     PRE_CANARY_MODELED_RANGE = "PRE_CANARY_MODELED_RANGE"
@@ -170,12 +198,14 @@ class EstimationStatus(str, Enum):
 
 
 class CostAvailability(str, Enum):
+    """Which components of a CostBreakdown are known: all (COMPLETE), exactly one of DBU/AWS (PARTIAL), or none (UNAVAILABLE)."""
     COMPLETE = "COMPLETE"
     PARTIAL = "PARTIAL"
     UNAVAILABLE = "UNAVAILABLE"
 
 
 class CostBasis(str, Enum):
+    """Provenance of one cost component; UNAVAILABLE exactly when that component is null."""
     OBSERVED_DATABRICKS_BILLING = "OBSERVED_DATABRICKS_BILLING"
     OBSERVED_AWS_BILLING = "OBSERVED_AWS_BILLING"
     MODELED_AWS_LIST_PRICE = "MODELED_AWS_LIST_PRICE"
@@ -186,6 +216,10 @@ class CostBasis(str, Enum):
 
 
 class TunableKnob(str, Enum):
+    """Configuration knob a candidate or observed change refers to (values are the config field names).
+
+    enable_photon and warehouse_channel are observation-only: they are never recommended because no priced effect exists.
+    """
     WAREHOUSE_TYPE = "warehouse_type"
     WAREHOUSE_SIZE = "warehouse_size"
     MIN_CLUSTERS = "min_clusters"
@@ -196,6 +230,7 @@ class TunableKnob(str, Enum):
 
 
 class Objective(str, Enum):
+    """Goal a candidate serves."""
     COST = "COST"
     PERFORMANCE = "PERFORMANCE"
     COST_AND_PERFORMANCE = "COST_AND_PERFORMANCE"
@@ -207,6 +242,7 @@ class Objective(str, Enum):
 
 
 class DependencyType(str, Enum):
+    """Kind of thing a DependencyRef points at."""
     CANDIDATE = "CANDIDATE"
     TECHNIQUE = "TECHNIQUE"
     KNOB = "KNOB"
@@ -215,6 +251,7 @@ class DependencyType(str, Enum):
 
 
 class ValidationType(str, Enum):
+    """How a plan step is validated before or after the change."""
     NONE = "NONE"
     A_B_CANARY = "A_B_CANARY"
     HITL = "HITL"
@@ -223,6 +260,7 @@ class ValidationType(str, Enum):
 
 
 class PlanStepType(str, Enum):
+    """Kind of execution-plan step; only CANDIDATE steps reference a candidate and knob."""
     CANDIDATE = "CANDIDATE"
     REMEASURE = "REMEASURE"
     COMPATIBILITY_VALIDATION = "COMPATIBILITY_VALIDATION"
@@ -232,12 +270,14 @@ class PlanStepType(str, Enum):
 
 
 class BoundName(str, Enum):
+    """Which bound of a low/base/high range a scenario-envelope point comes from."""
     LOW = "LOW"
     BASE = "BASE"
     HIGH = "HIGH"
 
 
 class WorkloadLatencyClass(str, Enum):
+    """Latency profile of the workload; UNKNOWN when not derivable."""
     INTERACTIVE = "INTERACTIVE"
     MIXED = "MIXED"
     BATCH = "BATCH"
@@ -245,6 +285,7 @@ class WorkloadLatencyClass(str, Enum):
 
 
 class ConcurrencyPattern(str, Enum):
+    """Concurrency shape of the workload; UNKNOWN when not derivable."""
     STEADY = "STEADY"
     BURSTY = "BURSTY"
     MIXED = "MIXED"
@@ -252,6 +293,7 @@ class ConcurrencyPattern(str, Enum):
 
 
 class ActivityPattern(str, Enum):
+    """Time pattern of workload activity; UNKNOWN when not derivable."""
     CONTINUOUS = "CONTINUOUS"
     BUSINESS_HOURS = "BUSINESS_HOURS"
     SCHEDULED = "SCHEDULED"
@@ -260,6 +302,7 @@ class ActivityPattern(str, Enum):
 
 
 class RealizationStatus(str, Enum):
+    """Lifecycle of the post-change measurement for the package; NOT_APPLIED requires no realization records."""
     NOT_APPLIED = "NOT_APPLIED"
     PENDING = "PENDING"
     APPLIED = "APPLIED"
@@ -271,6 +314,7 @@ class RealizationStatus(str, Enum):
 
 
 class ValidationOutcome(str, Enum):
+    """Result of a post-change validation window."""
     PASS = "PASS"
     FAIL = "FAIL"
     PARTIAL = "PARTIAL"
@@ -278,6 +322,7 @@ class ValidationOutcome(str, Enum):
 
 
 class RealizationOutcomeStatus(str, Enum):
+    """Final outcome of one realized change."""
     SUCCESS = "SUCCESS"
     PARTIAL = "PARTIAL"
     FAILED = "FAILED"
@@ -291,6 +336,7 @@ class RealizationOutcomeStatus(str, Enum):
 
 
 def _require(condition: bool, message: str) -> None:
+    """Raise ValueError(message) when the condition is false; the single failure path of every validator."""
     if not condition:
         raise ValueError(message)
 
@@ -308,6 +354,7 @@ def _is_iso8601(value: str) -> bool:
 
 
 def _validate_identifier(value: str, prefix: str, *, length: int = HASH_HEX_LENGTH) -> None:
+    """Require PREFIX- followed by exactly ``length`` uppercase hex characters."""
     expected = f"{prefix}-"
     _require(value.startswith(expected), f"{value!r} must start with {expected!r}")
     suffix = value[len(expected):]
@@ -365,7 +412,11 @@ def _enum_value(value: Any) -> Any:
 
 
 def to_primitive(value: Any) -> Any:
-    """Convert nested contract objects to JSON-compatible primitives."""
+    """Convert nested contract objects to JSON-compatible primitives.
+
+    Dataclasses become dicts in field-declaration order, enums their value, mappings string-keyed dicts, tuples lists, and
+    datetimes UTC ISO strings with a Z suffix. Plain values pass through.
+    """
     if dataclasses.is_dataclass(value):
         return {f.name: to_primitive(getattr(value, f.name)) for f in dataclasses.fields(value)}
     if isinstance(value, Enum):
@@ -387,6 +438,7 @@ def to_primitive(value: Any) -> Any:
 
 
 def _decimal_string(value: Any) -> str:
+    """Normalize a number to a canonical decimal string (1, 1.0 and 1.00 all become '1'; zero is '0') for hashing."""
     try:
         d = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
@@ -410,6 +462,7 @@ def canonicalize_for_hash(value: Any) -> Any:
     * datetimes become UTC ISO-8601 strings;
     * list order is preserved because callers decide whether a list is semantic order or
       pre-sort it for set-like semantics.
+    Raises TypeError for anything else.
     """
     value = to_primitive(value)
     if value is None or isinstance(value, bool) or isinstance(value, str):
@@ -424,6 +477,7 @@ def canonicalize_for_hash(value: Any) -> Any:
 
 
 def canonical_json_for_hash(payload: Mapping[str, Any]) -> str:
+    """Serialize a canonicalized payload as compact, key-sorted, non-ASCII-escaped JSON that rejects NaN/Infinity."""
     return json.dumps(
         canonicalize_for_hash(payload),
         sort_keys=True,
@@ -434,10 +488,12 @@ def canonical_json_for_hash(payload: Mapping[str, Any]) -> str:
 
 
 def sha256_hex(payload: Mapping[str, Any]) -> str:
+    """Uppercase SHA-256 hex digest of the canonical JSON of ``payload``."""
     return hashlib.sha256(canonical_json_for_hash(payload).encode("utf-8")).hexdigest().upper()
 
 
 def content_id(prefix: str, payload: Mapping[str, Any]) -> str:
+    """Content-addressed public ID: ``PREFIX-`` plus the first HASH_HEX_LENGTH (24) hex characters of the payload hash."""
     return f"{prefix}-{sha256_hex(payload)[:HASH_HEX_LENGTH]}"
 
 
@@ -453,10 +509,11 @@ def make_epoch_id(
     auto_stop_minutes: int,
     warehouse_channel: str,
 ) -> str:
-    """Create the immutable config-epoch identity from authoritative system-table knobs.
+    """Create the immutable config-epoch ID (EPOCH-).
 
-    Photon is intentionally excluded: it is an observed billing feature in this product,
-    not an authoritative system.compute.warehouses epoch field.
+    Hashed: contract_version, workspace_id, warehouse_id, the epoch start time and the authoritative system.compute.warehouses
+    knobs (type, size, min/max clusters, auto-stop, channel). Photon is intentionally excluded: it is an observed billing
+    feature in this product, not an authoritative epoch field.
     """
     return content_id("EPOCH", {
         "contract_version": CONTRACT_VERSION,
@@ -486,6 +543,11 @@ def evidence_id_payload(
     threshold: Any,
     comparator: str,
 ) -> Dict[str, Any]:
+    """Hash payload of one evidence record.
+
+    Contains the identity and measured content (workspace, warehouse, epoch, metric, value, unit, source, source_field,
+    observation_window, threshold, comparator). Presentation prose (interpretation) and epoch_scope are not part of the ID.
+    """
     return {
         "contract_version": CONTRACT_VERSION,
         "workspace_id": workspace_id,
@@ -503,6 +565,7 @@ def evidence_id_payload(
 
 
 def make_evidence_id(**kwargs: Any) -> str:
+    """EVID- ID of one evidence record: the content hash of ``evidence_id_payload``."""
     return content_id("EVID", evidence_id_payload(**kwargs))
 
 
@@ -513,7 +576,11 @@ def make_evidence_fingerprint(
     epoch_id: str,
     evidence_records: Sequence[Mapping[str, Any]],
 ) -> str:
-    """Hash the decision-relevant evidence, excluding presentation prose."""
+    """Package-level ``SHA256:<64 hex>`` fingerprint of the decision-relevant evidence registry.
+
+    Hashes the ID, measured content and epoch_scope of every record, sorted by evidence_id; presentation prose
+    (interpretation) is excluded.
+    """
     normalized = []
     for item in evidence_records:
         normalized.append({
@@ -556,6 +623,11 @@ def make_candidate_id(
     reviewer_version: str,
     decision_graph_version: str,
 ) -> str:
+    """CAND- ID of one technique decision against one warehouse/epoch/evidence set.
+
+    Hashed: workspace, warehouse, epoch, technique, knob, current and recommended value, the sorted unique evidence_refs and
+    every component version (policy, analyzer, optimizer, estimator, reviewer, decision graph). Economics and prose are not hashed.
+    """
     payload = {
         "contract_version": CONTRACT_VERSION,
         "workspace_id": workspace_id,
@@ -588,6 +660,11 @@ def make_scenario_id(
     bundle_estimator_version: str,
     decision_graph_version: str,
 ) -> str:
+    """SCN- ID of one mutually exclusive execution path.
+
+    Hashed: workspace, warehouse, epoch, scenario_type, the ORDERED candidate ids (order is execution order), compatibility
+    status and the policy, bundle-estimator and decision-graph versions. Economics and prose are not hashed.
+    """
     payload = {
         "contract_version": CONTRACT_VERSION,
         "workspace_id": workspace_id,
@@ -612,6 +689,10 @@ def make_realization_id(
     validation_window_end: str,
     applied_config: Mapping[str, Any],
 ) -> str:
+    """REAL- ID of one post-change measurement episode.
+
+    Hashed: package id, scenario id, candidate id (may be None), the validation window bounds and the applied config.
+    """
     payload = {
         "contract_version": CONTRACT_VERSION,
         "recommendation_package_id": recommendation_package_id,
@@ -631,12 +712,17 @@ def make_realization_id(
 
 @dataclass(frozen=True)
 class Confidence:
+    """Deterministic confidence: a score in [0, 1] with its level band, optional sub-score components and method.
+
+    A null score means unknown and requires level UNKNOWN; it never means zero confidence.
+    """
     score: Optional[float]
     level: ConfidenceLevel
     components: Dict[str, Optional[float]] = field(default_factory=dict)
     method: Optional[str] = None
 
     def validate(self) -> None:
+        """Reject a score or component outside [0, 1], a level that disagrees with the score band, or a null score with a level other than UNKNOWN."""
         if self.score is None:
             _require(self.level == ConfidenceLevel.UNKNOWN, "null confidence score requires UNKNOWN level")
         else:
@@ -650,11 +736,13 @@ class Confidence:
 
 @dataclass(frozen=True)
 class Range3:
+    """Low/base/high triple of one economic quantity (savings are signed, costs are not). A modeled range, not a probability interval."""
     low: float
     base: float
     high: float
 
     def validate(self, *, nonnegative: bool = False, field_name: str = "range") -> None:
+        """Reject low <= base <= high violations; with ``nonnegative`` (costs) also a negative low."""
         _require(self.low <= self.base <= self.high, f"{field_name} must satisfy low <= base <= high")
         if nonnegative:
             _require(self.low >= 0, f"{field_name}.low must be >= 0")
@@ -662,6 +750,11 @@ class Range3:
 
 @dataclass(frozen=True)
 class CostBreakdown:
+    """One cost figure split into DBU, AWS and total, in the package currency.
+
+    A component is None when unknown (never 0). COMPLETE needs all three, PARTIAL exactly one of DBU/AWS and a null total,
+    UNAVAILABLE none; each basis is UNAVAILABLE exactly when its component is None.
+    """
     dbu_cost: Optional[float]
     aws_cost: Optional[float]
     total_cost: Optional[float]
@@ -670,6 +763,7 @@ class CostBreakdown:
     aws_basis: CostBasis
 
     def validate(self) -> None:
+        """Reject negative costs, total != dbu + aws (tolerance 0.02), availability or basis that disagrees with which components are null."""
         _validate_nonnegative(self.dbu_cost, "dbu_cost")
         _validate_nonnegative(self.aws_cost, "aws_cost")
         _validate_nonnegative(self.total_cost, "total_cost")
@@ -688,11 +782,13 @@ class CostBreakdown:
 
 @dataclass(frozen=True)
 class ComponentRanges:
+    """DBU, AWS and total ranges of one economic quantity; each is None when that component is unknown. Savings are signed, costs non-negative."""
     dbu: Optional[Range3]
     aws: Optional[Range3]
     total: Optional[Range3]
 
     def validate(self, *, nonnegative: bool, field_name: str) -> None:
+        """Validate each present range; when all three exist, reject total != dbu + aws on any bound (tolerance 0.03)."""
         for component, value in (("dbu", self.dbu), ("aws", self.aws), ("total", self.total)):
             if value is not None:
                 value.validate(nonnegative=nonnegative, field_name=f"{field_name}.{component}")
@@ -720,12 +816,14 @@ def _require_unavailable_means_null(status: "EstimationStatus", *ranges: Optiona
 
 @dataclass(frozen=True)
 class CurrentEpoch:
+    """Identity of the current configuration epoch (immutable regime): its EPOCH- id, start time and age in days. Always current in a package."""
     epoch_id: str
     start_time: str
     age_days: int
     is_current: bool
 
     def validate(self) -> None:
+        """Reject a malformed EPOCH- id, a non-ISO-8601 start_time, negative age_days, or is_current false."""
         _validate_identifier(self.epoch_id, "EPOCH")
         _require(_is_iso8601(self.start_time), "current_epoch.start_time must be ISO-8601")
         _require(self.age_days >= 0, "current_epoch.age_days must be >= 0")
@@ -734,6 +832,7 @@ class CurrentEpoch:
 
 @dataclass(frozen=True)
 class WarehouseIdentity:
+    """Public identity of the assessed warehouse; (workspace_id, warehouse_id) is the key. owner is None when billing does not attribute one."""
     workspace_id: str
     warehouse_id: str
     warehouse_name: str
@@ -742,6 +841,7 @@ class WarehouseIdentity:
     current_epoch: CurrentEpoch
 
     def validate(self) -> None:
+        """Reject blank workspace_id, warehouse_id, warehouse_name or region and an invalid current_epoch."""
         _require(bool(self.workspace_id.strip()), "workspace_id is required")
         _require(bool(self.warehouse_id.strip()), "warehouse_id is required")
         _require(bool(self.warehouse_name.strip()), "warehouse_name is required")
@@ -751,6 +851,10 @@ class WarehouseIdentity:
 
 @dataclass(frozen=True)
 class PhotonConfigObservation:
+    """Photon state observed from billing, with confidence and coverage (percentages in [0, 100]).
+
+    Observation only: not a configuration read and never a recommendation.
+    """
     status: PhotonStatus
     evidence_source: str
     confidence: Confidence
@@ -759,6 +863,7 @@ class PhotonConfigObservation:
     freshness_days: Optional[int] = None
 
     def validate(self) -> None:
+        """Reject percentages outside [0, 100], negative freshness_days, or HIGH/MEDIUM confidence on an UNKNOWN status."""
         self.confidence.validate()
         _validate_pct(self.enabled_usage_pct, "photon.enabled_usage_pct")
         _validate_pct(self.known_feature_coverage_pct, "photon.known_feature_coverage_pct")
@@ -770,6 +875,10 @@ class PhotonConfigObservation:
 
 @dataclass(frozen=True)
 class CurrentConfig:
+    """Current-epoch warehouse configuration plus the Photon observation.
+
+    The whole object (including the observation) enters the package hash and the epoch id is derived from its knobs.
+    """
     warehouse_type: str
     warehouse_size: str
     min_clusters: int
@@ -779,6 +888,7 @@ class CurrentConfig:
     photon: PhotonConfigObservation
 
     def validate(self) -> None:
+        """Reject blank type/size/channel, min_clusters outside [1, 30], max_clusters below min or above 40, or negative auto_stop_minutes."""
         _require(bool(self.warehouse_type), "warehouse_type is required")
         _require(bool(self.warehouse_size), "warehouse_size is required")
         _require(self.min_clusters >= 1, "min_clusters must be >= 1")
@@ -797,29 +907,35 @@ class CurrentConfig:
 
 @dataclass(frozen=True)
 class QuerySourceStat:
+    """Query count and share (percent in [0, 100]) of one query source in the current epoch."""
     query_count: int
     query_pct: float
 
     def validate(self) -> None:
+        """Reject a negative count or a percentage outside [0, 100]."""
         _require(self.query_count >= 0, "query_count must be >= 0")
         _validate_pct(self.query_pct, "query_pct")
 
 
 @dataclass(frozen=True)
 class ClientApplicationStat:
+    """Query count of one client application in the current epoch."""
     query_count: int
 
     def validate(self) -> None:
+        """Reject a negative query_count."""
         _require(self.query_count >= 0, "client application query_count must be >= 0")
 
 
 @dataclass(frozen=True)
 class WorkloadActivity:
+    """Thirty-day query volume and active-day count (0..30) with the per-active-day average."""
     queries_30d: int
     active_days_30d: int
     queries_per_active_day: float
 
     def validate(self) -> None:
+        """Reject negative counts, active_days_30d outside [0, 30], or a negative average."""
         _require(self.queries_30d >= 0, "queries_30d must be >= 0")
         _require(0 <= self.active_days_30d <= 30, "active_days_30d must be in [0, 30]")
         _require(self.queries_per_active_day >= 0, "queries_per_active_day must be >= 0")
@@ -827,6 +943,7 @@ class WorkloadActivity:
 
 @dataclass(frozen=True)
 class WorkloadCharacteristics:
+    """Derived workload labels; each is UNKNOWN when it cannot be derived."""
     latency_class: WorkloadLatencyClass
     concurrency_pattern: ConcurrencyPattern
     activity_pattern: ActivityPattern
@@ -834,6 +951,7 @@ class WorkloadCharacteristics:
 
 @dataclass(frozen=True)
 class WorkloadProfile:
+    """Multi-label query-source profile (a query can carry several sources), client applications, activity and derived characteristics."""
     primary_query_source: str
     query_sources: Dict[str, QuerySourceStat]
     client_applications: Dict[str, ClientApplicationStat]
@@ -842,6 +960,7 @@ class WorkloadProfile:
     multi_label: bool = True
 
     def validate(self) -> None:
+        """Reject a blank primary_query_source (or one missing from a non-empty query_sources), invalid stats or activity, or multi_label false."""
         _require(bool(self.primary_query_source), "primary_query_source is required")
         if self.query_sources:
             _require(self.primary_query_source in self.query_sources, "primary_query_source must be present in query_sources")
@@ -860,23 +979,30 @@ class WorkloadProfile:
 
 @dataclass(frozen=True)
 class ForecastInfo:
+    """Model name, confidence and prose assumptions behind the forward 365-day no-change cost."""
     model: str
     confidence: Confidence
     assumptions: List[str]
 
     def validate(self) -> None:
+        """Reject a blank model or invalid confidence."""
         _require(bool(self.model), "forecast.model is required")
         self.confidence.validate()
 
 
 @dataclass(frozen=True)
 class CostBaseline:
+    """Trailing-365d actual and forward no-change 365d cost of the warehouse in one currency.
+
+    Components are None when unknown; DBU and AWS stay separate.
+    """
     currency: str
     actual_365d: CostBreakdown
     forward_365d: CostBreakdown
     forecast: ForecastInfo
 
     def validate(self) -> None:
+        """Reject a currency that is not a 3-letter uppercase code or an invalid breakdown/forecast."""
         _require(len(self.currency) == 3 and self.currency.isalpha() and self.currency.upper() == self.currency, "currency must be ISO-like uppercase 3-letter code")
         self.actual_365d.validate()
         self.forward_365d.validate()
@@ -885,6 +1011,7 @@ class CostBaseline:
 
 @dataclass(frozen=True)
 class AssessmentSummary:
+    """Candidate counts by RecommendationStatus; candidate_count is the total and must equal the sum of the status counts."""
     candidate_count: int
     actionable_count: int
     test_required_count: int
@@ -895,6 +1022,7 @@ class AssessmentSummary:
     insufficient_evidence_count: int
 
     def validate(self) -> None:
+        """Reject negative counts or a candidate_count that differs from the sum of the status counts."""
         values = [
             self.candidate_count,
             self.actionable_count,
@@ -912,6 +1040,7 @@ class AssessmentSummary:
 
 @dataclass(frozen=True)
 class EvidenceQuality:
+    """Sufficiency flags (query sample, cost history, epoch maturity), source coverage percent and confidence for the whole evidence set."""
     status: EvidenceQualityStatus
     confidence: Confidence
     query_sample_sufficient: bool
@@ -920,17 +1049,20 @@ class EvidenceQuality:
     source_coverage_pct: float
 
     def validate(self) -> None:
+        """Reject invalid confidence or a source_coverage_pct outside [0, 100]."""
         self.confidence.validate()
         _validate_pct(self.source_coverage_pct, "source_coverage_pct")
 
 
 @dataclass(frozen=True)
 class Assessment:
+    """Package-level status, candidate counts and evidence quality. Counts must describe the actual candidate list (checked by the package)."""
     overall_status: AssessmentStatus
     summary: AssessmentSummary
     evidence_quality: EvidenceQuality
 
     def validate(self) -> None:
+        """Validate the summary and evidence quality."""
         self.summary.validate()
         self.evidence_quality.validate()
 
@@ -942,6 +1074,11 @@ class Assessment:
 
 @dataclass(frozen=True)
 class EvidenceRecord:
+    """One fact in the evidence registry, keyed by its EVID- id.
+
+    The id hashes the measured content (see evidence_id_payload); interpretation is presentation prose and not hashed.
+    value and threshold may be None (no numeric value or threshold).
+    """
     evidence_id: str
     metric: str
     value: Any
@@ -955,6 +1092,7 @@ class EvidenceRecord:
     interpretation: str
 
     def validate(self) -> None:
+        """Reject a malformed EVID- id or a blank metric, unit, source, source_field, epoch_scope, observation_window or interpretation."""
         _validate_identifier(self.evidence_id, "EVID")
         _require(bool(self.metric), "evidence.metric is required")
         _require(bool(self.unit), "evidence.unit is required")
@@ -972,16 +1110,23 @@ class EvidenceRecord:
 
 @dataclass(frozen=True)
 class DependencyRef:
+    """Reference from a candidate or step to a candidate, technique, knob, compatibility check or evidence item, with an optional condition."""
     dependency_type: DependencyType
     ref_id: str
     condition: Optional[str] = None
 
     def validate(self) -> None:
+        """Reject a blank ref_id."""
         _require(bool(self.ref_id), "dependency.ref_id is required")
 
 
 @dataclass(frozen=True)
 class IndependentEconomics:
+    """Isolated one-technique counterfactual of a candidate.
+
+    Never additive across candidates (is_additive must be False): combined effects are priced only by scenarios. An UNAVAILABLE
+    estimate has null ranges; a known zero is NO_DELTA_MODELED.
+    """
     is_additive: bool
     estimation_status: EstimationStatus
     baseline_365d: CostBreakdown
@@ -989,6 +1134,7 @@ class IndependentEconomics:
     savings_365d: ComponentRanges
 
     def validate(self) -> None:
+        """Reject is_additive true, invalid baseline or ranges (costs non-negative, savings signed), or numbers on an UNAVAILABLE estimate."""
         _require(self.is_additive is False, "candidate economics must be non-additive")
         self.baseline_365d.validate()
         self.estimated_cost_365d.validate(nonnegative=True, field_name="estimated_cost_365d")
@@ -998,6 +1144,11 @@ class IndependentEconomics:
 
 @dataclass(frozen=True)
 class CandidateRecommendation:
+    """One technique decision for one knob of one warehouse/epoch.
+
+    Ids are content-addressed (make_candidate_id); evidence_refs are unique registry ids. Economics are standalone and
+    non-additive; invalidates lists knobs whose analysis this change makes stale.
+    """
     candidate_id: str
     technique_id: str
     knob: TunableKnob
@@ -1014,6 +1165,10 @@ class CandidateRecommendation:
     independent_economics: IndependentEconomics
 
     def validate(self, *, evidence_ids: Iterable[str]) -> None:
+        """Reject a malformed CAND- id, a technique_id outside the WH-...-NNN form, empty objectives or rationale, duplicate or unknown evidence_refs, invalid
+        dependencies, confidence or economics, a NO_CHANGE candidate that changes the value, a NOT_APPLICABLE candidate claiming savings, and a BLOCKED or
+        INSUFFICIENT_EVIDENCE candidate without blocker codes.
+        """
         _validate_identifier(self.candidate_id, "CAND")
         _require(self.technique_id.startswith("WH-") and self.technique_id[-4:-3] == "-" and self.technique_id[-3:].isdigit(), "technique_id must use WH-...-NNN catalog form")
         _require(len(self.objectives) >= 1, "candidate.objectives must not be empty")
@@ -1042,6 +1197,7 @@ class CandidateRecommendation:
 
 @dataclass(frozen=True)
 class CompatibilityCheck:
+    """One migration compatibility check with its status, whether a human must confirm it, and supporting evidence ids."""
     check: str
     status: CheckStatus
     requires_hitl: bool
@@ -1051,6 +1207,7 @@ class CompatibilityCheck:
 
 @dataclass(frozen=True)
 class Compatibility:
+    """Aggregate migration compatibility of a scenario: status, evidence mode and the individual checks."""
     status: CompatibilityStatus
     mode: CompatibilityMode
     checks: List[CompatibilityCheck]
@@ -1058,12 +1215,14 @@ class Compatibility:
 
 @dataclass(frozen=True)
 class ValidationGate:
+    """How a plan step is validated and how long to wait before re-measuring (days)."""
     validation_type: ValidationType
     success_metrics: List[str]
     remeasure_days: Optional[int] = None
     action_after: Optional[str] = None
 
     def validate(self) -> None:
+        """Reject remeasure_days outside [1, 90]."""
         if self.remeasure_days is not None:
             _require(1 <= self.remeasure_days <= 90, "remeasure_days must be in [1, 90]")
 
@@ -1081,6 +1240,7 @@ class StepProjection:
     step_savings_365d: Optional[ComponentRanges] = None
 
     def validate(self) -> None:
+        """Reject invalid ranges and a step_savings component that is null unless the matching running_savings component is null."""
         self.running_savings_365d.validate(nonnegative=False, field_name="plan_step.projected_economics.running_savings_365d")
         if self.step_savings_365d is not None:
             self.step_savings_365d.validate(nonnegative=False, field_name="plan_step.projected_economics.step_savings_365d")
@@ -1093,6 +1253,10 @@ class StepProjection:
 
 @dataclass(frozen=True)
 class PlanStep:
+    """One ordered step of a scenario's execution plan.
+
+    CANDIDATE steps reference a candidate, technique and knob; other step types carry an action. projected_economics is optional.
+    """
     step: int
     step_type: PlanStepType
     candidate_id: Optional[str]
@@ -1109,6 +1273,10 @@ class PlanStep:
     projected_economics: Optional[StepProjection] = None
 
     def validate(self, *, candidate_ids: Iterable[str]) -> None:
+        """Reject a step number below 1, invalid confidence/validation/dependencies, a pricing basis other than AUTHORITATIVE or CONTINGENT_PENDING_REEVALUATION, a
+        pending step that is not CONTINGENT (or a non-pending priced step that is), and a CANDIDATE step with an unknown candidate or missing technique/knob (or
+        any other step without an action).
+        """
         _require(self.step >= 1, "plan step must be >= 1")
         self.confidence.validate()
         self.validation.validate()
@@ -1137,6 +1305,11 @@ class PlanStep:
 
 @dataclass(frozen=True)
 class ScenarioEconomics:
+    """Stateful, ordered, bundled counterfactual of one scenario, authoritative for that scenario; never additive across scenarios.
+
+    contingent_* is the separate upside of steps awaiting re-evaluation and never feeds package economics. An UNAVAILABLE estimate
+    (including contingent_*) has null ranges.
+    """
     estimation_status: EstimationStatus
     baseline_365d: CostBreakdown
     estimated_cost_365d: ComponentRanges
@@ -1149,6 +1322,9 @@ class ScenarioEconomics:
     contingent_savings_365d: Optional[ComponentRanges] = None
 
     def validate(self) -> None:
+        """Reject is_additive true, a blank method, invalid ranges, numbers on an UNAVAILABLE estimate, and contingent cost and savings that are not both
+        present or both null.
+        """
         _require(self.is_additive is False, "scenario economics are stateful and non-additive")
         _require(bool(self.method), "scenario economics method is required")
         self.baseline_365d.validate()
@@ -1169,6 +1345,10 @@ class ScenarioEconomics:
 
 @dataclass(frozen=True)
 class Scenario:
+    """One mutually exclusive execution path with ordered steps and its own stateful economics.
+
+    candidate_refs keep execution order (hashed in order). Exactly one scenario is RECOMMENDED when the plan names one.
+    """
     scenario_id: str
     scenario_name: str
     scenario_type: ScenarioType
@@ -1181,6 +1361,9 @@ class Scenario:
     execution_plan: List[PlanStep]
 
     def validate(self, *, candidate_ids: Iterable[str], evidence_ids: Iterable[str]) -> None:
+        """Reject a malformed SCN- id, a blank name, unknown or duplicate candidate_refs, unknown evidence_refs, invalid confidence, economics or steps, steps that are not
+        contiguous from 1, and headline or contingent economics that disagree with the step projections.
+        """
         _validate_identifier(self.scenario_id, "SCN")
         _require(bool(self.scenario_name), "scenario_name is required")
         candidate_set = set(candidate_ids)
@@ -1252,6 +1435,7 @@ class ReevaluationWindow:
     method: str
 
     def validate(self) -> None:
+        """Reject a non-ISO-8601 time, empty, unknown, unsorted or duplicated blocking_codes, and a blank method."""
         _require(_is_iso8601(self.earliest_reevaluation_time), "reevaluation.earliest_reevaluation_time must be ISO-8601")
         _require(len(self.blocking_codes) >= 1, "reevaluation.blocking_codes must not be empty")
         _require(all(code in REEVALUATION_BLOCKING_CODES for code in self.blocking_codes), "reevaluation.blocking_codes contains an unknown gate")
@@ -1261,6 +1445,7 @@ class ReevaluationWindow:
 
 @dataclass(frozen=True)
 class ConfigChange:
+    """One knob's previous and current value across the epoch boundary."""
     knob: TunableKnob
     previous_value: Any
     current_value: Any
@@ -1268,7 +1453,10 @@ class ConfigChange:
 
 @dataclass(frozen=True)
 class ObservedConfigChange:
-    """The configuration changed at the start of the current epoch (authoritative config diff; no savings, not realization)."""
+    """The configuration change that opened the current epoch (authoritative diff of the previous and current snapshots).
+
+    Carries no savings and is not realization; entries are sorted and unique by knob.
+    """
     previous_epoch_id: str
     previous_epoch_start: str
     changed_at: str
@@ -1276,6 +1464,7 @@ class ObservedConfigChange:
     measurement_status: MeasurementStatus
 
     def validate(self) -> None:
+        """Reject a malformed previous epoch id, non-ISO-8601 dates, empty changes, knobs that are not sorted and unique, or entries whose values do not differ."""
         _validate_identifier(self.previous_epoch_id, "EPOCH")
         _require(_is_iso8601(self.previous_epoch_start), "observed_change.previous_epoch_start must be ISO-8601")
         _require(_is_iso8601(self.changed_at), "observed_change.changed_at must be ISO-8601")
@@ -1286,11 +1475,13 @@ class ObservedConfigChange:
             _require(change.previous_value != change.current_value, "observed_change entries must differ")
 
     def fingerprint(self) -> str:
+        """SHA256 fingerprint of the whole block; it enters the package hash so a different observed change gives a different package id."""
         return f"SHA256:{sha256_hex(to_primitive(self)).upper()}"
 
 
 @dataclass(frozen=True)
 class CarriedForwardStep:
+    """One step of the preceding epoch's plan replayed against the observed change (reserved, Stage 2). Rebased savings only on PENDING_REEVALUATION steps."""
     order: int
     knob: TunableKnob
     technique_id: str
@@ -1301,6 +1492,9 @@ class CarriedForwardStep:
     rebased_running_savings_365d: Optional["ComponentRanges"]
 
     def validate(self) -> None:
+        """Reject order below 1, a blank technique_id, a reason_code outside ^[A-Z][A-Z0-9_]*$, an INVALIDATED step without reason_code, and rebased savings on a step
+        that is not PENDING_REEVALUATION.
+        """
         _require(self.order >= 1, "carried-forward step order must be >= 1")
         _require(bool(self.technique_id), "carried-forward step technique_id is required")
         if self.reason_code is not None:
@@ -1330,6 +1524,11 @@ class CarriedForwardPlan:
         return f"SHA256:{sha256_hex(to_primitive(self)).upper()}"
 
     def validate(self) -> None:
+        """Reject a malformed source epoch id, a non-ISO-8601 as_of, a replay_fingerprint outside SHA256:<64 uppercase hex>, a bad reason code, a pricing basis other than
+        CONTINGENT_CARRIED_FORWARD, non-contiguous steps, and outcome-inconsistent content (NOT_REPLAYABLE needs no steps or upside, MISMATCH needs every step
+        INVALIDATED and no upside, MATCHED needs a COMPLETED first step; a reason code is required unless MATCHED), and a remaining upside that is unpriced or
+        differs from the last pending step's rebased savings.
+        """
         _validate_identifier(self.source_epoch_id, "EPOCH")
         _require(_is_iso8601(self.as_of), "carried_forward.as_of must be ISO-8601")
         _require(bool(_FINGERPRINT_PATTERN.match(self.replay_fingerprint)), "replay_fingerprint must use SHA256:<64 uppercase hex>")
@@ -1363,6 +1562,10 @@ class CarriedForwardPlan:
 
 @dataclass(frozen=True)
 class RecommendedPlan:
+    """The selection: which scenario is recommended (None when none), why, the next action, whether a human must approve, and the optional re-evaluation window.
+
+    selection_reason_code and next_action are stable codes; decision_summary is prose.
+    """
     scenario_id: Optional[str]
     selection_reason_code: str
     next_action: str
@@ -1371,6 +1574,7 @@ class RecommendedPlan:
     reevaluation: Optional[ReevaluationWindow] = None
 
     def validate(self, *, scenario_ids: Iterable[str]) -> None:
+        """Reject an unknown or malformed scenario_id, blank selection_reason_code, next_action or decision_summary, and an invalid reevaluation window."""
         if self.scenario_id is not None:
             _validate_identifier(self.scenario_id, "SCN")
             _require(self.scenario_id in set(scenario_ids), "recommended_plan references unknown scenario")
@@ -1394,6 +1598,7 @@ class EconomicsPoint:
     total: Optional[float]
 
     def validate(self, *, nonnegative: bool, field_name: str) -> None:
+        """Reject negative components when ``nonnegative`` (costs) and total != dbu + aws (tolerance 0.03); savings points may be negative."""
         if nonnegative:
             _validate_nonnegative(self.dbu, f"{field_name}.dbu")
             _validate_nonnegative(self.aws, f"{field_name}.aws")
@@ -1404,12 +1609,14 @@ class EconomicsPoint:
 
 @dataclass(frozen=True)
 class ScenarioEnvelopePoint:
+    """One bound (LOW, BASE or HIGH) of one scenario as a package envelope point, carrying that scenario's DBU/AWS/total savings and estimated cost."""
     scenario_id: str
     bound: BoundName
     savings_365d: EconomicsPoint
     estimated_cost_365d: EconomicsPoint
 
     def validate(self, *, scenario_ids: Iterable[str]) -> None:
+        """Reject a malformed or unknown scenario_id or invalid savings (signed) or cost (non-negative) points."""
         _validate_identifier(self.scenario_id, "SCN")
         _require(self.scenario_id in set(scenario_ids), "scenario envelope references unknown scenario")
         self.savings_365d.validate(nonnegative=False, field_name="scenario_envelope.savings_365d")
@@ -1418,10 +1625,12 @@ class ScenarioEnvelopePoint:
 
 @dataclass(frozen=True)
 class ExcludedScenario:
+    """A scenario left out of package economics, with the stable reason code (for example SCENARIO_ECONOMICS_UNAVAILABLE)."""
     scenario_id: str
     reason_code: str
 
     def validate(self, *, scenario_ids: Iterable[str]) -> None:
+        """Reject a malformed or unknown scenario_id or a blank reason_code."""
         _validate_identifier(self.scenario_id, "SCN")
         _require(self.scenario_id in set(scenario_ids), "excluded scenario references unknown scenario")
         _require(bool(self.reason_code), "excluded scenario reason_code is required")
@@ -1429,11 +1638,13 @@ class ExcludedScenario:
 
 @dataclass(frozen=True)
 class ScenarioEnvelope:
+    """The three source points of the package opportunity envelope: minimum (LOW bound), recommended base (BASE bound) and maximum (HIGH bound); each None when no scenario is assessable."""
     minimum_savings: Optional[ScenarioEnvelopePoint]
     recommended_base: Optional[ScenarioEnvelopePoint]
     maximum_savings: Optional[ScenarioEnvelopePoint]
 
     def validate(self, *, scenario_ids: Iterable[str]) -> None:
+        """Reject invalid points, minimum total savings above maximum, and points that reference the wrong bound (LOW, BASE, HIGH respectively)."""
         for item in (self.minimum_savings, self.recommended_base, self.maximum_savings):
             if item is not None:
                 item.validate(scenario_ids=scenario_ids)
@@ -1450,11 +1661,13 @@ class ScenarioEnvelope:
 
 @dataclass(frozen=True)
 class PackageEconomicsSemantics:
+    """Fixed declaration of what package economics are: a SCENARIO_ENVELOPE, non-additive, not a probability interval."""
     method: str
     is_additive: bool
     is_probability_interval: bool
 
     def validate(self) -> None:
+        """Reject any method other than SCENARIO_ENVELOPE, is_additive true, or is_probability_interval true."""
         _require(self.method == "SCENARIO_ENVELOPE", "package economics method must be SCENARIO_ENVELOPE")
         _require(self.is_additive is False, "package economics must be non-additive")
         _require(self.is_probability_interval is False, "package range is not a probability interval")
@@ -1462,6 +1675,12 @@ class PackageEconomicsSemantics:
 
 @dataclass(frozen=True)
 class PackageEconomics:
+    """Opportunity envelope across the economically assessable scenarios.
+
+    low is the minimum LOW total savings, base the recommended scenario's BASE total savings, high the maximum HIGH total savings, so the three may
+    come from different scenarios. Not a probability interval, not additive. estimated_cost_365d is baseline total minus these savings (bounds swapped).
+    Both ranges are None when no scenario is assessable; DBU/AWS parts live on the envelope points. Every scenario is included or excluded.
+    """
     currency: str
     baseline_365d: CostBreakdown
     estimated_savings_365d: Optional[Range3]
@@ -1472,6 +1691,9 @@ class PackageEconomics:
     semantics: PackageEconomicsSemantics
 
     def validate(self, *, scenario_ids: Iterable[str], recommended_scenario_id: Optional[str]) -> None:
+        """Reject a currency that is not a 3-letter uppercase code, invalid baseline or ranges, duplicate or unknown included/excluded scenarios, a scenario both
+        included and excluded, an invalid envelope or semantics, and an envelope base that is not the recommended scenario.
+        """
         scenario_set = set(scenario_ids)
         _require(len(self.currency) == 3 and self.currency.isupper(), "package economics currency must be uppercase 3-letter code")
         self.baseline_365d.validate()
@@ -1498,18 +1720,21 @@ class PackageEconomics:
 
 @dataclass(frozen=True)
 class AppliedChange:
+    """Record that a change was applied (when, by whom, previous and applied config). Realization is outside this read-only publisher's scope today."""
     applied_at: str
     applied_by: str
     previous_config: Dict[str, Any]
     applied_config: Dict[str, Any]
 
     def validate(self) -> None:
+        """Reject a non-ISO-8601 applied_at or a blank applied_by."""
         _require(_is_iso8601(self.applied_at), "applied_at must be ISO-8601")
         _require(bool(self.applied_by), "applied_by is required")
 
 
 @dataclass(frozen=True)
 class RealizationValidation:
+    """Post-change validation window, outcome, guardrail result (None = not evaluated) and the evidence ids it relied on."""
     validation_window_start: str
     validation_window_end: str
     validation_status: ValidationOutcome
@@ -1518,6 +1743,7 @@ class RealizationValidation:
     notes: List[str]
 
     def validate(self, *, evidence_ids: Iterable[str]) -> None:
+        """Reject non-ISO-8601 window bounds, a start after the end, or finding_refs missing from the evidence registry."""
         _require(_is_iso8601(self.validation_window_start), "validation_window_start must be ISO-8601")
         _require(_is_iso8601(self.validation_window_end), "validation_window_end must be ISO-8601")
         _require(self.validation_window_start <= self.validation_window_end, "validation window start must be <= end")
@@ -1527,12 +1753,14 @@ class RealizationValidation:
 
 @dataclass(frozen=True)
 class RealizationObservedCost:
+    """Observed post-change cost in one currency; components are None when unknown."""
     currency: str
     dbu_cost: Optional[float]
     aws_cost: Optional[float]
     total_cost: Optional[float]
 
     def validate(self) -> None:
+        """Reject negative components or total != dbu + aws (tolerance 0.02)."""
         _validate_nonnegative(self.dbu_cost, "realization observed dbu_cost")
         _validate_nonnegative(self.aws_cost, "realization observed aws_cost")
         _validate_nonnegative(self.total_cost, "realization observed total_cost")
@@ -1542,6 +1770,7 @@ class RealizationObservedCost:
 
 @dataclass(frozen=True)
 class RealizedSavings:
+    """Measured savings (signed, positive = savings) per component and annualized; None when unknown."""
     currency: str
     dbu_savings: Optional[float]
     aws_savings: Optional[float]
@@ -1549,24 +1778,28 @@ class RealizedSavings:
     annualized_total_savings: Optional[float]
 
     def validate(self) -> None:
+        """Reject total_savings != dbu_savings + aws_savings (tolerance 0.02) when all three are present."""
         if self.dbu_savings is not None and self.aws_savings is not None and self.total_savings is not None:
             _require(abs((self.dbu_savings + self.aws_savings) - self.total_savings) <= 0.02, "realized total_savings must equal DBU + AWS")
 
 
 @dataclass(frozen=True)
 class RealizationOutcome:
+    """Final outcome of a realized change: status, recommendation accuracy in [0, 1] (None = not measured), rollback flag and learning codes."""
     status: RealizationOutcomeStatus
     recommendation_accuracy: Optional[float]
     rollback_required: bool
     learning_codes: List[str]
 
     def validate(self) -> None:
+        """Reject recommendation_accuracy outside [0, 1]."""
         if self.recommendation_accuracy is not None:
             _require(0 <= self.recommendation_accuracy <= 1, "recommendation_accuracy must be in [0,1]")
 
 
 @dataclass(frozen=True)
 class RealizationRecord:
+    """One measurement episode of an applied change; its REAL- id is derived from the package, scenario, candidate, window and applied config."""
     realization_id: str
     recommendation_package_id: str
     scenario_id: str
@@ -1579,6 +1812,7 @@ class RealizationRecord:
     outcome: RealizationOutcome
 
     def validate(self, *, package_id: str, scenario_ids: Iterable[str], candidate_ids: Iterable[str], evidence_ids: Iterable[str]) -> None:
+        """Reject a malformed id, a package id mismatch, unknown scenario or candidate, invalid parts, and a realization_id that is not the recomputed make_realization_id."""
         _validate_identifier(self.realization_id, "REAL")
         _require(self.recommendation_package_id == package_id, "realization package id mismatch")
         _require(self.scenario_id in set(scenario_ids), "realization references unknown scenario")
@@ -1602,6 +1836,7 @@ class RealizationRecord:
 
 @dataclass(frozen=True)
 class RealizationAggregate:
+    """Roll-up of measured/successful/rolled-back candidate counts and realized savings in the package currency."""
     measured_candidates: int
     successful_candidates: int
     rolled_back_candidates: int
@@ -1610,6 +1845,7 @@ class RealizationAggregate:
     annualized_realized_savings: float
 
     def validate(self) -> None:
+        """Reject negative counts or successful/rolled-back counts above measured_candidates."""
         _require(self.measured_candidates >= 0, "measured_candidates must be >= 0")
         _require(0 <= self.successful_candidates <= self.measured_candidates, "successful_candidates out of range")
         _require(0 <= self.rolled_back_candidates <= self.measured_candidates, "rolled_back_candidates out of range")
@@ -1617,11 +1853,13 @@ class RealizationAggregate:
 
 @dataclass(frozen=True)
 class Realization:
+    """Realization state of the package. Packages from this publisher are NOT_APPLIED with no records."""
     status: RealizationStatus
     realization_records: List[RealizationRecord]
     aggregate: RealizationAggregate
 
     def validate(self, *, package_id: str, scenario_ids: Iterable[str], candidate_ids: Iterable[str], evidence_ids: Iterable[str]) -> None:
+        """Reject records on a NOT_APPLIED realization, invalid records, or an invalid aggregate."""
         if self.status == RealizationStatus.NOT_APPLIED:
             _require(len(self.realization_records) == 0, "NOT_APPLIED realization must have no records")
         for record in self.realization_records:
@@ -1636,6 +1874,11 @@ class Realization:
 
 @dataclass(frozen=True)
 class Provenance:
+    """Versions, evidence fingerprint and sources a package was built from.
+
+    The component versions and evidence_fingerprint enter the package hash; generated_at is volatile presentation metadata and never does.
+    package_hash_full_sha256 is the full 64-hex hash behind the truncated package id (None until set).
+    """
     contract_version: str
     policy_version: str
     analyzer_version: str
@@ -1653,6 +1896,9 @@ class Provenance:
     package_hash_full_sha256: Optional[str] = None
 
     def validate(self) -> None:
+        """Reject a contract_version other than CONTRACT_VERSION, a blank component version, an evidence_fingerprint that is not a full SHA256:<64 hex>,
+        empty source_tables or source_regions, a non-ISO-8601 generated_at, and a package_hash_full_sha256 that is not 64 characters.
+        """
         _require(self.contract_version == CONTRACT_VERSION, f"provenance.contract_version must be {CONTRACT_VERSION}")
         for name in (
             "policy_version", "analyzer_version", "optimizer_version", "modeler_version",
@@ -1671,6 +1917,11 @@ class Provenance:
 
 @dataclass(frozen=True)
 class RecommendationPackage:
+    """Public machine source of truth: one immutable, content-addressed package per warehouse and current configuration epoch.
+
+    Candidate economics are isolated and non-additive, scenario economics are stateful, package economics is a scenario envelope. The PKG- id hashes
+    package_hash_payload (never generated_at or prose). observed_change and carried_forward_plan are None when absent.
+    """
     recommendation_package_id: str
     contract_version: str
     warehouse: WarehouseIdentity
@@ -1689,6 +1940,13 @@ class RecommendationPackage:
     carried_forward_plan: Optional[CarriedForwardPlan] = None
 
     def validate(self, *, verify_content_id: bool = True) -> None:
+        """Semantic validation of the whole package (raises ValueError).
+
+        Recomputes the epoch, evidence, candidate and scenario ids and the evidence fingerprint; checks references, the single RECOMMENDED scenario,
+        the re-evaluation window and observed/carried-forward blocks, that package economics equal the envelope of the included scenarios, that
+        assessment counts match the candidates, currency consistency, and the full hash. ``verify_content_id=False`` skips only the final PKG- id
+        comparison.
+        """
         _validate_identifier(self.recommendation_package_id, "PKG")
         _require(self.contract_version == CONTRACT_VERSION, f"contract_version must be {CONTRACT_VERSION}")
         self.warehouse.validate()
@@ -1844,6 +2102,9 @@ class RecommendationPackage:
         return None
 
     def active_reevaluation_codes(self) -> List[str]:
+        """Sorted blocking gate codes active now, derived from evidence: COST_HISTORY_INSUFFICIENT when cost_history_days is below
+        REEVALUATION_COST_HISTORY_DAYS, CURRENT_CONFIG_EPOCH_TOO_NEW when billed_cost_days is below REEVALUATION_READY_BILLED_DAYS or missing (fail closed).
+        """
         codes = []
         days = self._cost_history_days_evidence()
         if days is not None and days < REEVALUATION_COST_HISTORY_DAYS:
@@ -1904,9 +2165,11 @@ class RecommendationPackage:
                 _require(len(change.changes) == 1, "MATCHED requires exactly one observed knob change")
 
     def to_dict(self) -> Dict[str, Any]:
+        """JSON-compatible primitives of the whole package (see to_primitive)."""
         return to_primitive(self)
 
     def evidence_fingerprint_expected(self) -> str:
+        """Recompute the evidence fingerprint from the registry (same payload as make_evidence_fingerprint)."""
         payload = {
             "contract_version": self.contract_version,
             "workspace_id": self.warehouse.workspace_id,
@@ -1931,6 +2194,12 @@ class RecommendationPackage:
         return f"SHA256:{hashlib.sha256(canonical_json_for_hash(payload).encode('utf-8')).hexdigest().upper()}"
 
     def package_hash_payload(self) -> Dict[str, Any]:
+        """Explicit payload behind the package id and full hash.
+
+        Hashed: contract and component versions, workspace/warehouse/epoch, current_config, evidence fingerprint, ordered candidate and scenario ids, the
+        re-evaluation status, time and codes (not its prose method) and the observed-change and carried-forward fingerprints. Not hashed: generated_at,
+        prose and other volatile presentation metadata.
+        """
         return {
             "contract_version": self.contract_version,
             "workspace_id": self.warehouse.workspace_id,
@@ -1961,9 +2230,11 @@ class RecommendationPackage:
         }
 
     def expected_package_id(self) -> str:
+        """PKG- id recomputed from package_hash_payload."""
         return content_id("PKG", self.package_hash_payload())
 
     def full_package_hash(self) -> str:
+        """Full uppercase SHA-256 hex of package_hash_payload (the value behind provenance.package_hash_full_sha256)."""
         return sha256_hex(self.package_hash_payload())
 
 
@@ -1990,6 +2261,7 @@ def make_recommendation_package_id_from_parts(
     observed_change_fingerprint: Optional[str] = None,
     carried_forward_fingerprint: Optional[str] = None,
 ) -> str:
+    """PKG- id from the same fields as RecommendationPackage.package_hash_payload, for callers that have not built the package yet."""
     payload = {
         "contract_version": contract_version,
         "workspace_id": workspace_id,

@@ -18,7 +18,13 @@ from publisher.optimizer.techniques import autostop, migration, scaling, size
 
 
 class Optimizer:
-    """Apply deterministic policy thresholds to analyzer facts and propose config decisions."""
+    """Apply deterministic policy thresholds to analyzer facts and propose config decisions.
+
+    Exactly one decision per active domain (size, max clusters, min clusters, auto-stop, warehouse type), in that
+    order, so the candidate gate's one-per-knob invariant holds by construction. Photon and the warehouse channel
+    are observation-only and have no technique here. Thresholds come from the governor; nothing reads wall-clock
+    time or randomness, so identical evidence and policy give identical decisions.
+    """
     def __init__(self, thresholds: Thresholds):
         self.t = thresholds
 
@@ -28,10 +34,16 @@ class Optimizer:
         return max(min_clusters, level + headroom)
 
     def _growing(self, facts: Mapping[str, Any]) -> bool:
+        """True when weekly query volume growth reaches the hold ratio; unknown growth is not growth."""
         ratio = facts.get("growth_ratio")
         return ratio is not None and ratio >= self.t.growth_hold_weekly_ratio
 
     def optimize(self, e: WarehouseEvidence, analyses: Dict[str, AnalysisResult]) -> List[OptimizationDecision]:
+        """All five decisions for one warehouse from its current-epoch analyses.
+
+        Techniques run in a fixed order (size, max, min, auto-stop, migration) because the migration technique reads
+        the auto-stop decision; the canary rollback then rewrites ``out`` in place when a fail-fast guard tripped.
+        """
         cfg = e.current_epoch.config
         # Readiness: the current configuration has run for enough settled billed days (not a fixed calendar age).
         billed_days = ready_billed_days(e)
@@ -44,11 +56,16 @@ class Optimizer:
         autostop.decide(self, e, analyses, cfg, young, billed_days, out)
         migration.decide(self, e, analyses, cfg, young, billed_days, out)
         conflicts.apply_canary_rollback(self, e, analyses, cfg, young, billed_days, out)
+        for d in out:
+            LOGGER.debug(
+                "optimizer.decision workspace_id=%s warehouse_id=%s knob=%s status=%s blockers=%s",
+                e.workspace_id, e.warehouse_id, d.knob, d.status, ",".join(d.blockers) or "NONE",
+            )
         return out
 
 
 def optimize(w: WarehouseAnalysis, thresholds: Thresholds) -> WarehouseCandidates:
-    """Decisions for one eligible warehouse, each priced as an isolated candidate."""
+    """Decisions for one eligible warehouse, each priced as an isolated (non-additive) candidate."""
     e, analyses = w.evidence, w.analyses
     decisions = Optimizer(thresholds).optimize(e, analyses)
     candidates = Estimator(thresholds).candidates(e, analyses, decisions)
@@ -56,7 +73,10 @@ def optimize(w: WarehouseAnalysis, thresholds: Thresholds) -> WarehouseCandidate
 
 
 def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresholds, batch_size: int = 100) -> OptimizationResult:
-    """Optimize the eligible warehouses in batches, in order."""
+    """Optimize the eligible warehouses in batches, in order.
+
+    Batching only bounds the log granularity; results and their order do not depend on ``batch_size``.
+    """
     results: List[WarehouseCandidates] = []
     batch = max(1, int(batch_size))
     for offset in range(0, len(eligible), batch):
@@ -65,8 +85,8 @@ def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresho
         for w in chunk:
             e = w.evidence
             LOGGER.info(
-                "warehouse.start workspace_id=%s warehouse_id=%s name=%s epoch_id=%s",
-                e.workspace_id, e.warehouse_id, e.warehouse_name, e.current_epoch_id,
+                "warehouse.start workspace_id=%s warehouse_id=%s epoch_id=%s",
+                e.workspace_id, e.warehouse_id, e.current_epoch_id,
             )
             results.append(optimize(w, thresholds))
         LOGGER.info("pipeline.batch.done batch_index=%d processed=%d", offset // batch + 1, len(chunk))

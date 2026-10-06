@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Dict, List, TYPE_CHECKING
 
 from publisher.analyzer.findings import canary_rationale
+from publisher.common.logging import LOGGER
 from publisher.common.utils import safe_int
 from publisher.config.defaults import SIZE_ORDER
 from publisher.contracts.analysis import AnalysisResult
@@ -16,7 +17,13 @@ if TYPE_CHECKING:
 
 def apply_canary_rollback(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
                           billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Rewrite ``out`` in place when a canary guard tripped (``self`` is the Optimizer)."""
+    """Rewrite ``out`` in place when a canary guard tripped (``self`` is the Optimizer).
+
+    The changed knob is restored to its previous-epoch value as an ACTIONABLE PERFORMANCE decision with no saving
+    claimed (the one place an older epoch's configuration sets a decision, and only from guards measured on the new
+    epoch's own evidence). Cuts that conflict with the restore are held as NO_CHANGE (CANARY_ROLLBACK_PENDING); an
+    increase for queueing or spill is never held. No-op when no guard tripped.
+    """
     # Fail-fast canary rollback: a guard tripped on the new epoch's own evidence after a canary-type change restores
     # the previous value of the changed knob (the one decision an older epoch's configuration sets).
     canary = analyses["warehouse_size"].facts.get("canary") or {}
@@ -49,8 +56,12 @@ def apply_canary_rollback(self: "Optimizer", e: WarehouseEvidence, analyses: Dic
             if "warehouse_size" in changes:
                 return d.knob in ("max_clusters", "min_clusters")
             return "min_clusters" in changes and d.knob in ("max_clusters", "warehouse_size")
+        LOGGER.debug("optimizer.canary_rollback workspace_id=%s warehouse_id=%s knobs=%s guards=%s",
+                     e.workspace_id, e.warehouse_id, ",".join(sorted(changes)), ",".join(sorted(canary["guards"])))
         for i, d in enumerate(out):
             if conflicts(d):
+                LOGGER.debug("optimizer.conflict.held workspace_id=%s warehouse_id=%s knob=%s reason=CANARY_ROLLBACK_PENDING",
+                             e.workspace_id, e.warehouse_id, d.knob)
                 out[i] = OptimizationDecision(e.warehouse_id, d.knob, d.objective, "NO_CHANGE", dict(d.current_config), dict(d.current_config),
                     ["CANARY_ROLLBACK_PENDING"], d.dependencies, [], [],
                     f"Held while the canary rollback is pending: this {d.knob} change conflicts with restoring the previous configuration.")

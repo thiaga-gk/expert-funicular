@@ -5,12 +5,20 @@ from typing import Any, Dict
 
 from publisher.analyzer.epochs import carried_query_view
 from publisher.analyzer.normalizer import hive_reference_count
+from publisher.common.logging import LOGGER
 from publisher.common.utils import safe_float
 from publisher.contracts.source import WarehouseEvidence
 
 
 def migration_compatibility(e: WarehouseEvidence, target_type: str) -> Dict[str, Any]:
-    """Deterministic compatibility gate for a warehouse-type migration: read-only API evidence (B) or the HITL fallback (A)."""
+    """Deterministic compatibility gate for a warehouse-type migration: read-only API evidence (B) or the HITL fallback (A).
+
+    Returns {"target_warehouse_type", "assessment", "evidence_mode", "checks"}. Each check has a status (PASS, FAIL,
+    REVIEW, UNKNOWN, PASS_WITH_LIMITATION, PASS_BY_EXISTING_SERVERLESS); the assessment is the worst of them: any FAIL
+    gives FAIL, any REVIEW or UNKNOWN gives REVIEW_REQUIRED (human-in-the-loop), limitations give
+    PASS_WITH_LIMITATIONS. Unknown evidence is never read as a pass. Evidence is read-only: system tables, query
+    history aggregates and (mode B) the read-only workspace API; nothing is mutated and no statement text is kept.
+    """
     q=carried_query_view(e.current_epoch.query)[0]; checks=[]
     target=target_type.upper(); api=dict(e.compatibility_evidence or {})
     if target=="SERVERLESS":
@@ -43,4 +51,7 @@ def migration_compatibility(e: WarehouseEvidence, target_type: str) -> Dict[str,
         checks.append({"check":"aws_price_registry_region","status":"PASS" if region_prices else "UNKNOWN","evidence":e.source_region})
     statuses={x["status"] for x in checks}
     result="FAIL" if "FAIL" in statuses else "REVIEW_REQUIRED" if ("REVIEW" in statuses or "UNKNOWN" in statuses) else "PASS_WITH_LIMITATIONS" if ("PASS_WITH_LIMITATION" in statuses or "PASS_BY_EXISTING_SERVERLESS" in statuses) else "PASS"
+    LOGGER.debug("governor.migration_compatibility workspace_id=%s warehouse_id=%s target=%s assessment=%s evidence_mode=%s open_checks=%s",
+                 e.workspace_id, e.warehouse_id, target, result, api.get("mode", "A_HITL_FALLBACK"),
+                 ",".join(c["check"] for c in checks if c["status"] in ("FAIL", "REVIEW", "UNKNOWN")) or "none")
     return {"target_warehouse_type":target,"assessment":result,"evidence_mode":api.get("mode","A_HITL_FALLBACK"),"checks":checks}

@@ -1,4 +1,9 @@
-"""Collector: runs the system-table SQL and normalizes rows into WarehouseEvidence."""
+"""Collector: runs the read-only system-table SQL and normalizes the rows into WarehouseEvidence.
+
+This is the only place where raw rows become typed evidence. It observes and normalizes; it makes no recommendation,
+eligibility or pricing decision. Identity is always ``(workspace_id, warehouse_id)``, never the warehouse ID alone.
+Logging carries counts and workspace/warehouse IDs only: never SQL text, owner emails, tags or config values.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -57,15 +62,18 @@ from publisher.contracts.source import EpochEvidence, WarehouseAttribution, Ware
 
 
 def _warehouse_key(row: Mapping[str, Any]) -> Tuple[str, str]:
+    """``(workspace_id, warehouse_id)`` of a collector row; a missing ID becomes "" so rows still group deterministically."""
     return str(row.get("workspace_id") or ""), str(row.get("warehouse_id") or "")
 
 
 def _row_key(row: Mapping[str, Any]) -> Tuple[str, str, str]:
+    """``(workspace_id, warehouse_id, epoch_start)`` of a collector row, with the epoch start as an ISO string."""
     workspace_id, warehouse_id = _warehouse_key(row)
     return workspace_id, warehouse_id, iso(row.get("epoch_start")) or str(row.get("epoch_start"))
 
 
 def _index_epoch_rows(rows: Iterable[Dict[str, Any]]) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
+    """Index rows by ``_row_key``; the SQL emits one row per epoch, so a repeated key would simply keep the last row."""
     out: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
     for r in rows:
         out[_row_key(r)] = r
@@ -73,11 +81,28 @@ def _index_epoch_rows(rows: Iterable[Dict[str, Any]]) -> Dict[Tuple[str, str, st
 
 
 def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: str, aws_registry: Optional[Mapping[str, Any]] = None, compatibility_evidence: Optional[Mapping[str, Any]] = None, *, ingestion_cutoff: Optional[str] = None, analysis_time: Optional[str] = None) -> List[WarehouseEvidence]:
+    """Run every collector query once and assemble one WarehouseEvidence per active warehouse.
+
+    ``client`` only needs ``query(statement, label=...)`` (a live SqlClient, or a replay/demo stand-in). Evidence is
+    built per ``(workspace_id, warehouse_id)``; each warehouse must have exactly one current epoch (``ValueError``
+    otherwise) and an epoch with more than one billed currency raises rather than mixing them.
+    ``analysis_time`` (ISO, default now) is the single clock for window and age arithmetic. ``ingestion_cutoff``
+    (YYYY-MM-DD, validated before any query) pins billing queries to what was ingested by that date so a re-collection
+    reproduces an earlier run. ``aws_registry`` prices the AWS baseline and ``compatibility_evidence`` is the REST
+    result; it is attached only to warehouses of its own workspace, others get an explicit fallback marker.
+
+    Fail-closed conventions: unpriced usage leaves an epoch's list cost null (never zero); running-time evidence that
+    cannot be established is None/UNAVAILABLE rather than a guessed zero. Result order is by warehouse name, workspace
+    and warehouse ID, so it does not depend on query row order.
+    """
     analysis_time = analysis_time or dt.datetime.now(dt.timezone.utc).isoformat()
     with_ingestion_cutoff("", ingestion_cutoff)  # validate the cutoff before any query runs
-    LOGGER.info("collector.start source_region=%s", source_region)
+    LOGGER.info("collector.start source_region=%s ingestion_cutoff_set=%s", source_region, ingestion_cutoff is not None)
+    LOGGER.info("collector.phase_start phase=discovery")
     epoch_rows = client.query(CONFIG_EPOCHS_SQL,label="config_epochs")
     LOGGER.info("collector.discovery current_warehouses=%d epoch_rows=%d", sum(1 for r in epoch_rows if bool(r.get("is_current"))), len(epoch_rows))
+    LOGGER.info("collector.phase_done phase=discovery epoch_rows=%d", len(epoch_rows))
+    LOGGER.info("collector.phase_start phase=query_evidence")
     query_idx = _index_epoch_rows(client.query(EPOCH_QUERY_METRICS_SQL,label="query_metrics"))
     for r in client.query(build_spill_source_sql(thresholds),label="spill_sources"):
         if _row_key(r) in query_idx:
@@ -105,6 +130,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     for r in client.query(CANARY_GUARD_SQL,label="canary_guard"):
         if _row_key(r) in query_idx and str(r.get("period")) in ("CURRENT", "PREVIOUS"):
             query_idx[_row_key(r)].setdefault("canary_guard", {})[str(r.get("period"))] = {k: r.get(k) for k in CANARY_GUARD_FIELDS}
+    LOGGER.info("collector.phase_done phase=query_evidence query_epochs=%d carried_periods=%d", len(query_idx), len(carried))
+    LOGGER.info("collector.phase_start phase=event_evidence")
     event_idx = _index_epoch_rows(client.query(EPOCH_EVENT_METRICS_SQL,label="warehouse_events"))
     gap_idx = _index_epoch_rows(client.query(build_epoch_gap_metrics_sql(thresholds),label="idle_gaps"))
     running_idle_idx = _index_epoch_rows(client.query(build_running_idle_sql(thresholds),label="running_idle"))
@@ -130,6 +157,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         resource_daily_idx.setdefault(_row_key(r), []).append(day)
         if r.get("collected_from") is not None:
             resource_collected_from = str(r.get("collected_from"))[:10]
+    LOGGER.info("collector.phase_done phase=event_evidence event_epochs=%d gap_epochs=%d concurrency_epochs=%d resource_daily_epochs=%d",
+                len(event_idx), len(gap_idx), len(concurrency_idx), len(resource_daily_idx))
+    LOGGER.info("collector.phase_start phase=billing_evidence")
     cost_rows = client.query(with_ingestion_cutoff(EPOCH_DAILY_COST_SQL, ingestion_cutoff),label="billing_daily_cost")
     # Billing completeness is judged per workspace: one workspace's lagging ingestion must not be hidden by another's.
     watermark_by_ws = {str(r.get("workspace_id") or ""): r for r in client.query(with_ingestion_cutoff(BILLING_WATERMARK_SQL, ingestion_cutoff),label="billing_watermark")}
@@ -138,10 +168,12 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
     attribution_idx = _index_epoch_rows(client.query(with_ingestion_cutoff(EPOCH_BILLING_ATTRIBUTION_SQL, ingestion_cutoff),label="billing_attribution_photon_owner"))
     sku_price_rows = client.query(SQL_SKU_PRICE_SQL,label="sql_sku_prices")
     sku_prices_by_account: Dict[str, Dict[str, Any]] = {}
+    nameless_sku_rows = 0
     for r in sku_price_rows:
         account_id = str(r.get("account_id") or "")
         name = str(r.get("sku_name") or "")
         if not name:
+            nameless_sku_rows += 1
             continue
         sku_prices_by_account.setdefault(account_id, {})[name] = {
             "effective_list_price": safe_float(r.get("effective_list_price")),
@@ -151,12 +183,18 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             "classification": classify_sql_sku(name),
         }
 
+    if nameless_sku_rows:
+        LOGGER.warning("collector.sku_price_skipped reason=MISSING_SKU_NAME rows=%d", nameless_sku_rows)
+
     daily_by_wh: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     daily_by_epoch: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
     for r in cost_rows:
         wk = _warehouse_key(r)
         daily_by_wh.setdefault(wk, []).append(r)
         daily_by_epoch.setdefault(_row_key(r), []).append(r)
+    LOGGER.info("collector.phase_done phase=billing_evidence cost_rows=%d billed_warehouses=%d workspaces_with_watermark=%d sku_price_accounts=%d",
+                len(cost_rows), len(daily_by_wh), len(watermark_by_ws), len(sku_prices_by_account))
+    LOGGER.info("collector.phase_start phase=epoch_assembly")
 
     grouped: Dict[Tuple[str, str], List[EpochEvidence]] = {}
     for r in epoch_rows:
@@ -165,6 +203,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         wk = (workspace_id, wh)
         start = iso(r.get("epoch_start"))
         if not start:
+            LOGGER.warning("collector.epoch_skipped workspace_id=%s warehouse_id=%s reason=MISSING_EPOCH_START", workspace_id, wh)
             continue
         key = (workspace_id, wh, start)
         config = WarehouseConfig(
@@ -181,6 +220,9 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             raise ValueError(f"Mixed currencies within epoch {key}: {currencies}")
         end = iso(r.get("epoch_end"))
         unpriced_dbu = round(sum(safe_float(x.get("unpriced_dbu_quantity")) for x in epoch_daily), 6)
+        if unpriced_dbu > 0:
+            LOGGER.warning("collector.epoch_cost_unknown workspace_id=%s warehouse_id=%s reason=UNPRICED_DBU unpriced_dbu=%.6f",
+                           workspace_id, wh, unpriced_dbu)
         epoch_cost = {
             # Unpriced usage leaves the epoch's cost unknown; calibration then skips the epoch instead of underpricing it.
             "list_cost": None if unpriced_dbu > 0 else round(sum(safe_float(x.get("list_cost")) for x in epoch_daily), 2),
@@ -213,6 +255,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             resource_daily=sorted(resource_daily_idx.get(key, []), key=lambda d: d["usage_day"]) if bool(r.get("is_current")) else None,
         ))
 
+    LOGGER.info("collector.phase_done phase=epoch_assembly warehouses=%d epochs=%d", len(grouped), sum(len(v) for v in grouped.values()))
+    LOGGER.info("collector.phase_start phase=warehouse_assembly")
     modeler = Modeler(thresholds)
     result: List[WarehouseEvidence] = []
     for wk, epochs in grouped.items():
@@ -232,6 +276,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             # Billed before the warehouse's first retained event: running time is unknown until the first full day
             # the event history covers.
             current.events["resource_coverage_from"] = (dt.date.fromisoformat(rows_days[0]) + dt.timedelta(days=1)).isoformat()
+            LOGGER.warning("collector.resource_coverage_degraded workspace_id=%s warehouse_id=%s reason=BILLED_BEFORE_FIRST_RETAINED_EVENT",
+                           workspace_id, wh)
         if current.resource_daily == [] and any(
                 str(x.get("usage_date"))[:10] >= current.events["resource_daily_from"] and safe_float(x.get("dbu_quantity")) > 0
                 for x in daily_by_epoch.get((workspace_id, wh, current.epoch_start), [])):
@@ -239,11 +285,17 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             # unknown, not idle.
             current.resource_daily = None
             current.events["resource_daily_status"] = "UNAVAILABLE_BILLED_WITHOUT_RETAINED_EVENTS"
+            LOGGER.warning("collector.resource_daily_unavailable workspace_id=%s warehouse_id=%s reason=BILLED_WITHOUT_RETAINED_EVENTS",
+                           workspace_id, wh)
         ws_watermark = watermark_by_ws.get(workspace_id, {})
         effective_watermark, watermark_source = effective_billing_watermark(
             ws_watermark.get("billing_watermark"), account_watermark, current.resource_daily,
             check_through=billing_check_through(analysis_time, account_watermark, ingestion_cutoff, thresholds.billing_settle_hours))
         model = modeler.forecast_from_daily_cost(daily_by_wh.get(wk, []), current.epoch_start, analysis_time, billing_watermark=effective_watermark, ingestion_cutoff=ingestion_cutoff)
+        if watermark_source in ("WORKSPACE_UNVERIFIED_IDLE", "WORKSPACE_LAGGING", "ACCOUNT"):
+            LOGGER.warning("collector.billing_watermark_degraded workspace_id=%s warehouse_id=%s reason=%s", workspace_id, wh, watermark_source)
+        else:
+            LOGGER.debug("collector.billing_watermark workspace_id=%s warehouse_id=%s source=%s", workspace_id, wh, watermark_source)
         model["billing_watermark_source"] = watermark_source
         model["billing_ingested_through"] = None if ws_watermark.get("billing_ingested_through") is None else str(ws_watermark.get("billing_ingested_through"))[:10]
         model["billing_ingestion_cutoff"] = ingestion_cutoff
@@ -252,6 +304,8 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
         node_types = as_string_list(attribution_row.get("observed_node_types"))
         sql_tiers = as_string_list(attribution_row.get("observed_sql_tiers"))
         aws_cost, aws_model = model_aws_baseline_cost(current, source_region, analysis_time, model, aws_registry or {}, thresholds, observed_node_types=node_types)
+        if aws_cost is None:
+            LOGGER.warning("collector.aws_baseline_unavailable workspace_id=%s warehouse_id=%s reason=%s", workspace_id, wh, aws_model.get("blocker") or "UNAVAILABLE")
         photon_observation = infer_photon_observation(attribution_row, analysis_time, thresholds)
         query_source = derive_query_source_profile(carried_query_view(current.query)[0])
         owners = as_string_list(attribution_row.get("observed_owners")) or []
@@ -262,10 +316,15 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             query_source=query_source,
         )
         LOGGER.info(
-            "collector.attribution workspace_id=%s warehouse_id=%s owner=%s photon_status=%s photon_coverage_pct=%.2f query_source=%s",
-            workspace_id, wh, attribution.owner or "UNKNOWN", photon_observation.status,
+            "collector.attribution workspace_id=%s warehouse_id=%s owner_known=%s photon_status=%s photon_coverage_pct=%.2f query_source=%s",
+            workspace_id, wh, attribution.owner is not None, photon_observation.status,
             photon_observation.known_feature_coverage_pct, query_source.primary_category,
         )
+        compatible_workspace = str((compatibility_evidence or {}).get("workspace_id") or "") == workspace_id
+        if not compatible_workspace:
+            # Without compatibility evidence at all (replay/demo) this is the normal state; with evidence for another workspace it is a fallback.
+            (LOGGER.warning if compatibility_evidence else LOGGER.debug)(
+                "collector.compatibility_fallback workspace_id=%s warehouse_id=%s reason=OTHER_WORKSPACE_API_NOT_QUERIED", workspace_id, wh)
         result.append(WarehouseEvidence(
             warehouse_id=wh,
             workspace_id=workspace_id,
@@ -291,5 +350,6 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             photon_observation=photon_observation,
             attribution=attribution,
         ))
+    LOGGER.info("collector.phase_done phase=warehouse_assembly warehouses=%d", len(result))
     LOGGER.info("collector.done warehouses=%d epochs=%d", len(result), sum(len(x.epochs) for x in result))
     return sorted(result, key=lambda e: (e.warehouse_name.lower(), e.workspace_id, e.warehouse_id))

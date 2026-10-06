@@ -15,7 +15,15 @@ if TYPE_CHECKING:
 
 def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
                         billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Append this knob's decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers)."""
+    """Append the max_clusters decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers).
+
+    Increase path: queueing over the threshold with saturation at the ceiling and enough evidence (mature epoch,
+    query/queued samples, per-minute concurrency) -> ACTIONABLE move to the demand-derived ceiling; each missing
+    piece of evidence is an INSUFFICIENT_EVIDENCE blocker, never a guess. Decrease path: only an unused ceiling
+    with low queueing and no evidence blockers is ACTIONABLE (a cost guardrail, no direct saving claimed); the
+    whole current epoch's peak keeps the ceiling against a seasonal peak outside the recent window; young
+    configurations, queueing, failures and growth hold it as NO_CHANGE with blocker codes.
+    """
     # Max clusters
     a=analyses["max_clusters"]; f=a.facts
     window_known = f["at_max_pct"] is not None and f["max_observed"] is not None
@@ -165,7 +173,13 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
 
 def decide_min_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[str, AnalysisResult], cfg: WarehouseConfig, young: bool,
                         billed_days: int, out: List[OptimizationDecision]) -> None:
-    """Append this knob's decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers)."""
+    """Append the min_clusters decision to ``out`` (``self`` is the Optimizer: thresholds and shared helpers).
+
+    Only a floor reduction is ever proposed, as a TEST_REQUIRED canary to the smallest floor that covers the P95
+    busy-start demand, and only when no blocker (young epoch, thin samples, queue pressure, sustained scale
+    pressure, growth, older-epoch demand, missing concurrency evidence) is present; otherwise NO_CHANGE with the
+    blocker codes. A floor of 1 is already minimal.
+    """
     # Min clusters
     a=analyses["min_clusters"]; f=a.facts
     if cfg.min_clusters <= 1:

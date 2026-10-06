@@ -11,7 +11,8 @@ def unsupported_warehouse_exclusions(evidence: Sequence[WarehouseEvidence]) -> L
     """Supported-type gate: list warehouses that fail closed, one entry each, in deterministic order.
 
     An unsupported or future type is never routed into Pro/Classic/Serverless algorithms; it is excluded
-    per warehouse and recorded in the run manifest, so the rest of the fleet is still evaluated.
+    per warehouse and recorded in the run manifest, so the rest of the fleet is still evaluated. Entries carry
+    identity, name, the unsupported type and reason_code UNSUPPORTED_WAREHOUSE_TYPE, sorted by (workspace_id, warehouse_id).
     """
     return [
         {

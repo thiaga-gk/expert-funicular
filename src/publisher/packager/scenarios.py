@@ -15,10 +15,16 @@ from publisher.packager.sequencing import PLAN_KNOB_RANK, PlanOrdering
 
 
 class ScenarioPlanner(PlanOrdering):
-    """Build ordered, dependency-aware scenarios from reviewed candidates."""
+    """Build ordered, dependency-aware scenarios from reviewed candidates.
+
+    Exactly two scenarios per warehouse: Plan A (current-type tuning, always the recommended one) and Plan B (a
+    separate one-step warehouse-type migration branch, never combined with Plan A). Each is priced statefully by
+    the bundle estimator, not by summing candidate savings.
+    """
     def __init__(self,thresholds:Thresholds): self.t=thresholds; self.bundle=StatefulBundleEstimator(thresholds)
 
     def _scenario_confidence(self, steps: Sequence[PlanStep]) -> Dict[str, Any]:
+        """Bottleneck confidence: the minimum step score (a plan is as trustworthy as its weakest step); a plan without steps has score None, not zero."""
         scores=[safe_float(s.confidence.get("score"),0.0) for s in steps if s.confidence]
         if not scores:
             return {"score":None,"level":"UNKNOWN","method":"no steps: nothing to be confident about"}
@@ -26,6 +32,7 @@ class ScenarioPlanner(PlanOrdering):
         return {"score":round(score,3),"level":"HIGH" if score>=self.t.confidence_high_threshold else "MEDIUM" if score>=self.t.confidence_medium_threshold else "LOW","method":"bottleneck minimum of step confidences"}
 
     def _gate(self,c:CandidateRecommendation)->str:
+        """Validation gate code of a step: an A/B canary for canary-type changes, HITL approval plus post-change validation otherwise."""
         if c.knob=="warehouse_size" and c.status=="TEST_REQUIRED": return "A_B_CANARY_LATENCY_COST_ERROR"
         if c.knob=="min_clusters" and c.status=="TEST_REQUIRED": return "A_B_CANARY_QUEUE_LATENCY_COST"
         if c.knob=="warehouse_type": return "A_B_CANARY_COST_PERFORMANCE_COMPATIBILITY"
@@ -33,9 +40,17 @@ class ScenarioPlanner(PlanOrdering):
         return "HITL_APPROVAL_AND_POST_CHANGE_VALIDATION"
 
     def _compatibility(self,e:WarehouseEvidence,target_type:str)->Dict[str,Any]:
+        """Governor-owned migration compatibility checks against the target type (the planner only attaches them)."""
         return migration_compatibility(e,target_type)
 
     def scenarios(self,e:WarehouseEvidence,candidates:Sequence[CandidateRecommendation])->Tuple[List[Scenario],Optional[str]]:
+        """Return ([Plan A, Plan B], recommended internal scenario id).
+
+        Plan A holds the ACTIONABLE/TEST_REQUIRED/REVIEW candidates of the four current-type knobs in dependency
+        order; a step whose knob an earlier step invalidates is PENDING_REEVALUATION (priced only contingently).
+        Plan B holds the migration candidate alone, or no steps with an explanatory name when no migration was
+        evaluated. Requires one candidate per active knob (the candidate gate guarantees it).
+        """
         by_knob={c.knob:c for c in candidates}; by_id={c.recommendation_id:c for c in candidates}
         steps=[]; pending_invalidated=set()
         for c in self._plan_order([by_knob[k] for k in PLAN_KNOB_RANK if by_knob[k].status in {"ACTIONABLE","TEST_REQUIRED","REVIEW"}]):
