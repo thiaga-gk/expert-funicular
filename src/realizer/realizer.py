@@ -5,7 +5,7 @@
 
 ``realize_request`` orchestrates the capabilities and nothing else: normalization, policy, matching and lifecycle,
 realized-savings estimation, review, the ledger and the snapshot, and the files written live in their packages
-(docs/architecture/realizer-repo-reorg-design.md). The lineage entry is recorded first (``packager.begin``): a malformed
+(docs/architecture/realizer/repo-reorg-design.md). The lineage entry is recorded first (``packager.begin``): a malformed
 observation fails in the Analyzer after it. The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
 never lose a failure: each keeps it as a ``halt`` with the facts decided before it, and the Packager records those and
 raises it, so a failed run leaves the ledger the single-file Realizer left. The Estimator and the Reviewer return an empty

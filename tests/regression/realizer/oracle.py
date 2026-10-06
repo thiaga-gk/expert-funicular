@@ -1,7 +1,7 @@
 """Loader for the frozen single-file Realizer oracle in ``legacy/realizer_single_file/``.
 
 The oracle is the v1.0.0 single-file Realizer kept verbatim as the behavioral reference for the modular rewrite
-(docs/architecture/realizer-repo-reorg-design.md, section 21.4). It imports its sibling packages by top-level name
+(docs/architecture/realizer/repo-reorg-design.md, section 21.4). It imports its sibling packages by top-level name
 (``from contracts import ...``, ``from reporters import ...``), and its engine module is named ``realizer``, the
 same name as the ``src/realizer`` package. Putting its directory on ``sys.path`` would therefore shadow, or be
 shadowed by, other top-level names.

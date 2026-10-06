@@ -1,7 +1,7 @@
 """Hash-seed and time-zone independence of the Realizer, measured across processes.
 
 ``test_single_file_compatibility`` shows that output directories do not matter; this module covers the other claims of
-docs/proposals/realizer-repo-reorg-parity.md: the output is identical under different ``PYTHONHASHSEED`` values and
+docs/proposals/realizer/repo-reorg-parity.md: the output is identical under different ``PYTHONHASHSEED`` values and
 time zones, and the modular engine (src/realizer) equals the frozen oracle (legacy/realizer_single_file/).
 
 A representative subset of the scenarios runs in fresh interpreters, once per (engine, hash seed, time zone), all in

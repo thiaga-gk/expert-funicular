@@ -1,5 +1,7 @@
 # Realizer Cross-Document Readiness Review v1.0.0
 
+> Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](repo-reorg-parity.md).
+
 **Status:** COMPLETE — OFFLINE PHASE-1 RELEASE CANDIDATE READY  
 **Review date:** 2026-10-03  
 **Review scope:** Realizer JSON/Ledger, Source/Evidence, Policy, Goldens, PRD, HLD, LLD, Context, Reporter/Workbook compatibility, Product v2.8.0 repository, evolved from the Publisher v2.7.0 baseline, plus implemented Phase-1 Realizer.
@@ -149,7 +151,7 @@ Formula-error scan: **0 matches**.
 - Workbook extension projection: PASS.
 - Security/static scan for obvious `eval`/`exec`/token-print/TODO/FIXME patterns in new Realizer surfaces: no findings.
 
-See `docs/realizer/release-evidence-v1.0.0.md` and `examples/test-results.txt`.
+See [`release-evidence.md`](release-evidence.md).
 
 ## 9. External gates still open
 

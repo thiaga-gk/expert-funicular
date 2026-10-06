@@ -1,4 +1,4 @@
-"""Canonical Realizer outputs for the single-file compatibility baseline (realizer-repo-reorg-design.md 21.4, Phase 0).
+"""Canonical Realizer outputs for the single-file compatibility baseline (docs/architecture/realizer/repo-reorg-design.md 21.4, Phase 0).
 
 One place defines what "the same realization output" means, for ``tests/fixtures/realizer/expected/``,
 ``tests/regression/realizer/test_single_file_compatibility.py``, ``scripts/update_realizer_goldens.py`` and

@@ -1,4 +1,4 @@
-"""Single-file Realizer compatibility baseline (realizer-repo-reorg-design.md 21.4, Phases 0-4).
+"""Single-file Realizer compatibility baseline (docs/architecture/realizer/repo-reorg-design.md 21.4, Phases 0-4).
 
 The frozen oracle (legacy/realizer_single_file/realizer.py) and the modular engine (src/realizer) must each reproduce
 the stored canonical outputs under tests/fixtures/realizer/expected/ for every scenario under
@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
 from tests.regression.realizer import canonical  # noqa: E402
 
 EXAMPLES = ROOT / "legacy" / "realizer_single_file" / "examples"
-# Scenarios whose last observation is not idempotent in the oracle (recorded in docs/proposals/realizer-repo-reorg-parity.md;
+# Scenarios whose last observation is not idempotent in the oracle (recorded in docs/proposals/realizer/repo-reorg-parity.md;
 # the restatement-reprocessed scenario stores the same behavior for the candidate comparison and, being already
 # reprocessed, takes the ordinary idempotency check).
 KNOWN_NON_IDEMPOTENT = ("GR-026",)

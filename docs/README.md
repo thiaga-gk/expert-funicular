@@ -8,11 +8,14 @@ Contract versions are declared in code (`src/publisher/contracts/reporter_contra
 | | [`hld.md`](architecture/hld.md) | You need the component architecture and its traceability to requirements. |
 | | [`lld.md`](architecture/lld.md) | You are changing code: module responsibilities, CLI, internal contracts. |
 | | [`repo-reorg-design.md`](architecture/repo-reorg-design.md) | You are working on the package reorganization: target layout and approved decisions. |
-| | [`realizer-repo-reorg-design.md`](architecture/realizer-repo-reorg-design.md) | You are working on the Realizer reorganization: the frozen single-file oracle, target package layout, phases and implementation rules. |
+| | [`realizer/repo-reorg-design.md`](architecture/realizer/repo-reorg-design.md) | You are working on the Realizer package layout: the target layout, phases, implementation rules and the outcome of the reorganization. |
+| | [`realizer/context.md`](architecture/realizer/context.md), [`hld.md`](architecture/realizer/hld.md), [`lld.md`](architecture/realizer/lld.md) | You need the Realizer's domain language, component architecture and low-level design (the v1.0.0 specification). |
 | `product/` | [`prd.md`](product/prd.md) | You need what the product must do, scope and acceptance criteria. |
+| | [`realizer/prd.md`](product/realizer/prd.md) | You need what the Realizer must do: scope, requirements and its definition of done. |
 | `contracts/` | [`reporter-json-contract.md`](contracts/reporter-json-contract.md) | You consume or change the `RecommendationPackage` JSON. |
 | | [`workbook-contract.md`](contracts/workbook-contract.md) | You consume or change the workbook projection. |
 | | [`evidence-format.md`](contracts/evidence-format.md) | You write, replay (`--from-evidence`) or change `evidence.json`. |
+| | [`realizer/ledger-contract.md`](contracts/realizer/ledger-contract.md), [`policy-contract.md`](contracts/realizer/policy-contract.md), [`source-evidence-contract.md`](contracts/realizer/source-evidence-contract.md), [`workbook-compatibility-contract.md`](contracts/realizer/workbook-compatibility-contract.md) | You consume or change the Realizer's JSON, ledger, policy, observation or workbook-compatibility contract (`schema/realization-package.schema.json`, `schema/realization-ledger-entry.schema.json`). |
 | `reference/` | [`source-mapping.md`](reference/source-mapping.md) | You need which system table or API feeds which field. |
 | | [`thresholds.md`](reference/thresholds.md) | You are tuning or explaining policy thresholds. |
 | | [`product-constants.md`](reference/product-constants.md) | You need a documented Databricks limit or behavior the rules rely on (scale-up lag, auto-stop range, cluster limits). |
@@ -21,7 +24,8 @@ Contract versions are declared in code (`src/publisher/contracts/reporter_contra
 | | [`aws-cost-model.md`](reference/aws-cost-model.md) | You are working on AWS (non-DBU) economics. |
 | | [`known-limitations.md`](reference/known-limitations.md) | You need the open limitations of the current release. |
 | (root) | [`skills.md`](skills.md) | You are building a publisher for another Databricks service. |
-| `proposals/` | [`remediation-runbook.md`](proposals/remediation-runbook.md), [`golden-scenarios.md`](proposals/golden-scenarios.md), [`real-data-run.md`](proposals/real-data-run.md), [`gap-review-2.8.0.md`](proposals/gap-review-2.8.0.md), [`tracker.md`](proposals/tracker.md), [`repo-reorg-parity.md`](proposals/repo-reorg-parity.md), [`realizer-repo-reorg-parity.md`](proposals/realizer-repo-reorg-parity.md) | You are resolving open findings: the process, the scenario table and the design record. |
+| `proposals/` | [`remediation-runbook.md`](proposals/remediation-runbook.md), [`golden-scenarios.md`](proposals/golden-scenarios.md), [`real-data-run.md`](proposals/real-data-run.md), [`gap-review-2.8.0.md`](proposals/gap-review-2.8.0.md), [`tracker.md`](proposals/tracker.md), [`repo-reorg-parity.md`](proposals/repo-reorg-parity.md) | You are resolving open findings: the process, the scenario table and the design record. |
+| | [`realizer/repo-reorg-parity.md`](proposals/realizer/repo-reorg-parity.md), [`golden-scenarios.md`](proposals/realizer/golden-scenarios.md), [`implementation-release-plan.md`](proposals/realizer/implementation-release-plan.md), [`release-evidence.md`](proposals/realizer/release-evidence.md), [`readiness-review.md`](proposals/realizer/readiness-review.md) | You need the Realizer's reorganization record, golden scenarios, and the frozen v1.0.0 release plan, evidence and readiness review. |
 | `archive/` | Historical designs and audits | You need the rationale behind a shipped design. Not maintained. |
 
 ## Where each topic lives

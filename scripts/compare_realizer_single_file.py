@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare a candidate Realizer against the frozen single-file oracle on the same fixtures.
 
-The oracle is ``legacy/realizer_single_file/realizer.py`` (realizer-repo-reorg-design.md 21.4). Every scenario under
+The oracle is ``legacy/realizer_single_file/realizer.py`` (docs/architecture/realizer/repo-reorg-design.md 21.4). Every scenario under
 ``tests/fixtures/realizer/observations/`` (a frozen PKG from ``tests/fixtures/realizer/packages/`` plus a sequence of
 observations, policies and replay cuts) runs through both implementations into fresh directories, and the canonical
 outputs (``tests/regression/realizer/canonical.py``) are compared aspect by aspect: lifecycle state, blockers,

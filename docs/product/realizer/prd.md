@@ -1,7 +1,9 @@
 # Product Requirements Document — Databricks SQL Warehouse Realizer v1.0.0
 
+> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+
 **Status:** LOCKED  
-**Implementation baseline:** Product v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)
+**Implementation baseline:** Publisher v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)
 
 ## 1. Product statement
 

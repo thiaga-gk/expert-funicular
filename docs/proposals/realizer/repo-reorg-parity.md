@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-10 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager; extract reporter; reduce the engine to orchestration with a CLI adapter). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-10 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager; extract reporter; reduce the engine to orchestration with a CLI adapter). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 

@@ -1,5 +1,7 @@
 # Domain Context — Databricks SQL Warehouse Realizer v1.0.0
 
+> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+
 **Status:** LOCKED
 
 ## 1. Mental model
@@ -65,7 +67,7 @@ Zero means known zero. Null means unavailable/not defensible. Never coerce unkno
 
 ## 14. Phase-1 boundary
 
-Phase 1 is the v2.8.0 integrated release: `publisher.py + realizer.py`, SQL source execution, local JSON/JSONL, and proof of the complete closed loop. Future Phase-2 terminology and runtime design live exclusively under `docs/phase2/`.
+Phase 1 is the v1.0.0 Realizer release: the Publisher and the Realizer, SQL source execution, local JSON/JSONL, and proof of the complete closed loop. Phase-2 terminology and runtime design are not part of this repository.
 
 ## 15. Engineering mantra
 

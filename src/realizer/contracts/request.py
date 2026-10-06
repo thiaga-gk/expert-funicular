@@ -2,7 +2,7 @@
 
 The engine's entry point ``realizer.realizer.realize(package, observation, output_dir, *, policy=None,
 replay_through=None)`` takes these values as arguments today; ``RealizationRequest`` names the same inputs as one
-frozen value for the capability pipeline the reorganization builds toward (realizer-repo-reorg-design.md 4.4). It adds
+frozen value for the capability pipeline the reorganization builds toward (docs/architecture/realizer/repo-reorg-design.md 4.4). It adds
 no input, default or validation of its own.
 """
 from __future__ import annotations

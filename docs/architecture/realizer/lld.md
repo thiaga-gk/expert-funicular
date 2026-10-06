@@ -1,22 +1,23 @@
 # Low-Level Design — Databricks SQL Warehouse Realizer v1.0.0
 
+> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+
 **Status:** LOCKED  
-**Implementation baseline:** Product v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)
+**Implementation baseline:** Publisher v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)
 
 ## 1. Phase-1 structure
 
 ```text
-publisher.py        # existing one-file recommendation core
-realizer.py         # new one-file realization core
-contracts/          # stable public contracts
-schema/             # JSON schemas
-reporters/          # presentation
-pricing/            # existing registry
-docs/realizer/      # Realizer specifications
-tests/              # Publisher + Realizer regression/goldens
+src/realizer/realizer.py        # facade: realize_request() calls each capability once
+src/realizer/<capability>/      # analyzer, governor, reconciler, estimator, reviewer, packager, reporter
+src/realizer/contracts/         # typed contracts, report projection, JSON Schema builders
+src/realizer/cli/               # command-line adapter (`realizer`, `python -m realizer`)
+schema/realization-*.json       # committed JSON Schemas
+docs/*/realizer/                # Realizer specifications
+tests/                          # unit, component, golden, regression (stored baseline)
 ```
 
-Do not split `realizer.py` before the proof gate. Internal sections mirror future seams: canonical IDs, collection, application matching, plan authority, ledger, projection, readiness, Analyzer/M08/Estimator integration, denominator, attribution, exclusivity, daily value, corrections, drift, rollback, regeneration, portfolio, compatibility, persistence, CLI.
+The single-file core was split into the capability packages only after the proof gate (section 2). Its internal sections were the seams: canonical IDs, collection, application matching, plan authority, ledger, projection, readiness, Analyzer/M08/Estimator integration, denominator, attribution, exclusivity, daily value, corrections, drift, rollback, regeneration, portfolio, compatibility, persistence, CLI.
 
 ## 2. Extraction gate
 
@@ -78,4 +79,4 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 
 ## 14. Phase-2 boundary
 
-Phase-2 implementation mechanics are intentionally separated from this Phase-1 LLD. See `docs/phase2/lld.md` and `docs/phase2/migration-release-plan.md`.
+Phase-2 implementation mechanics are intentionally separated from this Phase-1 LLD. Phase 2 is not part of this repository.

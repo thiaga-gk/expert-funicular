@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Regenerate the stored Realizer compatibility baseline (``tests/fixtures/realizer/expected/``) from the frozen oracle.
 
-The baseline pins the single-file Realizer's behavior (realizer-repo-reorg-design.md 21.4 and Phase 0) while the
+The baseline pins the single-file Realizer's behavior (docs/architecture/realizer/repo-reorg-design.md 21.4 and Phase 0) while the
 modular ``src/realizer`` is extracted. The oracle is frozen, so rewriting the baseline is only for an approved change
 to the oracle or to its fixtures (a new scenario, a documented oracle defect fix recorded in
-``docs/proposals/realizer-repo-reorg-parity.md``); the script refuses to run without ``--approved-change`` naming it.
+``docs/proposals/realizer/repo-reorg-parity.md``); the script refuses to run without ``--approved-change`` naming it.
 
 Usage:
   python scripts/update_realizer_goldens.py --approved-change "<change>"                     # every scenario

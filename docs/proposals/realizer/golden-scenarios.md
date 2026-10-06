@@ -1,10 +1,12 @@
 # Golden Realization Scenario Specification v1.0.0
 
+> The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario that calls `realize()` has its canonical output under `tests/fixtures/realizer/expected/`.
+
 **Status:** LOCKED
 
 ## 1. Purpose
 
-Executable behavioral truth for Phase-1 `realizer.py`. Implementation behavior that conflicts with these scenarios is incorrect until the scenario or governing contract is deliberately revised.
+Executable behavioral truth for the Realizer. Implementation behavior that conflicts with these scenarios is incorrect until the scenario or governing contract is deliberately revised.
 
 ## 2. Scenario catalog
 

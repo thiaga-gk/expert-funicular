@@ -19,7 +19,7 @@ from tests.regression.realizer import canonical, oracle  # noqa: E402
 canonical.modular()  # src/realizer, never a shadowing copy
 from realizer.contracts import realization_schema as schema  # noqa: E402
 
-COMMITTED = ROOT / "legacy" / "realizer_single_file" / "schema"
+COMMITTED = ROOT / "schema"
 BUILDERS = {
     "realization-package.schema.json": "realization_package_schema",
     "realization-ledger-entry.schema.json": "ledger_entry_schema",
@@ -33,7 +33,7 @@ def serialize(value) -> bytes:
 
 class SchemaBuilderTests(unittest.TestCase):
     def test_builders_reproduce_committed_schema_files_byte_for_byte(self):
-        self.assertEqual(sorted(p.name for p in COMMITTED.glob("*.json")), sorted(BUILDERS))
+        self.assertTrue(all((COMMITTED / name).is_file() for name in BUILDERS))
         for file_name, builder in BUILDERS.items():
             with self.subTest(schema=file_name):
                 self.assertEqual(serialize(getattr(schema, builder)()), (COMMITTED / file_name).read_bytes())
