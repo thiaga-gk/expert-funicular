@@ -1,4 +1,4 @@
-"""Golden realization scenarios GR-001..GR-040 against the frozen single-file oracle.
+"""Golden realization scenarios GR-001..GR-040 against the frozen single-file oracle and the modular engine (src/realizer).
 
 Each test keeps its original inline construction from ``demo_observation``; the same observations are frozen under
 tests/fixtures/realizer/observations/GR-*.json with their canonical outputs in tests/fixtures/realizer/expected/
@@ -17,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.regression.realizer import canonical, oracle  # noqa: E402
-
-realizer = oracle.engine()
-rc = oracle.rc()
+canonical.modular()  # src/realizer, never a shadowing copy
+from realizer import realizer as modular_realizer  # noqa: E402
+from realizer.contracts import realization as modular_rc  # noqa: E402
 
 
 def _iso_add(value: str, days: int = 0, hours: int = 0) -> str:
@@ -28,6 +28,9 @@ def _iso_add(value: str, days: int = 0, hours: int = 0) -> str:
 
 
 class RealizerGoldenTests(unittest.TestCase):
+    realizer = oracle.engine()
+    rc = oracle.rc()
+
     @classmethod
     def setUpClass(cls):
         cls.package = canonical.load_scenario('example-exact')['package_doc']
@@ -41,10 +44,10 @@ class RealizerGoldenTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def obs(self, *, modified=False):
-        return realizer.demo_observation(self.pkg, modified=modified)
+        return self.realizer.demo_observation(self.pkg, modified=modified)
 
     def realize_case(self, obs=None, *, package=None, policy=None, out=None):
-        return realizer.realize(package or self.pkg, obs, out or self.out, policy=policy)
+        return self.realizer.realize(package or self.pkg, obs, out or self.out, policy=policy)
 
     def later(self, obs, *, days=1, new_application=False):
         x = copy.deepcopy(obs)
@@ -68,8 +71,8 @@ class RealizerGoldenTests(unittest.TestCase):
         return obs
 
     def ledger(self):
-        rpkg = realizer.make_rpkg_id(self.pkg['recommendation_package_id'])
-        return realizer.load_ledger(realizer.ledger_path(self.out, rpkg))
+        rpkg = self.realizer.make_rpkg_id(self.pkg['recommendation_package_id'])
+        return self.realizer.load_ledger(self.realizer.ledger_path(self.out, rpkg))
 
     # GR-001
     def test_gr_001_no_implementation(self):
@@ -93,12 +96,12 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-004
     def test_gr_004_modified_less_aggressive_numeric(self):
-        conf, rel = realizer._directional_relation(120, 30, 60)
-        self.assertEqual(conf, rc.ImplementationConformance.MODIFIED)
+        conf, rel = self.realizer._directional_relation(120, 30, 60)
+        self.assertEqual(conf, self.rc.ImplementationConformance.MODIFIED)
         self.assertEqual(rel, 'LESS_AGGRESSIVE')
         app = {'implementation_conformance':'MODIFIED', 'application_scope':'CANDIDATE', 'step':1, 'scenario_id':self.pkg['recommended_plan']['scenario_id']}
         o = self.obs(modified=True); o['economics']['expected_annual_savings_actual_scope'] = '80000'
-        e = realizer.calculate_economics(self.pkg, app, o, realizer.RealizerPolicy(), True, True)
+        e = self.realizer.calculate_economics(self.pkg, app, o, self.realizer.RealizerPolicy(), True, True)
         self.assertEqual(e['denominator_source'], 'REESTIMATED_APPLIED_SCOPE')
 
     # GR-005
@@ -118,7 +121,7 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-007
     def test_gr_007_unrelated_change(self):
-        o = self.obs(); o['config'] = realizer.package_config(self.pkg); o['config']['tag_only'] = 'x'
+        o = self.obs(); o['config'] = self.realizer.package_config(self.pkg); o['config']['tag_only'] = 'x'
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'NOT_APPLIED')
 
@@ -207,7 +210,7 @@ class RealizerGoldenTests(unittest.TestCase):
         candidate_steps = [x for x in scn['execution_plan'] if x['step_type'] == 'CANDIDATE']
         candidate_steps[0]['invalidates'] = []
         candidate_steps[1]['execution_state'] = 'READY_FOR_CANARY'
-        o = realizer.demo_observation(p)
+        o = self.realizer.demo_observation(p)
         o['config']['warehouse_size'] = candidate_steps[0]['recommended_value']
         o['config']['max_clusters'] = candidate_steps[1]['recommended_value']
         o['economics']['expected_annual_savings_actual_scope'] = '15000'
@@ -218,7 +221,7 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-020
     def test_gr_020_pending_downstream_change_not_credited(self):
-        o = self.obs(); o['config'] = realizer.package_config(self.pkg); o['config']['max_clusters'] = 3
+        o = self.obs(); o['config'] = self.realizer.package_config(self.pkg); o['config']['max_clusters'] = 3
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'NOT_APPLIED')
         self.assertFalse(s.economics.get('available', False))
@@ -228,7 +231,7 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-021
     def test_gr_021_plan_b_migration_scenario_realization(self):
         alt = next(s for s in self.pkg['scenarios'] if s['scenario_type'] == 'WAREHOUSE_TYPE_MIGRATION')
-        o = self.obs(); o['applied_scenario_id'] = alt['scenario_id']; o['config'] = realizer.package_config(self.pkg); o['config']['warehouse_type'] = 'SERVERLESS'
+        o = self.obs(); o['applied_scenario_id'] = alt['scenario_id']; o['config'] = self.realizer.package_config(self.pkg); o['config']['warehouse_type'] = 'SERVERLESS'
         o['economics']['expected_annual_savings_actual_scope'] = None
         s = self.realize_case(o)
         self.assertEqual(s.application['application_scope'], 'SCENARIO')
@@ -267,7 +270,7 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-025
     def test_gr_025_rollback_preserves_history(self):
         o = self.obs(); self.realize_case(o)
-        rb = self.later(o, days=2, new_application=True); rb['config'] = realizer.package_config(self.pkg); rb['rollback_observed'] = True; rb['economics'] = {}
+        rb = self.later(o, days=2, new_application=True); rb['config'] = self.realizer.package_config(self.pkg); rb['rollback_observed'] = True; rb['economics'] = {}
         s = self.realize_case(rb)
         self.assertEqual(s.current_state['realization_state'], 'ROLLED_BACK')
         self.assertGreater(s.history['entry_count'], 1)
@@ -279,7 +282,7 @@ class RealizerGoldenTests(unittest.TestCase):
         o2 = self.later(o); o2['economics']['observed_new_cost'] = '9200'; o2['correction'] = {'type':'RESTATEMENT','key':'oct','version':2,'reason':'late billing'}
         s = self.realize_case(o2)
         self.assertEqual(s.history['correction_count'], 1)
-        correction = next(e for e in self.ledger() if e.event_type == rc.EventType.BILLING_CORRECTION_RECORDED)
+        correction = next(e for e in self.ledger() if e.event_type == self.rc.EventType.BILLING_CORRECTION_RECORDED)
         self.assertIsNotNone(correction.corrects_entry_id)
         self.assertLess(Decimal(s.economics['realized_savings_period']), first_value)
         self.assertEqual(s.history['application_episode_count'], 1)
@@ -288,7 +291,7 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_027_provider_price_effects_keep_economic_basis_separate(self):
         o = self.obs(); o['economics']['economic_basis'] = 'CONSTANT_PRICE'; self.realize_case(o)
         o2 = self.later(o); o2['economics']['economic_basis'] = 'POSTED_DOLLAR'; self.realize_case(o2)
-        bases = [e.payload['economics']['economic_basis'] for e in self.ledger() if e.event_type == rc.EventType.ECONOMIC_MEASUREMENT_RECORDED]
+        bases = [e.payload['economics']['economic_basis'] for e in self.ledger() if e.event_type == self.rc.EventType.ECONOMIC_MEASUREMENT_RECORDED]
         self.assertIn('CONSTANT_PRICE', bases); self.assertIn('POSTED_DOLLAR', bases)
 
     # GR-028
@@ -332,28 +335,28 @@ class RealizerGoldenTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             sa = self.realize_case(o, out=Path(a)); sb = self.realize_case(o, out=Path(b))
             self.assertEqual(sa.snapshot_id, sb.snapshot_id)
-            self.assertEqual(rc.canonical_json(sa.to_dict()), rc.canonical_json(sb.to_dict()))
+            self.assertEqual(self.rc.canonical_json(sa.to_dict()), self.rc.canonical_json(sb.to_dict()))
 
     # GR-034
     def test_gr_034_policy_change_revalidates_without_rewriting_history(self):
         o = self.obs(); o['performance']['normalized_p95_runtime_regression_pct'] = '4.5'
-        p1 = realizer.RealizerPolicy(max_normalized_p95_runtime_regression_pct=Decimal('5'))
+        p1 = self.realizer.RealizerPolicy(max_normalized_p95_runtime_regression_pct=Decimal('5'))
         first = self.realize_case(o, policy=p1); self.assertEqual(first.validation['state'], 'PASSED')
         o2 = self.later(o)
-        p2 = realizer.RealizerPolicy(max_normalized_p95_runtime_regression_pct=Decimal('4'))
+        p2 = self.realizer.RealizerPolicy(max_normalized_p95_runtime_regression_pct=Decimal('4'))
         second = self.realize_case(o2, policy=p2)
         self.assertEqual(second.validation['state'], 'FAILED')
-        validations = [e for e in self.ledger() if e.event_type == rc.EventType.VALIDATION_COMPLETED]
+        validations = [e for e in self.ledger() if e.event_type == self.rc.EventType.VALIDATION_COMPLETED]
         self.assertGreaterEqual(len(validations), 2)
         self.assertNotEqual(validations[0].payload['policy_snapshot_id'], validations[-1].payload['policy_snapshot_id'])
 
     # GR-035
     def test_gr_035_churn_below_5pct_suppressed(self):
-        self.assertFalse(realizer.savings_improvement_material('400000','412000', realizer.RealizerPolicy()))
+        self.assertFalse(self.realizer.savings_improvement_material('400000','412000', self.realizer.RealizerPolicy()))
 
     # GR-036
     def test_gr_036_material_improvement_eligible(self):
-        self.assertTrue(realizer.savings_improvement_material('400000','430000', realizer.RealizerPolicy()))
+        self.assertTrue(self.realizer.savings_improvement_material('400000','430000', self.realizer.RealizerPolicy()))
 
     # GR-037
     def test_gr_037_conflicting_source_evidence_blocks_claim(self):
@@ -372,7 +375,7 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-039
     def test_gr_039_cumulative_authoritative_not_blind_incremental_sum(self):
-        x = realizer.authoritative_cumulative_realization('1000','810',['100','60','50'])
+        x = self.realizer.authoritative_cumulative_realization('1000','810',['100','60','50'])
         self.assertEqual(Decimal(x['authoritative']), Decimal('190'))
         self.assertEqual(Decimal(x['diagnostic_incremental_sum']), Decimal('210'))
         self.assertEqual(Decimal(x['interaction_delta']), Decimal('-20'))
@@ -385,6 +388,11 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.economics['mature_ttm_realized_savings'], '11000.00')
         self.assertNotEqual(s.economics['mature_ttm_realized_savings'], s.economics['annualized_realized_savings'])
 
+
+class ModularRealizerGoldenTests(RealizerGoldenTests):
+    """GR-001..GR-040 against the modular engine (src/realizer)."""
+    realizer = modular_realizer
+    rc = modular_rc
 
 
 class GoldenRegistryTests(unittest.TestCase):
