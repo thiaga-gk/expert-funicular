@@ -1,6 +1,6 @@
 # Realizer reorganization: parity record
 
-Status: **Phases 0-7 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
+Status: **Phases 0-8 complete** (freeze current behavior; extract contracts; extract config and common; extract analyzer and collector; extract governor; extract reconciler; extract estimator; extract reviewer; extract packager). The single-file Realizer is the behavioral oracle for the modular `src/realizer` rewrite. Design, phases and implementation rules: [`realizer-repo-reorg-design.md`](../architecture/realizer-repo-reorg-design.md) sections 21.4, 22 and 24.
 
 ## Phase 0: what is frozen
 
@@ -256,6 +256,66 @@ Left in the engine for Phase 8: `make_ledger_entry`, `ledger_business_key`, `app
 - `attribution_result` turns an origin that cannot be turned into text into `UNKNOWN`, because its enum fallback also catches the text conversion's error.
 - On the realize path `calculate_economics` re-evaluates readiness, which is always ready there (validation is due only when ready), and `attribution_result` always receives the quality gates, so its own gate fallback is reached only by direct calls.
 - A cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings.
+
+All are recorded for a separately reviewed change.
+
+### Behavior differences
+
+None known. All 41 scenarios and every compared malformed case behave identically to the oracle.
+
+## Phase 8: packager
+
+The ledger write side, the snapshot projection and the slot-by-slot commit leave the engine. `realize` now records the lineage (`packager.begin`), runs the Analyzer, the Governor and the Reconciler, runs the Estimator and the Reviewer when validation is due, and hands the reviewed result to `packager.run`, which records every event in the oracle's order, reloads the ledger, applies the replay cut and projects the snapshot. `process_observation` is gone. The oracle is unchanged.
+
+### Where the moved names live
+
+Every name keeps its spelling, signature, messages and values; `realizer.realizer.<name>` still resolves for each one (functions are the same objects, imported with `# noqa: F401`), and so does every other name the engine had.
+
+| Module | Names | From |
+|---|---|---|
+| `src/realizer/packager/ledger.py` | `ledger_business_key`, `make_ledger_entry`, `append_if_absent` (reload-per-append duplicate suppression and its `ledger.append` / `ledger.duplicate_suppressed` log lines), `ledger_checkpoint` | `realizer.py` |
+| `src/realizer/packager/ledger.py` | `append_regeneration` (the REGENERATION_REQUESTED entry, then the RERUN file) | `realizer.py` |
+| `src/realizer/packager/ledger.py` | `record_creation` (the REALIZATION_CREATED entry), `commit_events` (the evidence file, the lifecycle slots, the terminal regeneration or the validation, measurement and downstream-regeneration slots, with the halts raised at their positions), `evidence_path`, `regeneration_path`, `replacement_payload` (the supersession and link payload), `measurement_payload` (the measurement facts joined with the recognition status) | `realize`, `process_observation` |
+| `src/realizer/packager/snapshot.py` | `project_snapshot`, whole and verbatim (same source text as the oracle's) | `realizer.py` |
+| `src/realizer/packager/packager.py` | `begin(context)`, `run(context, reviewed) -> PackagingResult` | new |
+| `src/realizer/packager/packager.py` | `request_regeneration` (same signature, re-exported by the engine) | `realizer.py` |
+| `src/realizer/contracts/realization.py` | `PackagingResult` (`realization`, `entries`, `written`), an internal hand-off after the public types and outside `__all__` | new |
+| `src/realizer/realizer.py` | `review(context, analysis, governance, reconciliation) -> ReviewResult`: runs the Estimator and the Reviewer when validation is due and the reconciliation did not fail, otherwise an empty review | `process_observation` |
+
+Left in the engine for Phases 9 and 10: `realize`, `build_context`, `review`, `legacy_compatibility`, `parse_args` and `main`, and the two final writes of `realization/packages/<RPKG>.json` and `realization/snapshots/<RSNAP>.json` (the Reporter writes them in Phase 9).
+
+### Decisions
+
+- **The lineage entry is recorded before the Analyzer, so `begin` is separate from `run`.** The oracle appends REALIZATION_CREATED first and a malformed observation fails in the Analyzer after it. The Analyzer raises rather than keeping a `halt`, so committing the lineage inside `run` would leave no entry after an Analyzer failure. `packager.begin` records it at the oracle's position; `run` records the rest, and calling both never appends the entry twice (a repeat would log `ledger.duplicate_suppressed`). The oracle's initial ledger read, whose result is overwritten, stays as the first statement of `record_creation`: it keeps a corrupt ledger failing before anything is built.
+- **One commit, the oracle's order and positions.** `commit_events` records the evidence file, then drift, the application events, intent, rollback requested and observed, and supersession and the replacement link, and raises the reconciliation's `halt`; then either the terminal regeneration and its RERUN file (the run ends) or, when validation is due, the validation episode (ready, started, completed) and the review's `halt`, the counterfactual, the measurement and the correction and the estimate's `halt`, then the downstream regeneration (forced last, so its remeasurement failure comes after the measurement and the correction). Every entry is built by `make_ledger_entry` immediately before its own append, so a malformed value (a `corrects_entry_id` that is not an RLE id) fails at the position it always failed. The dedup stays per append: a repeated entry is suppressed even when an earlier slot of the same run recorded it.
+- **Option A is kept.** Failed runs leave the oracle's half-written ledger: the stages keep failures as `halt`, and the Packager records the facts decided before it and raises. The Estimator and the Reviewer still run before the commit (they never raise), but only when validation is due and the reconciliation did not fail, so a failed reconciliation never reaches them, as before.
+- **The replay cut is applied after the commit.** `run` reloads the ledger, cuts it at `replay_through` (an invalid cut raises, and a cut before every entry leaves nothing to project, both after the events were recorded and before any package or snapshot file is written) and projects the snapshot from the cut entries. `PackagingResult.entries` holds those entries and `written` the evidence (REVID) and regeneration (RERUN) files written, in write order. The package and snapshot files are not among them.
+- **`project_snapshot` is moved whole.** It folds lifecycle precedence, plan progress, validation, realization and maturity state and regeneration status over every entry; splitting it would risk the snapshot identity.
+- **`request_regeneration` lives in `packager.py`, not `ledger.py`.** It needs the Reconciler's `regeneration_request`, and importing the Reconciler from `ledger.py` would close an import cycle (the Analyzer reads the ledger). `append_regeneration` stays in `ledger.py`.
+- **Payload builders only where the engine built payloads inline.** Two exist: the supersession and link payload and the measurement payload (the join the previous phases left in the engine). The other events' payloads are decided by the capabilities and passed through unchanged.
+- **Shared test helpers.** The side-by-side scenario runner now also captures the Packager's calls and each run's replay cut (`tests/unit/realizer/parity.py`).
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `scripts/compare_realizer_single_file.py` (candidate `realizer.realizer`) | 41 scenarios: oracle = stored baseline = modular engine; the stored baseline is not regenerated |
+| Unnormalized output trees and log lines of every scenario, oracle against modular (`test_single_file_compatibility`), and subprocess determinism | byte-identical, 41/41 |
+| Moved functions (`test_ledger.py`): source text and signature identical to the oracle's; `make_ledger_entry` rebuilds all 363 stored entries of the 41 ledgers with their RLE ids and bytes; `ledger_business_key` over the same entries; 17 malformed-input cases raise the oracle's exception; `ledger_checkpoint` over every prefix, forward and reversed (808 comparisons) | pass |
+| `append_if_absent` (`test_ledger.py`): each of the 41 ledgers appended entry by entry, then every entry again; returns, file bytes and log lines identical; a corrupt ledger and an entry that cannot be serialized fail like the oracle and leave the file alone | pass |
+| `project_snapshot` (`test_snapshot.py`): 452 projections (every file-order prefix and every recorded-time cut of the 41 ledgers) equal the oracle's; each of the 51 stored snapshots (RSNAP) is reproduced from a prefix of its ledger; shuffled and duplicated entries; malformed package and entry input | pass |
+| `packager.run` over all 53 runs of the 41 scenarios (`test_packager.py`): the result's entries are the oracle's ledger lines after the run, cut at the replay time; the snapshot is the package body the oracle wrote; the written files are the evidence file and the regeneration files, all present in the oracle's tree; output trees and log lines identical | pass |
+| Replay (`test_packager.py`): 171 cuts (every recorded time of every ledger, one before all entries, one after all) reproduce the oracle's snapshot and leave the same trees; the cut is applied after the commit; the same observation twice records nothing the second time and logs only `ledger.duplicate_suppressed`; a billing restatement is a correction of the earlier measurement | pass |
+| Failed runs (`packager/test_failed_runs.py`): a corrupt ledger, the Analyzer, matching, after drift, intent, rollback requested and rollback observed, readiness, the review (after ready and started, before the episode id), the counterfactual, economics, attribution, the correction entry and payload, the downstream regeneration after the measurement and after the correction, and a replay cut that is not a time or leaves nothing to project; recovery after a failure | same outcome and same output tree as the oracle; the last event each leaves is pinned |
+| Mutation checks (automated) | recording one pair of adjacent slots in the other order (nine pairs: supersession and link, application and intent, drift and rollback, ready and started, started and completed, completed and counterfactual, counterfactual and measurement, measurement and correction, measurement and downstream regeneration), an `append_if_absent` without duplicate suppression, a Packager that raises a kept failure before recording the events ahead of it (reconciliation, review, estimate) and one that forces the downstream regeneration early each fail their mutation test |
+| Mutation checks (source edits, realizer unit suites) | supersession and link swapped fails 10 checks; no duplicate suppression 125; reconciliation failure raised before the lifecycle 29; intent before the application events 308; evidence file not written 332; lineage recorded after the Analyzer 11; replay cut ignored 9; correction without its `corrects_entry_id` 23; recognition status dropped 229; downstream regeneration forced before the validation 4; estimate failure raised before the review's 23. One edit is equivalent and passes: writing the RERUN file before its ledger append (the append cannot fail once the ledger loaded) |
+| Test suite | 1176 tests (1136 before: plus 40 packager unit tests; 4 skip as before), all pass |
+
+### Known oracle behavior kept for parity
+
+- `realize` reads the ledger before it records the lineage entry and then overwrites the result: only the read's failure is observable, so a corrupt ledger raises before the lineage entry exists, while a malformed observation raises after it.
+- A repeated entry is suppressed by id per append, so a run that records an event an earlier run (or an earlier slot) already recorded logs `ledger.duplicate_suppressed` and still rewrites its evidence and regeneration files with the same content.
+- A replay cut before every entry raises `cannot project empty ledger` after the events were recorded, and a cut that is not a time raises after them too; neither writes the package or snapshot file.
 
 All are recorded for a separately reviewed change.
 
