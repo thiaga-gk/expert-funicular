@@ -8,10 +8,10 @@ outputs (``tests/regression/realizer/canonical.py``) are compared aspect by aspe
 plan/step status, realized economics, attribution, review result, RLE sequence, RSNAP, RPKG and report, then file by
 file. The oracle's output is also checked against the stored baseline in ``tests/fixtures/realizer/expected/``.
 
-The candidate is resolved lazily from ``--candidate`` (default ``realizer.realizer``, the future ``src/realizer``
-facade): ``module:attr`` names an ``Engine`` or a factory returning one, a bare module exposes ``ENGINE`` or the
-single-file API. While no candidate package exists (before Phase 1 creates ``src/realizer``), the script compares
-the oracle against the stored baseline only and says so.
+The candidate is resolved lazily from ``--candidate`` (default ``realizer.realizer``, the modular ``src/realizer``
+engine): ``module:attr`` names an ``Engine`` or a factory returning one, a bare module exposes ``ENGINE`` or the
+single-file API (its workbook projection may live in the package's ``contracts.report``). If the candidate package
+cannot be found, the script compares the oracle against the stored baseline only and says so.
 
 Usage:
   python scripts/compare_realizer_single_file.py                                # every scenario
@@ -55,8 +55,7 @@ def main(argv=None) -> int:
         candidate = canonical.candidate_engine(args.candidate)
         print(f"candidate: {candidate.name} ({args.candidate})")
     else:
-        print(f"candidate: {args.candidate} not found (src/realizer does not exist yet); "
-              "comparing the oracle against the stored baseline only")
+        print(f"candidate: {args.candidate} not found; comparing the oracle against the stored baseline only")
 
     oracle = canonical.oracle_engine()
     failures: List[str] = []

@@ -111,13 +111,14 @@ def oracle_engine() -> Engine:
 
 
 def candidate_available(spec: str = DEFAULT_CANDIDATE) -> bool:
-    """Whether the candidate's top-level package can be found (``src/realizer`` does not exist before Phase 1)."""
+    """Whether the candidate's top-level package can be found on ``sys.path``."""
     return importlib.util.find_spec(spec.split(":")[0].split(".")[0]) is not None
 
 
 def candidate_engine(spec: str = DEFAULT_CANDIDATE) -> Engine:
     """Resolve a candidate lazily. ``module:attr`` names an ``Engine`` (or a zero-argument factory returning one);
-    a bare module must expose ``ENGINE`` or the single-file API plus ``project_realizer_workbook``."""
+    a bare module must expose ``ENGINE`` or the single-file API, with ``project_realizer_workbook`` either in the
+    module itself or in its package's ``contracts.report`` (the modular layout)."""
     module_name, _, attr = spec.partition(":")
     module = importlib.import_module(module_name)
     target = getattr(module, attr or "ENGINE", None)
@@ -127,7 +128,33 @@ def candidate_engine(spec: str = DEFAULT_CANDIDATE) -> Engine:
         return target
     if attr:
         raise TypeError(f"{spec} is not a Realizer Engine")
-    return engine_from_module(module_name, module, module)
+    workbook = module
+    if not hasattr(module, "project_realizer_workbook"):
+        workbook = importlib.import_module(module_name.split(".")[0] + ".contracts.report")
+    name = "modular realizer" if module_name == DEFAULT_CANDIDATE else module_name
+    return engine_from_module(name, module, workbook)
+
+
+SRC = ROOT / "src" / "realizer"
+
+
+def modular():
+    """The modular engine module ``realizer.realizer``, checked to resolve to this repository's ``src/realizer``.
+
+    Guards against a stray top-level ``realizer`` (an installed copy, a root folder, a test package on ``sys.path``)
+    shadowing the package under test. The oracle is loaded under its private name and can never satisfy this import.
+    """
+    module = importlib.import_module("realizer.realizer")
+    path = Path(module.__file__).resolve()
+    if path.parent != SRC.resolve():
+        raise ImportError(f"realizer.realizer resolved to {path}, not {SRC}")
+    return module
+
+
+def modular_engine() -> Engine:
+    """The modular engine (``src/realizer``) as a baseline ``Engine``."""
+    modular()
+    return candidate_engine(DEFAULT_CANDIDATE)
 
 
 # ---------------------------------------------------------------------------
