@@ -77,7 +77,7 @@ class CarryTests(unittest.TestCase):
             self.assertIn(f"c.{CARRY_PERIOD_COLUMNS[family]} < c.cur_start", sql)
             self.assertIn("epoch_start AS period_start", sql)
         self.assertIn("demand_period_start < cur_start", build_carried_spill_source_sql(t))
-        self.assertIn("'BUSY_START' AS scope", build_carried_concurrency_sql(t))
+        self.assertIn("'BUSY_START' AS scope", build_carried_concurrency_sql())
 
     def test_carry_survives_a_new_epoch_without_queries(self):
         def drop_current_query(rows):
@@ -111,7 +111,7 @@ class CarryTests(unittest.TestCase):
         self.assertIn("c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS", sql)
 
     def test_carried_concurrency_clips_at_the_period_end(self):
-        sql = build_carried_concurrency_sql(Thresholds())
+        sql = build_carried_concurrency_sql()
         self.assertIn("CASE WHEN x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY THEN CURRENT_TIMESTAMP() ELSE x.start_time END), CURRENT_TIMESTAMP()) AS t", sql)
 
     def test_recent_window_covering_the_epoch_is_not_a_seasonal_peak(self):

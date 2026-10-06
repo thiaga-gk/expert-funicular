@@ -42,7 +42,7 @@ class ConcurrencyOracleTests(unittest.TestCase):
         self.assertIsNone(histogram_percentile(None, 99.5))
 
     def test_sql_shape(self):
-        sql = build_concurrency_sql(Thresholds())
+        sql = build_concurrency_sql()
         for scope in CONCURRENCY_SCOPES:
             self.assertIn(f"'{scope}' AS scope", sql)
         self.assertIn("TIMESTAMPDIFF(MILLISECOND", sql)

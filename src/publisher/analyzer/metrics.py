@@ -9,18 +9,19 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.common.time import parse_datetime
 from publisher.common.utils import clamp, optional_float, safe_float, safe_int
+from publisher.config.defaults import AUTO_STOP_FLOOR_PRO_CLASSIC, AUTO_STOP_FLOOR_SERVERLESS, AUTO_STOP_MAX_MINUTES, auto_stop_floor
 from publisher.governor.thresholds import Thresholds
 from publisher.contracts.source import EpochEvidence, WarehouseEvidence
 
 
 def auto_stop_targets(t: Thresholds) -> List[int]:
     """Every auto-stop value any supported warehouse type may be evaluated at (the collector measures each)."""
-    return list(range(min(t.auto_stop_floor_serverless, t.auto_stop_floor_pro_classic), t.auto_stop_max_minutes + 1, t.auto_stop_step_minutes))
+    return list(range(min(AUTO_STOP_FLOOR_SERVERLESS, AUTO_STOP_FLOOR_PRO_CLASSIC), AUTO_STOP_MAX_MINUTES + 1, t.auto_stop_step_minutes))
 
 
 def auto_stop_candidates(t: Thresholds, warehouse_type: str) -> List[int]:
     """Auto-stop values evaluated for one warehouse type: every step from the type's floor up to the maximum."""
-    floor = t.auto_stop_floor_serverless if warehouse_type == "SERVERLESS" else t.auto_stop_floor_pro_classic
+    floor = auto_stop_floor(warehouse_type)
     return [x for x in auto_stop_targets(t) if x >= floor]
 
 

@@ -333,13 +333,13 @@ Reads a daily resource series for the current epoch over the last `RESOURCE_DAIL
 Auto-stop is priced on idle time the warehouse actually ran. `build_running_idle_sql()` and `build_running_idle_targets_sql()` build, for the current epoch only, the idle gaps (the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now, or from the window start when there is no query) and intersect them with the `RUNNING` segments of `system.compute.warehouse_events`. The period is the same as the event totals (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision. Two queries share one set of CTEs:
 
 - one row per warehouse: the window, the query count, the running segment count, the observed running cluster-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive);
-- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `auto_stop_max_minutes`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
+- one row per auto-stop value (every `auto_stop_step_minutes` step from the lower floor to `AUTO_STOP_MAX_MINUTES`) that has a non-zero field: the removable running wall and cluster minutes, the additional starts a lower value causes, the starts a higher value avoids, and the idle wall minutes a higher value adds.
 
 The normalizer stores them as `gaps.running_idle_*` keys and the sparse `gaps.running_idle_by_target` map keyed by minutes; a value without a row is a known zero, while missing keys mean the evidence was not collected (auto-stop then fails closed, 15.6). `running_idle_metrics()` is the Python reference of the same arithmetic and is what the tests pin. A value covers a gap only when it is `auto_stop_bridge_margin_pct` longer than the gap, and a gap counts as running throughout when the warehouse ran at least `running_idle_full_window_fraction` of it.
 
 #### Concurrency SQL
 
-`build_concurrency_sql()` measures per UTC minute the time-weighted number of running plus queued queries (a query occupies `[start_time, end_time)`, millisecond precision); the level of a minute is that number rounded up. It writes histograms (level to number of minutes) per epoch for the last 365 days under `query.concurrency_histogram`: `EPOCH` (busy minutes) for every epoch, and for the current epoch also `RECENT` (the last 30 days) and `BUSY_START` (for each busy period that starts after at least the scale-up lag of idle minutes, its highest level in its first lag minutes, so the weight is the number of periods). The lag is `scale_up_lag_minutes_pro_classic` or `scale_up_lag_minutes_serverless`. A missing histogram means it was not collected and every rule that needs it fails closed. `concurrency_histograms()` is the Python reference.
+`build_concurrency_sql()` measures per UTC minute the time-weighted number of running plus queued queries (a query occupies `[start_time, end_time)`, millisecond precision); the level of a minute is that number rounded up. It writes histograms (level to number of minutes) per epoch for the last 365 days under `query.concurrency_histogram`: `EPOCH` (busy minutes) for every epoch, and for the current epoch also `RECENT` (the last 30 days) and `BUSY_START` (for each busy period that starts after at least the scale-up lag of idle minutes, its highest level in its first lag minutes, so the weight is the number of periods). The lag is `SCALE_UP_LAG_MINUTES_PRO_CLASSIC` or `SCALE_UP_LAG_MINUTES_SERVERLESS`. A missing histogram means it was not collected and every rule that needs it fails closed. `concurrency_histograms()` is the Python reference.
 
 #### Spill-source SQL
 
@@ -764,13 +764,13 @@ Otherwise the result is `NO_CHANGE` with the blockers preserved. At the smallest
 
 ### 15.4 Max clusters
 
-Pro/Classic ceilings follow query concurrency. The collector measures the running plus queued queries of every busy UTC minute (7.2, Concurrency SQL); one Pro/Classic cluster serves `queries_per_cluster_pro_classic` concurrent queries, so peak demand in queries becomes clusters. Two peaks are used:
+Pro/Classic ceilings follow query concurrency. The collector measures the running plus queued queries of every busy UTC minute (7.2, Concurrency SQL); one Pro/Classic cluster serves `QUERIES_PER_CLUSTER_PRO_CLASSIC` concurrent queries, so peak demand in queries becomes clusters. Two peaks are used:
 
 - the recent peak: the `max_cluster_target_percentile` percentile of the busy minutes of the last 30 days (needs at least `concurrency_min_busy_minutes` busy minutes);
 - the epoch peak: the level reached in at least `peak_demand_min_minutes` busy minutes of the whole current epoch. A long window uses this instead of a percentile because a two-hour quarter-end peak is a tiny share of months of busy minutes. It only matters when it needs more clusters than the recent window's peak read at the same rate (the level reached in `peak_demand_min_minutes` × recent days / epoch days of its busy minutes, at least one; recent days = 30 or the epoch's age when younger): then the peak lies outside the recent window, a cut targets the epoch peak, and a cut held by it carries `PEAK_OUTSIDE_RECENT_WINDOW`. A histogram with fewer busy minutes than that has no sustained peak.
 
 ```text
-target(peak_clusters) = min(max_clusters_supported_limit,
+target(peak_clusters) = min(MAX_CLUSTERS_SUPPORTED_LIMIT,
                             max(min_clusters, peak_clusters + max_cluster_target_headroom_clusters))
 ```
 
@@ -787,11 +787,11 @@ An increase is considered when all of these hold:
 Unknown queue frequency or capacity wait is never read as 0. Outcomes:
 
 - queue share and saturation reached but the capacity wait was not reported: `INSUFFICIENT_EVIDENCE` with `QUEUE_WAIT_EVIDENCE_UNAVAILABLE`;
-- all signals reached and `max_clusters` is already at `max_clusters_supported_limit`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
+- all signals reached and `max_clusters` is already at `MAX_CLUSTERS_SUPPORTED_LIMIT`: `BLOCKED` with `MAX_CLUSTER_LIMIT_REACHED`;
 - all signals reached and an evidence gate holds: `INSUFFICIENT_EVIDENCE` with `CURRENT_CONFIG_EPOCH_TOO_NEW` (configuration not ready), `INSUFFICIENT_QUERY_SAMPLE` (fewer than `min_query_sample_size` queries) or `INSUFFICIENT_AFFECTED_QUERY_SAMPLE` (fewer than `severity_min_affected_queries` queued queries);
 - Pro/Classic with no concurrency evidence: `INSUFFICIENT_EVIDENCE` with `CONCURRENCY_EVIDENCE_UNAVAILABLE`; with fewer than `concurrency_min_busy_minutes` busy minutes: `INSUFFICIENT_EVIDENCE` with `INSUFFICIENT_BUSY_MINUTE_SAMPLE`;
 - Pro/Classic where the target from the recent peak is not above the current maximum: `NO_CHANGE` with `QUEUEING_WITH_DEMAND_WITHIN_CEILING`, because peak demand fits the current ceiling and the queueing is not caused by the ceiling;
-- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `max_clusters_supported_limit`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
+- Pro/Classic otherwise: `ACTIONABLE`, one move to the target (not a fixed step); the change invalidates min clusters. When the demand-derived target exceeds `MAX_CLUSTERS_SUPPORTED_LIMIT`, the increase stays `ACTIONABLE` at the limit with the informational code `PEAK_DEMAND_ABOVE_CLUSTER_LIMIT`, and the rationale gives the clusters the peak needs: queueing remains at the peak, and a larger size or a split workload is a human decision;
 - Serverless: `ACTIONABLE`, one cluster more, at low confidence; the change invalidates min clusters.
 
 When the recent resource window is unavailable, saturation cannot be judged and the decision is `NO_CHANGE` with `RECENT_RESOURCE_WINDOW_UNAVAILABLE` (series not collected) or `NO_RECENT_RUNNING_TIME` (collected but the warehouse did not run in the window).
@@ -835,7 +835,7 @@ The floor carries the demand a busy period starts with until the autoscaler adds
 
 ```text
 floor_target = max(1, ceil(P(min_cluster_busy_start_percentile) of busy-period start demand
-                           / queries_per_cluster_pro_classic))
+                           / QUERIES_PER_CLUSTER_PRO_CLASSIC))
 ```
 
 A floor is lowered, in one canary, only when the target is below the current minimum; a floor raise is never recommended. A target at or above the current minimum is `NO_CHANGE` (the current floor is needed). It applies to every supported type, so a Serverless floor is judged on the same demand with its shorter lag.
@@ -859,7 +859,7 @@ With no blocker and a target below the current minimum the status is `TEST_REQUI
 
 Auto-stop is not a fixed target by workload class: it jumps to the value that costs least on the warehouse's own measured running idle time (7.2, Running-idle SQL). Idle time is only a cost while the warehouse runs, and a lower value saves idle minutes but adds restarts for the gaps it no longer bridges.
 
-**Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`auto_stop_floor_pro_classic` for Pro and Classic, `auto_stop_floor_serverless` for standard Serverless) up to `auto_stop_max_minutes`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
+**Values evaluated.** Every `auto_stop_step_minutes` step from the type's floor (`AUTO_STOP_FLOOR_PRO_CLASSIC` for Pro and Classic, `AUTO_STOP_FLOOR_SERVERLESS` for standard Serverless) up to `AUTO_STOP_MAX_MINUTES`. A Serverless value below its floor, set through the API, is left alone (`NO_CHANGE`). Pro and Classic never go below their floor (the reviewer rejects it). A value covers a gap, so the warehouse stays up and no restart happens, only when it is `auto_stop_bridge_margin_pct` longer than the gap.
 
 **Objective per value**, in cluster-minutes (the floor cluster count is the current minimum, at least 1):
 
@@ -1071,7 +1071,7 @@ cost factor: low = 1.0, base = 1 + raw_uplift * max_cluster_base_uplift_weight, 
 
 The best case is no added cost (factor 1.0): the same queries run on more clusters at once, so total running time does not grow. The worst case runs every added cluster whenever the warehouse sat at its ceiling. Direct savings are not expected; the range represents a cost increase for performance.
 
-For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / queries_per_cluster_pro_classic), target)` clusters instead of `min(ceil(level / queries_per_cluster_pro_classic), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
+For Pro/Classic with concurrency evidence the base case is what peak demand actually needs under the new ceiling. Each busy minute of the recent window runs `min(ceil(level / QUERIES_PER_CLUSTER_PRO_CLASSIC), target)` clusters instead of `min(ceil(level / QUERIES_PER_CLUSTER_PRO_CLASSIC), current)`; the added cluster-minutes as a share of the recent cluster-minutes are the base uplift, never above the worst case. Otherwise (Serverless, or no histogram) the base is `max_cluster_base_uplift_weight` of the worst case.
 
 ### 17.7 Migration estimator
 
@@ -1139,7 +1139,7 @@ It validates:
 - warehouse-size target belongs to known size order,
 - min/max cluster target bounds,
 - `min <= max` consistency against current config,
-- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `auto_stop_floor_pro_classic`,
+- nonnegative auto-stop, and a changed Pro/Classic auto-stop at or above `AUTO_STOP_FLOOR_PRO_CLASSIC`,
 - package currency consistency.
 
 ```mermaid

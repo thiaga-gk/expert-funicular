@@ -402,10 +402,10 @@ An increase may be proposed only when all of the following hold:
 - p95 capacity wait among queued queries is at or above the increase level (`queue_wait_p95_ms_increase_max`);
 - time at the configured maximum is saturated over the recent resource window (`time_at_max_pct_saturated`, `pressure_window_days`); saturation and queueing are required together but are not proven to coincide (`docs/reference/known-limitations.md`);
 - enough queries queued for the p95 to be meaningful (`severity_min_affected_queries`), the 30-day query sample is large enough (`min_query_sample_size`) and the current configuration is ready (`readiness_min_billed_days`);
-- the configured maximum is below the supported limit (`max_clusters_supported_limit`);
+- the configured maximum is below the supported limit (`MAX_CLUSTERS_SUPPORTED_LIMIT`);
 - for Pro and Classic, peak query concurrency was collected and covers enough busy minutes (`concurrency_min_busy_minutes`).
 
-For Pro and Classic the new maximum is derived from peak concurrency: the peak running plus queued queries (`max_cluster_target_percentile` of busy minutes), at the documented queries per cluster (`queries_per_cluster_pro_classic`), plus headroom (`max_cluster_target_headroom_clusters`), in one move. When peak demand already fits the current ceiling the candidate is `NO_CHANGE`: the queueing is not caused by the ceiling. Serverless keeps a one-cluster step.
+For Pro and Classic the new maximum is derived from peak concurrency: the peak running plus queued queries (`max_cluster_target_percentile` of busy minutes), at the documented queries per cluster (`QUERIES_PER_CLUSTER_PRO_CLASSIC`), plus headroom (`max_cluster_target_headroom_clusters`), in one move. When peak demand already fits the current ceiling the candidate is `NO_CHANGE`: the queueing is not caused by the ceiling. Serverless keeps a one-cluster step.
 
 When the frequency and saturation signals are present but capacity wait is unreported, or the sample, queued-query count or epoch age is insufficient, the candidate is `INSUFFICIENT_EVIDENCE`; so is a Pro/Classic candidate without concurrency evidence. At the supported limit it is `BLOCKED`. Unknown queue evidence is never treated as zero.
 
@@ -438,7 +438,7 @@ A reduction may be proposed only when current-epoch evidence demonstrates substa
 - no older epoch of the warehouse within the last 365 days peaked at more clusters of demand than the recent window;
 - busy-period start concurrency was collected and covers enough busy periods (`min_cluster_min_busy_periods`).
 
-The target floor is the smallest that carries the demand busy periods start with (`min_cluster_busy_start_percentile` of busy-period peaks in the first scale-up-lag minutes, `scale_up_lag_minutes_pro_classic` / `scale_up_lag_minutes_serverless`), moved in one canary; a floor raise is never recommended. A pinned warehouse (minimum equal to maximum) is not held for sustained scale pressure, since it always runs at its maximum; queueing is judged instead.
+The target floor is the smallest that carries the demand busy periods start with (`min_cluster_busy_start_percentile` of busy-period peaks in the first scale-up-lag minutes, `SCALE_UP_LAG_MINUTES_PRO_CLASSIC` / `SCALE_UP_LAG_MINUTES_SERVERLESS`), moved in one canary; a floor raise is never recommended. A pinned warehouse (minimum equal to maximum) is not held for sustained scale pressure, since it always runs at its maximum; queueing is judged instead.
 
 Unreported queue frequency or capacity wait holds the reduction (`docs/reference/blocker-codes.md`).
 
@@ -446,7 +446,7 @@ Time at the minimum does not prove a floor cluster was spare, so the status shal
 
 ### FR-OPT-008 — Auto-stop
 
-The optimizer shall choose, among the auto-stop values the warehouse type allows (every step from the type's floor to a maximum: `auto_stop_floor_pro_classic`, `auto_stop_floor_serverless`, `auto_stop_step_minutes`, `auto_stop_max_minutes`), the one that costs least on the warehouse's measured running idle time: idle gaps intersected with the time the warehouse actually ran. A lower value is scored on the idle running minutes it removes minus the restarts it adds; a higher value on the restarts it saves minus the idle time it adds. A restart is priced at the documented start time per floor cluster (`restart_cost_cluster_minutes_pro_classic`, `restart_cost_cluster_minutes_serverless`); whether starting minutes are billed is not documented, so the Pro/Classic restart cost is a stated assumption. A value covers a gap only when it is longer than the gap by a margin (`auto_stop_bridge_margin_pct`).
+The optimizer shall choose, among the auto-stop values the warehouse type allows (every step from the type's floor to a maximum: `AUTO_STOP_FLOOR_PRO_CLASSIC`, `AUTO_STOP_FLOOR_SERVERLESS`, `auto_stop_step_minutes`, `AUTO_STOP_MAX_MINUTES`), the one that costs least on the warehouse's measured running idle time: idle gaps intersected with the time the warehouse actually ran. A lower value is scored on the idle running minutes it removes minus the restarts it adds; a higher value on the restarts it saves minus the idle time it adds. A restart is priced at the documented start time per floor cluster (`restart_cost_cluster_minutes_pro_classic`, `restart_cost_cluster_minutes_serverless`); whether starting minutes are billed is not documented, so the Pro/Classic restart cost is a stated assumption. A value covers a gap only when it is longer than the gap by a margin (`auto_stop_bridge_margin_pct`).
 
 Running time past the current auto-stop with no query running (open sessions, result fetching, keep-alive) is reported and never counted as removable. The best net saving wins; among values within `auto_stop_near_best_pct` of it the smallest change wins.
 

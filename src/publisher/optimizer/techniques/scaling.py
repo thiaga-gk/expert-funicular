@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from publisher.analyzer.blockers import RESOURCE_WINDOW_BLOCKERS, failure_blockers
 from publisher.common.utils import safe_float, safe_int
+from publisher.config.defaults import MAX_CLUSTERS_SUPPORTED_LIMIT
 from publisher.contracts.analysis import AnalysisResult
 from publisher.contracts.candidate import OptimizationDecision
 from publisher.contracts.source import WarehouseConfig, WarehouseEvidence
@@ -34,7 +35,7 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
             {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUE_WAIT_EVIDENCE_UNAVAILABLE"],
             ["warehouse_size"],[],[],"Queueing and saturation cross the increase thresholds, but capacity-wait severity was not reported (older collector evidence); no change is recommended."))
     elif queue_known and f["queue_pct"] >= self.t.queue_query_pct_increase_max and f["wait_capacity"] is not None and f["wait_capacity"] >= self.t.queue_wait_p95_ms_increase_max and saturated:
-        if cfg.max_clusters >= self.t.max_clusters_supported_limit:
+        if cfg.max_clusters >= MAX_CLUSTERS_SUPPORTED_LIMIT:
             out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","BLOCKED",
                 {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["MAX_CLUSTER_LIMIT_REACHED"],
                 ["warehouse_size"],[],[],"Concurrency pressure exists but max clusters is at the policy/API limit."))
@@ -59,8 +60,8 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
             # Pro/Classic: one move to the demand-derived ceiling (peak running + queued queries per cluster, plus
             # headroom). Serverless scales differently, so it keeps one step at a time (at low confidence).
             demand = max(cfg.min_clusters, safe_int(f["required_clusters_recent"]) + self.t.max_cluster_target_headroom_clusters)
-            target = min(self.t.max_clusters_supported_limit, demand) if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1
-            capped = cfg.warehouse_type!="SERVERLESS" and demand > self.t.max_clusters_supported_limit
+            target = min(MAX_CLUSTERS_SUPPORTED_LIMIT, demand) if cfg.warehouse_type!="SERVERLESS" else cfg.max_clusters+1
+            capped = cfg.warehouse_type!="SERVERLESS" and demand > MAX_CLUSTERS_SUPPORTED_LIMIT
             if target <= cfg.max_clusters:
                 out.append(OptimizationDecision(e.warehouse_id,"max_clusters","PERFORMANCE","NO_CHANGE",
                     {"max_clusters":cfg.max_clusters},{"max_clusters":cfg.max_clusters},["QUEUEING_WITH_DEMAND_WITHIN_CEILING"],["warehouse_size"],[],[],
@@ -71,7 +72,7 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
                     ("Sustained queueing at the current ceiling; the ceiling moves in one step to cover peak demand." if cfg.warehouse_type!="SERVERLESS" else
                      "Sustained queueing plus observed saturation at the current ceiling indicates more concurrency capacity.")
                     + " " + MAX_INCREASE_COST_BOUNDS
-                    + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {self.t.max_clusters_supported_limit}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
+                    + (f" Peak demand ({f['peak_concurrency_recent']} concurrent queries) needs {demand} clusters with headroom, above the {MAX_CLUSTERS_SUPPORTED_LIMIT}-cluster limit: queueing remains at the peak, and a larger size or splitting the workload is a human decision." if capped else "")))
     elif not window_known:
         # Without recent resource time neither saturation nor the unused ceiling can be judged.
         missing = f["resource_window_state"] == "MISSING"
@@ -87,7 +88,7 @@ def decide_max_clusters(self: "Optimizer", e: WarehouseEvidence, analyses: Dict[
             # Pro/Classic: the ceiling is the demand-derived target; the whole current epoch's peak demand keeps it
             # for a seasonal peak outside the recent window.
             def target_for(clusters: Optional[int]) -> int:
-                return min(self.t.max_clusters_supported_limit, max(cfg.min_clusters, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
+                return min(MAX_CLUSTERS_SUPPORTED_LIMIT, max(cfg.min_clusters, safe_int(clusters) + self.t.max_cluster_target_headroom_clusters))
             if not f["concurrency_available"]:
                 demand_blocker = "CONCURRENCY_EVIDENCE_UNAVAILABLE"
             elif safe_float(f["busy_minutes_recent"]) < self.t.concurrency_min_busy_minutes:

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from publisher.common.utils import safe_float, safe_int
-from publisher.config.defaults import ACTIVE_KNOBS, SIZE_ORDER
+from publisher.config.defaults import ACTIVE_KNOBS, AUTO_STOP_FLOOR_PRO_CLASSIC, MAX_CLUSTERS_SUPPORTED_LIMIT, MIN_CLUSTERS_SUPPORTED_LIMIT, SIZE_ORDER
 from publisher.contracts.candidate import CandidateRecommendation
 from publisher.contracts.source import WarehouseEvidence
 
@@ -52,7 +52,7 @@ class CandidateGate:
                 if x not in SIZE_ORDER and x!=cfg.warehouse_size: raise ValueError(f"Invalid size: {x}")
             if c.knob=="min_clusters":
                 x=safe_int(c.recommended_config.get("min_clusters"),cfg.min_clusters)
-                if not 1 <= x <= self.t.min_clusters_supported_limit: raise ValueError("min_clusters outside supported range")
+                if not 1 <= x <= MIN_CLUSTERS_SUPPORTED_LIMIT: raise ValueError("min_clusters outside supported range")
                 # A rollback restores floor and ceiling together: the floor must fit under the ceiling it comes back with.
                 ceiling=cfg.max_clusters
                 if "CANARY_GUARDRAIL_BREACHED" in c.blockers:
@@ -61,11 +61,11 @@ class CandidateGate:
                 if x > ceiling: raise ValueError("min_clusters exceeds current max_clusters")
             if c.knob=="max_clusters":
                 x=safe_int(c.recommended_config.get("max_clusters"),cfg.max_clusters)
-                if not 1<=x<=self.t.max_clusters_supported_limit: raise ValueError("max_clusters outside supported range")
+                if not 1<=x<=MAX_CLUSTERS_SUPPORTED_LIMIT: raise ValueError("max_clusters outside supported range")
                 if x < cfg.min_clusters: raise ValueError("max_clusters below current min_clusters")
             if c.knob=="auto_stop_minutes":
                 x=safe_int(c.recommended_config.get("auto_stop_minutes"),cfg.auto_stop_minutes)
                 if x < 0: raise ValueError("auto_stop_minutes < 0")
-                if x != cfg.auto_stop_minutes and cfg.warehouse_type != "SERVERLESS" and x < self.t.auto_stop_floor_pro_classic:
+                if x != cfg.auto_stop_minutes and cfg.warehouse_type != "SERVERLESS" and x < AUTO_STOP_FLOOR_PRO_CLASSIC:
                     raise ValueError("auto_stop_minutes below the Pro/Classic minimum")
             if str(c.metadata.get("currency"))!=e.currency: raise ValueError("Currency mismatch")

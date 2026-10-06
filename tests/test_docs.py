@@ -125,6 +125,22 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(sorted(set(documented) - set(fields)), [], "thresholds.md lists parameters the code no longer has")
         self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
 
+    def test_thresholds_reference_lists_every_derived_value(self):
+        text = read(ROOT / "docs/reference/thresholds.md")
+        rows = re.findall(r"^\| `(\w+)` \| `\w+` − 0\.01 \(([\d.]+)\) \|", text, re.M)
+        derived = {name for name, value in vars(Thresholds).items() if isinstance(value, property)}
+        self.assertEqual(sorted(name for name, _ in rows), sorted(derived))
+        for name, value in rows:
+            self.assertEqual(getattr(Thresholds(), name), float(value), name)
+
+    def test_product_constants_reference_matches_the_code(self):
+        from publisher.config.defaults import PRODUCT_CONSTANTS
+        text = read(ROOT / "docs/reference/product-constants.md")
+        documented = {name: ast.literal_eval(value) for name, value in re.findall(r"^\| `([A-Z_]+)` \| `([^`]+)` \|", text, re.M)}
+        self.assertEqual(documented, dict(PRODUCT_CONSTANTS))
+        lowered = {name.lower() for name in PRODUCT_CONSTANTS}
+        self.assertEqual(sorted(lowered & {f.name for f in dataclasses.fields(Thresholds)}), [], "a product constant is also a policy field")
+
     def test_blocker_reference_matches_the_code(self):
         text = read(ROOT / "docs/reference/blocker-codes.md")
         documented = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \|", text, re.M))

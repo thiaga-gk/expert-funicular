@@ -41,6 +41,14 @@ class ConfidenceTests(unittest.TestCase):
         self.assertEqual(self.t.confidence_strong_busy_minutes, 1000)
         self.assertEqual(self.t.confidence_strong_busy_periods, 100)
 
+    def test_caps_follow_the_cut_offs_and_weights_must_sum_to_one(self):
+        import dataclasses
+        moved = dataclasses.replace(self.t, confidence_high_threshold=0.85, confidence_medium_threshold=0.65)
+        self.assertEqual((moved.confidence_cap_default, moved.confidence_cap_insufficient_evidence,
+                          moved.confidence_cap_serverless_ceiling_increase), (0.84, 0.64, 0.64))
+        with self.assertRaises(ValueError):
+            dataclasses.replace(self.t, confidence_base_weight=0.2)
+
     def test_no_change_is_never_high_and_insufficient_evidence_is_low(self):
         for scenario, by_knob in self.cands.items():
             for c in by_knob.values():

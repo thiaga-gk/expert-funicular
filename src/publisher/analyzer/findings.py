@@ -28,6 +28,7 @@ from publisher.analyzer.metrics import (
 from publisher.analyzer.normalizer import hive_reference_count, is_nonprod
 from publisher.common.ids import finding_id
 from publisher.common.time import parse_datetime
+from publisher.config.defaults import QUERIES_PER_CLUSTER_PRO_CLASSIC
 from publisher.common.utils import as_string_list, clamp, optional_float, round_or_none, safe_float, safe_int
 from publisher.config.defaults import SIZE_ORDER
 from publisher.governor.thresholds import Thresholds
@@ -213,7 +214,7 @@ class Analyzer:
         # against the recent window's peak read at the same rate for that epoch's length; quiet now never hides a
         # busier past (a quiet recent window counts at its highest level, or 0).
         horizon = parse_datetime(e.analysis_time) - dt.timedelta(days=365)
-        qpc_all = self.t.queries_per_cluster_pro_classic
+        qpc_all = QUERIES_PER_CLUSTER_PRO_CLASSIC
         older_peak: Optional[int] = None; recent_peak: Optional[int] = None; held = False
         cur_recent_days = min(30.0, window_days(recent_from, None, e.analysis_time))
         # With carried evidence the recent window reaches back across the change: an older epoch wholly inside it is
@@ -280,7 +281,7 @@ class Analyzer:
         # queries per cluster. P99.5 of busy minutes over the recent window and the whole current epoch; P95 of busy
         # periods' peak demand in their first scale-up-lag minutes (before the autoscaler can add clusters).
         hist = q.get("concurrency_histogram") if isinstance(q.get("concurrency_histogram"), Mapping) else None
-        qpc = self.t.queries_per_cluster_pro_classic
+        qpc = QUERIES_PER_CLUSTER_PRO_CLASSIC
         def clusters_for(level: Optional[int]) -> Optional[int]:
             return None if level is None else max(1, math.ceil(level / qpc))
         conc_recent = histogram_percentile((hist or {}).get("RECENT"), self.t.max_cluster_target_percentile)

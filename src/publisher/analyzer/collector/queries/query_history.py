@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE
+from publisher.config.defaults import SCALE_UP_LAG_MINUTES_PRO_CLASSIC, SCALE_UP_LAG_MINUTES_SERVERLESS
 from publisher.governor.thresholds import Thresholds
 
 
@@ -256,7 +257,7 @@ def build_carried_spill_source_sql(t: Thresholds) -> str:
     return sql
 
 
-def build_carried_concurrency_sql(t: Thresholds) -> str:
+def build_carried_concurrency_sql() -> str:
     """RECENT and BUSY_START concurrency histograms over the current epoch's demand period (last 30 days), keyed by the
     current epoch; same arithmetic as ``build_concurrency_sql``, with minutes merged across the period's epochs."""
     return f"""
@@ -265,7 +266,7 @@ WITH {CONFIG_EPOCHS_CTE},
 ep AS (
   SELECT p.workspace_id, p.warehouse_id, c.cur_start, p.epoch_start,
     GREATEST(p.epoch_start, CURRENT_TIMESTAMP() - INTERVAL 30 DAYS) AS e_start, COALESCE(p.epoch_end, CURRENT_TIMESTAMP()) AS e_end,
-    CASE WHEN p.warehouse_type = 'SERVERLESS' THEN {t.scale_up_lag_minutes_serverless} ELSE {t.scale_up_lag_minutes_pro_classic} END AS lag_min
+    CASE WHEN p.warehouse_type = 'SERVERLESS' THEN {SCALE_UP_LAG_MINUTES_SERVERLESS} ELSE {SCALE_UP_LAG_MINUTES_PRO_CLASSIC} END AS lag_min
   FROM periods p JOIN cur_period c ON p.workspace_id = c.workspace_id AND p.warehouse_id = c.warehouse_id AND p.demand_period_start = c.demand_period_start
   WHERE c.demand_period_start < c.cur_start AND c.cur_start > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
     AND COALESCE(p.epoch_end, CURRENT_TIMESTAMP()) > CURRENT_TIMESTAMP() - INTERVAL 30 DAYS
@@ -312,7 +313,7 @@ ORDER BY workspace_id, warehouse_id, epoch_start, scope, level
 CONCURRENCY_SCOPES = ("RECENT", "EPOCH", "BUSY_START")
 
 
-def build_concurrency_sql(t: Thresholds) -> str:
+def build_concurrency_sql() -> str:
     """Per-minute query concurrency (running + queued, time-weighted) as histograms per epoch (last 365 days).
 
     Same arithmetic as ``concurrency_histograms``: EPOCH for every epoch, RECENT (last 30 days) and BUSY_START for the
@@ -323,7 +324,7 @@ WITH {CONFIG_EPOCHS_CTE},
 ep AS (
   SELECT workspace_id, warehouse_id, epoch_start, epoch_end, warehouse_type,
     GREATEST(epoch_start, CURRENT_TIMESTAMP() - INTERVAL 365 DAYS) AS e_start, COALESCE(epoch_end, CURRENT_TIMESTAMP()) AS e_end,
-    CASE WHEN warehouse_type = 'SERVERLESS' THEN {t.scale_up_lag_minutes_serverless} ELSE {t.scale_up_lag_minutes_pro_classic} END AS lag_min
+    CASE WHEN warehouse_type = 'SERVERLESS' THEN {SCALE_UP_LAG_MINUTES_SERVERLESS} ELSE {SCALE_UP_LAG_MINUTES_PRO_CLASSIC} END AS lag_min
   FROM config_epochs
   WHERE COALESCE(epoch_end, CURRENT_TIMESTAMP()) > CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
 ), q0 AS (
