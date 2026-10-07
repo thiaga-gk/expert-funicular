@@ -19,7 +19,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id
 from realizer.common.utils import decimal, money, ratio_string
-from realizer.config.settings import MODELER_GATEWAY_VERSION
+from realizer.config.settings import MODELER_GATEWAY_VERSION, WORKLOAD_SHIFT, volume_shifted
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import CorrectionFacts, CounterfactualRecord, MeasurementFacts, make_measurement_id
 from realizer.estimator.performance import NON_SAVINGS_ROLES, performance_economics
@@ -253,6 +253,12 @@ def calculate_economics(
         # value. This is the fail-closed REAL-INV-009 path.
         state, detail = rc.RealizationState.BLOCKED.value, "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE"
         successful = Decimal("0")
+    elif volume_shifted((observation.get("measurement") or {}).get("volume_ratio")):
+        # The query volume moved outside the comparable band after the change: the counterfactual prices the actual
+        # post-change days, so the saving is reported, but the package's expectation was priced at the old workload and
+        # is not a fair yardstick. Never under-realized, never a re-optimization; the denominator stays the package's.
+        state, detail = rc.RealizationState.MONITORING.value, WORKLOAD_SHIFT
+        successful = realized
     elif ratio is None:
         state, detail = rc.RealizationState.MONITORING.value, "VALIDATED_VALUE_UNCLASSIFIED"
         successful = realized
@@ -300,7 +306,7 @@ def calculate_economics(
         "denominator_method": denom_method,
         "expected_range": None if expected_range is None else {"component": component, **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
         "expected_components": expected_components,
-        "classification_basis": "INFORMATIONAL" if informational else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
+        "classification_basis": "INFORMATIONAL" if informational or detail == WORKLOAD_SHIFT else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
         "review_required": detail == "REALIZED_ABOVE_RANGE_REVIEW",
         "realization_ratio": ratio_string(ratio),
         "realization_state": state,

@@ -53,7 +53,7 @@ SPEC_KEYS = {"auto_stop_minutes": "auto_stop", "warehouse_size": "size", "min_cl
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
                "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
-               "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change"}
+               "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change", "volume_ratio"}
 
 
 def dumps(value: Any) -> str:
@@ -170,11 +170,14 @@ def _ts(value: Any) -> dt.datetime:
     return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
 
 
-def world_spec(index: int, changes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The fleet spec of warehouse *index* with the owner's *changes* applied: each ``{at: <UTC time>, set: {spec key:
     value}}`` starts a configuration epoch holding the values set so far. The fleet's own epochs before the first change
-    are kept. The simulator starts only the last epoch at a time of day, so earlier changes must be at 00:00 UTC."""
+    are kept. The simulator starts only the last epoch at a time of day, so earlier changes must be at 00:00 UTC. An
+    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on."""
     spec = copy.deepcopy(demo.DEMO_FLEET[index - 1])
+    if workload:
+        spec["work"] = realizer_world.shifted_work(spec["work"], float(workload["factor"]), str(workload["from"]))
     keys = tuple(SPEC_KEYS.values())
     current = {k: spec[k] for k in keys}
     epochs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**current, **{k: v for k, v in p.items() if k != "start"}})
@@ -223,8 +226,8 @@ def oracle(case: Mapping[str, Any], package: Mapping[str, Any], observation: Map
     key = SPEC_KEYS[meas["knob"]]
     held = [{**c, "set": {**c["set"], key: meas["source_value"]}} for c in world["changes"]]
     wh = f"wh-demo-{index:03d}"
-    new_rows = realizer_world.world_rows(world_spec(index, world["changes"]), index, as_of)
-    old_rows = realizer_world.world_rows(world_spec(index, held), index, as_of)
+    new_rows = realizer_world.world_rows(world_spec(index, world["changes"], world.get("workload")), index, as_of)
+    old_rows = realizer_world.world_rows(world_spec(index, held, world.get("workload")), index, as_of)
     new, old = billed_cost(new_rows, wh, window["first_day"], window["last_day"]), billed_cost(old_rows, wh, window["first_day"], window["last_day"])
     return {"knob": meas["knob"], "held_value": meas["source_value"], "first_day": window["first_day"], "last_day": window["last_day"],
             "old_billed_cost": str(old.quantize(Decimal("0.01"))), "new_billed_cost": str(new.quantize(Decimal("0.01"))),
@@ -241,7 +244,7 @@ def _realizer_stage(name: str, case_text: str, package_text: str) -> Tuple[Tuple
     world = case["world"]
     as_of = str(world.get("as_of") or DEFAULT_AS_OF)
     index = fleet_index(world.get("warehouse") or package["warehouse"]["warehouse_id"])
-    spec = world_spec(index, world["changes"])
+    spec = world_spec(index, world["changes"], world.get("workload"))
     files: Dict[str, str] = {}
     stage = "measure"
     try:
@@ -361,6 +364,8 @@ def check_expect(name: str, case: Mapping[str, Any], package: Mapping[str, Any],
         fail("not_measured_reason", expect["not_measured_reason"], meas.get("not_measured_reason"))
     if "independent_changes" in expect and meas.get("other_knob_changes") != list(expect["independent_changes"]):
         fail("independent_changes", list(expect["independent_changes"]), meas.get("other_knob_changes"))
+    if "volume_ratio" in expect and not _matches(expect["volume_ratio"], meas.get("volume_ratio")):
+        fail("volume_ratio", expect["volume_ratio"], meas.get("volume_ratio"))
     if "cross_check" in expect:
         want = expect["cross_check"] if isinstance(expect["cross_check"], Mapping) else {"outcome": expect["cross_check"]}
         got = meas.get("cross_check") or {}

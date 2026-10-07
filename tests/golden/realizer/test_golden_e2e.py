@@ -24,6 +24,8 @@ simulated world in which the owner changed the warehouse after the package, the 
       as_of: "2026-11-07T12:00:00Z"   # optional: the measurement time (this is the default)
       changes:                        # owner actions on the warehouse's timeline, each starting a configuration epoch
       - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10, size: X_SMALL}}   # keys: auto_stop, size, min, max, type
+      workload: {from: 2026-10-08, factor: 0.5}   # optional: the fleet workload scaled from that day on (periodic
+                                                  # queries 1/factor as often, steady load factor x as concurrent)
     expect: {...}
 
 Before the first change the world is the fleet warehouse the package was built from (analysis time 2026-10-01T12:00Z);
@@ -45,6 +47,7 @@ change, because the simulator's noise depends only on the scenario and the day.
                                     # low x low_factor and high x high_factor of the measured step's candidate
                                     # (component dbu: the DBU saving; total: counterfactual - observed)
     sign: positive                  # sign of the realized saving (counterfactual - observed): positive or negative
+    volume_ratio: 0.5               # the measurement's volume_ratio (post-change queries per day over pre-change), as a decimal
     cross_check: AGREES             # the billed cross-check outcome, or {outcome: INCONCLUSIVE, reason: OTHER_KNOB_CHANGED}
     independent_changes: [warehouse_size]   # the measurement's other_knob_changes, exactly
     guards: {pre: {queued_query_pct: 9.7173}, post: {p95_execution_ms_shared_sources: 2500}}
