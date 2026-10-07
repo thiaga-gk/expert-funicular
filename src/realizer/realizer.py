@@ -34,6 +34,7 @@ from realizer.analyzer.collector.demo_world import measure_demo
 from realizer.config.loader import validate_observation, validate_package, validate_replay_through
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
+from realizer.contracts.fleet import FleetReport, FleetRequest
 from realizer.contracts.report import RealizationReport
 from realizer.contracts.request import RealizationRequest, RunContext
 from realizer.estimator import estimator
@@ -45,7 +46,7 @@ from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
 __all__ = ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
-           "load_observation", "measure_demo", "measure_live", "observe_from_evidence", "realize", "realize_request"]
+           "load_observation", "measure_demo", "measure_live", "observe_from_evidence", "realize", "realize_fleet", "realize_package", "realize_request"]
 
 # ``RealizerPolicy``, ``load_observation``, ``measure_demo``, ``measure_live`` and ``observe_from_evidence`` are re-exported for
 # the CLI, which reaches the core only here; so are the backtest entry points (``backtest_live``, ``backtest_from_evidence``,
@@ -66,9 +67,10 @@ def build_context(request: RealizationRequest) -> RunContext:
 def realize_request(request: RealizationRequest) -> RealizationReport:
     """One realize run: every capability once, in order, returning what the Reporter wrote.
 
-    Side effects are the Packager's (the ledger, the evidence and regeneration files) and the Reporter's (the realization
-    package and the snapshot) under ``request.output_dir``, made while the run holds the lock of its ledger. This function sequences the capabilities and holds no domain
-    logic.
+    Side effects are the Packager's (the ledger, the evidence and regeneration files, under the state directory
+    ``request.state_root``) and the Reporter's (the realization package and the snapshot under ``request.output_dir``,
+    the state index under the state directory), made while the run holds the lock of its ledger. This function
+    sequences the capabilities and holds no domain logic.
     """
     context = build_context(request)
     with packager.lock(context):
@@ -82,14 +84,32 @@ def realize_request(request: RealizationRequest) -> RealizationReport:
         return reporter.run(context, packaged)
 
 
+def realize_package(request: RealizationRequest) -> RealizationReport:
+    """One CLI realize run of one package: ``realize_request`` while holding the lock of the package's warehouse in the
+    state (``packager.warehouse_lock``), so it never runs alongside a fleet run or another CLI run of that warehouse."""
+    build_context(request)  # the inputs are refused before the lock file is written
+    warehouse = request.package["warehouse"]
+    with packager.warehouse_lock(request.state_root, warehouse["workspace_id"], warehouse["warehouse_id"]):
+        return realize_request(request)
+
+
 def realize(
     package: Mapping[str, Any], observation: Optional[Mapping[str, Any]], output_dir: Path,
-    *, policy: Optional[RealizerPolicy] = None, replay_through: Optional[str] = None,
+    *, policy: Optional[RealizerPolicy] = None, replay_through: Optional[str] = None, state_dir: Optional[Path] = None,
 ) -> rc.RealizationPackage:
-    """Positional entry point over ``realize_request`` (the signature of the single-file release), returning the snapshot."""
+    """Positional entry point over ``realize_request`` (the signature of the single-file release), returning the snapshot.
+    *state_dir* keeps the history apart from the projections (``None``: everything under *output_dir*)."""
     return realize_request(RealizationRequest(
         package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
+        state_dir=state_dir,
     )).realization
+
+
+def realize_fleet(request: FleetRequest) -> FleetReport:
+    """One fleet run over a Publisher run (``realizer.fleet.run_fleet``): every warehouse, one at a time, each failure
+    isolated to its warehouse, then the run manifest and the realization workbook."""
+    from realizer.fleet import run_fleet  # the fleet sequences realize_request, so it imports this module
+    return run_fleet(request)
 
 
 if __name__ == "__main__":

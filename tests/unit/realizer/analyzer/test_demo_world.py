@@ -82,6 +82,9 @@ class TimelineTests(unittest.TestCase):
         self.assertIsNone(demo_world.applied_change(world.package("scope-migration-only")))
 
 
+PRO_ID = world.package("autostop-scoped-pro")["recommendation_package_id"]
+
+
 class SimulatedWorldTests(unittest.TestCase):
     def test_an_auto_stop_package_is_applied_exactly_and_measured(self):
         observation, snapshot, written = demo_run(world.package("autostop-scoped-pro"))
@@ -90,8 +93,8 @@ class SimulatedWorldTests(unittest.TestCase):
         self.assertEqual(observation["config"]["auto_stop_minutes"], 10)
         self.assertGreater(float(observation["economics"]["dbu_realized"]), 0)
         self.assertEqual(snapshot["current_state"]["realization_state"], "REALIZED")
-        self.assertEqual(list(written), ["2234567890123456__wh-demo-013__20261107T120000Z.json"])
-        evidence = written["2234567890123456__wh-demo-013__20261107T120000Z.json"]
+        self.assertEqual(list(written), [f"2234567890123456__wh-demo-013__{PRO_ID}__20261107T120000Z.json"])
+        evidence = written[f"2234567890123456__wh-demo-013__{PRO_ID}__20261107T120000Z.json"]
         self.assertEqual(evidence["source"], "DEMO_SIMULATION")
 
     def test_the_demo_world_is_the_end_to_end_golden_twin(self):
@@ -122,7 +125,7 @@ class SimulatedWorldTests(unittest.TestCase):
 
     def test_as_of_is_the_measurement_time(self):
         observation, _, written = demo_run(world.package("autostop-scoped-pro"), as_of="2026-10-20T12:00:00Z")
-        self.assertEqual(list(written), ["2234567890123456__wh-demo-013__20261020T120000Z.json"])
+        self.assertEqual(list(written), [f"2234567890123456__wh-demo-013__{PRO_ID}__20261020T120000Z.json"])
         self.assertEqual(observation["observed_at_utc"], "2026-10-20T12:00:00Z")
         # Ten settled days after the change: the window is the last whole week of them.
         window = observation["measurement"]["post_window"]

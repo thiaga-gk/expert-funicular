@@ -179,13 +179,13 @@ class RefusalTests(LoggerRestoringCase):
     def test_corrupt_ledger_line_is_refused_naming_the_file_and_line_and_the_run_changes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            code, stdout, stderr = self.run_main(["--package", str(PACKAGE), "--demo", "--output-dir", str(out)])
+            code, stdout, stderr = self.run_main(["--package", str(PACKAGE), "--demo", "--output-dir", str(out), "--flat-output"])
             self.assertEqual(code, 0, stderr)
             path = next((out / "realization" / "ledger").glob("*.jsonl"))
             lines = path.read_text(encoding="utf-8").splitlines()
             path.write_text("\n".join([lines[0], "{broken", *lines[1:]]) + "\n", encoding="utf-8")
             before = tree(out)
-            code, stdout, stderr = self.run_main(["--package", str(PACKAGE), "--demo", "--output-dir", str(out)])
+            code, stdout, stderr = self.run_main(["--package", str(PACKAGE), "--demo", "--output-dir", str(out), "--flat-output"])
             self.assertEqual((code, stdout), (2, ""))
             self.assertEqual(stderr.splitlines()[-1], f"realizer: ledger {path.name} line 2 is not a valid ledger entry (JSONDecodeError)")
             self.assertEqual(tree(out), before, "a corrupt ledger is refused before anything is appended or written")
@@ -208,7 +208,7 @@ class RefusalTests(LoggerRestoringCase):
         self.assertNotIn("realizer: ", text.replace("realizer.", ""))
 
     def test_a_refusal_raised_below_the_cli_is_still_mapped(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(cli_realize, "realize", side_effect=LedgerError("ledger X.jsonl line 3 is not a valid ledger entry (KeyError)")):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(cli_realize, "realize_package", side_effect=LedgerError("ledger X.jsonl line 3 is not a valid ledger entry (KeyError)")):
             code, _, stderr = self.run_main(["--package", str(PACKAGE), "--demo", "--output-dir", tmp])
         self.assertEqual(code, 2)
         self.assertEqual(stderr.splitlines()[-1], "realizer: ledger X.jsonl line 3 is not a valid ledger entry (KeyError)")

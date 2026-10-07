@@ -7,10 +7,11 @@ package edited after publishing, or written by another contract version, never r
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES
 from publisher.contracts import reporter_contract as publisher_contract
@@ -19,8 +20,10 @@ import json
 
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json, parse_utc, utc_iso
+from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, latest_run_dir
 from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
+from realizer.contracts.fleet import PublisherRun, PublisherRunEntry
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
 
 SUPPORTED_PUBLISHER_CONTRACT = "3.1.0"
@@ -249,3 +252,52 @@ def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
         location = "/".join(str(p) for p in error.absolute_path) or "<root>"
         raise InputError(f"approvals file fails format {APPROVALS_FORMAT_VERSION} at {location} ({error.validator})")
     return approvals
+
+
+def load_publisher_run(path: str | Path) -> PublisherRun:
+    """The Publisher run at *path*: a run folder (it holds ``manifest.json``), or a root holding
+    ``run_date=*/run_ts=*`` run folders, of which the newest is read (``latest_run_dir``). Its manifest's ``packages``
+    entries (``path``, ``workspace_id``, ``warehouse_id``, ``recommendation_package_id``) become the run's entries in
+    (workspace, warehouse) order; the packages themselves are read per warehouse by the fleet run. No run, an unreadable
+    manifest, an entry missing a field, a path outside the run folder or two packages of one warehouse raise
+    ``InputError``."""
+    try:
+        run_dir = latest_run_dir(Path(path))
+    except (FileNotFoundError, NotADirectoryError):
+        raise InputError(f"no Publisher run (manifest.json or run_date=*/run_ts=* folders) under {path}") from None
+    manifest = read_json_input(run_dir / PUBLISHER_MANIFEST_NAME, "Publisher run manifest")
+    packages = manifest.get("packages") if isinstance(manifest, Mapping) else None
+    if not isinstance(packages, list):
+        raise InputError(f"Publisher run manifest {run_dir / PUBLISHER_MANIFEST_NAME} has no packages list")
+    entries = []
+    for index, item in enumerate(packages):
+        fields = ("path", "workspace_id", "warehouse_id", "recommendation_package_id")
+        if not isinstance(item, Mapping) or not all(isinstance(item.get(f), str) and item.get(f) for f in fields):
+            raise InputError(f"Publisher run manifest entry {index} needs {', '.join(fields)}")
+        relative = Path(item["path"])
+        if relative.is_absolute() or ".." in relative.parts:
+            raise InputError(f"Publisher run manifest entry {index} names a package outside the run folder")
+        entries.append(PublisherRunEntry(workspace_id=item["workspace_id"], warehouse_id=item["warehouse_id"],
+                                         recommendation_package_id=item["recommendation_package_id"], path=relative.as_posix()))
+    entries.sort(key=lambda e: (e.workspace_id, e.warehouse_id))
+    keys = [(e.workspace_id, e.warehouse_id) for e in entries]
+    if len(set(keys)) != len(keys):
+        raise InputError("Publisher run manifest lists two packages of one warehouse")
+    count = manifest.get("package_count")
+    return PublisherRun(run_dir=run_dir, package_count=count if isinstance(count, int) and not isinstance(count, bool) else len(entries),
+                        entries=tuple(entries))
+
+
+def select_warehouses(run: PublisherRun, warehouses: Sequence[str]) -> PublisherRun:
+    """*run* with only the entries *warehouses* names (``<warehouse_id>`` or ``<workspace_id>/<warehouse_id>``; none:
+    every entry). A name that matches no entry raises ``InputError`` before anything runs."""
+    if not warehouses:
+        return run
+    chosen = set()
+    for name in warehouses:
+        workspace, _, warehouse = name.rpartition("/")
+        matches = [e for e in run.entries if e.warehouse_id == warehouse and (not workspace or e.workspace_id == workspace)]
+        if not matches:
+            raise InputError(f"--warehouse {name} is not a warehouse of the Publisher run")
+        chosen.update((e.workspace_id, e.warehouse_id) for e in matches)
+    return dataclasses.replace(run, entries=tuple(e for e in run.entries if (e.workspace_id, e.warehouse_id) in chosen))

@@ -190,5 +190,5 @@ def measure_demo(package: Mapping[str, Any], output_dir: Path, *, as_of: Optiona
     is written first, where a live run writes it (``measurement_path``), so the run can be replayed with
     ``observe_from_evidence``."""
     evidence = simulated_evidence(package, as_of=as_of, modified=modified)
-    write_json(measurement_path(output_dir, evidence), evidence)
+    write_json(measurement_path(output_dir, evidence, package["recommendation_package_id"]), evidence)
     return project_observation(package, evidence, approvals)

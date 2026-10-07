@@ -17,8 +17,3 @@ The Realizer was extracted from the single-file release with identical outputs, 
 
 7. **Redundant readiness evaluation:** on the realize path `calculate_economics` re-evaluates readiness, which is always ready there. Nothing observable changes.
 8. **Cost increase reads as under-realized:** on a savings step, a realization that is a cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings. (A performance fix or a capacity cut is not a savings step: its cost change is reported, never classified or claimed.)
-
-## Across the lineages of one warehouse
-
-9. **The owner claims only from its own run:** the lineage that owns a change ([`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 18) claims it only once that lineage is realized with an observation after the change. A run of a later package (which starts from the applied value) links itself as the successor but never records the application, its validation or its measurement into the owner's lineage, so realizing only the newest package of a warehouse records no claim for a change an earlier package recommended. A lineage created before its source package copy was kept is seen by the other runs only after its package is realized again.
-10. **Concurrent runs of one warehouse:** each run decides the cross-lineage events from the ledgers as they stood when it started, so two runs of the same warehouse at once can each miss the other's application until a later run of the warehouse decides again; an event whose ledger another run holds locked is left for that later run.

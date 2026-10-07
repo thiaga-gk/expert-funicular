@@ -18,6 +18,7 @@ from tests.unit.realizer.helpers import ROOT  # noqa: F401  (puts src on the pat
 from realizer.cli.main import EXIT_REFUSED, main  # noqa: E402
 
 PRO = world.PACKAGES / "autostop-scoped-pro.json"
+PRO_ID = world.package("autostop-scoped-pro")["recommendation_package_id"]
 
 
 def run_cli(*argv):
@@ -31,12 +32,12 @@ class DemoCliTests(unittest.TestCase):
     def test_the_demo_writes_its_evidence_and_the_replay_gives_the_same_realization(self):
         with tempfile.TemporaryDirectory() as tmp:
             demo, replay = Path(tmp) / "demo", Path(tmp) / "replay"
-            code, stdout, err = run_cli("--package", str(PRO), "--demo", "--output-dir", str(demo))
+            code, stdout, err = run_cli("--package", str(PRO), "--demo", "--output-dir", str(demo), "--flat-output")
             self.assertEqual(code, 0, err)
             evidence = sorted((demo / "realization" / "measurements").glob("*.json"))
-            self.assertEqual([p.name for p in evidence], ["2234567890123456__wh-demo-013__20261107T120000Z.json"])
+            self.assertEqual([p.name for p in evidence], [f"2234567890123456__wh-demo-013__{PRO_ID}__20261107T120000Z.json"])
             self.assertEqual(json.loads(evidence[0].read_text(encoding="utf-8"))["source"], "DEMO_SIMULATION")
-            code, replayed, err = run_cli("--package", str(PRO), "--from-evidence", str(evidence[0]), "--output-dir", str(replay))
+            code, replayed, err = run_cli("--package", str(PRO), "--from-evidence", str(evidence[0]), "--output-dir", str(replay), "--flat-output")
             self.assertEqual(code, 0, err)
             rpkg = Path(stdout.strip())
             self.assertEqual(rpkg.name, Path(replayed.strip()).name)
@@ -49,8 +50,9 @@ class DemoCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             code, _, err = run_cli("--package", str(PRO), "--demo", "--as-of", "2026-10-20T12:00:00Z", "--output-dir", tmp)
             self.assertEqual(code, 0, err)
-            self.assertEqual([p.name for p in (Path(tmp) / "realization" / "measurements").glob("*.json")],
-                             ["2234567890123456__wh-demo-013__20261020T120000Z.json"])
+            # Measurements are history: in the run-folder layout they go to the state directory.
+            self.assertEqual([p.name for p in (Path(tmp) / "state" / "realization" / "measurements").glob("*.json")],
+                             [f"2234567890123456__wh-demo-013__{PRO_ID}__20261020T120000Z.json"])
 
     def test_the_modified_demo_applies_a_modified_size(self):
         with tempfile.TemporaryDirectory() as tmp:
