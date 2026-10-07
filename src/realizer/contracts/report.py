@@ -59,7 +59,9 @@ class WarehouseRun:
     data values) or the exception type of a crash, ``None`` when OK. ``realizations`` are the realization packages the
     run projected for the warehouse (every lineage it realized or re-projected, in package id order; empty when the
     warehouse failed before any was written), ``ledgers`` their ledger entries by realization package id, and
-    ``state_index`` the warehouse's state index as written (``None`` when none was).
+    ``state_index`` the warehouse's state index as written (``None`` when none was). ``next_steps`` maps a package id to
+    the first step of its plan a person applies (``realizer.analyzer.analysis.next_plan_step``: ``step``, ``knob``,
+    ``from_value``, ``to_value``), which names the next action of a lineage not yet applied.
     """
     workspace_id: str
     warehouse_id: str
@@ -69,6 +71,7 @@ class WarehouseRun:
     realizations: Tuple[rrc.RealizationPackage, ...] = ()
     ledgers: Mapping[str, Sequence[rrc.RealizationLedgerEntry]] = field(default_factory=dict)
     state_index: Optional[Mapping[str, Any]] = None
+    next_steps: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -390,19 +393,30 @@ def _condition(r: rrc.RealizationPackage, state: str) -> Optional[str]:
     return next((c for c in candidates if (state, c) in NEXT_ACTIONS), None)
 
 
-def next_action(r: rrc.RealizationPackage) -> str:
+APPLY_STEP = "Apply step {step}: {knob} {from_value} \u2192 {to_value}"  # NOT_APPLIED with the package's first step known
+
+
+def next_action(r: rrc.RealizationPackage, next_step: Optional[Mapping[str, Any]] = None) -> str:
     """The next action label of a lineage, from ``NEXT_ACTIONS`` by its realization state and, where the table
-    distinguishes it, its regeneration status or plan progress. A state the table does not name fails closed."""
+    distinguishes it, its regeneration status or plan progress. A lineage not yet applied names *next_step* (its
+    package's first plan step, ``WarehouseRun.next_steps``) with ``APPLY_STEP`` when it is given. A state the table does
+    not name fails closed."""
     state = str((r.current_state or {}).get("realization_state"))
     if (state, None) not in NEXT_ACTIONS or state in RUN_STATUSES or state == NO_LINEAGE:
         raise ValueError(f"no next action for realization state {state!r}")
-    return NEXT_ACTIONS[(state, _condition(r, state))]
+    condition = _condition(r, state)
+    if state == "NOT_APPLIED" and condition is None and next_step:
+        return APPLY_STEP.format(**{k: "\u2014" if next_step.get(k) is None else next_step.get(k)
+                                    for k in ("step", "knob", "from_value", "to_value")})
+    return NEXT_ACTIONS[(state, condition)]
 
 
 def _run_next_action(run: WarehouseRun, lineage: Optional[rrc.RealizationPackage]) -> str:
     if run.status != RUN_STATUS_OK:
         return NEXT_ACTIONS[(run.status, None)]
-    return next_action(lineage) if lineage is not None else NEXT_ACTIONS[(NO_LINEAGE, None)]
+    if lineage is None:
+        return NEXT_ACTIONS[(NO_LINEAGE, None)]
+    return next_action(lineage, run.next_steps.get(str(_pkg(lineage))))
 
 
 def _pkg(r: rrc.RealizationPackage) -> Optional[str]:
@@ -449,7 +463,7 @@ def _to_date(r: rrc.RealizationPackage) -> Mapping[str, Any]:
     return (r.economics or {}).get("realized_to_date") or {}
 
 
-def project_lineage(r: rrc.RealizationPackage) -> Dict[str, Any]:
+def project_lineage(r: rrc.RealizationPackage, next_step: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """A Lineages row: ``project_summary`` plus the owner that claims the change, the currency, realized to date with
     the days it covers, and the next action, in ``LINEAGE_COLUMNS`` order."""
     row = {
@@ -458,7 +472,7 @@ def project_lineage(r: rrc.RealizationPackage) -> Dict[str, Any]:
         "currency": (r.economics or {}).get("currency"),
         "realized_to_date": _money_float((r.economics or {}).get("realized_savings_since_application")),
         "realized_to_date_days_covered": _number(_to_date(r).get("days_covered")),
-        "next_action": next_action(r),
+        "next_action": next_action(r, next_step),
     }
     return {c.key: row[c.key] for c in LINEAGE_COLUMNS}
 
@@ -556,7 +570,7 @@ def project_realization_workbook(warehouse_runs: Sequence[WarehouseRun]) -> Real
     times: List[str] = []
     for run in runs:
         for r in sorted(run.realizations, key=_lineage_order):
-            lineages.append(project_lineage(r))
+            lineages.append(project_lineage(r, run.next_steps.get(str(_pkg(r)))))
             timeline.extend(project_timeline(run.ledgers.get(r.realization_package_id, ())))
             times.append(r.as_of_utc)
         if run.state_index and run.state_index.get("as_of_utc"):

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import decimal, parse_utc, utc_iso
-from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
+from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS, NON_AUTHORITATIVE_EXECUTION_STATES
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
 from realizer.contracts.realization import make_evidence_id
@@ -78,6 +78,16 @@ def candidate_steps(package: Mapping[str, Any], scenario_id: Optional[str] = Non
     if scenario is None:
         return []
     return [x for x in scenario.get("execution_plan", []) if x.get("step_type") == "CANDIDATE"]
+
+
+def next_plan_step(package: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The step a person applies first: the first authority-eligible CANDIDATE step of the recommended plan, as
+    ``{step, knob, from_value, to_value}`` (``step`` is its number in the plan), or ``None`` when the plan has none. A
+    read of the package for the realization workbook's next action, never a decision."""
+    step = next((s for s in candidate_steps(package) if str(s.get("execution_state")) not in NON_AUTHORITATIVE_EXECUTION_STATES), None)
+    if step is None:
+        return None
+    return {"step": step.get("step"), "knob": step.get("knob"), "from_value": step.get("current_value"), "to_value": step.get("recommended_value")}
 
 
 # The Publisher's blocker on a candidate that rolls back a canary whose guard tripped.

@@ -20,7 +20,7 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 
 from openpyxl import load_workbook
 
-from tests.unit.realizer.helpers import canonical  # noqa: F401  (src/realizer, never a shadowing copy)
+from tests.unit.realizer.helpers import canonical, fixture_package  # noqa: F401  (src/realizer, never a shadowing copy)
 from tests import realizer_world as world
 from tests.golden.realizer import e2e
 from tests.unit.realizer.facade.test_lineages import AGGRESSIVE, BALANCED, stored_run
@@ -82,7 +82,7 @@ def setUpModule():
             realize(copy.deepcopy(package), copy.deepcopy(observation), out)
         Fixture.pair = warehouse_run(out, balanced[0])
     Fixture.balanced_pkg, Fixture.aggressive_pkg = balanced[0]["recommendation_package_id"], aggressive[0]["recommendation_package_id"]
-    ge01 = e2e.stored_package(GE01)
+    ge01 = Fixture.ge01 = e2e.stored_package(GE01)
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
         for day in ("2026-10-23", "2026-11-04", "2026-11-20"):
@@ -268,6 +268,24 @@ class WarehouseRowTests(unittest.TestCase):
             "realization_state": "NOT_APPLIED", "maturity_state": "NOT_APPLIED", "currency": None, "realized_to_date": None,
             "days_covered": None, "annualized_realized_savings": None, "expected_same_scope_annual_savings": None,
             "realization_ratio": None, "attribution_claim_status": "NOT_ATTRIBUTABLE", "next_action": "Apply the recommended change"})
+
+    def test_a_not_applied_lineage_names_its_first_plan_step_when_the_run_gives_it(self):
+        from realizer.analyzer.analysis import next_plan_step
+        step = next_plan_step(Fixture.ge01)
+        self.assertEqual(step, {"step": 1, "knob": "auto_stop_minutes", "from_value": 30, "to_value": 10})
+        run = dataclasses.replace(Fixture.not_applied, next_steps={Fixture.ge01["recommendation_package_id"]: step})
+        projection = report.project_realization_workbook([run])
+        self.assertEqual(projection.warehouses[0]["next_action"], "Apply step 1: auto_stop_minutes 30 \u2192 10")
+        self.assertEqual(projection.lineages[0]["next_action"], "Apply step 1: auto_stop_minutes 30 \u2192 10")
+        # Only a lineage not yet applied names the step.
+        applied = dataclasses.replace(Fixture.rolled_back, next_steps={Fixture.ge01["recommendation_package_id"]: step})
+        self.assertEqual(report.project_realization_workbook([applied]).warehouses[0]["next_action"], "None: rolled back")
+
+    def test_the_first_plan_step_skips_steps_a_person_cannot_apply_yet(self):
+        from realizer.analyzer.analysis import next_plan_step
+        self.assertEqual(next_plan_step(fixture_package("two-ready-steps")),
+                         {"step": 1, "knob": "warehouse_size", "from_value": "MEDIUM", "to_value": "SMALL"})
+        self.assertIsNone(next_plan_step(fixture_package("scope-migration-only")))
 
     def test_a_failed_warehouse_still_gets_a_row(self):
         rows = report.project_realization_workbook([CRASHED, REFUSED]).warehouses
