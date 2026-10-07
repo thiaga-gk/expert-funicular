@@ -24,7 +24,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import candidate_steps
+from realizer.analyzer.analysis import next_plan_step
 from realizer.analyzer.collector import bridge
 from realizer.analyzer.collector.collector import collect_measurement, measurement_path
 from realizer.analyzer.projector import project_observation
@@ -32,7 +32,6 @@ from realizer.common.errors import InputError
 from realizer.common.utils import parse_utc, utc_iso, write_json
 from realizer.config.loader import validate_package
 from realizer.config.settings import DEFAULT_AWS_PRICE_REGISTRY
-from realizer.governor.policy import authority_eligible
 
 SOURCE = "DEMO_SIMULATION"
 # Package knob -> demo fleet spec key.
@@ -150,11 +149,11 @@ def applied_change(package: Mapping[str, Any], *, modified: bool = False) -> Opt
     """The owner's change of the demo, as ``{spec key: value}``: the package's first authority-eligible step at its
     recommended value (``modified``: a size step to MEDIUM applied as SMALL); ``None`` when the plan has no such step or
     its knob has no world."""
-    step = next((s for s in candidate_steps(package) if authority_eligible(s)), None)
+    step = next_plan_step(package)
     key = SPEC_KEYS.get(str((step or {}).get("knob")))
     if step is None or key is None:
         return None
-    value = step.get("recommended_value")
+    value = step["to_value"]
     if key in INTEGER_KEYS:
         value = int(value)
     else:
