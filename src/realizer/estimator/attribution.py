@@ -18,7 +18,8 @@ from realizer.contracts import realization as rc
 from realizer.governor.policy import RealizerPolicy, canary_window_open
 
 
-def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
+def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy,
+                       independent_knobs: Sequence[str] = ()) -> Dict[str, Any]:
     try:
         origin = rc.OriginAttribution(str(observation.get("origin_attribution") or "UNKNOWN").upper())
     except ValueError:
@@ -45,6 +46,9 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
     if overlap > 0:
         hard.append("PORTFOLIO_SCOPE_OVERLAP")
+    if independent_knobs and not (observation.get("measurement") or {}).get("holds_other_knobs"):
+        # Another knob changed too and the counterfactual cannot hold it at its new value: the saving may be its.
+        hard.append("INDEPENDENT_CHANGE_NOT_HELD")
     if canary_window_open(app, observation):
         # A canary-type change is guarded by the Publisher for its first 30 days: its realization stays provisional.
         hard.append("CANARY_GUARD_WINDOW_OPEN")

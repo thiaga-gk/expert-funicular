@@ -168,7 +168,9 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         conf = item.get("implementation_conformance")
         if conf in {None, rc.ImplementationConformance.NOT_APPLIED.value}:
             continue
-        app_id = make_app_id(rpkg, str(item.get("scenario_id")), int(item.get("step") or 0), source_hash, observed_hash, revid)
+        # A knob without a step is identified by its knob, so two such changes are two independent events.
+        scope_key = str(item.get("scenario_id")) if item.get("step") is not None else f"{item.get('scenario_id')}|{item.get('knob')}"
+        app_id = make_app_id(rpkg, scope_key, int(item.get("step") or 0), source_hash, observed_hash, revid)
         payload = {
             **item,
             "application_episode_id": app_id,

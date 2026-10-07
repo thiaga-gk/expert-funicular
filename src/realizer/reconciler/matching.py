@@ -118,6 +118,44 @@ def choose_application(
     return results, primary
 
 
+# Decision knobs whose change is a configuration decision (Photon is an observed fact, never a change).
+DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
+# Why a changed knob carries no authority from the package.
+NON_AUTHORITY_REASONS = {"PENDING_REEVALUATION": "PENDING_REEVALUATION", "BLOCKED": "BLOCKED_STEP", "INVALIDATED": "BLOCKED_STEP"}
+
+
+def _scoped_knobs(package: Mapping[str, Any]) -> Optional[set]:
+    """The knobs the package's run scope covers (None: no run scope, every knob)."""
+    scope = package.get("run_scope")
+    if not scope:
+        return None
+    return {str(k) for sc in scope.get("scenarios") or [] for k in sc.get("knobs") or []}
+
+
+def independent_changes(package: Mapping[str, Any], obs_config: Mapping[str, Any], step_results: List[Dict[str, Any]], scenario_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Changed decision knobs no step of the selected plan relates to: each an independent change with its reason,
+    ``OUT_OF_RUN_SCOPE`` (the package's run scope did not cover the knob) or ``NOT_RECOMMENDED`` (the package recommends
+    no change to it). A knob with a step is the step's (its own independent reason when the step has no authority)."""
+    stepped = {str(item.get("knob")) for item in step_results}
+    source = package.get("current_config") or {}
+    scoped = _scoped_knobs(package)
+    out = []
+    for knob in DECISION_KNOBS:
+        observed, before = obs_config.get(knob), normalize_value(knob, source.get(knob))
+        if knob in stepped or observed is None or observed == before:
+            continue
+        candidate = next((c for c in package.get("candidates") or [] if c.get("knob") == knob), None)
+        out.append({
+            "scenario_id": scenario_id, "step": None, "candidate_id": None if candidate is None else candidate.get("candidate_id"),
+            "technique_id": None if candidate is None else candidate.get("technique_id"), "knob": knob, "execution_state": None,
+            "authority_eligible": False, "source_value": source.get(knob), "recommended_value": None, "observed_value": observed,
+            "implementation_conformance": rc.ImplementationConformance.UNRELATED.value, "modification_relation": None,
+            "invalidates": [], "dependencies": [], "remeasure_days": None,
+            "independent_reason": "OUT_OF_RUN_SCOPE" if scoped is not None and knob not in scoped else "NOT_RECOMMENDED",
+        })
+    return out
+
+
 def applied_before_package(package: Mapping[str, Any], observation: Mapping[str, Any]) -> bool:
     """Whether the observation's change was applied before the package was generated: the Publisher already saw that
     state, so the package cannot have caused it."""
@@ -136,9 +174,15 @@ def match(package: Mapping[str, Any], observation: Mapping[str, Any], obs_config
     selected_scenario = scenario_by_id(package, selected_scenario_id)
     step_results, primary = choose_application(package, obs_config, scenario_id=selected_scenario_id)
     if applied_before_package(package, observation):
+        step_results = step_results + independent_changes(package, obs_config, step_results, selected_scenario_id)
         step_results = [{**item, "authority_eligible": False, "independent_reason": "APPLIED_BEFORE_PACKAGE"} for item in step_results]
         return PlanMatch(selected_scenario_id=selected_scenario_id, step_matches=tuple(step_results), primary=None,
                          authority_changes=(), scenario_scope=False)
+    for item in step_results:
+        reason = NON_AUTHORITY_REASONS.get(str(item.get("execution_state")))
+        if reason and item.get("implementation_conformance") not in {None, rc.ImplementationConformance.NOT_APPLIED.value}:
+            item["independent_reason"] = reason
+    step_results = step_results + independent_changes(package, obs_config, step_results, selected_scenario_id)
     authority_changes = [
         item for item in step_results
         if item.get("authority_eligible") and item.get("implementation_conformance") in {
