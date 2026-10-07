@@ -1,0 +1,33 @@
+{
+  "active_package_ids": [
+    "PKG-EA1202864D64FCB46D81F07E"
+  ],
+  "applied_knob_owners": [],
+  "as_of_utc": "2026-11-07T12:00:00Z",
+  "lineages": [
+    {
+      "application_state": "APPLIED",
+      "as_of_utc": "2026-11-07T12:00:00Z",
+      "attribution_claim_status": "OBSERVABLE_ONLY",
+      "claimed_by": [],
+      "cost_profile": "balanced",
+      "disposition": "ACTIVE",
+      "effective_from_utc": "2026-10-08T14:32:00Z",
+      "epoch_id": "EPOCH-EE50913676A05384D0AAF554",
+      "generated_at_utc": "2026-10-01T12:00:00Z",
+      "knob": null,
+      "observed_applied_value": null,
+      "previous_epoch_id": null,
+      "realization_package_id": "RPKG-A909B313435622E85C9E08BB",
+      "realization_state": "MONITORING",
+      "recommendation_attributed_realized_savings": "0.00",
+      "recommendation_package_id": "PKG-EA1202864D64FCB46D81F07E",
+      "snapshot_id": "RSNAP-4D399115ED7BEF93A88EF909",
+      "successor_package_id": null,
+      "superseded_by_package_id": null
+    }
+  ],
+  "state_index_version": "1.0.0",
+  "warehouse_id": "wh-demo-001",
+  "workspace_id": "1234567890123456"
+}

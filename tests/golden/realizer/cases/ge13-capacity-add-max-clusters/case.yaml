@@ -24,8 +24,12 @@ expect:
   # Post minus the pre-change window's cost per day at the post-change volume (ratio 1.0385) over 28 days: a cost increase.
   billed_change: {basis: BILLED_PRE_POST_AT_PRE_MIX, days: 28, dbu: positive, aws_modeled: positive, total: positive}
   origin: INFERRED
-  # Queueing fell to under half while p95 held: a validated performance fix. Its cost (12,887.78/yr at the pre-change mix)
-  # is inside 1.25 x the modeled 15,628.48 and is never counted as savings.
+  # Its measured cost is the clusters above the old cap: 3,795 cluster-minutes in 28 days, 17,030.48/yr (the billed change
+  # at the pre-change mix, 12,887.78/yr, is reported next to it).
+  measurement: {levels.basis: CLUSTER_LEVELS_ABOVE_OLD_CAP, levels.cluster_minutes: 3795}
+  economics: {cost_change.basis: CLUSTER_LEVELS_ABOVE_OLD_CAP, cost_change.annualized_cost_increase: 17030.48, cost_change.billed_annualized_cost_increase: 12887.78}
+  # Queueing fell to under half while p95 held: a validated performance fix. Its cost is inside 1.25 x the modeled
+  # 15,628.48 and is never counted as savings.
   realization_state: PERFORMANCE_VALIDATED
   classification: PERFORMANCE_VALIDATED
   claim: NOT_ATTRIBUTABLE

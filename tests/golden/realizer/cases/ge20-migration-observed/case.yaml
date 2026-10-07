@@ -1,0 +1,19 @@
+id: GE-20
+description: >-
+  A warehouse-type migration (PRO to SERVERLESS, the package's alternative scenario) applied by the owner, keeping
+  auto-stop 0. There is no reverse model, so the change is observe-only: the billed change at the pre-change query mix is
+  the observed delta (DBU up, the customer's AWS cost gone, a true zero on Serverless), reported against the
+  informational migration range and never claimed.
+publisher:
+  warehouse: wh-demo-001
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {type: SERVERLESS}}
+expect:
+  measured: true
+  measurement: {method: MIGRATION_BILLED_OBSERVED, not_measured_reason: null}
+  billed_change: {dbu: positive, aws_modeled: negative, total: negative}
+  sign: positive
+  realization_state: MONITORING
+  classification: MIGRATION_RANGE_INFORMATIONAL
+  claim: OBSERVABLE_ONLY

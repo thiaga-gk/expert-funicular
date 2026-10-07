@@ -1,0 +1,195 @@
+{
+  "actor": null,
+  "applied_at_utc": "2026-10-08T14:32:00Z",
+  "applied_scenario_id": null,
+  "config": {
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
+    "max_clusters": 4,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+  },
+  "correction": null,
+  "economics": {
+    "aws_cash_realized": null,
+    "aws_commitment_freed": null,
+    "aws_economic_realized": "1090.67",
+    "aws_evidence_type": "MODELED",
+    "counterfactual_method": "CALIBRATED_PRIOR_STATE",
+    "counterfactual_old_cost": "8298.85",
+    "currency": "USD",
+    "dbu_realized": "1928.23",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": null,
+    "observed_new_cost": "5279.95",
+    "period_days": 35
+  },
+  "effective_time_quality": "EXACT",
+  "elapsed_days": 35,
+  "evidence_quality": "SUFFICIENT",
+  "financial_quality": {
+    "attributable_spend_pct": "100",
+    "correction_chain_complete": true,
+    "currency_consistency_pct": "100",
+    "material_cost_component_available": true,
+    "price_coverage_pct": "100"
+  },
+  "intent_reference": null,
+  "intent_state": "UNKNOWN",
+  "measurement": {
+    "applied_value": "MEDIUM",
+    "billed_change": {
+      "annualized_dbu": "-23537.72",
+      "annualized_total": "-36860.81",
+      "aws_modeled": "-1277.56",
+      "basis": "BILLED_PRE_POST_AT_PRE_MIX",
+      "currency": "USD",
+      "days": 35,
+      "dbu": "-2257.04",
+      "total": "-3534.60"
+    },
+    "change_epoch_start": "2026-10-08T14:32:00Z",
+    "cost_basis": "DBU_AND_MODELED_AWS",
+    "cross_check": {
+      "billed_dbu_reduction": "2257.04",
+      "difference_pct": "17.05",
+      "noise": "25.59",
+      "outcome": "AGREES",
+      "pre_weekly_costs": [
+        "1128.73",
+        "1107.39",
+        "1119.72",
+        "1122.05",
+        "1142.30"
+      ],
+      "reason": null,
+      "replay_dbu_saving": "1928.23"
+    },
+    "holds_other_knobs": true,
+    "knob": "warehouse_size",
+    "levels": null,
+    "method": "SIZE_RUNTIME",
+    "not_measured_reason": null,
+    "observed_epoch_start": "2026-10-08T14:32:00Z",
+    "other_knob_changes": [],
+    "post_window": {
+      "billed_cost": "3363.15",
+      "billed_dbu": "6114.816",
+      "days": 35,
+      "first_day": "2026-10-09",
+      "last_day": "2026-11-12",
+      "queries": 45000,
+      "restarts": 25,
+      "running_cluster_minutes": "15359"
+    },
+    "pre_window": {
+      "billed_cost": "5620.19",
+      "billed_dbu": "10218.528",
+      "days": 35,
+      "first_day": "2026-09-03",
+      "last_day": "2026-10-07",
+      "queries": 45000,
+      "restarts": 25,
+      "running_cluster_minutes": "15357.5"
+    },
+    "previous_epoch_start": "2025-07-01T00:00:00Z",
+    "replay": null,
+    "size": {
+      "bound_used": "ELASTIC",
+      "busy_share": "0.351585",
+      "elastic": {
+        "aws_cost": "3007.47",
+        "counterfactual_cost": "8298.85",
+        "dbu_cost": "5291.38",
+        "realized": "3018.90",
+        "running_cluster_minutes": "14459.000998"
+      },
+      "inelastic": {
+        "aws_cost": "3194.67",
+        "counterfactual_cost": "8815.41",
+        "dbu_cost": "5620.74",
+        "realized": "3535.46",
+        "running_cluster_minutes": "15359"
+      },
+      "matched_post_queries": 40378,
+      "matched_query_coverage": "1",
+      "matched_sources": 1,
+      "measured_rate_ratio": "0.598346",
+      "new_aws_cluster_hourly_price": "7.488",
+      "new_dbu_cost_per_cluster_minute": "0.218969",
+      "observed_running_cluster_minutes": "15359",
+      "old_aws_cluster_hourly_price": "12.48",
+      "old_dbu_cost_per_cluster_minute": "0.365957",
+      "post_busy_wall_minutes": "5400",
+      "post_executed_queries": 40378,
+      "pre_busy_wall_minutes": "4500",
+      "published_rate_ratio": "0.6",
+      "published_runtime_multiplier": {
+        "base": "1.3",
+        "conservative": "2",
+        "direction": "DOWNSIZE",
+        "optimistic": "1.1",
+        "source": "PUBLISHER_THRESHOLDS"
+      },
+      "rate_ratio_within_published_band": true,
+      "runtime_ratio": "1.2",
+      "runtime_ratio_in_published_range": true
+    },
+    "source_value": "LARGE",
+    "volume_ratio": "1"
+  },
+  "observation_format_version": "3.1.0",
+  "observed_at_utc": "2026-11-14T12:00:00Z",
+  "origin_attribution": "INFERRED",
+  "overlap_count": 0,
+  "performance": {
+    "correctness_pass": null,
+    "guards": {
+      "cold_start": {
+        "post_queries": 45000,
+        "post_restarts": 25,
+        "pre_queries": 45000,
+        "pre_restarts": 25
+      },
+      "post": {
+        "decision_queries": "40500",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "3000",
+        "queries": "45000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "40500",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      },
+      "pre": {
+        "decision_queries": "40500",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "2500",
+        "queries": "45000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "40500",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      }
+    },
+    "normalized_p95_runtime_regression_pct": null,
+    "reliability_pass": null
+  },
+  "query_count": 45000,
+  "recorded_at_utc": "2026-11-14T12:00:00Z",
+  "replacement_package_id": null,
+  "representative_regime": true,
+  "rollback_observed": false,
+  "rollback_reason": null,
+  "rollback_requested": false,
+  "source": "DEMO_SIMULATION",
+  "warehouse_id": "wh-demo-006",
+  "window_end_utc": "2026-11-13T00:00:00Z",
+  "window_start_utc": "2026-10-09T00:00:00Z",
+  "workload": {},
+  "workspace_id": "1234567890123456"
+}
