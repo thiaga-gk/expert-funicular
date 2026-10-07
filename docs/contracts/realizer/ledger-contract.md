@@ -310,6 +310,13 @@ Billing/evidence corrections are append-only:
 
 Corrections reference prior facts and cause re-projection; historical records are never overwritten.
 
+A measured window is identified by its application episode and its start and end, not by the measurement id: the measurement id hashes the evidence, so a window restated with other costs gets a new one. The comparison with the earlier measurement is made when the run measures, against the ledger the run started from (the collector cannot see the ledger). The earlier measurements are those recorded before the run's measurement first was, so reprocessing an observation decides what its first run decided.
+
+- A window measured earlier with the same economics is a duplicate: nothing new is recorded.
+- A window measured earlier with other economics is a restatement. The run records the new measurement and a `BILLING_CORRECTION_RECORDED` whose `corrects_entry_id` names the latest earlier measurement of that window, whether or not the observation carries a correction object. Without one, the correction's key is the new measurement id, its type `RESTATEMENT`, its version null and its reason `WINDOW_REMEASURED_WITH_DIFFERENT_ECONOMICS`, and the new measurement's `correction_status` is `RESTATEMENT`.
+- A window not measured earlier is a correction only when the observation carries a correction object; it corrects the entry the object names, else the latest earlier measurement.
+- A correction object keeps its key, type, version and reason. A correction key and version the ledger already holds is not recorded again, so reprocessing a restatement records nothing new.
+
 ## 21. Drift
 
 `CONFIGURATION | WORKLOAD | REGIME | POLICY | FINANCIAL | SOURCE_QUALITY`
@@ -330,6 +337,8 @@ A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the a
 - `impacted_knobs`: the knobs the applied change invalidates downstream.
 
 The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
+
+A run that writes a file (evidence, regeneration request, realization package, snapshot) whose content is unchanged leaves the existing file alone.
 
 Re-evaluation always starts from the actual observed current state. Recommendation truth changes only through a new immutable PKG emitted by Publisher.
 

@@ -224,7 +224,7 @@ class IdempotencyTests(unittest.TestCase):
 
 class SlotOrderMutationTests(unittest.TestCase):
     """Mutation checks: recording two adjacent events in the other order is caught by the ledger file comparison (the
-    snapshot cannot notice, it sorts by recorded time)."""
+    snapshot notices too: at equal recorded time it keeps the append order)."""
 
     PAIRS = (
         ("SOURCE_PACKAGE_SUPERSEDED", "REPLACEMENT_PACKAGE_LINKED"),

@@ -62,11 +62,20 @@ def load_json(path: str | Path) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def write_json(path: Path, value: Any) -> None:
+def write_json(path: Path, value: Any) -> bool:
+    """Write *value* as sorted, indented JSON through a temporary file; return whether the file was written. A file that
+    already holds exactly that text is left alone (a repeated run does not rewrite what it wrote before)."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    try:
+        if path.read_text(encoding="utf-8") == text:
+            return False
+    except (OSError, UnicodeDecodeError):
+        pass  # missing or unreadable: written below
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
+    return True
 
 
 T = TypeVar("T")
