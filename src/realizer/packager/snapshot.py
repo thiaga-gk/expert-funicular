@@ -50,7 +50,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
     superseded = latest_event(ordered, rc.EventType.SOURCE_PACKAGE_SUPERSEDED)
 
-    if rollback and (not app or rollback.recorded_at_utc >= app.recorded_at_utc):
+    # A rollback is always of an application: without one there is nothing to roll back.
+    if rollback and app and rollback.recorded_at_utc >= app.recorded_at_utc:
         app_state = rc.ApplicationState.ROLLED_BACK.value
     elif drift and app and drift.recorded_at_utc >= app.recorded_at_utc:
         app_state = rc.ApplicationState.DRIFTED.value

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from realizer.common.errors import InputError
 from realizer.common.utils import decimal, utc_iso
 from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
@@ -168,6 +169,47 @@ def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> Realizati
         previous_application=latest_event(entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED),
         prior_measurement=latest_event(entries, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED),
     )
+
+
+def applied_sources(package: Mapping[str, Any], app_payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """The source value (the package's, in the Publisher's spelling) of each knob an application changed: the step's knob
+    for a step application, every applied step's knob for a scenario-scope one."""
+    if app_payload.get("application_scope") == "SCENARIO":
+        steps = {step.get("step"): step for step in candidate_steps(package, app_payload.get("scenario_id"))}
+        applied = [steps[ref.get("step")] for ref in app_payload.get("applied_step_refs") or [] if ref.get("step") in steps]
+        pairs = [(step.get("knob"), step.get("current_value")) for step in applied]
+    else:
+        pairs = [(app_payload.get("knob"), app_payload.get("source_value"))]
+    return {str(knob): normalize_value(str(knob), value) for knob, value in pairs if knob is not None}
+
+
+def back_at_source(package: Mapping[str, Any], app_payload: Mapping[str, Any], observed: Mapping[str, Any]) -> bool:
+    """Whether the observed configuration rolled the application back: every knob it changed is at its source value
+    again. A package's own safety-rollback step is an application like any other, so rolling it back means returning to
+    the value it replaced."""
+    sources = applied_sources(package, app_payload)
+    return bool(sources) and all(observed.get(knob) == value for knob, value in sources.items())
+
+
+def check_rollback_flag(package: Mapping[str, Any], history: RealizationHistory, observation: ObservationAnalysis) -> None:
+    """Refuse (``InputError``) an observation whose ``rollback_observed`` flag contradicts its configuration.
+
+    The configuration governs whether a change was rolled back; the flag is only checked against it. A flag set while the
+    configuration is not back at the source value of the previous application (with no application yet: while a knob
+    of the plan's steps differs from the package's configuration) is refused before anything for the observation is
+    written. A flag left unset on a configuration that is back at the source value is not refused: it is a rollback.
+    """
+    if not observation.raw.get("rollback_observed"):
+        return
+    previous = history.previous_application
+    if previous is not None:
+        rolled_back = back_at_source(package, previous.payload, observation.observed_config)
+    else:
+        source = package_config(package)
+        knobs = {str(step.get("knob")) for step in plan_steps(package) if step.get("knob") is not None}
+        rolled_back = all(observation.observed_config.get(knob) == source.get(knob) for knob in knobs)
+    if not rolled_back:
+        raise InputError("observation rollback_observed contradicts its configuration, which is not back at the source value of the applied change")
 
 
 def config_drift(history: RealizationHistory, observed_hash: str, observed_at_utc: str) -> bool:

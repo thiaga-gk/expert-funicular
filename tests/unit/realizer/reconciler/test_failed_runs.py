@@ -145,8 +145,9 @@ class ReconcilerFailedRunTests(unittest.TestCase):
         cases = {
             # the changed step's payload reads the value after the drift entry
             "step payload": self.later(10, config={**self.base["config"], "warehouse_size": "SMALL"}, effective_time_quality=Unprintable()),
-            # nothing changed on a plan step: the intent is the first to read it
-            "intent": self.later(10, config={**self.source_config, "warehouse_channel": "PREVIEW"}, intent_state=Unprintable()),
+            # a knob no step changes (the size back at its source value would be a rollback, not a drift): its
+            # independent change's payload is the first to read the intent
+            "intent": self.later(10, config={**self.base["config"], "min_clusters": 2}, intent_state=Unprintable()),
         }
         for label, drifted in cases.items():
             with self.subTest(case=label):
@@ -158,8 +159,7 @@ class ReconcilerFailedRunTests(unittest.TestCase):
     def test_failure_after_intent_and_rollback_keeps_what_came_before(self):
         cases = {
             "rollback requested": ({"rollback_requested": Untestable()}, "INTENT_RECORDED"),
-            "rollback observed": ({"rollback_requested": True, "rollback_observed": Untestable()}, "ROLLBACK_REQUESTED"),
-            "replacement package": ({"rollback_observed": True, "replacement_package_id": Untestable()}, "ROLLBACK_OBSERVED"),
+            "rollback observed": ({"rollback_requested": True, "replacement_package_id": Untestable()}, "ROLLBACK_REQUESTED"),
         }
         for label, (patch, last) in cases.items():
             with self.subTest(case=label):
@@ -167,6 +167,10 @@ class ReconcilerFailedRunTests(unittest.TestCase):
                 self.assert_failed(outcomes, kind="ValueError")
                 self.assertEqual(events(tree)[-1], last)
                 self.assertIn("APPLICATION_OBSERVED", events(tree))
+        # the size back at its source value rolls the first run's application back
+        outcomes, tree = self.compare([self.base, self.later(10, config=dict(self.source_config), replacement_package_id=Untestable())], label="replacement package")
+        self.assert_failed(outcomes, 1, kind="ValueError")
+        self.assertEqual(events(tree)[-1], "ROLLBACK_OBSERVED")
 
     # --- the regeneration request ends the lifecycle: fails after every lifecycle entry ----------------------------
 

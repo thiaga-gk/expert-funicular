@@ -128,6 +128,8 @@ actor when known
 
 The scenario an observation applied is inferred: the one whose authority-eligible steps the observed configuration applies most (exactly or modified), the recommended plan first on a tie and when none is applied; an `applied_scenario_id` in the observation overrides it. So a migration applied under a migration-only run scope (recommended "No change") is still an application of the package's migration scenario. The application records the scenario's `compatibility_status` and `annotations`: a warehouse-type migration whose compatibility the Publisher did not evidence (any status but `COMPATIBLE`) carries `COMPATIBILITY_NOT_EVIDENCED`.
 
+A rollback is read from the configuration, never from a flag: a later observation in which every knob the application changed (the step's knob; for a scenario-scope application, every applied step's knob) is back at its source value is recorded as `ROLLBACK_OBSERVED` on that episode, with no `DRIFT_DETECTED` and no regeneration request, because the warehouse is at the package's own configuration again. Any other later change of the configuration is a drift: `DRIFT_DETECTED` on the episode and a `CONFIGURATION_DRIFT` regeneration request. A package's own safety-rollback step (a canary rollback) is an application of that package like any other step, so rolling it back means returning to the value it replaced. `ROLLBACK_REQUESTED` records the caller's intent and changes no state.
+
 `PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
 ## 7. Modified implementation

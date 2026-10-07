@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import config_hash, normalize_value, observed_config, scenario_by_id
+from realizer.analyzer.analysis import back_at_source, config_hash, normalize_value, observed_config, scenario_by_id
 from realizer.common.logging import LOGGER
 from realizer.common.utils import Deferred
 from realizer.contracts import realization as rc
@@ -94,7 +94,10 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     step_results, primary = state.match.step_matches, state.match.primary
     authority_changes, scenario_scope = state.match.authority_changes, state.match.scenario_scope
     previous_app = analysis.history.previous_application
-    material_config_drift = analysis.config_drift_observed
+    # A later configuration that differs from the previous application's is a rollback when every knob the application
+    # changed is back at its source value (the warehouse is at the package's own configuration again), else a drift.
+    rolled_back = bool(analysis.config_drift_observed and previous_app is not None and back_at_source(package, previous_app.payload, obs_cfg))
+    material_config_drift = analysis.config_drift_observed and not rolled_back
 
     if material_config_drift:
         state.drift = {
@@ -221,16 +224,18 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     intent = str(observation.get("intent_state") or "UNKNOWN").upper()
     if intent != "UNKNOWN":
         state.intent = {"intent_state": intent, "actor": observation.get("actor"), "reference": observation.get("intent_reference")}
-        state.intent_episode_id = active.application_episode_id if active else None
+        state.intent_episode_id = active.application_episode_id if active else previous_app.application_episode_id if rolled_back and previous_app else None
 
-    # Explicit rollback can be requested/observed independently of a new PKG.
+    # A rollback request is the caller's recorded intent; an observed rollback is the configuration's (the caller's
+    # ``rollback_observed`` flag was checked against it by the Analyzer), on the episode it rolls back.
     rollback_episode_id = active.application_episode_id if active else previous_app.application_episode_id if previous_app else None
     if observation.get("rollback_requested"):
         state.rollback_episode_id = rollback_episode_id
         state.rollback_requested = {"reason": observation.get("rollback_reason")}
-    if observation.get("rollback_observed"):
-        state.rollback_episode_id = rollback_episode_id
-        state.rollback_observed = {"observed_config": obs_cfg, "reason": observation.get("rollback_reason")}
+    if rolled_back:
+        assert previous_app is not None
+        state.rollback_episode_id = previous_app.application_episode_id
+        state.rollback_observed = {"observed_config": obs_cfg, "observed_config_hash": observed_hash, "reason": observation.get("rollback_reason")}
 
     # Replacement/supersession events are explicit; package generation alone is
     # not inferred from observation time.

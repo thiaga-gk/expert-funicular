@@ -241,8 +241,7 @@ class RegenerationEvidenceTests(unittest.TestCase):
                                                                "end_utc": raw.get("window_end_utc") or analysis.observed_at_utc})
                 source = package_config(package)
                 self.assertEqual(rerun["changed_knobs"], [k for k in lifecycle.DECISION_KNOBS if rerun["actual_config"][k] != source[k]])
-                # the drift scenario reverts to the package's own configuration: nothing differs from it
-                self.assertEqual(bool(rerun["changed_knobs"]), reason != "CONFIGURATION_DRIFT")
+                self.assertTrue(rerun["changed_knobs"])
 
 
 class LifecycleScenarioTests(unittest.TestCase):
@@ -335,19 +334,25 @@ class LifecycleScenarioTests(unittest.TestCase):
 
     def test_rollback_attaches_to_the_active_or_previous_episode(self):
         package, observations = self.scenario("GR-025")
-        _, second = [r for _, r in reconcile_runs(self, package, observations)]
-        self.assertEqual(second.rollback_observed, {"observed_config": second.drift["observed_config"], "reason": None})
+        (a1, first), (a2, second) = reconcile_runs(self, package, observations)
+        previous = a2.history.previous_application
+        self.assertEqual(second.rollback_observed["observed_config"], a2.observation.observed_config)
+        self.assertEqual(second.rollback_observed["observed_config_hash"], a2.observation.source_config_hash)
         self.assertIsNone(second.rollback_requested)
-        self.assertEqual(second.rollback_episode_id, second.drift_episode_id)
+        self.assertEqual(second.rollback_episode_id, previous.application_episode_id)
+        # back at the package's own configuration: no drift, no regeneration, no validation
+        self.assertIsNone(second.drift)
+        self.assertIsNone(second.terminal_regeneration)
+        self.assertFalse(second.validation_due)
         # requested on an application this run opens
         (only,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "rollback_requested": True, "rollback_reason": "slow"}])]
         self.assertEqual(only.rollback_requested, {"reason": "slow"})
         self.assertEqual(only.rollback_episode_id, only.active.application_episode_id)
-        # nothing applied, no history: no episode
+        # nothing applied, no history: nothing to roll back, whatever the flag says
         (none,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "config": dict(self.source), "rollback_observed": True}])]
         self.assertIsNone(none.active)
         self.assertIsNone(none.rollback_episode_id)
-        self.assertIsNotNone(none.rollback_observed)
+        self.assertIsNone(none.rollback_observed)
 
     def test_supersession_records_the_replacement(self):
         package, observations = self.scenario("GR-022")
