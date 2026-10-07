@@ -1339,6 +1339,140 @@
    "workspace_id": "1234567890123456"
   }
  },
+ "DemoObservationTests.test_for_every_fixture_package/migration-priced.json modified=False": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "applied_scenario_id": null,
+   "config": {
+    "auto_stop_minutes": 35,
+    "enable_photon": true,
+    "max_clusters": 1,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+   },
+   "correction": null,
+   "economics": {
+    "aws_cash_realized": null,
+    "aws_commitment_freed": null,
+    "aws_economic_realized": null,
+    "aws_evidence_type": null,
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "15288.72",
+    "currency": "USD",
+    "dbu_realized": null,
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": null,
+    "observed_new_cost": "7644.36",
+    "period_days": 30
+   },
+   "effective_time_quality": "OBSERVED_AT_ONLY",
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "financial_quality": {
+    "attributable_spend_pct": 100,
+    "correction_chain_complete": true,
+    "currency_consistency_pct": 100,
+    "material_cost_component_available": true,
+    "price_coverage_pct": 100
+   },
+   "intent_reference": null,
+   "intent_state": "ACCEPTED",
+   "measurement": null,
+   "observation_format_version": "3.1.0",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "overlap_count": 0,
+   "performance": {
+    "correctness_pass": true,
+    "guards": null,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "replacement_package_id": null,
+   "representative_regime": true,
+   "rollback_observed": false,
+   "rollback_reason": null,
+   "rollback_requested": false,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "warehouse_id": "wh-demo-001",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z",
+   "workload": {},
+   "workspace_id": "1234567890123456"
+  }
+ },
+ "DemoObservationTests.test_for_every_fixture_package/migration-priced.json modified=True": {
+  "value": {
+   "actor": "demo-user",
+   "applied_at_utc": "2026-10-01T12:00:00Z",
+   "applied_scenario_id": null,
+   "config": {
+    "auto_stop_minutes": 35,
+    "enable_photon": true,
+    "max_clusters": 1,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+   },
+   "correction": null,
+   "economics": {
+    "aws_cash_realized": null,
+    "aws_commitment_freed": null,
+    "aws_economic_realized": null,
+    "aws_evidence_type": null,
+    "counterfactual_method": "MATCHED_HISTORICAL",
+    "counterfactual_old_cost": "15288.72",
+    "currency": "USD",
+    "dbu_realized": null,
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": "93006.38",
+    "observed_new_cost": "7644.36",
+    "period_days": 30
+   },
+   "effective_time_quality": "OBSERVED_AT_ONLY",
+   "elapsed_days": 8,
+   "evidence_quality": "SUFFICIENT",
+   "financial_quality": {
+    "attributable_spend_pct": 100,
+    "correction_chain_complete": true,
+    "currency_consistency_pct": 100,
+    "material_cost_component_available": true,
+    "price_coverage_pct": 100
+   },
+   "intent_reference": null,
+   "intent_state": "ACCEPTED",
+   "measurement": null,
+   "observation_format_version": "3.1.0",
+   "observed_at_utc": "2026-10-09T12:00:00Z",
+   "origin_attribution": "CONFIRMED",
+   "overlap_count": 0,
+   "performance": {
+    "correctness_pass": true,
+    "guards": null,
+    "normalized_p95_runtime_regression_pct": "2",
+    "reliability_pass": true
+   },
+   "query_count": 250,
+   "recorded_at_utc": "2026-10-09T12:00:00Z",
+   "replacement_package_id": null,
+   "representative_regime": true,
+   "rollback_observed": false,
+   "rollback_reason": null,
+   "rollback_requested": false,
+   "source": "DEMO_NORMALIZED_OBSERVATION",
+   "warehouse_id": "wh-demo-001",
+   "window_end_utc": "2026-10-09T12:00:00Z",
+   "window_start_utc": "2026-10-02T12:00:00Z",
+   "workload": {},
+   "workspace_id": "1234567890123456"
+  }
+ },
  "DemoObservationTests.test_for_every_fixture_package/scope-migration-only.json modified=False": {
   "value": {
    "actor": "demo-user",
