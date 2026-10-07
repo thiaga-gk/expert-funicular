@@ -46,11 +46,9 @@ REOPTIMIZE_BELOW_LOW = Decimal("0.5")
 
 
 def _savings_block(savings: Mapping[str, Any], component: Optional[str]) -> Optional[Mapping[str, Any]]:
-    """The savings range of *component* (``total`` or ``dbu``); without one, the total, else the DBU range."""
-    if component is not None:
-        block = savings.get(component)
-    else:
-        block = savings.get("total") or savings.get("dbu")
+    """The savings range of *component* (``total`` or ``dbu``; the total when not given). A missing component is
+    ``None``: the DBU range never stands in for a total."""
+    block = savings.get(component or "total")
     return block if isinstance(block, Mapping) else None
 
 
@@ -77,6 +75,55 @@ def step_range(package: Mapping[str, Any], step: Mapping[str, Any], component: O
     return None if not c else published_range(_savings_block((c.get("independent_economics") or {}).get("savings_365d") or {}, component))
 
 
+def _components(savings: Mapping[str, Any]) -> Dict[str, Optional[str]]:
+    """The expected annual savings per component (the base of each range; ``None`` when not priced), kept separate."""
+    out: Dict[str, Optional[str]] = {}
+    for component in ("dbu", "aws", "total"):
+        block = savings.get(component)
+        out[component] = money(block.get("base")) if isinstance(block, Mapping) else None
+    return out
+
+
+def _candidate_savings(package: Mapping[str, Any], step: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
+    c = candidate_by_id(package, (step or {}).get("candidate_id"))
+    return ((c or {}).get("independent_economics") or {}).get("savings_365d") or {}
+
+
+def _scenario_step(package: Mapping[str, Any], scenario_id: Any, number: Any) -> Optional[Mapping[str, Any]]:
+    return next((st for st in candidate_steps(package, scenario_id) if int(st.get("step", 0)) == int(number if number is not None else -1)), None)
+
+
+def denominator(package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any], component: str) -> Dict[str, Any]:
+    """The expected annual savings an application is measured against: ``savings`` (the per-component ranges the
+    denominator comes from, ``{}`` when none), ``source`` and ``informational`` (a range reported, never classified
+    against). See the module's tests for the rules: a candidate step its isolated economics; a scenario-scope prefix of
+    the plan the running savings of its last applied step; one scenario step its candidate economics; a migration
+    scenario its (pre-canary) range, informational."""
+    conformance = app.get("implementation_conformance")
+    if app.get("application_scope") == "SCENARIO":
+        if conformance != rc.ImplementationConformance.EXACT.value:
+            return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
+        scenario = scenario_by_id(package, app.get("scenario_id")) or {}
+        if scenario.get("scenario_type") == "WAREHOUSE_TYPE_MIGRATION":
+            savings = (scenario.get("portfolio_economics") or {}).get("savings_365d") or {}
+            return {"savings": savings, "source": "PUBLISHER_SCENARIO", "informational": True}
+        applied = sorted(int(ref["step"]) for ref in app.get("applied_step_refs") or [] if ref.get("step") is not None)
+        eligible = [int(st.get("step", 0)) for st in candidate_steps(package, app.get("scenario_id")) if authority_eligible(st)]
+        if len(applied) == 1:
+            return {"savings": _candidate_savings(package, _scenario_step(package, app.get("scenario_id"), applied[0])),
+                    "source": "PUBLISHER_CANDIDATE", "informational": False}
+        if applied and applied == eligible[:len(applied)]:
+            last = _scenario_step(package, app.get("scenario_id"), applied[-1]) or {}
+            savings = (last.get("projected_economics") or {}).get("running_savings_365d") or {}
+            return {"savings": savings, "source": "PUBLISHER_SCENARIO", "informational": False}
+        return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
+    if conformance == rc.ImplementationConformance.EXACT.value:
+        step = _scenario_step(package, app.get("scenario_id"), app.get("step"))
+        if step is not None and authority_eligible(step):
+            return {"savings": _candidate_savings(package, step), "source": "PUBLISHER_CANDIDATE", "informational": False}
+    return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
+
+
 def calculate_economics(
     package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any],
     policy: RealizerPolicy, validation_passed: bool, counterfactual_claim_eligible: bool = True,
@@ -101,35 +148,30 @@ def calculate_economics(
     representative = readiness(observation, policy)["ready"]
     annualized = realized * Decimal("365") / period_days if representative and period_days > 0 else None
 
-    conformance = app.get("implementation_conformance")
     expected: Optional[Decimal] = None
     expected_range: Optional[Tuple[Decimal, Decimal, Decimal]] = None
+    expected_components: Optional[Dict[str, Optional[str]]] = None
     denom_source = "UNAVAILABLE"
-    # A live measurement compares like with like: DBU only when it has no AWS price, else the total.
+    informational = False
+    # A live measurement compares like with like: DBU only when it has no AWS price, else the total; a caller-supplied
+    # observation is compared with the total.
     measured = observation.get("measurement") or {}
-    component = {"DBU_ONLY": "dbu", "DBU_AND_MODELED_AWS": "total"}.get(str(measured.get("cost_basis")))
+    component = {"DBU_ONLY": "dbu", "DBU_AND_MODELED_AWS": "total"}.get(str(measured.get("cost_basis")), "total")
     supplied = decimal(econ.get("expected_annual_savings_actual_scope"))
-    if app.get("application_scope") == "SCENARIO":
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-        elif conformance == rc.ImplementationConformance.EXACT.value:
-            scn = scenario_by_id(package, app.get("scenario_id"))
-            total = (((scn or {}).get("portfolio_economics") or {}).get("savings_365d") or {}).get("total") or {}
-            expected = decimal(total.get("base"))
-            if expected is not None:
-                denom_source = "PUBLISHER_SCENARIO"
-                expected_range = published_range(total)
-    elif conformance == rc.ImplementationConformance.MODIFIED.value:
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-    elif conformance == rc.ImplementationConformance.EXACT.value:
-        if supplied is not None:
-            expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
-        else:
-            step = next((st for st in candidate_steps(package, app.get("scenario_id")) if int(st.get("step", 0)) == int(app.get("step", -1))), None)
-            if step is not None and authority_eligible(step):
-                expected, denom_source = expected_annual_for_exact_step(package, step, component)
-                expected_range = step_range(package, step, component) if expected is not None else None
+    # A caller's re-estimate for the applied scope stands for a scenario-scope application and an applied step, never for
+    # a contrary one.
+    reestimable = app.get("application_scope") == "SCENARIO" or app.get("implementation_conformance") in (
+        rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value)
+    if supplied is not None and reestimable:
+        expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
+    elif supplied is None:
+        chosen = denominator(package, app, observation, component)
+        block = _savings_block(chosen["savings"], component)
+        expected = None if block is None else decimal(block.get("base"))
+        if expected is not None:
+            denom_source, informational = chosen["source"], chosen["informational"]
+            expected_range = published_range(block)
+            expected_components = _components(chosen["savings"])
 
     ratio: Optional[Decimal] = None
     if annualized is not None and expected is not None and expected > 0:
@@ -138,6 +180,10 @@ def calculate_economics(
     if not validation_passed:
         state, detail = rc.RealizationState.VALIDATION_FAILED.value, "HARD_GUARDRAIL_FAILED"
         successful = Decimal("0")
+    elif informational and counterfactual_claim_eligible:
+        # A migration's range is pre-canary: the realization is reported against it, never classified.
+        state, detail = rc.RealizationState.MONITORING.value, "MIGRATION_RANGE_INFORMATIONAL"
+        successful = realized
     elif not counterfactual_claim_eligible:
         # Retain source actual/counterfactual diagnostics but do not convert an
         # indefensible/correlated-only counterfactual into successful realized
@@ -147,7 +193,7 @@ def calculate_economics(
     elif ratio is None:
         state, detail = rc.RealizationState.MONITORING.value, "VALIDATED_VALUE_UNCLASSIFIED"
         successful = realized
-    elif expected_range is not None and expected_range[0] > 0:
+    elif expected_range is not None and expected_range[0] > 0 and not informational:
         # Against the published range: at or above its low is realized (the replay measures the full mechanical effect,
         # so comparing it with the base would always read high); far above its high is flagged for review.
         low, _, high = expected_range
@@ -188,8 +234,9 @@ def calculate_economics(
         "mature_ttm_realized_savings": money(econ.get("mature_ttm_realized_savings")),
         "expected_same_scope_annual_savings": money(expected),
         "denominator_source": denom_source,
-        "expected_range": None if expected_range is None else {"component": component or "total", **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
-        "classification_basis": "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
+        "expected_range": None if expected_range is None else {"component": component, **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
+        "expected_components": expected_components,
+        "classification_basis": "INFORMATIONAL" if informational else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
         "review_required": detail == "REALIZED_ABOVE_RANGE_REVIEW",
         "realization_ratio": ratio_string(ratio),
         "realization_state": state,

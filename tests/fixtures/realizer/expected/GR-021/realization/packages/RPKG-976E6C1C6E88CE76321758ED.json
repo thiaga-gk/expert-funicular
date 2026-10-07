@@ -86,7 +86,7 @@
   "contract_version": "1.0.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
-    "realization_state": "REALIZED",
+    "realization_state": "MONITORING",
     "source_package_disposition": "ACTIVE",
     "validation_state": "PASSED"
   },
@@ -100,13 +100,18 @@
     "aws_commitment_freed": null,
     "aws_economic_realized": null,
     "aws_evidence_type": null,
-    "classification_basis": "PUBLISHED_RANGE",
-    "classification_detail": "REALIZED",
+    "classification_basis": "INFORMATIONAL",
+    "classification_detail": "MIGRATION_RANGE_INFORMATIONAL",
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
     "denominator_source": "PUBLISHER_SCENARIO",
     "economic_basis": "ECONOMIC_COST",
+    "expected_components": {
+      "aws": "33270.67",
+      "dbu": "-14369.63",
+      "total": "18901.04"
+    },
     "expected_range": {
       "base": "18901.04",
       "component": "total",
@@ -147,7 +152,7 @@
       }
     },
     "realization_ratio": "1.682074637162822786471009003",
-    "realization_state": "REALIZED",
+    "realization_state": "MONITORING",
     "realized_savings_period": "2613.12",
     "realized_savings_since_application": "2613.12",
     "reoptimization_recommended": false,
@@ -162,7 +167,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-ECA2E1DB6C54E6B3EC3147F4",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:FC9E8E75D1E0AC34CE2BEAB0132ACC699057F0049E1E4FF1A8EE215D738BCC68",
+    "ledger_checkpoint_hash": "SHA256:46E6C88B9506DC763365A1550FE06D31C4ECF1368E2767443D49FBDB2CE94327",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -187,7 +192,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-2100C888D0D600DF2C3E7748",
+  "snapshot_id": "RSNAP-E3F371496CE66614C7D1CC11",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

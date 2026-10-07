@@ -18,6 +18,7 @@ from pathlib import Path
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import stage_policy, Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
 from realizer.analyzer.analysis import candidate_steps  # noqa: E402
+from realizer.governor.policy import authority_eligible  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config.settings import MODELER_GATEWAY_VERSION  # noqa: E402
 from realizer.contracts.realization import make_measurement_id, make_rpkg_id  # noqa: E402
@@ -124,7 +125,9 @@ class ExpectedAnnualTests(unittest.TestCase):
         pkg["candidates"] = [{"candidate_id": "CAND-T", "independent_economics": shapes["total"]}]
         self.assertEqual(economics.expected_annual_for_exact_step(pkg, step), (Decimal("120.5"), "PUBLISHER_CANDIDATE"))
         pkg["candidates"][0]["independent_economics"] = shapes["dbu fallback"]
-        self.assertEqual(economics.expected_annual_for_exact_step(pkg, step), (Decimal("7"), "PUBLISHER_CANDIDATE"))
+        # A missing total is unavailable; the DBU range is used only when the DBU component is asked for.
+        self.assertEqual(economics.expected_annual_for_exact_step(pkg, step), (None, "UNAVAILABLE"))
+        self.assertEqual(economics.expected_annual_for_exact_step(pkg, step, "dbu"), (Decimal("7"), "PUBLISHER_CANDIDATE"))
         self.assertEqual(economics.expected_annual_for_exact_step(pkg, {"candidate_id": "CAND-NONE"}), (None, "UNAVAILABLE"))
         self.assertEqual(economics.expected_annual_for_exact_step(pkg, {}), (None, "UNAVAILABLE"))
 
@@ -265,7 +268,11 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual(self.econ(app=modified)["denominator_source"], "UNAVAILABLE")
         self.assertEqual(self.econ(app=modified, expected_annual_savings_actual_scope="15000")["denominator_source"], "REESTIMATED_APPLIED_SCOPE")
         scenario = {**self.app, "application_scope": "SCENARIO"}
-        self.assertEqual(self.econ(app=scenario)["denominator_source"], "PUBLISHER_SCENARIO")
+        # A scenario-scope application is measured against the steps it applied: none named, no denominator.
+        self.assertEqual(self.econ(app=scenario)["denominator_source"], "UNAVAILABLE")
+        eligible = [st["step"] for st in candidate_steps(self.pkg, self.app["scenario_id"]) if authority_eligible(st)]
+        refs = [{"scenario_id": self.app["scenario_id"], "step": n, "conformance": "EXACT"} for n in eligible[:2]]
+        self.assertEqual(self.econ(app={**scenario, "applied_step_refs": refs})["denominator_source"], "PUBLISHER_SCENARIO")
         self.assertEqual(self.econ(app={**scenario, "implementation_conformance": "MODIFIED"})["denominator_source"], "UNAVAILABLE")
         self.assertEqual(self.econ(app={**self.app, "step": 99})["denominator_source"], "UNAVAILABLE")
         self.assertEqual(self.econ(app={**self.app, "implementation_conformance": "CONTRARY"}, expected_annual_savings_actual_scope="1")["denominator_source"], "UNAVAILABLE")

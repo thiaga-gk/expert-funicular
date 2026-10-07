@@ -264,6 +264,8 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.application['application_scope'], 'SCENARIO')
         self.assertEqual(s.application['implementation_conformance'], 'EXACT')
         self.assertEqual(s.economics['denominator_source'], 'PUBLISHER_SCENARIO')
+        # The migration range is pre-canary: reported, never classified against.
+        self.assertEqual((s.economics['classification_basis'], s.current_state['realization_state']), ('INFORMATIONAL', 'MONITORING'))
 
     # GR-022
     def test_gr_022_superseded_package_can_continue_applied_measurement(self):

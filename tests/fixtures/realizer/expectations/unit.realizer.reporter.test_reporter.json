@@ -25,7 +25,7 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9bb2f106d2b26cc5",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d01710ffa204684f",
      "realization/packages": "aacd1cd8cc810c3e",
      "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "5be568bae077a1c6"
     }
@@ -59,8 +59,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9bb2f106d2b26cc5",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "04b7f61ea117d264",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d01710ffa204684f",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6eedbedb0a50f818",
      "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "5be568bae077a1c6",
      "realization/snapshots": "aacd1cd8cc810c3e"
     }
@@ -68,8 +68,8 @@
   ]
  },
  "LegacyCompatibilityTests.test_every_snapshot_of_every_scenario_projects_as_stored/projections": {
-  "length": 5248,
-  "sha256": "53e2cf30fe6ab1d9f8530549999769df2c8c532f65dca1a70f8f07ddd6e5f809",
+  "length": 5286,
+  "sha256": "74b3695048ab22b9ecc1c8aaa94c38a8097d525a1bca95cac42b7bbc3a32280c",
   "spot": {
    "distinct": [
     [
@@ -96,6 +96,13 @@
      "LOSSY",
      [
       "INVALIDATED_COLLAPSES_TO_LEGACY_APPLIED"
+     ]
+    ],
+    [
+     "MONITORING",
+     "LOSSY",
+     [
+      "MONITORING_COLLAPSES_TO_LEGACY_REALIZED"
      ]
     ],
     [

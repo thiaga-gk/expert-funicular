@@ -101,6 +101,11 @@
     "dbu_realized": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_components": {
+      "aws": "11553.41",
+      "dbu": "20239.52",
+      "total": "31792.93"
+    },
     "expected_range": {
       "base": "31792.93",
       "component": "total",
@@ -156,7 +161,7 @@
     "latest_effective_at_utc": "2026-10-10T12:00:00Z",
     "latest_entry_id": "RLE-F39EB207CF647AF4047898EB",
     "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:53F9B32D667EB328DCBC9EE2A7A191191A84741910113029707C3D9F8723F97A",
+    "ledger_checkpoint_hash": "SHA256:4F6991B6ED357D1DD758A441936FD481565DF353FF40A72BCD08A03498269B28",
     "measurement_count": 2,
     "validation_episode_count": 2
   },
@@ -181,7 +186,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-76C740B77177F223A2497174",
+  "snapshot_id": "RSNAP-893D3D00C461623CC047AAA5",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

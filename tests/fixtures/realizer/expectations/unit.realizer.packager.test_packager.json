@@ -1,7 +1,7 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
   "length": 33190,
-  "sha256": "0e5f7f30c2efef9d7d2e380c1bd38420e49ce63b10eb2c59cf975110e04cc508",
+  "sha256": "2ba56e319e54dec188f4c5eac615876c94373f0060464ebf10f4b77eef8b8b5a",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
@@ -49,10 +49,10 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9bb2f106d2b26cc5",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "04b7f61ea117d264",
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d01710ffa204684f",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6eedbedb0a50f818",
     "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "5be568bae077a1c6",
-    "realization/snapshots/RSNAP-E75FFD70A3A10DFDC7C0531A.json": "04b7f61ea117d264"
+    "realization/snapshots/RSNAP-7A2890E3013F7C5F411D57E9.json": "6eedbedb0a50f818"
    }
   }
  },
@@ -64,7 +64,7 @@
    "INFO ledger.duplicate_suppressed rle=RLE-F9BDA14552044FB888676A4C",
    "INFO ledger.duplicate_suppressed rle=RLE-23D19BE992D694001E5D5BA1",
    "INFO ledger.duplicate_suppressed rle=RLE-AB2C14A742C62B8B9C86E85D",
-   "INFO ledger.duplicate_suppressed rle=RLE-C9AA04C4CEC60C363EF2F2FC",
+   "INFO ledger.duplicate_suppressed rle=RLE-7BEDA415B7EF65D81D71B73D",
    "INFO ledger.duplicate_suppressed rle=RLE-FAD10742E26A25D9E537B5B6"
   ]
  },
@@ -88,7 +88,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "cfbd1b312c746d9ab8da66656e9c8145eaeef8fdd228c947124c25b90fafd0dd",
+  "sha256": "d7067a9ecba8348fbd20f43962f950cf6bc63b4ef17bf18d1665d3f306a6e63b",
   "spot": {
    "count": 171,
    "first": [
@@ -101,7 +101,7 @@
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "89c7cf7919067be05c8618932f67af82277c0d20516a392ea2fc27d8d6b7634d"
+    "2ddc7a4c4de5613d8fd7e7062e1b8f3f6572ff349d9f217f23372d896ade21ca"
    ],
    "outcomes": {
     "InputError": 41,
@@ -111,7 +111,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
   "length": 36077,
-  "sha256": "957d809160b4d6dd0039db49974d1941e97d7544e94c63da4d29dc27317a17b9",
+  "sha256": "07c9314b457f2b4f7b13f5be87e76074d10dfd83cc4c2e055e72daf3d98358d4",
   "spot": {
    "files": 259,
    "scenarios": 41

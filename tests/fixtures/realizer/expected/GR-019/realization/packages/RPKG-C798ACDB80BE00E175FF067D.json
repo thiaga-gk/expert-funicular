@@ -110,6 +110,7 @@
     "dbu_realized": null,
     "denominator_source": "REESTIMATED_APPLIED_SCOPE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_components": null,
     "expected_range": null,
     "expected_same_scope_annual_savings": "15000.00",
     "mature_ttm_realized_savings": null,
@@ -160,7 +161,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-DD838FA949E3F94C170F7F3E",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:A4FEA0D1BF6832E60A789E53D7E7E66D772B828E15C9539355FC311BEC347302",
+    "ledger_checkpoint_hash": "SHA256:770584DBDC33C433E68BB42B7969BD99AE28505DED0C91D446A939C78E25EF76",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -185,7 +186,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-BA3A9C878C9B05FD690C179F",
+  "snapshot_id": "RSNAP-10D4BFEE330AD07740D48055",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

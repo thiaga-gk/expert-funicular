@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 5774305,
-  "sha256": "91386d6c52f74e157dffad779b95ffe93b1c25c4a79be8051b6b92abc0a45dd4",
+  "length": 5938240,
+  "sha256": "a5dd6d156b18eb46dbaa58260d63a01b47a711b30ebebf6700dfdaeea0038d3b",
   "spot": {
    "classes": [
     [
@@ -23,6 +23,11 @@
      "BLOCKED",
      "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
      "UNAVAILABLE"
+    ],
+    [
+     "MONITORING",
+     "MIGRATION_RANGE_INFORMATIONAL",
+     "PUBLISHER_SCENARIO"
     ],
     [
      "MONITORING",
@@ -169,6 +174,11 @@
     "dbu_realized": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_components": {
+     "aws": "11553.41",
+     "dbu": "20239.52",
+     "total": "31792.93"
+    },
     "expected_range": {
      "base": "31792.93",
      "component": "total",
@@ -263,8 +273,8 @@
   "value": [
    "ok",
    [
-    "7",
-    "PUBLISHER_CANDIDATE"
+    null,
+    "UNAVAILABLE"
    ]
   ]
  },
