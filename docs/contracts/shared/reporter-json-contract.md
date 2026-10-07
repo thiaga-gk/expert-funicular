@@ -261,7 +261,7 @@ canonical applied_config
 | `< 0.60` | `LOW` |
 | `null` | `UNKNOWN` only |
 
-Confidence measures evidence quality / decision support, **not probability of achieving the modeled savings**. A scenario with no steps has nothing to be confident about: its confidence is `UNKNOWN` with a null score. How a candidate score is built (and capped by status) is in `architecture/lld.md`, section 16.
+Confidence measures evidence quality / decision support, **not probability of achieving the modeled savings**. A scenario with no steps has nothing to be confident about: its confidence is `UNKNOWN` with a null score. How a candidate score is built (and capped by status) is in [`../../architecture/publisher/lld.md`](../../architecture/publisher/lld.md), section 16.
 
 ### Estimation status
 

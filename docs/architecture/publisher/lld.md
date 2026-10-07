@@ -40,7 +40,7 @@ The publisher implements the design directly:
 2. reviewer-gated candidates/scenarios flow through a minimal `WarehouseOptimization` orchestration result and then directly into `RecommendationPackage`; no transitional internal run-report serialization contract remains;
 3. Workbook Contract v1.6.0 is a numeric-first presentation projection of the public packages.
 
-Realization ingestion remains future scope; packages are initialized as `NOT_APPLIED` until a separately approved measured-outcome source contract exists.
+The Publisher writes every package's realization as `NOT_APPLIED`; the Realizer ([`../realizer/lld.md`](../realizer/lld.md)) measures applied changes from the packages.
 
 ---
 
@@ -191,6 +191,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--execution-kind` / `--execution-id` | generic execution target pair; `--execution-kind` is `warehouse` or `cluster` and is required with `--execution-id` |
 | `--workspace-id` | required for the cluster HTTP path when it cannot be discovered; default `DATABRICKS_WORKSPACE_ID` |
 | `--source-region` | AWS region of the workspace, used for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
+| `--mode` | where the run executes; only `local` today (default from `PUBLISHER_EXECUTION_MODE`, else `local`); the config layer resolves it |
 | `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops after collection, before any package, evidence or workbook is written (the log is already open). With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
 | `--aws-price-registry` | versioned EC2 registry path; default `AWS_PRICE_REGISTRY`, else the shipped `pricing/aws_ec2_on_demand.json` |
 | `--batch-size` | downstream Python batch size (31.2); collector remains set-based; default `WAREHOUSE_BATCH_SIZE`, else 100 |
@@ -1748,7 +1749,7 @@ Tests verify:
 
 ### 34.1 Realization ingestion is not implemented
 
-Phase 1 initializes `realization.status = NOT_APPLIED` (26); measured realization is not writable. Open limitation: [`docs/reference/publisher/known-limitations.md`](../../reference/publisher/known-limitations.md).
+The Publisher initializes `realization.status = NOT_APPLIED` (26) and never writes measured realization; the Realizer measures it from the packages ([`../realizer/lld.md`](../realizer/lld.md)). See [`docs/reference/publisher/known-limitations.md`](../../reference/publisher/known-limitations.md).
 
 ### 34.2 Compatibility API remains optional evidence
 
@@ -1765,7 +1766,7 @@ Thresholds are conservative policy defaults ([`docs/reference/publisher/threshol
 The LLD is satisfied by an implementation when all of the following hold:
 
 1. Only supported warehouse types can enter active optimization logic.
-2. Exactly five candidate decisions are produced for every supported warehouse package.
+2. One candidate decision per active domain in the run scope is produced for every supported warehouse package (five in a full run).
 3. All active recommendation evidence is current-epoch scoped.
 4. Analyzer, optimizer, candidate estimator, bundle estimator, and reviewer responsibilities remain separated.
 5. Candidate savings cannot be added to form scenario or package savings.

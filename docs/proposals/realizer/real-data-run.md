@@ -35,4 +35,4 @@ In a plan applied step by step, the live measurement measures the first applied 
 
 ## After the run
 
-State retention (what can be deleted, what to keep) is in [`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 24. Findings and decisions that follow from the run go to [`gap-review.md`](../../archive/realizer/gap-review.md) and its tracker; the run's results are presented per change with real-number tables before any fix is proposed.
+State retention (what can be deleted, what to keep) is in [`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 24. Findings and decisions that follow from the run start a new Realizer review (live run step 2.3; the closed one is [`gap-review.md`](../../archive/realizer/gap-review.md)); the run's results are presented per change with real-number tables before any fix is proposed.

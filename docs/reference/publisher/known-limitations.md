@@ -3,7 +3,7 @@
 This file records limitations that remain true in the current release. Resolved implementation gaps are intentionally not retained here.
 
 1. **Advisory/read-only:** the publisher does not apply SQL warehouse configuration changes. HITL execution remains external.
-2. **Realization ingestion:** the public JSON contract supports realization, but Phase 1 emits `NOT_APPLIED`; automated post-change measurement ingestion is not implemented. A future release must define the authoritative post-change measurement source, the attribution windows, the rollback semantics and the validation rules before realization becomes writable.
+2. **Realization is measured outside the Publisher:** the Publisher always writes `realization` as `NOT_APPLIED`. Measuring what an applied change realized is the Realizer's job ([`../../architecture/realizer/context.md`](../../architecture/realizer/context.md)); its open limitations are in [`../realizer/known-limitations.md`](../realizer/known-limitations.md).
 3. **Supported warehouse types:** active optimization is limited to `CLASSIC`, `PRO`, and standard `SERVERLESS`. Lakehouse Real-Time and unknown/future types fail closed: the Analyzer does not analyze them and the Governor excludes them.
 4. **Historical AWS actual cost:** without CUR/effective-rate integration, customer AWS infrastructure actuals are not authoritative. Forward Pro/Classic AWS cost uses the versioned regional on-demand registry and is modeled.
 5. **AWS pricing scope:** modeled AWS forward cost does not include support, network, tax, or other charges unless explicitly represented in a future pricing source contract. Discounts, RI/Savings Plans and Spot are limitation 15.

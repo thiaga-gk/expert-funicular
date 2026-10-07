@@ -21,7 +21,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 
 ## Per-issue loop (red → green → review → merge)
 
-0. **Once, before the first issue:** in the main checkout on `master`, commit the untracked `docs/proposals/publisher/gap-review-2.8.0.md`, `docs/proposals/publisher/golden-scenarios.md` and this runbook in one commit. Create the worktree: `git worktree add .worktrees/gap-fixes -b fix/<first-id> master`, then create a venv inside it and `pip install -r requirements.txt`.
+0. **Once, before the first issue:** create the worktree from a clean `master`: `git worktree add .worktrees/gap-fixes -b fix/<first-id> master`, then create a venv inside it and `pip install -r requirements.txt`.
 1. **Start:** in the worktree, `git switch -c fix/<id> master` (after the first issue). Set the tracker row to *In progress*.
 2. **Red:** write the failing tests first.
    - Unit tests for the defect in the capability test folder it belongs to (`tests/unit/<capability>/`, or `tests/unit/contracts/`, `tests/unit/reporter/` for the contract/workbook test files).
@@ -35,7 +35,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
    4. validate every package (semantic + JSON Schema)
    5. `python scripts/validate_workbook.py ./demo_out`
    6. stale version/legacy reference scan before any release step
-5. **Versions:** any decision-affecting change bumps the affected component versions (`POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`). The first decision-affecting merge of this cycle moves `PUBLISHER_VERSION` to the next minor (2.10.0) and the affected components to `v2.10.0`; later merges in the cycle update any component newly affected. Contract versions change only through the contract gate below. Regenerate goldens and the contract example in the same commit.
+5. **Versions:** any decision-affecting change bumps the affected component versions (`POLICY_VERSION`, `ANALYZER_VERSION`, `OPTIMIZER_VERSION`, `ESTIMATOR_VERSION`, `BUNDLE_MODEL_VERSION`, `MODEL_VERSION`, `REVIEWER_VERSION`, `DECISION_VERSION`). The first decision-affecting merge of this cycle moves `PUBLISHER_VERSION` to its next minor and the affected components to that version; later merges in the cycle update any component newly affected. Contract versions change only through the contract gate below. Regenerate goldens and the contract example in the same commit.
 6. **Golden table:** for each scenario row this issue touches, set **Code coverage** to *covered* once code handles it, and **Status** to *pass* only when its golden test passes **and** every finding in its Tracker cell is *Done* (this one included after merge). Never add finding IDs to any column but Tracker.
 7. **Review:** run `/code-review low` on the branch. If it returns nothing suspiciously fast, run an independent review subagent (Opus) on `git diff master...fix/<id>` instead. Fix confirmed findings and repeat steps 4–7.
 8. **Merge:** from the main checkout, `git merge --no-ff fix/<id>` into `master` with a message naming the finding IDs; delete the branch. Do not push.
@@ -43,7 +43,7 @@ Take the lowest-rank tracker row whose status is **Open**. Items whose notes say
 
 ### Per-issue summary (shown at every merge)
 
-In chat prose, with only a short approval question in `AskUserQuestion` (dialog previews do not render reliably): the problem in one sentence, the fix, a worked example with before/after numbers from the real code, test results (counts), the golden rows that moved to pass, and the commit hash. Merge without waiting for a reply **unless** the issue hits a stop condition.
+In chat prose, with only a short approval question in `AskUserQuestion` (dialog previews do not render reliably): the problem in one sentence, the fix, a worked example with before/after numbers from the real code, test results (counts), the golden rows that moved to pass, and the commit hash. Merge without waiting for a reply **unless** the issue hits a stop condition. In a live run ([`../shared/live-run.md`](../shared/live-run.md)) every merge waits for approval.
 
 ## Fixing a golden-miner finding
 

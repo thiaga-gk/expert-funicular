@@ -66,7 +66,7 @@ The sequence across both products (setup, the day-0 runs, the one applied change
 
 ## Backtest of the savings math (tracker G56)
 
-Not built yet; the auto-stop part runs today as the Realizer's backtest (step 1.5 of the live run sequence). For every warehouse whose configuration changed in the last 365 days, predict the new period's cost from the old
+Not built yet; the auto-stop part runs today as the Realizer's backtest (step 4.1 of the live run sequence). For every warehouse whose configuration changed in the last 365 days, predict the new period's cost from the old
 period's evidence and compare it with the cost actually billed in the new period. Older configuration periods are
 allowed for calibration and backtest (CLAUDE.md); they never choose a change. Output per knob: predicted vs billed
 annualized change, bias and spread. It calibrates the assumed values:

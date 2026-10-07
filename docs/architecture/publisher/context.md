@@ -943,7 +943,7 @@ Realization answers:
 
 > **What actually happened after an approved recommendation was applied?**
 
-The Reporter Contract already includes realization so future measurement can be attached without redesigning the public model.
+The Reporter Contract includes realization so measurement attaches without redesigning the public model; the Realizer does the measuring ([`../realizer/context.md`](../realizer/context.md)).
 
 Lifecycle:
 
@@ -968,7 +968,7 @@ Realization does **not** rewrite the original recommendation package identity. I
 
 ### 29.2 Current implementation status
 
-The realization **contract exists**, but automatic ingestion of measured post-change realization is intentionally outside Phase 1; packages stay `NOT_APPLIED` (`docs/reference/publisher/known-limitations.md`).
+The Publisher writes every package with realization `NOT_APPLIED`. Measured post-change realization comes from the Realizer, which reads the packages and writes its own realization packages and ledger ([`../realizer/context.md`](../realizer/context.md)).
 
 ---
 

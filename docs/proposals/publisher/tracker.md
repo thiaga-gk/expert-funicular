@@ -1,6 +1,6 @@
 # Gap-review tracker (repo copy)
 
-A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w, collection `findings`); this file is regenerated from it at each batch merge. Findings, design and decisions: [`gap-review-2.8.0.md`](gap-review-2.8.0.md); golden scenarios: [`golden-scenarios.md`](golden-scenarios.md); real-data run: [`real-data-run.md`](real-data-run.md); process: [`remediation-runbook.md`](remediation-runbook.md).
+A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/TMmDwx8SBk2ZuzCQbrzr1w, collection `findings`); this file is regenerated from it at each batch merge. Where the artifact is not available (a live run on another machine), this file is edited directly and is the source of truth. Findings, design and decisions: [`gap-review-2.8.0.md`](gap-review-2.8.0.md); golden scenarios: [`golden-scenarios.md`](golden-scenarios.md); real-data run: [`real-data-run.md`](real-data-run.md); process: [`remediation-runbook.md`](remediation-runbook.md).
 
 Snapshot: 2026-10-05. Rows: 83 (Open: 1, Needs input: 4, Deferred: 8, Done: 70).
 

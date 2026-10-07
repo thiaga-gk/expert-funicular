@@ -11,10 +11,10 @@ Placeholders: `<P>` the OAuth CLI profile, `<C>` the collector SQL warehouse (it
 | Step | Do | Check |
 |---|---|---|
 | 0.1 | Check out master, then `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .` | `publisher --version` and `realizer --version` print the release under test; the full test suite passes |
-| 0.2 | Install the Databricks CLI and log in: `databricks auth login --profile <P>` (OAuth U2M; static tokens are rejected) | `databricks --profile <P> current-user me` answers |
-| 0.3 | Choose `<C>` and `<R>` (without `--source-region` the AWS cost of Pro and Classic is not modeled and every cost basis is DBU only) | |
+| 0.2 | Install the Databricks CLI and log in: `databricks auth login --host https://<workspace> --profile <P>` (OAuth U2M; static tokens are rejected) | `databricks --profile <P> current-user me` answers |
+| 0.3 | Choose `<C>` and `<R>`. `<R>` must be a region in `pricing/aws_ec2_on_demand.json` (today `us-east-1`): with Pro or Classic warehouses in any other region the Publisher stops after collection and writes nothing, unless every Publisher command adds `--allow-missing-aws-price` (their AWS cost is then unavailable). The Realizer falls back to DBU only | `<R>` is in the pricing registry |
 | 0.4 | Preflight: `python .claude/skills/databricks-golden-miner/scripts/preflight.py --profile <P> --warehouse-id <C>` (it starts `<C>` if stopped) | It passes; on a failure it prints the fix and nothing else runs |
-| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, then `python -m unittest discover -s tests/integration -t .`) | OK or skipped with a reason |
+| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, `PUBLISHER_LIVE_SOURCE_REGION=<R>`, then `python -m unittest discover -s tests/integration -t .`) | OK or skipped with a reason |
 
 ## Phase 1 · Mine the golden scenarios
 
@@ -42,7 +42,7 @@ With no approved fix, phase 3 reuses step 1.1's run instead of collecting again.
 | Step | Do | Check |
 |---|---|---|
 | 3.1 | Publisher, full scope, on master after the fixes (a new date `<D>`): step 1.1's command into `mining_out/<D>/pub_full` | Mine it (step 1.3): the fixed mismatches stay fixed and no new one appears |
-| 3.2 | Publisher, auto-stop scope: the same with `--scope current:auto-stop --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a one-step package |
+| 3.2 | Publisher, auto-stop scope: `publisher --profile <P> --sql-warehouse-id <C> --source-region <R> --warehouse all --scope current:auto-stop --flat-output --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a one-step package |
 | 3.3 | Cost-profile replays of 3.1's evidence: `publisher --from-evidence mining_out/<D>/pub_full/evidence.json --cost-profile <profile> --flat-output --output-dir mining_out/<D>/pub_<profile>` for `conservative`, `balanced`, `aggressive` | Per warehouse, which cuts each profile ships or holds, and on which limit |
 | 3.4 | Choose `<T>`: a Pro or Classic warehouse with steady weekday use, an auto-stop package from 3.2 and an owner who agrees to one auto-stop change for four weeks | Agreed with the owner of `<T>`; note the package's recommended value |
 
@@ -54,7 +54,7 @@ With no approved fix, phase 3 reuses step 1.1's run instead of collecting again.
 | 4.2 | Baseline fleet run over the auto-stop packages: `realizer --publisher-run mining_out/<D>/pub_autostop --profile <P> --sql-warehouse-id <C> --source-region <R> --output-dir mining_out/<D>/rz` | Exit 0; every warehouse `NOT_APPLIED`; the state under `mining_out/<D>/rz/state` holds one lineage per package |
 | 4.3 | Offline replay of 4.2: `realizer --publisher-run mining_out/<D>/pub_autostop --from-evidence mining_out/<D>/rz/state/realization/measurements --output-dir mining_out/<D>/rz_replay` | The same states as 4.2; a difference is a defect to report |
 | 4.4 | The owner of `<T>` sets its auto-stop to the value of `<T>`'s package from 3.2, exactly, in the Databricks UI or API, and leaves every other setting alone for four weeks. Optional: an approvals file naming the change, passed as `--approvals` in 4.5, records the origin as confirmed ([`source-evidence-contract.md`](../../contracts/realizer/source-evidence-contract.md) section 18, origin) | Note the UTC time of the change. Another knob changed in the window is reported as an independent change and stops the billed cross-check from isolating auto-stop |
-| 4.5 | Once a week, on the same weekday, with the same `--output-dir`: `realizer --publisher-run mining_out/<D>/pub_autostop --profile <P> --sql-warehouse-id <C> --source-region <R> --output-dir mining_out/<D>/rz [--approvals <file>]` (add `--warehouse <T>` to measure `<T>` alone when the fleet run is slow) | Exit 0. `<T>`: `APPLIED` and not settled until one whole settled week follows the change day; then a measurement each week over up to 28 settled days |
+| 4.5 | Once a week, on the same weekday, with the same `--output-dir`: `realizer --publisher-run mining_out/<D>/pub_autostop --profile <P> --sql-warehouse-id <C> --source-region <R> --output-dir mining_out/<D>/rz [--approvals <file>]` (add `--warehouse <T>` to measure `<T>` alone when the fleet run is slow) | Exit 0. `<T>`: `APPLIED` and not settled until one whole settled week follows the change day; then a measurement each week over the settled weeks since the change (28 days at week 4) |
 | 4.6 | Replay the week's evidence as in 4.3, into a new folder | The same states and numbers |
 
 Auto-stop comes first because its counterfactual is a replay with no guard window. A size change's canary guard keeps its claim observable only for 30 days, so it comes after this run (phase 5).
@@ -64,7 +64,7 @@ Auto-stop comes first because its counterfactual is a replay with no guard windo
 | Checkpoint | When | Send back |
 |---|---|---|
 | A | After phase 1 | `real_data_answers.json`, `pattern_report.md` (aggregates and pattern names), the counts in 1.1's `manifest.json` and its `publisher.log` warnings |
-| B | Before step 4.4 | The fixes merged in phase 2 with their summaries; the three cost-profile outcomes; from `mining_out/<D>/rz`: `realization/backtest/` and the run folders of 4.2 and 4.3 (`manifest.json`, `realization_workbook.xlsx`, `realizer.log`, `realization/`); the stdout and exit status of each command |
+| B | Before step 4.4 | The fixes merged in phase 2 with their summaries; the three cost-profile outcomes; `realization/backtest/` and the run folder of 4.2 from `mining_out/<D>/rz`, and of 4.3 from `mining_out/<D>/rz_replay` (`manifest.json`, `realization_workbook.xlsx`, `realizer.log`, `realization/`); the stdout and exit status of each command |
 | C, D | After week 1 and week 4 of step 4.5 | `state/realization/measurements/*.json` (no SQL text, owner or tag), the week's run folder files, stdout and exit status. For `<T>`: predicted (the package's range), realized (the replay), billed (the cross-check outcome and its reason), state, classification and claim status |
 
 Packages, workbooks, manifests and the JSON pattern report name warehouses: send them as agreed (or with the identifiers removed), never `evidence.json`.
@@ -96,11 +96,13 @@ claude --model claude-opus-5-5 --effort high \
 
 Inputs: profile prod-sso, collector SQL warehouse 4f2a9c1b7e3d5a60, AWS region us-east-1."
 
-# Each week after step 4.4 (N = 1 to 4, on the same weekday): the run's date, the test warehouse, the change time.
+# Each week after step 4.4 (N = 1 to 4, on the same weekday): the run's date, the test warehouse, the change time,
+# and the same profile, collector warehouse and region as the first run.
 claude --model claude-opus-5-5 --effort high \
   "$(awk '/^\*\*Each week/{f=1;next} f&&/^```text/{p=1;next} p&&/^```/{exit} p' docs/proposals/shared/live-run.md | \
      sed -e 's|<date>|2026-10-12|g' -e 's|<test warehouse>|8c1d2e3f4a5b6c7d|g' \
-         -e 's|<UTC time>|2026-10-14T15:05Z|g' -e 's|<N>|1|g')"
+         -e 's|<UTC time>|2026-10-14T15:05Z|g' -e 's|<N>|1|g' \
+         -e 's|<profile>|prod-sso|g' -e 's|<collector warehouse>|4f2a9c1b7e3d5a60|g' -e 's|<region>|us-east-1|g')"
 ```
 
 Or start `claude --model claude-opus-5-5 --effort high` and paste the prompt. The session stops for you at checkpoint A (then the miner's proposals one at a time), after each fix's summary, at step 3.4 and at checkpoint B; answer in chat ("approve", "all recommended" or per number). When it hands off at 70 to 80 percent context, continue in the session it names. Send back only what each checkpoint lists.
@@ -151,8 +153,9 @@ from the Realizer's backtest).
 ```text
 Resume the live run: read CLAUDE.md and docs/proposals/shared/live-run.md. The run's folder is
 mining_out/<date>/; the owner applied the change on <test warehouse> at <UTC time> (step 4.4). Run steps
-4.5 and 4.6 for week <N> with the same profile, collector warehouse and region as before, the same
---output-dir (mining_out/<date>/rz) and nothing else changed. Report for the test warehouse: state,
+4.5 and 4.6 for week <N> with profile <profile>, collector SQL warehouse <collector warehouse> and AWS
+region <region> (the first run's), the same --output-dir (mining_out/<date>/rz) and nothing else changed.
+Earlier weeks are in mining_out/<date>/rz/state/ and the earlier run folders under mining_out/<date>/rz. Report for the test warehouse: state,
 classification, claim status, predicted (the package's range) against realized (the replay) against
 billed (cross-check outcome and reason), in a table next to the earlier weeks, and whether the replay
 matched. At week 1 and week 4 list the checkpoint files to send back; after week 4 go on to phase 5
