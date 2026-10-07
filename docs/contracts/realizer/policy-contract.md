@@ -66,7 +66,7 @@ A canary-type step (execution state `READY_FOR_CANARY`) stays provisional for th
 
 ## 7. Realization classification
 
-When the denominator is a Publisher range (the applied step's candidate range, or the scenario's range for a scenario-scope application) whose low is positive, the annualized realized savings are classified against the range: a replay counterfactual measures the full mechanical effect of the change, the track of the published high, so comparing it with the base would always read high.
+When the denominator is a Publisher range (the applied step's candidate range, or the scenario's range for a scenario-scope application) whose low is positive, the annualized realized savings are classified against the range: a live counterfactual (the auto-stop replay, the size counterfactual) measures the full mechanical effect of the change, the track of the published high, so comparing it with the base would always read high.
 
 - at or above the range's low -> `REALIZED`; above 1.25 x the high -> `REALIZED`, detail `REALIZED_ABOVE_RANGE_REVIEW`, review required;
 - below the low -> `UNDER_REALIZED`; below half the low -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass;

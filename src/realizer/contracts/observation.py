@@ -31,6 +31,9 @@ COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
                         "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE")
 BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
+SIZE_BOUNDS = ("ELASTIC", "INELASTIC")
+SIZE_DIRECTIONS = ("DOWNSIZE", "UPSIZE")
+SIZE_RUNTIME_MULTIPLIER_SOURCES = ("CANDIDATE", "PUBLISHER_THRESHOLDS")
 CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
@@ -57,8 +60,30 @@ PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": 
 
 
 def size_schema() -> Dict[str, Any]:
-    """``measurement.size``: the size runtime counterfactual of a size change (``null`` for any other knob)."""
-    return {"type": ["object", "null"]}
+    """``measurement.size``: the size runtime counterfactual of a size change (``null`` for any other knob, or without
+    size runtime evidence): the runtime ratio and its matched queries, the Publisher's runtime multiplier range, the old
+    and new DBU cost per cluster-minute with their ratio against the published one, the busy share, the AWS prices of both sizes and both bounds (``null`` when not
+    measured), with the one claimed."""
+    count = {"type": "integer", "minimum": 0}
+    bound = _obj({
+        "running_cluster_minutes": _decimal(nullable=False), "dbu_cost": _decimal(nullable=False), "aws_cost": _decimal(),
+        "counterfactual_cost": _decimal(nullable=False), "realized": _decimal(nullable=False),
+    }, nullable=True)
+    return _obj({
+        "runtime_ratio": _decimal(), "matched_sources": count, "matched_post_queries": count, "post_executed_queries": count,
+        "matched_query_coverage": _decimal(),
+        "published_runtime_multiplier": _obj({
+            "source": {"enum": list(SIZE_RUNTIME_MULTIPLIER_SOURCES)}, "direction": {"enum": list(SIZE_DIRECTIONS)},
+            "optimistic": _decimal(nullable=False), "base": _decimal(nullable=False), "conservative": _decimal(nullable=False),
+        }),
+        "runtime_ratio_in_published_range": {"type": ["boolean", "null"]},
+        "old_dbu_cost_per_cluster_minute": _decimal(), "new_dbu_cost_per_cluster_minute": _decimal(),
+        "measured_rate_ratio": _decimal(), "published_rate_ratio": _decimal(), "rate_ratio_within_published_band": {"type": ["boolean", "null"]},
+        "busy_share": _decimal(), "pre_busy_wall_minutes": _decimal(nullable=False), "post_busy_wall_minutes": _decimal(nullable=False),
+        "observed_running_cluster_minutes": _decimal(nullable=False),
+        "old_aws_cluster_hourly_price": _decimal(), "new_aws_cluster_hourly_price": _decimal(),
+        "elastic": bound, "inelastic": bound, "bound_used": {"enum": [None, *SIZE_BOUNDS]},
+    }, nullable=True)
 
 
 def levels_schema() -> Dict[str, Any]:

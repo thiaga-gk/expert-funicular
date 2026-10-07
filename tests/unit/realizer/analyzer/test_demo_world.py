@@ -109,8 +109,8 @@ class SimulatedWorldTests(unittest.TestCase):
         self.assertEqual(observation["config"]["warehouse_size"], "MEDIUM")
         self.assertEqual(snapshot["application"]["implementation_conformance"], "EXACT")
         self.assertEqual(observation["measurement"]["knob"], "warehouse_size")
-        self.assertEqual(observation["measurement"]["not_measured_reason"], "KNOB_NOT_REPLAYED")
-        self.assertIsNone(observation["economics"])
+        self.assertEqual((observation["measurement"]["method"], observation["measurement"]["not_measured_reason"]), ("SIZE_RUNTIME", None))
+        self.assertIsNotNone(observation["economics"])
 
     def test_a_modified_size_is_applied_as_small(self):
         observation, snapshot, _ = demo_run(fixture_package(), modified=True)

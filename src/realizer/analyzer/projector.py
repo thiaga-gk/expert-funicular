@@ -11,6 +11,9 @@ windows it reads are exactly the ones the bridge collected, and states what they
   value would have avoided at the package's restart assumption (the Publisher's cost of one restart per floor cluster);
   priced at the window's billed DBU cost per running cluster-minute and, for Pro and Classic, at the modeled AWS price
   of a cluster-hour. Realized = counterfactual - observed, holding every other knob at its observed value;
+* the size counterfactual of a size change (``realizer.analyzer.size_counterfactual``, method ``SIZE_RUNTIME``): the
+  post-change days priced at the old size from the measured runtime ratio and the pre-change window's billed rate,
+  written to ``measurement.size`` and, when measured, as the economics, cross-checked against billing as the replay is;
 * for a changed knob without a replay (``KNOB_NOT_REPLAYED``): no counterfactual and no economics, but the guards before
   and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
   the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
@@ -40,6 +43,7 @@ from realizer.analyzer.measurement import (
     window_bounds,
     window_days,
 )
+from realizer.analyzer.size_counterfactual import METHOD as SIZE_METHOD, size_counterfactual
 from realizer.common.errors import InputError
 from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.config.settings import volume_shifted
@@ -312,26 +316,28 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     post = window_summary(windows.get("post") if plan.post else None, evidence["daily_cost"])
     pre = window_summary(windows.get("pre") if plan.pre else None, evidence["daily_cost"])
     replay = replay_economics(plan, evidence)
+    size = size_counterfactual(package, plan, evidence)
+    counterfactual = replay or (size.economics if size else None)  # what the economics, cross-check and cost basis state
     ratio = volume_ratio(pre, post)
     representative: Optional[bool] = None
     if post is not None and ratio is not None:
         representative = replay is not None or not volume_shifted(ratio)
     window = window_bounds(plan.post) if plan.post else (None, None)
     economics = None
-    if replay is not None:
+    if counterfactual is not None:
         economics = {
-            "currency": replay["currency"] or package_currency(package),
-            "counterfactual_old_cost": money(replay["counterfactual_old_cost"]), "observed_new_cost": money(replay["observed_new_cost"]),
+            "currency": counterfactual["currency"] or package_currency(package),
+            "counterfactual_old_cost": money(counterfactual["counterfactual_old_cost"]), "observed_new_cost": money(counterfactual["observed_new_cost"]),
             "period_days": window_days(plan.post), "counterfactual_method": "CALIBRATED_PRIOR_STATE", "economic_basis": "ECONOMIC_COST",
-            "expected_annual_savings_actual_scope": None, "dbu_realized": money(replay["dbu_realized"]),
-            "aws_economic_realized": money(replay["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
-            "aws_evidence_type": "MODELED" if replay["aws_realized"] is not None else None,
+            "expected_annual_savings_actual_scope": None, "dbu_realized": money(counterfactual["dbu_realized"]),
+            "aws_economic_realized": money(counterfactual["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
+            "aws_evidence_type": "MODELED" if counterfactual["aws_realized"] is not None else None,
         }
     cross_check = None
-    if replay is not None:
+    if counterfactual is not None:
         pre_rows = daily_in(evidence["daily_cost"], plan.pre)
         cross_check = billed_cross_check(
-            replay_dbu_saving=replay["dbu_realized"],
+            replay_dbu_saving=counterfactual["dbu_realized"],
             pre=None if pre is None else {"days": pre["days"], "billed_cost": billed(pre_rows)["cost"]},
             post={"days": post["days"], "billed_cost": billed(daily_in(evidence["daily_cost"], plan.post))["cost"]} if post else None,
             pre_weekly=None if plan.pre is None else weekly_costs(pre_rows, plan.pre["first_day"], window_days(plan.pre)),
@@ -340,17 +346,17 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     if plan.step is not None:
         detail = None if replay is None else {k: (_fmt(v, "0.000001") if isinstance(v, Decimal) else v) for k, v in replay["detail"].items()}
         measurement = {
-            "method": REPLAY_METHOD if replay is not None else None,
+            "method": REPLAY_METHOD if replay is not None else SIZE_METHOD if counterfactual is not None else None,
             "knob": plan.step["knob"], "source_value": plan.step["current_value"], "applied_value": plan.observed_epoch.get(plan.step["knob"]),
             "change_epoch_start": utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch else None,
             "observed_epoch_start": utc_iso(plan.observed_epoch["epoch_start"]),
             "previous_epoch_start": utc_iso(plan.previous_epoch["epoch_start"]) if plan.previous_epoch else None,
-            "not_measured_reason": plan.reason,
+            "not_measured_reason": plan.reason or (size.reason if size else None),
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
-            "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
-            "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
+            "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": counterfactual is not None,
+            "cost_basis": None if counterfactual is None else counterfactual["cost_basis"], "replay": detail,
             "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
-            "size": None, "levels": None,
+            "size": size.block if size else None, "levels": None,
             "cross_check": None if cross_check is None else {
                 "outcome": cross_check["outcome"], "reason": cross_check["reason"],
                 "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),
@@ -370,7 +376,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
         "representative_regime": representative, "evidence_quality": evidence_quality(plan, evidence), "workload": {},
         "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None,
                         "guards": guard_metrics(evidence, pre, post) if plan.post else None},
-        "financial_quality": financial_quality(plan, evidence, replay),
+        "financial_quality": financial_quality(plan, evidence, counterfactual),
         "economics": economics, "overlap_count": 0, "origin_attribution": origin_attribution, "intent_state": intent_state,
         "intent_reference": intent_reference, "actor": None, "applied_scenario_id": None,
         "rollback_requested": False, "rollback_observed": False, "rollback_reason": None, "replacement_package_id": None,
