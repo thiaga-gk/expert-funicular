@@ -51,6 +51,8 @@ Analyzer owns normalized post-change metrics including runtime, capacity/compute
 
 Signed usage semantics are preserved. Retractions/restatements are not discarded before aggregation.
 
+An observation's `correction` object is optional for a restatement. The collector cannot see the ledger, so it does not compare a re-collected window with what was measured before; the Realizer compares it with the ledger when it measures, and records a correction of a window measured earlier with other economics whether or not the observation carries a correction object ([ledger contract](ledger-contract.md) section 20).
+
 ## 8. AWS
 
 Until CUR/Data Export is authoritative, modeled AWS economics are explicitly labeled `MODELED` and must not be represented as actual hard-cash realized value. An observation that states an AWS cash amount (`aws_cash_realized`) or freed commitment (`aws_commitment_freed`) without `aws_evidence_type` `CUR_ACTUAL` is refused (section 16).

@@ -175,9 +175,15 @@
     "entry_count": 12,
     "first_entry_id": "RLE-58544587BB6A8E6B91232979",
     "latest_effective_at_utc": "2026-10-11T12:00:00Z",
+<<<<<<<< HEAD:tests/fixtures/realizer/expected/GR-024/realization/snapshots/RSNAP-22EE4CD1E68ACEE6F87E395A.json
     "latest_entry_id": "RLE-C9AFE3F3068748FCC4D537D2",
     "latest_recorded_at_utc": "2026-10-11T12:00:00Z",
     "ledger_checkpoint_hash": "SHA256:BCF2C97A167CC92AAB8D94E91AA0A3C041F9DAEF5FF89BD35E991E5066CFE5F5",
+========
+    "latest_entry_id": "RLE-50EAAD88D7EAF84F2C230808",
+    "latest_recorded_at_utc": "2026-10-11T12:00:00Z",
+    "ledger_checkpoint_hash": "SHA256:87FA0FF0760047B19556C0B13F667C7771D2905489EBDC56E893C37E79FBD4C8",
+>>>>>>>> rz-batch4-ledger:tests/fixtures/realizer/expected/GR-024/realization/snapshots/RSNAP-965FFEE58333251E9957E212.json
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -202,7 +208,11 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
+<<<<<<<< HEAD:tests/fixtures/realizer/expected/GR-024/realization/snapshots/RSNAP-22EE4CD1E68ACEE6F87E395A.json
   "snapshot_id": "RSNAP-22EE4CD1E68ACEE6F87E395A",
+========
+  "snapshot_id": "RSNAP-965FFEE58333251E9957E212",
+>>>>>>>> rz-batch4-ledger:tests/fixtures/realizer/expected/GR-024/realization/snapshots/RSNAP-965FFEE58333251E9957E212.json
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

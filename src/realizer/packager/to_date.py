@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from realizer.common.utils import money
+from realizer.common.utils import money, parse_utc
 
 DAY = dt.timedelta(days=1)
 MATURE_DAYS = 365
@@ -30,17 +30,12 @@ class MeasuredWindow:
     realized: Decimal
 
 
-def _parse(value: str) -> dt.datetime:
-    d = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    return (d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)).astimezone(dt.timezone.utc)
-
-
 def measured_window(start_utc: Optional[str], end_utc: Optional[str], realized: Optional[str]) -> Optional[MeasuredWindow]:
     """The measured window of a measurement payload's window and realized amount; ``None`` without both ends, without an
     amount, or for a window that does not end after it starts."""
     if not start_utc or not end_utc or realized is None:
         return None
-    start, end = _parse(start_utc), _parse(end_utc)
+    start, end = parse_utc(start_utc), parse_utc(end_utc)
     return MeasuredWindow(start, end, Decimal(str(realized))) if end > start else None
 
 

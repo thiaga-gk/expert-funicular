@@ -28,16 +28,16 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "cc6fcdd424500bdd",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/snapshots/RSNAP-397C56B7F922EFDFAA2C6C13.json": "cc6fcdd424500bdd"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 9840,
-  "sha256": "db61b4dabd04f8b45b3ee2310dbf0a35453a99a835bec126d7b1f17cb21939da"
+  "sha256": "86741babbd81b736c0fc26edefbb8ae5c430514bd49732f48cc16da545947752"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -92,9 +92,9 @@
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "bafb3c91e2f301f9",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "aa8f6588d54fc8ab",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "98fe014a94329952",
      "realization/regeneration/RERUN-D4935E84281B1D0D3D6857C2.json": "343a4bfcf8ff92be",
-     "realization/snapshots/RSNAP-E589C748E3CFFEB67AC8A109.json": "aa8f6588d54fc8ab"
+     "realization/snapshots/RSNAP-1663815629AB7E03DA415BE5.json": "98fe014a94329952"
     }
    }
   ]
@@ -110,7 +110,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4330,
-  "sha256": "ddc57bf2d4f8dd8da39ff49fe432648184c0abd270774223731b4110abe8d3f0"
+  "sha256": "2cb7ddd2f6e30ffe5218f7c8af7d50c31ffef3f58176738a3c59011e079d3872"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2886,

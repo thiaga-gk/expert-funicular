@@ -26,7 +26,6 @@ Values the evidence cannot establish are ``null``; a ``null`` gate input never p
 """
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -42,7 +41,7 @@ from realizer.analyzer.measurement import (
     window_days,
 )
 from realizer.common.errors import InputError
-from realizer.common.utils import money, ratio_string, utc_iso
+from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.config.settings import volume_shifted
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import package_currency
@@ -276,7 +275,7 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
                 and normalize_value(knob, approval["value"]) == observed):
             return "CONFIRMED", "ACCEPTED", str(approval["reference"])
     generated = (package.get("provenance") or {}).get("generated_at")
-    if generated and utc_iso(plan.change_epoch["epoch_start"]) > utc_iso(generated):
+    if generated and parse_utc(plan.change_epoch["epoch_start"]) > parse_utc(generated):
         return "INFERRED", "UNKNOWN", None
     return "UNKNOWN", "UNKNOWN", None
 
@@ -289,17 +288,13 @@ def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, ep
     generated = (package.get("provenance") or {}).get("generated_at")
     if not generated:
         return None
-    ordered = sorted(epochs, key=lambda e: _instant(e["epoch_start"]))
+    ordered = sorted(epochs, key=lambda e: parse_utc(e["epoch_start"]))
     observed = epoch_config(plan.observed_epoch)
     i = len(ordered) - 1
     while i > 0 and epoch_config(ordered[i - 1]) == observed:
         i -= 1
     start = utc_iso(ordered[i]["epoch_start"])
-    return start if _instant(start) > _instant(generated) else None
-
-
-def _instant(value: Any) -> dt.datetime:
-    return dt.datetime.fromisoformat(utc_iso(value).replace("Z", "+00:00"))
+    return start if parse_utc(start) > parse_utc(generated) else None
 
 
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:

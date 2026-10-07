@@ -433,20 +433,60 @@ class MeasurementFactsTests(unittest.TestCase):
         self.assertEqual((facts.realization_state, facts.mature_ttm_realized_savings, facts.correction_status), ("REALIZED", None, "ORIGINAL"))
 
     def test_correction_facts(self):
-        prior = make_ledger_entry(package=self.pkg, rpkg_id=make_rpkg_id(self.pkg["recommendation_package_id"]),
-                                         event_type=EventType.ECONOMIC_MEASUREMENT_RECORDED, effective_at_utc="2026-10-01T00:00:00Z",
-                                         recorded_at_utc="2026-10-01T00:00:00Z", payload={"measurement_id": "MEAS-1"})
-        self.assertIsNone(economics.correction_facts(self.base, "MEAS-2", prior))
-        self.assertIsNone(economics.correction_facts({**self.base, "correction": {}}, "MEAS-2", prior))
-        facts = economics.correction_facts({**self.base, "correction": {"version": 3}}, "MEAS-2", prior)
-        self.assertEqual(facts.payload, {"correction_key": "MEAS-2", "type": "RESTATEMENT", "version": 3, "reason": None,
-                                         "measurement_id": "MEAS-2", "corrects_entry_id": prior.ledger_entry_id})
-        self.assertEqual(facts.corrects_entry_id, prior.ledger_entry_id)
-        explicit = economics.correction_facts({**self.base, "correction": {"key": "k", "type": "credit", "reason": "r", "corrects_entry_id": "RLE-X"}}, "MEAS-2", None)
-        self.assertEqual((explicit.payload["correction_key"], explicit.payload["type"], explicit.payload["reason"], explicit.corrects_entry_id), ("k", "CREDIT", "r", "RLE-X"))
-        self.assertIsNone(economics.correction_facts({**self.base, "correction": {"type": "x"}}, "MEAS-2", None).corrects_entry_id)
-        self.assertEqual(outcome(economics.correction_facts, {"correction": {"type": Unprintable()}}, "M", None), ("ValueError", "unprintable observation value"))
+        """The correction of a measurement against the ledger history: a window measured earlier with other economics is
+        corrected (with or without a correction object), the same economics are not; a new window is a correction only with
+        a correction object, which falls back to the latest earlier measurement; a key and version already recorded is
+        not recorded again."""
+        from realizer.contracts.realization import MeasurementFacts
+        rpkg = make_rpkg_id(self.pkg["recommendation_package_id"])
 
+        def measured(mid, start="2026-10-02T12:00:00Z", end="2026-10-09T12:00:00Z", economics_=None, app="APP-" + "A" * 24):
+            return MeasurementFacts(measurement_id=mid, window_start_utc=start, window_end_utc=end, counterfactual_id="CF-X",
+                                    counterfactual_method="M", economics=economics_ or {"successful_realized_savings": "1.00"},
+                                    attribution={}, realization_state="REALIZED", mature_ttm_realized_savings=None, correction_status="ORIGINAL")
+
+        def entry(m, app="APP-" + "A" * 24, event=EventType.ECONOMIC_MEASUREMENT_RECORDED, payload=None):
+            return make_ledger_entry(package=self.pkg, rpkg_id=rpkg, event_type=event, effective_at_utc="2026-10-09T12:00:00Z",
+                                     recorded_at_utc="2026-10-09T12:00:00Z", application_episode_id=app,
+                                     measurement_id=m.measurement_id if event == EventType.ECONOMIC_MEASUREMENT_RECORDED else None,
+                                     payload=payload or {"window_start_utc": m.window_start_utc, "window_end_utc": m.window_end_utc, "economics": m.economics,
+                                                        "attribution": m.attribution, "realization_state": m.realization_state,
+                                                        "mature_ttm_realized_savings": m.mature_ttm_realized_savings})
+
+        app = "APP-" + "A" * 24
+        first = measured("MEAS-" + "1" * 24)
+        prior = entry(first)
+        restated = measured("MEAS-" + "2" * 24, economics_={"successful_realized_savings": "0.80"})
+        # a silent restatement of the same window
+        facts = economics.correction_facts(self.base, restated, app, [prior])
+        self.assertEqual(facts.payload, {"correction_key": restated.measurement_id, "type": "RESTATEMENT", "version": None,
+                                         "reason": economics.REMEASURED_REASON, "measurement_id": restated.measurement_id,
+                                         "corrects_entry_id": prior.ledger_entry_id})
+        # a supplied correction keeps its key, type, version and reason, and names the measurement of the window
+        facts = economics.correction_facts({**self.base, "correction": {"key": "k", "type": "retraction", "version": 3, "reason": "r", "corrects_entry_id": None}}, restated, app, [prior])
+        self.assertEqual((facts.payload["correction_key"], facts.payload["type"], facts.payload["version"], facts.payload["reason"], facts.corrects_entry_id),
+                         ("k", "RETRACTION", 3, "r", prior.ledger_entry_id))
+        # the same economics, another application episode, or reprocessing: no correction of that window
+        self.assertIsNone(economics.correction_facts(self.base, measured("MEAS-" + "3" * 24), app, [prior]))
+        self.assertIsNone(economics.correction_facts(self.base, restated, "APP-" + "B" * 24, [prior]))
+        self.assertTrue(economics.repeats_earlier_measurement(measured("MEAS-" + "3" * 24), app, [prior]))
+        self.assertFalse(economics.repeats_earlier_measurement(restated, app, [prior]))
+        self.assertIsNone(economics.correction_facts(self.base, first, app, [prior]))
+        # a new window: only a correction object, falling back to the latest earlier measurement
+        other = measured("MEAS-" + "4" * 24, start="2026-10-03T12:00:00Z", end="2026-10-10T12:00:00Z")
+        self.assertIsNone(economics.correction_facts(self.base, other, app, [prior]))
+        self.assertIsNone(economics.correction_facts({**self.base, "correction": {}}, other, app, [prior]))
+        facts = economics.correction_facts({**self.base, "correction": {"version": 3}}, other, app, [prior])
+        self.assertEqual(facts.payload, {"correction_key": other.measurement_id, "type": "RESTATEMENT", "version": 3, "reason": None,
+                                         "measurement_id": other.measurement_id, "corrects_entry_id": prior.ledger_entry_id})
+        explicit = economics.correction_facts({**self.base, "correction": {"key": "k", "type": "credit", "reason": "r", "corrects_entry_id": "RLE-X"}}, other, app, [])
+        self.assertEqual((explicit.payload["correction_key"], explicit.payload["type"], explicit.payload["reason"], explicit.corrects_entry_id), ("k", "CREDIT", "r", "RLE-X"))
+        self.assertIsNone(economics.correction_facts({**self.base, "correction": {"type": "x"}}, other, app, []).corrects_entry_id)
+        # one correction per key and version
+        recorded = entry(first, event=EventType.BILLING_CORRECTION_RECORDED, payload={"correction_key": "k", "version": 3})
+        self.assertIsNone(economics.correction_facts({**self.base, "correction": {"key": "k", "version": 3}}, other, app, [prior, recorded]))
+        self.assertIsNotNone(economics.correction_facts({**self.base, "correction": {"key": "k", "version": 4}}, other, app, [prior, recorded]))
+        self.assertEqual(outcome(economics.correction_facts, {"correction": {"type": Unprintable()}}, other, app, []), ("ValueError", "unprintable observation value"))
 
 if __name__ == "__main__":
     unittest.main()

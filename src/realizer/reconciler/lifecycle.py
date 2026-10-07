@@ -15,10 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import back_at_source, config_hash, instant, normalize_value, observed_config, scenario_by_id
+from realizer.analyzer.analysis import back_at_source, config_hash, normalize_value, observed_config, scenario_by_id
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
-from realizer.common.utils import Deferred, utc_iso
+from realizer.common.utils import Deferred, parse_utc, utc_iso
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
@@ -298,14 +298,14 @@ def closing_time(observed: ObservationAnalysis, application: rc.RealizationLedge
     """
     raw = observed.raw
     start_text = application.payload.get("effective_from_utc") or application.effective_at_utc
-    start = instant(start_text)
+    start = parse_utc(start_text)
     measurement = raw.get("measurement")
     if isinstance(measurement, Mapping) and measurement.get("observed_epoch_start"):
         closed = utc_iso(measurement["observed_epoch_start"])
     else:
         stated = raw.get("applied_at_utc") or raw.get("effective_at_utc")
-        closed = utc_iso(stated) if stated and instant(stated) > start else observed.observed_at_utc
-    if instant(closed) <= start:
+        closed = utc_iso(stated) if stated and parse_utc(stated) > start else observed.observed_at_utc
+    if parse_utc(closed) <= start:
         raise InputError(f"the configuration change observed at {observed.observed_at_utc} took effect at {closed}, "
                          f"not after the application episode it closes (effective from {utc_iso(start_text)})")
     return closed

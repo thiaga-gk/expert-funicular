@@ -6,7 +6,8 @@
 ``realize_request`` orchestrates the capabilities and nothing else: normalization, policy, matching and lifecycle,
 realized-savings estimation, review, the ledger and the snapshot, and the files written live in their packages
 (docs/architecture/realizer/repo-reorg-design.md). The inputs (package, observation, replay cut) are checked before
-anything is written (``build_context``); the lineage entry is then recorded first (``packager.begin``). The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
+anything is written (``build_context``); the run then holds the lock of its ledger (``packager.lock``) until the
+Reporter has written, and records the lineage entry first (``packager.begin``). The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
 never lose a failure: each keeps it as a ``halt`` with the facts decided before it, and the Packager records those and
 raises it, so a failed run leaves its half-written ledger. The Estimator and the Reviewer return an empty result when no
 validation is due.
@@ -65,18 +66,19 @@ def realize_request(request: RealizationRequest) -> RealizationReport:
     """One realize run: every capability once, in order, returning what the Reporter wrote.
 
     Side effects are the Packager's (the ledger, the evidence and regeneration files) and the Reporter's (the realization
-    package and the snapshot) under ``request.output_dir``. This function sequences the capabilities and holds no domain
+    package and the snapshot) under ``request.output_dir``, made while the run holds the lock of its ledger. This function sequences the capabilities and holds no domain
     logic.
     """
     context = build_context(request)
-    packager.begin(context)
-    analysis = analyzer.run(context)
-    governance = governor.run(context, analysis)
-    reconciliation = reconciler.run(context, analysis, governance)
-    estimate = estimator.run(context, analysis, governance, reconciliation)
-    reviewed = reviewer.run(context, analysis, governance, reconciliation, estimate)
-    packaged = packager.run(context, reviewed)
-    return reporter.run(context, packaged)
+    with packager.lock(context):
+        packager.begin(context)
+        analysis = analyzer.run(context)
+        governance = governor.run(context, analysis)
+        reconciliation = reconciler.run(context, analysis, governance)
+        estimate = estimator.run(context, analysis, governance, reconciliation)
+        reviewed = reviewer.run(context, analysis, governance, reconciliation, estimate)
+        packaged = packager.run(context, reviewed)
+        return reporter.run(context, packaged)
 
 
 def realize(

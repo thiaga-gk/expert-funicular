@@ -32,7 +32,7 @@ from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.measurement import MAX_WINDOW_WEEKS, WEEK_DAYS, daily_in, epoch_config, first_full_day, replay_target, window_days
 from realizer.analyzer.projector import billed, replay_net_cluster_minutes, restart_cost_cluster_minutes, volume_ratio, window_summary
 from realizer.common.errors import InputError
-from realizer.common.utils import money, ratio_string, utc_iso
+from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.contracts.backtest import BACKTEST_REPORT_FORMAT_VERSION
 from realizer.contracts.measurement import EPOCH_KNOBS
 
@@ -293,7 +293,7 @@ def summary_lines(report: Mapping[str, Any]) -> List[str]:
     annual saving and the cross-check outcome (a skipped change: its reason)."""
     lines = []
     entries = [(c, None) for c in report["changes"]] + [(s, s["reason"]) for s in report["skipped"]]
-    for c, reason in sorted(entries, key=lambda x: (x[0]["workspace_id"], x[0]["warehouse_id"], x[0]["change_at_utc"])):
+    for c, reason in sorted(entries, key=lambda x: (x[0]["workspace_id"], x[0]["warehouse_id"], parse_utc(x[0]["change_at_utc"]))):
         head = f"{c['workspace_id']}/{c['warehouse_id']} {c['change_at_utc']} auto-stop {c['old_auto_stop_minutes']}->{c['new_auto_stop_minutes']}"
         if reason is not None:
             lines.append(f"{head}: skipped {reason}")

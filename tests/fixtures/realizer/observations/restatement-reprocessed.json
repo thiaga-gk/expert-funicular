@@ -1,5 +1,5 @@
 {
-  "derivation": "GR-026 runs, then the restatement observation reprocessed twice more; pins the oracle appending a second BILLING_CORRECTION_RECORDED on the first reprocess (docs/proposals/realizer/repo-reorg-parity.md); re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
+  "derivation": "GR-026 runs, then the restatement observation reprocessed twice more; reprocessing records nothing new, one correction (the single-file release appended a second BILLING_CORRECTION_RECORDED on the first reprocess; docs/proposals/realizer/repo-reorg-parity.md); re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
   "package": "inplace-size-canary.json",
   "runs": [
     {

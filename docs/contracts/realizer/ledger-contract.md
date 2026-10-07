@@ -181,6 +181,12 @@ A partially completed Plan may contain fully realized completed steps. `PENDING_
 }
 ```
 
+One ledger file per realization package (`realization/ledger/<RPKG>.jsonl`), one entry per newline-terminated line, appended and never rewritten.
+
+A realize run holds an advisory lock on its package's ledger for the whole run: from before the lineage entry is recorded until the realization package and the snapshot are written. The lock is an exclusive file lock on `<RPKG>.jsonl.lock` next to the ledger, present only while a run holds it. A second run on the same ledger waits a short, bounded time and is then refused (`LedgerError`, "locked by another run") without writing anything; a run that fails releases the lock.
+
+A write cut short can leave one unterminated last line. Holding the lock, the run repairs it before anything else: a last line that is a valid entry gets its newline; one that is not is appended to `<RPKG>.jsonl.quarantine` next to the ledger, the ledger is truncated to its last newline, `ledger.quarantined` is logged (with the byte count, never the content) and the run continues. A malformed line that is newline-terminated, or anywhere but last, is never repaired: the run fails closed and the file is left as it is. A read without the lock (a replay or a lineage view) ignores such an unterminated last line when it is not a valid entry and never changes the file; an append without the lock refuses a ledger that ends with one.
+
 ## 10. Event types
 
 ```text
@@ -230,6 +236,10 @@ Ledger is bitemporal:
 Application/economic ownership intervals use half-open `[start, end)` semantics.
 
 An application episode starts at the observation's applied time (else its observed time). A drift or an observed rollback takes effect at the boundary of the configuration epoch that brought it, stated in its payload (`effective_from_utc`): the observation's measured `observed_epoch_start` when it has a measurement, else its applied time when that is after the episode's start (an applied time carried over from the application itself is not), else its observed time. That time must be strictly after the start of the episode it closes; a history in which it is not (a measured epoch that began before the application it would close, an observation no later than it) is refused with a one-line message before any lifecycle event of the observation is recorded. The snapshot's `application.effective_to_utc` is the effective time of the first drift or rollback that closed the active episode (a rollback after a drift ends nothing more).
+
+The ledger file is append-only, one entry per line. Its projection order is the recorded time, then the append order (the line sequence of the file): at equal recorded time the entry appended last is the latest, so a window measured again shows its newer value. The entry id never breaks a tie, and the checkpoint hash covers the entry ids in this order.
+
+Times are compared and ordered as instants, never as text: a time written with fractional seconds (`...T12:00:00.500000Z`) is later than the whole second before it (`...T12:00:00Z`), although its text sorts first. This holds for the ledger order, the replay cut, the checkpoint's latest times, the configuration-drift check and the snapshot's rollback and drift precedence.
 
 `RSNAP.as_of_utc` is deterministic and derived from the ledger checkpoint, not projection wall clock.
 
@@ -312,6 +322,13 @@ Billing/evidence corrections are append-only:
 
 Corrections reference prior facts and cause re-projection; historical records are never overwritten.
 
+A measured window is identified by its application episode and its start and end, not by the measurement id: the measurement id hashes the evidence, so a window restated with other costs gets a new one. The comparison with the earlier measurement is made when the run measures, against the ledger the run started from (the collector cannot see the ledger). The earlier measurements are those recorded before the run's measurement first was, so reprocessing an observation decides what its first run decided.
+
+- A window measured earlier with the same economics is a duplicate: nothing new is recorded.
+- A window measured earlier with other economics is a restatement. The run records the new measurement and a `BILLING_CORRECTION_RECORDED` whose `corrects_entry_id` names the latest earlier measurement of that window, whether or not the observation carries a correction object. Without one, the correction's key is the new measurement id, its type `RESTATEMENT`, its version null and its reason `WINDOW_REMEASURED_WITH_DIFFERENT_ECONOMICS`, and the new measurement's `correction_status` is `RESTATEMENT`.
+- A window not measured earlier is a correction only when the observation carries a correction object; it corrects the entry the object names, else the latest earlier measurement.
+- A correction object keeps its key, type, version and reason. A correction key and version the ledger already holds is not recorded again, so reprocessing a restatement records nothing new.
+
 ## 21. Drift
 
 `CONFIGURATION | WORKLOAD | REGIME | POLICY | FINANCIAL | SOURCE_QUALITY`
@@ -332,6 +349,8 @@ A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the a
 - `impacted_knobs`: the knobs the applied change invalidates downstream.
 
 The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
+
+A run that writes a file (evidence, regeneration request, realization package, snapshot) whose content is unchanged leaves the existing file alone.
 
 Re-evaluation always starts from the actual observed current state. Recommendation truth changes only through a new immutable PKG emitted by Publisher.
 

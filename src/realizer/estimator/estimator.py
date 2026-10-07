@@ -2,11 +2,12 @@
 
 The Estimator prices the application the Reconciler found and the evidence the Governor admitted: the hard-guardrail
 verdict the economics depend on, the counterfactual baseline, the realized economics with their financial-quality
-gates, the attribution and the measurement, and the billing correction the observation carries. It validates nothing
-itself and writes nothing; the engine records its facts.
+gates, the attribution and the measurement, and its billing correction (one the observation carries, or a restatement
+of a window the ledger already measured). It validates nothing itself and writes nothing; the engine records its facts.
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import Any, Dict
 
 from realizer.config.settings import UNPRICED_DECISION_KNOBS
@@ -17,7 +18,9 @@ from realizer.contracts.realization import RealizationEstimate
 from realizer.contracts.reconciliation import ReconciliationResult
 from realizer.contracts.request import RunContext
 from realizer.estimator.attribution import attribution_result
-from realizer.estimator.economics import calculate_economics, correction_facts, counterfactual_record, measurement_facts
+from realizer.estimator.economics import (
+    calculate_economics, correction_facts, counterfactual_record, measurement_facts, repeats_earlier_measurement,
+)
 
 
 # The economics of a safety action: nothing is measured against a counterfactual and nothing is claimed.
@@ -38,7 +41,9 @@ def run(
 
     The facts are decided in the order they are recorded, reading each policy check where it has always been read:
     the performance guardrails, then the counterfactual eligibility, then the economics, then (only for available
-    economics) the financial-quality gates, the attribution and the measurement, then the billing correction.
+    economics) the financial-quality gates, the attribution and the measurement, then the billing correction. A
+    measurement that repeats an earlier measurement of its window (the same facts) is a duplicate: neither it nor a
+    correction is handed over.
 
     ``run`` never raises. A failure is kept as ``halt`` together with the facts decided before it, so the engine records
     exactly those and then raises it, as before.
@@ -78,8 +83,15 @@ def run(
             app_id, observation, counterfactual, economic, attr,
             effective=observed.effective_at_utc, observed_at=observed.observed_at_utc,
         )
+        history = analysis.history.entries
+        if repeats_earlier_measurement(measurement, app_id, history):
+            return RealizationEstimate(**facts)  # the window was measured before with the same facts: nothing new
         facts["measurement"] = measurement
-        facts["correction"] = correction_facts(observation, measurement.measurement_id, analysis.history.prior_measurement)
+        correction = correction_facts(observation, measurement, app_id, history)
+        if correction is not None and not observation.get("correction"):
+            # a window restated without a correction object: the measurement is the restatement the correction records
+            facts["measurement"] = dataclasses.replace(measurement, correction_status=correction.payload["type"])
+        facts["correction"] = correction
     except Exception as exc:  # noqa: BLE001 - kept, raised by the engine after the facts decided before it
         return RealizationEstimate(**facts, halt=exc)
     return RealizationEstimate(**facts)

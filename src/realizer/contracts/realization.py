@@ -368,7 +368,7 @@ class MeasurementFacts:
 @dataclass(frozen=True)
 class CorrectionFacts:
     """A billing correction of the measurement: the BILLING_CORRECTION_RECORDED payload and the ledger entry it
-    corrects (the observation's reference, else the previous measurement)."""
+    corrects (the earlier measurement of the same window, else the observation's reference or the previous measurement)."""
     payload: Mapping[str, Any]
     corrects_entry_id: Any
 
@@ -379,8 +379,9 @@ class RealizationEstimate:
 
     Everything is ``None`` when no validation is due. ``validation_passed`` is the hard-guardrail verdict the
     economics depend on; ``counterfactual`` the baseline; ``economics`` the realized economics (the unavailable form when
-    the observation lacks costs); ``measurement`` the measurement (only for available economics) and ``correction`` its
-    billing correction, when the observation carries one.
+    the observation lacks costs); ``measurement`` the measurement (only for available economics that do not repeat an
+    earlier measurement of the window) and ``correction`` its billing correction, when the observation carries one or
+    restates a window measured earlier.
 
     ``halt`` is the exception the estimation raised, if any. The facts present were decided before it, so the engine
     records them and then raises ``halt``: the ledger a failed run leaves behind is the one it always left.

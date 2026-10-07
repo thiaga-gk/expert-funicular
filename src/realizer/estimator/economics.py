@@ -16,10 +16,10 @@ are not added here.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id
-from realizer.common.utils import decimal, money, ratio_string
+from realizer.common.utils import decimal, money, parse_utc, ratio_string
 from realizer.config.settings import MODELER_GATEWAY_VERSION, WORKLOAD_SHIFT, volume_shifted
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import CorrectionFacts, CounterfactualRecord, MeasurementFacts, make_measurement_id
@@ -396,21 +396,98 @@ def measurement_facts(
     )
 
 
+# The reason a correction records when the observation carries no correction object: the window was measured before and
+# the economics collected for it now differ.
+REMEASURED_REASON = "WINDOW_REMEASURED_WITH_DIFFERENT_ECONOMICS"
+
+# What a measurement states about its window besides its identity: equal in all of them, a measurement repeats one.
+MEASURED_FACTS = ("economics", "attribution", "realization_state", "mature_ttm_realized_savings")
+
+
+def same_window(entry: rc.RealizationLedgerEntry, application_episode_id: str, measurement: MeasurementFacts) -> bool:
+    """Whether the measurement *entry* measured the same window as *measurement*: the same application episode, window
+    start and window end (compared as times). The measurement id is not the window: it hashes the evidence, so a window
+    restated with other costs has a new one."""
+    payload = entry.payload
+    try:
+        return (entry.application_episode_id == application_episode_id
+                and parse_utc(payload.get("window_start_utc")) == parse_utc(measurement.window_start_utc)
+                and parse_utc(payload.get("window_end_utc")) == parse_utc(measurement.window_end_utc))
+    except (TypeError, ValueError):
+        return False
+
+
+def earlier_measurements(measurement: MeasurementFacts, history: Sequence[rc.RealizationLedgerEntry]) -> Tuple[rc.RealizationLedgerEntry, ...]:
+    """The measurements of the ledger *history* (in ledger order) recorded before *measurement* first was: all of them when
+    it is new. Reprocessing an observation thus compares with what its first run compared with."""
+    earlier = []
+    for entry in history:
+        if entry.event_type != rc.EventType.ECONOMIC_MEASUREMENT_RECORDED:
+            continue
+        if entry.measurement_id == measurement.measurement_id:
+            break
+        earlier.append(entry)
+    return tuple(earlier)
+
+
+def earlier_window_measurement(
+    measurement: MeasurementFacts, application_episode_id: str, history: Sequence[rc.RealizationLedgerEntry],
+) -> Optional[rc.RealizationLedgerEntry]:
+    """The latest earlier measurement (``earlier_measurements``) of the same window (``same_window``); ``None`` when the
+    window was not measured before."""
+    return next((e for e in reversed(earlier_measurements(measurement, history)) if same_window(e, application_episode_id, measurement)), None)
+
+
+def _same(entry: rc.RealizationLedgerEntry, measurement: MeasurementFacts, fields: Sequence[str]) -> bool:
+    return all(rc.canonical_json(entry.payload.get(k)) == rc.canonical_json(getattr(measurement, k)) for k in fields)
+
+
+def repeats_earlier_measurement(
+    measurement: MeasurementFacts, application_episode_id: str, history: Sequence[rc.RealizationLedgerEntry],
+) -> bool:
+    """Whether *measurement* says nothing new: the window was measured before with the same economics, attribution,
+    realization state and mature trailing-twelve-month savings (``MEASURED_FACTS``). Such a measurement is a duplicate and
+    is not recorded, whatever its id (a correction object's version alone changes the id)."""
+    prior = earlier_window_measurement(measurement, application_episode_id, history)
+    return prior is not None and _same(prior, measurement, MEASURED_FACTS)
+
+
 def correction_facts(
-    observation: Mapping[str, Any], measurement_id: str, prior_measurement: Optional[rc.RealizationLedgerEntry],
+    observation: Mapping[str, Any], measurement: MeasurementFacts, application_episode_id: str,
+    history: Sequence[rc.RealizationLedgerEntry],
 ) -> Optional[CorrectionFacts]:
-    """The billing correction the observation carries (``None`` without one): the BILLING_CORRECTION_RECORDED payload
-    and the entry it corrects, the observation's reference or else the previous run's latest measurement."""
+    """The billing correction of *measurement* (``None`` when there is none to record): the BILLING_CORRECTION_RECORDED
+    payload and the ledger entry it corrects.
+
+    The comparison with the earlier measurement is made here, against the ledger *history* the run started from, because
+    the collector cannot see the ledger. When the same window was measured earlier (``earlier_window_measurement``), the
+    latest such measurement decides: the same economics record no correction; other economics are a restatement of that
+    window, and the correction names its measurement, whether or not the observation carries a correction object. When
+    the window was not measured earlier, only an observation's correction object is a correction, and it corrects the
+    entry the observation names, else the latest earlier measurement. A correction object keeps its key, type, version
+    and reason, and a key and version the history already holds is not recorded again; without one, the key is the new
+    measurement id, the type ``RESTATEMENT`` and the reason ``REMEASURED_REASON``.
+    """
     corr = observation.get("correction") or {}
-    if not corr:
+    prior_window = earlier_window_measurement(measurement, application_episode_id, history)
+    if prior_window is not None:
+        if _same(prior_window, measurement, ("economics",)):
+            return None
+        corrects_entry_id = prior_window.ledger_entry_id
+    elif corr:
+        earlier = earlier_measurements(measurement, history)
+        corrects_entry_id = corr.get("corrects_entry_id") or (earlier[-1].ledger_entry_id if earlier else None)
+    else:
         return None
-    corrects_entry_id = corr.get("corrects_entry_id") or (prior_measurement.ledger_entry_id if prior_measurement else None)
+    if corr and any(e.event_type == rc.EventType.BILLING_CORRECTION_RECORDED
+                    and (e.payload.get("correction_key"), e.payload.get("version")) == (corr.get("key"), corr.get("version")) for e in history):
+        return None
     correction_payload = {
-        "correction_key": corr.get("key") or measurement_id,
+        "correction_key": corr.get("key") or measurement.measurement_id,
         "type": str(corr.get("type") or "RESTATEMENT").upper(),
         "version": corr.get("version"),
-        "reason": corr.get("reason"),
-        "measurement_id": measurement_id,
+        "reason": corr.get("reason") if corr else REMEASURED_REASON,
+        "measurement_id": measurement.measurement_id,
         "corrects_entry_id": corrects_entry_id,
     }
     return CorrectionFacts(payload=correction_payload, corrects_entry_id=corrects_entry_id)

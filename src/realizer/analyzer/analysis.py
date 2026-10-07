@@ -8,11 +8,10 @@ and with the same failure modes, gathered here.
 """
 from __future__ import annotations
 
-import datetime as dt
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from realizer.common.errors import InputError
-from realizer.common.utils import decimal, utc_iso
+from realizer.common.utils import decimal, parse_utc, utc_iso
 from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
@@ -163,11 +162,6 @@ def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
 
 
-def instant(value: Any) -> dt.datetime:
-    """A UTC ISO time as an aware datetime, for comparing times (their text does not order with fractional seconds)."""
-    return dt.datetime.fromisoformat(utc_iso(value).replace("Z", "+00:00"))
-
-
 # The lifecycle events that end an application episode: once one is recorded on the episode at or after its application,
 # the episode is closed and never absorbs a new application.
 CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
@@ -179,9 +173,9 @@ def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Opt
     application (*entries* in recorded order); ``None`` while the episode is open."""
     if application is None:
         return None
-    start = instant(application.recorded_at_utc)
+    start = parse_utc(application.recorded_at_utc)
     closing = [e for e in entries if e.event_type in CLOSING_EVENTS and e.application_episode_id == application.application_episode_id
-               and instant(e.recorded_at_utc) >= start]
+               and parse_utc(e.recorded_at_utc) >= start]
     return (closing[0] if first else closing[-1]) if closing else None
 
 
@@ -241,4 +235,4 @@ def check_rollback_flag(package: Mapping[str, Any], history: RealizationHistory,
 def config_drift(history: RealizationHistory, observed_hash: str, observed_at_utc: str) -> bool:
     """Whether the observed configuration differs from the previous application's and is newer than its record."""
     previous = history.previous_application
-    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and observed_at_utc > previous.recorded_at_utc)
+    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and parse_utc(observed_at_utc) > parse_utc(previous.recorded_at_utc))

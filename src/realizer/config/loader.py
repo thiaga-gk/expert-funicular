@@ -18,7 +18,7 @@ from publisher.reviewer.package import validate_locked_package_schema
 import json
 
 from realizer.common.errors import InputError
-from realizer.common.utils import load_json, utc_iso
+from realizer.common.utils import load_json, parse_utc, utc_iso
 from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
@@ -60,7 +60,7 @@ def validate_replay_through(value: Optional[str], package: Mapping[str, Any]) ->
     except (TypeError, ValueError):
         raise InputError("replay cut (--replay-through) is not an ISO-8601 time") from None
     generated = (package.get("provenance") or {}).get("generated_at")
-    if generated and dt.datetime.fromisoformat(cut.replace("Z", "+00:00")) < dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00")):
+    if generated and parse_utc(cut) < parse_utc(generated):
         raise InputError(f"replay cut {cut} is before the package was generated ({generated}): nothing to project")
     return cut
 

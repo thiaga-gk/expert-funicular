@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from realizer.common.utils import parse_utc
 from realizer.contracts import realization as rrc
 
 REALIZER_WORKBOOK_EXTENSION_VERSION = "1.0.0"
@@ -112,7 +113,7 @@ def project_timeline(entries: Sequence[rrc.RealizationLedgerEntry]) -> List[Dict
             "evidence_refs": _json(e.evidence_refs),
             "payload_json": _json(e.payload),
         }
-        for e in sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+        for e in sorted(entries, key=lambda x: parse_utc(x.recorded_at_utc))  # ledger order: time, then append order
     ]
 
 

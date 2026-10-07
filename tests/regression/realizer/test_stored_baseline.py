@@ -18,12 +18,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.regression.realizer import canonical  # noqa: E402
 
-# Scenarios whose last observation is not idempotent (a behavior of the single-file release kept through the
-# reorganization, recorded in docs/proposals/realizer/repo-reorg-parity.md; the restatement-reprocessed scenario stores the
-# same behavior and, being already reprocessed, takes the ordinary idempotency check).
-KNOWN_NON_IDEMPOTENT = ("GR-026",)
-
-
 class StoredBaselineTests(unittest.TestCase):
     """The Realizer against the stored baseline."""
     engine_factory = staticmethod(canonical.modular_engine)
@@ -67,7 +61,7 @@ class StoredBaselineTests(unittest.TestCase):
     def test_reprocessing_identical_observation_adds_no_ledger_entry(self):
         for name in self.names:
             scenario = canonical.load_scenario(name)
-            if scenario["runs"][-1].get("observation") is None or name in KNOWN_NON_IDEMPOTENT:
+            if scenario["runs"][-1].get("observation") is None:
                 continue
             with self.subTest(scenario=name), tempfile.TemporaryDirectory() as tmp:
                 before, after, snap = self._reprocess_last(scenario, Path(tmp))
@@ -76,24 +70,14 @@ class StoredBaselineTests(unittest.TestCase):
                 self.assertEqual(after, before)
                 self.assertEqual(snap.history["entry_count"], len(ids))
 
-    def test_known_non_idempotent_restatement_is_pinned(self):
-        """Oracle defect, kept for parity (design rule 24): reprocessing a restatement observation once appends a second
-        BILLING_CORRECTION_RECORDED that points at the restated measurement itself; a further pass adds nothing."""
-        for name in KNOWN_NON_IDEMPOTENT:
+    def test_reprocessing_a_restatement_adds_nothing(self):
+        """A billing restatement reprocessed records nothing new: its correction is recorded once (GR-026's last run is
+        the restatement; restatement-reprocessed stores it reprocessed twice more)."""
+        for name in ("GR-026", "restatement-reprocessed"):
             with self.subTest(scenario=name), tempfile.TemporaryDirectory() as tmp:
-                out = Path(tmp)
-                scenario = canonical.load_scenario(name)
-                before, after, snap = self._reprocess_last(scenario, out)
-                self.assertEqual(after[:len(before)], before, "history is append-only")
-                added = [json.loads(line) for line in after[len(before):]]
-                self.assertEqual([e["event_type"] for e in added], ["BILLING_CORRECTION_RECORDED"])
-                restated = [json.loads(line) for line in before if json.loads(line)["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"][-1]
-                self.assertEqual(added[0]["corrects_entry_id"], restated["ledger_entry_id"])
-                self.assertEqual(snap.history["correction_count"], 2)
-                last = scenario["runs"][-1]
-                self.engine.realize(scenario["package_doc"], last["observation"], out)
-                self.assertEqual(next((out / "realization" / "ledger").glob("*.jsonl")).read_text(encoding="utf-8").splitlines(), after)
-
+                before, after, snap = self._reprocess_last(canonical.load_scenario(name), Path(tmp))
+                self.assertEqual(after, before)
+                self.assertEqual(snap.history["correction_count"], 1)
 
     def test_every_scenario_has_stored_output_and_no_stale_output(self):
         stored = sorted(p.name for p in canonical.EXPECTED.iterdir() if p.is_dir())
@@ -105,8 +89,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-96664E712C482CE6E54690E3", "REVID-37F7F275591908182339F44B", "RERUN-FD16E8E513742D642187719F"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-89C9665DBDDE7243573DA452", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-BD9345E1464964A8853B67FD"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-397C56B7F922EFDFAA2C6C13", "REVID-37F7F275591908182339F44B", "RERUN-FD16E8E513742D642187719F"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-3937CD0BA74FF28FCB98E7B1", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-BD9345E1464964A8853B67FD"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
