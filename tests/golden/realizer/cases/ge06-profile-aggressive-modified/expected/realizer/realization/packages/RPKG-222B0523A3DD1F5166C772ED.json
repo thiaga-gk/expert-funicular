@@ -197,11 +197,11 @@
     "application_episode_count": 1,
     "correction_count": 0,
     "entry_count": 8,
-    "first_entry_id": "RLE-296B1FF57EFDC1DCB9A1C8CD",
+    "first_entry_id": "RLE-44B66ED8E6EC63D82480C2BE",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
     "latest_entry_id": "RLE-F80824A8997233F935356D45",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:D47E87F6265EB010AD778DAF384BB22D8D600E4E89FE378B60D2EE32AC96D89B",
+    "ledger_checkpoint_hash": "SHA256:F5830877003C6AB7B863A37469B9C9E3EB37A35DE3A922BB5B3AE732FC6F7EA6",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -226,15 +226,28 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-070F796489A6249CA575CEF0",
+  "snapshot_id": "RSNAP-33E2C8FD1DE7CCDBB3263510",
   "source_recommendation": {
+    "cost_profile": "aggressive",
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-ECBE8AAD6F30BF616893AB17",
     "generated_at_utc": "2026-10-01T12:00:00Z",
+    "observed_change": null,
     "package_hash_full_sha256": "87C5FC67232C42608BC9C0BE58D404F06B63DE05A69BC1EA5AF8DB16F37E2B62",
     "publisher_contract_version": "3.1.0",
     "recommendation_package_id": "PKG-87C5FC67232C42608BC9C0BE",
     "recommended_scenario_id": "SCN-861E63411F07DB47CD709A77",
+    "run_scope": {
+      "safety_inclusions": [],
+      "scenarios": [
+        {
+          "knobs": [
+            "auto_stop_minutes"
+          ],
+          "scenario_type": "IN_PLACE_OPTIMIZATION"
+        }
+      ]
+    },
     "superseded_by_package_id": null
   },
   "validation": {

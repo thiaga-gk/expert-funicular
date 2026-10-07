@@ -12,7 +12,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from realizer.analyzer.analysis import candidate_steps, normalize_value, recommended_scenario, scenario_by_id, step_role
+from realizer.analyzer.analysis import candidate_steps, normalize_value, recommended_scenario, scenario_by_id, scenario_remeasure_days, step_role
 from realizer.config.settings import SIZE_ORDER
 from realizer.contracts import realization as rc
 from realizer.contracts.reconciliation import PlanMatch
@@ -89,6 +89,7 @@ def choose_application(
     primary: Optional[Dict[str, Any]] = None
     scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
     sid = None if scenario is None else scenario.get("scenario_id")
+    remeasure_days = scenario_remeasure_days(package, sid)
     for step in candidate_steps(package, sid):
         conf, relation = compare_step(step, obs_config)
         item = {
@@ -107,7 +108,7 @@ def choose_application(
             "modification_relation": relation,
             "invalidates": list(step.get("invalidates") or []),
             "dependencies": copy.deepcopy(step.get("dependencies") or []),
-            "remeasure_days": ((step.get("validation") or {}).get("remeasure_days")),
+            "remeasure_days": remeasure_days,
         }
         results.append(item)
         if primary is None and item["authority_eligible"] and conf in {

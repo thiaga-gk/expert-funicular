@@ -102,6 +102,14 @@ def step_role(package: Mapping[str, Any], step: Mapping[str, Any]) -> str:
     return rc.StepRole.SAVINGS.value
 
 
+def scenario_remeasure_days(package: Mapping[str, Any], scenario_id: Optional[str] = None) -> Optional[Any]:
+    """The remeasurement window (days) of the scenario's REMEASURE step; ``None`` when the scenario has none."""
+    scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
+    if scenario is None:
+        return None
+    return next((((x.get("validation") or {}).get("remeasure_days")) for x in scenario.get("execution_plan", []) if x.get("step_type") == "REMEASURE"), None)
+
+
 def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, Any]) -> ObservationAnalysis:
     """The normalized view of *observation*: its UTC times, observed and source configurations with their hashes and
     the observed-configuration evidence record (REVID-*).

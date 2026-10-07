@@ -70,6 +70,8 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 Unknown material facts are `null`, never synthetic zero.
 
+`source_recommendation` identifies the immutable PKG (id, contract version, full hash, epoch, recommended scenario, generation time, disposition and the superseding PKG) and states the conditions it was produced under, copied from it: `run_scope` (the restricted scope of a scoped run), `cost_profile` (the name of the profile the warehouse was evaluated under) and `observed_change` (the configuration change that started the current epoch). Each is `null` when the package has none. The `REALIZATION_CREATED` entry carries the same three values with the PKG id. Plan progress is derived from the package's own plan, which a run scope has already cut to the in-scope steps (and a canary rollback kept outside it); a pending-reevaluation step of that plan still keeps the plan partially completed.
+
 ## 5. Orthogonal state dimensions
 
 ### Intent
@@ -301,6 +303,15 @@ Historical realized value before a valid drift boundary remains valid.
 Status:
 
 `NOT_REQUIRED | REQUESTED | RUNNING | COMPLETED | FAILED | REPLACED`
+
+A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the application episode and written as `realization/regeneration/RERUN-*.json`) carries the actual configuration and its hash, the reasons, the scenario and step, and:
+
+- `evidence_id`: the observed-configuration evidence (`REVID-*`) of the run that made the request; the ledger entry references it in `evidence_refs`;
+- `observation_window`: that observation's `start_utc` and `end_utc` (its window, else its observed time);
+- `changed_knobs`: the decision knobs (type, size, min and max clusters, auto-stop, channel; never Photon) whose actual value differs from the package's current configuration, in contract order;
+- `impacted_knobs`: the knobs the applied change invalidates downstream.
+
+The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
 
 Re-evaluation always starts from the actual observed current state. Recommendation truth changes only through a new immutable PKG emitted by Publisher.
 

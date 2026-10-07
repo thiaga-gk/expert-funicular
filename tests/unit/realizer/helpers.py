@@ -101,6 +101,16 @@ def fixture_package(name: str = "inplace-size-canary") -> Dict[str, Any]:
     return json.loads((canonical.PACKAGES / f"{name}.json").read_text(encoding="utf-8"))
 
 
+def without_remeasure_window(package: Mapping[str, Any]) -> Dict[str, Any]:
+    """*package* with no REMEASURE-step window in any scenario, so the policy's remeasure window is the one that applies."""
+    package = copy.deepcopy(dict(package))
+    for scenario in package["scenarios"]:
+        for step in scenario["execution_plan"]:
+            if step["step_type"] == "REMEASURE":
+                step["validation"]["remeasure_days"] = None
+    return package
+
+
 def migration_scenario_id(package: Mapping[str, Any]) -> str:
     """The id of the package's standalone warehouse-type migration alternative."""
     return next(s["scenario_id"] for s in package["scenarios"] if s["scenario_type"] == "WAREHOUSE_TYPE_MIGRATION")

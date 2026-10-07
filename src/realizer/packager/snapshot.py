@@ -24,7 +24,7 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import authority_eligible
-from realizer.packager.ledger import latest_event, ledger_checkpoint
+from realizer.packager.ledger import latest_event, ledger_checkpoint, source_scope
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
@@ -132,6 +132,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "generated_at_utc": (package.get("provenance") or {}).get("generated_at"),
         "disposition": rc.SourcePackageDisposition.SUPERSEDED.value if superseded else rc.SourcePackageDisposition.ACTIVE.value,
         "superseded_by_package_id": (replacement.payload.get("replacement_package_id") if replacement else None),
+        **source_scope(package),
     }
     app_section = {
         "state": app_state,
