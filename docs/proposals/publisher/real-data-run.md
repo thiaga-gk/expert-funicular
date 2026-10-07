@@ -62,7 +62,7 @@ warehouses with known month-end, quarter-end or yearly peaks.
 
 ## Order of the run
 
-The sequence across both products (setup, the day-0 runs, the one applied change, the weekly measurements and the review) is in [`../shared/live-run.md`](../shared/live-run.md). The live Publisher runs are its steps 1.1 and 1.3, the queries above step 1.2 (`.claude/skills/databricks-golden-miner/scripts/real_data_queries.py` reads them from this page), the cost-profile replays step 1.4, and the golden miner's mining of the same evidence phase 2.
+The sequence across both products (setup, the day-0 runs, the one applied change, the weekly measurements and the review) is in [`../shared/live-run.md`](../shared/live-run.md). The queries above run in its step 1.2 (`.claude/skills/databricks-golden-miner/scripts/real_data_queries.py` reads them from this page), the golden miner mines the first live run in phase 1, its findings are fixed in phase 2, and the Publisher's live runs and cost-profile replays on the fixed code are phase 3.
 
 ## Backtest of the savings math (tracker G56)
 

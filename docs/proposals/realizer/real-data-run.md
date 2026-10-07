@@ -6,7 +6,7 @@ This page points to where each command and meaning lives and does not restate th
 
 ## Order of the run
 
-The sequence across both products is in [`../shared/live-run.md`](../shared/live-run.md): setup and the collector warehouse (phase 0), the Publisher packages, the Realizer's backtest, a baseline fleet run and its offline replay on day 0 (phase 1), the golden miner on the same evidence (phase 2), the one change an owner applies (phase 3), the weekly measurements and their replays (phase 4) and the review (phase 5). A live measurement needs one whole settled week after the change day and settles over about four weeks; the collector warehouse is never a measured one, because its statements would change the measured warehouse's idle time and cost.
+The sequence across both products is in [`../shared/live-run.md`](../shared/live-run.md): setup and the collector warehouse (phase 0), the golden mining and its fixes (phases 1 and 2), the Publisher packages on the fixed code (phase 3), then the Realizer's backtest, a baseline fleet run and its offline replay, the one change an owner applies and the weekly measurements with their replays (phase 4), and the review (phase 5). A live measurement needs one whole settled week after the change day and settles over about four weeks; the collector warehouse is never a measured one, because its statements would change the measured warehouse's idle time and cost.
 
 ## What to send back
 
