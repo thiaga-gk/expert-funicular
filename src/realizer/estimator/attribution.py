@@ -45,6 +45,9 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
     if overlap > 0:
         hard.append("PORTFOLIO_SCOPE_OVERLAP")
+    if (((observation.get("measurement") or {}).get("cross_check") or {}).get("outcome")) == "DISAGREES":
+        # The billed cost before and after the change does not confirm the replay: a person reviews it first.
+        hard.append("BILLED_CROSS_CHECK_DISAGREES")
     if origin in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
         hard.append("ORIGIN_NOT_ATTRIBUTABLE")
     confirmed_ok = origin == rc.OriginAttribution.CONFIRMED or not policy.require_confirmed_origin_for_hard_kpi

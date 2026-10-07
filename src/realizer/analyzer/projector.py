@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 from realizer.analyzer.analysis import photon_bool_from_package
+from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.measurement import (
     MeasurementPlan,
     daily_in,
@@ -211,6 +212,15 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any])
             "aws_evidence_type": "MODELED" if replay["aws_realized"] is not None else None,
             "mature_ttm_realized_savings": None, "realized_savings_since_application": None,
         }
+    cross_check = None
+    if replay is not None:
+        pre_rows = daily_in(evidence["daily_cost"], plan.pre)
+        cross_check = billed_cross_check(
+            replay_dbu_saving=replay["dbu_realized"],
+            pre=None if pre is None else {"days": pre["days"], "billed_cost": billed(pre_rows)["cost"]},
+            post={"days": post["days"], "billed_cost": billed(daily_in(evidence["daily_cost"], plan.post))["cost"]} if post else None,
+            pre_weekly=None if plan.pre is None else weekly_costs(pre_rows, plan.pre["first_day"], window_days(plan.pre)),
+            volume_ratio=ratio, other_knob_changes=plan.other_knob_changes)
     measurement = None
     if plan.step is not None:
         detail = None if replay is None else {k: (_fmt(v, "0.000001") if isinstance(v, Decimal) else v) for k, v in replay["detail"].items()}
@@ -224,6 +234,12 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any])
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
             "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
+            "cross_check": None if cross_check is None else {
+                "outcome": cross_check["outcome"], "reason": cross_check["reason"],
+                "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),
+                "difference_pct": _fmt(cross_check["difference_pct"], "0.01"), "noise": money(cross_check["noise"]),
+                "pre_weekly_costs": [money(x) for x in cross_check["pre_weekly_costs"]],
+            },
         }
     applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else None
     return {

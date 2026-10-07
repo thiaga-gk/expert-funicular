@@ -126,7 +126,11 @@ def calculate_economics(
     if state not in RUN_RATE_STATES:
         # A failed or blocked measurement keeps its observed delta but publishes no run-rate and no ratio.
         annualized, ratio = None, None
-    return {
+    measured = observation.get("measurement")
+    measured_detail = {} if not measured else {"measurement": {
+        k: measured.get(k) for k in ("method", "knob", "source_value", "applied_value", "cost_basis", "replay", "cross_check",
+                                     "post_window", "pre_window", "volume_ratio", "other_knob_changes", "holds_other_knobs")}}
+    return {**measured_detail,
         "available": True,
         "currency": str(econ["currency"]),
         "economic_basis": str(econ.get("economic_basis") or "ECONOMIC_COST"),

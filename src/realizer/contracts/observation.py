@@ -27,6 +27,8 @@ DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clust
 MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY",)
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED")
+CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
+CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
                  "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
 
@@ -125,6 +127,11 @@ def observation_schema() -> Dict[str, Any]:
             "restart_cost_cluster_minutes": _decimal(nullable=False), "net_cluster_minutes": _decimal(nullable=False),
             "dbu_cost_per_cluster_minute": _decimal(nullable=False), "aws_cluster_hourly_price": _decimal(),
             "aws_status": {"type": "string", "minLength": 1},
+        }, nullable=True),
+        "cross_check": _obj({
+            "outcome": {"enum": list(CROSS_CHECK_OUTCOMES)}, "reason": {"enum": [None, *CROSS_CHECK_REASONS]},
+            "replay_dbu_saving": _decimal(nullable=False), "billed_dbu_reduction": _decimal(), "difference_pct": _decimal(),
+            "noise": _decimal(), "pre_weekly_costs": {"type": "array", "items": _decimal(nullable=False)},
         }, nullable=True),
     }, nullable=True)
     properties = {

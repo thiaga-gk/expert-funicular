@@ -424,6 +424,109 @@
             "DBU_ONLY"
           ]
         },
+        "cross_check": {
+          "additionalProperties": false,
+          "properties": {
+            "billed_dbu_reduction": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "difference_pct": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "noise": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "AGREES",
+                "DISAGREES",
+                "INCONCLUSIVE"
+              ]
+            },
+            "pre_weekly_costs": {
+              "items": {
+                "anyOf": [
+                  {
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "reason": {
+              "enum": [
+                null,
+                "NO_PRE_WINDOW",
+                "NOISE_UNKNOWN",
+                "OTHER_KNOB_CHANGED",
+                "VOLUME_SHIFT",
+                "BILLING_INCOMPLETE",
+                "BELOW_NOISE"
+              ]
+            },
+            "replay_dbu_saving": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "required": [
+            "billed_dbu_reduction",
+            "difference_pct",
+            "noise",
+            "outcome",
+            "pre_weekly_costs",
+            "reason",
+            "replay_dbu_saving"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "holds_other_knobs": {
           "type": "boolean"
         },
@@ -748,6 +851,7 @@
         "applied_value",
         "change_epoch_start",
         "cost_basis",
+        "cross_check",
         "holds_other_knobs",
         "knob",
         "method",
