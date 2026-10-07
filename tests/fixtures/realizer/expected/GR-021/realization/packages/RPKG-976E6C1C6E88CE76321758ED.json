@@ -1,6 +1,6 @@
 {
   "application": {
-    "active_episode_id": "APP-E5F5E8BA0596EABD96303741",
+    "active_episode_id": "APP-2588043BA938C0F91306BC7D",
     "actor": "demo-user",
     "application_scope": "SCENARIO",
     "applied_step_refs": [
@@ -155,9 +155,9 @@
     "entry_count": 9,
     "first_entry_id": "RLE-43CE3E553F852E732746AC84",
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
-    "latest_entry_id": "RLE-FB8820D5307EF2760450F800",
+    "latest_entry_id": "RLE-CB89A2A62925AD875519B38A",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:496D1B3994950B7501A273B90D674ABF5E12B00902EBCF4C2ED831369421511D",
+    "ledger_checkpoint_hash": "SHA256:E493324EA53B937AA31CEDD70C8DAB94BCDD325DCD4C228B4CBBFCC6AB8C6704",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -178,11 +178,11 @@
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
-    "regeneration_request_id": "RERUN-6379C71B85A5E63AF9A188C8",
+    "regeneration_request_id": "RERUN-DC2607F03B988A693A038C53",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-0A5702BF0B585BABA5E76BAE",
+  "snapshot_id": "RSNAP-7618461F7D90979EBC73B45F",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
@@ -255,7 +255,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-D2ACB7470E325B70AE8A7DC2",
+    "validation_episode_id": "VAL-E023AED8E84708ADF5EAB7D9",
     "window_end_utc": "2026-10-09T12:00:00Z",
     "window_start_utc": "2026-10-02T12:00:00Z"
   },

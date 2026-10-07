@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from realizer.common.utils import utc_iso
-from realizer.config.settings import CONFIG_KNOBS
+from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
 from realizer.contracts.realization import make_evidence_id
@@ -19,7 +19,9 @@ from realizer.packager.ledger import latest_event
 
 
 def config_hash(config: Mapping[str, Any]) -> str:
-    return "SHA256:" + rc.sha256_hex({k: normalize_value(k, config.get(k)) for k in CONFIG_KNOBS})
+    """The hash of the configuration a decision is made on (``HASHED_CONFIG_KNOBS``): the channel and Photon are recorded
+    in the observed configuration but never change it."""
+    return "SHA256:" + rc.sha256_hex({k: normalize_value(k, config.get(k)) for k in HASHED_CONFIG_KNOBS})
 
 
 def normalize_value(knob: str, value: Any) -> Any:

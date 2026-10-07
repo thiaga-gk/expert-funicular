@@ -1,7 +1,7 @@
 {
  "ProjectionTests.test_entry_order_and_duplicates/doubled ledgers": {
   "length": 4417,
-  "sha256": "7e94966a21336a25423d80b5ef1a387bdeeffd392be0eea3fa63f0b71f459f97",
+  "sha256": "da44a7ee76e232a968db7a3474cd0777959d5788aedcb7b91dc2c7247f0817f8",
   "spot": {
    "count": 41,
    "first": [
@@ -12,7 +12,7 @@
  },
  "ProjectionTests.test_every_ledger_prefix_projects_and_every_stored_snapshot_is_reproduced/projections": {
   "length": 75128,
-  "sha256": "4e1cdc3391b95da096dc5ca4cd883fe12ca16951b0baea282a05d6a085809263",
+  "sha256": "97498dc5324d233343511396b157a99593ba57e4f70f450895b932528235e7c8",
   "spot": {
    "count": 452,
    "distinct snapshots": 135,
@@ -29,8 +29,8 @@
     "RPKG-976E6C1C6E88CE76321758ED",
     "recorded through",
     "2026-10-10T12:00:00Z",
-    "RSNAP-E8A8D5225505A75399AE5EB9",
-    "a03a86ed008b3fe211e9dc6fcf427828902e68048755101fe54faedca62c2212"
+    "RSNAP-F5E1865F46200EADDE2C8D57",
+    "39d9f926c8b9e37e024f898cdf9547588f3ae73dd66914aed5192012cbeb0fb0"
    ]
   }
  },

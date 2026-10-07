@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from realizer.config.settings import UNPRICED_DECISION_KNOBS
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
 from realizer.contracts import realization as rc
@@ -57,8 +58,10 @@ def run(
         # The gates join the economics (``quality_gates``, last key) before attribution reads them, as they always did.
         economic = {**economic, "quality_gates": governance.economic_quality.get()}
         facts["economics"] = economic
+        # A change with no priced effect (the channel) cannot be in the saving, so it never counts against the claim.
         independent = sorted({str(a.payload.get("knob")) for a in reconciliation.applications
-                              if a.event_type == rc.EventType.INDEPENDENT_CHANGE_OBSERVED and a.payload.get("knob") != app_payload.get("knob")})
+                              if a.event_type == rc.EventType.INDEPENDENT_CHANGE_OBSERVED and a.payload.get("knob") != app_payload.get("knob")
+                              and a.payload.get("knob") not in UNPRICED_DECISION_KNOBS})
         attr = attribution_result(app_payload, observation, validation_passed, cf_claim_eligible, economic, policy, independent)
         measurement = measurement_facts(
             app_id, observation, counterfactual, economic, attr,

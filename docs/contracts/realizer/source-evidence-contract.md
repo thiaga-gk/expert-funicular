@@ -29,11 +29,11 @@ Adapters transport evidence; they do not redefine authority.
 
 ## 3. Core config authority
 
-For the v2.8.0 integrated release Realizer, authoritative configuration includes:
+The authoritative configuration is
 
 `warehouse_channel, warehouse_size, max_clusters, min_clusters, auto_stop_minutes, warehouse_type`
 
-via `system.compute.warehouses`.
+via `system.compute.warehouses`. The observed configuration records all of them and Photon. The configuration hash, which identifies an application and decides drift, covers the knobs a decision is made on: type, size, minimum and maximum clusters and auto-stop. A channel change has no priced effect: it is recorded as an independent change, never drifts an application and never counts against a claim.
 
 ## 4. Application evidence vs causal evidence
 
@@ -41,7 +41,7 @@ Configuration matching answers **whether** a state is present. Causal evidence a
 
 ## 5. Photon
 
-Phase 1 follows the existing governed Publisher evidence path. Realizer does not silently expand read-only API authority. Insufficient evidence yields unknown/unconfirmed, never invented state.
+Phase 1 follows the existing governed Publisher evidence path. Realizer does not silently expand read-only API authority. Insufficient evidence yields unknown/unconfirmed, never invented state. Photon is an observed billing-mix fact, never a configuration change: it is recorded in the observed configuration (`null` when the billing mix is mixed or unknown) and is outside matching, the configuration hash and drift.
 
 ## 6. Query/performance
 

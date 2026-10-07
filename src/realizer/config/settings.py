@@ -36,6 +36,12 @@ CONFIG_KNOBS = (
     "enable_photon",
 )
 
+# The configuration a decision is made on, which the configuration hash covers (and so application identity and drift):
+# the observed configuration also records the channel (no priced effect) and Photon (a billing-mix fact, never a change).
+HASHED_CONFIG_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes")
+# Decision knobs whose change has no priced effect: recorded as an independent change, never drift, never against a claim.
+UNPRICED_DECISION_KNOBS = ("warehouse_channel",)
+
 # Reuse Publisher's canonical size registry; Realizer must not maintain a competing order.
 SIZE_ORDER = {name: idx for idx, name in enumerate(PUBLISHER_SIZE_ORDER)}
 
