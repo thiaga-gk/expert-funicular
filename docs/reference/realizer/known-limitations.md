@@ -1,6 +1,6 @@
 # Realizer Known Limitations
 
-This file records limitations that remain true in the current Realizer release (component version 1.1.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
+This file records limitations that remain true in the current Realizer release (component version 1.2.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
 
 ## Not yet possible
 

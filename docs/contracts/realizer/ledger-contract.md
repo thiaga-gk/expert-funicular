@@ -1,6 +1,6 @@
-# Realizer JSON + Realization Ledger Contract v1.0.0
+# Realizer JSON Contract v1.1.0 + Realization Ledger Contract v1.0.0
 
-> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+> The Realizer specification (realization package contract v1.1.0, ledger envelope v1.0.0; v1.1.0 added the step role, the `SAFETY_ACTION_APPLIED`, `PERFORMANCE_VALIDATED` and `CAPACITY_VALIDATED` states, the application's compatibility status and annotations, and the source package's run scope, cost profile and observed change; RPKG ids hash only the major version). The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED  
 **Product:** Databricks SQL Warehouse Optimizer — Realizer  

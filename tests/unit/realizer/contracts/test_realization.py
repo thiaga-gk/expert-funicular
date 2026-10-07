@@ -187,7 +187,7 @@ class ValidationTests(unittest.TestCase):
 
     def test_package_validation_messages(self):
         cases = [
-            {}, {"contract_version": "1.1.0"}, {"realization_package_id": "RPKG-1"}, {"snapshot_id": "RSNAP-" + "a" * 24},
+            {}, {"contract_version": "1.0.0"}, {"realization_package_id": "RPKG-1"}, {"snapshot_id": "RSNAP-" + "a" * 24},
             {"source_recommendation": {}}, {"warehouse": {"workspace_id": "1"}}, {"warehouse": {"warehouse_id": "w"}},
             {"as_of_utc": "not-a-time"}, {"history": {"ledger_checkpoint_hash": "MD5:x"}}, {"history": {}},
         ]

@@ -1,4 +1,4 @@
-"""Canonical Realizer Contract v1.0.0.
+"""Canonical Realizer Contract v1.1.0 (the realization package; the ledger envelope stays v1.0.0).
 
 The RecommendationPackage (PKG-*) remains immutable.  This module defines the
 separate realization lineage (RPKG-*), append-only ledger envelope (RLE-*), and
@@ -6,7 +6,7 @@ derived snapshot (RSNAP-*), plus the deterministic public ID builders.  Domain
 calculations live in the engine and its capabilities; this module owns stable
 public types, canonical serialization/IDs and semantic validation only.
 
-It presents the complete v1.0.0 surface: the observation-side enums
+It presents the complete v1.1.0 surface: the observation-side enums
 (``realizer.contracts.analysis``) and the reconciliation enums
 (``realizer.contracts.reconciliation``) are defined with their group and
 re-exported here, so ``__all__`` is the single-file contract's ``__all__``
@@ -41,7 +41,9 @@ if TYPE_CHECKING:  # annotations only: the hand-offs of the earlier capabilities
     from realizer.contracts.governance import GovernanceResult
     from realizer.contracts.reconciliation import ReconciliationResult
 
-CONTRACT_VERSION = "1.0.0"
+# 1.1.0 adds the step role, the safety, performance and capacity realization states, the application's compatibility
+# status and annotations, and the source package's run scope, cost profile and observed change. RPKG ids hash the major.
+CONTRACT_VERSION = "1.1.0"
 LEDGER_CONTRACT_VERSION = "1.0.0"
 HASH_HEX_LENGTH = 24
 

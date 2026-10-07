@@ -44,7 +44,7 @@
     "recommendation_attributed_realized_savings": "0.00",
     "validated_observed_realization": null
   },
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "current_state": {
     "maturity_state": "COLLECTING",
     "realization_state": "APPLIED",
@@ -79,16 +79,16 @@
     "state": "COLLECTING"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.1.0",
-    "attribution_version": "realizer-attribution-v1.1.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.1.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.2.0",
+    "attribution_version": "realizer-attribution-v1.2.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.2.0",
     "exclusivity_version": "realizer-exclusivity-v1.0.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.1.0",
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.0.0",
-    "realizer_contract_version": "1.0.0",
-    "realizer_version": "1.1.0"
+    "projector_version": "realizer-projector-v1.1.0",
+    "realizer_contract_version": "1.1.0",
+    "realizer_version": "1.2.0"
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
@@ -96,7 +96,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-4420ADD36A774A015870C963",
+  "snapshot_id": "RSNAP-71AD35E4067FA059A49B51F0",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
