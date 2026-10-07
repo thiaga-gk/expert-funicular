@@ -4,11 +4,12 @@
 
 **Status:** LOCKED FOR PHASE-1 IMPLEMENTATION  
 **Canonical inputs:** Reporter JSON Contract v1.0.0 (`PKG-*`) + Realizer Contract v1.2.0 (`RPKG-*`)  
-**Existing Workbook Contract:** v1.1.0 remains immutable
+**Existing Workbook Contract:** v1.1.0 remains immutable  
+**Realization workbook:** Realization Workbook Contract v2.0.0 (sections 10 to 16; `REALIZATION_WORKBOOK_CONTRACT_VERSION` in `src/realizer/contracts/report.py`)
 
 ## 1. Purpose
 
-Define how richer Realizer truth is projected into legacy Reporter realization structures and human workbook views without mutating immutable recommendation packages or silently changing the locked Reporter/Workbook contracts.
+Define how richer Realizer truth is projected into legacy Reporter realization structures and into the Realizer's own realization workbook, without mutating immutable recommendation packages or changing the Publisher's Reporter/Workbook contracts.
 
 ## 2. Authority
 
@@ -93,85 +94,97 @@ Legacy fields may receive only the matching canonical basis:
 
 Modeled AWS economic realization MUST NOT be mislabeled as hard-cash AWS realization.
 
-## 10. Workbook policy
+## 10. Realization workbook
 
-Workbook Contract v1.1.0 is preserved exactly for legacy package-only projection.
+A person sees realization in the **realization workbook**, a separate `.xlsx` the Realizer writes, never in the Publisher's workbook. The Publisher's workbook is unchanged: its realization columns show the package as generated (an immutable package never learns that it was applied). The Realizer's fleet run writes the realization workbook into each run folder by calling `write_realization_workbook(path, warehouse_runs)` (`src/realizer/reporter/workbook.py`) with one `WarehouseRun` per warehouse of the run: its status (`OK`, `REFUSED`, `CRASHED`) and reason, the realization packages it projected, their ledger entries and the warehouse's state index.
 
-Realizer-aware workbook rendering is a **separately versioned extension**, not a silent edit to v1.1.0. Phase-1 implementation introduces `Workbook Realizer Extension v1.0.0`, consuming PKG + RPKG.
+Realization Workbook Contract v2.0.0 replaces the Realizer Workbook Extension v1.0.0 (two sheets, Realization Summary and Realization Timeline, rendered only by the single-file release). The summary and timeline row projections of v1.0.0 remain, unchanged, as the lineage projection (`project_summary`, `project_timeline`, `project_realizer_workbook`), which the stored scenario baseline pins and the Lineages and Timeline sheets reuse.
 
-The extension may add Realizer fields/views but MUST retain all v1.1.0 columns/grains unchanged for existing views.
+`src/realizer/contracts/report.py` is the only home of the sheet names, the column order, headers and groups (`WAREHOUSE_COLUMNS`, `LINEAGE_COLUMNS`, `TIMELINE_COLUMNS` and their `*_GROUPS`), the lineage selection and the next-action table; the renderer consumes them and keeps no second list.
 
-## 11. Realizer-aware human fields
+## 11. Sheets and grains
 
-At minimum the Realizer extension exposes:
+Exactly three visible sheets, in this order:
 
-```text
-realization_package_id
-snapshot_id
-source_package_disposition
-plan_progress
-implementation_conformance
-recommended_value
-actual_applied_value
-application_effective_from
-application_effective_to
-intent_state
-origin_attribution
-validation_state
-maturity_state
-realization_state
-expected_same_scope_annual_savings
-expected_denominator_source
-realized_savings_to_date
-annualized_realized_savings
-mature_ttm_realized_savings
-realization_ratio
-observed_economic_delta
-successful_realized_savings
-recommendation_attributed_realized_savings
-aws_economic_realized
-aws_cash_realized
-commitment_freed
-attribution_claim_status
-drift_state
-regeneration_status
-replacement_package_id
-blockers
-warnings
-```
+| Sheet | Grain | Order |
+|---|---|---|
+| Warehouses | one row per `WarehouseRun`, a failed warehouse included | workspace, then warehouse |
+| Lineages | one row per realization package of every `WarehouseRun` | the warehouses' order, then oldest package first (generation time, then package id), as the state index orders lineages |
+| Timeline | one row per ledger entry of every lineage | the lineages' order, then ledger order (recorded time, then append order) |
 
-## 12. Four existing workbook views
+### Which lineage a Warehouses row shows
 
-Existing v1.1.0 views remain intact:
+1. The lineage that claims the warehouse's latest applied change: from the state index's `applied_knob_owners` when the run gives one (the owner whose change took effect last), else the `CLAIMABLE` lineage whose application took effect last. A lineage whose change was rolled back still claims the interval it was in force, so it can be shown. `Lineage shown` is `CLAIMS_LATEST_CHANGE`.
+2. Else the newest package that is not superseded (latest generation time). `Lineage shown` is `NEWEST_ACTIVE_PACKAGE`.
+3. Else none: the row carries the run's identity, status, reason and package id, and every lineage cell is empty.
 
-- Executive Summary;
-- Warehouse Portfolio;
-- Scenario Plans;
-- Recommendation Registry.
+Ties go to the highest package id, so the choice never depends on input order. The owners, claim statuses and dispositions are the Realizer's ([`ledger-contract.md`](ledger-contract.md) sections 18, 19 and 24); the workbook only reads them.
 
-The Realizer extension enriches those views only through a separately versioned projection and MAY add a `Realization` detail view in that extension. The v1.1.0 renderer remains available unchanged for backward compatibility.
+## 12. Columns
 
-## 13. Executive summary
+**Warehouses** (`WAREHOUSE_COLUMNS`, groups in brackets):
 
-Executive realization metrics MUST use economically exclusive authoritative lineages and expose at least:
+| Column | Value |
+|---|---|
+| [Identity] Workspace ID, Warehouse ID, Warehouse | the run's warehouse; the name from the lineage shown |
+| Package ID, Realization package ID | the lineage shown; with none, the run's package id and an empty RPKG id |
+| Lineage shown | `CLAIMS_LATEST_CHANGE` or `NEWEST_ACTIVE_PACKAGE` (section 11), empty with none |
+| [Run] Run status, Run reason | the `WarehouseRun`'s |
+| [Applied change] Applied knob, From, Applied, Recommended, Applied at, Applied until | `application.knob`, `source_value`, `observed_applied_value`, `recommended_value`, `effective_from_utc`, `effective_to_utc` |
+| [State] Conformance, Validation, Realization, Maturity | `application.implementation_conformance`, `validation.state`, `current_state.realization_state`, `maturity.state` |
+| [Realized economics] Currency | `economics.currency` |
+| Realized to date, Days covered, First day, Last day | `economics.realized_savings_since_application` and `economics.realized_to_date` ([`ledger-contract.md`](ledger-contract.md) section 15) |
+| Annualized realized, Expected annual (same scope), Realization ratio | `economics.annualized_realized_savings`, `expected_same_scope_annual_savings`, `realization_ratio` |
+| [Attribution] Claim | `attribution.attribution_claim_status` |
+| Claimed by package | the owner's package id when another lineage claims this lineage's change (`attribution.claimed_by`), empty otherwise |
+| Other lineages | the warehouse's other lineages: the state index's lineages when given, else the run's realization packages, less the one shown |
+| [Action] Next action | section 13 |
+| Last observed (UTC) | the lineage's `as_of_utc`, else the state index's |
+| [Audit] Application JSON, Economics JSON, Attribution JSON, Applied knob owners JSON | the lineage's sections and the state index's `applied_knob_owners` |
 
-```text
-recommended annual opportunity
-applied expected scope
-validated observed realization
-confirmed recommendation-attributed realization
-under-realized value
-validation-failed observed delta
-rolled-back count/value
-mature TTM realized value
-attribution coverage
-```
+**Lineages** (`LINEAGE_COLUMNS`): the lineage projection's summary columns (identity and disposition; conformance, scope, intent, recommended and applied value, application state, plan progress; validation, realization and maturity states; origin and claim; observed and attributed realization, annualized, mature TTM, expected same-scope savings, ratio, economic basis, denominator source; regeneration status and replacement; as of) plus Claimed by package, Currency, Realized to date, Days covered and Next action; the Application, Validation, Economics and Attribution JSON at the far right.
 
-Standalone candidate potential is never added to scenario/plan realized value.
+**Timeline** (`TIMELINE_COLUMNS`): the lineage projection's timeline columns: ledger entry, realization package and package ids; event type, effective and recorded time; workspace and warehouse; application episode, validation episode, measurement and corrected entry ids; the evidence references and the payload as JSON at the far right.
 
-## 14. Workbook no-recalculation invariant
+## 13. Next action
 
-The workbook MAY format, aggregate economically exclusive canonical values, sort and filter. It MUST NOT:
+One fixed label per state (`NEXT_ACTIONS`). The state is the lineage's realization state; the regeneration status or the plan progress refines it where it changes what a person does. A Warehouses row whose run failed shows the run's label whatever its lineage; one whose run projected no lineage shows `None: no realization to show`. A realization state the table does not name fails the projection (closed, never a guess).
+
+| State | Condition | Next action |
+|---|---|---|
+| run `REFUSED` | | Fix the run: REFUSED |
+| run `CRASHED` | | Fix the run: CRASHED |
+| no lineage | | None: no realization to show |
+| `NOT_APPLIED` | | Apply the recommended change |
+| `NOT_APPLIED` | the plan has no authority-eligible step | None: no step to apply |
+| `APPLIED`, `VALIDATING` | | Wait for validation |
+| `REALIZED`, `MONITORING`, `PERFORMANCE_VALIDATED`, `CAPACITY_VALIDATED` | | Keep monitoring |
+| `SAFETY_ACTION_APPLIED` | | Keep monitoring: safety rollback in force |
+| `UNDER_REALIZED` | | Review: re-optimization recommended |
+| `VALIDATION_FAILED` | | Roll back: a guard failed |
+| `ROLLED_BACK` | | None: rolled back |
+| `ROLLED_BACK` | regeneration `REQUESTED` | Run the Publisher: regeneration requested |
+| `DRIFTED`, `REGENERATING` | | Run the Publisher: regeneration requested |
+| `ROLLED_BACK`, `DRIFTED`, `REGENERATING` | regeneration `REPLACED` | None: replacement package linked |
+| `BLOCKED`, `INVALIDATED` | | Review the blocker |
+
+The realization package does not carry the steps of a plan not yet applied (its application section is empty until an application is recorded), so a not-applied lineage names no step; the Publisher's workbook lists them.
+
+## 14. Presentation rules
+
+The Publisher workbook's rules, implemented by the Realizer's own renderer (the products share no workbook code):
+
+- exactly the three visible sheets; no formulas, macros, hidden sheets, defined names or conditional formats;
+- row 1 holds the column groups, row 2 the headers (frozen, with the leading identity columns), one row per record from row 3, each sheet an Excel table;
+- identifiers, times and days are written as text (a workspace id never becomes a number);
+- money is a signed number (positive = savings, negative = cost increase), next to an explicit Currency column; ratios, days covered and counts are numbers;
+- an unknown value is an empty cell, never zero;
+- audit JSON is at the far right; a cell longer than Excel allows is cut with a visible marker (the full content is in the realization package and ledger);
+- the document's created and modified times are the latest time the inputs were observed, so identical inputs give identical content.
+
+## 15. No-recalculation invariant
+
+The workbook MAY format, sort and filter, and the projection MAY choose which lineage a Warehouses row shows by section 11 and a label by section 13. It MUST NOT:
 
 - run application matching;
 - calculate M08 counterfactuals;
@@ -180,13 +193,14 @@ The workbook MAY format, aggregate economically exclusive canonical values, sort
 - classify realization;
 - infer attribution;
 - resolve overlap;
-- regenerate recommendations.
+- regenerate recommendations;
+- aggregate realization across lineages (one change can be realized by several lineages; only the owner claims it).
 
-## 15. Package-chain presentation
+## 16. Package-chain presentation
 
 Workbook/UI MAY derive a warehouse optimization journey by traversing predecessor/replacement PKG/RPKG links. It MUST NOT merge the immutable RPKG histories into one canonical object.
 
-## 16. Compatibility result
+## 17. Compatibility result
 
 Adapters return an explicit status:
 
