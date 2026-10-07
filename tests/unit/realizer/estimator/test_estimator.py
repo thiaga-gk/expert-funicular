@@ -146,7 +146,7 @@ class RunTests(unittest.TestCase):
             "performance": ({"performance": {"normalized_p95_runtime_regression_pct": "abc"}}, None),
             "counterfactual eligibility": ({"economics": 5}, "validation_passed"),
             "counterfactual cost": ({"economics": {**econ, "counterfactual_old_cost": "abc"}}, "validation_passed"),
-            "counterfactual id": ({"workload": Opaque()}, "validation_passed"),
+            "counterfactual id": ({"economics": {**econ, "dbu_realized": Opaque()}}, "validation_passed"),
             "economics": ({"economics": {**econ, "observed_new_cost": "abc"}}, "counterfactual"),
             "quality gates": ({"financial_quality": {**self.base["financial_quality"], "attributable_spend_pct": "NaN"}}, "counterfactual"),
             "attribution": ({"overlap_count": "abc"}, "economics"),
@@ -176,7 +176,8 @@ class RunTests(unittest.TestCase):
         self.assertFalse(estimate.economics["available"])
         self.assertIsNone(estimate.counterfactual.payload)
         self.assertEqual(estimate.counterfactual.counterfactual_id,
-                         economics.make_cf_id(self.stages(observation, Path("/x"), gate=False)[3].active.application_episode_id, observation, self.pkg, RealizerPolicy()))
+                         economics.make_cf_id(self.stages(observation, Path("/x"), gate=False)[3].active.application_episode_id, observation, self.pkg, RealizerPolicy(),
+                                              "NO_DEFENSIBLE_COUNTERFACTUAL"))
         self.assertIsNone(estimate.measurement)
         self.assertIsNone(estimate.correction)
 

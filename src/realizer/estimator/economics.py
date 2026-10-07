@@ -1,9 +1,10 @@
 """Estimator economics: the counterfactual baseline, the realized economics of an application and its measurement.
 
-``make_cf_id``, ``expected_annual_for_exact_step`` (the publisher's expected savings for an exactly applied step) and
+``make_cf_id`` (the counterfactual's identity over ``counterfactual_basis``, what the evidence states about it),
+``expected_annual_for_exact_step`` (the publisher's expected savings for an exactly applied step) and
 ``calculate_economics`` (realized savings against the counterfactual, annualization when the evidence is
-representative, the expected-savings denominator and the realization classification) are moved unchanged from the
-single-file Realizer. ``counterfactual_record``, ``measurement_facts`` and ``correction_facts`` are its validation and
+representative, the expected-savings denominator and the realization classification) come from the single-file
+Realizer. ``counterfactual_record``, ``measurement_facts`` and ``correction_facts`` are its validation and
 measurement statements that build the counterfactual, measurement and billing-correction payloads, in its order; the
 engine records them.
 
@@ -29,12 +30,35 @@ from realizer.governor.policy import RealizerPolicy, authority_eligible, readine
 RUN_RATE_STATES = frozenset({rc.RealizationState.REALIZED.value, rc.RealizationState.UNDER_REALIZED.value, rc.RealizationState.MONITORING.value})
 
 
-def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str, Any], policy: RealizerPolicy) -> str:
+def counterfactual_basis(observation: Mapping[str, Any]) -> Dict[str, Any]:
+    """What the evidence states about the counterfactual, as the CF id hashes it and its payload records it: the window
+    (its start falling back to the applied time and its end to the observed time, as the measurement id's do), the
+    replay target, the measurement's assumptions (source and applied value, cost basis, restart cost; ``None`` without a
+    measurement) and ``evidence_fingerprint``, the hash of the observation's economics and measurement (costs,
+    components, replay inputs, windows). The observation's ``workload`` is informational and is not part of it."""
+    measurement = observation.get("measurement")
+    replay = (measurement or {}).get("replay") or {}
+    assumptions = None if not measurement else {
+        "source_value": measurement.get("source_value"), "applied_value": measurement.get("applied_value"),
+        "cost_basis": measurement.get("cost_basis"), "restart_cost_cluster_minutes": replay.get("restart_cost_cluster_minutes"),
+    }
+    return {
+        "window": [observation.get("window_start_utc") or observation.get("applied_at_utc"),
+                   observation.get("window_end_utc") or observation.get("observed_at_utc")],
+        "replay_target": replay.get("replayed_target_minutes"),
+        "assumptions": assumptions,
+        "evidence_fingerprint": rc.sha256_hex({"economics": observation.get("economics"), "measurement": measurement}),
+    }
+
+
+def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str, Any], policy: RealizerPolicy, method: str) -> str:
+    """The CF id of the application's counterfactual: the application, the package's (old) configuration, the method the
+    record states, the counterfactual basis (``counterfactual_basis``), the modeler version and the policy snapshot."""
     return rc.content_id("CF", {
         "app": app_id,
         "old_config_hash": config_hash(package_config(package)),
-        "post_change_workload": observation.get("workload", {}),
-        "window": [observation.get("window_start_utc"), observation.get("window_end_utc") or observation.get("observed_at_utc")],
+        "method": method,
+        **counterfactual_basis(observation),
         "modeler_version": MODELER_GATEWAY_VERSION,
         "policy_snapshot_id": policy.snapshot_id,
     })
@@ -325,7 +349,8 @@ def counterfactual_record(
     observation carries the counterfactual (old-configuration) cost."""
     econ_obs = observation.get("economics") or {}
     if econ_obs.get("counterfactual_old_cost") is not None:
-        cf_id = make_cf_id(application_episode_id, observation, package, policy)
+        cf_id = make_cf_id(application_episode_id, observation, package, policy, method)
+        basis = counterfactual_basis(observation)
         cf_payload = {
             "counterfactual_id": cf_id,
             "method": method,
@@ -333,9 +358,13 @@ def counterfactual_record(
             "workload_basis": "ACTUAL_POST_CHANGE_WORKLOAD",
             "counterfactual_old_cost": money(econ_obs.get("counterfactual_old_cost")),
             "modeler_version": MODELER_GATEWAY_VERSION,
+            "window": dict(zip(("start_utc", "end_utc"), basis["window"])),
+            "replay_target": basis["replay_target"],
+            "assumptions": basis["assumptions"],
+            "evidence_fingerprint": basis["evidence_fingerprint"],
         }
         return CounterfactualRecord(counterfactual_id=cf_id, method=method, claim_eligible=claim_eligible, payload=cf_payload)
-    cf_id = make_cf_id(application_episode_id, observation, package, policy)
+    cf_id = make_cf_id(application_episode_id, observation, package, policy, method)
     return CounterfactualRecord(counterfactual_id=cf_id, method=method, claim_eligible=claim_eligible, payload=None)
 
 

@@ -18,7 +18,7 @@ from pathlib import Path
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import stage_policy, Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
 from realizer.analyzer.analysis import candidate_steps  # noqa: E402
-from realizer.governor.policy import authority_eligible  # noqa: E402
+from realizer.governor.policy import authority_eligible, counterfactual_eligible  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config.settings import MODELER_GATEWAY_VERSION  # noqa: E402
 from realizer.contracts.realization import make_measurement_id, make_rpkg_id  # noqa: E402
@@ -67,7 +67,8 @@ class CounterfactualIdTests(unittest.TestCase):
         results = []
         for (package, app), mapping in itertools.product(list(stored_applications())[:12], POLICIES):
             for observation in observations[::4]:
-                results.append(economics.make_cf_id(app["application_episode_id"], observation, package, policy(mapping)))
+                method = counterfactual_eligible(observation)[1]
+                results.append(economics.make_cf_id(app["application_episode_id"], observation, package, policy(mapping), method))
         self.assertGreater(len(results), 100)
         self.assertTrue(all(r.startswith("CF-") for r in results))
         expect.check(self, "ids", results, spot={"count": len(results), "distinct": len(set(results)), "first": results[0]})
@@ -78,7 +79,7 @@ class CounterfactualIdTests(unittest.TestCase):
         broken_package = copy.deepcopy(package)
         broken_package["current_config"] = 5
         cases = [
-            ("workload", {**base, "workload": Opaque()}, package, None),
+            ("evidence", {**base, "economics": {**base["economics"], "dbu_realized": Opaque()}}, package, None),
             ("window", {**base, "window_end_utc": Opaque()}, package, None),
             ("observation", 5, package, None),
             ("package", base, broken_package, None),
@@ -86,9 +87,67 @@ class CounterfactualIdTests(unittest.TestCase):
         ]
         for label, observation, pkg, mapping in cases:
             with self.subTest(case=label):
-                new = outcome(economics.make_cf_id, "APP-X", observation, pkg, policy(mapping))
+                new = outcome(economics.make_cf_id, "APP-X", observation, pkg, policy(mapping), "MATCHED_HISTORICAL")
                 self.assertNotEqual(new[0], "ok")
                 expect.check(self, label, new)
+
+
+class CounterfactualIdentityTests(unittest.TestCase):
+    """The CF id names what the evidence states about the counterfactual: the method, the window (its start falling back to
+    the applied time, its end to the observed time), the replay target, the measurement's assumptions and a fingerprint
+    of the economics and measurement. The caller's ``workload`` is informational and enters no identity."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = fixture_package()
+        cls.base = demo_observation(cls.pkg)
+        cls.policy = RealizerPolicy()
+
+    def cf(self, observation, method="MATCHED_HISTORICAL"):
+        return economics.make_cf_id("APP-X", observation, self.pkg, self.policy, method)
+
+    def test_two_collections_of_one_window_with_different_costs_get_different_ids(self):
+        other = {**self.base, "economics": {**self.base["economics"], "counterfactual_old_cost": "10500.00"}}
+        self.assertNotEqual(self.cf(self.base), self.cf(other))
+        components = {**self.base, "economics": {**self.base["economics"], "dbu_realized": "2613.12"}}
+        self.assertNotEqual(self.cf(self.base), self.cf(components))
+
+    def test_the_workload_enters_no_identity(self):
+        self.assertEqual(self.cf(self.base), self.cf({**self.base, "workload": {"queries": 12345, "mix": ["etl"]}}))
+
+    def test_the_method_is_hashed(self):
+        self.assertNotEqual(self.cf(self.base, "MATCHED_HISTORICAL"), self.cf(self.base, "NO_DEFENSIBLE_COUNTERFACTUAL"))
+
+    def test_a_window_without_a_start_hashes_the_applied_time(self):
+        without = {**self.base, "window_start_utc": None}
+        at_applied = {**self.base, "window_start_utc": self.base["applied_at_utc"]}
+        self.assertEqual(self.cf(without), self.cf(at_applied))
+        self.assertNotEqual(self.cf(without), self.cf(self.base))
+        # and a window without an end hashes the observed time
+        self.assertEqual(self.cf({**self.base, "window_end_utc": None}), self.cf({**self.base, "window_end_utc": self.base["observed_at_utc"]}))
+
+    def test_replay_inputs_are_hashed(self):
+        measured = {**self.base, "measurement": {"source_value": 30, "applied_value": 10, "cost_basis": "DBU_AND_MODELED_AWS",
+                                                 "replay": {"replayed_target_minutes": 30, "restart_cost_cluster_minutes": "4"}}}
+        changed = copy.deepcopy(measured)
+        changed["measurement"]["replay"]["restart_cost_cluster_minutes"] = "8"
+        self.assertNotEqual(self.cf(measured), self.cf(changed))
+        self.assertNotEqual(self.cf(measured), self.cf(self.base))
+
+    def test_the_payload_states_what_the_id_hashes(self):
+        measured = {**self.base, "window_start_utc": None,
+                    "measurement": {"source_value": 30, "applied_value": 10, "cost_basis": "DBU_ONLY",
+                                    "replay": {"replayed_target_minutes": 30, "restart_cost_cluster_minutes": "4"}}}
+        record = economics.counterfactual_record("APP-X", measured, self.pkg, self.policy, True, "CALIBRATED_PRIOR_STATE")
+        self.assertEqual(record.counterfactual_id, self.cf(measured, "CALIBRATED_PRIOR_STATE"))
+        payload = record.payload
+        self.assertEqual(payload["window"], {"start_utc": self.base["applied_at_utc"], "end_utc": self.base["window_end_utc"]})
+        self.assertEqual(payload["replay_target"], 30)
+        self.assertEqual(payload["assumptions"], {"source_value": 30, "applied_value": 10, "cost_basis": "DBU_ONLY", "restart_cost_cluster_minutes": "4"})
+        self.assertRegex(payload["evidence_fingerprint"], r"^[0-9A-F]{64}$")
+        caller = economics.counterfactual_record("APP-X", self.base, self.pkg, self.policy, True, "MATCHED_HISTORICAL").payload
+        self.assertEqual((caller["replay_target"], caller["assumptions"]), (None, None))
+        self.assertNotIn("post_change_workload", caller)
 
 
 class ExpectedAnnualTests(unittest.TestCase):
@@ -354,13 +413,16 @@ class MeasurementFactsTests(unittest.TestCase):
     def test_counterfactual_record_with_and_without_the_counterfactual_cost(self):
         policy = RealizerPolicy()
         record = economics.counterfactual_record("APP-X", self.base, self.pkg, policy, True, "MATCHED_HISTORICAL")
-        cf_id = economics.make_cf_id("APP-X", self.base, self.pkg, policy)
+        cf_id = economics.make_cf_id("APP-X", self.base, self.pkg, policy, "MATCHED_HISTORICAL")
+        basis = economics.counterfactual_basis(self.base)
         self.assertEqual(record.payload, {"counterfactual_id": cf_id, "method": "MATCHED_HISTORICAL", "claim_eligible": True,
                                           "workload_basis": "ACTUAL_POST_CHANGE_WORKLOAD", "counterfactual_old_cost": "10000.00",
-                                          "modeler_version": MODELER_GATEWAY_VERSION})
+                                          "modeler_version": MODELER_GATEWAY_VERSION,
+                                          "window": {"start_utc": self.base["window_start_utc"], "end_utc": self.base["window_end_utc"]},
+                                          "replay_target": None, "assumptions": None, "evidence_fingerprint": basis["evidence_fingerprint"]})
         without = {**self.base, "economics": {**self.base["economics"], "counterfactual_old_cost": None}}
         record = economics.counterfactual_record("APP-X", without, self.pkg, policy, False, "NO_DEFENSIBLE_COUNTERFACTUAL")
-        self.assertEqual((record.counterfactual_id, record.payload, record.claim_eligible), (economics.make_cf_id("APP-X", without, self.pkg, policy), None, False))
+        self.assertEqual((record.counterfactual_id, record.payload, record.claim_eligible), (economics.make_cf_id("APP-X", without, self.pkg, policy, "NO_DEFENSIBLE_COUNTERFACTUAL"), None, False))
 
     def test_measurement_window_falls_back_to_the_observation_times(self):
         record = economics.counterfactual_record("APP-X", self.base, self.pkg, RealizerPolicy(), True, "M")

@@ -60,7 +60,7 @@ class EstimatorFailedRunTests(unittest.TestCase):
             "method unprintable": (self.econ(counterfactual_method=Unprintable()), "ValueError"),
             "cost not a number": (self.econ(counterfactual_old_cost="abc"), "InvalidOperation"),
             "cost not finite": (self.econ(counterfactual_old_cost="Infinity"), "ValueError"),
-            "workload not serializable": ({**self.base, "workload": Opaque()}, "TypeError"),
+            "evidence not serializable": (self.econ(dbu_realized=Opaque()), "TypeError"),
         }
         for label, (observation, kind) in cases.items():
             with self.subTest(case=label):

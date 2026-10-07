@@ -211,7 +211,10 @@ Full semantic hash uses SHA-256. Display IDs use the first 96 bits / 24 uppercas
 RPKG = SHA256("REALIZATION_PACKAGE", contract_major, PKG)
 RSNAP = SHA256(RPKG, ledger_checkpoint_hash, projector_version)
 RLE = SHA256(RPKG, event_type, domain_business_key, canonical_payload)
+CF = SHA256(APP, old_config_hash, method, window, replay_target, assumptions, evidence_fingerprint, modeler_version, policy_snapshot_id)
 ```
+
+The counterfactual's inputs are defined in the [source and evidence contract](source-evidence-contract.md) section 9.
 
 ## 12. Time semantics
 
