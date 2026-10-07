@@ -1,7 +1,13 @@
 """system.query.history SQL: per-epoch query metrics, spill, canary guards, carried periods and concurrency."""
 from __future__ import annotations
 
+import datetime as dt
+import json
+import re
+from typing import Any, Dict, List, Mapping, Sequence
+
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_CTE
+from publisher.common.errors import PublisherError
 from publisher.config.defaults import SCALE_UP_LAG_MINUTES_PRO_CLASSIC, SCALE_UP_LAG_MINUTES_SERVERLESS
 from publisher.governor.thresholds import Thresholds
 
@@ -150,32 +156,23 @@ FROM ranked GROUP BY workspace_id, warehouse_id, epoch_start
 # immediately preceding epoch's last 30 days, on the
 # same statement sources (saved query, dashboard, job, notebook, else a hash of the statement text; a redacted statement
 # counts on its own). The statement text itself is never exported.
+# First line of a windowed canary guard statement: its periods as JSON, so a replaying client can answer for them.
+CANARY_GUARD_PERIODS_MARKER = "-- canary_guard_periods: "
+_IDENTIFIER = re.compile(r"[A-Za-z0-9_.:+-]+")
 CANARY_GUARD_FIELDS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
                        "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
 
 
-CANARY_GUARD_SQL = r"""
-WITH __CONFIG_EPOCHS__,
-cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs c WHERE epoch_end IS NULL AND c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),
-prv AS (
-  SELECT c.workspace_id, c.warehouse_id, c.epoch_start, h.epoch_start AS prev_start, h.epoch_end AS prev_end
-  FROM cur c JOIN config_epochs h ON h.workspace_id = c.workspace_id AND h.warehouse_id = c.warehouse_id AND h.epoch_end = c.epoch_start
-), q AS (
-  SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
-    CASE WHEN x.start_time >= p.epoch_start THEN 'CURRENT' ELSE 'PREVIOUS' END AS period,
-    COALESCE(x.query_source.sql_query_id, x.query_source.dashboard_id, x.query_source.legacy_dashboard_id,
+# The per-statement columns and the aggregation are shared by the current-epoch guard and the windowed one.
+_CANARY_GUARD_COLUMNS = r"""    COALESCE(x.query_source.sql_query_id, x.query_source.dashboard_id, x.query_source.legacy_dashboard_id,
       CAST(x.query_source.job_info.job_id AS STRING), x.query_source.notebook_id,
       CASE WHEN x.statement_text IS NULL OR x.statement_text = '<REDACTED>' THEN x.statement_id ELSE SHA2(x.statement_text, 256) END) AS source_key,
     x.execution_duration_ms, x.execution_status,
     COALESCE(x.waiting_at_capacity_duration_ms, 0) > 0 AS queued,
     COALESCE(x.from_result_cache, FALSE) = FALSE AS executed,
     COALESCE(x.spilled_local_bytes, 0) > 0 AS spilled
-  FROM system.query.history x
-  JOIN prv p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
-  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS
-    AND ((x.start_time >= p.epoch_start AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS)
-      OR (x.start_time >= p.prev_start AND x.start_time < p.prev_end AND x.start_time >= p.prev_end - INTERVAL 30 DAYS))
-), shared AS (
+"""
+_CANARY_GUARD_AGGREGATE = r"""), shared AS (
   SELECT workspace_id, warehouse_id, source_key FROM q WHERE executed GROUP BY 1, 2, 3 HAVING COUNT(DISTINCT period) = 2
 )
 SELECT q.workspace_id, q.warehouse_id, q.epoch_start, q.period,
@@ -190,7 +187,80 @@ SELECT q.workspace_id, q.warehouse_id, q.epoch_start, q.period,
   PERCENTILE_APPROX(CASE WHEN q.executed AND s.source_key IS NOT NULL THEN q.execution_duration_ms END, 0.95) AS p95_execution_ms_shared_sources
 FROM q LEFT JOIN shared s ON q.workspace_id = s.workspace_id AND q.warehouse_id = s.warehouse_id AND q.source_key = s.source_key
 GROUP BY q.workspace_id, q.warehouse_id, q.epoch_start, q.period
-""".replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
+"""
+
+CANARY_GUARD_SQL = (r"""
+WITH __CONFIG_EPOCHS__,
+cur AS (SELECT workspace_id, warehouse_id, epoch_start FROM config_epochs c WHERE epoch_end IS NULL AND c.epoch_start >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS),
+prv AS (
+  SELECT c.workspace_id, c.warehouse_id, c.epoch_start, h.epoch_start AS prev_start, h.epoch_end AS prev_end
+  FROM cur c JOIN config_epochs h ON h.workspace_id = c.workspace_id AND h.warehouse_id = c.warehouse_id AND h.epoch_end = c.epoch_start
+), q AS (
+  SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
+    CASE WHEN x.start_time >= p.epoch_start THEN 'CURRENT' ELSE 'PREVIOUS' END AS period,
+""" + _CANARY_GUARD_COLUMNS + r"""  FROM system.query.history x
+  JOIN prv p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
+  WHERE x.compute.type = 'WAREHOUSE' AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 60 DAYS
+    AND ((x.start_time >= p.epoch_start AND x.start_time >= CURRENT_TIMESTAMP() - INTERVAL 30 DAYS)
+      OR (x.start_time >= p.prev_start AND x.start_time < p.prev_end AND x.start_time >= p.prev_end - INTERVAL 30 DAYS))
+""" + _CANARY_GUARD_AGGREGATE).replace("__CONFIG_EPOCHS__", CONFIG_EPOCHS_CTE)
+
+
+def build_canary_guard_sql(periods: Sequence[Mapping[str, Any]]) -> str:
+    """The canary guard over explicit periods instead of the current epoch's last 30 days: one row per warehouse and
+    period (``PREVIOUS`` before the change, ``CURRENT`` after it), on the same statement sources and with the same
+    columns as ``CANARY_GUARD_SQL``. Each period is ``{workspace_id, warehouse_id, epoch_start, previous: [first day,
+    last day], current: [first day, last day]}`` (UTC dates, inclusive, previous wholly before current); the row key
+    ``epoch_start`` is echoed. Values are validated so none can change the SQL."""
+    rows, seen = [], set()
+    for x in periods:
+        ws, wh = str(x["workspace_id"]), str(x["warehouse_id"])
+        if not _IDENTIFIER.fullmatch(ws) or not _IDENTIFIER.fullmatch(wh):
+            raise PublisherError(f"canary guard period has an invalid identifier: {ws!r}/{wh!r}")
+        if (ws, wh) in seen:
+            raise PublisherError("a canary guard statement compares one pair of periods per warehouse")
+        seen.add((ws, wh))
+        (p0, p1), (c0, c1) = ([dt.date.fromisoformat(str(d)) for d in x[k]] for k in ("previous", "current"))
+        if not p0 <= p1 < c0 <= c1:
+            raise PublisherError("canary guard periods must be ordered: previous wholly before current")
+        epoch = _timestamp(x["epoch_start"])
+        day = lambda d: f"TIMESTAMP'{d.isoformat()}T00:00:00Z'"
+        rows.append(f"('{ws}', '{wh}', {epoch}, {day(p0)}, {day(p1 + dt.timedelta(days=1))}, {day(c0)}, {day(c1 + dt.timedelta(days=1))})")
+    if not rows:
+        raise PublisherError("canary guard needs at least one period")
+    marker = CANARY_GUARD_PERIODS_MARKER + json.dumps([dict(x) for x in periods], sort_keys=True, separators=(",", ":"), default=str)
+    values = ",\n    ".join(rows)
+    return marker + r"""
+WITH p AS (
+  SELECT * FROM (VALUES
+    """ + values + r"""
+  ) AS v(workspace_id, warehouse_id, epoch_start, prev_a, prev_b, cur_a, cur_b)
+), q AS (
+  SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
+    CASE WHEN x.start_time >= p.cur_a THEN 'CURRENT' ELSE 'PREVIOUS' END AS period,
+""" + _CANARY_GUARD_COLUMNS + r"""  FROM system.query.history x
+  JOIN p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
+  WHERE x.compute.type = 'WAREHOUSE'
+    AND ((x.start_time >= p.cur_a AND x.start_time < p.cur_b) OR (x.start_time >= p.prev_a AND x.start_time < p.prev_b))
+""" + _CANARY_GUARD_AGGREGATE
+
+
+def canary_guard_periods_from_statement(statement: str) -> List[Dict[str, Any]]:
+    """The periods a windowed canary guard statement was built for (its marker line); [] when it has none."""
+    first = statement.lstrip().split("\n", 1)[0]
+    return json.loads(first[len(CANARY_GUARD_PERIODS_MARKER):]) if first.startswith(CANARY_GUARD_PERIODS_MARKER) else []
+
+
+def _timestamp(value: Any) -> str:
+    """A validated SQL TIMESTAMP literal (UTC) for an epoch start."""
+    try:
+        parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        raise PublisherError(f"canary guard period has an invalid epoch start: {value!r}") from None
+    if parsed.tzinfo is None:
+        raise PublisherError(f"canary guard epoch start must carry a UTC offset: {value!r}")
+    return "TIMESTAMP'" + parsed.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ") + "'"
+
 
 
 # Carry periods: evidence a configuration change cannot affect is read across that change, inside the last 30 days. The

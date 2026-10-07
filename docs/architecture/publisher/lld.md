@@ -359,6 +359,8 @@ Auto-stop is priced on idle time the warehouse actually ran, measured on the DBU
 
 The statements carry the windows as a validated `VALUES` list (plain identifiers, known labels, ISO days as UTC-midnight bounds), and their first line repeats them as JSON (`-- running_idle_windows: ...`) so a replaying client (the demo, test fixtures) can answer for the windows asked.
 
+**Named epoch and as-of time.** The same builders measure a named configuration epoch instead of the current one, for the Realizer's post-change and pre-change windows and its backtest: each window names its `epoch_start` (one epoch per warehouse in a statement), an optional `as_of` time closes an epoch that is still open and ignores later events, and an optional `targets` list replays only those auto-stop values (an auto-stop that never stops is replayed as `NEVER_STOP_TARGET_MINUTES`, longer than any gap). The epoch's evidence period then runs from the later of its start and the first retained event to the earlier of its end and the as-of time. A second marker line (`-- running_idle_request: ...`) repeats the epochs, the as-of time and the targets for a replaying client. Without these parameters the statements are the current-epoch statements above, unchanged.
+
 **Gaps** are built and classified once, for the current epoch over the period the event totals cover (from the later of the epoch start and the warehouse's first event retained in 365 days, to now), at millisecond precision: the latest busy end before a query to that query's start, plus the trailing gap after the last query up to now (from the period start when there is no query), intersected with the `RUNNING` segments of `system.compute.warehouse_events`. A window counts the time inside it (running, kept-alive, removable and added idle time) and the restarts whose next query starts inside it. Two queries share one set of CTEs:
 
 - one row per warehouse and window: its bounds, the queries starting in it, the running segment count, the observed running cluster- and wall-minutes, and the kept-alive minutes and gap count (running time past the current auto-stop with no query running: open sessions, result fetching or keep-alive), and the restarts for queries;
@@ -383,6 +385,8 @@ The collector stores them as `gaps.running_idle_model` and `gaps.running_idle_wi
 #### Canary guard SQL
 
 `CANARY_GUARD_SQL` (label `canary_guard`) compares, for a current epoch that has an immediately preceding epoch, the current epoch's last 30 days (`CURRENT`) with the preceding epoch's last 30 days (`PREVIOUS`): queries, failed or cancelled share, queued queries and share, executed queries (not served from the result cache), spilled executed queries and share, and the executed queries on statement sources seen in both epochs with their p95 execution time. The statement source key is the one of the spill-source SQL, and the statement text is hashed in the query and never exported. The guard rules: 15.9.
+
+`build_canary_guard_sql(periods)` computes the same columns over explicit periods instead: for each warehouse, a `PREVIOUS` and a `CURRENT` range of whole UTC days (previous wholly before current, one pair per warehouse in a statement), keyed by the post-change epoch's start. The Realizer compares equal whole-week windows before and after a change with it.
 
 #### `EPOCH_DAILY_COST_SQL`
 

@@ -132,11 +132,52 @@ FROM busy b LEFT JOIN gap_stats g
 
 RUNNING_IDLE_TARGET_FIELDS = metrics.RUNNING_IDLE_TARGET_FIELDS
 RUNNING_IDLE_WINDOW_FIELDS = metrics.RUNNING_IDLE_WINDOW_FIELDS
-RUNNING_IDLE_WINDOW_LABELS = ("long", "recent", "cycles", "last_cycle", "epoch")
+RUNNING_IDLE_WINDOW_LABELS = ("long", "recent", "cycles", "last_cycle", "epoch", "pre", "post")
 # First line of the running-idle statements: the windows as JSON, so a replaying client (the demo, test fixtures) can
-# answer for the windows the collector chose; SQL ignores it.
+# answer for the windows the collector chose; SQL ignores it. An epoch-bound statement adds a second line with its
+# epochs, as-of time and auto-stop values (RUNNING_IDLE_REQUEST_MARKER).
 RUNNING_IDLE_WINDOWS_MARKER = "-- running_idle_windows: "
+RUNNING_IDLE_REQUEST_MARKER = "-- running_idle_request: "
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_.:+-]+")
+# An auto-stop value that never stops (auto-stop 0) replayed as a target: longer than any gap a 366-day window holds,
+# so the warehouse stays up through every gap and every gap's restart is avoided.
+NEVER_STOP_TARGET_MINUTES = 366 * 1440
+
+
+def _timestamp_literal(value: Any) -> str:
+    """A validated SQL TIMESTAMP literal (UTC, ISO) for an epoch start or an as-of time; no collected value reaches the
+    SQL unchecked."""
+    text = str(value)
+    try:
+        parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise PublisherError(f"running-idle request has an invalid timestamp: {text!r}") from None
+    if parsed.tzinfo is None:
+        raise PublisherError(f"running-idle request timestamp must carry a UTC offset: {text!r}")
+    return "TIMESTAMP'" + parsed.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ") + "'"
+
+
+def _epoch_bound_request(windows: Sequence[Mapping[str, Any]], targets: Any, as_of: Any) -> Any:
+    """The epoch-bound request of a running-idle statement, or None for the default (current epoch, every value, now).
+
+    A window may name the configuration epoch it measures (``epoch_start``); then every window of the statement must, one
+    epoch per warehouse, and ``as_of`` (default now) closes an epoch that is still open. ``targets`` are the auto-stop
+    values to replay (positive integers, default every value on the grid)."""
+    epochs = {(str(w["workspace_id"]), str(w["warehouse_id"])): w.get("epoch_start") for w in windows}
+    bound = any(w.get("epoch_start") is not None for w in windows)
+    if not bound and targets is None and as_of is None:
+        return None
+    if bound and any(w.get("epoch_start") is None for w in windows):
+        raise PublisherError("running-idle windows must all name their epoch or none")
+    for w in windows:
+        if bound and str(w["epoch_start"]) != str(epochs[(str(w["workspace_id"]), str(w["warehouse_id"]))]):
+            raise PublisherError("a running-idle statement measures one epoch per warehouse")
+    if targets is not None:
+        targets = [int(x) for x in targets]
+        if not targets or any(x <= 0 or x > NEVER_STOP_TARGET_MINUTES for x in targets) or len(set(targets)) != len(targets):
+            raise PublisherError(f"running-idle targets must be distinct positive minutes: {targets!r}")
+    return {"epochs": {f"{ws}/{wh}": None if e is None else str(e) for (ws, wh), e in sorted(epochs.items())} if bound else None,
+            "as_of": None if as_of is None else str(as_of), "targets": targets}
 
 
 def _window_values(windows: Sequence[Mapping[str, Any]]) -> str:
@@ -148,6 +189,8 @@ def _window_values(windows: Sequence[Mapping[str, Any]]) -> str:
         ws, wh, label = str(w["workspace_id"]), str(w["warehouse_id"]), str(w["label"])
         if not _IDENTIFIER.fullmatch(ws) or not _IDENTIFIER.fullmatch(wh) or label not in RUNNING_IDLE_WINDOW_LABELS:
             raise PublisherError(f"running-idle window has an invalid identifier or label: {ws!r}/{wh!r}/{label!r}")
+        if w.get("epoch_start") is not None:
+            _timestamp_literal(w["epoch_start"])
         if w.get("start") is None:
             d0 = d1 = "CAST(NULL AS TIMESTAMP)"
         else:
@@ -157,34 +200,65 @@ def _window_values(windows: Sequence[Mapping[str, Any]]) -> str:
     return ",\n    ".join(rows)
 
 
-def _running_idle_ctes(t: Thresholds, windows: Sequence[Mapping[str, Any]]) -> str:
+def _running_idle_ctes(t: Thresholds, windows: Sequence[Mapping[str, Any]], request: Any = None) -> str:
     """Shared CTEs of the running-idle collector: same arithmetic as ``running_idle_metrics``.
 
     Gaps are built and classified over the current epoch's evidence period (from the later of the epoch start and the
     warehouse's first event retained in the last 365 days, to now), then reported per window (``win``: the DBU
     forecast's days, or the whole period). Milliseconds: whole-second differences would drop sub-second remainders on
     every gap.
+
+    An epoch-bound ``request`` (``_epoch_bound_request``) measures the named epoch instead, open or closed, over its
+    evidence period up to the earlier of its end and the as-of time, and replays only the requested auto-stop values;
+    without one the statement is the current-epoch statement, byte for byte.
     """
     full = t.running_idle_full_window_fraction
     cover = 1.0 + t.auto_stop_bridge_margin_pct / 100.0
     tolerance = t.kept_alive_gap_tolerance_minutes
     stopped_lag = t.kept_alive_stopped_gap_minutes
     targets = auto_stop_targets(t)
+    target_values = f"SEQUENCE({targets[0]}, {targets[-1]}, {t.auto_stop_step_minutes})"
     marker = RUNNING_IDLE_WINDOWS_MARKER + json.dumps([dict(w) for w in windows], sort_keys=True, separators=(",", ":"))
-    return f"""{marker}
-WITH {CONFIG_EPOCHS_CTE},
-retained AS (
-  SELECT workspace_id, warehouse_id, MIN(event_time) AS first_event_time
-  FROM system.compute.warehouse_events
-  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS
-  GROUP BY workspace_id, warehouse_id
-), cur AS (
+    retained_until = ""
+    cur = """cur AS (
   -- Current epoch over the period the event totals cover: running time is known only after the first retained event.
   SELECT c.workspace_id, c.warehouse_id, c.epoch_start, c.auto_stop_minutes, GREATEST(1, c.min_clusters) AS floor_clusters,
     GREATEST(c.epoch_start, r.first_event_time) AS w_start, CURRENT_TIMESTAMP() AS w_end
   FROM config_epochs c JOIN retained r ON r.workspace_id = c.workspace_id AND r.warehouse_id = c.warehouse_id
   WHERE c.epoch_end IS NULL
-), win AS (
+)"""
+    if request is not None:
+        marker += "\n" + RUNNING_IDLE_REQUEST_MARKER + json.dumps(request, sort_keys=True, separators=(",", ":"))
+        as_of = "CURRENT_TIMESTAMP()" if request["as_of"] is None else _timestamp_literal(request["as_of"])
+        if request["targets"] is not None:
+            target_values = "ARRAY(" + ", ".join(str(x) for x in request["targets"]) + ")"
+        if request["as_of"] is not None:
+            retained_until = f" AND event_time < {as_of}"
+        if request["epochs"] is None:
+            epoch_filter = "WHERE c.epoch_end IS NULL"
+            w_end = as_of
+        else:
+            pairs = ",\n    ".join(f"('{key.split('/', 1)[0]}', '{key.split('/', 1)[1]}', {_timestamp_literal(e)})" for key, e in sorted(request["epochs"].items()))
+            epoch_filter = f"""JOIN (VALUES
+    {pairs}
+  ) AS m(workspace_id, warehouse_id, epoch_start)
+    ON m.workspace_id = c.workspace_id AND m.warehouse_id = c.warehouse_id AND m.epoch_start = c.epoch_start"""
+            w_end = f"LEAST(COALESCE(c.epoch_end, {as_of}), {as_of})"
+        cur = f"""cur AS (
+  -- The requested epoch (open or closed) over the period the event totals cover, up to its end or the as-of time.
+  SELECT c.workspace_id, c.warehouse_id, c.epoch_start, c.auto_stop_minutes, GREATEST(1, c.min_clusters) AS floor_clusters,
+    GREATEST(c.epoch_start, r.first_event_time) AS w_start, {w_end} AS w_end
+  FROM config_epochs c JOIN retained r ON r.workspace_id = c.workspace_id AND r.warehouse_id = c.warehouse_id
+  {epoch_filter}
+)"""
+    return f"""{marker}
+WITH {CONFIG_EPOCHS_CTE},
+retained AS (
+  SELECT workspace_id, warehouse_id, MIN(event_time) AS first_event_time
+  FROM system.compute.warehouse_events
+  WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 365 DAYS{retained_until}
+  GROUP BY workspace_id, warehouse_id
+), {cur}, win AS (
   -- The windows the totals are reported for, inside the evidence period.
   SELECT c.workspace_id, c.warehouse_id, v.label,
     GREATEST(c.w_start, COALESCE(v.d0, c.w_start)) AS a, LEAST(c.w_end, COALESCE(v.d1, c.w_end)) AS b
@@ -274,7 +348,7 @@ retained AS (
     GREATEST(0, TIMESTAMPDIFF(MILLISECOND,
       GREATEST(TIMESTAMPADD(MILLISECOND, CAST(ROUND(m.running_min * 60000) AS BIGINT), m.g0), m.a),
       LEAST(TIMESTAMPADD(MILLISECOND, CAST(ROUND(LEAST(m.gap_min, t.target_min) * 60000) AS BIGINT), m.g0), m.b))) / 60000.0 AS extra_min
-  FROM gap_win m CROSS JOIN (SELECT EXPLODE(SEQUENCE({targets[0]}, {targets[-1]}, {t.auto_stop_step_minutes})) AS target_min) t
+  FROM gap_win m CROSS JOIN (SELECT EXPLODE({target_values}) AS target_min) t
   WHERE NOT m.ran_through OR t.target_min < {cover} * m.gap_min
 ), removable AS (
   SELECT m.workspace_id, m.warehouse_id, m.label, m.g0, m.g1, m.has_next, m.gap_min, m.ran_through, m.ends_inside, m.target_min,
@@ -290,10 +364,11 @@ retained AS (
 )"""
 
 
-def build_running_idle_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]]) -> str:
+def build_running_idle_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]], *, targets: Any = None, as_of: Any = None) -> str:
     """Running-idle collector, one row per current warehouse and window: bounds, queries, running time, kept-alive time
-    and restarts for queries."""
-    return _running_idle_ctes(t, windows) + """
+    and restarts for queries. Windows that name an ``epoch_start`` measure that epoch up to ``as_of`` (see
+    ``_running_idle_ctes``)."""
+    return _running_idle_ctes(t, windows, _epoch_bound_request(windows, targets, as_of)) + """
 , seg_stats AS (
   SELECT w.workspace_id, w.warehouse_id, w.label, COUNT(*) AS running_segment_count,
     SUM(TIMESTAMPDIFF(MILLISECOND, GREATEST(s.seg_start, w.a), LEAST(s.seg_end, w.b)) * s.cluster_count) / 60000.0 AS observed_running_cluster_minutes,
@@ -334,10 +409,11 @@ LEFT JOIN query_stats qs ON qs.workspace_id = w.workspace_id AND qs.warehouse_id
 """
 
 
-def build_running_idle_targets_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]]) -> str:
-    """Running-idle collector, one row per current warehouse, window and auto-stop value with a non-zero field (absent = 0)."""
+def build_running_idle_targets_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]], *, targets: Any = None, as_of: Any = None) -> str:
+    """Running-idle collector, one row per current warehouse, window and auto-stop value with a non-zero field (absent = 0).
+    ``targets`` limits the values replayed; windows that name an ``epoch_start`` measure that epoch up to ``as_of``."""
     cover = 1.0 + t.auto_stop_bridge_margin_pct / 100.0
-    return _running_idle_ctes(t, windows) + f"""
+    return _running_idle_ctes(t, windows, _epoch_bound_request(windows, targets, as_of)) + f"""
 SELECT * FROM (
   SELECT c.workspace_id, c.warehouse_id, c.epoch_start, m.label AS window_label, m.target_min,
     SUM(m.wall_min) AS removable_running_wall_minutes,
@@ -359,6 +435,14 @@ def running_idle_windows_from_statement(statement: str) -> List[Dict[str, Any]]:
     """The windows a running-idle statement was built for (its marker line); [] when it has none."""
     first = statement.lstrip().split("\n", 1)[0]
     return json.loads(first[len(RUNNING_IDLE_WINDOWS_MARKER):]) if first.startswith(RUNNING_IDLE_WINDOWS_MARKER) else []
+
+
+def running_idle_request_from_statement(statement: str) -> Any:
+    """The epoch-bound request of a running-idle statement (its second marker line: epochs, as-of time, auto-stop
+    values), or None for a current-epoch statement."""
+    lines = statement.lstrip().split("\n", 2)
+    second = lines[1] if len(lines) > 1 else ""
+    return json.loads(second[len(RUNNING_IDLE_REQUEST_MARKER):]) if second.startswith(RUNNING_IDLE_REQUEST_MARKER) else None
 
 
 RESOURCE_DAILY_COLLECT_DAYS = 120  # covers the 84-day window plus realistic billing lag; Python clips to what was collected
