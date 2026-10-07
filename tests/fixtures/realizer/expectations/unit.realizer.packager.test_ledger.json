@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 63864,
-  "sha256": "85ac05bef8880fb8ce9b1a9c8c801a4d3f1b5cae98a42a26c621a097a47eef87",
+  "sha256": "9b964ceb41d6189a9552f46efece0642f7cf76c88c5468cfee5defcb15a6654b",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -50,7 +50,7 @@
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
   "length": 505629,
-  "sha256": "db39cef57f67fa15650c1f968ebe99e9e257c011689df25625db85a5bde966f4",
+  "sha256": "206745fa1947dc2e16a0d880394bfafa3ba4e0775377e2d0acbb6d07136e3566",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -184,7 +184,7 @@
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
   "length": 53492,
-  "sha256": "30560e389a66ed1cdd377d69417fdced99d1f0acceaf45d8d48769f3afd38b9b",
+  "sha256": "6559a650ca1c1094541814bd52911836300d1758ed4e36307181d48e3bb63509",
   "spot": {
    "count": 363,
    "first": {},
@@ -192,7 +192,7 @@
     "application_episode_id": "APP-F24ECA46F03D8CB20E8ADB8C",
     "correction_key": "oct",
     "measurement_id": "MEAS-8C55E48459F15A9E67D2A189",
-    "validation_episode_id": "VAL-111F711D5F9405199EE87AD5"
+    "validation_episode_id": "VAL-F072F4D797B4CA8668CBB1DE"
    }
   }
  },
@@ -216,7 +216,7 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 290711,
-  "sha256": "988aa1cd23e5c28581da0ebd47e4a8f2df4068f023e78fdfd0f253fe4f1a4754",
+  "sha256": "78081891e12d24a296e1a809b0c36864feda40bb1e1473147481db1ba69c4ef5",
   "spot": {
    "count": 808,
    "first": [
@@ -242,9 +242,9 @@
      "entry_count": 16,
      "first_entry_id": "RLE-43CE3E553F852E732746AC84",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-F22E7D6EE0FDDFCA6D5F1233",
+     "latest_entry_id": "RLE-BD625BF5A35E965221B96E2B",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:DF3F0A09E93A703E254829065286CE617759AEE9684C516AE370B5A0A6E36219"
+     "ledger_checkpoint_hash": "SHA256:097A0723EAC823E2B1A7FAB63CB9A82719D03A803243C1624615BBE9FC400714"
     }
    ]
   }

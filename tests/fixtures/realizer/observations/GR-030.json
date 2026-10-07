@@ -45,12 +45,14 @@
         },
         "intent_reference": null,
         "intent_state": "ACCEPTED",
-        "observation_format_version": "2.0.0",
+        "measurement": null,
+        "observation_format_version": "2.1.0",
         "observed_at_utc": "2026-10-09T12:00:00Z",
         "origin_attribution": "CONFIRMED",
         "overlap_count": 1,
         "performance": {
           "correctness_pass": true,
+          "guards": null,
           "normalized_p95_runtime_regression_pct": "2",
           "reliability_pass": true
         },

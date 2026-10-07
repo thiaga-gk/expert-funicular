@@ -7,6 +7,7 @@ into RLE and RPKG provenance; the RSNAP id hashes ``PROJECTOR_VERSION`` and coun
 from __future__ import annotations
 
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
+from publisher.config.settings import REPO_ROOT
 from publisher.config.versions import PUBLISHER_VERSION
 
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
@@ -36,3 +37,8 @@ SIZE_ORDER = {name: idx for idx, name in enumerate(PUBLISHER_SIZE_ORDER)}
 
 # Execution states of a plan step that cannot carry realization authority (its change is only recorded as independent).
 NON_AUTHORITATIVE_EXECUTION_STATES = frozenset({"PENDING_REEVALUATION", "BLOCKED", "INVALIDATED"})
+
+# The regional EC2 price registry a live measurement prices modeled AWS with when none is given: the one committed with
+# the Publisher, so the realized AWS component is priced like the package's (pass the Publisher run's own registry
+# with --aws-price-registry when it used another).
+DEFAULT_AWS_PRICE_REGISTRY = REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"

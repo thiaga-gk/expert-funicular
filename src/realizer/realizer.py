@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 from realizer.analyzer import analyzer
-from realizer.analyzer.collector.collector import demo_observation, load_observation
+from realizer.analyzer.collector.collector import demo_observation, load_observation, measure_live, observe_from_evidence
 from realizer.config.loader import validate_observation, validate_package, validate_replay_through
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
@@ -40,8 +40,8 @@ from realizer.reconciler import reconciler
 from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
-# ``RealizerPolicy``, ``demo_observation`` and ``load_observation`` are re-exported for the CLI, which reaches the core only here.
-__all__ = ["RealizerPolicy", "build_context", "demo_observation", "load_observation", "realize", "realize_request"]
+# ``RealizerPolicy``, ``demo_observation``, ``load_observation``, ``measure_live`` and ``observe_from_evidence`` are re-exported for
+# the CLI, which reaches the core only here.
 
 
 def build_context(request: RealizationRequest) -> RunContext:

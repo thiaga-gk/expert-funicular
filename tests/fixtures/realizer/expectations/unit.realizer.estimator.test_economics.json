@@ -325,6 +325,18 @@
  },
  "ExpectedAnnualTests.test_every_plan_step_of_every_fixture_package/steps": {
   "value": {
+   "autostop-scoped-never-stop/SCN-C58EE28009AB0DE5788EC3A7/1": [
+    "93006.44",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "autostop-scoped-pro/SCN-2EF40DCCFAEBEA6F419C3CAA/1": [
+    "9363.51",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "autostop-scoped-serverless/SCN-1AD6B193A8236A31A6C0D21B/1": [
+    "2054.22",
+    "PUBLISHER_CANDIDATE"
+   ],
    "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/1": [
     "31792.93",
     "PUBLISHER_CANDIDATE"

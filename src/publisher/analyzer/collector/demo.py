@@ -460,9 +460,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     epoch_defs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**base_cfg, **{prior_keys[k]: v for k, v in p.items() if k != "start"}}) for p in spec.get("prior", [])]
     epoch_defs.append((current_start, base_cfg))
     epochs: List[Tuple[float, Optional[float], Dict[str, Any]]] = []
+    # The current epoch may start at a time of day (spec epoch_start_minute, minutes after 00:00 UTC; a world only).
+    start_minute = lambda i: float(spec.get("epoch_start_minute", 0)) if i == len(epoch_defs) - 1 else 0.0
     for i, (d, cfg) in enumerate(epoch_defs):
-        end = at(epoch_defs[i + 1][0]) if i + 1 < len(epoch_defs) else None
-        epochs.append((at(d), end, cfg))
+        end = at(epoch_defs[i + 1][0], start_minute(i + 1)) if i + 1 < len(epoch_defs) else None
+        epochs.append((at(d, start_minute(i)), end, cfg))
     sim_start = max(at(created), 0.0)
 
     # 1. Busy segments per day from the workload components. Queries are kept by start time: periodic queries as

@@ -145,7 +145,7 @@
     "latest_effective_at_utc": "2026-10-10T12:00:00Z",
     "latest_entry_id": "RLE-FFAF71AF0DB45738A0576F66",
     "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:1C3A0F675FC19F5617F9DBE28338C656131AF64ED5522ADD514DBA0D29259BD2",
+    "ledger_checkpoint_hash": "SHA256:3FB102462F1C12D143D1951B31E0F4C59CE592A9810C197010C71AD726A45157",
     "measurement_count": 2,
     "validation_episode_count": 2
   },
@@ -170,7 +170,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-DB61174F65A24B02F638C745",
+  "snapshot_id": "RSNAP-316E94525C9EF65D41A39BC4",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
@@ -239,7 +239,7 @@
       }
     ],
     "state": "FAILED",
-    "validation_episode_id": "VAL-DE09189CDBC58FE5F6304555",
+    "validation_episode_id": "VAL-DAFFCACC879A51AD838F6F00",
     "window_end_utc": "2026-10-10T12:00:00Z",
     "window_start_utc": "2026-10-03T12:00:00Z"
   },

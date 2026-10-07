@@ -400,8 +400,374 @@
         "DEFERRED"
       ]
     },
+    "measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "applied_value": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "change_epoch_start": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cost_basis": {
+          "enum": [
+            null,
+            "DBU_AND_MODELED_AWS",
+            "DBU_ONLY"
+          ]
+        },
+        "holds_other_knobs": {
+          "type": "boolean"
+        },
+        "knob": {
+          "enum": [
+            "warehouse_type",
+            "warehouse_size",
+            "min_clusters",
+            "max_clusters",
+            "auto_stop_minutes",
+            "warehouse_channel"
+          ]
+        },
+        "method": {
+          "enum": [
+            null,
+            "AUTO_STOP_REPLAY"
+          ]
+        },
+        "not_measured_reason": {
+          "enum": [
+            null,
+            "NOT_APPLIED",
+            "NOT_SETTLED",
+            "KNOB_NOT_REPLAYED"
+          ]
+        },
+        "observed_epoch_start": {
+          "format": "date-time",
+          "minLength": 1,
+          "type": "string"
+        },
+        "other_knob_changes": {
+          "items": {
+            "enum": [
+              "warehouse_type",
+              "warehouse_size",
+              "min_clusters",
+              "max_clusters",
+              "auto_stop_minutes",
+              "warehouse_channel"
+            ]
+          },
+          "type": "array"
+        },
+        "post_window": {
+          "additionalProperties": false,
+          "properties": {
+            "billed_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "billed_dbu": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "days": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "first_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "last_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "queries": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "restarts": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "running_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "required": [
+            "billed_cost",
+            "billed_dbu",
+            "days",
+            "first_day",
+            "last_day",
+            "queries",
+            "restarts",
+            "running_cluster_minutes"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pre_window": {
+          "additionalProperties": false,
+          "properties": {
+            "billed_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "billed_dbu": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "days": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "first_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "last_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "queries": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "restarts": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "running_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "required": [
+            "billed_cost",
+            "billed_dbu",
+            "days",
+            "first_day",
+            "last_day",
+            "queries",
+            "restarts",
+            "running_cluster_minutes"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "previous_epoch_start": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replay": {
+          "additionalProperties": false,
+          "properties": {
+            "added_idle_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "avoided_starts": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "aws_cluster_hourly_price": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aws_status": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "dbu_cost_per_cluster_minute": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "net_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "replayed_target_minutes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "restart_cost_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "required": [
+            "added_idle_cluster_minutes",
+            "avoided_starts",
+            "aws_cluster_hourly_price",
+            "aws_status",
+            "dbu_cost_per_cluster_minute",
+            "net_cluster_minutes",
+            "replayed_target_minutes",
+            "restart_cost_cluster_minutes"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source_value": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "volume_ratio": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "applied_value",
+        "change_epoch_start",
+        "cost_basis",
+        "holds_other_knobs",
+        "knob",
+        "method",
+        "not_measured_reason",
+        "observed_epoch_start",
+        "other_knob_changes",
+        "post_window",
+        "pre_window",
+        "previous_epoch_start",
+        "replay",
+        "source_value",
+        "volume_ratio"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "observation_format_version": {
-      "const": "2.0.0"
+      "const": "2.1.0"
     },
     "observed_at_utc": {
       "format": "date-time",
@@ -430,6 +796,355 @@
             "null"
           ]
         },
+        "guards": {
+          "additionalProperties": false,
+          "properties": {
+            "cold_start": {
+              "additionalProperties": false,
+              "properties": {
+                "post_queries": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "post_restarts": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "pre_queries": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "pre_restarts": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "post_queries",
+                "post_restarts",
+                "pre_queries",
+                "pre_restarts"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "post": {
+              "additionalProperties": false,
+              "properties": {
+                "decision_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "failure_cancel_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "p95_execution_ms_shared_sources": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queued_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queued_query_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "shared_source_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "spill_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "spill_query_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "decision_queries",
+                "failure_cancel_pct",
+                "p95_execution_ms_shared_sources",
+                "queries",
+                "queued_queries",
+                "queued_query_pct",
+                "shared_source_queries",
+                "spill_queries",
+                "spill_query_pct"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "pre": {
+              "additionalProperties": false,
+              "properties": {
+                "decision_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "failure_cancel_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "p95_execution_ms_shared_sources": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queued_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "queued_query_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "shared_source_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "spill_queries": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "spill_query_pct": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "decision_queries",
+                "failure_cancel_pct",
+                "p95_execution_ms_shared_sources",
+                "queries",
+                "queued_queries",
+                "queued_query_pct",
+                "shared_source_queries",
+                "spill_queries",
+                "spill_query_pct"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "cold_start",
+            "post",
+            "pre"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "normalized_p95_runtime_regression_pct": {
           "anyOf": [
             {
@@ -453,6 +1168,7 @@
       },
       "required": [
         "correctness_pass",
+        "guards",
         "normalized_p95_runtime_regression_pct",
         "reliability_pass"
       ],
@@ -538,6 +1254,7 @@
     "financial_quality",
     "intent_reference",
     "intent_state",
+    "measurement",
     "observation_format_version",
     "observed_at_utc",
     "origin_attribution",
