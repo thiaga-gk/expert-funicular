@@ -1,6 +1,6 @@
 {
   "application": {
-    "active_episode_id": "APP-C9E73C81B18199072C01E12A",
+    "active_episode_id": "APP-3A4148A1DF428B4923A4A1B6",
     "actor": null,
     "annotations": [],
     "application_scope": "CANDIDATE",
@@ -11,36 +11,44 @@
     "effective_to_utc": null,
     "implementation_conformance": "EXACT",
     "intent_state": "UNKNOWN",
-    "knob": "auto_stop_minutes",
+    "knob": "max_clusters",
     "modification_relation": null,
-    "observed_applied_value": 10,
+    "observed_applied_value": 2,
     "observed_config": {
-      "auto_stop_minutes": 10,
-      "enable_photon": true,
+      "auto_stop_minutes": 15,
+      "enable_photon": false,
       "max_clusters": 2,
       "min_clusters": 1,
       "warehouse_channel": "CURRENT",
-      "warehouse_size": "SMALL",
+      "warehouse_size": "LARGE",
       "warehouse_type": "PRO"
     },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-3A4148A1DF428B4923A4A1B6",
+        "effective_from_utc": "2026-10-08T14:32:00Z",
+        "knob": "max_clusters",
+        "step": 1
+      }
+    ],
     "plan_progress": {
       "applied_steps": 1,
       "authoritative_actionable_steps": 1,
       "pending_reevaluation_steps": 0,
       "state": "COMPLETED"
     },
-    "recommended_value": 10,
-    "scenario_id": "SCN-2EF40DCCFAEBEA6F419C3CAA",
-    "source_value": 30,
+    "recommended_value": 2,
+    "scenario_id": "SCN-C87228A7962F060D8F30DB08",
+    "source_value": 4,
     "state": "APPLIED",
     "step": 1,
-    "step_role": "SAVINGS"
+    "step_role": "CAPACITY"
   },
   "as_of_utc": "2026-11-07T12:00:00Z",
   "attribution": {
-    "attribution_claim_status": "CLAIMABLE",
+    "attribution_claim_status": "NOT_ATTRIBUTABLE",
     "attribution_scope": "CANDIDATE",
-    "attribution_state": "HIGH_CONFIDENCE",
+    "attribution_state": "NOT_ATTRIBUTABLE",
     "economic_quality_gates": {
       "attributable_spend": {
         "observed_pct": "100",
@@ -52,33 +60,38 @@
         "pass": true
       },
       "currency_consistency": {
-        "currency": "USD",
+        "currency": null,
         "observed_pct": "100",
         "package_currency": "USD",
-        "pass": true,
+        "pass": false,
         "required_pct": "100"
       },
       "material_cost_components": {
-        "available": true,
-        "pass": true
+        "available": false,
+        "pass": false
       },
-      "pass": true,
+      "pass": false,
       "price_coverage": {
         "observed_pct": "100",
         "pass": true,
         "required_min_pct": "100"
       }
     },
-    "hard_disqualifiers": [],
+    "hard_disqualifiers": [
+      "CURRENCY_MISMATCH",
+      "MATERIAL_COST_COMPONENT_UNAVAILABLE",
+      "NO_DEFENSIBLE_COUNTERFACTUAL",
+      "NOT_A_SAVINGS_STEP"
+    ],
     "origin_attribution": "INFERRED",
     "overlap_count": 0,
-    "recommendation_attributed_realized_savings": "959.05",
-    "validated_observed_realization": "959.05"
+    "recommendation_attributed_realized_savings": "0.00",
+    "validated_observed_realization": null
   },
   "contract_version": "1.1.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
-    "realization_state": "REALIZED",
+    "realization_state": "CAPACITY_VALIDATED",
     "source_package_disposition": "ACTIVE",
     "validation_state": "PASSED"
   },
@@ -86,90 +99,38 @@
     "state": "NONE"
   },
   "economics": {
-    "annualized_realized_savings": "12501.90",
+    "annualized_realized_savings": null,
     "available": true,
-    "aws_cash_realized": null,
-    "aws_commitment_freed": null,
-    "aws_economic_realized": "349.44",
-    "aws_evidence_type": "MODELED",
-    "classification_basis": "PUBLISHED_RANGE",
-    "classification_detail": "REALIZED",
-    "counterfactual_old_cost": "1582.44",
-    "currency": "USD",
-    "dbu_realized": "609.61",
-    "denominator_method": null,
-    "denominator_source": "PUBLISHER_CANDIDATE",
-    "economic_basis": "ECONOMIC_COST",
-    "expected_components": {
-      "aws": "3404.85",
-      "dbu": "5958.66",
-      "total": "9363.51"
-    },
-    "expected_range": {
-      "base": "9363.51",
+    "classification_basis": "PERFORMANCE_GUARDS",
+    "classification_detail": "CAPACITY_VALIDATED",
+    "cost_change": {
+      "annualized_cost_increase": "-67.32",
+      "basis": "BILLED_PRE_POST_AT_PRE_MIX",
       "component": "total",
-      "high": "12484.69",
-      "low": "6242.34"
+      "modeled_annual_cost_increase": "0.00",
+      "review_above": null
     },
-    "expected_same_scope_annual_savings": "9363.51",
+    "currency": "USD",
+    "denominator_method": null,
+    "denominator_source": "NOT_APPLICABLE",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_components": null,
+    "expected_range": null,
+    "expected_same_scope_annual_savings": null,
     "mature_ttm_realized_savings": null,
-    "measurement": {
-      "applied_value": 10,
-      "cost_basis": "DBU_AND_MODELED_AWS",
-      "cross_check": {
-        "billed_dbu_reduction": "614.95",
-        "difference_pct": "0.88",
-        "noise": "4.61",
-        "outcome": "AGREES",
-        "pre_weekly_costs": [
-          "253.89",
-          "248.82",
-          "254.33",
-          "254.16"
-        ],
-        "reason": null,
-        "replay_dbu_saving": "609.61"
+    "observed_economic_delta": null,
+    "performance": {
+      "canary_p95_regression_pct": "25",
+      "p95_execution_ms_shared_sources": {
+        "post": "2500",
+        "pre": "2500"
       },
-      "holds_other_knobs": true,
-      "knob": "auto_stop_minutes",
-      "method": "AUTO_STOP_REPLAY",
-      "other_knob_changes": [],
-      "post_window": {
-        "billed_cost": "396.25",
-        "billed_dbu": "720.454",
-        "days": 28,
-        "first_day": "2026-10-09",
-        "last_day": "2026-11-05",
-        "queries": 280,
-        "restarts": 280,
-        "running_cluster_minutes": "3640"
-      },
-      "pre_window": {
-        "billed_cost": "1011.20",
-        "billed_dbu": "1838.548",
-        "days": 28,
-        "first_day": "2026-09-10",
-        "last_day": "2026-10-07",
-        "queries": 280,
-        "restarts": 280,
-        "running_cluster_minutes": "9240"
-      },
-      "replay": {
-        "added_idle_cluster_minutes": "5600",
-        "avoided_starts": "0",
-        "aws_cluster_hourly_price": "3.744",
-        "aws_status": "MODELED",
-        "dbu_cost_per_cluster_minute": "0.10886",
-        "net_cluster_minutes": "5600",
-        "replayed_target_minutes": 30,
-        "restart_cost_cluster_minutes": "4"
-      },
-      "source_value": 30,
-      "volume_ratio": "1"
+      "queue_query_pct_safe": "0.5",
+      "queued_query_pct": {
+        "post": "0",
+        "pre": "0"
+      }
     },
-    "observed_economic_delta": "959.05",
-    "observed_new_cost": "623.39",
-    "period_days": "28",
     "quality_gates": {
       "attributable_spend": {
         "observed_pct": "100",
@@ -181,40 +142,40 @@
         "pass": true
       },
       "currency_consistency": {
-        "currency": "USD",
+        "currency": null,
         "observed_pct": "100",
         "package_currency": "USD",
-        "pass": true,
+        "pass": false,
         "required_pct": "100"
       },
       "material_cost_components": {
-        "available": true,
-        "pass": true
+        "available": false,
+        "pass": false
       },
-      "pass": true,
+      "pass": false,
       "price_coverage": {
         "observed_pct": "100",
         "pass": true,
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": "1.335172577987772289908988647",
-    "realization_state": "REALIZED",
-    "realized_savings_period": "959.05",
-    "realized_savings_since_application": "959.05",
+    "realization_ratio": null,
+    "realization_state": "CAPACITY_VALIDATED",
+    "realized_savings_since_application": null,
+    "realized_to_date": null,
     "reoptimization_recommended": false,
     "review_required": false,
-    "successful_realized_savings": "959.05"
+    "successful_realized_savings": null
   },
   "history": {
     "application_episode_count": 1,
     "correction_count": 0,
-    "entry_count": 7,
-    "first_entry_id": "RLE-D142350AA4E2551E75F9F81A",
+    "entry_count": 6,
+    "first_entry_id": "RLE-A26E6CDFEB490DB7EC3AFE12",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-2C7275FAEB774037FBA723EE",
+    "latest_entry_id": "RLE-F6CAC600FB2E06C048FDFBB6",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:D38327E67A9FEADAD2FD0273F2B8B5DBD3CAD457462328540A28CDE510A23691",
+    "ledger_checkpoint_hash": "SHA256:1C4FA456C0FE30F02F1A84FAE72148DDC89E8A929BF26A87547DE82A3E5328AA",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -233,29 +194,29 @@
     "realizer_contract_version": "1.1.0",
     "realizer_version": "1.3.0"
   },
-  "realization_package_id": "RPKG-0B4923DCFB3B84DB2A598A54",
+  "realization_package_id": "RPKG-1135C8096DE8BC201197A6A5",
   "regeneration": {
     "regeneration_request_id": null,
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-C1628E7DFB559FD6AD6298D3",
+  "snapshot_id": "RSNAP-A3D2CC61B154BB4B06F9A88E",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
-    "epoch_id": "EPOCH-59944D57147DAB7648497130",
+    "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
     "generated_at_utc": "2026-10-01T12:00:00Z",
     "observed_change": null,
-    "package_hash_full_sha256": "EC32080303308213C4F62D82C22D92767B4579864A7F015D4E3F771111D0F4A2",
+    "package_hash_full_sha256": "B215137A1885EE7C15846E199821C53A0529CB7794E0A44A92717C26AD337D3E",
     "publisher_contract_version": "3.1.0",
-    "recommendation_package_id": "PKG-EC32080303308213C4F62D82",
-    "recommended_scenario_id": "SCN-2EF40DCCFAEBEA6F419C3CAA",
+    "recommendation_package_id": "PKG-B215137A1885EE7C15846E19",
+    "recommended_scenario_id": "SCN-C87228A7962F060D8F30DB08",
     "run_scope": {
       "safety_inclusions": [],
       "scenarios": [
         {
           "knobs": [
-            "auto_stop_minutes"
+            "max_clusters"
           ],
           "scenario_type": "IN_PLACE_OPTIMIZATION"
         }
@@ -283,7 +244,7 @@
           "threshold": 7
         },
         "minimum_queries": {
-          "observed": 280,
+          "observed": 36000,
           "pass": true,
           "threshold": 100
         },
@@ -306,28 +267,44 @@
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
-        "sample": "280",
+        "sample": "36000",
         "threshold": "5"
       },
       {
-        "metric": "added_cold_start_share_pct",
+        "margin_pct": "25",
+        "metric": "queued_query_pct",
+        "min_sample": "20",
         "observed": "0",
-        "operator": "LTE",
+        "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
         "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "previous": "0",
         "result": "PASS",
-        "rule_id": "REAL-COLD-001",
-        "threshold": "2"
+        "rule_id": "REAL-QUEUE-001",
+        "sample": "0",
+        "threshold": "0.5"
+      },
+      {
+        "metric": "p95_execution_ms_shared_sources",
+        "min_sample": "300",
+        "observed": "2500",
+        "operator": "LTE_PREVIOUS_X_MARGIN",
+        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "previous": "2500",
+        "result": "PASS",
+        "rule_id": "REAL-P95-001",
+        "sample": "32400",
+        "threshold": "25"
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-4D49C5E1E10B6E407898F9D0",
+    "validation_episode_id": "VAL-2A1E33C98B64ED25AD841FC8",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },
   "warehouse": {
     "region": "us-east-1",
-    "warehouse_id": "wh-demo-013",
-    "warehouse_name": "Interactive Analysts",
-    "workspace_id": "2234567890123456"
+    "warehouse_id": "wh-demo-006",
+    "warehouse_name": "Sales Analytics",
+    "workspace_id": "1234567890123456"
   }
 }
