@@ -86,17 +86,18 @@
   },
   "drift": {
     "drift_type": "CONFIGURATION",
+    "effective_from_utc": "2026-10-11T12:00:00Z",
     "material": true,
     "observed_config": {
       "auto_stop_minutes": 15,
       "enable_photon": false,
       "max_clusters": 4,
-      "min_clusters": 1,
+      "min_clusters": 2,
       "warehouse_channel": "CURRENT",
-      "warehouse_size": "LARGE",
+      "warehouse_size": "MEDIUM",
       "warehouse_type": "PRO"
     },
-    "observed_config_hash": "SHA256:CEAB43EE933C449A5B150787C6E4382B4723D2D77C399A78DDB4C78482C7B4D5",
+    "observed_config_hash": "SHA256:F3D0C98CCCD8C507A6DDCA78231368C48E888C94BD000FB3C91527A01D367AC8",
     "previous_observed_config_hash": "SHA256:3BC13B50BA99D49F4833338311977CEE4EB4249BD0282D434A0AEAB0CEB13427",
     "required_action": "REGENERATE",
     "state": "DRIFTED"
@@ -171,12 +172,12 @@
   "history": {
     "application_episode_count": 1,
     "correction_count": 0,
-    "entry_count": 11,
+    "entry_count": 12,
     "first_entry_id": "RLE-58544587BB6A8E6B91232979",
     "latest_effective_at_utc": "2026-10-11T12:00:00Z",
-    "latest_entry_id": "RLE-9D205B8917033F2B97D31DD6",
+    "latest_entry_id": "RLE-C9AFE3F3068748FCC4D537D2",
     "latest_recorded_at_utc": "2026-10-11T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:664DB08CA43317D1C1C5987589F93F6FD1EBE85CF1945BF21C1605670B406B42",
+    "ledger_checkpoint_hash": "SHA256:BCF2C97A167CC92AAB8D94E91AA0A3C041F9DAEF5FF89BD35E991E5066CFE5F5",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -197,11 +198,11 @@
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
-    "regeneration_request_id": "RERUN-CC5DA527CF46B29DADF75F19",
+    "regeneration_request_id": "RERUN-767721BD487ADD4530B5D014",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-2F558D8CAEA06F7E9473E6D3",
+  "snapshot_id": "RSNAP-22EE4CD1E68ACEE6F87E395A",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

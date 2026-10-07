@@ -26,6 +26,7 @@ Values the evidence cannot establish are ``null``; a ``null`` gate input never p
 """
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -280,6 +281,27 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
     return "UNKNOWN", "UNKNOWN", None
 
 
+def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, epochs: Sequence[Mapping[str, Any]]) -> Optional[str]:
+    """When no plan step's knob differs from its source value: when the observed configuration took effect (the start of
+    the run of latest epochs with that configuration) if that was after the package was generated, as for a rollback to
+    the package's configuration or a change no step makes; ``None`` when the configuration the package saw is still in
+    force (epochs that changed nothing it reads do not count)."""
+    generated = (package.get("provenance") or {}).get("generated_at")
+    if not generated:
+        return None
+    ordered = sorted(epochs, key=lambda e: _instant(e["epoch_start"]))
+    observed = epoch_config(plan.observed_epoch)
+    i = len(ordered) - 1
+    while i > 0 and epoch_config(ordered[i - 1]) == observed:
+        i -= 1
+    start = utc_iso(ordered[i]["epoch_start"])
+    return start if _instant(start) > _instant(generated) else None
+
+
+def _instant(value: Any) -> dt.datetime:
+    return dt.datetime.fromisoformat(utc_iso(value).replace("Z", "+00:00"))
+
+
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The observation (format 2.2.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
@@ -341,7 +363,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
                 "pre_weekly_costs": [money(x) for x in cross_check["pre_weekly_costs"]],
             },
         }
-    applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else None
+    applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else _changed_since_package(package, plan, evidence["epochs"])
     origin_attribution, intent_state, intent_reference = origin(package, plan, approvals)
     return {
         "observation_format_version": OBSERVATION_FORMAT_VERSION,

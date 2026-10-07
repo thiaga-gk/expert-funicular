@@ -86,6 +86,7 @@
   },
   "drift": {
     "drift_type": "CONFIGURATION",
+    "effective_from_utc": "2026-10-10T12:00:00Z",
     "material": true,
     "observed_config": {
       "auto_stop_minutes": 15,
@@ -176,7 +177,7 @@
     "latest_effective_at_utc": "2026-10-10T12:00:00Z",
     "latest_entry_id": "RLE-E448648EF873C5109B719DCC",
     "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:6E7FD297D7CFBE576B0079E7AB396519D4C12FB5D2807F3A2CFB893FB989BE7C",
+    "ledger_checkpoint_hash": "SHA256:5CF3B78DF07BD62927968C47A8DBEB7A6C06529C8E419B181300ACD1E5951A71",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -201,7 +202,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-5C0D791420BF6D8B7678724F",
+  "snapshot_id": "RSNAP-A853C5755EB7305BCF625474",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

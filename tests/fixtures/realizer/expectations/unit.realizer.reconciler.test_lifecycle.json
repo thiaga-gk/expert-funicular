@@ -41,7 +41,7 @@
     ],
     [
      "ok",
-     "RSNAP-2F558D8CAEA06F7E9473E6D3"
+     "RSNAP-22EE4CD1E68ACEE6F87E395A"
     ]
    ],
    {
@@ -64,16 +64,17 @@
      "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED",
      "DRIFT_DETECTED",
+     "INDEPENDENT_CHANGE_OBSERVED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/evidence/REVID-774F8DAC845D68A88F32A7A1.json": "16b5babab827b8b5",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "73f9f2899492dabd",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5baff938e90e11b7",
-     "realization/regeneration/RERUN-CC5DA527CF46B29DADF75F19.json": "e6d8facc79f4c3be",
+     "realization/evidence/REVID-F5AB60BE3B2D02B5298AD725.json": "67bf67e2a41b2ea8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "96f2252b833f9d9e",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "382d743b3b7d6e36",
+     "realization/regeneration/RERUN-767721BD487ADD4530B5D014.json": "0a65d7584e81547c",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-2F558D8CAEA06F7E9473E6D3.json": "5baff938e90e11b7",
+     "realization/snapshots/RSNAP-22EE4CD1E68ACEE6F87E395A.json": "382d743b3b7d6e36",
      "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
     }
    }
@@ -88,7 +89,7 @@
     ],
     [
      "ok",
-     "RSNAP-164DD4DCD6F13A9DE0A7B863"
+     "RSNAP-37DBE42D430838499ACF2C45"
     ]
    ],
    {
@@ -117,11 +118,11 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-8E644D1270EA6243C8312D5E.json": "02be0617ca264790",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "212a9523dd042b82",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "8cd019463cd595ca",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "bae4b8117396e3ad",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "d2ae7f63002ac02c",
      "realization/regeneration/RERUN-E98695DA15C002DC2C1BCB12.json": "fa05ea7e4dd59043",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-164DD4DCD6F13A9DE0A7B863.json": "8cd019463cd595ca",
+     "realization/snapshots/RSNAP-37DBE42D430838499ACF2C45.json": "d2ae7f63002ac02c",
      "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
     }
    }
@@ -448,7 +449,7 @@
     ],
     [
      "ok",
-     "RSNAP-0F62FA38568C66C98870FD6E"
+     "RSNAP-A4BD2115B5A9B4804E6EA99A"
     ]
    ],
    {
@@ -470,19 +471,16 @@
      "COUNTERFACTUAL_RECORDED",
      "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED",
-     "DRIFT_DETECTED",
-     "ROLLBACK_OBSERVED",
-     "REGENERATION_REQUESTED"
+     "ROLLBACK_OBSERVED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-774F8DAC845D68A88F32A7A1.json": "16b5babab827b8b5",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "efb10866057fef67",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f65667f3be74a4cc",
-     "realization/regeneration/RERUN-CC5DA527CF46B29DADF75F19.json": "e6d8facc79f4c3be",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d8d37ffc9cccb724",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "cfe9a6901e489e87",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-0F62FA38568C66C98870FD6E.json": "f65667f3be74a4cc",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c",
+     "realization/snapshots/RSNAP-A4BD2115B5A9B4804E6EA99A.json": "cfe9a6901e489e87"
     }
    }
   ]
@@ -492,7 +490,7 @@
    [
     [
      "ok",
-     "RSNAP-5D2A265EAF09E6A6F8A636B8"
+     "RSNAP-76C40E156105306A9AB66330"
     ]
    ],
    {
@@ -518,10 +516,10 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6e7523c62150ef21",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "02036d46ace8c163",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b038a38007380a96",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "22cf052f2411e1cd",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-5D2A265EAF09E6A6F8A636B8.json": "02036d46ace8c163"
+     "realization/snapshots/RSNAP-76C40E156105306A9AB66330.json": "22cf052f2411e1cd"
     }
    }
   ]
@@ -531,7 +529,7 @@
    [
     [
      "ok",
-     "RSNAP-625EE90C7D2EF44A4015FE29"
+     "RSNAP-7D729171A01AA48DE8C659D8"
     ]
    ],
    {
@@ -544,14 +542,13 @@
     ],
     "events": [
      "REALIZATION_CREATED",
-     "INTENT_RECORDED",
-     "ROLLBACK_OBSERVED"
+     "INTENT_RECORDED"
     ],
     "files": {
      "realization/evidence/REVID-EDCDD0576010DF361996749F.json": "4f2c3c9440254477",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a9933eeb39dddcc",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5c055b5460850807",
-     "realization/snapshots/RSNAP-625EE90C7D2EF44A4015FE29.json": "5c055b5460850807"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "32d737b52d32dc6d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a674e67a378462bf",
+     "realization/snapshots/RSNAP-7D729171A01AA48DE8C659D8.json": "a674e67a378462bf"
     }
    }
   ]
@@ -759,14 +756,14 @@
   ]
  },
  "RegenerationRequestTests.test_every_stored_application_payload_and_reason/requests": {
-  "length": 113108,
-  "sha256": "ec681f9fbd630332dcbeede9a402bb2a588e87afacc36a33159004fb28161dd4",
+  "length": 115896,
+  "sha256": "fdf5640cc634f2bde87841a2db91c6df29db6922e0c95e7b95242653e81a75fa",
   "spot": {
-   "count": 120,
+   "count": 123,
    "ids": [
     "RERUN-059AC93E78D408A29F0903BB",
-    "RERUN-0D6CCF26B741C8AA40F1BEE1",
-    "RERUN-2CFA4CC78F65773352680253"
+    "RERUN-0827BBD878CA8E7A5E378F72",
+    "RERUN-0D6CCF26B741C8AA40F1BEE1"
    ],
    "scenarios": [
     "GR-002",

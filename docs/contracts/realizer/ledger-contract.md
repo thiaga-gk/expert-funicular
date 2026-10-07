@@ -128,6 +128,10 @@ actor when known
 
 The scenario an observation applied is inferred: the one whose authority-eligible steps the observed configuration applies most (exactly or modified), the recommended plan first on a tie and when none is applied; an `applied_scenario_id` in the observation overrides it. So a migration applied under a migration-only run scope (recommended "No change") is still an application of the package's migration scenario. The application records the scenario's `compatibility_status` and `annotations`: a warehouse-type migration whose compatibility the Publisher did not evidence (any status but `COMPATIBLE`) carries `COMPATIBILITY_NOT_EVIDENCED`.
 
+A rollback is read from the configuration, never from a flag: a later observation in which every knob the application changed (the step's knob; for a scenario-scope application, every applied step's knob) is back at its source value is recorded as `ROLLBACK_OBSERVED` on that episode, with no `DRIFT_DETECTED` and no regeneration request, because the warehouse is at the package's own configuration again. Any other later change of the configuration is a drift: `DRIFT_DETECTED` on the episode and a `CONFIGURATION_DRIFT` regeneration request. A package's own safety-rollback step (a canary rollback) is an application of that package like any other step, so rolling it back means returning to the value it replaced. `ROLLBACK_REQUESTED` records the caller's intent and changes no state.
+
+A drift or an observed rollback closes the episode it is recorded on. A closed episode never absorbs a new application: the applied configuration observed again after it closed (or another value of a plan step) is a new application episode with its own APP id and its own effective time, measured from then on, while the same configuration observed on later days stays in the open episode it opened. The closing configuration observed again on a later run records nothing new (a drift still ends that run with its regeneration request, which is a duplicate). `DRIFT_DETECTED`, `ROLLBACK_OBSERVED` and `ROLLBACK_REQUESTED` carry the time they took effect in their payload (`effective_from_utc`), so a second drift or rollback, of the same configuration or not, is a new entry; a rollback request still pending on the episode (requested, no rollback observed since) is not recorded again. The snapshot's application state is the active (latest) episode's: `ROLLED_BACK` or `DRIFTED` when a rollback or a drift closed it, else `APPLIED`, and its `drift` section is that episode's closing drift (`NONE` otherwise).
+
 `PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
 ## 7. Modified implementation
@@ -224,6 +228,8 @@ Ledger is bitemporal:
 - `recorded_at_utc` — when Realizer recorded it.
 
 Application/economic ownership intervals use half-open `[start, end)` semantics.
+
+An application episode starts at the observation's applied time (else its observed time). A drift or an observed rollback takes effect at the boundary of the configuration epoch that brought it, stated in its payload (`effective_from_utc`): the observation's measured `observed_epoch_start` when it has a measurement, else its applied time when that is after the episode's start (an applied time carried over from the application itself is not), else its observed time. That time must be strictly after the start of the episode it closes; a history in which it is not (a measured epoch that began before the application it would close, an observation no later than it) is refused with a one-line message before any lifecycle event of the observation is recorded. The snapshot's `application.effective_to_utc` is the effective time of the first drift or rollback that closed the active episode (a rollback after a drift ends nothing more).
 
 `RSNAP.as_of_utc` is deterministic and derived from the ledger checkpoint, not projection wall clock.
 

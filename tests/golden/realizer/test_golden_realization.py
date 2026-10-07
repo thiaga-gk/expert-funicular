@@ -290,7 +290,8 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-024
     def test_gr_024_config_drift_closes_interval(self):
         o = self.obs(); self.realize_case(o)
-        d = self.later(o, days=2, new_application=True); d['config']['warehouse_size'] = 'LARGE'; d['economics'] = None
+        # a knob no step changes (the size back at LARGE would be a rollback, not a drift)
+        d = self.later(o, days=2, new_application=True); d['config']['min_clusters'] = 2; d['economics'] = None
         s = self.realize_case(d)
         self.assertEqual(s.current_state['realization_state'], 'DRIFTED')
         self.assertEqual(s.application['state'], 'DRIFTED')
@@ -303,6 +304,13 @@ class RealizerGoldenTests(unittest.TestCase):
         s = self.realize_case(rb)
         self.assertEqual(s.current_state['realization_state'], 'ROLLED_BACK')
         self.assertGreater(s.history['entry_count'], 1)
+        # back at the package's own configuration: no drift and nothing to regenerate
+        types = [e.event_type.value for e in self.ledger()]
+        self.assertIn('ROLLBACK_OBSERVED', types)
+        self.assertNotIn('DRIFT_DETECTED', types)
+        self.assertEqual(s.drift['state'], 'NONE')
+        reasons = [r for e in self.ledger() if e.event_type == rc.EventType.REGENERATION_REQUESTED for r in e.payload['reasons']]
+        self.assertNotIn('CONFIGURATION_DRIFT', reasons)
 
     # GR-026
     def test_gr_026_billing_restatement_appends_and_recomputes(self):

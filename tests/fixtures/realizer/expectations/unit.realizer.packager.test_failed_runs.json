@@ -338,7 +338,7 @@
     "files": {
      "realization/evidence/REVID-2910FFCD737864CC6FCE4AF1.json": "fefc1f1e1aa5ec1b",
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0c1cc80f77a1ac25",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fe33404f25f66347",
      "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
      "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
@@ -376,6 +376,10 @@
   "value": [
    [
     [
+     "ok",
+     "RSNAP-96664E712C482CE6E54690E3"
+    ],
+    [
      "ValueError",
      "observation flag has no truth value"
     ]
@@ -384,17 +388,30 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/packages",
+     "realization/regeneration",
+     "realization/snapshots"
     ],
     "events": [
      "REALIZATION_CREATED",
      "APPLICATION_OBSERVED",
      "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
      "ROLLBACK_OBSERVED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6d877f2337c122be"
+     "realization/evidence/REVID-D9EF0231236E0BA0253093B3.json": "f319ce61d5ded899",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8271d0a1d62fbc1d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
+     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
     }
    }
   ]
@@ -421,7 +438,7 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "5f804f6f9d1182ce"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "37a676b4988cd307"
     }
    }
   ]

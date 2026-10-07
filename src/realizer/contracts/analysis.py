@@ -68,11 +68,14 @@ class RealizationHistory:
 
     ``previous_application`` is its latest application observation (APPLICATION_OBSERVED or
     MODIFIED_APPLICATION_OBSERVED) and ``prior_measurement`` its latest ECONOMIC_MEASUREMENT_RECORDED, each ``None``
-    when there is none. Nothing a run appends is ever read back into its own decisions.
+    when there is none. ``closure`` is the latest drift or observed rollback recorded on the previous application's
+    episode at or after it (``None`` while the episode is open): a closed episode never absorbs a new application.
+    Nothing a run appends is ever read back into its own decisions.
     """
     entries: Tuple["RealizationLedgerEntry", ...]
     previous_application: Optional["RealizationLedgerEntry"]
     prior_measurement: Optional["RealizationLedgerEntry"]
+    closure: Optional["RealizationLedgerEntry"] = None
 
 
 @dataclass(frozen=True)

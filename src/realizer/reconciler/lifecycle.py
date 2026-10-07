@@ -15,11 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import config_hash, normalize_value, observed_config, scenario_by_id
+from realizer.analyzer.analysis import back_at_source, config_hash, instant, normalize_value, observed_config, scenario_by_id
+from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
-from realizer.common.utils import Deferred
+from realizer.common.utils import Deferred, utc_iso
 from realizer.contracts import realization as rc
-from realizer.contracts.analysis import RealizationAnalysis
+from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.realization import make_app_id, make_rpkg_id
 from realizer.contracts.reconciliation import (
@@ -93,8 +94,21 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     selected_scenario_id = state.match.selected_scenario_id
     step_results, primary = state.match.step_matches, state.match.primary
     authority_changes, scenario_scope = state.match.authority_changes, state.match.scenario_scope
-    previous_app = analysis.history.previous_application
-    material_config_drift = analysis.config_drift_observed
+    previous_app, closure = analysis.history.previous_application, analysis.history.closure
+    changed = analysis.config_drift_observed   # a later configuration than the previous application's
+    # A closed episode (a drift or an observed rollback recorded after its application) never absorbs a new application:
+    # its configuration observed again is a new episode. A later configuration is a rollback when every knob the
+    # application changed is back at its source value (the warehouse is at the package's own configuration again; an
+    # episode already rolled back is not rolled back twice), the closing configuration observed again on a later run
+    # records nothing new (a drift still ends the run with its regeneration request), and any other later configuration
+    # is a drift, unless it closed the episode before and now applies a plan step: then it is a new application.
+    rolled_back = bool(changed and previous_app is not None and (closure is None or closure.event_type == rc.EventType.DRIFT_DETECTED)
+                       and back_at_source(package, previous_app.payload, obs_cfg))
+    closed_again = bool(changed and closure is not None and not rolled_back and closure.payload.get("observed_config_hash") == observed_hash)
+    material_config_drift = bool(changed and not rolled_back and not closed_again and (closure is None or primary is None))
+    drifted = material_config_drift or (closed_again and closure.event_type == rc.EventType.DRIFT_DETECTED)
+    # A drift and an observed rollback carry the time they took effect, so a recurring one is a new event.
+    closed_at = closing_time(observed, previous_app) if (material_config_drift or rolled_back) and previous_app is not None else None
 
     if material_config_drift:
         state.drift = {
@@ -105,15 +119,16 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "observed_config": obs_cfg,
             "material": True,
             "required_action": "REGENERATE",
+            "effective_from_utc": closed_at,
         }
         state.drift_episode_id = previous_app.application_episode_id
 
     # Record every materially changed candidate relationship; only authority-
     # eligible primary scope can enter recommendation realization. Repeated
     # observations of the same already-applied configuration remain in the same
-    # application episode rather than creating a new APP on every daily run.
-    active: Optional[ActiveApplication] = _previous(previous_app) if material_config_drift else None
-    if not material_config_drift and previous_app and primary and (
+    # application episode, while it is open, rather than creating a new APP on every daily run.
+    active: Optional[ActiveApplication] = _previous(previous_app) if drifted else None
+    if not drifted and closure is None and previous_app and primary and (
         previous_app.payload.get("observed_config_hash") == observed_hash
         and previous_app.payload.get("scenario_id") == primary.get("scenario_id")
         and (scenario_scope or previous_app.payload.get("step") == primary.get("step"))
@@ -193,7 +208,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         authority = bool(item["authority_eligible"]) and conf != rc.ImplementationConformance.UNRELATED.value
         if conf == rc.ImplementationConformance.UNRELATED.value and "independent_reason" not in payload:
             payload["independent_reason"] = "UNRELATED_VALUE"
-        if material_config_drift and authority:
+        if drifted and authority:
             continue
         if scenario_scope and authority:
             continue
@@ -221,16 +236,21 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     intent = str(observation.get("intent_state") or "UNKNOWN").upper()
     if intent != "UNKNOWN":
         state.intent = {"intent_state": intent, "actor": observation.get("actor"), "reference": observation.get("intent_reference")}
-        state.intent_episode_id = active.application_episode_id if active else None
+        state.intent_episode_id = (active.application_episode_id if active
+                                   else previous_app.application_episode_id if (rolled_back or closed_again) and previous_app else None)
 
-    # Explicit rollback can be requested/observed independently of a new PKG.
+    # A rollback request is the caller's recorded intent, at the time it was observed; one still pending on the episode
+    # (requested, no rollback observed since) is not requested again. An observed rollback is the configuration's (the
+    # caller's ``rollback_observed`` flag was checked against it by the Analyzer), on the episode it rolls back.
     rollback_episode_id = active.application_episode_id if active else previous_app.application_episode_id if previous_app else None
-    if observation.get("rollback_requested"):
+    if observation.get("rollback_requested") and not _rollback_pending(analysis.history.entries, rollback_episode_id):
         state.rollback_episode_id = rollback_episode_id
-        state.rollback_requested = {"reason": observation.get("rollback_reason")}
-    if observation.get("rollback_observed"):
-        state.rollback_episode_id = rollback_episode_id
-        state.rollback_observed = {"observed_config": obs_cfg, "reason": observation.get("rollback_reason")}
+        state.rollback_requested = {"reason": observation.get("rollback_reason"), "effective_from_utc": observed.observed_at_utc}
+    if rolled_back:
+        assert previous_app is not None
+        state.rollback_episode_id = previous_app.application_episode_id
+        state.rollback_observed = {"observed_config": obs_cfg, "observed_config_hash": observed_hash, "reason": observation.get("rollback_reason"),
+                                   "effective_from_utc": closed_at}
 
     # Replacement/supersession events are explicit; package generation alone is
     # not inferred from observation time.
@@ -238,7 +258,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     if replacement_pkg:
         state.replacement_package_id = replacement_pkg
 
-    if material_config_drift and previous_app:
+    if drifted and previous_app:
         drift_app_payload = dict(previous_app.payload)
         drift_app_payload["observed_config"] = obs_cfg
         drift_app_payload["observed_config_hash"] = observed_hash
@@ -265,6 +285,37 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         # Invalidating or modified authoritative changes request fresh Publisher analysis after the measurement; the
         # run reaches that point only after validation and measurement, so it is held (and raises) until then.
         state.upstream_regeneration = Deferred.of(upstream_regeneration_request, package, app_payload, observation, policy, evidence_id=revid)
+
+
+def closing_time(observed: ObservationAnalysis, application: rc.RealizationLedgerEntry) -> str:
+    """When the drift or rollback *observed* shows took effect: the boundary of the configuration epoch that brought it.
+
+    That is the observation's ``measurement.observed_epoch_start`` when it has a measurement, else its applied (or
+    effective) time when that is after the start of *application*'s episode, else its observed time. The episode's
+    interval ends strictly after it starts, so a closing time at or before the episode's start (a measured epoch that
+    began before the application it would close, or an observation no later than it) is a malformed history and is
+    refused (``InputError``) before any lifecycle event of the observation is decided (the run keeps it as ``halt``).
+    """
+    raw = observed.raw
+    start_text = application.payload.get("effective_from_utc") or application.effective_at_utc
+    start = instant(start_text)
+    measurement = raw.get("measurement")
+    if isinstance(measurement, Mapping) and measurement.get("observed_epoch_start"):
+        closed = utc_iso(measurement["observed_epoch_start"])
+    else:
+        stated = raw.get("applied_at_utc") or raw.get("effective_at_utc")
+        closed = utc_iso(stated) if stated and instant(stated) > start else observed.observed_at_utc
+    if instant(closed) <= start:
+        raise InputError(f"the configuration change observed at {observed.observed_at_utc} took effect at {closed}, "
+                         f"not after the application episode it closes (effective from {utc_iso(start_text)})")
+    return closed
+
+
+def _rollback_pending(entries: Any, episode_id: Optional[str]) -> bool:
+    """Whether the latest rollback event on *episode_id* is a request (no rollback observed since it)."""
+    kinds = [e.event_type for e in entries if e.application_episode_id == episode_id
+             and e.event_type in (rc.EventType.ROLLBACK_REQUESTED, rc.EventType.ROLLBACK_OBSERVED)]
+    return bool(kinds) and kinds[-1] == rc.EventType.ROLLBACK_REQUESTED
 
 
 def _previous(previous_app: rc.RealizationLedgerEntry) -> ActiveApplication:

@@ -216,11 +216,11 @@ class RunTests(unittest.TestCase):
     def test_halt_keeps_only_the_events_decided_before_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            result = self.reconcile({**self.base, "rollback_observed": True, "replacement_package_id": Untestable()}, out, gate=False)
+            result = self.reconcile({**self.base, "rollback_requested": True, "replacement_package_id": Untestable()}, out, gate=False)
             self.assertIsInstance(result.halt, ValueError)
             self.assertEqual(len(result.applications), 1)
             self.assertIsNotNone(result.intent)
-            self.assertIsNotNone(result.rollback_observed)
+            self.assertIsNotNone(result.rollback_requested)
             self.assertIsNone(result.replacement_package_id)
             # matching failed: nothing at all was decided
             bad_plan = copy.deepcopy(self.pkg)
@@ -237,7 +237,7 @@ class RunTests(unittest.TestCase):
         self.assertIsInstance(self.reconcile({**self.base, "elapsed_days": "abc"}, Path("/nonexistent-out"), gate=False).halt, ValueError)
 
     def test_engine_raises_the_halt_after_recording_the_decided_events(self):
-        observation = {**self.base, "rollback_requested": True, "rollback_observed": Untestable()}
+        observation = {**self.base, "rollback_requested": True, "replacement_package_id": Untestable()}
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             with observation_gate_open():

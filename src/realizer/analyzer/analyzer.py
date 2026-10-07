@@ -14,10 +14,13 @@ def run(context: RunContext) -> RealizationAnalysis:
     """Normalize the observation (``None`` for a lineage-only run) and read the ledger the run starts from.
 
     The ledger is only read. A malformed observation raises here, as it raised at the start of the engine's
-    observation processing; nothing is written by this capability.
+    observation processing, and so does a ``rollback_observed`` flag its configuration contradicts (the first check that
+    needs the history); nothing is written by this capability.
     """
     request = context.request
     observation = analysis.analyze_observation(request.package, request.observation) if request.observation else None
     history = analysis.summarize_history(load_ledger(ledger_path(request.output_dir, context.realization_package_id)))
+    if observation is not None:
+        analysis.check_rollback_flag(request.package, history, observation)
     drift = observation is not None and analysis.config_drift(history, observation.observed_config_hash, observation.observed_at_utc)
     return RealizationAnalysis(observation=observation, history=history, config_drift_observed=drift)
