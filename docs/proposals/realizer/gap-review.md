@@ -56,26 +56,13 @@ Band: P0 blocks a real-data run; P1 wrong results; P2 completeness; P3 hygiene. 
 | R12 | Log time is local but labeled `Z`; no run start/finish lines | P3 | UTC converter (as the Publisher), run events by ID only. Covers known limitation 18. |
 | R13 | A failed or blocked validation still publishes an annualized run-rate and a ratio | P2 | Null both unless the state is REALIZED, UNDER_REALIZED or MONITORING. |
 
-### Batch 2 · Plan semantics for 3.x packages (scope, profile, step roles, denominators)
+### Batch 1.5 · Auto-stop slice on real data
+
+Inserted after the review so the first real-data measurement comes before the plan-semantics work: the auto-stop path end to end, an independent billed cross-check, and a backtest on past changes. R16 and R19 moved here whole, because their fixes are not specific to a knob and an auto-stop claim is wrong without them. When this batch has landed and the backtest and the live change have run, batches 2, 4 and 5 are re-planned from what the real data shows; batch 6 stays last.
 
 | ID | Finding | Band | Fix |
 |---|---|---|---|
-| R14 | A Publisher canary rollback step (state READY) is realized like a saving: demo `wh-demo-040` books -800.00 as CLAIMABLE | P1 | Step role `SAFETY_ROLLBACK` (candidate blocker `CANARY_GUARDRAIL_BREACHED`, target equals the `observed_change` previous value): conformance recorded, no savings claim. RD06. |
-| R15 | Photon is in the configuration hash: a billing-mix flip (Photon MIXED) alone is DRIFTED with a regeneration request | P1 | Decision knobs only (type, size, min, max, auto-stop, channel) in matching, hash and drift; Photon stays an observed fact. RD07 for the channel. |
-| R16 | Changes to knobs with no authority step are invisible: out of run scope, NO_CHANGE candidates, pending or blocked steps. Probe: auto-stop applied plus an owner size cut, 5,000 attributed as CLAIMABLE to auto-stop | P1 | Record every changed decision knob not explained by an authority step as `INDEPENDENT_CHANGE_OBSERVED` with a reason (`OUT_OF_RUN_SCOPE`, `PENDING_REEVALUATION`, `BLOCKED_STEP`, `NOT_RECOMMENDED`); the counterfactual must hold it at its new value or the claim is OBSERVABLE_ONLY. RD08. |
-| R17 | The applied scenario is never inferred: a migration is seen only when the caller names Plan B; a migration-only scope (step-less recommended NO_CHANGE_BASELINE) never sees it; the compatibility step is ignored | P1 | Match the observed state against every scenario's steps; `applied_scenario_id` becomes an override; record the scenario's compatibility status (RD11). |
-| R18 | Denominators: a scenario-scope application of a plan prefix uses the whole scenario total; `(total or dbu)` makes DBU-only savings the "total"; migration ranges are pre-canary but judged as authoritative | P1 | Prefix = `running_savings_365d` of the last applied step; single step = candidate isolated economics; total only when non-null (else UNAVAILABLE); DBU and AWS expected kept separate; migration denominators informational. |
-| R19 | Guardrails contradict the package: Realizer fails any p95 rise above 5 percent, the package's cost profile accepts 15 / 25 / 40 percent and the Publisher prices a +30 percent downsize slowdown; unknown metrics count as failed; canary steps realize at day 7 while the Publisher's guard window is 30 days | P1 | Guardrails from the package's `cost_profile.applied_thresholds` and step `validation.success_metrics`, same two-part rule as the Publisher canary guard; Realizer policy can only be stricter; per-rule PASS / FAIL / UNKNOWN (UNKNOWN = not ready); canary-type steps provisional until 30 days. RD09. |
-| R20 | Capacity adds (max-cluster increase, upsize) and zero-priced cuts: expected savings negative or 0, so they stay MONITORING forever or a successful queueing fix reads as UNDER_REALIZED with re-optimization | P1 | Step intent from the candidate `objectives` and the savings sign; PERFORMANCE steps succeed on queue and p95 against the pre window with the cost increase inside the modeled range. RD10. Covers known limitation 14. |
-| R21 | `remeasure_days` read from the candidate step (always null in 3.1.0) instead of the REMEASURE step | P2 | Read the scenario's REMEASURE step. |
-| R22 | RPKG records no `run_scope`, `cost_profile`, `observed_change`; plan progress ignores the scope (a one-step scoped plan reads PARTIALLY_COMPLETED) | P2 | Record them in `source_recommendation` and the lineage entry; derive progress from the scoped plan. |
-| R23 | Regeneration requests carry no evidence reference and the previous step's `invalidates` as "impacted knobs" | P2 | Attach the evidence id, window and the knobs that actually changed. |
-| R24 | MODIFIED needs a re-estimated denominator nobody produces | P2 | RD12. |
-
-### Batch 3 · Live collector and the auto-stop realized savings, with end-to-end goldens
-
-| ID | Finding | Band | Fix |
-|---|---|---|---|
+| R64 | No path to real evidence before a change matures: a live change needs 28 settled days after it is applied, and nothing measures changes that happened in the past | P0 | `realizer --backtest` over historical auto-stop epochs in `system.compute.warehouses` (closed epochs through R26): per past change, the replay counterfactual and the billed cross-check (R63), with no package and no classification; candidate changes found with the golden miner. In parallel, a real auto-stop change applied on a test warehouse (an owner action) so a full package-to-realization run exists when this batch lands. |
 | R25 | No live collector | P0 | `src/workflow_shared/` for the neutral Databricks access layer (OAuth AuthContext, PAT rejection, read-only SqlClient with the UTC guard, REST GET), behavior-preserving for the Publisher (compare_with_ref 0 diffs); the Realizer calls the Publisher's evidence extraction through one bridge module, then a pure Realizer-owned projector `evidence -> observation`. |
 | R26 | Collector SQL is anchored on now and the current epoch (running-idle, daily resources, canary guard): a closed post-change epoch cannot be measured | P0 | Parameterize by `(epoch, as_of)`; the default renders today's SQL byte for byte (RD14). |
 | R27 | No counterfactual model | P0 | Auto-stop first: replay the actual post-change idle gaps with the old value (`running_idle_by_target[old]`), restarts at the package's assumption, priced at the window's billed DBU per cluster-hour; old value 0 (never stop) replayed exactly. Other knobs in batch 6. |
@@ -85,10 +72,32 @@ Band: P0 blocks a real-data run; P1 wrong results; P2 completeness; P3 hygiene. 
 | R31 | The collector's own queries land on the warehouse being measured and keep it awake | P1 | Refuse a collector warehouse equal to the measured one; exclude the product's own statements from busy intervals. |
 | R32 | Closed-epoch `_30` fields are false zeros (relative to now) | P1 | Never read `_30` fields for a non-current epoch; window-bound SQL. |
 | R33 | Restart billing (4 cluster-minutes per Pro/Classic start) is an assumption that moves the auto-stop result up to 5x | P1 | RD16. |
-| R34 | DBU/AWS components are echoed, not computed; modeled AWS can be reported as cash | P2 | Compute per component, reconcile to the total within 0.03, `aws_cash_realized` null until CUR exists, AWS labeled MODELED. |
 | R35 | Origin has no source: with `require_confirmed_origin_for_hard_kpi`, a live run is never CLAIMABLE | P1 | RD17. |
-| R36 | Counterfactual record hashes the caller's empty `workload` and a raw window start | P3 | Hash the evidence fingerprint, window, method, replay target and assumptions into the CF id. Covers known limitation 11. |
+| R16 | Changes to knobs with no authority step are invisible: out of run scope, NO_CHANGE candidates, pending or blocked steps. Probe: auto-stop applied plus an owner size cut, 5,000 attributed as CLAIMABLE to auto-stop | P1 | Record every changed decision knob not explained by an authority step as `INDEPENDENT_CHANGE_OBSERVED` with a reason (`OUT_OF_RUN_SCOPE`, `PENDING_REEVALUATION`, `BLOCKED_STEP`, `NOT_RECOMMENDED`); the counterfactual must hold it at its new value or the claim is OBSERVABLE_ONLY. RD08. |
+| R19 | Guardrails contradict the package: Realizer fails any p95 rise above 5 percent, the package's cost profile accepts 15 / 25 / 40 percent and the Publisher prices a +30 percent downsize slowdown; unknown metrics count as failed; canary steps realize at day 7 while the Publisher's guard window is 30 days | P1 | Guardrails from the package's `cost_profile.applied_thresholds` and step `validation.success_metrics`, same two-part rule as the Publisher canary guard; Realizer policy can only be stricter; per-rule PASS / FAIL / UNKNOWN (UNKNOWN = not ready); canary-type steps provisional until 30 days. RD09. |
 | R37 | No end-to-end goldens: every GR row runs one frozen 1.0.0 package; no Publisher-to-Realizer test (PRD Definition of Done) | P1 | Golden case framework (section 4): real PKG with scope and profile, simulated post-change world, oracle counterfactual from the same simulator, `realize()`, `expect` assertions. RD18. |
+| R63 | No independent check of the counterfactual model: the replay repeats the Publisher's own calculation and assumptions (restart billing, DBU per cluster-hour) on post-change data, so it confirms the workload held, not that the model is right; an error in a shared assumption cancels and never shows | P1 | Billed cross-check next to every replay: billed cost of equal whole-week windows before and after, re-weighted to the pre window's query mix (R30); outcome AGREES / DISAGREES / INCONCLUSIVE (RD27); DISAGREES keeps the measurement out of CLAIMABLE until reviewed; both numbers in the RPKG. |
+
+### Batch 2 · Plan semantics for 3.x packages (scope, profile, step roles, denominators)
+
+| ID | Finding | Band | Fix |
+|---|---|---|---|
+| R14 | A Publisher canary rollback step (state READY) is realized like a saving: demo `wh-demo-040` books -800.00 as CLAIMABLE | P1 | Step role `SAFETY_ROLLBACK` (candidate blocker `CANARY_GUARDRAIL_BREACHED`, target equals the `observed_change` previous value): conformance recorded, no savings claim. RD06. |
+| R15 | Photon is in the configuration hash: a billing-mix flip (Photon MIXED) alone is DRIFTED with a regeneration request | P1 | Decision knobs only (type, size, min, max, auto-stop, channel) in matching, hash and drift; Photon stays an observed fact. RD07 for the channel. |
+| R17 | The applied scenario is never inferred: a migration is seen only when the caller names Plan B; a migration-only scope (step-less recommended NO_CHANGE_BASELINE) never sees it; the compatibility step is ignored | P1 | Match the observed state against every scenario's steps; `applied_scenario_id` becomes an override; record the scenario's compatibility status (RD11). |
+| R18 | Denominators: a scenario-scope application of a plan prefix uses the whole scenario total; `(total or dbu)` makes DBU-only savings the "total"; migration ranges are pre-canary but judged as authoritative | P1 | Prefix = `running_savings_365d` of the last applied step; single step = candidate isolated economics; total only when non-null (else UNAVAILABLE); DBU and AWS expected kept separate; migration denominators informational. |
+| R20 | Capacity adds (max-cluster increase, upsize) and zero-priced cuts: expected savings negative or 0, so they stay MONITORING forever or a successful queueing fix reads as UNDER_REALIZED with re-optimization | P1 | Step intent from the candidate `objectives` and the savings sign; PERFORMANCE steps succeed on queue and p95 against the pre window with the cost increase inside the modeled range. RD10. Covers known limitation 14. |
+| R21 | `remeasure_days` read from the candidate step (always null in 3.1.0) instead of the REMEASURE step | P2 | Read the scenario's REMEASURE step. |
+| R22 | RPKG records no `run_scope`, `cost_profile`, `observed_change`; plan progress ignores the scope (a one-step scoped plan reads PARTIALLY_COMPLETED) | P2 | Record them in `source_recommendation` and the lineage entry; derive progress from the scoped plan. |
+| R23 | Regeneration requests carry no evidence reference and the previous step's `invalidates` as "impacted knobs" | P2 | Attach the evidence id, window and the knobs that actually changed. |
+| R24 | MODIFIED needs a re-estimated denominator nobody produces | P2 | RD12. |
+
+### Batch 3 · Measurement completeness
+
+| ID | Finding | Band | Fix |
+|---|---|---|---|
+| R34 | DBU/AWS components are echoed, not computed; modeled AWS can be reported as cash | P2 | Compute per component, reconcile to the total within 0.03, `aws_cash_realized` null until CUR exists, AWS labeled MODELED. |
+| R36 | Counterfactual record hashes the caller's empty `workload` and a raw window start | P3 | Hash the evidence fingerprint, window, method, replay target and assumptions into the CF id. Covers known limitation 11. |
 | R38 | Workload shift after the change is read as under-realization | P2 | Report a workload-shift detail and suppress re-optimization when the shortfall is volume (RD19). |
 
 ### Batch 4 · Lifecycle and ledger for daily runs

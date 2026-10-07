@@ -66,6 +66,16 @@ class DemoObservationTests(unittest.TestCase):
                                                                            "auto_stop_minutes", "warehouse_channel", "enable_photon"]))
                     loader.validate_observation(observation, package)
 
+    def test_the_demo_costs_stay_positive_for_a_large_published_saving(self):
+        """Savings of 365,000 a year are 30,000 over the demo's 30 days: the old cost is twice them, the new cost stays positive."""
+        package = fixture_package()
+        step = next(s for s in package["scenarios"][0]["execution_plan"] if s["step_type"] == "CANDIDATE")
+        candidate = next(c for c in package["candidates"] if c["candidate_id"] == step["candidate_id"])
+        candidate["independent_economics"]["savings_365d"]["total"]["base"] = 365000
+        economics = collector.demo_observation(package)["economics"]
+        self.assertEqual(economics["counterfactual_old_cost"], "60000.00")
+        self.assertEqual(economics["observed_new_cost"], "30000.00")
+
     def test_malformed_packages_raise_the_stored_exception(self):
         good = fixture_package()
         plan = good["recommended_plan"]["scenario_id"]

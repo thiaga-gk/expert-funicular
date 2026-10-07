@@ -50,6 +50,8 @@ def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> D
         else:
             cfg[str(step.get("knob"))] = step.get("recommended_value")
     savings = _demo_period_savings(package, step)
+    # The demo's old cost is at least twice its savings, so the new cost stays positive for any published saving.
+    old_cost = max(DEMO_COUNTERFACTUAL_COST, savings * 2)
     reestimate = money(savings * Decimal("365") / DEMO_PERIOD_DAYS) if modified else None
     generated = (package.get("provenance") or {}).get("generated_at") or "2026-10-01T00:00:00Z"
     d = dt.datetime.fromisoformat(generated.replace("Z", "+00:00")) + dt.timedelta(days=8)
@@ -78,8 +80,8 @@ def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> D
         },
         "economics": {
             "currency": package_currency(package) or "USD",
-            "counterfactual_old_cost": money(DEMO_COUNTERFACTUAL_COST),
-            "observed_new_cost": money(DEMO_COUNTERFACTUAL_COST - savings),
+            "counterfactual_old_cost": money(old_cost),
+            "observed_new_cost": money(old_cost - savings),
             "period_days": DEMO_PERIOD_DAYS,
             "expected_annual_savings_actual_scope": reestimate,
             "counterfactual_method": "MATCHED_HISTORICAL",
