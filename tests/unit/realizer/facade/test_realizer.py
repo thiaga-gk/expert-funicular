@@ -120,7 +120,7 @@ class EntryPointTests(unittest.TestCase):
             self.assertIsInstance(report, RealizationReport)
             self.assertEqual(snapshot.to_dict(), report.realization.to_dict())
             self.assertEqual(tree(Path(a)), tree(Path(b)))
-            self.assertEqual([p.relative_to(b).parts[1] for p in report.files], ["packages", "snapshots"])
+            self.assertEqual([p.relative_to(b).parts[1] for p in report.files], ["packages", "snapshots", "state"])
 
     def test_realize_keeps_its_positional_signature(self):
         self.assertEqual(str(inspect.signature(facade.realize)),

@@ -9,8 +9,9 @@ A *scenario* (``tests/fixtures/realizer/observations/<name>.json``) names a froz
 observation (or none), an optional Realizer policy mapping and an optional ``replay_through`` cut. The canonical output
 of a scenario is a map of relative path -> text:
 
-- ``realization/{ledger,packages,snapshots,evidence,regeneration}/*``: every file the engine wrote, byte for byte
-  (RLE JSONL, RPKG, RSNAP, REVID evidence, RERUN regeneration request);
+- ``realization/{ledger,packages,snapshots,evidence,regeneration,state}/*``: every file the engine wrote, byte for
+  byte (RLE JSONL, RPKG, RSNAP, REVID evidence, RERUN regeneration request, the warehouse's state index), except the source package copies under ``realization/sources/``: each is the scenario's frozen package
+  itself (``SOURCE_COPIES``), so the baseline does not store it twice;
 - ``runs.json``: per run, the returned snapshot's RPKG/RSNAP IDs and its legacy Reporter compatibility projection;
 - ``report.json``: the Realizer Workbook Extension projection (summary and timeline rows) of the final snapshot.
 
@@ -40,6 +41,8 @@ PACKAGES = FIXTURES / "packages"
 OBSERVATIONS = FIXTURES / "observations"
 EXPECTED = FIXTURES / "expected"
 OUT_PLACEHOLDER = "<out>"
+# The copies of the source packages the engine keeps (the input packages themselves), left out of the canonical map.
+SOURCE_COPIES = "realization/sources/"
 
 
 def dumps(value: Any) -> str:
@@ -164,8 +167,9 @@ def run_scenario(engine: Engine, scenario: Mapping[str, Any], out: Path) -> Dict
         })
     files: Dict[str, str] = {}
     for path in sorted((out / "realization").rglob("*")):
-        if path.is_file():
-            files[path.relative_to(out).as_posix()] = normalize(path.read_text(encoding="utf-8"), out)
+        rel = path.relative_to(out).as_posix()
+        if path.is_file() and not rel.startswith(SOURCE_COPIES):
+            files[rel] = normalize(path.read_text(encoding="utf-8"), out)
     files["runs.json"] = normalize(dumps(runs), out)
     files["report.json"] = normalize(dumps(engine.report(snapshot, out)), out)
     return files

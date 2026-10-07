@@ -7,9 +7,11 @@ dataclasses are internal values passed from the Analyzer to the next capabilitie
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Tuple
+
+from realizer.contracts.lineage import WarehouseHistory
 
 if TYPE_CHECKING:  # annotations only: realization.py imports this module for the enums
     from realizer.contracts.realization import RealizationLedgerEntry
@@ -80,11 +82,13 @@ class RealizationAnalysis:
     """Analyzer output. ``observation`` is ``None`` for a lineage-only run (no observation).
 
     ``config_drift_observed`` is true when the observed configuration hash differs from the one recorded with the
-    previous application and the observation is later than that application's record time.
+    previous application and the observation is later than that application's record time. ``warehouse`` is the rest
+    of the output directory's history of the warehouse: its other lineages.
     """
     observation: Optional[ObservationAnalysis]
     history: RealizationHistory
     config_drift_observed: bool
+    warehouse: WarehouseHistory = field(default_factory=WarehouseHistory)
 
 
 # ``__all__`` is the public Realizer Contract surface (the enums, re-exported by ``realization.py``); the hand-off

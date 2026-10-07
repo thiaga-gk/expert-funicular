@@ -3,7 +3,8 @@ that keeps savings from being counted twice.
 
 ``attribution_result`` applies the hard disqualifiers (financial-quality gates, unmatched applied state, failed
 validation, no defensible counterfactual, portfolio scope overlap, an origin that is not the recommendation) and the
-confirmed-origin rule; ``authoritative_cumulative_realization`` measures a cumulative realization against the original
+confirmed-origin rule; ``claimed_by_other_lineage`` is the exclusivity rule a lineage's attribution follows when another
+lineage owns the change it applied; ``authoritative_cumulative_realization`` measures a cumulative realization against the original
 counterfactual and reports the sum of incremental realizations as a diagnostic only. Both are moved unchanged from the
 single-file Realizer, with the attribution rules kept inline where they are applied. The cumulative helper is not on
 the realize path.
@@ -85,6 +86,28 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         "validated_observed_realization": economic.get("successful_realized_savings"),
         "recommendation_attributed_realized_savings": money(successful if claimable else Decimal("0")),
     }
+
+
+# The hard disqualifier of a lineage whose applied change another lineage owns (one owner per change).
+CLAIMED_BY_OTHER_LINEAGE = "CLAIMED_BY_OTHER_LINEAGE"
+
+
+def claimed_by_other_lineage(attribution: Mapping[str, Any], owners: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """The attribution of a lineage whose applied change other lineages own (*owners*: one ``{knob,
+    realization_package_id, recommendation_package_id}`` per owned knob): the hard disqualifier
+    ``CLAIMED_BY_OTHER_LINEAGE``, the owners (``claimed_by``) and nothing attributed to the recommendation. A claimable
+    attribution becomes observable only (partial attribution for an inferred origin, correlated only otherwise); one that
+    was not claimable keeps its status. Without owners the attribution is returned unchanged."""
+    if not owners:
+        return dict(attribution)
+    hard = list(attribution.get("hard_disqualifiers") or [])
+    out = {**attribution, "hard_disqualifiers": hard + ([CLAIMED_BY_OTHER_LINEAGE] if CLAIMED_BY_OTHER_LINEAGE not in hard else []),
+           "claimed_by": [dict(o) for o in owners], "recommendation_attributed_realized_savings": money(Decimal("0"))}
+    if attribution.get("attribution_claim_status") == rc.AttributionClaimStatus.CLAIMABLE.value:
+        inferred = attribution.get("origin_attribution") == rc.OriginAttribution.INFERRED.value
+        out["attribution_claim_status"] = rc.AttributionClaimStatus.OBSERVABLE_ONLY.value
+        out["attribution_state"] = (rc.AttributionState.PARTIAL_ATTRIBUTION if inferred else rc.AttributionState.CORRELATED_ONLY).value
+    return out
 
 
 def authoritative_cumulative_realization(

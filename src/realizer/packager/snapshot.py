@@ -24,6 +24,7 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import authority_eligible
+from realizer.packager import lineage_projection
 from realizer.packager.ledger import latest_event, ledger_checkpoint, source_scope
 
 
@@ -110,15 +111,15 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     else:
         maturity = rc.MaturityState.COLLECTING.value
 
-    attr = (measurement.payload.get("attribution") if measurement else None) or {
+    attr = lineage_projection.attribution((measurement.payload.get("attribution") if measurement else None) or {
         "origin_attribution": (app.payload.get("origin_attribution") if app else "UNKNOWN"),
         "attribution_state": "NOT_ATTRIBUTABLE",
         "attribution_claim_status": "NOT_ATTRIBUTABLE",
         "validated_observed_realization": None,
         "recommendation_attributed_realized_savings": "0.00",
-    }
+    }, ordered, app.application_episode_id if app else None)
 
-    replacement = latest_event(ordered, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
+    replacement = lineage_projection.replacement(ordered)
     regen_status = rc.RegenerationStatus.NOT_REQUIRED.value
     if regen:
         regen_status = rc.RegenerationStatus.REPLACED.value if regen.event_type == rc.EventType.REPLACEMENT_PACKAGE_LINKED else rc.RegenerationStatus.REQUESTED.value
@@ -132,6 +133,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "generated_at_utc": (package.get("provenance") or {}).get("generated_at"),
         "disposition": rc.SourcePackageDisposition.SUPERSEDED.value if superseded else rc.SourcePackageDisposition.ACTIVE.value,
         "superseded_by_package_id": (replacement.payload.get("replacement_package_id") if replacement else None),
+        "successor_package_id": lineage_projection.successor_package_id(ordered),
         **source_scope(package),
     }
     app_section = {

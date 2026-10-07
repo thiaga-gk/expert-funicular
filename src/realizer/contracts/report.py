@@ -24,9 +24,10 @@ class RealizationReport:
     """Reporter output: the realization package a run projected and the files the Reporter wrote for it.
 
     ``realization`` is the RealizationPackage (RPKG-*) body the package and the snapshot file both hold. ``files`` are
-    the paths written, in write order: ``realization/packages/<RPKG>.json``, then ``realization/snapshots/<RSNAP>.json``
-    (the evidence and regeneration files are the Packager's, in ``PackagingResult.written``). An internal hand-off, not
-    part of the public contract surface.
+    the paths written, in write order: ``realization/packages/<RPKG>.json``, then ``realization/snapshots/<RSNAP>.json``,
+    then the same two for each other lineage of the warehouse the run re-projected, then the warehouse's state index
+    ``realization/state/<workspace>__<warehouse>.json`` (the evidence, regeneration and policy files are the Packager's,
+    in ``PackagingResult.written``). An internal hand-off, not part of the public contract surface.
     """
     realization: rrc.RealizationPackage
     files: Tuple[Path, ...] = ()

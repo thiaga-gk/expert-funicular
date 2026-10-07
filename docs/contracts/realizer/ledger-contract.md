@@ -41,6 +41,7 @@ RSNAP = derived current view of one RPKG
 1 APP -> 0..N MEAS
 1 RPKG -> 0..N RLE
 1 RPKG -> 0..N RSNAP
+1 warehouse -> 0..N RPKG (one per package realized into the output directory)
 ```
 
 A new recommendation always creates a new PKG and therefore a new RPKG. Ledger additions create new snapshots but never change the RPKG identity. Publisher packages and prior ledger entries are immutable.
@@ -70,7 +71,9 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 Unknown material facts are `null`, never synthetic zero.
 
-`source_recommendation` identifies the immutable PKG (id, contract version, full hash, epoch, recommended scenario, generation time, disposition and the superseding PKG) and states the conditions it was produced under, copied from it: `run_scope` (the restricted scope of a scoped run), `cost_profile` (the name of the profile the warehouse was evaluated under) and `observed_change` (the configuration change that started the current epoch). Each is `null` when the package has none. The `REALIZATION_CREATED` entry carries the same three values with the PKG id. Plan progress is derived from the package's own plan, which a run scope has already cut to the in-scope steps (and a canary rollback kept outside it); a pending-reevaluation step of that plan still keeps the plan partially completed.
+`source_recommendation` identifies the immutable PKG (id, contract version, full hash, epoch, recommended scenario, generation time, disposition, the package that replaced it, `superseded_by_package_id`, and the first package that followed its epoch, `successor_package_id`, section 19) and states the conditions it was produced under, copied from it: `run_scope` (the restricted scope of a scoped run), `cost_profile` (the name of the profile the warehouse was evaluated under) and `observed_change` (the configuration change that started the current epoch). Each is `null` when the package has none. The `REALIZATION_CREATED` entry carries the same three values with the PKG id. Plan progress is derived from the package's own plan, which a run scope has already cut to the in-scope steps (and a canary rollback kept outside it); a pending-reevaluation step of that plan still keeps the plan partially completed.
+
+When another lineage of the warehouse owns the change the application realized (section 18), `attribution` carries the hard disqualifier `CLAIMED_BY_OTHER_LINEAGE` and `claimed_by`, one `{knob, realization_package_id, recommendation_package_id}` per owned knob; the key is absent otherwise.
 
 ## 5. Orthogonal state dimensions
 
@@ -201,7 +204,11 @@ FINANCIAL_BASIS_CHANGED
 SOURCE_QUALITY_CHANGED
 REGENERATION_REQUESTED
 REPLACEMENT_PACKAGE_LINKED
+APPLICATION_CLAIMED_BY_OTHER_LINEAGE
+SUCCESSOR_PACKAGE_LINKED
 ```
+
+The last two, and the `SOURCE_PACKAGE_SUPERSEDED`, `REPLACEMENT_PACKAGE_LINKED` and `ROLLBACK_OBSERVED` entries a run decides from another lineage, are described in sections 18, 19 and 24.
 
 ## 11. Deterministic IDs
 
@@ -294,9 +301,25 @@ When multiple changes are deployed together and contribution cannot be separated
 
 One source economic atom / economic basis / interval belongs to at most one authoritative realization lineage. Unresolved overlap blocks financial-grade portfolio publication.
 
+Several packages of one warehouse can be realized into one output directory (later Publisher runs of the same epoch, cost-profile or scope alternatives), and one configuration change can realize a step of each. A change is a knob set to a value over an interval (from the application's effective time to the drift or rollback that ends it); two applications are of the same change when they set the same knob to the same value over intersecting intervals. Of the lineages whose authoritative application (`EXACT` or `MODIFIED`) realizes the change, the owner is the one whose package was generated most recently at or before the change; at equal generation time `EXACT` before `MODIFIED`, then the lowest package id. A package generated after the change already started from the applied value and never owns it. Every other such lineage records `APPLICATION_CLAIMED_BY_OTHER_LINEAGE` on its application episode (payload: the knob, value and effective time, the owner's RPKG, PKG, generation time, conformance and application episode, and the rule `MOST_RECENT_PACKAGE_BEFORE_CHANGE`); its realization is still measured and reported but is observable only: hard disqualifier `CLAIMED_BY_OTHER_LINEAGE`, `claimed_by` naming the owner, nothing attributed (section 4). A scenario-scope application is a claim on each knob of its applied steps. The decision is the same whichever package is realized first: a lineage that claimed a change alone yields when the owner's application is recorded later, and when several entries name owners the projection keeps the best-ranked one.
+
+Example: an aggressive-profile package (auto-stop 365 to 15) and a balanced-profile package (365 to 210) of one epoch, both generated 2026-10-01 12:00; the owner sets 210 on 2026-10-08 14:32 and the replay measures 1,069.73 over 28 days (13,944.69 a year). Alone, each lineage reports 1,069.73 claimable; together the balanced lineage (`EXACT`) claims 1,069.73 and the aggressive lineage (`MODIFIED`) is observable only, naming it, in either run order.
+
+The caller's `overlap_count` remains an extra restriction (`PORTFOLIO_SCOPE_OVERLAP`); it never removes one.
+
 ## 19. Supersession and handoff
 
 Generating a newer PKG does not transfer economic ownership. The old RPKG continues owning its valid applied interval until a new applied state, rollback, drift or invalidation boundary closes it. Replacement packages receive no retroactive credit.
+
+Across the lineages of a warehouse in one output directory, each run records:
+
+- **Same epoch, newer package.** A lineage is superseded (`SOURCE_PACKAGE_SUPERSEDED` and `REPLACEMENT_PACKAGE_LINKED`, reason `NEWER_PACKAGE_SAME_EPOCH`) by the newest package of its epoch generated after it: the Publisher saw the same configuration again, so nothing was applied in between. Daily runs therefore leave one active package per epoch instead of an accumulating list of never-applied ones. Packages generated at the same time (profile alternatives) never replace each other.
+- **Successor.** A package whose `observed_change.previous_epoch_id` is the lineage's epoch follows it: the earliest such package is linked as its successor (`SUCCESSOR_PACKAGE_LINKED`, `source_recommendation.successor_package_id`). When the configuration change that started the successor's epoch applied none of the lineage's authority-eligible steps, the lineage is superseded by the successor (reason `CONFIGURATION_CHANGED`). When it applied one, the lineage keeps realizing and is superseded only when the successor's expected savings (its recommended scenario's total base, else DBU base) are a material improvement over the lineage's, at least the policy's `minimum_material_savings_delta_pct` (5 percent) more (reason `MATERIAL_IMPROVEMENT`); an unpriced successor is never one.
+- **Rollback by a later package.** When a later package's canary rollback step (step role `SAFETY_ROLLBACK`) is applied, returning a knob to the value it had before an earlier lineage's application of that knob, and the later package's observed change starts from the earlier lineage's epoch, the earlier lineage records `ROLLBACK_OBSERVED` (reason `CANARY_ROLLBACK`, naming the rollback package and its application) effective at the time the rollback was applied; its application state becomes `ROLLED_BACK` from then.
+
+The supersession, succession and rollback events take their times from the facts they follow from (the newer package's generation time; the rollback's effective time and the later of the two applications' record times). Supersession never stops a valid realization: a superseded lineage that owns an applied change keeps measuring and claiming it. A caller can still name a replacement explicitly (`replacement_package_id`); the explicit replacement is the one the snapshot reports when both exist.
+
+Example: PKG-A (2026-10-01, auto-stop 365 to 210) is applied 2026-10-08; PKG-B (2026-10-15) has auto-stop 210 as its current value and recommends a size cut. PKG-A owns the auto-stop interval from 2026-10-08 and keeps claiming 1,069.73; PKG-B is linked as its successor; PKG-B's plan is unpriced, so PKG-A stays active; PKG-B can claim only its own size change.
 
 ## 20. Corrections
 
@@ -355,3 +378,13 @@ Re-evaluation always starts from the actual observed current state. Recommendati
 22. Snapshot time derives from ledger.
 23. Unknown material economic data is null, not zero.
 24. Observed and recommendation-attributed savings are distinct.
+
+## 24. Lineages of one warehouse
+
+A run reads, besides its own ledger, every other lineage of its warehouse in the output directory, and writes what it learns about each of them:
+
+- `realization/sources/<workspace>__<warehouse>/<PKG>.json` is the copy of the source package a lineage was created from, written when the lineage is created (the Publisher's package is unchanged; the copy is how another run finds the lineage and re-projects its snapshot). A copy is checked like any package when it is read (schema, id and full hash): an edited copy, or a corrupt ledger of another lineage, fails the run before anything else is written. A lineage created before its copy existed is seen once its package is realized again.
+- The cross-lineage events of sections 18 and 19 are decided by the Reconciler from all lineages together (the run's own including the applications it is about to record) and appended after the run's own events: to the run's own ledger, or to the other lineage's ledger under that ledger's advisory lock for the append (a ledger that stays locked keeps the event for a later run, which decides it again). An event already recorded is suppressed by its id. The other lineages whose ledgers grew are re-projected: their realization package and a new snapshot are written.
+- `realization/state/<workspace>__<warehouse>.json` is the warehouse's state index, a view rebuilt from the ledgers on every run and never read back (never a second source of truth): `state_index_version` (1.0.0), the warehouse, `as_of_utc`, `active_package_ids` (the packages not superseded), `applied_knob_owners` (per applied knob, the lineage that claims it) and `lineages`, one row per lineage, oldest package first: its RPKG, PKG and snapshot ids, epoch and previous epoch, generation time, cost profile, disposition, replacement, successor, application state, applied knob, value and time, realization state, claim status, attributed savings, `claimed_by` and `as_of_utc`.
+
+Realizing the same packages with the same observations in any order gives every lineage the same final decisions (owner, claim status, disposition, replacement, successor, rollback). When each lineage learns the same facts in either order, as for two packages of one generation time, the ledgers, realization packages and state index are identical files too. Otherwise a ledger can hold extra history of what was known in between (a package superseded first by the next day's package, then by the newest), so its snapshot id differs while its decisions do not; snapshots already written are history and stay.
