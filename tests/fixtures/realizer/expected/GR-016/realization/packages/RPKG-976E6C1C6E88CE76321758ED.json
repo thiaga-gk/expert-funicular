@@ -23,6 +23,14 @@
       "warehouse_size": "SMALL",
       "warehouse_type": "PRO"
     },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-CE03349A988761CA39CD9367",
+        "effective_from_utc": "2026-10-01T12:00:00Z",
+        "knob": "warehouse_size",
+        "step": 1
+      }
+    ],
     "plan_progress": {
       "applied_steps": 1,
       "authoritative_actionable_steps": 2,
@@ -141,6 +149,12 @@
     "realization_state": "MONITORING",
     "realized_savings_period": "2613.12",
     "realized_savings_since_application": "2613.12",
+    "realized_to_date": {
+      "days_covered": "7.00",
+      "first_day": "2026-10-02",
+      "last_day": "2026-10-09",
+      "uncovered_days": 0
+    },
     "reoptimization_recommended": false,
     "review_required": false,
     "successful_realized_savings": "2613.12"
@@ -153,7 +167,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-9FDBCBAFA91B10A52F03BE4F",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:CAE2D92CAA4D2A5E8CA1D45351C0EF5526C634F15BFD6F887AAC90A2FE41BFC7",
+    "ledger_checkpoint_hash": "SHA256:D18D0D85CBD4D8CED2F35D02F2A0A61872DBADE71FC615D4EE3D3E761016411E",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -178,7 +192,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-676304A2D398FB74D9D37E4D",
+  "snapshot_id": "RSNAP-CAB3F7A574D69182A692B001",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

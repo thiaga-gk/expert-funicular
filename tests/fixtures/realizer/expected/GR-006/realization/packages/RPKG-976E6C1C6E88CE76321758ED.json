@@ -23,6 +23,14 @@
       "warehouse_size": "X_LARGE",
       "warehouse_type": "PRO"
     },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-E0B80EA544998D0660D84128",
+        "effective_from_utc": "2026-10-01T12:00:00Z",
+        "knob": "warehouse_size",
+        "step": 1
+      }
+    ],
     "plan_progress": {
       "applied_steps": 0,
       "authoritative_actionable_steps": 2,

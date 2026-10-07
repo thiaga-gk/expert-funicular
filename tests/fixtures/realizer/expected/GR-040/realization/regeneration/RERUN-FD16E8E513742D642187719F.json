@@ -12,14 +12,14 @@
   "changed_knobs": [
     "warehouse_size"
   ],
-  "evidence_id": "REVID-37F7F275591908182339F44B",
+  "evidence_id": "REVID-B247D636D4AC809DCF3737F7",
   "impacted_knobs": [
     "max_clusters",
     "min_clusters"
   ],
   "observation_window": {
-    "end_utc": "2026-10-09T12:00:00Z",
-    "start_utc": "2026-10-02T12:00:00Z"
+    "end_utc": "2027-04-20T00:00:00Z",
+    "start_utc": "2026-10-02T00:00:00Z"
   },
   "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
   "reasons": [

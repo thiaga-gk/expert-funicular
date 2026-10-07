@@ -23,6 +23,7 @@
       "warehouse_size": "MEDIUM",
       "warehouse_type": "PRO"
     },
+    "open_episodes": [],
     "plan_progress": {
       "applied_steps": 1,
       "authoritative_actionable_steps": 2,
@@ -103,7 +104,7 @@
     "state": "DRIFTED"
   },
   "economics": {
-    "annualized_realized_savings": "31792.96",
+    "annualized_realized_savings": null,
     "available": true,
     "aws_cash_realized": null,
     "aws_commitment_freed": null,
@@ -161,10 +162,16 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": "1.000000943606015551256206962",
+    "realization_ratio": null,
     "realization_state": "REALIZED",
     "realized_savings_period": "2613.12",
     "realized_savings_since_application": "2613.12",
+    "realized_to_date": {
+      "days_covered": "7.00",
+      "first_day": "2026-10-02",
+      "last_day": "2026-10-09",
+      "uncovered_days": 0
+    },
     "reoptimization_recommended": false,
     "review_required": false,
     "successful_realized_savings": "2613.12"
@@ -177,7 +184,7 @@
     "latest_effective_at_utc": "2026-10-11T12:00:00Z",
     "latest_entry_id": "RLE-3746DC3B13BA90746D472D4A",
     "latest_recorded_at_utc": "2026-10-11T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:5D7249DF9DEB6F1962FE5D53087D067CA1F0EFFDB4F3A9D3B3309413595EAD69",
+    "ledger_checkpoint_hash": "SHA256:F32BA5B9B89513582F40A8A47153A59211F0419C52539E0E01240D28ED2D7D88",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -202,7 +209,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-5C0A1296BA13EBFD86D300C8",
+  "snapshot_id": "RSNAP-C9EBD1676AF0982EC4235B89",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
