@@ -56,13 +56,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Create a golden case from a live warehouse (never overwrites)")
     ap.add_argument("--run-dir", required=True, type=Path)
     ap.add_argument("--warehouse", required=True, help="workspace_id/warehouse_id (or a warehouse_id unique in the run)")
-    ap.add_argument("--row", required=True, help="registry row id, e.g. C04 or a new C59")
+    ap.add_argument("--row", required=True, help="registry row id (C## or A##, e.g. C04 or a new C59) or a scope-case id (S##)")
     ap.add_argument("--slug", required=True, help="short kebab-case name, e.g. keepalive-polling-live")
     ap.add_argument("--description", required=True)
     ap.add_argument("--cases-dir", type=Path, default=CASES, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
-    if not re.fullmatch(r"[CA]\d{2}", a.row) or not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", a.slug):
-        print("error: --row must look like C59/A13 and --slug be kebab-case", file=sys.stderr)
+    if not re.fullmatch(r"[CAS]\d{2}", a.row) or not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", a.slug):
+        print("error: --row must look like C59, A13 or S04 (registry C##/A## rows and S## scope cases) and --slug be kebab-case", file=sys.stderr)
         return 2
     name = f"{a.row.lower()}-{a.slug}"
     folder = a.cases_dir / name
