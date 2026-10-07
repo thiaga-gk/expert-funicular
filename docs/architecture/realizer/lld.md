@@ -104,11 +104,12 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 <state>/realization/state/<workspace>__<warehouse>.lock                          # per-warehouse lock, while a run holds it
 <output>/realization/backtest/evidence-<as-of>.json                              # backtest evidence
 <output>/realization/backtest/backtest-<as-of>.json                              # backtest report
+<output>/realization/backtest/realizer.log                                       # backtest log (appended per run)
 ```
 
 ## 14. Command line
 
-`realizer` and `python -m realizer` (and `python scripts/run_realizer.py` from a checkout) are one adapter, `src/realizer/cli/`: it parses and validates its own arguments, resolves the output layout, configures logging (UTC timestamps on stderr, and the run folder's `realizer.log`), builds the request and calls the facade. It never imports a capability package. Three forms:
+`realizer` and `python -m realizer` (and `python scripts/run_realizer.py` from a checkout) are one adapter, `src/realizer/cli/`: it parses and validates its own arguments, resolves the output layout, configures logging (UTC timestamps on stderr and in `realizer.log`, section 14 Logging), builds the request and calls the facade. It never imports a capability package. Three forms:
 
 ```text
 realizer --package <PKG.json> [observation source] [options]      # one package
@@ -136,15 +137,17 @@ realizer --backtest [source] [options]                             # past auto-s
 | `--print-json` | Print the snapshot instead of the written package path (package run). |
 | `--output-dir <dir>` | Root of the run folders; default `./realizer_out`. |
 | `--state-dir <dir>` | The long-lived state (ledgers, evidence, regeneration requests, measurements, source package copies, policies, state index); default `<output-dir>/state`. |
-| `--flat-output` | Write the state and the projections under `--output-dir` itself: no run folder, no log file. |
+| `--flat-output` | Write the state and the projections under `--output-dir` itself: no run folder; `realizer.log` sits beside the projections. |
 | `--log-level` | `DEBUG`, `INFO` (default), `WARNING`, `ERROR`. |
 | `--version` | The Realizer, release and contract versions. |
 
 Without an observation source a package run only records the lineage. `--observation`, `--demo`, `--profile` and `--from-evidence` are mutually exclusive. A fleet run needs exactly one of `--profile`, `--demo` and `--from-evidence <folder>` and refuses the per-package options (`--observation`, `--demo-modified`, `--replay-through`, `--print-json`). `--warehouse` belongs to a fleet run (or to a live backtest).
 
-**Options of `--backtest`** (`realizer --backtest --help`): no package (`--package` is refused); one source, `--profile` with `--sql-warehouse-id`, `--from-evidence <backtest evidence file>` or `--demo`; `--warehouse` (repeatable, live only), `--databricks-config-file`, `--source-region` (without it the cost basis is DBU only), `--aws-price-registry`, `--as-of`, `--billing-ingested-through`, `--output-dir`, `--log-level`. It writes `realization/backtest/evidence-<as-of>.json` and `backtest-<as-of>.json` under `--output-dir` (no run folder, no state), prints one line per past change and the report path.
+**Options of `--backtest`** (`realizer --backtest --help`): no package (`--package` is refused); one source, `--profile` with `--sql-warehouse-id`, `--from-evidence <backtest evidence file>` or `--demo`; `--warehouse` (repeatable, live only), `--databricks-config-file`, `--source-region` (without it the cost basis is DBU only), `--aws-price-registry`, `--as-of`, `--billing-ingested-through`, `--output-dir`, `--log-level`. It writes `realization/backtest/evidence-<as-of>.json` and `backtest-<as-of>.json` under `--output-dir` (no run folder, no state) and appends its log to `realization/backtest/realizer.log` beside them once the report is written, so a refused backtest writes nothing. It prints one line per past change and the report path.
 
 **Output layout.** Each package or fleet run creates a Hive-style run folder `<output-dir>/run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` (the UTC start of the run, never reused) for its projections (`realization/packages/`, `realization/snapshots/`), `realizer.log` and, for a fleet run, `manifest.json` and `realization_workbook.xlsx`. The history lives in the state directory, which outlives the runs: a scheduler that keeps one `--output-dir` never forks it. A demo or live measurement is written to the state before the run folder is created. `--flat-output` makes the state directory and the run folder one directory. Paths under each root are the same in both layouts (section 13).
+
+**Logging.** Every line is `<UTC timestamp>Z <LEVEL> <component>.<event> key=value ...` through the `realizer` logger (`realizer.common.logging.LOGGER`), on stderr and in `realizer.log`: in the run folder (the output directory itself with `--flat-output`) for a package or fleet run, beside the report for a backtest. The lines logged before that file's folder exists (the start, the measurement) are kept and written to it first. An input refused before the run folder exists writes no file (stderr only, as it writes nothing else); after it, a refusal is logged by type only (`realizer.refused`, `fleet.warehouse_refused`), a crash by type only (`realizer.crashed`, `fleet.warehouse_crashed`). Levels: `INFO` the run's milestones and one line per warehouse (`fleet.warehouse` with `status` and `elapsed_ms`, the measurement's data availability), `realizer.done` / `fleet.done` / `realizer.backtest.done` with `elapsed_ms`; `DEBUG` per-item detail (each `ledger.append`, each REST call and SQL statement start); `WARNING` a degraded, quarantined or refused path; `ERROR` a crash. The pure capabilities (Governor, Reconciler, Estimator, Reviewer) log nothing. Log files are never canonical and carry no credentials, SQL text or data values.
 
 **Exit status**
 

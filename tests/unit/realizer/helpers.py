@@ -117,8 +117,10 @@ def migration_scenario_id(package: Mapping[str, Any]) -> str:
 
 
 def tree(out: Path) -> Dict[str, Optional[str]]:
-    """Every file (text) and directory (``None``) under *out*, relative: what a run, finished or crashed, left behind."""
-    return {p.relative_to(out).as_posix(): (p.read_text(encoding="utf-8") if p.is_file() else None) for p in sorted(out.rglob("*"))}
+    """Every file (text) and directory (``None``) under *out*, relative: what a run, finished or crashed, left behind. The
+    run log (``realizer.log``: timestamps and paths, never canonical) is left out."""
+    return {p.relative_to(out).as_posix(): (p.read_text(encoding="utf-8") if p.is_file() else None) for p in sorted(out.rglob("*"))
+            if p.name != "realizer.log"}
 
 
 def events(tree: Mapping[str, Optional[str]]) -> List[str]:

@@ -121,7 +121,7 @@ def api_get(config: AccessConfig, host: str, token: str, path: str, params: Opti
         url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": config.user_agent}, method="GET")
     started = time.monotonic()
-    config.logger.info("api.get start path=%s", path)
+    config.logger.debug("api.get start path=%s", path)
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
             body = response.read().decode("utf-8")
@@ -202,7 +202,7 @@ class SqlClient:
         """
         assert self._connection is not None
         started=time.monotonic()
-        self.config.logger.info("sql.start label=%s", label)
+        self.config.logger.debug("sql.start label=%s", label)
         with self._connection.cursor() as cursor:
             cursor.execute(statement)
             cols = [d[0] for d in cursor.description]

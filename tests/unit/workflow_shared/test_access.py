@@ -110,7 +110,7 @@ class RestTests(unittest.TestCase):
         def urlopen(req, timeout):
             seen["req"], seen["timeout"] = req, timeout
             return FakeResponse('{"ok": true}')
-        with patch("urllib.request.urlopen", urlopen), self.assertLogs("workflow_shared.test", "INFO") as logs:
+        with patch("urllib.request.urlopen", urlopen), self.assertLogs("workflow_shared.test", "DEBUG") as logs:
             out = access.api_get(CONFIG, "h.example/", "secret-token", "/api/2.1/clusters/get", {"cluster_id": "c-1", "skip": None})
         req = seen["req"]
         self.assertEqual(out, {"ok": True})

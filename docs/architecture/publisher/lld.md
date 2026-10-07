@@ -1619,7 +1619,7 @@ The manifest records `publisher_version`, `reporter_contract_version`, `workbook
 
 `publisher.log` is always created under the chosen output directory; the same lines go to stderr. Every line is `<UTC timestamp>Z <LEVEL> <component>.<event> key=value ...`, written through the single `publisher` logger (`publisher.common.logging.LOGGER`) with lazy `%` arguments. Log files and stdout are never canonical: timestamps and output paths vary run to run, and no decision, ID or economics value depends on logging.
 
-Levels: `INFO` run milestones and aggregate counts, at most once per phase or warehouse; `DEBUG` per-item detail (optimizer decisions, gate passes, package hashes); `WARNING` a degraded or fallback path, a fail-closed exclusion, or a reviewer gate rejection (`reviewer.gate.reject` with `gate=` and a violation label, then the error is raised unchanged); `ERROR` marks how a run ended abnormally: `publisher.refused` (a `PublisherError`, with its user-facing message, exit 2) or `publisher.crashed` (an unexpected exception, by type only because its message may carry data values; the traceback goes to stderr, not the log). Every fallback or skipped input carries a machine-readable `reason=`.
+Levels: `INFO` run milestones and aggregate counts, at most once per phase or warehouse (`publisher.done` carries `elapsed_ms`); `DEBUG` per-item detail (a warehouse's attribution, start and package validation, optimizer decisions, gate passes, package hashes, each REST call and SQL statement start); `WARNING` a degraded or fallback path, a fail-closed exclusion, or a reviewer gate rejection (`reviewer.gate.reject` with `gate=` and a violation label, then the error is raised unchanged); `ERROR` marks how a run ended abnormally: `publisher.refused` (a `PublisherError`, with its user-facing message, exit 2) or `publisher.crashed` (an unexpected exception, by type only because its message may carry data values; the traceback goes to stderr, not the log). Every fallback or skipped input carries a machine-readable `reason=`.
 
 ### 29.2 Logged categories
 
@@ -1627,7 +1627,7 @@ Levels: `INFO` run milestones and aggregate counts, at most once per phase or wa
 - auth/execution target metadata,
 - compatibility mode/status,
 - collector phase start/done, query labels and aggregate counts,
-- pipeline batches/warehouse identities and each warehouse's cost profile and its source,
+- pipeline batches, each warehouse's decisions, the warehouse count per cost profile (each warehouse's profile and source at `DEBUG`),
 - reviewer gate outcomes, package validation and IDs,
 - files written (path and counts),
 - final package/candidate/scenario counts.

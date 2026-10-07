@@ -211,7 +211,7 @@ def assemble(
         e = evidence_by_key[(result.workspace_id, result.warehouse_id)]
         package = _build_locked_recommendation_package(e, result.candidates, result.scenarios, thresholds, result.cost_profile, scope)
         packages.append(package)
-        LOGGER.info(
+        LOGGER.debug(
             "contract.v1.package.valid workspace_id=%s warehouse_id=%s package_id=%s candidates=%d scenarios=%d",
             e.workspace_id, e.warehouse_id, package.recommendation_package_id, len(package.candidates), len(package.scenarios),
         )

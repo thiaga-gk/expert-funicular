@@ -62,6 +62,16 @@ class LayoutCliTests(unittest.TestCase):
             self.assertTrue({"ledger", "measurements", "sources", "state"} <= {k.split("/")[1] for k in state})
             self.assertEqual(sorted(p.name for p in out.iterdir()), ["run_date=" + run_dir.parent.name.split("=", 1)[1], "state"])
 
+    def test_the_single_folder_layout_writes_realizer_log_beside_the_projections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = self.run_cli("--package", str(PACKAGE), "--demo", "--output-dir", tmp, "--flat-output")
+            self.assertEqual(code, 0, err)
+            log = (Path(tmp) / "realizer.log").read_text(encoding="utf-8").splitlines()
+            self.assertRegex(log[0], r"Z INFO realizer\.start version=")
+            self.assertTrue(any("realizer.layout run_dir=" in line and "flat=True" in line for line in log))
+            self.assertRegex(log[-1], r"Z INFO realizer\.done rpkg=RPKG-\w+ rsnap=RSNAP-\w+ state=\w+ elapsed_ms=\d+$")
+            self.assertFalse(any("ledger.append" in line for line in log), "a ledger entry is DEBUG detail")
+
     def test_daily_runs_into_one_output_dir_continue_one_history(self):
         with tempfile.TemporaryDirectory() as tmp:
             out, flat = Path(tmp, "out"), Path(tmp, "flat")
@@ -75,7 +85,7 @@ class LayoutCliTests(unittest.TestCase):
             self.assertEqual(len(list(out.glob("run_date=*/run_ts=*"))), 2)
             self.assertNotEqual(printed[0].parents[2], printed[1].parents[2])
             # The state is the flat run's history, file for file; the last run folder holds the flat run's projections.
-            self.assertEqual(files(out / "state"), {k: v for k, v in files(flat).items() if not k.startswith(("realization/packages/", "realization/snapshots/"))})
+            self.assertEqual(files(out / "state"), {k: v for k, v in files(flat).items() if k != "realizer.log" and not k.startswith(("realization/packages/", "realization/snapshots/"))})
             self.assertEqual(printed[1].read_text(encoding="utf-8"), (flat / "realization" / "packages" / printed[1].name).read_text(encoding="utf-8"))
             self.assertEqual(len(list((out / "state" / "realization" / "measurements").glob("*.json"))), 2)
 
@@ -112,7 +122,7 @@ class LayoutResolutionTests(unittest.TestCase):
             self.assertEqual(second.run_dir.name, "run_ts=20261007T170509Z-01")
             self.assertEqual((first.state_dir, first.flat, first.log_path), (Path(tmp) / "state", False, first.run_dir / "realizer.log"))
             flat = output_layout.resolve_layout(Path(tmp) / "f", flat=True)
-            self.assertEqual((flat.run_dir, flat.state_dir, flat.log_path), (Path(tmp) / "f", Path(tmp) / "f", None))
+            self.assertEqual((flat.run_dir, flat.state_dir, flat.log_path), (Path(tmp) / "f", Path(tmp) / "f", Path(tmp) / "f" / "realizer.log"))
             self.assertFalse((Path(tmp) / "f").exists())
 
 

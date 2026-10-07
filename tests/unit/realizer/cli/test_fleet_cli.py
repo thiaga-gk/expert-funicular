@@ -70,7 +70,7 @@ class FleetCliTests(unittest.TestCase):
                                              "--warehouse", "1234567890123456/wh-demo-006", "--output-dir", str(out), "--flat-output")
             self.assertEqual(code, 0, err)
             self.assertEqual(stdout.splitlines()[:2], ["1234567890123456/wh-demo-006: OK", "2234567890123456/wh-demo-013: OK"])
-            self.assertEqual(sorted(p.name for p in out.iterdir()), ["manifest.json", "realization", "realization_workbook.xlsx"])
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ["manifest.json", "realization", "realization_workbook.xlsx", "realizer.log"])
             self.assertTrue((out / "realization" / "ledger").is_dir())
             self.assertEqual(json.loads((out / "manifest.json").read_text(encoding="utf-8"))["publisher_run"]["selected_package_count"], 2)
 

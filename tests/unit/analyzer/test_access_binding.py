@@ -36,11 +36,11 @@ class PublisherBindingTests(unittest.TestCase):
         def urlopen(req, timeout):
             seen["req"] = req
             return FakeResponse("{}")
-        with patch("urllib.request.urlopen", urlopen), self.assertLogs("publisher", "INFO") as logs:
+        with patch("urllib.request.urlopen", urlopen), self.assertLogs("publisher", "DEBUG") as logs:
             workspace_api._api_get("h", "t", "/api/2.0/sql/config/warehouses")
         self.assertEqual(seen["req"].get_header("User-agent"), USER_AGENT)
         self.assertEqual(seen["req"].get_method(), "GET")
-        self.assertEqual(logs.output[0], "INFO:publisher:api.get start path=/api/2.0/sql/config/warehouses")
+        self.assertEqual(logs.output[0], "DEBUG:publisher:api.get start path=/api/2.0/sql/config/warehouses")
 
     def test_sql_client_user_agent_logs_and_error(self):
         auth = workspace_api.AuthContext("P", "h", "/sql/1.0/warehouses/x", "token", None, "warehouse", "x")

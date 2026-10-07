@@ -28,11 +28,12 @@ DEFAULT_OUTPUT_DIR = "./realizer_out"
 DEFAULT_STATE_DIRNAME = "state"
 RUN_MANIFEST_NAME = "manifest.json"
 RUN_LOG_NAME = "realizer.log"
+BACKTEST_DIR_PARTS = ("realization", "backtest")
 WORKBOOK_NAME = "realization_workbook.xlsx"
 PUBLISHER_MANIFEST_NAME = "manifest.json"
 
-__all__ = ["DEFAULT_OUTPUT_DIR", "DEFAULT_STATE_DIRNAME", "PUBLISHER_MANIFEST_NAME", "RUN_DATE_PREFIX", "RUN_LOG_NAME", "RUN_MANIFEST_NAME", "RUN_TS_PREFIX",
-           "RunLayout", "WORKBOOK_NAME", "is_realizer_run_dir", "latest_publisher_run_dir", "latest_run_dir", "partitioned_run_dir", "resolve_layout", "resolve_state_dir",
+__all__ = ["BACKTEST_DIR_PARTS", "DEFAULT_OUTPUT_DIR", "DEFAULT_STATE_DIRNAME", "PUBLISHER_MANIFEST_NAME", "RUN_DATE_PREFIX", "RUN_LOG_NAME", "RUN_MANIFEST_NAME", "RUN_TS_PREFIX",
+           "RunLayout", "WORKBOOK_NAME", "backtest_log_path", "is_realizer_run_dir", "latest_publisher_run_dir", "latest_run_dir", "partitioned_run_dir", "resolve_layout", "resolve_state_dir",
            "warehouse_lock_path"]
 
 
@@ -66,15 +67,15 @@ def latest_publisher_run_dir(path: Path) -> Path:
 @dataclass(frozen=True)
 class RunLayout:
     """Where one CLI run writes: ``run_dir`` (the projections, the run manifest, the workbook and the log) and
-    ``state_dir`` (the history). ``flat`` is the single-folder layout, which writes no log file."""
+    ``state_dir`` (the history). ``flat`` is the single-folder layout, where the log sits next to the projections."""
     run_dir: Path
     state_dir: Path
     flat: bool
 
     @property
-    def log_path(self) -> Optional[Path]:
-        """The run log file, ``None`` in the single-folder layout (stderr only, as the facade's runs)."""
-        return None if self.flat else self.run_dir / RUN_LOG_NAME
+    def log_path(self) -> Path:
+        """The run log file: ``realizer.log`` in the run folder (the output directory itself in the single-folder layout)."""
+        return self.run_dir / RUN_LOG_NAME
 
     @property
     def manifest_path(self) -> Path:
@@ -102,6 +103,13 @@ def resolve_layout(output_dir: Path, state_dir: Optional[Path] = None, *, flat: 
     if flat:
         return RunLayout(run_dir=output_dir, state_dir=state, flat=True)
     return RunLayout(run_dir=partitioned_run_dir(output_dir, now or dt.datetime.now(dt.timezone.utc)), state_dir=state, flat=False)
+
+
+def backtest_log_path(output_dir: Path) -> Path:
+    """The log of a backtest run: ``<output-dir>/realization/backtest/realizer.log``, beside the backtest's evidence and report
+    (a backtest has no run folder; each run appends, starting with its ``realizer.backtest.start`` line). It is written once
+    the report is, so a refused backtest writes nothing."""
+    return Path(output_dir).joinpath(*BACKTEST_DIR_PARTS, RUN_LOG_NAME)
 
 
 def warehouse_lock_path(state_dir: Path, warehouse_key: str) -> Path:

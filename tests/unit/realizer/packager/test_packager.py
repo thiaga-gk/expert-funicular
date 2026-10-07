@@ -121,7 +121,7 @@ class LineageTests(unittest.TestCase):
             with capture_logs() as lines:
                 packager.begin(context)
                 packager.begin(context)
-            self.assertEqual([line.split(" rle=")[0] for line in lines], ["INFO ledger.append event=REALIZATION_CREATED", "INFO ledger.duplicate_suppressed"])
+            self.assertEqual([line.split(" rle=")[0] for line in lines], ["DEBUG ledger.append event=REALIZATION_CREATED", "INFO ledger.duplicate_suppressed"])
             self.assertEqual(events(tree(out)), ["REALIZATION_CREATED"])
 
     def test_begin_fails_on_a_corrupt_ledger_before_writing(self):

@@ -343,7 +343,7 @@ def extract_evidence(client: SqlClient, thresholds: Thresholds, source_region: s
             owner_source="system.billing.usage.identity_metadata.owned_by",
             query_source=query_source,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "collector.attribution workspace_id=%s warehouse_id=%s owner_known=%s photon_status=%s photon_coverage_pct=%.2f query_source=%s",
             workspace_id, wh, attribution.owner is not None, photon_observation.status,
             photon_observation.known_feature_coverage_pct, query_source.primary_category,

@@ -40,8 +40,8 @@
   ]
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
-  "length": 64514,
-  "sha256": "178194d7062db47b3801c4eccd3303050734166546d22ea0055ed59fdf93fecc",
+  "length": 64881,
+  "sha256": "f84958260a178bb9eeff8c3f5c8b01ad2dc49e404c28484577094d2f1d8278fb",
   "spot": {
    "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -121,7 +121,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-7C27BDF6A0A979CB93E32E1C"
+    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-7C27BDF6A0A979CB93E32E1C"
    ],
    {
     "directories": [
@@ -146,7 +146,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-3F8919AC7AC02D9A084ECB9B"
+    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-3F8919AC7AC02D9A084ECB9B"
    ],
    {
     "directories": [

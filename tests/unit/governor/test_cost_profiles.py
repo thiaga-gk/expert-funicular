@@ -133,6 +133,17 @@ class SelectionTests(unittest.TestCase):
                 assign_cost_profiles(evidence, parse_cost_profile_flags(flags), t)
 
 
+class LoggingTests(unittest.TestCase):
+    def test_assignments_are_one_info_summary_and_a_debug_line_per_warehouse(self):
+        from publisher.governor.cost_profiles import CostProfileChoice, log_assignments
+        choices = {("1", "a"): CostProfileChoice("balanced", "DEFAULT", None), ("1", "b"): CostProfileChoice("aggressive", "TAG_DEFAULT", "tag env=dev"),
+                   ("1", "c"): CostProfileChoice("balanced", "DEFAULT", None)}
+        with self.assertLogs("publisher", "DEBUG") as logs:
+            log_assignments(choices)
+        self.assertEqual([r.levelname for r in logs.records], ["DEBUG"] * 3 + ["INFO"])
+        self.assertEqual(logs.records[-1].getMessage(), "governor.cost_profiles warehouses=3 aggressive=1 balanced=2")
+
+
 class PipelineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

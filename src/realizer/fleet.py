@@ -12,6 +12,7 @@ manifest and the realization workbook are written into the run folder.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -109,7 +110,9 @@ def run_fleet(request: FleetRequest) -> FleetReport:
                 request.publisher_run.package_count)
     runs: List[WarehouseRun] = []
     files: Dict[Tuple[str, str], List[str]] = {}
+    fleet_started = time.monotonic()
     for entry in request.publisher_run.entries:
+        started = time.monotonic()
         written: List[Path] = []
         status, reason = RUN_STATUS_OK, None
         try:
@@ -124,11 +127,11 @@ def run_fleet(request: FleetRequest) -> FleetReport:
         files[(entry.workspace_id, entry.warehouse_id)] = in_run
         run = _warehouse_run(request, entry, status, reason, in_run)
         runs.append(run)
-        LOGGER.info("fleet.warehouse workspace=%s warehouse=%s status=%s realizations=%d", entry.workspace_id, entry.warehouse_id,
-                    status, len(run.realizations))
+        LOGGER.info("fleet.warehouse workspace=%s warehouse=%s status=%s realizations=%d elapsed_ms=%d", entry.workspace_id, entry.warehouse_id,
+                    status, len(run.realizations), int((time.monotonic() - started) * 1000))
     workbook = write_realization_workbook(request.run_dir / WORKBOOK_NAME, runs)
     LOGGER.info("workbook.written path=%s", workbook)
     manifest = write_run_manifest(request.run_dir / RUN_MANIFEST_NAME, build_run_manifest(request, runs, files, WORKBOOK_NAME))
-    LOGGER.info("fleet.done ok=%d refused=%d crashed=%d manifest=%s", *(sum(1 for r in runs if r.status == s)
-                for s in (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED)), manifest)
+    LOGGER.info("fleet.done ok=%d refused=%d crashed=%d elapsed_ms=%d manifest=%s", *(sum(1 for r in runs if r.status == s)
+                for s in (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED)), int((time.monotonic() - fleet_started) * 1000), manifest)
     return FleetReport(warehouse_runs=tuple(runs), manifest_path=manifest, workbook_path=workbook)
