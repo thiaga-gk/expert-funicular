@@ -126,6 +126,8 @@ origin attribution
 actor when known
 ```
 
+The scenario an observation applied is inferred: the one whose authority-eligible steps the observed configuration applies most (exactly or modified), the recommended plan first on a tie and when none is applied; an `applied_scenario_id` in the observation overrides it. So a migration applied under a migration-only run scope (recommended "No change") is still an application of the package's migration scenario. The application records the scenario's `compatibility_status` and `annotations`: a warehouse-type migration whose compatibility the Publisher did not evidence (any status but `COMPATIBLE`) carries `COMPATIBILITY_NOT_EVIDENCED`.
+
 `PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
 ## 7. Modified implementation

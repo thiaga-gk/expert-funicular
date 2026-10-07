@@ -2,8 +2,10 @@
   "application": {
     "active_episode_id": "APP-22D91994058D828E0C0A3DA0",
     "actor": "demo-user",
+    "annotations": [],
     "application_scope": "CANDIDATE",
     "applied_step_refs": [],
+    "compatibility_status": "COMPATIBLE",
     "effective_from_utc": "2026-10-01T12:00:00Z",
     "effective_time_quality": "OBSERVED_AT_ONLY",
     "effective_to_utc": null,
@@ -149,7 +151,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-FAD10742E26A25D9E537B5B6",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:97044E0D228483BE1E2C885AACF69431184F46BB223CF2C31938F7A77FDCA2A2",
+    "ledger_checkpoint_hash": "SHA256:7BBE99DB8E7B64A681B16389DCE9DE1CB7F9F51E60A4DB78DE58DA37FCE15735",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -174,7 +176,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-F569B8C89CF9CE9DC943B3AA",
+  "snapshot_id": "RSNAP-BFB1B8B37721F288635CFCC3",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

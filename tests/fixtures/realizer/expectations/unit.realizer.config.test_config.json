@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8926,
-  "sha256": "83a97712faef307768e3440eca12c03990c800a8c4075ee294cdc6dd21991bce",
+  "length": 8999,
+  "sha256": "f051ecadd65247c70b30a7dc2c1173e5bb81fb71413e0e09813e4ad0a9d7bcd1",
   "spot": {
    "logging": [
     [
@@ -9,15 +9,15 @@
     ],
     {}
    ],
-   "stdout_characters": 7964
+   "stdout_characters": 8029
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
   "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
-  "length": 4145,
-  "sha256": "adb2438a8aad676d8f4c90e508baa7f9690873ff7b1167ee4bdd045103f2487b",
+  "length": 4208,
+  "sha256": "b913e3746c3a37f3c312d57a73d042548ae052565d97fc466eb33bcbd34ca920",
   "spot": {
    "logging": [
     [
@@ -25,12 +25,12 @@
     ],
     {}
    ],
-   "stdout_characters": 3720
+   "stdout_characters": 3777
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 9063,
-  "sha256": "7d5f0996ad760e531e8e2bb361448b3923975631a8520d6fdb8c01fdb1627e65",
+  "length": 9136,
+  "sha256": "c876959b6c225db3623d318b68204165a72c452dd51a64daac1127a053c553df",
   "spot": {
    "logging": [
     [
@@ -38,7 +38,7 @@
     ],
     {}
    ],
-   "stdout_characters": 8082
+   "stdout_characters": 8147
   }
  },
  "PolicyTests.test_defaults/policy": {

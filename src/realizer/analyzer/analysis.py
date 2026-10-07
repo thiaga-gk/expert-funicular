@@ -102,6 +102,13 @@ def step_role(package: Mapping[str, Any], step: Mapping[str, Any]) -> str:
     return rc.StepRole.SAVINGS.value
 
 
+def plan_steps(package: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    """Every scenario's CANDIDATE steps, the recommended plan's first, then the other scenarios in package order."""
+    recommended = (package.get("recommended_plan") or {}).get("scenario_id")
+    others = [s.get("scenario_id") for s in package.get("scenarios") or [] if s.get("scenario_id") != recommended]
+    return [step for sid in [recommended] + others if sid is not None for step in candidate_steps(package, sid)]
+
+
 def scenario_remeasure_days(package: Mapping[str, Any], scenario_id: Optional[str] = None) -> Optional[Any]:
     """The remeasurement window (days) of the scenario's REMEASURE step; ``None`` when the scenario has none."""
     scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)

@@ -151,6 +151,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "step": app.payload.get("step") if app else None,
         "knob": app.payload.get("knob") if app else None,
         "step_role": app.payload.get("step_role") if app else None,
+        "compatibility_status": app.payload.get("compatibility_status") if app else None,
+        "annotations": list(app.payload.get("annotations") or []) if app else [],
         "source_value": app.payload.get("source_value") if app else None,
         "recommended_value": app.payload.get("recommended_value") if app else None,
         "observed_applied_value": app.payload.get("observed_value") if app else None,

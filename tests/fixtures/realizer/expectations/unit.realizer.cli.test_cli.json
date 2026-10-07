@@ -27,17 +27,17 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "88b84ec18c1de7b5",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a30fd38446295b45",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9bb2f106d2b26cc5",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "04b7f61ea117d264",
      "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "5be568bae077a1c6",
-     "realization/snapshots/RSNAP-CD28EE751946F7DECBF2037D.json": "a30fd38446295b45"
+     "realization/snapshots/RSNAP-E75FFD70A3A10DFDC7C0531A.json": "04b7f61ea117d264"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9696,
-  "sha256": "043af88728f9dac9d36beb5b1f62e638234cdd8103709f426641a4401139c409"
+  "length": 9769,
+  "sha256": "96b03c5e42d58f7134c8abbccb4c7e558e986463800788ac64d89bc6c68685ca"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -57,8 +57,8 @@
     ],
     "files": {
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "07591ca958f5a4e6",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "20ff47ec4f7726b5",
-     "realization/snapshots/RSNAP-CA1D623DB3CE59BF8BA8430B.json": "20ff47ec4f7726b5"
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "1168abb77165ed82",
+     "realization/snapshots/RSNAP-CA1D623DB3CE59BF8BA8430B.json": "1168abb77165ed82"
     }
    }
   ]
@@ -91,10 +91,10 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "3db21fd5858d332f",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "3f802e10258edb00",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b11e62c7f84e0a55",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "790eed76a50272a6",
      "realization/regeneration/RERUN-3F37BA35B1F0875240E38293.json": "440bd1e15f95d87d",
-     "realization/snapshots/RSNAP-84EE37B6F6CFB49C8A2DFCEB.json": "3f802e10258edb00"
+     "realization/snapshots/RSNAP-BB6AF445E3A2506DBCBC1D66.json": "790eed76a50272a6"
     }
    }
   ]
@@ -110,7 +110,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4330,
-  "sha256": "58aa7e10407ba59a7c42a60b76eb103dfce1385a23140ec056870ce8b2cc54fd"
+  "sha256": "24ecbbf3b5ab38e12a8951105595314fbdb927ec00e472e4b48cea5ad152f620"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2886,

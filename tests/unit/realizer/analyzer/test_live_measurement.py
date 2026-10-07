@@ -20,6 +20,7 @@ from tests.unit.realizer.helpers import ROOT  # noqa: F401  (puts src on the pat
 from publisher.analyzer.collector.queries.events import NEVER_STOP_TARGET_MINUTES
 from realizer.analyzer.collector import collector
 from realizer.analyzer import measurement as m
+from realizer.analyzer.analysis import candidate_steps
 from realizer.analyzer.collector import bridge
 from realizer.analyzer.projector import project_observation
 from realizer.cli.main import EXIT_REFUSED, main
@@ -94,7 +95,7 @@ class PlanTests(unittest.TestCase):
     def test_a_knob_without_a_replay_is_observed_not_measured(self):
         size_package = world.package("inplace-size-canary")
         cfg = {k: size_package["current_config"][k] for k in ("warehouse_type", "warehouse_channel", "min_clusters", "max_clusters", "auto_stop_minutes")}
-        step = next(s for s in m.candidate_steps(size_package) if s["knob"] == "warehouse_size")
+        step = next(s for s in candidate_steps(size_package) if s["knob"] == "warehouse_size")
         epochs = [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["current_value"]),
                   epoch("2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["recommended_value"])]
         plan = m.plan_measurement(size_package, epochs, "2026-11-05")

@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import config_hash, normalize_value, observed_config
+from realizer.analyzer.analysis import config_hash, normalize_value, observed_config, scenario_by_id
 from realizer.common.utils import Deferred
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
@@ -29,7 +29,7 @@ from realizer.contracts.reconciliation import (
     RegenerationRequest,
 )
 from realizer.contracts.request import RunContext
-from realizer.reconciler.matching import DECISION_KNOBS
+from realizer.reconciler.matching import DECISION_KNOBS, compatibility
 
 
 @dataclass
@@ -133,6 +133,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         )
         app_id = make_app_id(rpkg, str(selected_scenario_id), 0, source_hash, observed_hash, revid)
         invalidates = sorted({k for i in authority_changes for k in (i.get("invalidates") or [])})
+        status, annotations = compatibility(scenario_by_id(package, selected_scenario_id))
         payload = {
             "application_scope": "SCENARIO",
             "scenario_id": selected_scenario_id,
@@ -150,6 +151,8 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "modification_relation": None,
             "invalidates": invalidates,
             "dependencies": [],
+            "compatibility_status": status,
+            "annotations": annotations,
             "applied_step_refs": [{"scenario_id": i["scenario_id"], "step": i["step"], "conformance": i["implementation_conformance"]} for i in authority_changes],
             "application_episode_id": app_id,
             "source_config_hash": source_hash,

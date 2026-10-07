@@ -2,8 +2,10 @@
   "application": {
     "active_episode_id": null,
     "actor": null,
+    "annotations": [],
     "application_scope": null,
     "applied_step_refs": [],
+    "compatibility_status": null,
     "effective_from_utc": null,
     "effective_time_quality": null,
     "effective_to_utc": null,
@@ -59,9 +61,9 @@
     "entry_count": 2,
     "first_entry_id": "RLE-D142350AA4E2551E75F9F81A",
     "latest_effective_at_utc": "2026-10-01T12:00:00Z",
-    "latest_entry_id": "RLE-7B9C7A8334493FCB387DE77A",
+    "latest_entry_id": "RLE-C0C8B866A4C3B88D5256C1DD",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:1E215BBD4ECE1EDE874540277E99D6E9214477DAE41B018685AEEC2F526B3526",
+    "ledger_checkpoint_hash": "SHA256:B7C8FCA19EDE9FC2A76F3AB3EC391A92068681DD60E16A0CDECC95898ED87395",
     "measurement_count": 0,
     "validation_episode_count": 0
   },
@@ -86,7 +88,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-8C85423A4F56DB4B51A6A5CA",
+  "snapshot_id": "RSNAP-1BA97FBEF9A7D596613F6A8A",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

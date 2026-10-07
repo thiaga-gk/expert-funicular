@@ -82,6 +82,16 @@ def compare_step(step: Mapping[str, Any], obs_config: Mapping[str, Any]) -> Tupl
     return rc.ImplementationConformance.UNRELATED, None
 
 
+def compatibility(scenario: Optional[Mapping[str, Any]]) -> Tuple[Optional[str], List[str]]:
+    """``(compatibility status, annotations)`` of a scenario: a warehouse-type migration whose compatibility the Publisher
+    did not evidence (any status but COMPATIBLE) is annotated ``COMPATIBILITY_NOT_EVIDENCED``."""
+    if scenario is None:
+        return None, []
+    status = (scenario.get("compatibility") or {}).get("status")
+    unresolved = scenario.get("scenario_type") == "WAREHOUSE_TYPE_MIGRATION" and status != "COMPATIBLE"
+    return status, ["COMPATIBILITY_NOT_EVIDENCED"] if unresolved else []
+
+
 def choose_application(
     package: Mapping[str, Any], obs_config: Mapping[str, Any], *, scenario_id: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
@@ -90,6 +100,7 @@ def choose_application(
     scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
     sid = None if scenario is None else scenario.get("scenario_id")
     remeasure_days = scenario_remeasure_days(package, sid)
+    status, annotations = compatibility(scenario)
     for step in candidate_steps(package, sid):
         conf, relation = compare_step(step, obs_config)
         item = {
@@ -109,6 +120,8 @@ def choose_application(
             "invalidates": list(step.get("invalidates") or []),
             "dependencies": copy.deepcopy(step.get("dependencies") or []),
             "remeasure_days": remeasure_days,
+            "compatibility_status": status,
+            "annotations": list(annotations),
         }
         results.append(item)
         if primary is None and item["authority_eligible"] and conf in {
@@ -152,7 +165,7 @@ def independent_changes(package: Mapping[str, Any], obs_config: Mapping[str, Any
             "technique_id": None if candidate is None else candidate.get("technique_id"), "knob": knob, "step_role": None, "execution_state": None,
             "authority_eligible": False, "source_value": source.get(knob), "recommended_value": None, "observed_value": observed,
             "implementation_conformance": rc.ImplementationConformance.UNRELATED.value, "modification_relation": None,
-            "invalidates": [], "dependencies": [], "remeasure_days": None,
+            "invalidates": [], "dependencies": [], "remeasure_days": None, "compatibility_status": None, "annotations": [],
             "independent_reason": "OUT_OF_RUN_SCOPE" if scoped is not None and knob not in scoped else "NOT_RECOMMENDED",
         })
     return out
@@ -167,12 +180,32 @@ def applied_before_package(package: Mapping[str, Any], observation: Mapping[str,
     return dt.datetime.fromisoformat(str(applied).replace("Z", "+00:00")) < dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00"))
 
 
+APPLIED_CONFORMANCES = (rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value)
+
+
+def infer_scenario(package: Mapping[str, Any], obs_config: Mapping[str, Any]) -> Optional[str]:
+    """The scenario the observed configuration applies: the one with the most authority-eligible steps applied exactly
+    or modified, the recommended plan first (then the package's scenario order) on a tie and when none is applied."""
+    recommended = (package.get("recommended_plan") or {}).get("scenario_id")
+    order = [recommended] + [s.get("scenario_id") for s in package.get("scenarios") or [] if s.get("scenario_id") != recommended]
+    best, best_count = recommended, 0
+    for scenario_id in order:
+        if scenario_by_id(package, scenario_id) is None:
+            continue
+        results, _ = choose_application(package, obs_config, scenario_id=scenario_id)
+        count = sum(1 for r in results if r["authority_eligible"] and r["implementation_conformance"] in APPLIED_CONFORMANCES)
+        if count > best_count:
+            best, best_count = scenario_id, count
+    return best
+
+
 def match(package: Mapping[str, Any], observation: Mapping[str, Any], obs_config: Mapping[str, Any]) -> PlanMatch:
     """Match the observed configuration (*obs_config*, the normalized configuration of *observation*) to the plan of
     the selected scenario: the selected scenario, the step matches, the authority changes, then the scenario-scope
     decision. A change applied before the package was generated is never an application of it: every changed step is
     an independent change (reason ``APPLIED_BEFORE_PACKAGE``) and nothing carries authority."""
-    selected_scenario_id = observation.get("applied_scenario_id") or (package.get("recommended_plan") or {}).get("scenario_id")
+    # A caller-named scenario is an override; otherwise the scenario the observed configuration applies.
+    selected_scenario_id = observation.get("applied_scenario_id") or infer_scenario(package, obs_config)
     selected_scenario = scenario_by_id(package, selected_scenario_id)
     step_results, primary = choose_application(package, obs_config, scenario_id=selected_scenario_id)
     if applied_before_package(package, observation):

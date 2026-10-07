@@ -20,7 +20,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import candidate_steps, normalize_value
+from realizer.analyzer.analysis import normalize_value, plan_steps
 from realizer.contracts.measurement import EPOCH_KNOBS
 from realizer.governor.policy import authority_eligible
 
@@ -97,7 +97,8 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
     ordered = sorted(epochs, key=lambda e: dt.datetime.fromisoformat(str(e["epoch_start"]).replace("Z", "+00:00")))
     observed = ordered[-1]
     observed_cfg = epoch_config(observed)
-    step = next((s for s in candidate_steps(package) if authority_eligible(s)
+    # The recommended plan's steps first, then every other scenario's (an owner may apply an alternative such as a migration).
+    step = next((s for s in plan_steps(package) if authority_eligible(s)
                  and observed_cfg.get(str(s.get("knob"))) is not None
                  and observed_cfg.get(str(s.get("knob"))) != normalize_value(str(s.get("knob")), s.get("current_value"))), None)
     if step is None:
