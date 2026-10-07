@@ -9,7 +9,15 @@
     "warehouse_type": "PRO"
   },
   "actual_config_hash": "SHA256:9D82C042B361B077496BC7D5A7C044981C93A67CBA678EDC8BA8AEE14EEC7287",
+  "changed_knobs": [
+    "auto_stop_minutes"
+  ],
+  "evidence_id": "REVID-4B2F31F979848E2C634C5548",
   "impacted_knobs": [],
+  "observation_window": {
+    "end_utc": "2026-11-06T00:00:00Z",
+    "start_utc": "2026-10-09T00:00:00Z"
+  },
   "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
   "reasons": [
     "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM"

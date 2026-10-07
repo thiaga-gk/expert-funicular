@@ -299,6 +299,15 @@ Status:
 
 `NOT_REQUIRED | REQUESTED | RUNNING | COMPLETED | FAILED | REPLACED`
 
+A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the application episode and written as `realization/regeneration/RERUN-*.json`) carries the actual configuration and its hash, the reasons, the scenario and step, and:
+
+- `evidence_id`: the observed-configuration evidence (`REVID-*`) of the run that made the request; the ledger entry references it in `evidence_refs`;
+- `observation_window`: that observation's `start_utc` and `end_utc` (its window, else its observed time);
+- `changed_knobs`: the decision knobs (type, size, min and max clusters, auto-stop, channel; never Photon) whose actual value differs from the package's current configuration, in contract order;
+- `impacted_knobs`: the knobs the applied change invalidates downstream.
+
+The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
+
 Re-evaluation always starts from the actual observed current state. Recommendation truth changes only through a new immutable PKG emitted by Publisher.
 
 ## 23. Core invariants

@@ -9,12 +9,20 @@
     "warehouse_type": "SERVERLESS"
   },
   "actual_config_hash": "SHA256:030729C7BD6054913A3FA53BA22BB3221AF4667159330FA750EBB9DA61DF7C54",
+  "changed_knobs": [
+    "warehouse_type"
+  ],
+  "evidence_id": "REVID-02CD49F576810D7EA932586A",
   "impacted_knobs": [
     "auto_stop_minutes",
     "max_clusters",
     "min_clusters",
     "warehouse_size"
   ],
+  "observation_window": {
+    "end_utc": "2026-10-09T12:00:00Z",
+    "start_utc": "2026-10-02T12:00:00Z"
+  },
   "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
   "reasons": [
     "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM"

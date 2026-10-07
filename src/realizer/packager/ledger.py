@@ -77,6 +77,11 @@ def ledger_business_key(event_type: rc.EventType, payload: Mapping[str, Any]) ->
     return {k: payload.get(k) for k in keys if payload.get(k) is not None}
 
 
+# What a regeneration request says about the run that made it: the entry's identity leaves it out, so asking again for the
+# same configuration on a later run is the same request (suppressed as a duplicate), not a new one.
+REGENERATION_RUN_FIELDS = ("evidence_id", "observation_window")
+
+
 def make_ledger_entry(
     *, package: Mapping[str, Any], rpkg_id: str, event_type: rc.EventType,
     effective_at_utc: str, recorded_at_utc: str, payload: Mapping[str, Any],
@@ -97,7 +102,8 @@ def make_ledger_entry(
         "rpkg": rpkg_id,
         "event_type": event_type.value,
         "domain_business_key": business_key,
-        "payload": payload_dict,
+        "payload": ({k: v for k, v in payload_dict.items() if k not in REGENERATION_RUN_FIELDS}
+                    if event_type == rc.EventType.REGENERATION_REQUESTED else payload_dict),
     })
     w = package["warehouse"]
     entry = rc.RealizationLedgerEntry(
@@ -228,15 +234,20 @@ def record_creation(context: RunContext) -> None:
 
 
 def append_regeneration(package: Mapping[str, Any], output_dir: Path, request: RegenerationRequest, recorded: str, effective: str) -> None:
-    """Record a regeneration request (REGENERATION_REQUESTED on its application episode), then write its RERUN file."""
+    """Record a regeneration request (REGENERATION_REQUESTED on its application episode, referencing the evidence it was
+    made from), then write its RERUN file. A request already recorded (the same request again on a later run) keeps its
+    first entry and file: they name the evidence and window of the run that first asked."""
     rpkg = rc.make_rpkg_id(package["recommendation_package_id"])
+    evidence_id = request.payload.get("evidence_id")
     event = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.REGENERATION_REQUESTED,
         effective_at_utc=effective, recorded_at_utc=recorded, payload=request.payload,
-        application_episode_id=request.application_episode_id,
+        application_episode_id=request.application_episode_id, evidence_refs=[evidence_id] if evidence_id else (),
     )
-    append_if_absent(ledger_path(output_dir, rpkg), event)
-    write_json(regeneration_path(output_dir, request.regeneration_request_id), request.payload)
+    appended = append_if_absent(ledger_path(output_dir, rpkg), event)
+    path = regeneration_path(output_dir, request.regeneration_request_id)
+    if appended or not path.exists():
+        write_json(path, request.payload)
 
 
 def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ...]:

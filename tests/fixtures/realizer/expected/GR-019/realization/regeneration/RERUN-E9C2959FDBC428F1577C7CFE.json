@@ -9,10 +9,19 @@
     "warehouse_type": "PRO"
   },
   "actual_config_hash": "SHA256:2B523E09DAF8C7E175D0590D025BDCCC39928C790A20F33657CB07D6D878282B",
+  "changed_knobs": [
+    "warehouse_size",
+    "auto_stop_minutes"
+  ],
+  "evidence_id": "REVID-E6F4A239F4256078ED0B66C3",
   "impacted_knobs": [
     "max_clusters",
     "min_clusters"
   ],
+  "observation_window": {
+    "end_utc": "2026-10-09T12:00:00Z",
+    "start_utc": "2026-10-02T12:00:00Z"
+  },
   "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
   "reasons": [
     "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM"

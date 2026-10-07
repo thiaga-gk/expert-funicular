@@ -27,17 +27,17 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9e3ecf0a69666e0d",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "e155188385cb2ba6",
-     "realization/regeneration/RERUN-46E927B89BA067DACFE23007.json": "c7edf32c55ac901d",
-     "realization/snapshots/RSNAP-4A725D17DA5490FE1AD7AC61.json": "e155188385cb2ba6"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "eccfbb8a54c16550",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6ddeebc4040763ac",
+     "realization/regeneration/RERUN-46E927B89BA067DACFE23007.json": "d16ef3c0f0cbaaf1",
+     "realization/snapshots/RSNAP-86D65518D5F956489517D3BE.json": "6ddeebc4040763ac"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 9663,
-  "sha256": "8cc7d2e7aefee6f74e172cd66d120e20ffa2a1e07e65c2480358a81d48d31c8f"
+  "sha256": "35bd78a72df0f09b10cc87a60155471a18e3c70247f1e85fd6021601ac1a3114"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -91,10 +91,10 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e458c63443272c80",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "eb44e3aba01f5ce2",
-     "realization/regeneration/RERUN-99A178333899C46AA7E46299.json": "e8f592d36afe5c75",
-     "realization/snapshots/RSNAP-872D2FA5677A0422D0E4204E.json": "eb44e3aba01f5ce2"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4076a4f46488d19d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "9753897f9644b492",
+     "realization/regeneration/RERUN-99A178333899C46AA7E46299.json": "34ab5dac385c485b",
+     "realization/snapshots/RSNAP-1B046ABA55F0C8E202711C9C.json": "9753897f9644b492"
     }
    }
   ]
@@ -110,7 +110,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4330,
-  "sha256": "bf58c76a25e805921c0ba726bfb2bbec71e04175931a8a2fde1403c2bc191a97"
+  "sha256": "23a72d397895e67a7d7aa3b1a1e8d93fec7a52316f266312e7159f7aa24f3e8e"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2886,
