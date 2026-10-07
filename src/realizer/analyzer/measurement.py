@@ -4,7 +4,8 @@ Pure: it reads the package and the warehouse's configuration epochs and settled 
 and decides, for the step the observed configuration applies, the post-change window, the matched pre-change window and
 the auto-stop values to replay. The bridge's second pass collects exactly these windows, and the projector reads them
 back through the same plan. A step whose knob has no replay (``REPLAY_KNOBS``) gets the same windows without replay
-values: its guards and billed cost before and after the change are observed, its saving is not measured.
+values: its guards and billed cost before and after the change are observed, and its saving is measured only when the
+knob has another counterfactual (``COUNTERFACTUAL_KNOBS``: a size change's size runtime, ``size_counterfactual``).
 
 * The step is the first authority-eligible CANDIDATE step of the recommended plan whose knob differs, at the as-of
   time, from the package's value; the change epoch is the first epoch of the latest run of epochs that hold the
@@ -29,7 +30,7 @@ MAX_WINDOW_WEEKS = 12  # the Publisher's long forecast window (84 days)
 # Knobs whose counterfactual is an auto-stop replay.
 REPLAY_KNOBS = ("auto_stop_minutes",)
 # Knobs a counterfactual exists for; a change to another knob is observed, not measured.
-COUNTERFACTUAL_KNOBS = REPLAY_KNOBS
+COUNTERFACTUAL_KNOBS = REPLAY_KNOBS + ("warehouse_size",)
 # Knobs whose windows also read the running minutes by cluster count, and the knob whose measurement reads the size
 # runtime (execution times on matched statement sources and busy minutes before and after the change).
 LEVEL_KNOBS = ("min_clusters", "max_clusters")
@@ -42,7 +43,7 @@ NEVER_STOP_TARGET_MINUTES = 366 * 1440
 class MeasurementPlan:
     """What one measurement reads. ``reason`` is set when there is nothing to measure: ``NOT_APPLIED`` (no step's knob
     changed; ``post`` is None), ``NOT_SETTLED`` (no whole settled week after the change; ``post`` is None),
-    ``KNOB_NOT_REPLAYED`` (the changed knob has no replay counterfactual yet: the windows are planned as for a replayed
+    ``KNOB_NOT_REPLAYED`` (the changed knob has no counterfactual yet, ``COUNTERFACTUAL_KNOBS``: the windows are planned as for a replayed
     knob, without replay targets, so the change is observed but not measured; ``post`` is None until a whole week has
     settled). ``pre`` is None when no pre-change epoch holds a whole week. ``other_knob_changes`` are decision knobs
     other than the step's that differ between the pre-change and the observed epoch."""
@@ -136,7 +137,7 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
     if observed.get("epoch_end") is not None and last is not None:
         last = min(last, _day(observed["epoch_end"]) - dt.timedelta(days=1))
     since_change = 0 if settled is None else max(0, (settled - first_full_day(change["epoch_start"])).days + 1)
-    # A knob without a replay counterfactual is observed over the same windows (guards, billed cost before and after),
+    # A knob without a counterfactual is observed over the same windows (guards, billed cost before and after),
     # never measured: its reason stays KNOB_NOT_REPLAYED whether or not a whole week has settled.
     unreplayed = None if knob in COUNTERFACTUAL_KNOBS else "KNOB_NOT_REPLAYED"
     days = 0 if last is None else (last - first).days + 1

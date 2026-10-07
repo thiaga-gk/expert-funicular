@@ -172,6 +172,7 @@
         "replayed_target_minutes": 365,
         "restart_cost_cluster_minutes": "4"
       },
+      "size": null,
       "source_value": 365,
       "volume_ratio": "1.0064"
     },
@@ -226,9 +227,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-DD80EF930E0541A4FF76736A",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-BF52263597581B256F105860",
+    "latest_entry_id": "RLE-8C726DBCFC8D1E4A6904A80A",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:600BD53F31ABFEED1C1D8AA1FFC67142962B56345AF8D29E9D6D288A20D322AC",
+    "ledger_checkpoint_hash": "SHA256:F3783CEFF3A7B151D94279D8560761B7F45FA6DD4B7E70BF68EF4387ED6036E1",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -253,7 +254,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-1D7ED991876B8428E4ADFA7D",
+  "snapshot_id": "RSNAP-64FD7C4A225F795FCB0F2E10",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

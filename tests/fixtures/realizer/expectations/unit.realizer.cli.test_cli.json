@@ -25,25 +25,27 @@
      "VALIDATION_READY",
      "VALIDATION_STARTED",
      "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "dff1bf60fa3808a8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "19468ccfff828006",
      "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "9da6c3dc4068f007",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "151f131a197ea261",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "fdb737bda980cc3a",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
      "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
-     "realization/snapshots/RSNAP-2B5A16C5B1134852EB0AB3E8.json": "151f131a197ea261",
+     "realization/snapshots/RSNAP-0223038F93D5915B574EDD7C.json": "fdb737bda980cc3a",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "1795af7840a0ed87"
+     "realization/state/1234567890123456__wh-demo-006.json": "a18b4fa4554b658c"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 8915,
-  "sha256": "38f8a9bd876451a6cd10730f21fadec63b820d52158b7502268ca9d50d832f31"
+  "length": 14727,
+  "sha256": "69bedcfef212cb52c63a670139659147b4adfce2cf7a4615f3670fe2b4ba7154"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -127,8 +129,8 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 6600,
-  "sha256": "594d8b2f69d293d1a18b77e4456110828cf17db011b387e801cbc63f1df83220"
+  "length": 6890,
+  "sha256": "1f555eacd8aa126690809bd14ba3993b981fce6249ec4114f7903d59cd5fe07a"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4373,
