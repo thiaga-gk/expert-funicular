@@ -14,7 +14,9 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_world as world
+from tests.golden.realizer import e2e
 from tests.unit.realizer.helpers import fixture_package, outcome
+from realizer.analyzer.projector import project_observation
 from realizer.analyzer.analysis import config_hash, package_config
 from realizer.analyzer.collector.collector import demo_observation
 from realizer.realizer import realize
@@ -207,6 +209,105 @@ class ClosedEpisodeTests(unittest.TestCase):
         # once the rollback was observed, a request on the application seen again is a new one
         again = Runs(self.pkg, [requested, self.rollback, {**self.reapplied, "rollback_requested": True, "rollback_reason": "slow"}])
         self.assertEqual(len([e for e in again.lines if e["event_type"] == "ROLLBACK_REQUESTED"]), 2)
+
+
+class ClosingTimeTests(unittest.TestCase):
+    """A drift or rollback takes effect at the boundary of the configuration epoch that brought it, strictly after the
+    episode it closes started; the snapshot's application interval ends there."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = fixture_package()
+        cls.base = demo_observation(cls.pkg)    # applied 2026-10-01T12:00Z
+
+    def test_a_stale_applied_time_falls_back_to_the_observed_time(self):
+        # the caller kept the application's own applied time on the drifted observation
+        stale = later(self.base, 11, config={**self.base["config"], "min_clusters": 2}, economics=None)
+        self.assertEqual(stale["applied_at_utc"], self.base["applied_at_utc"])
+        runs = Runs(self.pkg, [self.base, stale])
+        (drift,) = [e for e in runs.lines if e["event_type"] == "DRIFT_DETECTED"]
+        self.assertEqual(drift["payload"]["effective_from_utc"], stamp(11))
+        application = runs.snapshots[1]["application"]
+        self.assertEqual((application["effective_from_utc"], application["effective_to_utc"]), (stamp(1), stamp(11)))
+
+    def test_an_applied_time_after_the_episode_start_is_the_closing_time(self):
+        runs = Runs(self.pkg, [self.base, later(self.base, 11, config={**self.base["config"], "min_clusters": 2}, economics=None, applied_at_utc=stamp(10, 9))])
+        self.assertEqual(runs.snapshots[1]["application"]["effective_to_utc"], stamp(10, 9))
+
+    def test_a_closing_time_at_or_before_the_episode_start_is_refused(self):
+        # recorded before its own application time: the next observation is later than that record, not than the episode
+        first = {**self.base, "applied_at_utc": stamp(5), "recorded_at_utc": stamp(2)}
+        drifted = {**later(self.base, 4, config={**self.base["config"], "min_clusters": 2}, economics=None, applied_at_utc=None),
+                   "window_start_utc": stamp(3), "window_end_utc": stamp(4)}
+        runs = Runs(self.pkg, [first, drifted])
+        self.assertEqual(runs.outcomes[1][0], "InputError")
+        self.assertIn("not after the application episode it closes", runs.outcomes[1][1])
+        self.assertEqual(runs.lines_after[1], runs.lines_after[0])
+
+    def test_the_first_closure_ends_the_interval(self):
+        drift = later(self.base, 11, config={**self.base["config"], "min_clusters": 2}, economics=None, applied_at_utc=None)
+        back = later(self.base, 13, config=package_config(self.pkg), economics=None, applied_at_utc=None)
+        runs = Runs(self.pkg, [self.base, drift, back])
+        self.assertEqual(runs.kinds(2), ["ROLLBACK_OBSERVED"])
+        application = runs.snapshots[2]["application"]
+        self.assertEqual((application["state"], application["effective_to_utc"]), ("ROLLED_BACK", stamp(11)))
+
+
+class LiveDailyRunsTests(unittest.TestCase):
+    """GE-12's world (wh-demo-005, auto-stop 45 -> 10), measured daily into one output directory."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = e2e.stored_package("ge12-full-scope-auto-stop")
+
+    def daily(self, changes, days):
+        spec = e2e.world_spec(5, changes)
+        observations = [project_observation(self.pkg, world.measure(self.pkg, spec, 5, as_of=f"{day}T12:00:00+00:00")) for day in days]
+        return Runs(self.pkg, observations), observations
+
+    def test_a_rollback_takes_effect_at_its_epoch_boundary(self):
+        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-11-05T09:00:00Z", "set": {"auto_stop": 45}}]
+        runs, observations = self.daily(changes, ["2026-10-23", "2026-11-06", "2026-11-12"])
+        self.assertEqual(observations[1]["applied_at_utc"], "2026-11-05T09:00:00Z")   # the epoch that rolled it back
+        self.assertEqual(runs.kinds(1), ["ROLLBACK_OBSERVED"])
+        self.assertEqual(runs.run_events(1)[0]["payload"]["effective_from_utc"], "2026-11-05T09:00:00Z")
+        self.assertEqual(runs.kinds(2), [])
+        application = runs.snapshots[2]["application"]
+        self.assertEqual((application["state"], application["effective_from_utc"], application["effective_to_utc"]),
+                         ("ROLLED_BACK", "2026-10-08T00:00:00Z", "2026-11-05T09:00:00Z"))
+
+    def test_a_reapplication_is_a_new_episode_measured_from_its_epoch(self):
+        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-11-05T00:00:00Z", "set": {"auto_stop": 45}},
+                   {"at": "2026-11-12T09:00:00Z", "set": {"auto_stop": 10}}]
+        runs, _ = self.daily(changes, ["2026-10-23", "2026-11-06", "2026-11-13", "2026-11-27"])
+        apps = [e for e in runs.lines if e["event_type"] == "APPLICATION_OBSERVED"]
+        self.assertEqual([e["payload"]["effective_from_utc"] for e in apps], ["2026-10-08T00:00:00Z", "2026-11-12T09:00:00Z"])
+        (measurement,) = [e for e in runs.run_events(3) if e["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"]
+        self.assertEqual(measurement["application_episode_id"], apps[1]["application_episode_id"])
+        self.assertEqual((measurement["payload"]["window_start_utc"], measurement["payload"]["window_end_utc"]),
+                         ("2026-11-19T00:00:00Z", "2026-11-26T00:00:00Z"))
+        snapshot = runs.snapshots[3]
+        self.assertEqual((snapshot["application"]["state"], snapshot["application"]["active_episode_id"]), ("APPLIED", apps[1]["application_episode_id"]))
+        self.assertEqual(snapshot["economics"]["realized_savings_period"], "141.13")
+
+    def test_a_later_change_is_a_drift_from_its_own_epoch(self):
+        # (whether a later step of the same plan is plan progress rather than drift is decided separately)
+        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-10-22T09:00:00Z", "set": {"size": "MEDIUM"}}]
+        runs, _ = self.daily(changes, ["2026-10-21", "2026-10-23"])
+        (drift,) = [e for e in runs.lines if e["event_type"] == "DRIFT_DETECTED"]
+        self.assertEqual(drift["payload"]["effective_from_utc"], "2026-10-22T09:00:00Z")
+        application = runs.snapshots[1]["application"]
+        self.assertEqual((application["effective_from_utc"], application["effective_to_utc"]), ("2026-10-08T00:00:00Z", "2026-10-22T09:00:00Z"))
+
+    def test_a_measured_epoch_before_the_episode_start_is_refused(self):
+        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-10-22T09:00:00Z", "set": {"size": "MEDIUM"}}]
+        spec = e2e.world_spec(5, changes)
+        first, drifted = (project_observation(self.pkg, world.measure(self.pkg, spec, 5, as_of=f"{day}T12:00:00+00:00")) for day in ("2026-10-21", "2026-10-23"))
+        drifted["measurement"]["observed_epoch_start"] = "2026-10-07T00:00:00Z"
+        runs = Runs(self.pkg, [first, drifted])
+        self.assertEqual(runs.outcomes[1][0], "InputError")
+        self.assertIn("took effect at 2026-10-07T00:00:00Z, not after the application episode it closes", runs.outcomes[1][1])
+        self.assertEqual(runs.lines_after[1], runs.lines_after[0])
 
 
 class SafetyRollbackStepTests(unittest.TestCase):

@@ -173,15 +173,16 @@ def instant(value: Any) -> dt.datetime:
 CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
 
 
-def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Optional[rc.RealizationLedgerEntry]) -> Optional[rc.RealizationLedgerEntry]:
-    """The latest drift or observed rollback recorded on *application*'s episode at or after the application (*entries* in
-    recorded order); ``None`` while the episode is open."""
+def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Optional[rc.RealizationLedgerEntry], *,
+                  first: bool = False) -> Optional[rc.RealizationLedgerEntry]:
+    """The latest (*first*: the earliest) drift or observed rollback recorded on *application*'s episode at or after the
+    application (*entries* in recorded order); ``None`` while the episode is open."""
     if application is None:
         return None
     start = instant(application.recorded_at_utc)
     closing = [e for e in entries if e.event_type in CLOSING_EVENTS and e.application_episode_id == application.application_episode_id
                and instant(e.recorded_at_utc) >= start]
-    return closing[-1] if closing else None
+    return (closing[0] if first else closing[-1]) if closing else None
 
 
 def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> RealizationHistory:

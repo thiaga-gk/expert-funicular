@@ -15,11 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import back_at_source, config_hash, normalize_value, observed_config, scenario_by_id
+from realizer.analyzer.analysis import back_at_source, config_hash, instant, normalize_value, observed_config, scenario_by_id
+from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
-from realizer.common.utils import Deferred
+from realizer.common.utils import Deferred, utc_iso
 from realizer.contracts import realization as rc
-from realizer.contracts.analysis import RealizationAnalysis
+from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.realization import make_app_id, make_rpkg_id
 from realizer.contracts.reconciliation import (
@@ -107,7 +108,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     material_config_drift = bool(changed and not rolled_back and not closed_again and (closure is None or primary is None))
     drifted = material_config_drift or (closed_again and closure.event_type == rc.EventType.DRIFT_DETECTED)
     # A drift and an observed rollback carry the time they took effect, so a recurring one is a new event.
-    closed_at = observed.effective_at_utc if material_config_drift or rolled_back else None
+    closed_at = closing_time(observed, previous_app) if (material_config_drift or rolled_back) and previous_app is not None else None
 
     if material_config_drift:
         state.drift = {
@@ -284,6 +285,30 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         # Invalidating or modified authoritative changes request fresh Publisher analysis after the measurement; the
         # run reaches that point only after validation and measurement, so it is held (and raises) until then.
         state.upstream_regeneration = Deferred.of(upstream_regeneration_request, package, app_payload, observation, policy, evidence_id=revid)
+
+
+def closing_time(observed: ObservationAnalysis, application: rc.RealizationLedgerEntry) -> str:
+    """When the drift or rollback *observed* shows took effect: the boundary of the configuration epoch that brought it.
+
+    That is the observation's ``measurement.observed_epoch_start`` when it has a measurement, else its applied (or
+    effective) time when that is after the start of *application*'s episode, else its observed time. The episode's
+    interval ends strictly after it starts, so a closing time at or before the episode's start (a measured epoch that
+    began before the application it would close, or an observation no later than it) is a malformed history and is
+    refused (``InputError``) before any lifecycle event of the observation is decided (the run keeps it as ``halt``).
+    """
+    raw = observed.raw
+    start_text = application.payload.get("effective_from_utc") or application.effective_at_utc
+    start = instant(start_text)
+    measurement = raw.get("measurement")
+    if isinstance(measurement, Mapping) and measurement.get("observed_epoch_start"):
+        closed = utc_iso(measurement["observed_epoch_start"])
+    else:
+        stated = raw.get("applied_at_utc") or raw.get("effective_at_utc")
+        closed = utc_iso(stated) if stated and instant(stated) > start else observed.observed_at_utc
+    if instant(closed) <= start:
+        raise InputError(f"the configuration change observed at {observed.observed_at_utc} took effect at {closed}, "
+                         f"not after the application episode it closes (effective from {utc_iso(start_text)})")
+    return closed
 
 
 def _rollback_pending(entries: Any, episode_id: Optional[str]) -> bool:

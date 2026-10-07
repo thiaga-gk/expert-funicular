@@ -48,6 +48,10 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     # The active episode's state: the drift or observed rollback that closed it, if any. An earlier episode's closure
     # (a drift or rollback before the configuration was applied again) is history, never the active episode's state.
     closure = closing_event(ordered, app)
+    # The applied interval ends at the first closing event (a rollback after a drift ends nothing more), at the time it
+    # took effect (an entry recorded before that time was stated carries only its effective time).
+    first_closure = closing_event(ordered, app, first=True)
+    closed_at = (first_closure.payload.get("effective_from_utc") or first_closure.effective_at_utc) if first_closure is not None else None
     drift = closure if closure is not None and closure.event_type == rc.EventType.DRIFT_DETECTED else None
     rollback = closure if closure is not None and closure.event_type == rc.EventType.ROLLBACK_OBSERVED else None
     regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
@@ -161,7 +165,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "observed_applied_value": app.payload.get("observed_value") if app else None,
         "observed_config": app.payload.get("observed_config") if app else None,
         "effective_from_utc": app.payload.get("effective_from_utc") if app else None,
-        "effective_to_utc": rollback.effective_at_utc if rollback else drift.effective_at_utc if drift else None,
+        "effective_to_utc": closed_at,
         "effective_time_quality": app.payload.get("effective_time_quality") if app else None,
         "intent_state": app.payload.get("intent_state", "UNKNOWN") if app else "UNKNOWN",
         "actor": app.payload.get("actor") if app else None,

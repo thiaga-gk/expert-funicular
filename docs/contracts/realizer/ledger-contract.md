@@ -229,6 +229,8 @@ Ledger is bitemporal:
 
 Application/economic ownership intervals use half-open `[start, end)` semantics.
 
+An application episode starts at the observation's applied time (else its observed time). A drift or an observed rollback takes effect at the boundary of the configuration epoch that brought it, stated in its payload (`effective_from_utc`): the observation's measured `observed_epoch_start` when it has a measurement, else its applied time when that is after the episode's start (an applied time carried over from the application itself is not), else its observed time. That time must be strictly after the start of the episode it closes; a history in which it is not (a measured epoch that began before the application it would close, an observation no later than it) is refused with a one-line message before any lifecycle event of the observation is recorded. The snapshot's `application.effective_to_utc` is the effective time of the first drift or rollback that closed the active episode (a rollback after a drift ends nothing more).
+
 `RSNAP.as_of_utc` is deterministic and derived from the ledger checkpoint, not projection wall clock.
 
 ## 13. Validation
