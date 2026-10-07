@@ -346,6 +346,7 @@ NO_LINEAGE = "NO_LINEAGE"
 WHEN_NOTHING_TO_APPLY = "NO_ACTIONABLE_STEP"          # plan progress: the package has no authority-eligible step
 WHEN_REGENERATION_REQUESTED = "REGENERATION_REQUESTED"  # regeneration status REQUESTED
 WHEN_REPLACED = "REPLACEMENT_LINKED"                    # regeneration status REPLACED: a replacement package is linked
+WHEN_NOT_MEASURED = "VALIDATED_WITHOUT_MEASURED_SAVINGS"  # validation PASSED, economics unavailable (no counterfactual)
 
 _RUN_THE_PUBLISHER = "Run the Publisher: regeneration requested"
 _KEEP_MONITORING = "Keep monitoring"
@@ -359,6 +360,7 @@ NEXT_ACTIONS: Mapping[Tuple[str, Optional[str]], str] = {
     ("NOT_APPLIED", None): "Apply the recommended change",
     ("NOT_APPLIED", WHEN_NOTHING_TO_APPLY): "None: no step to apply",
     ("APPLIED", None): _WAIT,
+    ("APPLIED", WHEN_NOT_MEASURED): "Keep monitoring: savings not measured for this change yet",
     ("VALIDATING", None): _WAIT,
     ("REALIZED", None): _KEEP_MONITORING,
     ("MONITORING", None): _KEEP_MONITORING,
@@ -390,6 +392,8 @@ def _condition(r: rrc.RealizationPackage, state: str) -> Optional[str]:
         candidates.append(WHEN_REGENERATION_REQUESTED)
     if progress.get("authoritative_actionable_steps") == 0:
         candidates.append(WHEN_NOTHING_TO_APPLY)
+    if (r.validation or {}).get("state") == "PASSED" and (r.economics or {}).get("available") is False:
+        candidates.append(WHEN_NOT_MEASURED)
     return next((c for c in candidates if (state, c) in NEXT_ACTIONS), None)
 
 

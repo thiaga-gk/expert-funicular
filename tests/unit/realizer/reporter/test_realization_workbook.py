@@ -160,6 +160,14 @@ class NextActionTests(unittest.TestCase):
         return dataclasses.replace(base, current_state={**base.current_state, "realization_state": state},
                                    regeneration={**base.regeneration, "status": regeneration}, application=application)
 
+    def test_an_applied_change_validated_without_measured_savings_keeps_monitoring(self):
+        # A size change: the guards passed, but no counterfactual measures its savings yet (economics unavailable).
+        r = self.lineage("APPLIED")
+        r = dataclasses.replace(r, validation={**r.validation, "state": "PASSED"}, economics={**r.economics, "available": False})
+        self.assertEqual(report.next_action(r), "Keep monitoring: savings not measured for this change yet")
+        waiting = dataclasses.replace(r, validation={**r.validation, "state": "NOT_READY"})
+        self.assertEqual(report.next_action(waiting), "Wait for validation")
+
     def test_every_realization_state(self):
         expected = {
             "NOT_APPLIED": "Apply the recommended change",
