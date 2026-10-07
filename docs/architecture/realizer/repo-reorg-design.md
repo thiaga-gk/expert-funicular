@@ -1731,4 +1731,4 @@ All phases are complete and the single-file oracle is retired. The parity record
 
 ## 27.4 Not done, on purpose
 
-The section 10 step, plan and package realization levels and the section 11 reviewer checks were not invented: the single-file release has neither, and adding them is new behavior (section 24). Integration tests against a live source need the collector and are open with it. The definition of done in section 25 is checked item by item in the parity record.
+The section 10 step, plan and package realization levels and the section 11 reviewer checks were not invented: the single-file release has neither, and adding them is new behavior (section 24). Integration tests against a live source needed the collector, which now exists (a historical note: this document is the reorganization's design record, not the current design; the current design is [`lld.md`](lld.md)). The definition of done in section 25 is checked item by item in the parity record.

@@ -1,8 +1,9 @@
-# Realizer Source & Evidence Contract v1.0.0
+# Realizer Source & Evidence Contract
 
-> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+> The Realizer specification, kept in line with the code. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
-**Status:** LOCKED
+**Status:** LOCKED  
+**Formats defined here:** observation 3.1.0 (section 16), measurement evidence 2.0.0 (section 18), backtest evidence 2.0.0 and backtest report 1.0.0 (section 19), approvals 1.0.0 (section 18, Origin); each is declared in code (`src/realizer/contracts/`) and checked against its committed schema (`schema/realization-observation.schema.json`, `schema/realization-measurement-evidence.schema.json`, `schema/realization-backtest-evidence.schema.json`, `schema/realization-approvals.schema.json`)
 
 ## 1. Purpose
 
@@ -41,7 +42,7 @@ Configuration matching answers **whether** a state is present. Causal evidence a
 
 ## 5. Photon
 
-Phase 1 follows the existing governed Publisher evidence path. Realizer does not silently expand read-only API authority. Insufficient evidence yields unknown/unconfirmed, never invented state. Photon is an observed billing-mix fact, never a configuration change: it is recorded in the observed configuration (`null` when the billing mix is mixed or unknown) and is outside matching, the configuration hash and drift.
+Photon comes from the billing mix of the measured window (`product_features.is_photon`), the Publisher's evidence path, not from a configuration API. Realizer does not silently expand read-only API authority. Insufficient evidence yields unknown/unconfirmed, never invented state. Photon is an observed billing-mix fact, never a configuration change: it is recorded in the observed configuration (`null` when the billing mix is mixed or unknown) and is outside matching, the configuration hash and drift.
 
 ## 6. Query/performance
 

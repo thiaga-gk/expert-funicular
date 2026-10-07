@@ -2,7 +2,7 @@
 
 Items that cannot be closed from code or simulation alone. Each query is read-only and returns aggregates only (no
 warehouse IDs, owner emails or SQL text), so its output can be pasted back for review. Until each is answered the
-publisher fails safe for that item: the value is unknown, never guessed.
+publisher fails safe for that item: the value is unknown, never guessed. The Realizer's counterpart, which reads the packages of this run, is [`../realizer/real-data-run.md`](../realizer/real-data-run.md).
 
 ## Warehouse snapshot retention (tracker G4b)
 
@@ -66,6 +66,7 @@ warehouses with known month-end, quarter-end or yearly peaks.
 2. Set up from a checkout (`python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`), then one live read-only publisher run on the account (`python -m publisher --profile <oauth-profile> --sql-warehouse-id <warehouse that runs the collector SQL> --source-region <aws-region> --output-dir <dir>`), keeping `evidence.json` for replay. Optional live checks: set `PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID` (and `PUBLISHER_LIVE_SERVERLESS_WAREHOUSE_ID`) and run `python -m unittest discover -s tests/integration -t .`.
 3. The backtest below on the same account.
 4. The cost-profile replays below.
+   The Realizer's backtest, live measurement and fleet run on the same account follow in [`../realizer/real-data-run.md`](../realizer/real-data-run.md); its restart-billing and realization-factor questions are the assumptions below.
 5. Review together: which assumptions held, which policy values to recalibrate (each recalibration goes through its own approval).
 
 ## Backtest of the savings math (tracker G56)
