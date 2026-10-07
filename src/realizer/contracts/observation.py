@@ -26,7 +26,10 @@ AWS_EVIDENCE_TYPES = ("MODELED", "CUR_ACTUAL")
 EFFECTIVE_TIME_QUALITIES = ("EXACT", "BOUNDED", "OBSERVED_AT_ONLY")
 CORRECTION_TYPES = ("RESTATEMENT", "RETRACTION")
 DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
-MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", "MIGRATION_BILLED_OBSERVED")
+MIGRATION_METHOD = "MIGRATION_BILLED_OBSERVED"
+MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", MIGRATION_METHOD)
+# The hard disqualifier of a warehouse-type migration: its observed delta has no reverse (new to old) model, so it is never claimed.
+NO_REVERSE_MIGRATION_MODEL = "NO_REVERSE_MIGRATION_MODEL"
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
                         "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE")
@@ -35,6 +38,11 @@ CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
                  "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
+
+def is_migration_observed(measurement: Any) -> bool:
+    """Whether an observation's ``measurement`` states a warehouse-type migration's observed delta."""
+    return bool(measurement) and measurement.get("method") == MIGRATION_METHOD
+
 
 _DECIMAL_PATTERN = r"^-?[0-9]+(\.[0-9]+)?$"
 

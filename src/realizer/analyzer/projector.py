@@ -14,7 +14,9 @@ windows it reads are exactly the ones the bridge collected, and states what they
 * for a changed knob without a replay (``KNOB_NOT_REPLAYED``): no counterfactual and no economics, but the guards before
   and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
   the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
-  that a positive amount is a cost increase. It includes whatever else moved the bill, so it is reported, never claimed;
+  that a positive amount is a cost increase. It includes whatever else moved the bill, so it is reported, never claimed.
+  A Serverless window's AWS price is a true zero there, an unknown price stays unknown. A warehouse-type change is also
+  given economics, its observed delta (``realizer.analyzer.migration_observation``), observe-only;
 * readiness inputs: settled days since the change, the window's queries, the representative regime and the evidence
   quality. The windows are whole weeks; the regime is representative when the query volume per day is within
   ``VOLUME_RATIO_BAND`` of the pre-change window's, and for an auto-stop replay whenever the volume ratio is known: the
@@ -31,6 +33,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer.analysis import normalize_value, photon_bool_from_package
 from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
+from realizer.analyzer.migration_observation import MIGRATION_METHOD, migration_delta, window_aws_hourly
 from realizer.analyzer.measurement import (
     MeasurementPlan,
     daily_in,
@@ -164,8 +167,8 @@ def billed_pre_post_change(*, pre_days: int, pre_cost: Decimal, pre_running: Dec
 
 
 def _modeled_hourly(price: Optional[Mapping[str, Any]]) -> Optional[Decimal]:
-    """A window's modeled customer AWS cluster-hour price; ``None`` unless MODELED (unknown, or Serverless)."""
-    return _d(price.get("cluster_hourly_price")) if price and price.get("status") == "MODELED" else None
+    """A window's AWS cluster-hour price in a billed change: modeled, a true zero for Serverless, ``None`` when unknown."""
+    return window_aws_hourly(price)
 
 
 def billed_change(plan: MeasurementPlan, evidence: Mapping[str, Any], ratio: Optional[Decimal],
@@ -318,6 +321,9 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
         representative = replay is not None or not volume_shifted(ratio)
     window = window_bounds(plan.post) if plan.post else (None, None)
     economics = None
+    migration = None if replay is not None else migration_delta(plan, evidence, ratio, package_currency(package))
+    if migration is not None:
+        economics = migration["economics"]
     if replay is not None:
         economics = {
             "currency": replay["currency"] or package_currency(package),
@@ -340,15 +346,15 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     if plan.step is not None:
         detail = None if replay is None else {k: (_fmt(v, "0.000001") if isinstance(v, Decimal) else v) for k, v in replay["detail"].items()}
         measurement = {
-            "method": REPLAY_METHOD if replay is not None else None,
+            "method": REPLAY_METHOD if replay is not None else MIGRATION_METHOD if migration is not None else None,
             "knob": plan.step["knob"], "source_value": plan.step["current_value"], "applied_value": plan.observed_epoch.get(plan.step["knob"]),
             "change_epoch_start": utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch else None,
             "observed_epoch_start": utc_iso(plan.observed_epoch["epoch_start"]),
             "previous_epoch_start": utc_iso(plan.previous_epoch["epoch_start"]) if plan.previous_epoch else None,
-            "not_measured_reason": plan.reason,
+            "not_measured_reason": None if migration is not None else plan.reason,
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
-            "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
+            "cost_basis": None if replay is None and migration is None else (replay or migration)["cost_basis"], "replay": detail,
             "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
             "size": None, "levels": None,
             "cross_check": None if cross_check is None else {
@@ -370,7 +376,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
         "representative_regime": representative, "evidence_quality": evidence_quality(plan, evidence), "workload": {},
         "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None,
                         "guards": guard_metrics(evidence, pre, post) if plan.post else None},
-        "financial_quality": financial_quality(plan, evidence, replay),
+        "financial_quality": financial_quality(plan, evidence, replay or migration),
         "economics": economics, "overlap_count": 0, "origin_attribution": origin_attribution, "intent_state": intent_state,
         "intent_reference": intent_reference, "actor": None, "applied_scenario_id": None,
         "rollback_requested": False, "rollback_observed": False, "rollback_reason": None, "replacement_package_id": None,
