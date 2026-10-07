@@ -12,11 +12,13 @@ from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.reconciliation import ReconciliationResult
 from realizer.contracts.request import RunContext
 from realizer.reconciler import lifecycle, lineage, matching
+from realizer.reconciler.policy_diff import policy_diff
 
 
 def run(context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult) -> ReconciliationResult:
     """The plan match and the lifecycle events of this run's observation (none for a lineage-only run), then the events
-    that follow from the warehouse's lineages taken together (``lineage_events``).
+    that follow from the warehouse's lineages taken together and the PolicyDiff of the active episode
+    (``lineage_events``: the PolicyDiff first, then the cross-lineage events).
 
     ``run`` never raises. A failure (malformed package plan or observation, a policy whose snapshot cannot be hashed,
     insufficient-evidence input) is kept as ``halt`` together with the events decided before it, so the engine records
@@ -37,7 +39,8 @@ def run(context: RunContext, analysis: RealizationAnalysis, governance: Governan
         if result.halt is not None:
             return result
     try:
-        events = lineage.resolve(context, analysis, result)
+        diff = policy_diff(context, analysis, result)
+        events = ((diff,) if diff is not None else ()) + lineage.resolve(context, analysis, result)
     except Exception as exc:  # noqa: BLE001 - kept, raised by the engine after the run's own events
         return dataclasses.replace(result, halt=exc)
     return dataclasses.replace(result, lineage_events=events) if events else result

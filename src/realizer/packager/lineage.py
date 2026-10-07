@@ -1,5 +1,5 @@
-"""Packager across lineages: the source package copy, the cross-lineage events, the other lineages' re-projected
-snapshots and the warehouse's state index.
+"""Packager across lineages: the source package copy, the cross-lineage events, the policy snapshots, the other
+lineages' re-projected snapshots and the warehouse's state index.
 
 * ``keep_source`` writes the copy of the source package a lineage is created from
   (``realization/sources/<workspace>__<warehouse>/<PKG>.json``). The Publisher's package is a public contract artifact
@@ -8,6 +8,8 @@ snapshots and the warehouse's state index.
 * ``record_events`` appends each cross-lineage event the Reconciler decided to its lineage's ledger: the run's own
   (whose ledger the run already writes) and the others, each under that ledger's advisory lock for the append. An event
   already recorded is suppressed by its id, so a run that learns nothing new appends nothing.
+* ``keep_policy`` writes the settings of the policy a validation or a PolicyDiff was recorded under
+  (``realization/policies/<PSNAP>.json``), so a later PolicyDiff can name the settings that changed.
 * ``state_index`` is the per-warehouse view of every lineage's snapshot (``realization/state/<workspace>__<warehouse>.json``):
   rebuilt from the ledgers on every run and never read back, so it is never a second source of truth.
 """
@@ -19,11 +21,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Sequence, Set, Tuple
 
-from realizer.analyzer.lineages import source_path, warehouse_key
+from realizer.analyzer.lineages import policies_dir, source_path, warehouse_key
 from realizer.common.logging import LOGGER
 from realizer.common.utils import write_json
 from realizer.contracts import realization as rc
 from realizer.contracts.lineage import LineageEvent, LineageRecord
+from realizer.governor.policy import policy_to_dict
 from realizer.packager.ledger import append_if_absent, ledger_path, load_ledger, make_ledger_entry
 from realizer.packager.snapshot import project_snapshot
 
@@ -37,6 +40,13 @@ def keep_source(output_dir: Path, package: Mapping[str, Any]) -> Path:
     """Write the copy of *package* its lineage was created from (unchanged content); return its path."""
     path = source_path(output_dir, package)
     write_json(path, package)
+    return path
+
+
+def keep_policy(output_dir: Path, policy: Any) -> Path:
+    """Write the settings of *policy* under its snapshot id; return the path."""
+    path = policies_dir(output_dir) / f"{policy.snapshot_id}.json"
+    write_json(path, {"policy_snapshot_id": policy.snapshot_id, "policy": policy_to_dict(policy)})
     return path
 
 
@@ -168,5 +178,10 @@ def project_others(output_dir: Path, others: Sequence[LineageRecord], grown: Set
     return tuple(changed), every
 
 
-__all__ = ["STATE_INDEX_VERSION", "keep_source", "project_others", "record_events", "state_index",
-           "state_index_path"]
+def recorded_policy(events: Sequence[LineageEvent], validation_recorded: bool) -> bool:
+    """Whether the run recorded anything under its policy (a validation or a PolicyDiff), so its settings are kept."""
+    return validation_recorded or any(e.event_type == rc.EventType.POLICY_DIFF_RECORDED for e in events)
+
+
+__all__ = ["STATE_INDEX_VERSION", "keep_policy", "keep_source", "project_others", "record_events",
+           "recorded_policy", "state_index", "state_index_path"]

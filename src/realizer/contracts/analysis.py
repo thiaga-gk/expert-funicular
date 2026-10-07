@@ -83,7 +83,7 @@ class RealizationAnalysis:
 
     ``config_drift_observed`` is true when the observed configuration hash differs from the one recorded with the
     previous application and the observation is later than that application's record time. ``warehouse`` is the rest
-    of the output directory's history of the warehouse: its other lineages.
+    of the output directory's history of the warehouse: its other lineages and the recorded policy snapshots.
     """
     observation: Optional[ObservationAnalysis]
     history: RealizationHistory

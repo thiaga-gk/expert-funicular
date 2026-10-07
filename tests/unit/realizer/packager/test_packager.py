@@ -65,7 +65,12 @@ class EveryScenarioRunTests(unittest.TestCase):
                 else:
                     self.assertEqual(relative, [])
                 reruns = [rel for rel in relative if rel.startswith("realization/regeneration/")]
-                self.assertEqual(len(reruns), len(relative) - (1 if run.observation else 0))
+                # the settings of the policy a validation or a PolicyDiff was recorded under are kept, last
+                policies = [rel for rel in relative if rel.startswith("realization/policies/")]
+                if reviewed.validation is not None:
+                    self.assertEqual(policies, [f"realization/policies/{context.policy.snapshot_id}.json"])
+                    self.assertEqual(relative[-1], policies[0])
+                self.assertEqual(len(reruns), len(relative) - len(policies) - (1 if run.observation else 0))
                 rec = reviewed.reconciliation
                 if rec.terminal_regeneration is not None:
                     self.assertEqual(reruns, [f"realization/regeneration/{rec.terminal_regeneration.regeneration_request_id}.json"])

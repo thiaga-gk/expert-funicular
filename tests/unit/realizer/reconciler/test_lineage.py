@@ -1,4 +1,5 @@
-"""Reconciler decisions across lineages (src/realizer/reconciler/lineage.py), as pure functions.
+"""Reconciler decisions across lineages (src/realizer/reconciler/lineage.py) and the PolicyDiff
+(src/realizer/reconciler/policy_diff.py), as pure functions.
 
 The lineages are real Publisher packages (the stored package of ``ge07-profile-balanced-exact`` and the fixtures); where a
 rule needs a package the demo fleet does not produce (a successor that is a material improvement, or whose change applied
@@ -16,6 +17,7 @@ from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import RealizerPolicy
 from realizer.reconciler import lineage
+from realizer.reconciler.policy_diff import changed_settings
 
 BALANCED = json.loads((e2e.case_dir("ge07-profile-balanced-exact") / e2e.PACKAGE_FILE).read_text(encoding="utf-8"))
 AGGRESSIVE = json.loads((e2e.case_dir("ge06-profile-aggressive-modified") / e2e.PACKAGE_FILE).read_text(encoding="utf-8"))
@@ -136,6 +138,13 @@ class SuccessionAndRollbackTests(unittest.TestCase):
         self.assertEqual(lineage.rollbacks([view(canary), view(rollback, back)]), [])  # the canary was never observed applied
         late = (cut[0], {**cut[1], "effective_from_utc": "2026-10-04T00:00:00Z"}, cut[2], cut[3])
         self.assertEqual(lineage.rollbacks([view(canary, late), view(rollback, back)]), [])  # applied after the rollback
+
+
+class PolicyDiffTests(unittest.TestCase):
+    def test_changed_settings_name_each_field_or_nothing_without_the_previous_policy(self):
+        self.assertEqual(changed_settings({"a": "1", "b": "2"}, {"a": "1", "b": "3", "c": "4"}),
+                         [{"field": "b", "previous": "2", "current": "3"}, {"field": "c", "previous": None, "current": "4"}])
+        self.assertIsNone(changed_settings(None, {"a": "1"}))
 
 
 if __name__ == "__main__":

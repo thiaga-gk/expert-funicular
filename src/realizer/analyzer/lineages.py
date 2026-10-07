@@ -1,16 +1,17 @@
 """Analyzer read side of a warehouse's lineages: the other realization lineages of the run's warehouse in the output
-directory.
+directory, and the policy snapshots recorded there.
 
 Each lineage is found through the copy of its source package the Realizer keeps when the lineage is created
 (``realization/sources/<workspace>__<warehouse>/<PKG>.json``): the copy names the package, the package names its
 realization package (RPKG-*) and so its ledger. A copy is checked like any package the Realizer reads
 (``validate_package``: an edited copy is refused, never read), and its ledger is loaded as the run's own is (a corrupt
-ledger fails the run). Nothing here writes.
+ledger fails the run). Policy snapshots (``realization/policies/<PSNAP>.json``) are the settings of each policy a
+validation or a PolicyDiff was recorded under. Nothing here writes.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping, Tuple
+from typing import Any, Dict, Mapping, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json
@@ -42,6 +43,10 @@ def source_path(output_dir: Path, package: Mapping[str, Any]) -> Path:
     return sources_dir(output_dir, package) / f"{safe_name(package['recommendation_package_id'])}.json"
 
 
+def policies_dir(output_dir: Path) -> Path:
+    return output_dir / "realization" / "policies"
+
+
 def read_lineages(output_dir: Path, package: Mapping[str, Any]) -> Tuple[LineageRecord, ...]:
     """Every other lineage of *package*'s warehouse kept in *output_dir*, in package id order, with its ledger.
 
@@ -70,6 +75,23 @@ def read_lineages(output_dir: Path, package: Mapping[str, Any]) -> Tuple[Lineage
     return tuple(records)
 
 
+def read_policy_snapshots(output_dir: Path) -> Dict[str, Mapping[str, Any]]:
+    """The recorded policy snapshots: PSNAP id -> policy settings (empty when none was recorded)."""
+    folder = policies_dir(output_dir)
+    if not folder.is_dir():
+        return {}
+    snapshots = {}
+    for path in sorted(folder.glob("PSNAP-*.json")):
+        try:
+            document = load_json(path)
+        except (OSError, ValueError) as exc:
+            raise InputError(f"policy snapshot {path.name} cannot be read ({type(exc).__name__})") from exc
+        if not isinstance(document, Mapping) or document.get("policy_snapshot_id") != path.stem or not isinstance(document.get("policy"), Mapping):
+            raise InputError(f"policy snapshot {path.name} is not a policy snapshot of its name")
+        snapshots[path.stem] = document["policy"]
+    return snapshots
+
+
 def read_warehouse_history(output_dir: Path, package: Mapping[str, Any]) -> WarehouseHistory:
-    """The other lineages of the package's warehouse."""
-    return WarehouseHistory(lineages=read_lineages(output_dir, package))
+    """The other lineages of the package's warehouse and the recorded policy snapshots."""
+    return WarehouseHistory(lineages=read_lineages(output_dir, package), policy_snapshots=read_policy_snapshots(output_dir))

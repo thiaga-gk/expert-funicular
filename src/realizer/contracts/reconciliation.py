@@ -131,8 +131,9 @@ class ReconciliationResult:
     after its measurement once the remeasurement window has passed; it is held lazily because the run reaches it only
     after validation and measurement.
 
-    ``lineage_events`` are the events that follow from the warehouse's lineages taken together: ownership of a change
-    several lineages applied, supersession, successor links and a rollback by a later package. Each names the lineage whose ledger it goes to (the run's own or
+    ``lineage_events`` are the events that follow from the warehouse's lineages taken together and from a policy
+    change: ownership of a change several lineages applied, supersession, successor links, a rollback by a later
+    package, and a PolicyDiff on the active episode. Each names the lineage whose ledger it goes to (the run's own or
     another); they are recorded after the run's own events, and only when nothing halted.
 
     ``halt`` is the exception reconciliation raised, if any. Everything above it was decided before the exception, so

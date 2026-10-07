@@ -25,6 +25,7 @@ from tests import realizer_world
 from tests.golden.realizer import e2e
 from realizer.analyzer.collector.collector import demo_observation
 from realizer.analyzer.projector import project_observation
+from realizer.common.errors import InputError
 from realizer.contracts.realization import make_rpkg_id
 from realizer.packager.ledger import ledger_path, load_ledger
 from realizer.realizer import realize
@@ -245,6 +246,15 @@ class CanaryRollbackTests(unittest.TestCase):
                                  ("CANARY_ROLLBACK", self.rollback["recommendation_package_id"]))
                 self.assertEqual(later["current_state"]["realization_state"], "SAFETY_ACTION_APPLIED")
         self.assertEqual(outcomes[0], outcomes[1])
+
+
+class ReplacementGateTests(unittest.TestCase):
+    def test_a_package_cannot_replace_itself(self):
+        package, observation = stored_run(BALANCED)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(InputError, "replacement_package_id .* is the package itself"):
+                realize(package, {**observation, "replacement_package_id": package["recommendation_package_id"]}, Path(tmp))
+            self.assertEqual(list(Path(tmp).iterdir()), [])  # refused before anything is written
 
 
 if __name__ == "__main__":

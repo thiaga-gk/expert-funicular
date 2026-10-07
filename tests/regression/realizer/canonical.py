@@ -9,8 +9,9 @@ A *scenario* (``tests/fixtures/realizer/observations/<name>.json``) names a froz
 observation (or none), an optional Realizer policy mapping and an optional ``replay_through`` cut. The canonical output
 of a scenario is a map of relative path -> text:
 
-- ``realization/{ledger,packages,snapshots,evidence,regeneration,state}/*``: every file the engine wrote, byte for
-  byte (RLE JSONL, RPKG, RSNAP, REVID evidence, RERUN regeneration request, the warehouse's state index), except the source package copies under ``realization/sources/``: each is the scenario's frozen package
+- ``realization/{ledger,packages,snapshots,evidence,regeneration,policies,state}/*``: every file the engine wrote, byte
+  for byte (RLE JSONL, RPKG, RSNAP, REVID evidence, RERUN regeneration request, PSNAP policy settings, the warehouse's
+  state index), except the source package copies under ``realization/sources/``: each is the scenario's frozen package
   itself (``SOURCE_COPIES``), so the baseline does not store it twice;
 - ``runs.json``: per run, the returned snapshot's RPKG/RSNAP IDs and its legacy Reporter compatibility projection;
 - ``report.json``: the Realizer Workbook Extension projection (summary and timeline rows) of the final snapshot.

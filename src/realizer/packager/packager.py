@@ -2,8 +2,9 @@
 
 The capabilities before it decide; the Packager records. ``begin`` records the lineage (and keeps the copy of its source
 package) before the Analyzer reads anything, ``run`` records every event the other capabilities decided, in the order
-the single-file Realizer recorded them (``realizer.packager.ledger.commit_events``), then the cross-lineage events the
-Reconciler decided, each in its lineage's ledger (``realizer.packager.lineage.record_events``), reloads the ledger, applies the replay cut and projects the snapshot
+the single-file Realizer recorded them (``realizer.packager.ledger.commit_events``), then the cross-lineage events and
+the PolicyDiff the Reconciler decided, each in its lineage's ledger (``realizer.packager.lineage.record_events``), keeps
+the settings of the policy it recorded under, reloads the ledger, applies the replay cut and projects the snapshot
 (``realizer.packager.snapshot.project_snapshot``), re-projects the other lineages it appended to and builds the
 warehouse's state index. The final files (the realization packages, the snapshots and the state index) are written by
 the Reporter from the result, not here.
@@ -43,6 +44,8 @@ def run(context: RunContext, reviewed: ReviewResult) -> PackagingResult:
     events = reviewed.reconciliation.lineage_events
     others = reviewed.analysis.warehouse.lineages
     grown = lineage.record_events(request.output_dir, context.realization_package_id, request.package, events, others)
+    if lineage.recorded_policy(events, reviewed.validation is not None):
+        written = written + (lineage.keep_policy(request.output_dir, context.policy),)
     entries = ledger.load_ledger(ledger.ledger_path(request.output_dir, context.realization_package_id))
     if request.replay_through:
         cut = utc_iso(request.replay_through)

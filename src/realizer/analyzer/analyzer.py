@@ -14,7 +14,7 @@ from realizer.packager.ledger import ledger_path, load_ledger
 
 def run(context: RunContext) -> RealizationAnalysis:
     """Normalize the observation (``None`` for a lineage-only run), read the ledger the run starts from and the rest of
-    the warehouse's history in the output directory (its other lineages).
+    the warehouse's history in the output directory (its other lineages and the recorded policy snapshots).
 
     Everything is only read. A malformed observation raises here, as it raised at the start of the engine's
     observation processing; an edited source package copy or a corrupt ledger of another lineage raises after it.
