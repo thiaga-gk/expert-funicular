@@ -14,7 +14,7 @@ the Reporter from the result, not here.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, ContextManager, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, ContextManager, Dict, Iterable, Mapping, Optional, Tuple
 
 from realizer.analyzer.lineages import key_of
 from realizer.common.utils import load_json, parse_utc
@@ -49,18 +49,19 @@ def open_lineages(state_dir: Path, workspace_id: Any, warehouse_id: Any) -> Tupl
 
 
 def warehouse_view(state_dir: Path, workspace_id: Any, warehouse_id: Any, realization_package_ids: Iterable[str]) -> Tuple[
-        Tuple[rc.RealizationPackage, ...], Dict[str, Tuple[rc.RealizationLedgerEntry, ...]], Optional[Mapping[str, Any]]]:
+        Tuple[rc.RealizationPackage, ...], Dict[str, Tuple[rc.RealizationLedgerEntry, ...]], Optional[Mapping[str, Any]], Dict[str, Mapping[str, Any]]]:
     """What a fleet run hands to the realization workbook for one warehouse: the latest realization package of each of
     *realization_package_ids* (projected from its whole ledger, as the Reporter last wrote it), in source package id
-    order, their ledger entries by realization package id, and the warehouse's state index as written (``None`` when
-    there is none)."""
+    order, their ledger entries by realization package id, the warehouse's state index as written (``None`` when there
+    is none) and their source packages by package id."""
     wanted = set(realization_package_ids)
     kept = [(record, snapshot) for record, snapshot in lineage.kept_snapshots(state_dir, workspace_id, warehouse_id)
             if record.realization_package_id in wanted]
     kept.sort(key=lambda pair: pair[0].recommendation_package_id)
     path = lineage.state_index_path(state_dir, {"warehouse": {"workspace_id": workspace_id, "warehouse_id": warehouse_id}})
     index = load_json(path) if path.is_file() else None
-    return (tuple(snapshot for _, snapshot in kept), {record.realization_package_id: tuple(record.entries) for record, _ in kept}, index)
+    return (tuple(snapshot for _, snapshot in kept), {record.realization_package_id: tuple(record.entries) for record, _ in kept}, index,
+            {record.recommendation_package_id: record.package for record, _ in kept})
 
 
 def begin(context: RunContext) -> None:

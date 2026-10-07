@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.unit.realizer.helpers import canonical, tree  # noqa: F401  (src/realizer on the path)
+from tests.unit.realizer.helpers import ROOT  # noqa: F401  (src/realizer on the path)
 from tests import realizer_world as world
 from realizer.cli.main import main
 from realizer.common import logging as rlogging

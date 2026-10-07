@@ -3,7 +3,7 @@
 The history of every warehouse (ledgers, evidence, regeneration requests, measurement evidence, source package copies,
 policies and state index, all under ``realization/``) lives in one state directory that outlives the runs, by default
 ``<output-dir>/state``. A run's projections (``realization/packages/`` and ``realization/snapshots/``), the run manifest
-(``manifest.json``), the realization workbook (``workbook.xlsx``) and the log (``realizer.log``) go into a new run
+(``manifest.json``), the realization workbook (``realization_workbook.xlsx``) and the log (``realizer.log``) go into a new run
 folder ``<output-dir>/run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/``, the Publisher's folder rule
 (``publisher.config.output_layout.partitioned_run_dir``: the UTC start of the run, a folder never reused). With
 ``--flat-output`` the state and the projections both go under ``--output-dir`` itself (the single-folder layout, the
@@ -25,7 +25,7 @@ from publisher.config.output_layout import RUN_DATE_PREFIX, RUN_TS_PREFIX, lates
 DEFAULT_STATE_DIRNAME = "state"
 RUN_MANIFEST_NAME = "manifest.json"
 RUN_LOG_NAME = "realizer.log"
-WORKBOOK_NAME = "workbook.xlsx"
+WORKBOOK_NAME = "realization_workbook.xlsx"
 PUBLISHER_MANIFEST_NAME = "manifest.json"
 
 __all__ = ["DEFAULT_STATE_DIRNAME", "PUBLISHER_MANIFEST_NAME", "RUN_DATE_PREFIX", "RUN_LOG_NAME", "RUN_MANIFEST_NAME", "RUN_TS_PREFIX",

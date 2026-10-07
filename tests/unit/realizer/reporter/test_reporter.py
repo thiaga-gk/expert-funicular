@@ -351,7 +351,7 @@ class ReporterShapeTests(unittest.TestCase):
         """The realization workbook renderer (``workbook.py``) follows the Publisher workbook's rules with its own code:
         the products share no workbook module. The projection it renders is ``contracts/report.py``."""
         folder = Path(reporter.__file__).parent
-        self.assertEqual(sorted(p.name for p in folder.glob("*.py")), ["__init__.py", "reporter.py", "workbook.py"])
+        self.assertEqual(sorted(p.name for p in folder.glob("*.py")), ["__init__.py", "reporter.py", "run_manifest.py", "workbook.py"])
         imported = set()
         for node in ast.walk(ast.parse((folder / "workbook.py").read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):

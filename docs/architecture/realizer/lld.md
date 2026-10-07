@@ -80,6 +80,9 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 <run>/realization/packages/RPKG-*.json                                           # the projections (<output>/run_date=.../run_ts=.../)
 <run>/realization/snapshots/RSNAP-*.json
 <run>/realizer.log
+<run>/manifest.json                                                              # fleet run: run manifest
+<run>/realization_workbook.xlsx                                                  # fleet run: realization workbook
+<state>/realization/state/<workspace>__<warehouse>.lock                          # per-warehouse lock, while a run holds it
 <output>/realization/backtest/evidence-<as-of>.json                              # backtest evidence
 <output>/realization/backtest/backtest-<as-of>.json                              # backtest report
 ```

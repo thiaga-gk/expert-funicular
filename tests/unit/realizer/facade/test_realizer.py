@@ -204,7 +204,7 @@ class NoDomainLogicTests(unittest.TestCase):
     functions = {n.name: n for n in tree_.body if isinstance(n, ast.FunctionDef)}
 
     def test_its_own_functions_are_the_orchestration_entries(self):
-        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize", "realize_package"})
+        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize", "realize_package", "realize_fleet"})
         self.assertEqual([n.name for n in self.tree_.body if isinstance(n, ast.ClassDef)], [])
 
     def test_the_pipeline_function_is_a_straight_line_of_stage_calls(self):
@@ -241,7 +241,7 @@ class NoDomainLogicTests(unittest.TestCase):
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
         allowed = {"build_context", "validate_package", "validate_observation", "validate_replay_through", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
-                   "packager.lock", "packager.begin", "reporter.run", "packager.warehouse_lock"}
+                   "packager.lock", "packager.begin", "reporter.run", "packager.warehouse_lock", "run_fleet"}
         seen = set()
         for function in self.functions.values():
             for node in ast.walk(function):
@@ -263,16 +263,16 @@ class NamespaceTests(unittest.TestCase):
     def test_star_import_exposes_only_the_entry_points_and_the_cli_pass_throughs(self):
         self.assertEqual(sorted(facade.__all__), ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary",
                                                   "build_context", "load_observation", "measure_demo", "measure_live", "observe_from_evidence",
-                                                  "realize", "realize_package", "realize_request"])
+                                                  "realize", "realize_fleet", "realize_package", "realize_request"])
         self.assertTrue(all(hasattr(facade, name) for name in facade.__all__))
 
     def test_the_public_names_are_the_entry_points_the_imports_they_need_and_the_cli_pass_throughs(self):
         names = {n for n, value in vars(facade).items() if not n.startswith("_") and not inspect.ismodule(value)}
         self.assertEqual(names, {
-            "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
+            "Any", "FleetReport", "FleetRequest", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
             "load_observation", "make_rpkg_id", "measure_demo", "measure_live", "observe_from_evidence",
-        "realize", "realize_package", "realize_request",
+        "realize", "realize_fleet", "realize_package", "realize_request",
             "validate_observation", "validate_package", "validate_replay_through",
         })
 

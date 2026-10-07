@@ -1,9 +1,11 @@
 """``realizer`` console entry point (also ``python -m realizer``).
 
-The Realizer has one command (a realize run, or a backtest with ``--backtest``), so the arguments go straight to
-``realizer.cli.realize.run``. Exit status: 0 on success; 2 for a refused run (a ``RealizerError``: an input the Realizer
-does not accept, an unreadable file or ledger), whose message goes to stderr, and for bad arguments (argparse). Any other exception is a defect: it is logged by type only
-(its message may carry data values) and re-raised for the traceback (status 1).
+The Realizer has one command (a realize run, a fleet run with ``--publisher-run``, or a backtest with ``--backtest``), so
+the arguments go straight to ``realizer.cli.realize.run``. Exit status: 0 on success; 2 for a refused run (a
+``RealizerError``: an input the Realizer does not accept, an unreadable file or ledger), whose message goes to stderr,
+and for bad arguments (argparse). A fleet run returns its own status once its warehouses have run: 1 when any warehouse
+crashed, else 2 when any was refused, else 0. Any other exception is a defect: it is logged by type only (its message
+may carry data values) and re-raised for the traceback (status 1). The run log file is closed when the run ends.
 """
 from __future__ import annotations
 

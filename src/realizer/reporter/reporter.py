@@ -7,9 +7,9 @@ then the same two files for each other lineage of the warehouse the run re-proje
 (``realization/state/<workspace>__<warehouse>.json``). ``legacy_compatibility`` is the Reporter
 v1.0.0 compatibility projection of a snapshot (nothing on the realize path calls it).
 
-The single-file release's ``.xlsx`` renderer was not carried over: it needs the ``artifact_tool`` runtime and the retired
-Publisher's workbook reporter, and nothing on the realize path calls it. The workbook projection it renders is
-``realizer.contracts.report``; a renderer is added when it has code to hold.
+The realization workbook of a fleet run is rendered by ``realizer.reporter.workbook`` (from the projection in
+``realizer.contracts.report``) and the fleet run's manifest by ``realizer.reporter.run_manifest``; a single realize run
+writes neither.
 """
 from __future__ import annotations
 

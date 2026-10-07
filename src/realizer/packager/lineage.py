@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple
 
-from realizer.analyzer.lineages import key_of, policies_dir, read_kept_lineages, source_path, warehouse_key
+from realizer.analyzer.lineages import policies_dir, read_kept_lineages, source_path, warehouse_key
 from realizer.common.logging import LOGGER
 from realizer.common.utils import write_json
 from realizer.contracts import realization as rc

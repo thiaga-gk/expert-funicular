@@ -34,6 +34,7 @@ from realizer.analyzer.collector.demo_world import measure_demo
 from realizer.config.loader import validate_observation, validate_package, validate_replay_through
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
+from realizer.contracts.fleet import FleetReport, FleetRequest
 from realizer.contracts.report import RealizationReport
 from realizer.contracts.request import RealizationRequest, RunContext
 from realizer.estimator import estimator
@@ -45,7 +46,7 @@ from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
 __all__ = ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
-           "load_observation", "measure_demo", "measure_live", "observe_from_evidence", "realize", "realize_package", "realize_request"]
+           "load_observation", "measure_demo", "measure_live", "observe_from_evidence", "realize", "realize_fleet", "realize_package", "realize_request"]
 
 # ``RealizerPolicy``, ``load_observation``, ``measure_demo``, ``measure_live`` and ``observe_from_evidence`` are re-exported for
 # the CLI, which reaches the core only here; so are the backtest entry points (``backtest_live``, ``backtest_from_evidence``,
@@ -102,6 +103,13 @@ def realize(
         package=package, observation=observation, output_dir=output_dir, policy=policy, replay_through=replay_through,
         state_dir=state_dir,
     )).realization
+
+
+def realize_fleet(request: FleetRequest) -> FleetReport:
+    """One fleet run over a Publisher run (``realizer.fleet.run_fleet``): every warehouse, one at a time, each failure
+    isolated to its warehouse, then the run manifest and the realization workbook."""
+    from realizer.fleet import run_fleet  # the fleet sequences realize_request, so it imports this module
+    return run_fleet(request)
 
 
 if __name__ == "__main__":
