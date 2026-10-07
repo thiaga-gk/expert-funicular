@@ -346,7 +346,7 @@ class LifecycleScenarioTests(unittest.TestCase):
         self.assertFalse(second.validation_due)
         # requested on an application this run opens
         (only,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "rollback_requested": True, "rollback_reason": "slow"}])]
-        self.assertEqual(only.rollback_requested, {"reason": "slow"})
+        self.assertEqual(only.rollback_requested, {"reason": "slow", "effective_from_utc": self.base["observed_at_utc"]})
         self.assertEqual(only.rollback_episode_id, only.active.application_episode_id)
         # nothing applied, no history: nothing to roll back, whatever the flag says
         (none,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "config": dict(self.source), "rollback_observed": True}])]
