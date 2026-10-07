@@ -7,9 +7,9 @@ and MUST NOT recompute recommendation or realization economics.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.utils import parse_utc
 from realizer.contracts import realization as rrc
@@ -32,6 +32,33 @@ class RealizationReport:
     """
     realization: rrc.RealizationPackage
     files: Tuple[Path, ...] = ()
+
+
+# Run status of one warehouse in a fleet run (the run manifest and the realization workbook).
+RUN_STATUS_OK = "OK"
+RUN_STATUS_REFUSED = "REFUSED"  # a RealizerError: an input the Realizer does not accept, an unreadable file, a locked ledger
+RUN_STATUS_CRASHED = "CRASHED"  # any other exception: a defect, recorded by its type only
+RUN_STATUSES = (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED)
+
+
+@dataclass(frozen=True)
+class WarehouseRun:
+    """What one fleet run learned about one warehouse: the hand-off from the run to the realization workbook.
+
+    ``status`` is one of ``RUN_STATUSES``; ``reason`` is the refusal message (a ``RealizerError``'s, which never carries
+    data values) or the exception type of a crash, ``None`` when OK. ``realizations`` are the realization packages the
+    run projected for the warehouse (every lineage it realized or re-projected, in package id order; empty when the
+    warehouse failed before any was written), ``ledgers`` their ledger entries by realization package id, and
+    ``state_index`` the warehouse's state index as written (``None`` when none was).
+    """
+    workspace_id: str
+    warehouse_id: str
+    status: str
+    reason: Optional[str] = None
+    recommendation_package_id: Optional[str] = None
+    realizations: Tuple[rrc.RealizationPackage, ...] = ()
+    ledgers: Mapping[str, Sequence[rrc.RealizationLedgerEntry]] = field(default_factory=dict)
+    state_index: Optional[Mapping[str, Any]] = None
 
 
 @dataclass(frozen=True)
