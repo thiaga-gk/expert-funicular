@@ -6,11 +6,11 @@ This page points to where each command and meaning lives and does not restate th
 
 ## Order of the run
 
-The sequence across both products is in [`../shared/live-run.md`](../shared/live-run.md): setup and the collector warehouse (phase 0), the Publisher packages, the Realizer's backtest, a baseline fleet run and its offline replay on day 0 (phase 1), the one change an owner applies (phase 2), the weekly measurements and their replays (phase 3) and the review (phase 4). A live measurement needs one whole settled week after the change day and settles over about four weeks; the collector warehouse is never a measured one, because its statements would change the measured warehouse's idle time and cost.
+The sequence across both products is in [`../shared/live-run.md`](../shared/live-run.md): setup and the collector warehouse (phase 0), the Publisher packages, the Realizer's backtest, a baseline fleet run and its offline replay on day 0 (phase 1), the golden miner on the same evidence (phase 2), the one change an owner applies (phase 3), the weekly measurements and their replays (phase 4) and the review (phase 5). A live measurement needs one whole settled week after the change day and settles over about four weeks; the collector warehouse is never a measured one, because its statements would change the measured warehouse's idle time and cost.
 
 ## What to send back
 
-From `./rz_real`:
+From `mining_out/<D>/rz` (the live run sequence's Realizer folder):
 
 - `state/realization/measurements/*.json` (measurement evidence: no SQL text, statement source, owner or tag);
 - `realization/backtest/evidence-*.json` and `backtest-*.json`;
