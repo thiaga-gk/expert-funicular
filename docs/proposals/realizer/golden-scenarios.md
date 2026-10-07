@@ -1,8 +1,10 @@
 # Golden Realization Scenario Specification v1.0.0
 
-> The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario that calls `realize()` has its canonical output under `tests/fixtures/realizer/expected/`.
+> The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario realized from a hand-built observation has its canonical output under `tests/fixtures/realizer/expected/`.
 >
-> These scenarios are the contract layer: each runs a frozen package and a hand-built observation. The end-to-end layer, cases `GE-NN` under `tests/golden/realizer/cases/` (`tests/golden/realizer/test_golden_e2e.py`), runs the whole path on demo-fleet warehouses: a real Publisher package under a given run scope and cost profile, a simulated owner change after it, the live measurement on that world and `realize()`, checked against an oracle from the same simulator with the old value; `tests/golden/README.md` describes it.
+> These scenarios are the contract layer: most run a frozen package and a hand-built observation. The rows about a modified application, several lineages and plan economics (GR-004, GR-022, GR-023, GR-030, GR-039) call `realize()` on real Publisher packages instead (`tests/fixtures/realizer/packages/` and the end-to-end cases' stored packages), with observations measured in the demo fleet's simulated world where one exists, and realize several packages into one state where the row is about more than one lineage: a later package of the same epoch, a cost-profile alternative, a canary rollback after its canary. The stored scenarios of GR-022, GR-023 and GR-030 stay as the regression of their single-lineage forms: a replacement package the caller names, an interval a drift closes, an overlap count the caller supplies.
+>
+> The end-to-end layer, cases `GE-NN` under `tests/golden/realizer/cases/` (`tests/golden/realizer/test_golden_e2e.py`), runs the whole path on demo-fleet warehouses: a real Publisher package under a given run scope and cost profile, a simulated owner change after it, the live measurement on that world and `realize()`, checked against an oracle from the same simulator with the old value; `tests/golden/README.md` describes it.
 
 **Status:** LOCKED
 

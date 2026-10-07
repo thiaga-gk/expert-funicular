@@ -1,8 +1,12 @@
 """Golden realization scenarios GR-001..GR-040 (docs/proposals/realizer/golden-scenarios.md) on the Realizer in src/realizer.
 
-Each test keeps its original inline construction from ``demo_observation``; the same observations are frozen under
-tests/fixtures/realizer/observations/GR-*.json with their canonical outputs in tests/fixtures/realizer/expected/
-(tests/regression/realizer/test_stored_baseline.py). The scenario registry is tests/fixtures/realizer/golden-registry.json.
+Most tests build their observation inline from ``demo_observation`` on a frozen package; the same observations are
+frozen under tests/fixtures/realizer/observations/GR-*.json with their canonical outputs in tests/fixtures/realizer/expected/
+(tests/regression/realizer/test_stored_baseline.py). GR-004, GR-022, GR-023, GR-030 and GR-039 instead realize real
+Publisher packages (tests/fixtures/realizer/packages/ and the end-to-end cases' stored packages) with observations
+measured in the demo fleet's simulated world, several packages into one state where the row is about lineages; their
+stored scenarios stay as the regression of the caller-supplied fields (a replacement id, an overlap count). The
+scenario registry is tests/fixtures/realizer/golden-registry.json.
 """
 import copy
 import datetime as dt
@@ -18,17 +22,22 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tests.regression.realizer import canonical  # noqa: E402
 canonical.modular()  # src/realizer, never a shadowing copy
+from tests.unit.realizer.helpers import fixture_package  # noqa: E402
+from tests.unit.realizer.lineage_support import AGGRESSIVE, BALANCED, measured, realize_all, rpkg_file, state_index, stored_run  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.realization import make_rpkg_id  # noqa: E402
 from realizer.estimator.attribution import authoritative_cumulative_realization  # noqa: E402
-from realizer.estimator.economics import calculate_economics  # noqa: E402
 from realizer.governor.policy import RealizerPolicy, savings_improvement_material  # noqa: E402
 from realizer.packager.ledger import ledger_path, load_ledger  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
 from realizer.reporter.reporter import legacy_compatibility  # noqa: E402
 from realizer.reconciler.matching import _directional_relation  # noqa: E402
+
+
+def _utc(value: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
 def _iso_add(value: str, days: int = 0, hours: int = 0) -> str:
@@ -78,8 +87,18 @@ class RealizerGoldenTests(unittest.TestCase):
         return obs
 
     def ledger(self):
-        rpkg = make_rpkg_id(self.pkg['recommendation_package_id'])
-        return load_ledger(ledger_path(self.out, rpkg))
+        return self.ledger_of(self.pkg)
+
+    def ledger_of(self, package):
+        return load_ledger(ledger_path(self.out, make_rpkg_id(package['recommendation_package_id'])))
+
+    @staticmethod
+    def step_savings(package, knob):
+        """The isolated (candidate) annual savings of the recommended plan's step on *knob*: {low, base, high}."""
+        scenario = next(x for x in package['scenarios'] if x['scenario_id'] == package['recommended_plan']['scenario_id'])
+        step = next(x for x in scenario['execution_plan'] if x['step_type'] == 'CANDIDATE' and x['knob'] == knob)
+        candidate = next(c for c in package['candidates'] if c['candidate_id'] == step['candidate_id'])
+        return candidate['independent_economics']['savings_365d']['total']
 
     # GR-001
     def test_gr_001_no_implementation(self):
@@ -104,13 +123,22 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-004
     def test_gr_004_modified_less_aggressive_numeric(self):
-        conf, rel = _directional_relation(120, 30, 60)
-        self.assertEqual(conf, rc.ImplementationConformance.MODIFIED)
-        self.assertEqual(rel, 'LESS_AGGRESSIVE')
-        app = {'implementation_conformance':'MODIFIED', 'application_scope':'CANDIDATE', 'step':1, 'scenario_id':self.pkg['recommended_plan']['scenario_id']}
-        o = self.obs(modified=True); o['economics']['expected_annual_savings_actual_scope'] = '80000'
-        e = calculate_economics(self.pkg, app, o, RealizerPolicy(), True, True)
-        self.assertEqual(e['denominator_source'], 'REESTIMATED_APPLIED_SCOPE')
+        # autostop-scoped-pro (wh-demo-013, auto-stop 30 to 10) with the owner's 15 measured in the simulated world (GE-05):
+        # a modified application in the same direction, priced at the applied value by the package's own option grid.
+        package = fixture_package('autostop-scoped-pro')
+        stored, observation = stored_run('ge05-auto-stop-modified')
+        self.assertEqual(stored['recommendation_package_id'], package['recommendation_package_id'])
+        s = self.realize_case(observation, package=package)
+        self.assertEqual((s.application['implementation_conformance'], s.application['modification_relation']), ('MODIFIED', 'LESS_AGGRESSIVE'))
+        self.assertEqual((s.application['recommended_value'], s.application['observed_applied_value']), (10, 15))
+        self.assertEqual((s.economics['denominator_source'], s.economics['denominator_method']), ('REESTIMATED_APPLIED_SCOPE', 'PACKAGE_OPTION_GRID'))
+        self.assertEqual(s.economics['expected_same_scope_annual_savings'], '7022.25')
+        self.assertEqual(s.economics['expected_range'], {'component': 'total', 'low': '4681.50', 'base': '7022.25', 'high': '9363.00'})
+        # not the package's own figure for the recommended 10
+        self.assertNotEqual(Decimal(s.economics['expected_same_scope_annual_savings']), Decimal(str(self.step_savings(package, 'auto_stop_minutes')['base'])))
+        self.assertEqual(s.current_state['realization_state'], 'REALIZED')
+        conf, rel = _directional_relation(120, 30, 60)  # the same relation on a numeric knob the other way round
+        self.assertEqual((conf, rel), (rc.ImplementationConformance.MODIFIED, 'LESS_AGGRESSIVE'))
 
     # GR-005
     def test_gr_005_modified_more_aggressive_can_realize(self):
@@ -269,23 +297,72 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-022
     def test_gr_022_superseded_package_can_continue_applied_measurement(self):
-        o = self.obs(); self.realize_case(o)
-        o2 = self.later(o); o2['replacement_package_id'] = 'PKG-' + 'A'*24
-        s = self.realize_case(o2)
-        self.assertEqual(s.source_recommendation['disposition'], 'SUPERSEDED')
-        self.assertEqual(s.application['state'], 'APPLIED')
-        self.assertIn(s.current_state['realization_state'], {'REALIZED','UNDER_REALIZED','MONITORING'})
+        # wh-demo-039's daily Publisher packages of one epoch (2026-10-01, -02, -03, each auto-stop 365 to 210), each realized
+        # with the change measured against it: the older two are superseded by the newest, yet keep their applied,
+        # realized measurement, observable only; the newest package before the change owns it.
+        packages = [stored_run(BALANCED)[0], fixture_package('autostop-daily-oct02'), fixture_package('autostop-daily-oct03')]
+        realize_all([(p, measured(p)) for p in packages], self.out)
+        newest = packages[2]['recommendation_package_id']
+        for package in packages[:2]:
+            with self.subTest(package=package['recommendation_package_id']):
+                r = rpkg_file(self.out, package)
+                self.assertEqual(r['current_state']['source_package_disposition'], 'SUPERSEDED')
+                self.assertEqual(r['source_recommendation']['superseded_by_package_id'], newest)
+                self.assertEqual(r['regeneration']['status'], 'REPLACED')
+                reasons = {e.payload['reason'] for e in self.ledger_of(package) if e.event_type == rc.EventType.SOURCE_PACKAGE_SUPERSEDED}
+                self.assertEqual(reasons, {'NEWER_PACKAGE_SAME_EPOCH'})
+                self.assertEqual(r['application']['state'], 'APPLIED')
+                self.assertEqual(r['current_state']['realization_state'], 'REALIZED')
+                self.assertEqual(r['economics']['realized_savings_period'], '1069.73')
+                self.assertEqual(r['attribution']['attribution_claim_status'], 'OBSERVABLE_ONLY')
+                self.assertEqual(r['attribution']['recommendation_attributed_realized_savings'], '0.00')
+                self.assertEqual([c['recommendation_package_id'] for c in r['attribution']['claimed_by']], [newest])
+        owner = rpkg_file(self.out, packages[2])
+        self.assertEqual(owner['current_state']['source_package_disposition'], 'ACTIVE')
+        self.assertEqual((owner['attribution']['attribution_claim_status'], owner['attribution']['recommendation_attributed_realized_savings']), ('CLAIMABLE', '1069.73'))
+        self.assertEqual([o['recommendation_package_id'] for o in state_index(self.out)['applied_knob_owners']], [newest])
+
+    def test_gr_022_a_named_replacement_supersedes_an_applied_lineage_that_keeps_realizing(self):
+        # The package the Publisher generated after the change (successor-after-autostop), named by the caller as the
+        # replacement of the applied balanced package: superseded and replaced, the measurement and claim continue.
+        package, observation = stored_run(BALANCED)
+        successor = fixture_package('successor-after-autostop')
+        realize_all([(package, observation), (successor, None)], self.out)
+        realize_all([(package, {**observation, 'replacement_package_id': successor['recommendation_package_id']})], self.out)
+        r = rpkg_file(self.out, package)
+        self.assertEqual(r['current_state']['source_package_disposition'], 'SUPERSEDED')
+        self.assertEqual(r['source_recommendation']['superseded_by_package_id'], successor['recommendation_package_id'])
+        self.assertEqual((r['regeneration']['status'], r['regeneration']['replacement_package_id']), ('REPLACED', successor['recommendation_package_id']))
+        self.assertEqual((r['application']['state'], r['current_state']['realization_state']), ('APPLIED', 'REALIZED'))
+        self.assertEqual((r['attribution']['attribution_claim_status'], r['attribution']['recommendation_attributed_realized_savings']), ('CLAIMABLE', '1069.73'))
 
     # GR-023
     def test_gr_023_economic_handoff_uses_same_boundary_without_overlap(self):
-        o = self.obs(); old = self.realize_case(o)
-        boundary = _iso_add(o['observed_at_utc'], days=1)
-        drift = self.later(o, days=1, new_application=True); drift['config']['min_clusters'] = 2; drift['economics'] = None
-        old2 = self.realize_case(drift)
-        self.assertEqual(old2.application['effective_to_utc'], boundary)
-        # A replacement package starts its own interval at the same boundary.
-        new_start = boundary
-        self.assertEqual(old2.application['effective_to_utc'], new_start)
+        # wh-demo-040: canary-before-cut (2026-09-20) recommends the canary LARGE to MEDIUM, applied 2026-09-27;
+        # canary-rollback (2026-10-01) rolls it back to LARGE, applied 2026-10-03. The earlier lineage's application ends
+        # exactly where the rollback lineage's starts, in either run order.
+        canary, rollback = fixture_package('canary-before-cut'), fixture_package('canary-rollback')
+        cut, back = demo_observation(canary), demo_observation(rollback)
+        cut.update({'applied_at_utc': '2026-09-27T00:00:00Z', 'observed_at_utc': '2026-09-30T00:00:00Z', 'recorded_at_utc': '2026-09-30T00:00:00Z',
+                    'window_start_utc': '2026-09-27T00:00:00Z', 'window_end_utc': '2026-09-30T00:00:00Z', 'elapsed_days': 3})
+        back.update({'applied_at_utc': '2026-10-03T00:00:00Z', 'observed_at_utc': '2026-10-09T00:00:00Z', 'recorded_at_utc': '2026-10-09T00:00:00Z',
+                     'window_start_utc': '2026-10-03T00:00:00Z', 'window_end_utc': '2026-10-09T00:00:00Z', 'elapsed_days': 6})
+        for order in ([(canary, cut), (rollback, back)], [(rollback, back), (canary, cut)]):
+            with self.subTest(first=order[0][0]['recommendation_package_id']), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                realize_all(order, out)
+                old, new = rpkg_file(out, canary)['application'], rpkg_file(out, rollback)['application']
+                self.assertEqual((old['knob'], new['knob']), ('warehouse_size', 'warehouse_size'))
+                self.assertEqual((old['observed_applied_value'], new['observed_applied_value']), ('MEDIUM', 'LARGE'))
+                self.assertEqual((old['effective_from_utc'], old['effective_to_utc']), ('2026-09-27T00:00:00Z', '2026-10-03T00:00:00Z'))
+                self.assertEqual((new['effective_from_utc'], new['effective_to_utc']), ('2026-10-03T00:00:00Z', None))
+                # the same boundary, and the half-open intervals [from, to) do not intersect
+                self.assertEqual(old['effective_to_utc'], new['effective_from_utc'])
+                self.assertLess(_utc(old['effective_from_utc']), _utc(old['effective_to_utc']))
+                self.assertLessEqual(_utc(old['effective_to_utc']), _utc(new['effective_from_utc']))
+                self.assertEqual(old['state'], 'ROLLED_BACK')
+                self.assertEqual([(o['recommendation_package_id'], o['effective_from_utc']) for o in state_index(out)['applied_knob_owners']],
+                                 [(rollback['recommendation_package_id'], '2026-10-03T00:00:00Z')])
 
     # GR-024
     def test_gr_024_config_drift_closes_interval(self):
@@ -346,11 +423,21 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-030
     def test_gr_030_overlap_blocks_recommendation_attribution(self):
-        o = self.obs(); o['overlap_count'] = 1
-        s = self.realize_case(o)
-        self.assertEqual(s.attribution['attribution_claim_status'], 'OBSERVABLE_ONLY')
-        self.assertEqual(Decimal(s.attribution['recommendation_attributed_realized_savings']), 0)
-        self.assertIn('PORTFOLIO_SCOPE_OVERLAP', s.attribution['hard_disqualifiers'])
+        # wh-demo-039's aggressive (365 to 15) and balanced (365 to 210) packages of one epoch, and the one change (210)
+        # both realize: the exact application owns it, the other lineage observes it, in either run order.
+        aggressive, balanced = stored_run(AGGRESSIVE), stored_run(BALANCED)
+        for order in ((aggressive, balanced), (balanced, aggressive)):
+            with self.subTest(first=order[0][0]['recommendation_package_id']), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)
+                realize_all(order, out)
+                agg, bal = rpkg_file(out, aggressive[0])['attribution'], rpkg_file(out, balanced[0])['attribution']
+                self.assertEqual(agg['attribution_claim_status'], 'OBSERVABLE_ONLY')
+                self.assertEqual(agg['hard_disqualifiers'], ['CLAIMED_BY_OTHER_LINEAGE'])
+                self.assertEqual(agg['recommendation_attributed_realized_savings'], '0.00')
+                self.assertEqual([c['recommendation_package_id'] for c in agg['claimed_by']], [balanced[0]['recommendation_package_id']])
+                self.assertEqual((bal['attribution_claim_status'], bal['recommendation_attributed_realized_savings']), ('CLAIMABLE', '1069.73'))
+                claimed = sum(Decimal(r['recommendation_attributed_realized_savings']) for r in state_index(out)['lineages'])
+                self.assertEqual(claimed, Decimal('1069.73'))  # one change, claimed once
 
     # GR-031
     def test_gr_031_independent_similar_change_not_optimizer_attributed(self):
@@ -420,6 +507,25 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-039
     def test_gr_039_cumulative_authoritative_not_blind_incremental_sum(self):
+        # two-ready-steps (wh-demo-009): size MEDIUM to SMALL and auto-stop 20 to 10 applied at once are measured against
+        # the scenario's stateful economics, not the sum of the two candidates' isolated savings.
+        package = fixture_package('two-ready-steps')
+        scenario = next(x for x in package['scenarios'] if x['scenario_id'] == package['recommended_plan']['scenario_id'])
+        steps = [x for x in scenario['execution_plan'] if x['step_type'] == 'CANDIDATE' and x['execution_state'] in ('READY', 'READY_FOR_CANARY')]
+        self.assertEqual([x['knob'] for x in steps], ['warehouse_size', 'auto_stop_minutes'])
+        o = demo_observation(package)
+        for step in steps:
+            o['config'][step['knob']] = step['recommended_value']
+        o['economics']['expected_annual_savings_actual_scope'] = None
+        s = self.realize_case(o, package=package)
+        self.assertEqual(s.application['application_scope'], 'SCENARIO')
+        self.assertEqual([r['step'] for r in s.application['applied_step_refs']], [1, 2])
+        self.assertEqual(s.economics['denominator_source'], 'PUBLISHER_SCENARIO')
+        self.assertEqual(s.economics['expected_same_scope_annual_savings'], '38863.07')
+        blind = sum(Decimal(str(self.step_savings(package, x['knob'])['base'])) for x in steps)
+        self.assertEqual(blind, Decimal('39200.01'))  # 38,527.17 + 672.84
+        self.assertNotEqual(Decimal(s.economics['expected_same_scope_annual_savings']), blind)
+        # The helper the economics use: the authoritative cumulative value, never the sum of the increments.
         x = authoritative_cumulative_realization('1000','810',['100','60','50'])
         self.assertEqual(Decimal(x['authoritative']), Decimal('190'))
         self.assertEqual(Decimal(x['diagnostic_incremental_sum']), Decimal('210'))

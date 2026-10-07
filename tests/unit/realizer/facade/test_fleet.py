@@ -22,7 +22,7 @@ from unittest import mock
 
 from tests.unit.realizer.helpers import fixture_package  # noqa: F401  (src/realizer on the path)
 from tests.unit.realizer import fleet_support
-from tests.unit.realizer.facade.test_lineages import BALANCED, measured, stored_run
+from tests.unit.realizer.lineage_support import BALANCED, measured, stored_run
 from realizer import fleet
 from realizer import realizer as facade
 from realizer.common.errors import InputError
@@ -246,7 +246,7 @@ class OpenLineageTests(unittest.TestCase):
         from realizer.analyzer.collector import collector
         from tests import realizer_world
         from tests.golden.realizer import e2e
-        from tests.unit.realizer.facade.test_lineages import CHANGE
+        from tests.unit.realizer.lineage_support import CHANGE
 
         def live(package, state_dir, **kwargs):
             evidence = realizer_world.measure(package, e2e.world_spec(39, CHANGE), 39)

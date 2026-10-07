@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from tests.unit.realizer.helpers import fixture_package  # noqa: F401  (src/realizer on the path)
-from tests.unit.realizer.facade.test_lineages import AGGRESSIVE, BALANCED, stored_run
+from tests.unit.realizer.lineage_support import AGGRESSIVE, BALANCED, stored_run
 from realizer.analyzer.collector.collector import demo_observation
 from realizer.contracts.request import RealizationRequest
 from realizer.realizer import realize, realize_request
