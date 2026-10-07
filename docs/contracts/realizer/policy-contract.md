@@ -64,12 +64,19 @@ A canary-type step (execution state `READY_FOR_CANARY`) stays provisional for th
 
 ## 7. Realization classification
 
+When the denominator is a Publisher range (the applied step's candidate range, or the scenario's range for a scenario-scope application) whose low is positive, the annualized realized savings are classified against the range: a replay counterfactual measures the full mechanical effect of the change, the track of the published high, so comparing it with the base would always read high.
+
+- at or above the range's low -> `REALIZED`; above 1.25 x the high -> `REALIZED`, detail `REALIZED_ABOVE_RANGE_REVIEW`, review required;
+- below the low -> `UNDER_REALIZED`; below half the low -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass;
+- the ratio against the base is reported in every case.
+
+The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
+
 - `ratio >= 0.80` -> `REALIZED`.
 - `0.50 <= ratio < 0.80` -> `UNDER_REALIZED`.
 - `< 0.50` -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass.
-- hard validation failure -> `VALIDATION_FAILED` regardless of savings.
 
-Negative realization is preserved.
+A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved.
 
 ## 8. Modified application
 

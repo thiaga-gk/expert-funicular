@@ -91,12 +91,14 @@
     "aws_commitment_freed": null,
     "aws_economic_realized": null,
     "aws_evidence_type": null,
+    "classification_basis": "RATIO_POLICY",
     "classification_detail": "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
     "denominator_source": "REESTIMATED_APPLIED_SCOPE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_range": null,
     "expected_same_scope_annual_savings": "12000.00",
     "mature_ttm_realized_savings": null,
     "observed_economic_delta": "394.52",
@@ -135,6 +137,7 @@
     "realized_savings_period": "394.52",
     "realized_savings_since_application": "394.52",
     "reoptimization_recommended": true,
+    "review_required": false,
     "successful_realized_savings": "394.52"
   },
   "history": {
@@ -145,7 +148,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-F37E14742ED1954717D95909",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:AF99C0007930556B917688E47590A5E3AB7FB6A324333CB982F2F3A0671542FA",
+    "ledger_checkpoint_hash": "SHA256:D07ECDA485C25C5F8E7808A734D72DD2200E587D21114DBCCBFDD5944F5C4544",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -170,7 +173,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-3DB5B3BFCA2FB4D3182AA702",
+  "snapshot_id": "RSNAP-21CD8714DD6F44E438759A5D",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",

@@ -39,16 +39,42 @@ def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str
     })
 
 
-def expected_annual_for_exact_step(package: Mapping[str, Any], step: Mapping[str, Any]) -> Tuple[Optional[Decimal], str]:
+# How far above the published high a realization may read before it is flagged for review (the replay measures the
+# full mechanical effect, the published high's track, so a little above it is noise; far above it is not).
+REVIEW_ABOVE_HIGH = Decimal("1.25")
+REOPTIMIZE_BELOW_LOW = Decimal("0.5")
+
+
+def _savings_block(savings: Mapping[str, Any], component: Optional[str]) -> Optional[Mapping[str, Any]]:
+    """The savings range of *component* (``total`` or ``dbu``); without one, the total, else the DBU range."""
+    if component is not None:
+        block = savings.get(component)
+    else:
+        block = savings.get("total") or savings.get("dbu")
+    return block if isinstance(block, Mapping) else None
+
+
+def expected_annual_for_exact_step(package: Mapping[str, Any], step: Mapping[str, Any], component: Optional[str] = None) -> Tuple[Optional[Decimal], str]:
     c = candidate_by_id(package, step.get("candidate_id"))
     if not c:
         return None, "UNAVAILABLE"
     econ = c.get("independent_economics") or {}
-    savings = econ.get("savings_365d") or {}
-    total = savings.get("total")
-    dbu = savings.get("dbu")
-    value = (total or dbu or {}).get("base") if isinstance(total or dbu, Mapping) else None
+    block = _savings_block(econ.get("savings_365d") or {}, component)
+    value = None if block is None else block.get("base")
     return decimal(value), "PUBLISHER_CANDIDATE" if value is not None else "UNAVAILABLE"
+
+
+def published_range(block: Optional[Mapping[str, Any]]) -> Optional[Tuple[Decimal, Decimal, Decimal]]:
+    """``(low, base, high)`` of a published savings range, or None when any is missing."""
+    if not block:
+        return None
+    values = tuple(decimal(block.get(k)) for k in ("low", "base", "high"))
+    return None if any(v is None for v in values) else values  # type: ignore[return-value]
+
+
+def step_range(package: Mapping[str, Any], step: Mapping[str, Any], component: Optional[str]) -> Optional[Tuple[Decimal, Decimal, Decimal]]:
+    c = candidate_by_id(package, step.get("candidate_id"))
+    return None if not c else published_range(_savings_block((c.get("independent_economics") or {}).get("savings_365d") or {}, component))
 
 
 def calculate_economics(
@@ -77,7 +103,11 @@ def calculate_economics(
 
     conformance = app.get("implementation_conformance")
     expected: Optional[Decimal] = None
+    expected_range: Optional[Tuple[Decimal, Decimal, Decimal]] = None
     denom_source = "UNAVAILABLE"
+    # A live measurement compares like with like: DBU only when it has no AWS price, else the total.
+    measured = observation.get("measurement") or {}
+    component = {"DBU_ONLY": "dbu", "DBU_AND_MODELED_AWS": "total"}.get(str(measured.get("cost_basis")))
     supplied = decimal(econ.get("expected_annual_savings_actual_scope"))
     if app.get("application_scope") == "SCENARIO":
         if supplied is not None:
@@ -88,6 +118,7 @@ def calculate_economics(
             expected = decimal(total.get("base"))
             if expected is not None:
                 denom_source = "PUBLISHER_SCENARIO"
+                expected_range = published_range(total)
     elif conformance == rc.ImplementationConformance.MODIFIED.value:
         if supplied is not None:
             expected, denom_source = supplied, "REESTIMATED_APPLIED_SCOPE"
@@ -97,7 +128,8 @@ def calculate_economics(
         else:
             step = next((st for st in candidate_steps(package, app.get("scenario_id")) if int(st.get("step", 0)) == int(app.get("step", -1))), None)
             if step is not None and authority_eligible(step):
-                expected, denom_source = expected_annual_for_exact_step(package, step)
+                expected, denom_source = expected_annual_for_exact_step(package, step, component)
+                expected_range = step_range(package, step, component) if expected is not None else None
 
     ratio: Optional[Decimal] = None
     if annualized is not None and expected is not None and expected > 0:
@@ -115,6 +147,18 @@ def calculate_economics(
     elif ratio is None:
         state, detail = rc.RealizationState.MONITORING.value, "VALIDATED_VALUE_UNCLASSIFIED"
         successful = realized
+    elif expected_range is not None and expected_range[0] > 0:
+        # Against the published range: at or above its low is realized (the replay measures the full mechanical effect,
+        # so comparing it with the base would always read high); far above its high is flagged for review.
+        low, _, high = expected_range
+        assert annualized is not None
+        successful = realized
+        if annualized >= low:
+            state = rc.RealizationState.REALIZED.value
+            detail = "REALIZED_ABOVE_RANGE_REVIEW" if annualized > high * REVIEW_ABOVE_HIGH else "REALIZED"
+        else:
+            state = rc.RealizationState.UNDER_REALIZED.value
+            detail = "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED" if annualized < low * REOPTIMIZE_BELOW_LOW else "UNDER_REALIZED"
     elif ratio >= policy.realized_ratio_min:
         state, detail = rc.RealizationState.REALIZED.value, "REALIZED"
         successful = realized
@@ -144,6 +188,9 @@ def calculate_economics(
         "mature_ttm_realized_savings": money(econ.get("mature_ttm_realized_savings")),
         "expected_same_scope_annual_savings": money(expected),
         "denominator_source": denom_source,
+        "expected_range": None if expected_range is None else {"component": component or "total", **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
+        "classification_basis": "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
+        "review_required": detail == "REALIZED_ABOVE_RANGE_REVIEW",
         "realization_ratio": ratio_string(ratio),
         "realization_state": state,
         "classification_detail": detail,

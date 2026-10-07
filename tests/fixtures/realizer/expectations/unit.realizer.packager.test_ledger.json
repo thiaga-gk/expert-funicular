@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 63864,
-  "sha256": "2d7c28d4b9c70e9c54f2e894e9f68f4b222e97b26bf7b468cc362e3d41c4e0a1",
+  "sha256": "03da14425881307daa2399027b10289cf411ea53789df415c267956908b047eb",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -49,8 +49,8 @@
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 510972,
-  "sha256": "0cd068fc1b34062f1fb06007755f3f32758adcb35f80091046737d362a6bb856",
+  "length": 516438,
+  "sha256": "142ac0a127353cefcf8fa3a0c1df8b597b378fe30d20149bf00085dcecc1c93c",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -216,7 +216,7 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 290711,
-  "sha256": "52cedd7808a630cc8a8801849d79dc5447c1112c75598facd3cd0881c9c56534",
+  "sha256": "fbb81483711f7b83f3c78967cb5859161ccc58fac1c55842ace66f12b738d55c",
   "spot": {
    "count": 808,
    "first": [
@@ -242,9 +242,9 @@
      "entry_count": 16,
      "first_entry_id": "RLE-43CE3E553F852E732746AC84",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-DD19B2A8C7F9194C107FD230",
+     "latest_entry_id": "RLE-A95CCDEC88F3E956CAB5CD2C",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:684730ADAEC4C01B40EF74A5DADC2D73782D128085617C57393B027BBDCD524A"
+     "ledger_checkpoint_hash": "SHA256:564A0B5C670A64F3CDAC22C3A04FE45970D0112F72A76F005123DA9223D4FBFC"
     }
    ]
   }
