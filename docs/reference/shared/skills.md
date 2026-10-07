@@ -6,11 +6,13 @@
 
 ## Start
 
-Copy `.claude/skills/` into the target repo and invoke the orchestrator, for example:
+Copy `.claude/skills/` into the target repo and invoke the orchestrator (`databricks-golden-miner` stays behind: it runs only in this repository, on the SQL Warehouse publisher), for example:
 
 > Use the Databricks publisher orchestrator to build a deterministic job-cluster compute optimization publisher. Start with discovery and stop at the first approval gate.
 
 Validate the skill package with `python scripts/validate_skill_suite.py`; it checks the skills `.claude/skills/suite.yaml` lists, so a general-purpose skill folder beside them (such as `brainstorm`) is not a suite member and is not checked. The suite also ships deterministic validators for source, optimization policy, technique, economics, contract, golden-manifest, and release artifacts.
+
+A publisher only predicts. Measuring what an applied change realized is a separate product, the Realizer: for SQL Warehouses see `docs/product/realizer/prd.md`, `docs/architecture/realizer/` and `docs/contracts/realizer/`. The suite has no Realizer skill yet; a new service's Realizer is designed after its publisher contract is locked.
 
 ## Expected lifecycle
 

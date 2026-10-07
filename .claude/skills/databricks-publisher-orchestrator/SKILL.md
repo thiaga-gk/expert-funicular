@@ -43,6 +43,9 @@ Do not accept a technique catalog that treats this framework as optional narrati
 10. Run `/code-review low` when available. Treat unresolved High/Critical findings as release blockers.
 11. Invoke `databricks-release-sealer` to perform stale-code/docs/version/security/clean-room audits and package release evidence.
 12. Merge the release worktree back only after the completion gate and E2E evidence are present.
+13. Ground the golden scenarios in live data once the service runs against a real account (F6). In the SQL Warehouse exemplar repo this is `databricks-golden-miner`, which proposes golden changes through its own approval gate; for another service, plan the same step but do not reuse the miner's SQL Warehouse signatures.
+
+A publisher only predicts. Realized savings are measured after a change is applied by a separate Realizer; the SQL Warehouse one is described in `docs/product/realizer/prd.md`, `docs/architecture/realizer/` and `docs/contracts/realizer/`. Design a new service's package contract so a Realizer can consume it (stable identity, the applied target value per step, validation windows and the assumptions a counterfactual needs), and treat a Realizer for a new service as its own design effort once the publisher contract is locked.
 
 ## Required gates
 

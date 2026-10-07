@@ -1,6 +1,6 @@
 ---
 name: databricks-publisher-validator
-description: Independently verify and challenge a Databricks optimization publisher after or during implementation. Use this skill whenever code, causal algorithms, constraints-first policy, contracts, economics, golden scenarios, deterministic IDs, unsupported-type behavior, scenario sequencing, workbook projection, synthetic fleets, or source E2E behavior must be tested adversarially. Trigger it for pre-merge verification, regression design, golden dataset creation, clean determinism checks, and whenever the builder claims a publisher story/release is done. Prefer an independent verifier context/model from the builder when available.
+description: Independently verify and challenge a Databricks optimization publisher after or during implementation. Use this skill whenever code, causal algorithms, constraints-first policy, contracts, economics, golden scenarios, deterministic IDs, unsupported-type behavior, scenario sequencing, workbook projection, synthetic fleets, or source E2E behavior must be tested adversarially. Trigger it for pre-merge verification, regression design, golden dataset creation, clean determinism checks, and whenever the builder claims a publisher story/release is done. Prefer an independent verifier context/model from the builder when available. Not for refreshing goldens from a live workspace (databricks-golden-miner) or for the final stale-code/docs/version release gate (databricks-release-sealer).
 ---
 
 # Databricks Publisher Validator

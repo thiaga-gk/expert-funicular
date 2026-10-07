@@ -2,10 +2,10 @@ positive:
   - Seal this Databricks publisher release.
   - Do a stale/legacy code audit before I start real testing.
   - Clean contradictory docs and package the final repo.
-  - Validate the final ZIP from a clean extraction.
+  - Validate the final release archive from a clean extraction.
   - Produce release evidence and SHA-256.
   - Check README, CLAUDE, PRD, HLD, LLD, contracts, and code agree.
-  - Audit the workbook and JSON output before merge.
+  - Run the release workbook and contract checks and record them as release evidence.
   - Prepare this publisher worktree for merge after tests.
   - Remove stale/dead publisher paths.
   - Run the final release-hardening checklist.
@@ -18,5 +18,5 @@ negative:
   - Create JSON dataclasses.
   - Explain the current product scope.
   - Find AWS prices only.
-  - Format an email.
-  - Search for a job.
+  - Adversarially test the bundle estimator for double counting.
+  - Mine the live workspace for golden scenario gaps.

@@ -1,4 +1,4 @@
-version: 1.2.0
+version: 1.3.0
 name: databricks-publisher-skill-suite
 reference_exemplar:
   product: databricks-sql-warehouse-optimizer
@@ -44,6 +44,7 @@ skills:
   - name: databricks-golden-miner
     role: VALIDATION_LEARNING
     depends_on: [databricks-publisher-validator]
+    exemplar_repo_only: true  # imports the SQL Warehouse publisher; not copied to another repo
 principles:
   - artifacts_are_cross_skill_api
   - first_principles_before_knobs

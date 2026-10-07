@@ -13,8 +13,8 @@ Read the sibling orchestrator artifact protocol/gates and `references/optimizati
 
 - Work in a dedicated release worktree/branch off the repository's integration branch when Git is available.
 - Keep the service/release scope fixed. Never auto-advance to another epic/service.
-- Default to a single `publisher.py` during early validation when that is the approved product shape; structure it into clear internal sections/classes and split only by explicit design decision.
-- Stable public contracts/reporters may remain separate modules when already locked; do not fragment the core optimization loop prematurely.
+- Match the code layout the approved design names. A single `publisher.py` is acceptable for early validation; the SQL Warehouse exemplar outgrew it and is now capability packages behind a thin facade and CLI adapter. `references/exemplar-layout.md` describes that layout and the runtime features a production publisher ends up needing, so read it before choosing a layout or adding run-level options.
+- Stable public contracts/reporters stay separate modules once locked; do not fragment the core optimization loop without a design decision.
 
 ## Required runtime pipeline
 

@@ -39,3 +39,4 @@ Economics quantify feasible/testable alternatives; they do not override constrai
 - Unknown cost is null/unavailable, never zero.
 - Do not reuse another service's capacity/DBU curve unless the service contract proves it applies.
 - Do not create a favorable counterfactual by omitting a second-order runtime/resource effect already declared by the technique.
+- Post-change realized savings are measured by a Realizer against a counterfactual built from the same assumptions the package states. State every assumption a counterfactual needs (rates, realization factors, windows) in the package so it can be measured later; the SQL Warehouse Realizer's counterfactuals are in `docs/contracts/realizer/source-evidence-contract.md` section 18.

@@ -37,3 +37,7 @@ Service-specific contracts may add constraint/causal/validation fields where use
 ## Reviewer principle
 
 JSON Schema validates shape/types/enums. Semantic validators enforce cross-references, hashes, economics math, constraint state consistency, status semantics, scenario feasibility/envelope, validation/rollback requirements, and realization invariants. Do not turn the JSON Schema into an unreadable business-rule engine.
+
+## Downstream consumer
+
+The package is also the input of a Realizer, which measures applied changes and accepts exactly one package contract version. Keep identity, each step's applied target value, validation windows and the assumptions a counterfactual needs in the package, and treat a package contract change as a coordinated change of both products. The SQL Warehouse Realizer's contracts are in `docs/contracts/realizer/`.

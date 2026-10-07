@@ -31,6 +31,6 @@
 - synthetic fleet pass
 - deterministic rerun pass
 - workbook QA pass
-- clean extracted ZIP pass
+- clean extracted archive pass (archive releases only)
 - live-source E2E pass or explicitly NOT_EXECUTED with reason
 - `/code-review low` evidence when available
