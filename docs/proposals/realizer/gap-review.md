@@ -216,7 +216,19 @@ The slice needs RD08 and RD09 (listed under batch 2) and RD14 to RD18 (listed un
 
 ### Batch 6
 
-**RD26 · Migration realization.** *Recommended: observe-only first (OBSERVABLE_ONLY, no counterfactual claim), reverse model later.*
+**RD26 · Migration realization.** — decided 2026-10-07 as recommended, made precise: the billed pre/post change at the pre-change query mix is the observed delta (not claim-eligible), the migration range informational, attribution observable only (no reverse model), Serverless AWS a true zero in the billed change. `wh-demo-001` PRO to SERVERLESS: DBU +2,485.6, AWS -5,032.3 per 28 days, 33,199/yr observed against the informational 34,092 / 137,331 / 170,191. *Recommended: observe-only first (OBSERVABLE_ONLY, no counterfactual claim), reverse model later.*
+
+**RD28 · Size runtime ratio.** — decided 2026-10-07 as recommended. *Recommended: per-source median execution time on the statement sources of both windows (at least 5 executed, finished, non-cached queries each), the index at the post-change mix (sum of post count x post median over sum of post count x pre median); at least 300 matched post-change queries (`canary_p95_min_queries`) covering at least half of the post-change executed queries, else no counterfactual (`SIZE_RUNTIME_UNMEASURED`); the measured multiplier is published next to the Publisher's range.* Alternatives: the p95 ratio on shared sources (tail-driven); total execution time per day (mixes workload change).
+
+**RD29 · Old size's price.** — decided 2026-10-07 as recommended. *Recommended: the pre-change window's billed DBU cost per running cluster-minute, when the previous epoch is at the package's source size and the same type, priced in one currency; else no counterfactual (`SOURCE_RATE_UNAVAILABLE`); the measured rate ratio is recorded next to the published size ratio.* `wh-demo-006`: LARGE 0.3656 and MEDIUM 0.2191 per cluster-minute, ratio 0.599 against the published 0.600.
+
+**RD30 · Size counterfactual shape.** — decided 2026-10-07 as recommended. *Recommended: counterfactual running = post running x (1 - b + b / ratio), b the Publisher's busy share on the post-change window (idle time does not depend on size); unknown b, no counterfactual.* `wh-demo-006` LARGE to MEDIUM, measured ratio 1.00: 36,786/yr realized against 20,494 / 31,793 / 35,021, REALIZED; reusing the Publisher's 1.30 would read 30,580/yr, the base by construction.
+
+**RD31 · Min-cut counterfactual.** — decided 2026-10-07 as recommended. *Recommended: counterfactual cluster-minutes = sum of minutes at each cluster level x max(level, old floor) over the post-change window, priced at its billed DBU per cluster-minute and modeled AWS; the billed cross-check applies.* `wh-demo-011` min 3 to 1: 113,384/yr against 56,614 / 84,921 / 113,228, REALIZED; billed 5,537 against 5,553, AGREES.
+
+**RD32 · Max-increase cost.** — decided 2026-10-07 as recommended. *Recommended: the measured cost is the cluster-minutes above the old cap at the post-change rate and modeled AWS; the billed pre/post change is kept as the cross-check.* `wh-demo-008` max 2 to 5: 17,030/yr measured, 17,085/yr billed, 15,628 modeled.
+
+**RD33 · Max cut.** — decided 2026-10-07 as recommended. *Recommended: judged on queueing (CAPACITY_VALIDATED) as today, with the minutes at the new cap and the upper bound of what the old cap could have added (minutes at the cap x (old - new)) as evidence; no saving claimed (priced at zero).* `wh-demo-009` max 10 to 3: no minute at 3 clusters, bound 0.
 
 ## 4. Golden scenarios
 
