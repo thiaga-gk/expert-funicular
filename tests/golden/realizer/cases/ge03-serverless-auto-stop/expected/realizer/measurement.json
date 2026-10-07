@@ -1,0 +1,2768 @@
+{
+  "as_of_utc": "2026-11-07T12:00:00Z",
+  "assumptions": {
+    "billing_settle_hours": 24.0,
+    "canary_p95_min_queries": 300.0,
+    "canary_p95_regression_pct": 25.0,
+    "cold_start_added_share_max_pct": 2.0,
+    "failure_cancel_pct_downsize_safe": 5.0,
+    "min_query_sample_size": 100.0,
+    "queue_query_pct_safe": 0.5,
+    "restart_cost_cluster_minutes_pro_classic": 4.0,
+    "restart_cost_cluster_minutes_serverless": 0.1,
+    "severity_min_affected_queries": 20.0,
+    "spill_query_pct_downsize_safe": 0.1
+  },
+  "aws": {
+    "post": {
+      "blocker": null,
+      "cluster_hourly_price": 0.0,
+      "currency": "USD",
+      "region": "us-east-1",
+      "status": "NOT_CUSTOMER_BILLED"
+    },
+    "pre": {
+      "blocker": null,
+      "cluster_hourly_price": 0.0,
+      "currency": "USD",
+      "region": "us-east-1",
+      "status": "NOT_CUSTOMER_BILLED"
+    }
+  },
+  "billing": {
+    "billing_watermark": "2026-11-07T06:00:00+00:00",
+    "settled_through": "2026-11-05",
+    "watermark_source": "WORKSPACE"
+  },
+  "daily_cost": [
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.968101,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.077671,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.168274,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.217792,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.544294,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.481006,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.088872,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.86221,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.244905,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.271434,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.719296,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.903507,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.020819,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.814573,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.657067,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.859947,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.873514,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.71146,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.942666,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.059866,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.981464,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.787025,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.414465,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.390125,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.552324,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.486627,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.688562,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.581993,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.226168,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.558318,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.165837,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.216086,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-11-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.045366,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.831756,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.010259,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.107181,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.886349,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.720444,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.91801,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.042607,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.674382,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.872067,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.718201,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.602741,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.578907,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.505235,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.488272,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.44179,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.869414,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.00859,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.477447,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.734213,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.844698,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.991289,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.485691,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.439984,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.940305,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.758214,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.584392,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.509074,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.11719,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.482033,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.826701,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.978691,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.575094,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.502566,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.350983,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.345688,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.071332,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.149932,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.987029,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.79092,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.780468,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.946328,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.38904,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.672328,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.308674,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.316072,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2025-12-31"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.892152,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.724506,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.765465,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.935825,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.088441,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.161909,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.818968,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.673278,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.353072,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.34715,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.277416,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.594191,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.538353,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.776847,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.526745,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.468721,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.450658,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.415461,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.382531,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.667772,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.078651,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.155056,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.238038,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.566627,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.88873,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.022111,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.853395,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.997376,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.69455,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.586185,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.133055,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.493138,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.196708,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.537696,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.570277,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.499194,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.747537,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.923276,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.366279,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.656395,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.882252,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.717576,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.619178,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.833425,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-01-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.18718,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.531026,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.954293,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.068005,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.601417,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.820992,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.503957,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.45277,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.441416,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.408991,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.640963,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.848674,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.021348,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.114944,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.449956,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.714969,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.869726,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.008808,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.538509,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.476956,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.387676,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.671373,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.811116,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.667781,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.983567,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.788497,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.906146,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.734302,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.200947,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.240663,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.50214,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.451498,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.249202,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.274441,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.001402,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.100981,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.668158,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.867711,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.534979,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.774485,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-02-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.009954,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.106968,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.849155,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.694409,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.259345,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.281541,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.751848,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.626294,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.730934,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.911654,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.598434,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.518904,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.883428,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.0184,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.586363,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.510454,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.428666,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.400066,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.294766,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.606336,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.871277,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.709894,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.089615,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.862731,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.153795,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.507656,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.504763,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.753334,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.436665,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.405665,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.605863,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.524104,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.045128,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.83159,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.675182,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.572627,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.58332,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.508324,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.442589,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.709812,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.944,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.7608,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.590384,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.813269,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-03-31"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.314158,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.319911,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.242206,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.569544,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.038882,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.127217,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.352149,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.646504,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.830604,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.681423,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.932392,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.052674,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.537072,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.77595,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.636101,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.845271,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.851774,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.696242,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.181705,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.527193,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.777191,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.644034,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.091449,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.864014,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.150439,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.505307,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.08804,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.161628,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.050362,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.835253,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.915356,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.740749,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.254565,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.578195,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.268734,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.588114,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.047811,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.833468,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.947117,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.762982,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.798056,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.958639,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.287555,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.301288,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-04-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.882909,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.718036,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.729928,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.91095,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.421602,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.695121,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.935573,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.054901,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.316345,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.621441,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.340124,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.638087,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.760454,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.932318,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.579576,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.805703,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.179142,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.225399,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.887217,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.721052,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.884618,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.019233,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.773037,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.941126,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.532773,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.772941,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.930327,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.051229,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.332672,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.33287,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.002334,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.801634,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.613586,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.52951,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.686743,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.88072,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.891291,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.023904,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.301208,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.610846,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.694431,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.586102,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-05-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.411201,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.387841,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.060422,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.142295,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.748883,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.924218,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.675215,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.57265,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.229944,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.560961,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.365386,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.65577,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.555371,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.48876,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.9495,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.76465,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.007795,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.805456,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.134066,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.493846,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.258482,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.580937,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.724331,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.607032,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.791044,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.953731,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.228339,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.559837,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.388795,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.372156,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.880365,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.716255,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.082791,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.157954,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.836899,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.985829,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.552868,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.787008,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.753827,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.927679,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.006668,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.804668,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.725774,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.608042,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-06-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.486728,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.44071,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.332516,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.332761,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.03393,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.823751,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.983271,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.08829,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.360729,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.65251,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.441895,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.409326,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.396285,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.377399,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.781546,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.947082,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.224902,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.257431,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.660759,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.862531,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.091833,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.864283,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.371306,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.359914,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.03927,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.827489,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.342562,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.339793,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.150981,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.205687,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.72185,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.605295,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.252792,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.576954,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.789528,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.95267,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.117141,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.481999,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.620108,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.534076,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.524854,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.767398,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.22527,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.557689,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.84601,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.692207,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-07-31"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.682526,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.577768,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.586263,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.510384,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.033135,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.823194,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.707697,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.595388,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.153578,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.507505,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.905073,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.733551,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.691062,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.583743,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.583872,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.80871,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.976828,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.78378,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.628592,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.840014,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.322881,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.626017,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.045115,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.131581,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.890528,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.72337,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.726016,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.908211,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.46186,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.423302,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.917302,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.042111,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.206549,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.544584,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.175287,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.222701,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.721193,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.904835,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.269076,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.588353,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.542164,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.479515,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-08-31"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.80103,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.660721,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.31158,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.318106,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.490086,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.74306,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.040865,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.828605,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.637186,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.84603,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.962237,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.073566,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.018031,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.812622,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.561059,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.792741,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-10"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.614727,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.830309,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-11"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.602723,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.821906,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.728019,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.609613,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.75096,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.625672,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.251489,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.576042,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-17"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.594812,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.516368,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-18"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.218199,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.252739,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.200329,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.24023,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.805943,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.96416,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.420503,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.694352,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-24"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.301042,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.310729,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-25"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.667302,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.867111,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 34.054059,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.837841,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.27487,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.292409,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-09-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.646005,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.852204,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-01"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.830373,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.681261,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.548047,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.483633,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 32.808587,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 22.966011,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-06"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 33.94921,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 23.764447,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-07"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 20.986847,
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "list_cost": 14.690793,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 6.570649,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 4.599454,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-08"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.090949,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.663664,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-09"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.570061,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.299043,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-12"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.812784,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.468949,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-13"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.09859,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.669013,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-14"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.541096,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.978767,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-15"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.908277,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.535794,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-16"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.724809,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.407366,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-19"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.34748,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.843236,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-20"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.372164,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.860515,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-21"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.199954,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.739968,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-22"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.276606,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.793624,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-23"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.660357,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.36225,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-26"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.557877,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.290514,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-27"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.29008,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.803056,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-28"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.239183,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.767428,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-29"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.246793,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.772755,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-10-30"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.833308,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.483316,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-11-02"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.453973,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.917781,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-11-03"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.269804,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.788863,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-11-04"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 17.669382,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.368567,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-11-05"
+    },
+    {
+      "currency_code": "USD",
+      "dbu_quantity": 18.133484,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "list_cost": 12.693439,
+      "restated_dbu_quantity": 0.0,
+      "retracted_dbu_quantity": 0.0,
+      "unpriced_dbu_quantity": 0.0,
+      "usage_date": "2026-11-06"
+    }
+  ],
+  "epochs": [
+    {
+      "auto_stop_minutes": 30,
+      "epoch_end": "2026-10-08T14:32:00+00:00",
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "max_clusters": 2,
+      "min_clusters": 1,
+      "warehouse_channel": "CURRENT",
+      "warehouse_size": "SMALL",
+      "warehouse_type": "SERVERLESS"
+    },
+    {
+      "auto_stop_minutes": 5,
+      "epoch_end": null,
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "max_clusters": 2,
+      "min_clusters": 1,
+      "warehouse_channel": "CURRENT",
+      "warehouse_size": "SMALL",
+      "warehouse_type": "SERVERLESS"
+    }
+  ],
+  "guard": {
+    "CURRENT": {
+      "decision_queries": 1440.0,
+      "failure_cancel_pct": 0.3,
+      "p95_execution_ms_shared_sources": 2500.0,
+      "queries": 1600.0,
+      "queued_queries": 0.0,
+      "queued_query_pct": 0.0,
+      "shared_source_queries": 1440.0,
+      "spill_queries": 0.0,
+      "spill_query_pct": 0.0
+    },
+    "PREVIOUS": {
+      "decision_queries": 1440.0,
+      "failure_cancel_pct": 0.3,
+      "p95_execution_ms_shared_sources": 2500.0,
+      "queries": 1600.0,
+      "queued_queries": 0.0,
+      "queued_query_pct": 0.0,
+      "shared_source_queries": 1440.0,
+      "spill_queries": 0.0,
+      "spill_query_pct": 0.0
+    }
+  },
+  "measurement_evidence_format_version": "1.0.0",
+  "source": "DEMO_SIMULATION",
+  "source_region": "us-east-1",
+  "warehouse_id": "wh-demo-002",
+  "windows": {
+    "post": {
+      "epoch_start": "2026-10-08T14:32:00+00:00",
+      "first_day": "2026-10-09",
+      "label": "post",
+      "last_day": "2026-11-05",
+      "replay": [
+        {
+          "added_idle_cluster_minutes": 1500.0,
+          "added_idle_wall_minutes": 1500.0,
+          "additional_starts": 0.0,
+          "avoided_starts": 0.0,
+          "removable_running_cluster_minutes": 0.0,
+          "removable_running_wall_minutes": 0.0,
+          "target_min": 30
+        }
+      ],
+      "running": {
+        "kept_alive_gap_count": 0.0,
+        "kept_alive_wall_minutes": 0.0,
+        "observed_running_cluster_minutes": 1810.0,
+        "observed_running_wall_minutes": 1810.0,
+        "queries": 1600.0,
+        "restarts_for_queries": 60.0,
+        "running_segment_count": 1600.0
+      },
+      "window_end": "2026-11-06T00:00:00+00:00",
+      "window_start": "2026-10-09T00:00:00+00:00"
+    },
+    "pre": {
+      "epoch_start": "2025-07-01T00:00:00+00:00",
+      "first_day": "2026-09-10",
+      "label": "pre",
+      "last_day": "2026-10-07",
+      "replay": [
+        {
+          "added_idle_cluster_minutes": 0.0,
+          "added_idle_wall_minutes": 0.0,
+          "additional_starts": 0.0,
+          "avoided_starts": 0.0,
+          "removable_running_cluster_minutes": 1500.0,
+          "removable_running_wall_minutes": 1500.0,
+          "target_min": 5
+        }
+      ],
+      "running": {
+        "kept_alive_gap_count": 0.0,
+        "kept_alive_wall_minutes": 0.0,
+        "observed_running_cluster_minutes": 3310.0,
+        "observed_running_wall_minutes": 3310.0,
+        "queries": 1600.0,
+        "restarts_for_queries": 60.0,
+        "running_segment_count": 1600.0
+      },
+      "window_end": "2026-10-08T00:00:00+00:00",
+      "window_start": "2026-09-10T00:00:00+00:00"
+    }
+  },
+  "workspace_id": "1234567890123456"
+}

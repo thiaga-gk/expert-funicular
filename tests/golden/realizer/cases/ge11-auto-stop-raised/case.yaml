@@ -1,0 +1,24 @@
+id: GE-11
+description: >-
+  The owner raises auto-stop to 45 where the package says 30 to 10: a contrary application. The replay of the old value
+  on the post-change days shows a cost increase; its restart assumption is not in the simulated bill, so the billed
+  cross-check disagrees with it.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 45}}
+expect:
+  conformance: CONTRARY
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: negative
+  # The replay charges each restart the old value adds at the package's restart assumption (4 cluster-minutes); the
+  # simulated bill has no restart cost, so the replay understates the increase and the billed cross-check disagrees.
+  cross_check: DISAGREES
+  independent_changes: []
+  # Contrary to the recommendation: invalidated and regenerated, never realized.
+  realization_state: INVALIDATED
+  claim: NOT_ATTRIBUTABLE

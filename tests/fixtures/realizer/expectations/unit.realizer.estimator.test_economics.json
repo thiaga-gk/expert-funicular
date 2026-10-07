@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 5217025,
-  "sha256": "85991942f745b296bb4c53c00cc96221eb08beeca535bf8b1d9bc0b7e8e186d7",
+  "length": 5774305,
+  "sha256": "91386d6c52f74e157dffad779b95ffe93b1c25c4a79be8051b6b92abc0a45dd4",
   "spot": {
    "classes": [
     [
@@ -65,9 +65,9 @@
      "REESTIMATED_APPLIED_SCOPE"
     ],
     [
-     "UNDER_REALIZED",
-     "UNDER_REALIZED",
-     "PUBLISHER_SCENARIO"
+     "REALIZED",
+     "REALIZED_ABOVE_RANGE_REVIEW",
+     "PUBLISHER_CANDIDATE"
     ],
     [
      "UNDER_REALIZED",
@@ -162,12 +162,19 @@
     "aws_commitment_freed": null,
     "aws_economic_realized": null,
     "aws_evidence_type": null,
+    "classification_basis": "PUBLISHED_RANGE",
     "classification_detail": "VALIDATED_VALUE_UNCLASSIFIED",
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_range": {
+     "base": "31792.93",
+     "component": "total",
+     "high": "35021.21",
+     "low": "20493.89"
+    },
     "expected_same_scope_annual_savings": "31792.93",
     "mature_ttm_realized_savings": null,
     "observed_economic_delta": "2613.12",
@@ -178,6 +185,7 @@
     "realized_savings_period": "2613.12",
     "realized_savings_since_application": "2613.12",
     "reoptimization_recommended": false,
+    "review_required": false,
     "successful_realized_savings": "2613.12"
    }
   ]
@@ -244,11 +252,11 @@
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 7021,
-  "sha256": "0746c3b549f7bbf0b8cbb50fb68cf6f6a15a48a449c40f1184a42b2a07ca9073",
+  "sha256": "85616c5dddc93606ec09000d7cea5bc1b39d6b3f492ddcc893ff36312bede3e5",
   "spot": {
    "count": 234,
    "distinct": 42,
-   "first": "CF-8F315172EB8DBA09E425370B"
+   "first": "CF-A2924991BCDBE6866CCA80A4"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {
@@ -325,6 +333,18 @@
  },
  "ExpectedAnnualTests.test_every_plan_step_of_every_fixture_package/steps": {
   "value": {
+   "autostop-scoped-never-stop/SCN-C58EE28009AB0DE5788EC3A7/1": [
+    "93006.44",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "autostop-scoped-pro/SCN-2EF40DCCFAEBEA6F419C3CAA/1": [
+    "9363.51",
+    "PUBLISHER_CANDIDATE"
+   ],
+   "autostop-scoped-serverless/SCN-1AD6B193A8236A31A6C0D21B/1": [
+    "2054.22",
+    "PUBLISHER_CANDIDATE"
+   ],
    "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/1": [
     "31792.93",
     "PUBLISHER_CANDIDATE"

@@ -51,7 +51,7 @@ All policy readiness gates pass before validation. Analyzer computes post-change
 
 ## 9. M08/Estimator
 
-M08 receives old PlanState + actual post-change workload/regime. Estimator REALIZED computes money. Realizer classifies/attributes but does not invent financial formulas.
+M08 receives old PlanState + actual post-change workload/regime. Estimator REALIZED computes money. Realizer classifies/attributes but does not invent financial formulas. The live auto-stop counterfactual replays the actual post-change gaps with the old value ([source and evidence contract](../../contracts/realizer/source-evidence-contract.md) section 18).
 
 ## 10. Denominator
 
@@ -75,6 +75,9 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 <output>/realization/snapshots/RSNAP-*.json
 <output>/realization/evidence/REVID-*.json
 <output>/realization/regeneration/RERUN-*.json
+<output>/realization/measurements/<workspace>__<warehouse>__<as-of>.json   # live measurement evidence
+<output>/realization/backtest/evidence-<as-of>.json                       # backtest evidence
+<output>/realization/backtest/backtest-<as-of>.json                       # backtest report
 ```
 
 ## 14. Phase-2 boundary

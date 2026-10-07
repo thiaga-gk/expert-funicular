@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic Databricks SQL Warehouse Realizer v1.0.0: the facade (the CLI is ``realizer.cli``).
+"""Deterministic Databricks SQL Warehouse Realizer v1.1.0: the facade (the CLI is ``realizer.cli``).
 
     Analyzer -> Governor -> Reconciler -> Estimator -> Reviewer -> Packager -> Reporter
 
@@ -17,8 +17,8 @@ validated PKG plus a normalized post-change observation is enough to exercise th
 -> economics -> attribution -> regeneration loop. Live Databricks collection can feed the same normalized
 observation contract.
 
-The facade re-exports only what the CLI needs: the policy type and the demo and replay observation loaders. Everything
-else is imported from its capability package.
+The facade re-exports only what the CLI needs: the policy type, the demo and replay observation loaders and the backtest
+entry points. Everything else is imported from its capability package.
 """
 from __future__ import annotations
 
@@ -26,7 +26,9 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 from realizer.analyzer import analyzer
-from realizer.analyzer.collector.collector import demo_observation, load_observation
+from realizer.analyzer.backtest import summary_lines as backtest_summary
+from realizer.analyzer.collector.backtest_collector import backtest_demo, backtest_from_evidence, backtest_live
+from realizer.analyzer.collector.collector import demo_observation, load_observation, measure_live, observe_from_evidence
 from realizer.config.loader import validate_observation, validate_package, validate_replay_through
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
@@ -40,8 +42,12 @@ from realizer.reconciler import reconciler
 from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
-# ``RealizerPolicy``, ``demo_observation`` and ``load_observation`` are re-exported for the CLI, which reaches the core only here.
-__all__ = ["RealizerPolicy", "build_context", "demo_observation", "load_observation", "realize", "realize_request"]
+__all__ = ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
+           "demo_observation", "load_observation", "measure_live", "observe_from_evidence", "realize", "realize_request"]
+
+# ``RealizerPolicy``, ``demo_observation``, ``load_observation``, ``measure_live`` and ``observe_from_evidence`` are re-exported for
+# the CLI, which reaches the core only here; so are the backtest entry points (``backtest_live``, ``backtest_from_evidence``,
+# ``backtest_demo`` and ``backtest_summary``), which use no package and run no capability pipeline.
 
 
 def build_context(request: RealizationRequest) -> RunContext:

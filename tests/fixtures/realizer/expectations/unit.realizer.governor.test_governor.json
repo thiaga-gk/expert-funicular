@@ -1,7 +1,7 @@
 {
  "RunTests.test_checks_for_every_scenario_observation/results": {
-  "length": 76181,
-  "sha256": "2ec016f53b11439fe242fb5ca054aa3a15c5d58a30531e80f6ba415e29e807da",
+  "length": 78986,
+  "sha256": "f7c464005dd6d41ded259e7b30951363d9f8251d6edf2b74faa6039aae2a8dc8",
   "spot": {
    "count": 51,
    "exceptions": []
@@ -26,16 +26,16 @@
        "metric": "normalized_p95_runtime_regression_pct",
        "observed": "2",
        "operator": "LTE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-PERF-P95-001",
-       "threshold": "5"
+       "threshold": "25"
       },
       {
        "metric": "reliability_pass",
        "observed": true,
        "operator": "EQ",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-REL-001",
        "threshold": true
@@ -44,7 +44,7 @@
        "metric": "correctness_pass",
        "observed": true,
        "operator": "NE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-CORRECT-001",
        "threshold": false
@@ -61,6 +61,10 @@
        "observed": "SUFFICIENT",
        "pass": true,
        "required": "SUFFICIENT"
+      },
+      "guardrail_evidence": {
+       "pass": true,
+       "unknown_rules": []
       },
       "minimum_days": {
        "observed": 8,
@@ -105,16 +109,16 @@
        "metric": "normalized_p95_runtime_regression_pct",
        "observed": "2",
        "operator": "LTE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-PERF-P95-001",
-       "threshold": "5"
+       "threshold": "25"
       },
       {
        "metric": "reliability_pass",
        "observed": true,
        "operator": "EQ",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-REL-001",
        "threshold": true
@@ -123,7 +127,7 @@
        "metric": "correctness_pass",
        "observed": true,
        "operator": "NE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-CORRECT-001",
        "threshold": false
@@ -140,6 +144,10 @@
        "observed": "SUFFICIENT",
        "pass": true,
        "required": "SUFFICIENT"
+      },
+      "guardrail_evidence": {
+       "pass": true,
+       "unknown_rules": []
       },
       "minimum_days": {
        "observed": 8,
@@ -285,16 +293,16 @@
        "metric": "normalized_p95_runtime_regression_pct",
        "observed": "2",
        "operator": "LTE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-PERF-P95-001",
-       "threshold": "5"
+       "threshold": "25"
       },
       {
        "metric": "reliability_pass",
        "observed": true,
        "operator": "EQ",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-REL-001",
        "threshold": true
@@ -303,7 +311,7 @@
        "metric": "correctness_pass",
        "observed": true,
        "operator": "NE",
-       "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+       "policy_snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD",
        "result": "PASS",
        "rule_id": "REAL-CORRECT-001",
        "threshold": false

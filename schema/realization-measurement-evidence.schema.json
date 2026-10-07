@@ -1,0 +1,770 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "as_of_utc": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": "string"
+    },
+    "assumptions": {
+      "additionalProperties": false,
+      "properties": {
+        "billing_settle_hours": {
+          "type": "number"
+        },
+        "canary_p95_min_queries": {
+          "type": "number"
+        },
+        "canary_p95_regression_pct": {
+          "type": "number"
+        },
+        "cold_start_added_share_max_pct": {
+          "type": "number"
+        },
+        "failure_cancel_pct_downsize_safe": {
+          "type": "number"
+        },
+        "min_query_sample_size": {
+          "type": "number"
+        },
+        "queue_query_pct_safe": {
+          "type": "number"
+        },
+        "restart_cost_cluster_minutes_pro_classic": {
+          "type": "number"
+        },
+        "restart_cost_cluster_minutes_serverless": {
+          "type": "number"
+        },
+        "severity_min_affected_queries": {
+          "type": "number"
+        },
+        "spill_query_pct_downsize_safe": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "billing_settle_hours",
+        "canary_p95_min_queries",
+        "canary_p95_regression_pct",
+        "cold_start_added_share_max_pct",
+        "failure_cancel_pct_downsize_safe",
+        "min_query_sample_size",
+        "queue_query_pct_safe",
+        "restart_cost_cluster_minutes_pro_classic",
+        "restart_cost_cluster_minutes_serverless",
+        "severity_min_affected_queries",
+        "spill_query_pct_downsize_safe"
+      ],
+      "type": "object"
+    },
+    "aws": {
+      "additionalProperties": false,
+      "properties": {
+        "post": {
+          "additionalProperties": false,
+          "properties": {
+            "blocker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cluster_hourly_price": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "region": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "blocker",
+            "cluster_hourly_price",
+            "currency",
+            "region",
+            "status"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pre": {
+          "additionalProperties": false,
+          "properties": {
+            "blocker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cluster_hourly_price": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "region": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "blocker",
+            "cluster_hourly_price",
+            "currency",
+            "region",
+            "status"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "post",
+        "pre"
+      ],
+      "type": "object"
+    },
+    "billing": {
+      "additionalProperties": false,
+      "properties": {
+        "billing_watermark": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "settled_through": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "watermark_source": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "billing_watermark",
+        "settled_through",
+        "watermark_source"
+      ],
+      "type": "object"
+    },
+    "daily_cost": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "currency_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dbu_quantity": {
+            "type": "number"
+          },
+          "epoch_start": {
+            "format": "date-time",
+            "minLength": 1,
+            "type": "string"
+          },
+          "list_cost": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "restated_dbu_quantity": {
+            "type": "number"
+          },
+          "retracted_dbu_quantity": {
+            "type": "number"
+          },
+          "unpriced_dbu_quantity": {
+            "type": "number"
+          },
+          "usage_date": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency_code",
+          "dbu_quantity",
+          "epoch_start",
+          "list_cost",
+          "restated_dbu_quantity",
+          "retracted_dbu_quantity",
+          "unpriced_dbu_quantity",
+          "usage_date"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "epochs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_stop_minutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "epoch_end": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epoch_start": {
+            "format": "date-time",
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_clusters": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_clusters": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "warehouse_channel": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "warehouse_size": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "warehouse_type": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "auto_stop_minutes",
+          "epoch_end",
+          "epoch_start",
+          "max_clusters",
+          "min_clusters",
+          "warehouse_channel",
+          "warehouse_size",
+          "warehouse_type"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "guard": {
+      "additionalProperties": false,
+      "properties": {
+        "CURRENT": {
+          "additionalProperties": false,
+          "properties": {
+            "decision_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "failure_cancel_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p95_execution_ms_shared_sources": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queued_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queued_query_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "shared_source_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spill_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spill_query_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "decision_queries",
+            "failure_cancel_pct",
+            "p95_execution_ms_shared_sources",
+            "queries",
+            "queued_queries",
+            "queued_query_pct",
+            "shared_source_queries",
+            "spill_queries",
+            "spill_query_pct"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "PREVIOUS": {
+          "additionalProperties": false,
+          "properties": {
+            "decision_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "failure_cancel_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "p95_execution_ms_shared_sources": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queued_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "queued_query_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "shared_source_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spill_queries": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spill_query_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "decision_queries",
+            "failure_cancel_pct",
+            "p95_execution_ms_shared_sources",
+            "queries",
+            "queued_queries",
+            "queued_query_pct",
+            "shared_source_queries",
+            "spill_queries",
+            "spill_query_pct"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "CURRENT",
+        "PREVIOUS"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "measurement_evidence_format_version": {
+      "const": "1.0.0"
+    },
+    "source": {
+      "enum": [
+        "LIVE_SYSTEM_TABLES",
+        "DEMO_SIMULATION"
+      ]
+    },
+    "source_region": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "warehouse_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "windows": {
+      "additionalProperties": false,
+      "properties": {
+        "post": {
+          "additionalProperties": false,
+          "properties": {
+            "epoch_start": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string"
+            },
+            "first_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "pre",
+                "post"
+              ]
+            },
+            "last_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "replay": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "added_idle_cluster_minutes": {
+                    "type": "number"
+                  },
+                  "added_idle_wall_minutes": {
+                    "type": "number"
+                  },
+                  "additional_starts": {
+                    "type": "number"
+                  },
+                  "avoided_starts": {
+                    "type": "number"
+                  },
+                  "removable_running_cluster_minutes": {
+                    "type": "number"
+                  },
+                  "removable_running_wall_minutes": {
+                    "type": "number"
+                  },
+                  "target_min": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "added_idle_cluster_minutes",
+                  "added_idle_wall_minutes",
+                  "additional_starts",
+                  "avoided_starts",
+                  "removable_running_cluster_minutes",
+                  "removable_running_wall_minutes",
+                  "target_min"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "running": {
+              "additionalProperties": false,
+              "properties": {
+                "kept_alive_gap_count": {
+                  "type": "number"
+                },
+                "kept_alive_wall_minutes": {
+                  "type": "number"
+                },
+                "observed_running_cluster_minutes": {
+                  "type": "number"
+                },
+                "observed_running_wall_minutes": {
+                  "type": "number"
+                },
+                "queries": {
+                  "type": "number"
+                },
+                "restarts_for_queries": {
+                  "type": "number"
+                },
+                "running_segment_count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kept_alive_gap_count",
+                "kept_alive_wall_minutes",
+                "observed_running_cluster_minutes",
+                "observed_running_wall_minutes",
+                "queries",
+                "restarts_for_queries",
+                "running_segment_count"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "window_end": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "window_start": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "epoch_start",
+            "first_day",
+            "label",
+            "last_day",
+            "replay",
+            "running",
+            "window_end",
+            "window_start"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pre": {
+          "additionalProperties": false,
+          "properties": {
+            "epoch_start": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string"
+            },
+            "first_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "pre",
+                "post"
+              ]
+            },
+            "last_day": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "replay": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "added_idle_cluster_minutes": {
+                    "type": "number"
+                  },
+                  "added_idle_wall_minutes": {
+                    "type": "number"
+                  },
+                  "additional_starts": {
+                    "type": "number"
+                  },
+                  "avoided_starts": {
+                    "type": "number"
+                  },
+                  "removable_running_cluster_minutes": {
+                    "type": "number"
+                  },
+                  "removable_running_wall_minutes": {
+                    "type": "number"
+                  },
+                  "target_min": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "added_idle_cluster_minutes",
+                  "added_idle_wall_minutes",
+                  "additional_starts",
+                  "avoided_starts",
+                  "removable_running_cluster_minutes",
+                  "removable_running_wall_minutes",
+                  "target_min"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "running": {
+              "additionalProperties": false,
+              "properties": {
+                "kept_alive_gap_count": {
+                  "type": "number"
+                },
+                "kept_alive_wall_minutes": {
+                  "type": "number"
+                },
+                "observed_running_cluster_minutes": {
+                  "type": "number"
+                },
+                "observed_running_wall_minutes": {
+                  "type": "number"
+                },
+                "queries": {
+                  "type": "number"
+                },
+                "restarts_for_queries": {
+                  "type": "number"
+                },
+                "running_segment_count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kept_alive_gap_count",
+                "kept_alive_wall_minutes",
+                "observed_running_cluster_minutes",
+                "observed_running_wall_minutes",
+                "queries",
+                "restarts_for_queries",
+                "running_segment_count"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "window_end": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "window_start": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "epoch_start",
+            "first_day",
+            "label",
+            "last_day",
+            "replay",
+            "running",
+            "window_end",
+            "window_start"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "post",
+        "pre"
+      ],
+      "type": "object"
+    },
+    "workspace_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "as_of_utc",
+    "assumptions",
+    "aws",
+    "billing",
+    "daily_cost",
+    "epochs",
+    "guard",
+    "measurement_evidence_format_version",
+    "source",
+    "source_region",
+    "warehouse_id",
+    "windows",
+    "workspace_id"
+  ],
+  "title": "RealizationMeasurementEvidence",
+  "type": "object"
+}

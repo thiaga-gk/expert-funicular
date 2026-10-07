@@ -3,7 +3,9 @@
 The builders reproduce the committed schema files (``schema/realization-package.schema.json`` and
 ``schema/realization-ledger-entry.schema.json``) byte for byte, and accept every stored RPKG/RSNAP and RLE. The observation
 schema (``schema/realization-observation.schema.json``, built by ``realizer.contracts.observation.observation_schema``) is
-reproduced byte for byte too, and every stored scenario observation and shipped example validates against it.
+reproduced byte for byte too, and every stored scenario observation and shipped example validates against it. So is the
+measurement evidence schema (``schema/realization-measurement-evidence.schema.json``, built by
+``realizer.contracts.measurement.measurement_evidence_schema``), which a simulated live measurement satisfies.
 """
 import json
 import sys
@@ -19,6 +21,7 @@ for _path in (ROOT, ROOT / "src"):
 from tests.regression.realizer import canonical  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
+from realizer.contracts import measurement as measurement_module  # noqa: E402
 from realizer.contracts import observation as observation_module  # noqa: E402
 from realizer.contracts import realization_schema as schema  # noqa: E402
 
@@ -80,7 +83,10 @@ class ObservationSchemaTests(unittest.TestCase):
             self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
         self.assertEqual(sorted(built["properties"]["config"]["properties"]),
                          ["auto_stop_minutes", "enable_photon", "max_clusters", "min_clusters", "warehouse_channel", "warehouse_size", "warehouse_type"])
-        self.assertEqual(built["properties"]["observation_format_version"], {"const": "2.0.0"})
+        self.assertEqual(built["properties"]["observation_format_version"], {"const": "2.1.0"})
+        for section in ("measurement",):
+            self.assertIs(built["properties"][section]["additionalProperties"], False, section)
+            self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
 
     def test_every_stored_scenario_observation_and_the_examples_validate(self):
         validator = jsonschema.Draft202012Validator(observation_module.observation_schema())
@@ -105,6 +111,27 @@ class ObservationSchemaTests(unittest.TestCase):
         self.assertFalse(validator.is_valid({**observation, "tag_only": "x"}))
         self.assertFalse(validator.is_valid({**observation, "config": {**observation["config"], "tag_only": "x"}}))
         self.assertFalse(validator.is_valid({**observation, "observation_format_version": "1.0.0"}))
+
+
+
+class MeasurementEvidenceSchemaTests(unittest.TestCase):
+    FILE = COMMITTED / "realization-measurement-evidence.schema.json"
+
+    def test_builder_reproduces_the_committed_schema_file_byte_for_byte(self):
+        self.assertTrue(self.FILE.is_file())
+        self.assertEqual(serialize(measurement_module.measurement_evidence_schema()), self.FILE.read_bytes())
+
+    def test_schema_is_strict_and_a_simulated_measurement_satisfies_it(self):
+        from tests import realizer_world as world
+        built = measurement_module.measurement_evidence_schema()
+        jsonschema.Draft202012Validator.check_schema(built)
+        self.assertIs(built["additionalProperties"], False)
+        self.assertEqual(built["required"], sorted(built["properties"]))
+        evidence = world.measure(world.package("autostop-scoped-pro"), world.world_spec("C13", {"auto_stop": 10}), 13)
+        validator = jsonschema.Draft202012Validator(built)
+        self.assertTrue(validator.is_valid(evidence))
+        self.assertFalse(validator.is_valid({**evidence, "owner": "someone@example.com"}))
+        self.assertFalse(validator.is_valid({**evidence, "measurement_evidence_format_version": "2.0.0"}))
 
 
 if __name__ == "__main__":

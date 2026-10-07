@@ -1,0 +1,23 @@
+id: GE-12
+description: >-
+  A full-scope package (no run scope) whose first step is auto-stop 45 to 10, followed by a canary size cut; the owner
+  applies only the auto-stop step, exactly.
+publisher:
+  warehouse: wh-demo-005
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  within_pkg: {component: dbu, low_factor: 1, high_factor: 1.25}
+  cross_check: AGREES
+  independent_changes: []
+  realization_state: REALIZED
+  claim: CLAIMABLE
+  origin: INFERRED
+  disqualifiers: []

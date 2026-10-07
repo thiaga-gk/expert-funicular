@@ -1,0 +1,18 @@
+id: GE-10
+description: >-
+  The change was applied five days before the as-of time: no whole settled week after it, so the application is
+  observed with its exact time and nothing is measured yet.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-11-02T14:32:00Z", set: {auto_stop: 10}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-11-02T14:32:00Z"
+  window: null
+  measured: false
+  not_measured_reason: NOT_SETTLED
+  realization_state: APPLIED
+  origin: INFERRED

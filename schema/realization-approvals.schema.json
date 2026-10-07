@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approvals": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "knob": {
+            "enum": [
+              "warehouse_type",
+              "warehouse_size",
+              "min_clusters",
+              "max_clusters",
+              "auto_stop_minutes"
+            ]
+          },
+          "recommendation_package_id": {
+            "pattern": "^PKG-[0-9A-F]{24}$",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/#-]+$",
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "knob",
+          "recommendation_package_id",
+          "reference",
+          "value"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "approvals_format_version": {
+      "const": "1.0.0"
+    }
+  },
+  "required": [
+    "approvals",
+    "approvals_format_version"
+  ],
+  "title": "RealizationApprovals",
+  "type": "object"
+}

@@ -246,11 +246,19 @@ class NoDomainLogicTests(unittest.TestCase):
 class NamespaceTests(unittest.TestCase):
     """The facade re-exports only what the CLI needs; every other name comes from its capability package."""
 
+    def test_star_import_exposes_only_the_entry_points_and_the_cli_pass_throughs(self):
+        self.assertEqual(sorted(facade.__all__), ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary",
+                                                  "build_context", "demo_observation", "load_observation", "measure_live", "observe_from_evidence",
+                                                  "realize", "realize_request"])
+        self.assertTrue(all(hasattr(facade, name) for name in facade.__all__))
+
     def test_the_public_names_are_the_entry_points_the_imports_they_need_and_the_cli_pass_throughs(self):
         names = {n for n, value in vars(facade).items() if not n.startswith("_") and not inspect.ismodule(value)}
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
-            "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "realize", "realize_request",
+            "annotations", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
+            "demo_observation", "load_observation", "make_rpkg_id", "measure_live", "observe_from_evidence",
+        "realize", "realize_request",
             "validate_observation", "validate_package", "validate_replay_through",
         })
 

@@ -97,7 +97,8 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-003
     def test_gr_003_exact_confirmed_origin(self):
-        s = self.realize_case(self.obs())
+        o = self.obs(); o['elapsed_days'] = 30  # the size canary's 30-day guard window has ended
+        s = self.realize_case(o)
         self.assertEqual(s.attribution['origin_attribution'], 'CONFIRMED')
         self.assertEqual(s.attribution['attribution_claim_status'], 'CLAIMABLE')
 
@@ -175,7 +176,7 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-013
     def test_gr_013_positive_savings_p95_failure(self):
-        o = self.obs(); o['performance']['normalized_p95_runtime_regression_pct'] = '7'
+        o = self.obs(); o['performance']['normalized_p95_runtime_regression_pct'] = '30'  # above the balanced profile's 25
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'VALIDATION_FAILED')
         self.assertEqual(Decimal(s.economics['successful_realized_savings']), 0)

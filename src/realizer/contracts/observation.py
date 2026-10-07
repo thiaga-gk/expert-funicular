@@ -1,8 +1,9 @@
-"""Realizer observation format 2.0.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 2.1.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
-economics. Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
+economics and how they were measured (``measurement``: the replayed knob, the windows before and after the change and
+the replay's quantities, ``null`` for a caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
 input never passes its gate. The format is checked against ``schema/realization-observation.schema.json`` (built by
 ``observation_schema``) before a run writes anything (``realizer.config.loader.validate_observation``).
 """
@@ -12,7 +13,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "2.0.0"
+OBSERVATION_FORMAT_VERSION = "2.1.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -23,6 +24,13 @@ AWS_EVIDENCE_TYPES = ("MODELED", "CUR_ACTUAL")
 EFFECTIVE_TIME_QUALITIES = ("EXACT", "BOUNDED", "OBSERVED_AT_ONLY")
 CORRECTION_TYPES = ("RESTATEMENT", "RETRACTION")
 DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
+MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY",)
+COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
+NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED")
+CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
+CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
+GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
+                 "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
 
 _DECIMAL_PATTERN = r"^-?[0-9]+(\.[0-9]+)?$"
 
@@ -38,6 +46,8 @@ def _obj(properties: Dict[str, Any], *, nullable: bool = False) -> Dict[str, Any
 
 
 TIMESTAMP = {"type": "string", "format": "date-time", "minLength": 1}
+NULLABLE_COUNT = {"type": ["integer", "null"], "minimum": 0}
+DAY = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
 NULLABLE_TIMESTAMP = {"type": ["string", "null"], "format": "date-time"}
 PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "string", "pattern": _DECIMAL_PATTERN}, {"type": "null"}]}
 
@@ -53,10 +63,17 @@ def observation_schema() -> Dict[str, Any]:
         "warehouse_channel": {"type": "string", "minLength": 1},
         "enable_photon": {"type": ["boolean", "null"]},
     })
+    guard_period = _obj({m: _decimal() for m in GUARD_METRICS}, nullable=True)
+    guards = _obj({
+        "pre": guard_period, "post": guard_period,
+        "cold_start": _obj({"pre_restarts": NULLABLE_COUNT, "pre_queries": NULLABLE_COUNT, "post_restarts": NULLABLE_COUNT,
+                            "post_queries": NULLABLE_COUNT}, nullable=True),
+    }, nullable=True)
     performance = _obj({
         "normalized_p95_runtime_regression_pct": _decimal(),
         "reliability_pass": {"type": ["boolean", "null"]},
         "correctness_pass": {"type": ["boolean", "null"]},
+        "guards": guards,
     })
     financial_quality = _obj({
         "attributable_spend_pct": PERCENT,
@@ -87,6 +104,35 @@ def observation_schema() -> Dict[str, Any]:
         "version": {"type": "integer", "minimum": 1},
         "reason": {"type": ["string", "null"]},
         "corrects_entry_id": {"type": ["string", "null"], "pattern": r"^RLE-[0-9A-F]{24}$"},
+    }, nullable=True)
+    window = _obj({
+        "first_day": DAY, "last_day": DAY, "days": {"type": "integer", "minimum": 1}, "queries": {"type": "integer", "minimum": 0},
+        "running_cluster_minutes": _decimal(nullable=False), "restarts": {"type": "integer", "minimum": 0},
+        "billed_dbu": _decimal(nullable=False), "billed_cost": _decimal(),
+    }, nullable=True)
+    knob_value = {"type": ["integer", "string", "null"]}
+    measurement = _obj({
+        "method": {"enum": [None, *MEASUREMENT_METHODS]},
+        "knob": {"enum": list(DECISION_KNOBS)},
+        "source_value": knob_value, "applied_value": knob_value,
+        "change_epoch_start": NULLABLE_TIMESTAMP, "observed_epoch_start": TIMESTAMP, "previous_epoch_start": NULLABLE_TIMESTAMP,
+        "not_measured_reason": {"enum": [None, *NOT_MEASURED_REASONS]},
+        "post_window": window, "pre_window": window, "volume_ratio": _decimal(),
+        "other_knob_changes": {"type": "array", "items": {"enum": list(DECISION_KNOBS)}},
+        "holds_other_knobs": {"type": "boolean"},
+        "cost_basis": {"enum": [None, *COST_BASES]},
+        "replay": _obj({
+            "replayed_target_minutes": {"type": "integer", "minimum": 1},
+            "added_idle_cluster_minutes": _decimal(nullable=False), "avoided_starts": _decimal(nullable=False),
+            "restart_cost_cluster_minutes": _decimal(nullable=False), "net_cluster_minutes": _decimal(nullable=False),
+            "dbu_cost_per_cluster_minute": _decimal(nullable=False), "aws_cluster_hourly_price": _decimal(),
+            "aws_status": {"type": "string", "minLength": 1},
+        }, nullable=True),
+        "cross_check": _obj({
+            "outcome": {"enum": list(CROSS_CHECK_OUTCOMES)}, "reason": {"enum": [None, *CROSS_CHECK_REASONS]},
+            "replay_dbu_saving": _decimal(nullable=False), "billed_dbu_reduction": _decimal(), "difference_pct": _decimal(),
+            "noise": _decimal(), "pre_weekly_costs": {"type": "array", "items": _decimal(nullable=False)},
+        }, nullable=True),
     }, nullable=True)
     properties = {
         "observation_format_version": {"const": OBSERVATION_FORMAT_VERSION},
@@ -119,6 +165,7 @@ def observation_schema() -> Dict[str, Any]:
         "rollback_reason": {"type": ["string", "null"]},
         "replacement_package_id": {"type": ["string", "null"], "pattern": r"^PKG-[0-9A-F]{24}$"},
         "correction": correction,
+        "measurement": measurement,
     }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

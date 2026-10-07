@@ -105,8 +105,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-840FC98FC57CB50F460B1916", "REVID-37F7F275591908182339F44B", "RERUN-E859EB99CB326CE38DB20043"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-418E7F3D714E52CFF2192E40", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-3908769AAF62FB3768C5C200"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-A64F3EAB64DE9F38D87F0286", "REVID-37F7F275591908182339F44B", "RERUN-46E927B89BA067DACFE23007"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-7C60B0F40D19E981310B4AE3", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-421CD2BEF5C476EECF5E45FA"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
@@ -116,9 +116,10 @@ class StoredBaselineTests(unittest.TestCase):
                     self.assertIn(f"realization/{folders[identity.split('-')[0]]}/{identity}.json", files)
                 self.assertEqual(canonical.load_scenario(name)["package"], "inplace-size-canary.json")
 
-    def test_every_scenario_names_one_of_the_four_fixture_packages(self):
+    def test_every_scenario_names_one_of_the_fixture_packages(self):
         fixtures = sorted(p.name for p in canonical.PACKAGES.glob("*.json"))
-        self.assertEqual(fixtures, ["inplace-size-canary.json", "scope-migration-only.json", "two-ready-steps.json", "unpriced-candidate.json"])
+        self.assertEqual(fixtures, ["autostop-scoped-never-stop.json", "autostop-scoped-pro.json", "autostop-scoped-serverless.json",
+                                    "inplace-size-canary.json", "scope-migration-only.json", "two-ready-steps.json", "unpriced-candidate.json"])
         for name in self.names:
             with self.subTest(scenario=name):
                 self.assertIn(canonical.load_scenario(name)["package"], fixtures)

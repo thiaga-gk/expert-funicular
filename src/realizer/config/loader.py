@@ -18,6 +18,8 @@ import json
 
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json, utc_iso
+from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
+from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
 
 SUPPORTED_PUBLISHER_CONTRACT = "3.1.0"
@@ -157,3 +159,38 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
     observed_type = observation["config"]["warehouse_type"].strip().upper()
     if observed_type not in SUPPORTED_WAREHOUSE_TYPES:
         raise InputError(f"unsupported warehouse type observed: {observed_type}")
+
+
+def validate_measurement_evidence(evidence: Any) -> None:
+    """Accept *evidence* only in measurement evidence format ``MEASUREMENT_EVIDENCE_FORMAT_VERSION`` (its JSON Schema);
+    raise ``InputError`` naming the failing location, never a value."""
+    import jsonschema  # a gate that cannot run must not pass; jsonschema is a declared dependency
+
+    if not isinstance(evidence, Mapping):
+        raise InputError("measurement evidence must be a JSON object")
+    version = evidence.get("measurement_evidence_format_version")
+    if version != MEASUREMENT_EVIDENCE_FORMAT_VERSION:
+        raise InputError(f"unsupported measurement evidence format: {version} (this Realizer reads {MEASUREMENT_EVIDENCE_FORMAT_VERSION})")
+    validator = jsonschema.Draft202012Validator(measurement_evidence_schema(), format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
+    error = next(iter(sorted(validator.iter_errors(dict(evidence)), key=lambda e: list(e.absolute_path))), None)
+    if error is not None:
+        location = "/".join(str(p) for p in error.absolute_path) or "<root>"
+        raise InputError(f"measurement evidence fails format {MEASUREMENT_EVIDENCE_FORMAT_VERSION} at {location} ({error.validator})")
+
+
+def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
+    """The approvals file at *path* (format ``APPROVALS_FORMAT_VERSION``), checked against its schema; ``None`` when no
+    file is given. A file in another format is refused (``InputError``), naming the location, never a value."""
+    if not path:
+        return None
+    import jsonschema
+
+    approvals = read_json_input(path, "approvals")
+    if not isinstance(approvals, Mapping) or approvals.get("approvals_format_version") != APPROVALS_FORMAT_VERSION:
+        version = approvals.get("approvals_format_version") if isinstance(approvals, Mapping) else None
+        raise InputError(f"unsupported approvals format: {version} (this Realizer reads {APPROVALS_FORMAT_VERSION})")
+    error = next(iter(sorted(jsonschema.Draft202012Validator(approvals_schema()).iter_errors(dict(approvals)), key=lambda e: list(e.absolute_path))), None)
+    if error is not None:
+        location = "/".join(str(p) for p in error.absolute_path) or "<root>"
+        raise InputError(f"approvals file fails format {APPROVALS_FORMAT_VERSION} at {location} ({error.validator})")
+    return approvals

@@ -1,0 +1,25 @@
+id: GE-04
+description: >-
+  The scoped auto-stop change (30 to 10) applied together with a size cut the run scope did not recommend (SMALL to
+  X_SMALL). The size change is reported as another knob change, the replay holds it at its new value (priced at the new
+  size) and the billed cross-check cannot separate the two knobs.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10, size: X_SMALL}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  # The oracle holds the size at its new value too, so the replay priced at the new size matches it.
+  near_oracle: {pct: 1}
+  cross_check: {outcome: INCONCLUSIVE, reason: OTHER_KNOB_CHANGED}
+  independent_changes: [warehouse_size]
+  # The replay holds the size cut at its new value, so the auto-stop saving alone stays claimable.
+  realization_state: REALIZED
+  claim: CLAIMABLE
+  disqualifiers: []

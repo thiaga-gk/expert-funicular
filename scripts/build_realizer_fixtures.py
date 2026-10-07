@@ -14,6 +14,12 @@ writes it to ``tests/fixtures/realizer/packages/<fixture>.json``.
 | ``two-ready-steps`` | demo ``wh-demo-009`` | two authority-eligible steps (READY_FOR_CANARY, then READY) followed by a PENDING_REEVALUATION step |
 | ``scope-migration-only`` | golden case ``s02-scope-migration-only`` | ``run_scope`` = migration only: step-less NO_CHANGE_BASELINE recommended, migration an alternative |
 | ``unpriced-candidate`` | demo ``wh-demo-003`` | a READY step whose candidate estimate is unavailable |
+| ``autostop-scoped-pro`` | demo ``wh-demo-013`` with ``--scope current:auto-stop`` | a Pro warehouse, one READY auto-stop step 30 to 10 with a DBU and modeled AWS range |
+| ``autostop-scoped-serverless`` | demo ``wh-demo-002`` with ``--scope current:auto-stop`` | a Serverless warehouse, one READY auto-stop step 30 to 5 (no customer AWS cost) |
+| ``autostop-scoped-never-stop`` | demo ``wh-demo-001`` with ``--scope current:auto-stop`` | a Pro warehouse that never stops (auto-stop 0), one READY auto-stop step to 35 |
+
+The scoped fixtures are the packages the live measurement and the end-to-end goldens realize: their warehouses are
+simulated after the change by ``publisher.analyzer.collector.demo.simulate_demo_world``.
 
 Rewriting a fixture changes every stored Realizer output that uses it, so the script refuses to write without
 ``--approved-change``. ``--check`` rebuilds the packages in memory and reports whether the committed fixtures differ
@@ -45,6 +51,8 @@ PACKAGES = ROOT / "tests" / "fixtures" / "realizer" / "packages"
 GOLDEN_CASES = ROOT / "tests" / "golden" / "cases"
 DEMO_SOURCES = {"inplace-size-canary": "wh-demo-006", "two-ready-steps": "wh-demo-009", "unpriced-candidate": "wh-demo-003"}
 CASE_SOURCES = {"scope-migration-only": ("s02-scope-migration-only", "wh-demo-001")}
+SCOPED_SOURCES = {"autostop-scoped-pro": "wh-demo-013", "autostop-scoped-serverless": "wh-demo-002", "autostop-scoped-never-stop": "wh-demo-001"}
+AUTO_STOP_SCOPE = "current:auto-stop"
 
 
 def _recommended_plan(package: Mapping[str, Any]) -> List[Mapping[str, Any]]:
@@ -85,6 +93,15 @@ def _check_migration_only(p: Mapping[str, Any]) -> None:
     assert recommended["scenario_type"] == "NO_CHANGE_BASELINE"
 
 
+def _check_scoped_auto_stop(p: Mapping[str, Any]) -> None:
+    roles = _roles(p)
+    assert [r for r in roles if r[0] == "CANDIDATE"] == [("CANDIDATE", "auto_stop_minutes", "READY")], roles
+    step = next(s for s in _recommended_plan(p) if s["step_type"] == "CANDIDATE")
+    savings = _candidate(p, step["candidate_id"])["independent_economics"]["savings_365d"]
+    assert savings["dbu"] is not None and savings["total"] is not None, "a priced auto-stop step"
+    assert p["run_scope"] is not None
+
+
 def _check_unpriced(p: Mapping[str, Any]) -> None:
     step = next(s for s in _recommended_plan(p) if s["step_type"] == "CANDIDATE")
     assert step["execution_state"] == "READY"
@@ -96,16 +113,17 @@ CHECKS: Dict[str, Callable[[Mapping[str, Any]], None]] = {
     "two-ready-steps": _check_two_ready,
     "scope-migration-only": _check_migration_only,
     "unpriced-candidate": _check_unpriced,
+    **{name: _check_scoped_auto_stop for name in SCOPED_SOURCES},
 }
 
 
-def build() -> Dict[str, Dict[str, Any]]:
-    """Every fixture package, freshly built and checked: {fixture name: package}."""
-    built: Dict[str, Dict[str, Any]] = {}
+def _demo_packages(warehouses, extra=()) -> Dict[str, Dict[str, Any]]:
+    """The Publisher demo's packages for *warehouses* (``--demo --flat-output --no-workbook`` plus *extra* arguments),
+    by warehouse id."""
     with tempfile.TemporaryDirectory(prefix="realizer-fixtures-") as tmp:
         argv = [sys.executable, "-m", "publisher", "--demo", "--flat-output", "--no-workbook", "--log-level", "WARNING",
-                "--output-dir", tmp]
-        for warehouse in DEMO_SOURCES.values():
+                "--output-dir", tmp, *extra]
+        for warehouse in warehouses:
             argv += ["--warehouse", warehouse]
         env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]))
         done = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True)
@@ -115,8 +133,17 @@ def build() -> Dict[str, Dict[str, Any]]:
         for path in sorted((Path(tmp) / "packages").glob("*.json")):
             package = json.loads(path.read_text(encoding="utf-8"))
             by_warehouse[package["warehouse"]["warehouse_id"]] = package
+    return by_warehouse
+
+
+def build() -> Dict[str, Dict[str, Any]]:
+    """Every fixture package, freshly built and checked: {fixture name: package}."""
+    built: Dict[str, Dict[str, Any]] = {}
+    plain, scoped = _demo_packages(DEMO_SOURCES.values()), _demo_packages(SCOPED_SOURCES.values(), ["--scope", AUTO_STOP_SCOPE])
     for name, warehouse in DEMO_SOURCES.items():
-        built[name] = by_warehouse[warehouse]
+        built[name] = plain[warehouse]
+    for name, warehouse in SCOPED_SOURCES.items():
+        built[name] = scoped[warehouse]
     for name, (case, warehouse) in CASE_SOURCES.items():
         packages = json.loads((GOLDEN_CASES / case / "expected" / "recommendation.json").read_text(encoding="utf-8"))
         built[name] = next(p for p in packages if p["warehouse"]["warehouse_id"] == warehouse)

@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
+from realizer.contracts import realization as rc
 from realizer.contracts.realization import RealizationEstimate
 from realizer.contracts.reconciliation import ReconciliationResult
 from realizer.contracts.request import RunContext
@@ -56,7 +57,9 @@ def run(
         # The gates join the economics (``quality_gates``, last key) before attribution reads them, as they always did.
         economic = {**economic, "quality_gates": governance.economic_quality.get()}
         facts["economics"] = economic
-        attr = attribution_result(app_payload, observation, validation_passed, cf_claim_eligible, economic, policy)
+        independent = sorted({str(a.payload.get("knob")) for a in reconciliation.applications
+                              if a.event_type == rc.EventType.INDEPENDENT_CHANGE_OBSERVED and a.payload.get("knob") != app_payload.get("knob")})
+        attr = attribution_result(app_payload, observation, validation_passed, cf_claim_eligible, economic, policy, independent)
         measurement = measurement_facts(
             app_id, observation, counterfactual, economic, attr,
             effective=observed.effective_at_utc, observed_at=observed.observed_at_utc,

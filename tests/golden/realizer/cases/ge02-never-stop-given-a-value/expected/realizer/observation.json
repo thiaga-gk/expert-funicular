@@ -1,0 +1,153 @@
+{
+  "actor": null,
+  "applied_at_utc": "2026-10-08T14:32:00Z",
+  "applied_scenario_id": null,
+  "config": {
+    "auto_stop_minutes": 35,
+    "enable_photon": true,
+    "max_clusters": 1,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "PRO"
+  },
+  "correction": null,
+  "economics": {
+    "aws_cash_realized": null,
+    "aws_commitment_freed": null,
+    "aws_economic_realized": "3448.22",
+    "aws_evidence_type": "MODELED",
+    "counterfactual_method": "CALIBRATED_PRIOR_STATE",
+    "counterfactual_old_cost": "13943.33",
+    "currency": "USD",
+    "dbu_realized": "6125.68",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_annual_savings_actual_scope": null,
+    "mature_ttm_realized_savings": null,
+    "observed_new_cost": "4369.42",
+    "period_days": 28,
+    "realized_savings_since_application": null
+  },
+  "effective_time_quality": "EXACT",
+  "elapsed_days": 28,
+  "evidence_quality": "SUFFICIENT",
+  "financial_quality": {
+    "attributable_spend_pct": "100",
+    "correction_chain_complete": true,
+    "currency_consistency_pct": "100",
+    "material_cost_component_available": true,
+    "price_coverage_pct": "100"
+  },
+  "intent_reference": null,
+  "intent_state": "UNKNOWN",
+  "measurement": {
+    "applied_value": 35,
+    "change_epoch_start": "2026-10-08T14:32:00Z",
+    "cost_basis": "DBU_AND_MODELED_AWS",
+    "cross_check": {
+      "billed_dbu_reduction": "6049.28",
+      "difference_pct": "1.25",
+      "noise": "17.60",
+      "outcome": "AGREES",
+      "pre_weekly_costs": [
+        "2225.59",
+        "2210.01",
+        "2201.83",
+        "2207.54"
+      ],
+      "reason": null,
+      "replay_dbu_saving": "6125.68"
+    },
+    "holds_other_knobs": true,
+    "knob": "auto_stop_minutes",
+    "method": "AUTO_STOP_REPLAY",
+    "not_measured_reason": null,
+    "observed_epoch_start": "2026-10-08T14:32:00Z",
+    "other_knob_changes": [],
+    "post_window": {
+      "billed_cost": "2795.69",
+      "billed_dbu": "5083.071",
+      "days": 28,
+      "first_day": "2026-10-09",
+      "last_day": "2026-11-05",
+      "queries": 2000,
+      "restarts": 20,
+      "running_cluster_minutes": "12610"
+    },
+    "pre_window": {
+      "billed_cost": "8844.97",
+      "billed_dbu": "16081.759",
+      "days": 28,
+      "first_day": "2026-09-10",
+      "last_day": "2026-10-07",
+      "queries": 2000,
+      "restarts": 0,
+      "running_cluster_minutes": "40320"
+    },
+    "previous_epoch_start": "2025-07-01T00:00:00Z",
+    "replay": {
+      "added_idle_cluster_minutes": "27710",
+      "avoided_starts": "20",
+      "aws_cluster_hourly_price": "7.488",
+      "aws_status": "MODELED",
+      "dbu_cost_per_cluster_minute": "0.221704",
+      "net_cluster_minutes": "27630",
+      "replayed_target_minutes": 527040,
+      "restart_cost_cluster_minutes": "4"
+    },
+    "source_value": 0,
+    "volume_ratio": "1"
+  },
+  "observation_format_version": "2.1.0",
+  "observed_at_utc": "2026-11-07T12:00:00Z",
+  "origin_attribution": "INFERRED",
+  "overlap_count": 0,
+  "performance": {
+    "correctness_pass": null,
+    "guards": {
+      "cold_start": {
+        "post_queries": 2000,
+        "post_restarts": 20,
+        "pre_queries": 2000,
+        "pre_restarts": 0
+      },
+      "post": {
+        "decision_queries": "1800",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "2500",
+        "queries": "2000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "1800",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      },
+      "pre": {
+        "decision_queries": "1800",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "2500",
+        "queries": "2000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "1800",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      }
+    },
+    "normalized_p95_runtime_regression_pct": null,
+    "reliability_pass": null
+  },
+  "query_count": 2000,
+  "recorded_at_utc": "2026-11-07T12:00:00Z",
+  "replacement_package_id": null,
+  "representative_regime": true,
+  "rollback_observed": false,
+  "rollback_reason": null,
+  "rollback_requested": false,
+  "source": "DEMO_SIMULATION",
+  "warehouse_id": "wh-demo-001",
+  "window_end_utc": "2026-11-06T00:00:00Z",
+  "window_start_utc": "2026-10-09T00:00:00Z",
+  "workload": {},
+  "workspace_id": "1234567890123456"
+}

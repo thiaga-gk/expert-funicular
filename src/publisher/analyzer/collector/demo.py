@@ -14,7 +14,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.collector.collector import extract_evidence
 from publisher.analyzer.collector.pricing import load_aws_price_registry, model_aws_baseline_cost
-from publisher.analyzer.collector.queries.events import RESOURCE_DAILY_COLLECT_DAYS, running_idle_windows_from_statement
+from publisher.analyzer.collector.queries.events import RESOURCE_DAILY_COLLECT_DAYS, running_idle_request_from_statement, running_idle_windows_from_statement
+from publisher.analyzer.collector.queries.query_history import canary_guard_periods_from_statement
 from publisher.analyzer.epochs import (
     DEMAND_CARRY_FIELDS,
     QUEUE_CARRY_FIELDS,
@@ -428,8 +429,11 @@ def _demo_floor_demand(pieces: Sequence[Tuple[float, float, int, float, float]],
     return json.dumps({k: round(v, 3) for k, v in sorted(out.items(), key=lambda kv: int(kv[0]))})
 
 
-def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
-    """Collector rows (one list per collector query label) for one simulated demo warehouse."""
+def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time: str, *, world: bool = False) -> Dict[str, List[Dict[str, Any]]]:
+    """Collector rows (one list per collector query label) for one simulated demo warehouse.
+
+    ``world`` also keeps what a measurement of any epoch and window needs (``simulate_demo_world``): running-idle inputs
+    for every epoch, not only the current one, and the query timeline the windowed canary guard is computed from."""
     analysis = parse_datetime(analysis_time)
     assert analysis is not None
     analysis_day = analysis.date()
@@ -456,9 +460,11 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     epoch_defs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**base_cfg, **{prior_keys[k]: v for k, v in p.items() if k != "start"}}) for p in spec.get("prior", [])]
     epoch_defs.append((current_start, base_cfg))
     epochs: List[Tuple[float, Optional[float], Dict[str, Any]]] = []
+    # The current epoch may start at a time of day (spec epoch_start_minute, minutes after 00:00 UTC; a world only).
+    start_minute = lambda i: float(spec.get("epoch_start_minute", 0)) if i == len(epoch_defs) - 1 else 0.0
     for i, (d, cfg) in enumerate(epoch_defs):
-        end = at(epoch_defs[i + 1][0]) if i + 1 < len(epoch_defs) else None
-        epochs.append((at(d), end, cfg))
+        end = at(epoch_defs[i + 1][0], start_minute(i + 1)) if i + 1 < len(epoch_defs) else None
+        epochs.append((at(d, start_minute(i)), end, cfg))
     sim_start = max(at(created), 0.0)
 
     # 1. Busy segments per day from the workload components. Queries are kept by start time: periodic queries as
@@ -642,6 +648,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         g_queued = min(g_n, queued(g_lo))
         g_decision = g_n * max(0.0, 1.0 - spec.get("cache_pct", 10.0) / 100.0)
         guard_window[ep_start] = {"n": g_n, "src": g_src, "queued": g_queued, "decision": g_decision, "failure": failure, "p95": p95}
+        if world:
+            rows.setdefault("world_epochs", []).append({"start": ep_start, "end": ep_end, "p95": p95, "failure": failure})
         rows["query_metrics"].append({
             "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso,
             "epoch_queries": int(round(epoch_q)), "epoch_active_days": epoch_days, "queries_30": n30, "active_days_30": days30,
@@ -719,9 +727,10 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         # same period as the event totals; queries from a day before the window seed the busy frontier.
         # The collector asks for it per window only after the forecast, so the simulation keeps its inputs (query runs,
         # running segments, queries per UTC day) and the demo client computes the rows for the windows asked for.
-        if ep_end is None and cov is not None:
+        if (ep_end is None or world) and cov is not None:
             rows["running_idle_inputs"].append({
                 "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "t0": t0.isoformat(),
+                "epoch_end": None if ep_end is None else stamp(ep_end),
                 "busy": [[a, b] for a, b, _ in ep_runs if b > cov - 1440.0], "segments": [[a, b, cl] for a, b, cl, _, _ in live if cl > 0],
                 "epoch_window": [cov, hi_t], "auto_stop": cfg["auto_stop_minutes"], "floor_clusters": cfg["min_clusters"],
                 "queries_epoch": queries_between(cov, hi_t)[0],
@@ -856,6 +865,15 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         "serverless_usage_pct_365": None if total_dbu <= 0 else (100.0 if spec["type"] == "SERVERLESS" else 0.0),
         "cloud": "AWS", "sku_names": sorted({DEMO_SKU_BY_TYPE[c["warehouse_type"]] for _, _, c in epochs} | ({DEMO_UNPRICED_SKU} if spec.get("unpriced_from") else set())),
     })
+    if world:
+        # The query timeline (start-time points and steady spans with their source keys) and the queued concurrency of
+        # the running pieces, for canary guard rows over any pair of windows (``demo_canary_guard_rows``).
+        rows["world_guard"] = [{
+            "workspace_id": workspace, "warehouse_id": wh, "t0": t0.isoformat(), "points": [list(x) for x in points],
+            "spans": [list(x) for x in spans], "runs": [list(x) for x in runs],
+            "queued_pieces": [[a, b, qc] for a, b, _, _, qc in pieces if qc > 0], "epochs": rows.pop("world_epochs", []),
+            "cache_pct": spec.get("cache_pct", 10.0), "spill_pct": spec.get("spill_pct", 0.0),
+        }]
     return rows
 
 
@@ -863,26 +881,42 @@ _DEMO_ROWS_CACHE: Dict[Tuple[int, str], Dict[str, List[Dict[str, Any]]]] = {}
 _DEMO_RUNNING_IDLE_CACHE: Dict[Tuple[int, str], Dict[str, Dict[str, List[Dict[str, Any]]]]] = {}  # per fleet (size, analysis time), then windows asked
 
 
-def demo_running_idle_rows(inputs: Sequence[Mapping[str, Any]], windows: Sequence[Mapping[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+def demo_running_idle_rows(inputs: Sequence[Mapping[str, Any]], windows: Sequence[Mapping[str, Any]],
+                           request: Optional[Mapping[str, Any]] = None) -> Dict[str, List[Dict[str, Any]]]:
     """Rows of the running-idle collector (by label: running_idle, running_idle_targets) for the windows a statement
-    asks for, computed by the reference arithmetic from each simulated warehouse's inputs (``running_idle_inputs``)."""
+    asks for, computed by the reference arithmetic from each simulated warehouse's inputs (``running_idle_inputs``).
+
+    Without an epoch-bound ``request`` the current epoch is measured up to the analysis time; with one, the named epoch
+    up to the earlier of its end and the as-of time, for the requested auto-stop values only."""
     th = _DEMO_THRESHOLDS
     asked: Dict[Tuple[str, str], List[Mapping[str, Any]]] = {}
     for w in windows:
         asked.setdefault((str(w["workspace_id"]), str(w["warehouse_id"])), []).append(w)
+    epochs = (request or {}).get("epochs")
+    targets = (request or {}).get("targets") or auto_stop_targets(th)
     out: Dict[str, List[Dict[str, Any]]] = {"running_idle": [], "running_idle_targets": []}
     for x in inputs:
         wins = asked.get((x["workspace_id"], x["warehouse_id"]))
         if not wins:
+            continue
+        if epochs is None:
+            if x.get("epoch_end") is not None:
+                continue
+        elif parse_datetime(epochs.get(f"{x['workspace_id']}/{x['warehouse_id']}")) != parse_datetime(x["epoch_start"]):
             continue
         t0 = parse_datetime(x["t0"])
         assert t0 is not None
         minute = lambda day, shift=0: (dt.datetime.combine(dt.date.fromisoformat(day) + dt.timedelta(days=shift), dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0
         stamp = lambda t: (t0 + dt.timedelta(minutes=t)).isoformat()
         cov, hi_t = x["epoch_window"]
+        as_of = parse_datetime((request or {}).get("as_of"))
+        if as_of is not None:
+            hi_t = min(hi_t, (as_of - t0).total_seconds() / 60.0)
+        if hi_t <= cov:
+            continue
         bounds = {str(w["label"]): ((cov, hi_t) if w.get("start") is None else (max(cov, minute(w["start"])), min(hi_t, minute(w["end"], 1)))) for w in wins}
-        ri = running_idle_metrics([tuple(b) for b in x["busy"]], [tuple(s) for s in x["segments"]], (cov, hi_t), bounds, x["auto_stop"],
-                                  auto_stop_targets(th), x["floor_clusters"], th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
+        ri = running_idle_metrics([tuple(b) for b in x["busy"] if b[0] < hi_t], [(a, min(b, hi_t), c) for a, b, c in x["segments"] if a < hi_t], (cov, hi_t), bounds, x["auto_stop"],
+                                  targets, x["floor_clusters"], th.running_idle_full_window_fraction, th.auto_stop_bridge_margin_pct,
                                   th.kept_alive_gap_tolerance_minutes, th.kept_alive_stopped_gap_minutes)
         for name, (a, b) in sorted(bounds.items()):
             key = {"workspace_id": x["workspace_id"], "warehouse_id": x["warehouse_id"], "epoch_start": x["epoch_start"], "window_label": name}
@@ -898,16 +932,74 @@ def replay_demo_rows(rows: Mapping[str, Sequence[Mapping[str, Any]]], statement:
     """What a collector query returns from simulated rows (``_simulate_demo_warehouse``): the rows of its label, except
     running idle, which is computed for the windows the statement asks for (both labels at once). ``cache`` keeps those
     rows per windows asked; it must belong to these ``rows``, since the same windows over other rows give other rows."""
+    if label == "canary_guard" and canary_guard_periods_from_statement(statement):
+        return demo_canary_guard_rows(rows.get("world_guard", []), canary_guard_periods_from_statement(statement))
     if label in ("running_idle", "running_idle_targets"):
         windows = running_idle_windows_from_statement(statement)
-        key = json.dumps(windows, sort_keys=True)
+        request = running_idle_request_from_statement(statement)
+        key = json.dumps([windows, request], sort_keys=True) if request is not None else json.dumps(windows, sort_keys=True)
         computed = cache.get(key) if cache is not None else None
         if computed is None:
-            computed = demo_running_idle_rows(rows.get("running_idle_inputs", []), windows)
+            computed = demo_running_idle_rows(rows.get("running_idle_inputs", []), windows, request)
             if cache is not None:
                 cache[key] = computed
         return [dict(r) for r in computed[label]]
     return [dict(r) for r in rows.get(label, [])]
+
+
+def demo_canary_guard_rows(worlds: Sequence[Mapping[str, Any]], periods: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """Canary guard rows for explicit pairs of periods (``build_canary_guard_sql``) from simulated worlds
+    (``simulate_demo_world``), with the simulation's own per-period arithmetic: queries and sources by start time,
+    queued queries from the queued concurrency of the running pieces, result-cache share, spill share and the epoch's
+    p95 and failure rate (the epoch the period starts in)."""
+    out: List[Dict[str, Any]] = []
+    by_wh = {(str(w["workspace_id"]), str(w["warehouse_id"])): w for w in worlds}
+    for x in periods:
+        w = by_wh.get((str(x["workspace_id"]), str(x["warehouse_id"])))
+        if w is None:
+            continue
+        t0 = parse_datetime(w["t0"])
+        assert t0 is not None
+        minute = lambda day, shift=0: (dt.datetime.combine(dt.date.fromisoformat(day) + dt.timedelta(days=shift), dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0
+        windows = {"PREVIOUS": (minute(x["previous"][0]), minute(x["previous"][1], 1)), "CURRENT": (minute(x["current"][0]), minute(x["current"][1], 1))}
+        stats: Dict[str, Dict[str, Any]] = {}
+        for period, (lo, hi) in windows.items():
+            n, src = 0.0, {}
+            for t, k, key in w["points"]:
+                if lo <= t < hi:
+                    n += k; src[key] = src.get(key, 0.0) + k
+            for a, b, rate, key in w["spans"]:
+                if b > lo and a < hi:
+                    k = (min(b, hi) - max(a, lo)) * rate
+                    n += k; src[key] = src.get(key, 0.0) + k
+            busy = sum((min(b, hi) - max(a, lo)) * c for a, b, c in w["runs"] if b > lo and a < hi)
+            q_avg = busy / n if n > 0 else 0.5
+            queued = min(n, sum((min(b, hi) - max(a, lo)) * qc / q_avg for a, b, qc in w["queued_pieces"] if b > lo and a < hi)) if q_avg > 0 else 0.0
+            epoch = next((e for e in w["epochs"] if e["start"] <= lo and (e["end"] is None or lo < e["end"])), w["epochs"][-1])
+            stats[period] = {"n": n, "src": src, "queued": queued, "p95": epoch["p95"], "failure": epoch["failure"]}
+        shared = set(stats["CURRENT"]["src"]) & set(stats["PREVIOUS"]["src"])
+        cache = max(0.0, 1.0 - safe_float(w["cache_pct"]) / 100.0)
+        for period in ("CURRENT", "PREVIOUS"):
+            st = stats[period]
+            n, dec = int(round(st["n"])), int(round(st["n"] * cache))
+            spill_n = int(round(dec * safe_float(w["spill_pct"]) / 100.0))
+            shared_n = int(round(sum(v for k, v in st["src"].items() if k in shared) * cache))
+            out.append({
+                "workspace_id": x["workspace_id"], "warehouse_id": x["warehouse_id"], "epoch_start": x["epoch_start"], "period": period,
+                "queries": n, "failure_cancel_pct": st["failure"] if n else None,
+                "queued_queries": int(round(st["queued"])), "queued_query_pct": round(100.0 * round(st["queued"]) / n, 4) if n else None,
+                "decision_queries": dec, "spill_queries": spill_n, "spill_query_pct": round(100.0 * spill_n / dec, 4) if dec else None,
+                "shared_source_queries": shared_n, "p95_execution_ms_shared_sources": st["p95"] if shared_n else None,
+            })
+    return out
+
+
+def simulate_demo_world(spec: Mapping[str, Any], index: int, analysis_time: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Collector rows of one simulated warehouse that answer measurements of any epoch and window: the demo fleet's
+    simulation with every epoch's running-idle inputs and the query timeline kept (``replay_demo_rows`` answers
+    epoch-bound running-idle and windowed canary guard statements from them). ``spec`` has the shape of a
+    ``DEMO_FLEET`` entry; ``index`` numbers its warehouse ``wh-demo-<index>``. Never a measurement of a real warehouse."""
+    return _simulate_demo_warehouse(spec, index, analysis_time, world=True)
 
 
 def scale_running_idle_windows(flat: Mapping[str, Any], basis: Mapping[str, Any], period: Tuple[str, str]) -> Dict[str, Dict[str, Any]]:

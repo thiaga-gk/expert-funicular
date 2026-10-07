@@ -1,0 +1,24 @@
+id: GE-03
+description: >-
+  A Serverless warehouse under the auto-stop run scope (auto-stop 30 to 5) applied exactly: DBU only, no customer AWS
+  cost.
+publisher:
+  warehouse: wh-demo-002
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 5}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  within_pkg: {component: dbu, low_factor: 1, high_factor: 1.25}
+  cross_check: AGREES
+  independent_changes: []
+  realization_state: REALIZED
+  claim: CLAIMABLE
+  origin: INFERRED
+  disqualifiers: []

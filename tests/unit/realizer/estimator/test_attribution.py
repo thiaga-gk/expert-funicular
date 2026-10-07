@@ -121,9 +121,12 @@ class AttributionCaseTests(unittest.TestCase):
         self.assertEqual(everything["attribution_claim_status"], "NOT_ATTRIBUTABLE")
 
     def test_confirmed_origin_policy(self):
+        # A qualified origin is confirmed (an approval) or inferred (applied after the package to its knob).
         inferred = self.attribute({"origin_attribution": "INFERRED"})
-        self.assertEqual((inferred["attribution_claim_status"], inferred["attribution_state"]), ("OBSERVABLE_ONLY", "PARTIAL_ATTRIBUTION"))
-        relaxed = self.attribute({"origin_attribution": "INFERRED"}, policy=RealizerPolicy.from_mapping({"require_confirmed_origin_for_hard_kpi": False}))
+        self.assertEqual((inferred["attribution_claim_status"], inferred["attribution_state"]), ("CLAIMABLE", "HIGH_CONFIDENCE"))
+        unknown = self.attribute({"origin_attribution": "UNKNOWN"})
+        self.assertEqual((unknown["attribution_claim_status"], unknown["attribution_state"]), ("OBSERVABLE_ONLY", "CORRELATED_ONLY"))
+        relaxed = self.attribute({"origin_attribution": "UNKNOWN"}, policy=RealizerPolicy.from_mapping({"require_confirmed_origin_for_hard_kpi": False}))
         self.assertEqual(relaxed["attribution_claim_status"], "CLAIMABLE")
         self.assertEqual(self.attribute({"origin_attribution": "garbage"})["origin_attribution"], "UNKNOWN")
 

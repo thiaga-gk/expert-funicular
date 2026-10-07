@@ -15,10 +15,11 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from realizer.common.utils import decimal, money
 from realizer.contracts import realization as rc
-from realizer.governor.policy import RealizerPolicy
+from realizer.governor.policy import RealizerPolicy, canary_window_open
 
 
-def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
+def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy,
+                       independent_knobs: Sequence[str] = ()) -> Dict[str, Any]:
     try:
         origin = rc.OriginAttribution(str(observation.get("origin_attribution") or "UNKNOWN").upper())
     except ValueError:
@@ -45,9 +46,20 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
     if overlap > 0:
         hard.append("PORTFOLIO_SCOPE_OVERLAP")
+    if independent_knobs and not (observation.get("measurement") or {}).get("holds_other_knobs"):
+        # Another knob changed too and the counterfactual cannot hold it at its new value: the saving may be its.
+        hard.append("INDEPENDENT_CHANGE_NOT_HELD")
+    if canary_window_open(app, observation):
+        # A canary-type change is guarded by the Publisher for its first 30 days: its realization stays provisional.
+        hard.append("CANARY_GUARD_WINDOW_OPEN")
+    if (((observation.get("measurement") or {}).get("cross_check") or {}).get("outcome")) == "DISAGREES":
+        # The billed cost before and after the change does not confirm the replay: a person reviews it first.
+        hard.append("BILLED_CROSS_CHECK_DISAGREES")
     if origin in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
         hard.append("ORIGIN_NOT_ATTRIBUTABLE")
-    confirmed_ok = origin == rc.OriginAttribution.CONFIRMED or not policy.require_confirmed_origin_for_hard_kpi
+    # The strict KPI needs a qualified origin: confirmed by an approval, or inferred from a change applied after the
+    # package to the knob it recommended (a live measurement's origin).
+    confirmed_ok = origin in {rc.OriginAttribution.CONFIRMED, rc.OriginAttribution.INFERRED} or not policy.require_confirmed_origin_for_hard_kpi
     claimable = not hard and confirmed_ok and economic.get("available") and quality.get("pass")
     if claimable:
         claim = rc.AttributionClaimStatus.CLAIMABLE
