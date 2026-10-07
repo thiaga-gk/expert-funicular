@@ -1,7 +1,7 @@
 """Snapshot projection: the realization state of a package, folded from its ledger.
 
-``project_snapshot`` is moved whole and unchanged from the single-file Realizer: it folds lifecycle precedence
-(rollback, then drift, then applied), plan progress, validation, realization and maturity state and regeneration status
+``project_snapshot`` is moved whole from the single-file Realizer: it folds lifecycle precedence (the drift or observed
+rollback that closed the active application episode, else applied), plan progress, validation, realization and maturity state and regeneration status
 over every entry, so splitting it would risk the snapshot identity (RSNAP-*) drifting. It reads the ledger entries it is
 given and the immutable source package; it decides nothing new and writes nothing.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from realizer.analyzer.analysis import candidate_steps
+from realizer.analyzer.analysis import candidate_steps, closing_event
 from realizer.config.settings import (
     ANALYZER_GATEWAY_VERSION,
     ATTRIBUTION_VERSION,
@@ -45,15 +45,17 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     app = auth_apps[-1] if auth_apps else None
     validation = latest_event(ordered, rc.EventType.VALIDATION_COMPLETED)
     measurement = latest_event(ordered, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
-    drift = latest_event(ordered, rc.EventType.DRIFT_DETECTED)
-    rollback = latest_event(ordered, rc.EventType.ROLLBACK_OBSERVED)
+    # The active episode's state: the drift or observed rollback that closed it, if any. An earlier episode's closure
+    # (a drift or rollback before the configuration was applied again) is history, never the active episode's state.
+    closure = closing_event(ordered, app)
+    drift = closure if closure is not None and closure.event_type == rc.EventType.DRIFT_DETECTED else None
+    rollback = closure if closure is not None and closure.event_type == rc.EventType.ROLLBACK_OBSERVED else None
     regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
     superseded = latest_event(ordered, rc.EventType.SOURCE_PACKAGE_SUPERSEDED)
 
-    # A rollback is always of an application: without one there is nothing to roll back.
-    if rollback and app and rollback.recorded_at_utc >= app.recorded_at_utc:
+    if rollback:
         app_state = rc.ApplicationState.ROLLED_BACK.value
-    elif drift and app and drift.recorded_at_utc >= app.recorded_at_utc:
+    elif drift:
         app_state = rc.ApplicationState.DRIFTED.value
     elif app:
         app_state = rc.ApplicationState.APPLIED.value

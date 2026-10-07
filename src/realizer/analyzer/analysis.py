@@ -8,6 +8,7 @@ and with the same failure modes, gathered here.
 """
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from realizer.common.errors import InputError
@@ -162,12 +163,36 @@ def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
 
 
+def instant(value: Any) -> dt.datetime:
+    """A UTC ISO time as an aware datetime, for comparing times (their text does not order with fractional seconds)."""
+    return dt.datetime.fromisoformat(utc_iso(value).replace("Z", "+00:00"))
+
+
+# The lifecycle events that end an application episode: once one is recorded on the episode at or after its application,
+# the episode is closed and never absorbs a new application.
+CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
+
+
+def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Optional[rc.RealizationLedgerEntry]) -> Optional[rc.RealizationLedgerEntry]:
+    """The latest drift or observed rollback recorded on *application*'s episode at or after the application (*entries* in
+    recorded order); ``None`` while the episode is open."""
+    if application is None:
+        return None
+    start = instant(application.recorded_at_utc)
+    closing = [e for e in entries if e.event_type in CLOSING_EVENTS and e.application_episode_id == application.application_episode_id
+               and instant(e.recorded_at_utc) >= start]
+    return closing[-1] if closing else None
+
+
 def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> RealizationHistory:
-    """The history view of a loaded ledger (recorded order): its latest application and latest measurement."""
+    """The history view of a loaded ledger (recorded order): its latest application, whether that application's episode
+    is closed, and its latest measurement."""
+    previous = latest_event(entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
     return RealizationHistory(
         entries=tuple(entries),
-        previous_application=latest_event(entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED),
+        previous_application=previous,
         prior_measurement=latest_event(entries, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED),
+        closure=closing_event(entries, previous),
     )
 
 

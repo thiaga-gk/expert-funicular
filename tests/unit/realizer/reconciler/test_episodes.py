@@ -128,6 +128,87 @@ class RollbackFromConfigurationTests(unittest.TestCase):
         self.assertEqual(Runs(package, [both, all_back]).kinds(1), ["ROLLBACK_OBSERVED"])
 
 
+class ClosedEpisodeTests(unittest.TestCase):
+    """A drift or an observed rollback closes the episode: the applied configuration observed again after it is a new
+    episode, measured from then on, and a later drift or rollback of that episode is recorded on it (each carries the time
+    it took effect). The same observation of an open episode on later days stays in it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = fixture_package()
+        cls.base = demo_observation(cls.pkg)    # size MEDIUM applied 2026-10-01T12:00Z, observed 2026-10-09
+        cls.source = package_config(cls.pkg)
+        # seen at the observed time (no applied time of their own)
+        cls.rollback = later(cls.base, 11, config=dict(cls.source), economics=None, applied_at_utc=None)
+        cls.drift = later(cls.base, 11, config={**cls.base["config"], "min_clusters": 2}, economics=None, applied_at_utc=None)
+        cls.reapplied = later(cls.base, 14, applied_at_utc=stamp(13))
+
+    @staticmethod
+    def apps(runs, index=None):
+        lines = runs.lines if index is None else runs.run_events(index)
+        return [e for e in lines if e["event_type"] in ("APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED")]
+
+    def test_the_configuration_applied_again_after_a_rollback_is_a_new_episode(self):
+        runs = Runs(self.pkg, [self.base, self.rollback, self.reapplied])
+        (first,), (second,) = self.apps(runs, 0), self.apps(runs, 2)
+        self.assertNotEqual(second["application_episode_id"], first["application_episode_id"])
+        self.assertEqual(second["payload"]["effective_from_utc"], stamp(13))
+        # measured from then on: the new run's measurement is the new episode's
+        (measurement,) = [e for e in runs.run_events(2) if e["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"]
+        self.assertEqual(measurement["application_episode_id"], second["application_episode_id"])
+        snapshot = runs.snapshots[2]
+        self.assertEqual((snapshot["application"]["state"], snapshot["application"]["active_episode_id"]), ("APPLIED", second["application_episode_id"]))
+        self.assertIsNone(snapshot["application"]["effective_to_utc"])
+        self.assertEqual(snapshot["drift"], {"state": "NONE"})
+        self.assertEqual(snapshot["history"]["application_episode_count"], 2)
+
+    def test_the_configuration_applied_again_after_a_drift_is_a_new_episode(self):
+        runs = Runs(self.pkg, [self.base, self.drift, self.reapplied])
+        (first,), (second,) = self.apps(runs, 0), self.apps(runs, 2)
+        self.assertNotEqual(second["application_episode_id"], first["application_episode_id"])
+        self.assertEqual(runs.snapshots[2]["application"]["state"], "APPLIED")
+
+    def test_daily_observations_of_the_new_episode_stay_in_it(self):
+        runs = Runs(self.pkg, [self.base, self.rollback, self.reapplied, later(self.reapplied, 15), later(self.reapplied, 16)])
+        self.assertEqual(len(self.apps(runs)), 2)
+        self.assertEqual(self.apps(runs, 3) + self.apps(runs, 4), [])
+        episode = self.apps(runs, 2)[0]["application_episode_id"]
+        self.assertEqual({e["application_episode_id"] for e in runs.run_events(4)}, {episode})
+        self.assertEqual(runs.snapshots[4]["application"]["state"], "APPLIED")
+
+    def test_a_second_rollback_and_a_second_drift_are_recorded(self):
+        again = later(self.rollback, 16)
+        runs = Runs(self.pkg, [self.base, self.rollback, self.reapplied, again])
+        rollbacks = [e for e in runs.lines if e["event_type"] == "ROLLBACK_OBSERVED"]
+        self.assertEqual([e["application_episode_id"] for e in rollbacks],
+                         [self.apps(runs, 0)[0]["application_episode_id"], self.apps(runs, 2)[0]["application_episode_id"]])
+        self.assertEqual([e["payload"]["effective_from_utc"] for e in rollbacks], [stamp(11), stamp(16)])
+        self.assertEqual(runs.snapshots[3]["application"]["state"], "ROLLED_BACK")
+        drifted = Runs(self.pkg, [self.base, self.drift, self.reapplied, later(self.drift, 16)])
+        drifts = [e for e in drifted.lines if e["event_type"] == "DRIFT_DETECTED"]
+        self.assertEqual(len(drifts), 2)
+        self.assertEqual([e["payload"]["effective_from_utc"] for e in drifts], [stamp(11), stamp(16)])
+        self.assertEqual(drifted.snapshots[3]["application"]["state"], "DRIFTED")
+
+    def test_the_closing_configuration_observed_again_records_nothing_new(self):
+        for closing in (self.rollback, self.drift):
+            with self.subTest(closing=closing["config"]):
+                runs = Runs(self.pkg, [self.base, closing, later(closing, 12), later(closing, 13)])
+                # (an independent change, here the drift's min_clusters, is recorded on each observation, as before)
+                self.assertEqual([k for k in runs.kinds(2) + runs.kinds(3) if k != "INDEPENDENT_CHANGE_OBSERVED"], [])
+                self.assertEqual(runs.snapshots[3]["application"], runs.snapshots[1]["application"])
+                self.assertEqual(runs.snapshots[3]["drift"], runs.snapshots[1]["drift"])
+
+    def test_a_rollback_request_is_recorded_once_while_it_is_pending(self):
+        requested = {**self.base, "rollback_requested": True, "rollback_reason": "slow"}
+        runs = Runs(self.pkg, [requested, later(requested, 10), later(requested, 11)])
+        (request,) = [e for e in runs.lines if e["event_type"] == "ROLLBACK_REQUESTED"]
+        self.assertEqual(request["payload"], {"reason": "slow", "effective_from_utc": self.base["observed_at_utc"]})
+        # once the rollback was observed, a request on the application seen again is a new one
+        again = Runs(self.pkg, [requested, self.rollback, {**self.reapplied, "rollback_requested": True, "rollback_reason": "slow"}])
+        self.assertEqual(len([e for e in again.lines if e["event_type"] == "ROLLBACK_REQUESTED"]), 2)
+
+
 class SafetyRollbackStepTests(unittest.TestCase):
     """wh-demo-040: the package's own canary rollback (size MEDIUM -> LARGE) is an application of the package."""
 
