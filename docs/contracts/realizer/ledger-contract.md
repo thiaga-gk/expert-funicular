@@ -128,9 +128,20 @@ actor when known
 
 The scenario an observation applied is inferred: the one whose authority-eligible steps the observed configuration applies most (exactly or modified), the recommended plan first on a tie and when none is applied; an `applied_scenario_id` in the observation overrides it. So a migration applied under a migration-only run scope (recommended "No change") is still an application of the package's migration scenario. The application records the scenario's `compatibility_status` and `annotations`: a warehouse-type migration whose compatibility the Publisher did not evidence (any status but `COMPATIBLE`) carries `COMPATIBILITY_NOT_EVIDENCED`.
 
-A rollback is read from the configuration, never from a flag: a later observation in which every knob the application changed (the step's knob; for a scenario-scope application, every applied step's knob) is back at its source value is recorded as `ROLLBACK_OBSERVED` on that episode, with no `DRIFT_DETECTED` and no regeneration request, because the warehouse is at the package's own configuration again. Any other later change of the configuration is a drift: `DRIFT_DETECTED` on the episode and a `CONFIGURATION_DRIFT` regeneration request. A package's own safety-rollback step (a canary rollback) is an application of that package like any other step, so rolling it back means returning to the value it replaced. `ROLLBACK_REQUESTED` records the caller's intent and changes no state.
+A rollback is read from the configuration, never from a flag: a later observation in which every knob an open application changed (the step's knob; for a scenario-scope application, every applied step's knob) is back at its source value is recorded as `ROLLBACK_OBSERVED`, with no `DRIFT_DETECTED` and no regeneration request, because those knobs are at the package's own configuration again. The entry is recorded on the latest episode it rolls back and lists every episode it rolls back (`rolled_back_episode_ids`); the other open episodes go on. A package's own safety-rollback step (a canary rollback) is an application of that package like any other step, so rolling it back means returning to the value it replaced. `ROLLBACK_REQUESTED` records the caller's intent and changes no state.
 
-A drift or an observed rollback closes the episode it is recorded on. A closed episode never absorbs a new application: the applied configuration observed again after it closed (or another value of a plan step) is a new application episode with its own APP id and its own effective time, measured from then on, while the same configuration observed on later days stays in the open episode it opened. The closing configuration observed again on a later run records nothing new (a drift still ends that run with its regeneration request, which is a duplicate). `DRIFT_DETECTED`, `ROLLBACK_OBSERVED` and `ROLLBACK_REQUESTED` carry the time they took effect in their payload (`effective_from_utc`), so a second drift or rollback, of the same configuration or not, is a new entry; a rollback request still pending on the episode (requested, no rollback observed since) is not recorded again. The snapshot's application state is the active (latest) episode's: `ROLLED_BACK` or `DRIFTED` when a rollback or a drift closed it, else `APPLIED`, and its `drift` section is that episode's closing drift (`NONE` otherwise).
+While episodes are open, a later observation is read against the configuration last recorded (the latest application, independent change or observed rollback); only the decision knobs that moved since are new:
+
+- a later step of the same plan (authority-eligible, applied exactly or modified, held by no open episode) is plan progress: its own application episode on the same realization package, effective at the epoch boundary that brought it, while the earlier episodes stay open and go on being measured;
+- a step the package holds for re-evaluation (or blocks) applied early is an independent change with no credit, and the run requests regeneration (`PENDING_STEP_APPLIED`); the open episodes go on;
+- open episodes whose knobs are all back at their source value are rolled back (above);
+- any other change of the configuration (a knob no step relates to, a contrary or unrelated value, or an open step's value changed again) is a drift: `DRIFT_DETECTED` on the latest open episode, which closes every open episode, and a `CONFIGURATION_DRIFT` regeneration request.
+
+A move of the warehouse channel, which the configuration hash does not cover, is recorded as an independent change and is never a step, a rollback or a drift. An independent change is recorded once, when it moves, not on every later observation of the same configuration.
+
+A drift or an observed rollback closes the episodes it applies to. A closed episode never absorbs a new application: the applied configuration observed again after it closed (or another value of a plan step) is a new application episode with its own APP id and its own effective time, measured from then on, while the same configuration observed on later days stays in the open episode it opened. The closing configuration observed again on a later run records nothing new (a drift still ends that run with its regeneration request, which is a duplicate). `DRIFT_DETECTED`, `ROLLBACK_OBSERVED` and `ROLLBACK_REQUESTED` carry the time they took effect in their payload (`effective_from_utc`), so a second drift or rollback, of the same configuration or not, is a new entry; a rollback request still pending on the episode (requested, no rollback observed since) is not recorded again.
+
+The snapshot shows one episode: the open episode of the plan's earliest applied step (the one a live run measures; a scenario-scope application counts as the earliest), else the latest application. Its application state is `ROLLED_BACK` or `DRIFTED` when a rollback or a drift closed it, else `APPLIED`; its validation, measurements, realization state and `drift` section are that episode's own (an earlier episode's are history); `application.open_episodes` lists every open episode (id, step, knob, effective time).
 
 `PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
@@ -155,7 +166,7 @@ Aggregate plan progress is separate from step conformance:
 
 `NOT_STARTED | PARTIALLY_COMPLETED | COMPLETED | STOPPED`
 
-A partially completed Plan may contain fully realized completed steps. `PENDING_REEVALUATION` downstream steps are never credited from the old package.
+A partially completed Plan may contain fully realized completed steps. `PENDING_REEVALUATION` downstream steps are never credited from the old package. The applied steps are those the open episodes hold while any is open (a step rolled back alone no longer counts), else those of every application recorded; a later step applied while earlier ones are open is progress of the same plan (section 6), never a drift.
 
 ## 9. Ledger envelope
 
@@ -281,6 +292,10 @@ Distinct outputs:
 
 Negative realization is preserved.
 
+Savings to date (`realized_savings_since_application`) are the realized savings of the episode the snapshot shows over every instant its measurements cover: daily runs measure overlapping windows (the latest whole weeks after the change, up to twelve), so each instant takes the value of the latest measurement whose window covers it, pro rata over that window's length, and the savings to date are the signed sum. A window measured again (a restatement, section 20) replaces the earlier value of its days. `economics.realized_to_date` states the coverage: the first and last covered UTC day, the days covered and the whole days between them no measurement covers (runs more than twelve weeks apart, or the last days before a rollback). The annualized run-rate, the ratio and the classification stay those of the latest measurement's window. The episode is `MATURE` when its measurements cover 365 days; `mature_ttm_realized_savings` is then the sum over the latest 365 covered days, and it is null before. Neither figure is taken from the observation. A claimable attribution claims the savings to date (`recommendation_attributed_realized_savings`).
+
+An episode closed by a rollback or a drift keeps its savings to date, still claimable for the interval it was in force (`application.effective_from_utc` to `effective_to_utc`), and has no annualized run-rate and no ratio any more (both null): the change no longer runs.
+
 ## 16. Same-scope denominator
 
 `RealizationRatio = AnnualizedRealizedSavings / ExpectedAnnualSavingsForExactAppliedScope`
@@ -347,6 +362,8 @@ A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the a
 - `observation_window`: that observation's `start_utc` and `end_utc` (its window, else its observed time);
 - `changed_knobs`: the decision knobs (type, size, min and max clusters, auto-stop, channel; never Photon) whose actual value differs from the package's current configuration, in contract order;
 - `impacted_knobs`: the knobs the applied change invalidates downstream.
+
+Reasons: `CONFIGURATION_DRIFT` (a drift), `CONTRARY_IMPLEMENTATION` (the opposite of the recommendation applied), `UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM` (an invalidating or modified application once its remeasurement window passed) and `PENDING_STEP_APPLIED` (a step held for re-evaluation applied while the plan is in progress; the run goes on).
 
 The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
 

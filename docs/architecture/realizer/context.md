@@ -55,7 +55,7 @@ Newer recommendation package != immediate economic ownership. Handoff occurs whe
 
 ## 11. Maturity
 
-`NOT_APPLIED|COLLECTING|PROVISIONAL|REPRESENTATIVE|MATURE`. Savings-to-date, annualized run-rate and mature TTM are distinct views.
+`NOT_APPLIED|COLLECTING|PROVISIONAL|REPRESENTATIVE|MATURE`. Savings-to-date, annualized run-rate and mature TTM are distinct views. Savings to date sum the episode's measurements over the time they cover; `MATURE` needs 365 covered days ([`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 15).
 
 ## 12. Corrections/drift/rollback
 
