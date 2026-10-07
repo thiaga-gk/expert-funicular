@@ -89,11 +89,14 @@ class ComponentValidationTests(unittest.TestCase):
                     self.refused(field, **patch)
         self.refused("counterfactual_old_cost", counterfactual_old_cost=float("nan"), dbu_realized="1000")
 
-    def test_without_both_costs_the_components_are_not_checked(self):
-        # Without both costs the economics are unavailable and no component is reported.
+    def test_without_both_costs_the_total_is_not_checked_but_the_labels_are(self):
+        # Without both costs the economics are unavailable: the components cannot be added up against a total, but modeled
+        # AWS is still never cash and an AWS component still needs its DBU component and evidence type.
         self.accepted(observed_new_cost=None, dbu_realized="5000")
         self.accepted(counterfactual_old_cost=None, dbu_realized="5000", aws_economic_realized="400", aws_evidence_type="MODELED")
-        self.accepted(observed_new_cost=None, aws_economic_realized="400", aws_cash_realized="400", aws_evidence_type="MODELED")
+        self.refused("aws_cash_realized needs aws_evidence_type CUR_ACTUAL", observed_new_cost=None, dbu_realized="600",
+                     aws_economic_realized="400", aws_cash_realized="400", aws_evidence_type="MODELED")
+        self.refused("without a DBU component", counterfactual_old_cost=None, aws_economic_realized="400", aws_evidence_type="MODELED")
 
     def test_without_economics_nothing_is_checked(self):
         loader.validate_observation({**self.base, "economics": None, "window_start_utc": None, "window_end_utc": None}, self.pkg)

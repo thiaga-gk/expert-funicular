@@ -189,30 +189,28 @@ def _amount(economics: Mapping[str, Any], field: str) -> Optional[Decimal]:
 def _check_components(economics: Mapping[str, Any]) -> None:
     """Accept the cost components of *economics* only if they agree with its costs; raise ``InputError``.
 
-    With both costs stated, the realized total is ``counterfactual_old_cost - observed_new_cost``: ``dbu_realized``
-    alone is that total, and ``dbu_realized + aws_economic_realized`` is that total, each within
-    ``RECONCILIATION_TOLERANCE``; an AWS component needs a DBU component and an evidence type; an AWS cash or freed
-    commitment amount needs ``CUR_ACTUAL`` evidence (modeled AWS is never cash). Without both costs the economics are
-    unavailable and nothing is checked.
+    An AWS component needs a DBU component and an evidence type; an AWS cash or freed commitment amount needs
+    ``CUR_ACTUAL`` evidence (modeled AWS is never cash). With both costs stated, the realized total is
+    ``counterfactual_old_cost - observed_new_cost``: ``dbu_realized`` alone is that total, and ``dbu_realized +
+    aws_economic_realized`` is that total, each within ``RECONCILIATION_TOLERANCE``; without both costs the economics
+    are unavailable and the total is not checked.
     """
     old, new = _amount(economics, "counterfactual_old_cost"), _amount(economics, "observed_new_cost")
-    if old is None or new is None:
-        return
     dbu, aws, cash, freed = (_amount(economics, field) for field in COMPONENT_FIELDS)
     evidence_type = economics["aws_evidence_type"]
     if aws is not None and dbu is None:
         raise InputError("observation economics: AWS component without a DBU component (aws_economic_realized needs dbu_realized)")
     if aws is not None and evidence_type is None:
         raise InputError("observation economics: AWS component without an evidence type (aws_economic_realized needs aws_evidence_type)")
-    if dbu is not None:
+    for field, amount in (("aws_cash_realized", cash), ("aws_commitment_freed", freed)):
+        if amount is not None and evidence_type != "CUR_ACTUAL":
+            raise InputError(f"observation economics {field} needs aws_evidence_type CUR_ACTUAL (modeled AWS is never cash)")
+    if dbu is not None and old is not None and new is not None:
         given = dbu + (aws or Decimal("0"))
         if abs(given - (old - new)) > RECONCILIATION_TOLERANCE:
             fields = "dbu_realized + aws_economic_realized" if aws is not None else "dbu_realized"
             raise InputError(f"observation economics {fields} does not equal counterfactual_old_cost - observed_new_cost "
                              f"(tolerance {RECONCILIATION_TOLERANCE})")
-    for field, amount in (("aws_cash_realized", cash), ("aws_commitment_freed", freed)):
-        if amount is not None and evidence_type != "CUR_ACTUAL":
-            raise InputError(f"observation economics {field} needs aws_evidence_type CUR_ACTUAL (modeled AWS is never cash)")
 
 
 def validate_measurement_evidence(evidence: Any) -> None:
