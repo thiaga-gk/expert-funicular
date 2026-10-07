@@ -23,7 +23,7 @@ from openpyxl import load_workbook
 from tests.unit.realizer.helpers import canonical, fixture_package  # noqa: F401  (src/realizer, never a shadowing copy)
 from tests import realizer_world as world
 from tests.golden.realizer import e2e
-from tests.unit.realizer.facade.test_lineages import AGGRESSIVE, BALANCED, stored_run
+from tests.unit.realizer.lineage_support import AGGRESSIVE, BALANCED, stored_run
 from realizer.analyzer.projector import project_observation
 from realizer.contracts import realization as rc
 from realizer.contracts import report

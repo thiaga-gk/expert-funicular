@@ -19,6 +19,7 @@ expect:
   cross_check: AGREES
   independent_changes: []
   # The package's option grid prices 15 minutes: 4,681.50 / 7,022.25 / 9,363.00; 9,376/yr realized is above the low.
+  economics: {denominator_source: REESTIMATED_APPLIED_SCOPE, denominator_method: PACKAGE_OPTION_GRID, expected_same_scope_annual_savings: 7022.25}
   realization_state: REALIZED
   classification: REALIZED
   claim: CLAIMABLE

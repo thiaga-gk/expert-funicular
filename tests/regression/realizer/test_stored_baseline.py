@@ -34,9 +34,14 @@ class StoredBaselineTests(unittest.TestCase):
         self.assertEqual(Path(sys.modules["realizer"].__file__).resolve().parent, canonical.SRC.resolve())
 
     def test_engine_reproduces_stored_outputs(self):
+        # After every run of every scenario the state holds the ledger invariants (tests/regression/realizer/invariants.py).
+        from tests.regression.realizer import invariants
         for name in self.names:
             with self.subTest(scenario=name):
-                produced = canonical.produce(self.engine, name)
+                check = invariants.RunChecker(name)
+                produced = canonical.produce(self.engine, name,
+                                             lambda package, step, out: check(package, out, replay_through=step.get("replay_through")))
+                self.assertEqual(check.runs, len(canonical.load_scenario(name)["runs"]))
                 problems = canonical.semantic_diff(name, canonical.stored_expected(name), produced)
                 self.assertEqual(problems, [])
 
