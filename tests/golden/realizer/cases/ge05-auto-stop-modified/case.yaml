@@ -1,0 +1,20 @@
+id: GE-05
+description: >-
+  The owner sets auto-stop 15 where the package says 30 to 10: a modified application in the same direction, measured
+  with the same replay.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 15}}
+expect:
+  conformance: MODIFIED
+  relation: LESS_AGGRESSIVE
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  cross_check: AGREES
+  independent_changes: []

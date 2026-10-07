@@ -1,0 +1,21 @@
+id: GE-07
+description: >-
+  The balanced profile's package for the same warehouse as GE-06 (auto-stop 365 to 210) and the same world: an exact
+  application against this package, from the same measurement.
+publisher:
+  warehouse: wh-demo-039
+  scope: [current:auto-stop]
+  cost_profile: balanced
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 210}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  within_pkg: {component: dbu, low_factor: 1, high_factor: 1.25}
+  cross_check: AGREES
+  same_evidence_as: ge06-profile-aggressive-modified

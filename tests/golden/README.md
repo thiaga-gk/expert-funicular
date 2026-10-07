@@ -41,3 +41,14 @@ Each tool takes case folders or names and rewrites `source/evidence.json` in pla
 ## Realizer golden scenarios
 
 `tests/golden/realizer/` holds the Realizer's scenarios GR-001..GR-040 (`test_golden_realization.py`; the scenario list is `docs/proposals/realizer/golden-scenarios.md` and the registry `tests/fixtures/realizer/golden-registry.json`). They are not case folders: each test builds its observation inline from the frozen Publisher package and checks the realization snapshot. The scenarios that call `realize()` are also frozen as observations with stored canonical outputs under `tests/fixtures/realizer/` and compared by `tests/regression/realizer/`; regenerate those with `python scripts/update_realizer_goldens.py --approved-change "<why>"`.
+
+### End-to-end cases, Publisher to Realizer
+
+`tests/golden/realizer/cases/<name>/` holds the end-to-end cases `GE-NN` (`test_golden_e2e.py`, helpers in `e2e.py`). A case is a real Publisher package for a demo-fleet warehouse under a given run scope and cost profile, a simulated world in which the owner changes that warehouse after the package (configuration changes on a timeline), the live measurement on that world (the same collector, projector and `realize()` a live run uses) and an `expect` block about the measurement: conformance, application time, windows, the replay against the oracle and the published range, the billed cross-check, other knob changes and refusals. The oracle is the same world with the measured knob held at its old value; the simulator's noise depends only on the scenario and the day, so the billed difference is the change's own effect. Agreement is a consistency check of the replay, not accuracy evidence, which only real data gives. The case format and the assertion DSL are documented in the docstring of `test_golden_e2e.py`; the case list is the folder listing.
+
+Each case stores two stages, regenerated separately: `expected/publisher/package.json` (the Publisher demo run once per distinct scope and cost profile) and `expected/realizer/` (measurement evidence, observation, oracle and the realization files, from the stored package). The fast tests run the Realizer stage from the stored package; one test reruns the Publisher demo and compares the stored packages.
+
+```
+python scripts/update_realizer_e2e_goldens.py --approved-change "<why>" [--stage publisher|realizer|all] [--case <name>]
+python scripts/update_realizer_e2e_goldens.py --check            # report drift, write nothing
+```
