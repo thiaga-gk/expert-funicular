@@ -12,7 +12,8 @@ realizer_out/
 .idea/
 .vscode/
 demo_out/
-examples/demo_output/
-examples/test-results.txt
 build/
 mining_out/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/

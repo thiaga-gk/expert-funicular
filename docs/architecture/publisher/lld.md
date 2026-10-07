@@ -101,10 +101,13 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | `src/publisher/reporter/workbook_reporter.py` | Excel rendering, number formats, widths, filters, frozen panes, conditional formatting | No |
 | `pricing/aws_ec2_on_demand.json` | versioned regional EC2 price reference | No |
 | `schema/*.schema.json` | committed Draft 2020-12 schemas for the package and for replay evidence | No |
-| `scripts/run_publisher.py`, `scripts/run_demo.py` | the CLI from a checkout without installing: put `src/` on the path and call `publisher.cli.main.main` (`run_demo.py` adds `--demo` and an output directory) | No |
+| `scripts/run_publisher.py` | the CLI from a checkout without installing: put `src/` on the path and call `publisher.cli.main.main` | No |
 | `scripts/run_demo.py` | the demo fleet from a checkout without installing: `python scripts/run_demo.py [output_dir]`, calling `main` with `--demo --output-dir` | No |
 | `scripts/validate_workbook.py` | independent workbook validator (sheets, columns, grains, numeric economics) | No |
 | `scripts/validate_contracts.py` | validates the committed contract example against the semantic contract and schema | No |
+| `scripts/update_goldens.py` | rewrites a golden case's `expected/` (needs `--approved-change`) | No |
+| `scripts/compare_with_ref.py` | canonical output diff (packages, evidence, manifest, workbook cells) of the demo and the golden cases against a git ref | No |
+| `scripts/validate_skill_suite.py` | validates `.claude/skills/` (suite manifest, frontmatter, eval counts) | No |
 
 ### 3.2 Layer dependency rule
 

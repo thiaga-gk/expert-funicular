@@ -32,11 +32,9 @@ python scripts/update_goldens.py --case <name> --approved-change "<why>"
 
 A case may carry a top-level `cost_profiles` list of raw `--cost-profile` flags (for example `conservative=<workspace>/<warehouse>`); without it every warehouse gets its tag default. No test code is needed for path-based assertions. Each `evidence` item must match `schema/evidence.schema.json` (`docs/contracts/publisher/evidence-format.md`); `tests/unit/analyzer/test_evidence_format.py` fails otherwise. `expected/` is written only by `scripts/update_goldens.py`, which requires the approved-change reason; a decision-affecting change regenerates it in the same commit.
 
-## Backfilling older cases
+## Older cases
 
-Cases that predate collector fields (`dbu_quantity` on daily cost rows, `events.event_coverage_start`, `query.decision_queries_30`, and the spill-by-statement-source fields `query.spill_sources_30` / `query.top_spill_source_share_pct_30`) are backfilled by `scripts/backfill_fixture_fields.py`, cases only; real evidence is never backfilled and fails closed. Running-idle evidence (`gaps.running_idle_*`, `gaps.running_idle_by_target`) is backfilled by `scripts/backfill_running_idle.py` per-minute concurrency (`query.concurrency_histogram`) by `scripts/backfill_concurrency.py` and the floor-demand maps (`resource_daily[].floor_minutes_by_demand_clusters`) by `scripts/backfill_floor_demand.py`, under the same rule. Evidence cases carry the current epoch's daily resource series (`resource_daily`); `scripts/add_resource_daily.py` backfills a synthetic one (event totals spread evenly) into older cases, and real evidence without it fails closed.
-
-Each tool takes case folders or names and rewrites `source/evidence.json` in place (for example `python scripts/backfill_concurrency.py tests/golden/cases/*`); regenerate `expected/` afterwards.
+Every case carries every collector field the evidence format requires; a fixture missing one fails closed like real evidence. A new collector field is added to the existing cases in the same change that adds it (the one-off backfill scripts of earlier fields are in git history).
 
 ## Realizer golden scenarios
 
