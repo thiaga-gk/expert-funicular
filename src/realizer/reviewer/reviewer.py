@@ -14,6 +14,7 @@ from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.realization import RealizationEstimate, ReviewResult, ValidationEpisode
 from realizer.contracts.reconciliation import ReconciliationResult
 from realizer.contracts.request import RunContext
+from realizer.governor.policy import canary_window_open
 from realizer.reviewer.economics import recognition_status
 from realizer.reviewer.validation import plan_episode
 
@@ -43,5 +44,6 @@ def run(
     recognition = None
     if estimate.measurement is not None:
         # a measurement exists only after the guardrail verdict and the counterfactual were decided
-        recognition = recognition_status(estimate.validation_passed, estimate.counterfactual.claim_eligible)  # type: ignore[arg-type,union-attr]
+        provisional = canary_window_open(reconciliation.active.payload, analysis.observation.raw)  # type: ignore[union-attr]
+        recognition = recognition_status(estimate.validation_passed, estimate.counterfactual.claim_eligible, provisional)  # type: ignore[arg-type,union-attr]
     return ReviewResult(**review, validation=ValidationEpisode(**fields), recognition_status=recognition)

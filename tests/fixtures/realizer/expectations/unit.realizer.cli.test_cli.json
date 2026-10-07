@@ -27,17 +27,17 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "03f15a5e285dc095",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "404cde10ede1c59b",
-     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
-     "realization/snapshots/RSNAP-61441B90B1CA24DAD4ECBFB3.json": "404cde10ede1c59b"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4e003fe5942dccdb",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "24dd954a35ba00c7",
+     "realization/regeneration/RERUN-B33616801EE2A91E68FC4A26.json": "b9917c9db8bbb28f",
+     "realization/snapshots/RSNAP-02F2E570BAE7BF86F3C9809F.json": "24dd954a35ba00c7"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9302,
-  "sha256": "e3a89ca53b50d71a29edf2ad6899c71a098978f3f9c9a09c2c633c841c0e6cb0"
+  "length": 9455,
+  "sha256": "00ba95af6d8da46102b3cddff547720af8a2496b07ebdb0df70becdd1c141efc"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -91,10 +91,10 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c3ce8af389adfa84",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "4a8fdb73fbfd10a4",
-     "realization/regeneration/RERUN-F41E8B7E486355A018F858A4.json": "3d67cee53d5a73e4",
-     "realization/snapshots/RSNAP-36853642377EF41D48BEB320.json": "4a8fdb73fbfd10a4"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "eb5d3bce7c5b6f12",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "87b3a3ba8f0f94f0",
+     "realization/regeneration/RERUN-29AE9540FE3E8D72370CA9EA.json": "1e40fbb3c0b828dd",
+     "realization/snapshots/RSNAP-B28E0D4DC95FC491C5659518.json": "87b3a3ba8f0f94f0"
     }
    }
   ]
@@ -110,7 +110,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4330,
-  "sha256": "1b035eae081a6630fe54c2bcf1a81c4a75018c1bc3785cd3f62279cf17c2ee8a"
+  "sha256": "73e6b677085a6016b503e26fee4a3852fcac5a3f1c29fae90ba661fe3cb716d2"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2616,

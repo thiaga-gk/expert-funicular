@@ -35,9 +35,9 @@
   },
   "as_of_utc": "2026-10-09T12:00:00Z",
   "attribution": {
-    "attribution_claim_status": "CLAIMABLE",
+    "attribution_claim_status": "OBSERVABLE_ONLY",
     "attribution_scope": "CANDIDATE",
-    "attribution_state": "HIGH_CONFIDENCE",
+    "attribution_state": "CORRELATED_ONLY",
     "economic_quality_gates": {
       "attributable_spend": {
         "observed_pct": "100",
@@ -66,10 +66,12 @@
         "required_min_pct": "100"
       }
     },
-    "hard_disqualifiers": [],
+    "hard_disqualifiers": [
+      "CANARY_GUARD_WINDOW_OPEN"
+    ],
     "origin_attribution": "CONFIRMED",
     "overlap_count": 0,
-    "recommendation_attributed_realized_savings": "2613.12",
+    "recommendation_attributed_realized_savings": "0.00",
     "validated_observed_realization": "2613.12"
   },
   "contract_version": "1.0.0",
@@ -143,7 +145,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-F37E14742ED1954717D95909",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:6B696F74A18BC42BE9B27CA4B26D5633CDEA58B39581184B0990145864650CD5",
+    "ledger_checkpoint_hash": "SHA256:B1D996FCAB190A57C6071812C4276D73F8A853C5ECE21EE008AEDF1D38494E3F",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -164,11 +166,11 @@
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
-    "regeneration_request_id": "RERUN-E859EB99CB326CE38DB20043",
+    "regeneration_request_id": "RERUN-B33616801EE2A91E68FC4A26",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-EC132520569EE6C9270F98E6",
+  "snapshot_id": "RSNAP-D4B20F24490A6E52C9FB2887",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
@@ -181,13 +183,17 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+    "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
     "readiness": {
       "checks": {
         "evidence_quality": {
           "observed": "SUFFICIENT",
           "pass": true,
           "required": "SUFFICIENT"
+        },
+        "guardrail_evidence": {
+          "pass": true,
+          "unknown_rules": []
         },
         "minimum_days": {
           "observed": 8,
@@ -212,16 +218,16 @@
         "metric": "normalized_p95_runtime_regression_pct",
         "observed": "2",
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+        "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
         "result": "PASS",
         "rule_id": "REAL-PERF-P95-001",
-        "threshold": "5"
+        "threshold": "25"
       },
       {
         "metric": "reliability_pass",
         "observed": true,
         "operator": "EQ",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+        "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
         "result": "PASS",
         "rule_id": "REAL-REL-001",
         "threshold": true
@@ -230,14 +236,14 @@
         "metric": "correctness_pass",
         "observed": true,
         "operator": "NE",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+        "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
         "result": "PASS",
         "rule_id": "REAL-CORRECT-001",
         "threshold": false
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-D0C47BBC009F3FA556409153",
+    "validation_episode_id": "VAL-51145617BEF2964B92066812",
     "window_end_utc": "2026-10-09T12:00:00Z",
     "window_start_utc": "2026-10-02T12:00:00Z"
   },

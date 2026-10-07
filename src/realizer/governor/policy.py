@@ -12,11 +12,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from decimal import Decimal
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import decimal
-from realizer.config.settings import NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION
+from realizer.config.settings import CANARY_GUARD_WINDOW_DAYS, NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION, guard_thresholds
 from realizer.contracts.observation import CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS
 from realizer.contracts import realization as rc
 
@@ -26,7 +26,8 @@ class RealizerPolicy:
     minimum_days: int = 7
     minimum_queries: int = 100
     require_representative_regime: bool = True
-    max_normalized_p95_runtime_regression_pct: Decimal = Decimal("5")
+    # None: the package's cost-profile limit (canary_p95_regression_pct) governs; a value can only tighten it.
+    max_normalized_p95_runtime_regression_pct: Optional[Decimal] = None
     realized_ratio_min: Decimal = Decimal("0.80")
     under_realized_ratio_min: Decimal = Decimal("0.50")
     remeasure_days_after_invalidating_change: int = 7
@@ -107,9 +108,10 @@ def authority_eligible(step: Mapping[str, Any]) -> bool:
     return str(step.get("execution_state")) not in NON_AUTHORITATIVE_EXECUTION_STATES
 
 
-def readiness(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    """Whether the evidence is sufficient to validate: elapsed days, query sample, representative regime and evidence
-    quality. An input the observation could not establish (``null``) fails its check."""
+def readiness(observation: Mapping[str, Any], policy: RealizerPolicy, performance: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """Whether the evidence is sufficient to validate: elapsed days, query sample, representative regime, evidence
+    quality and, given the performance verdict, guardrail evidence (no rule UNKNOWN). An input the observation could
+    not establish (``null``) fails its check."""
     elapsed = int(observation["elapsed_days"])
     queries = observation["query_count"]
     representative = observation["representative_regime"]
@@ -120,51 +122,109 @@ def readiness(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[st
         "representative_regime": {"observed": representative, "required": policy.require_representative_regime, "pass": representative is True or not policy.require_representative_regime},
         "evidence_quality": {"observed": quality, "required": "SUFFICIENT", "pass": quality == "SUFFICIENT"},
     }
+    if performance is not None:
+        unknown = [r["rule_id"] for r in performance["rules"] if r["result"] == "UNKNOWN"]
+        checks["guardrail_evidence"] = {"unknown_rules": unknown, "pass": not unknown}
     return {"ready": all(x["pass"] for x in checks.values()), "checks": checks}
 
 
-def validate_performance(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
+def _rule(rule_id: str, metric: str, observed: Any, operator: str, threshold: Any, result: str, policy: RealizerPolicy, **extra: Any) -> Dict[str, Any]:
+    canon = lambda v: None if v is None or isinstance(v, bool) else rc.canonical_decimal(Decimal(str(v)))
+    return {"rule_id": rule_id, "metric": metric, "observed": observed if isinstance(observed, bool) or observed is None else canon(observed),
+            "operator": operator, "threshold": threshold if isinstance(threshold, bool) else canon(threshold), "result": result,
+            **{k: canon(v) if isinstance(v, (int, float, Decimal)) and not isinstance(v, bool) else v for k, v in extra.items()},
+            "policy_snapshot_id": policy.snapshot_id}
+
+
+def p95_limit_pct(policy: RealizerPolicy, limits: Mapping[str, float]) -> Decimal:
+    """The p95 regression limit: the package's cost-profile value, tightened by the Realizer policy when it sets one."""
+    limit = Decimal(str(limits["canary_p95_regression_pct"]))
+    return limit if policy.max_normalized_p95_runtime_regression_pct is None else min(limit, policy.max_normalized_p95_runtime_regression_pct)
+
+
+def _two_part(rule_id: str, metric: str, pre: Mapping[str, Any], post: Mapping[str, Any], safe: float, margin_pct: Decimal,
+              count_field: str, min_count: float, policy: RealizerPolicy, *, unknown_below_sample: bool) -> Dict[str, Any]:
+    """The Publisher canary guard's two-part rule: FAIL when the value after the change is above its safe level AND more
+    than ``margin_pct`` above the value before, with the minimum sample. Without the values the rule is UNKNOWN; below the
+    sample it is UNKNOWN for a rate over all queries (``unknown_below_sample``) and PASS for a count of affected queries
+    (too few affected queries to matter)."""
+    now, before, count = decimal(post.get(metric)), decimal(pre.get(metric)), decimal(post.get(count_field))
+    margin = 1 + margin_pct / 100
+    if now is None or before is None or count is None:
+        result = "UNKNOWN"
+    elif count < Decimal(str(min_count)):
+        result = "UNKNOWN" if unknown_below_sample else "PASS"
+    else:
+        result = "FAIL" if now > Decimal(str(safe)) and now > before * margin else "PASS"
+    return _rule(rule_id, metric, now, "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)", safe, result, policy,
+                 previous=before, margin_pct=margin_pct, sample=count, min_sample=min_count)
+
+
+def validate_performance(observation: Mapping[str, Any], policy: RealizerPolicy, package: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """The hard guardrails of the observation, per rule PASS, FAIL or UNKNOWN; state FAILED when any rule fails, UNKNOWN
+    when none fails but one lacks evidence (not ready yet, never failed), PASSED otherwise.
+
+    The limits are the package's cost-profile values with the Publisher's defaults (``guard_thresholds``); the Realizer
+    policy can only tighten the p95 limit. Measured guard metrics (``performance.guards``) are judged like the
+    Publisher's canary guard: the failure rate always; for an auto-stop change the share of queries that gained a cold
+    start against the profile's cold-start budget (Serverless: none); for any other knob the queued share, the spill share
+    (size) and the p95 execution time on the statement sources seen before and after. A caller-supplied observation
+    (no guard metrics) states a p95 regression percentage, reliability and correctness instead."""
+    limits = guard_thresholds(((package or {}).get("cost_profile") or {}).get("applied_thresholds"))
     perf = observation.get("performance") or {}
-    p95 = decimal(perf.get("normalized_p95_runtime_regression_pct"))
-    reliability = perf.get("reliability_pass")
-    correctness = perf.get("correctness_pass", True)
-    p95_pass = p95 is not None and p95 <= policy.max_normalized_p95_runtime_regression_pct
-    reliability_pass = reliability is True
-    correctness_pass = correctness is not False
-    passed = p95_pass and reliability_pass and correctness_pass
-    return {
-        "state": "PASSED" if passed else "FAILED",
-        "hard_guardrails_pass": passed,
-        "rules": [
-            {
-                "rule_id": "REAL-PERF-P95-001",
-                "metric": "normalized_p95_runtime_regression_pct",
-                "observed": None if p95 is None else rc.canonical_decimal(p95),
-                "operator": "LTE",
-                "threshold": rc.canonical_decimal(policy.max_normalized_p95_runtime_regression_pct),
-                "result": "PASS" if p95_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-            {
-                "rule_id": "REAL-REL-001",
-                "metric": "reliability_pass",
-                "observed": reliability,
-                "operator": "EQ",
-                "threshold": True,
-                "result": "PASS" if reliability_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-            {
-                "rule_id": "REAL-CORRECT-001",
-                "metric": "correctness_pass",
-                "observed": correctness,
-                "operator": "NE",
-                "threshold": False,
-                "result": "PASS" if correctness_pass else "FAIL",
-                "policy_snapshot_id": policy.snapshot_id,
-            },
-        ],
-    }
+    guards = perf.get("guards")
+    p95_limit = p95_limit_pct(policy, limits)
+    rules: List[Dict[str, Any]] = []
+    if guards:
+        pre, post = guards.get("pre") or {}, guards.get("post") or {}
+        knob = (observation.get("measurement") or {}).get("knob")
+        margin = Decimal(str(limits["canary_p95_regression_pct"]))
+        rules.append(_two_part("REAL-FAIL-001", "failure_cancel_pct", pre, post, limits["failure_cancel_pct_downsize_safe"], margin,
+                               "queries", limits["min_query_sample_size"], policy, unknown_below_sample=True))
+        if knob == "auto_stop_minutes":
+            cold = guards.get("cold_start") or {}
+            budget = None if str((observation.get("config") or {}).get("warehouse_type")).upper() == "SERVERLESS" else limits["cold_start_added_share_max_pct"]
+            values = [cold.get(k) for k in ("pre_restarts", "pre_queries", "post_restarts", "post_queries")]
+            if budget is None:
+                rules.append(_rule("REAL-COLD-001", "added_cold_start_share_pct", None, "LTE", None, "PASS", policy, reason="NO_COLD_START_BUDGET"))
+            elif any(v is None for v in values) or not values[1] or values[3] < limits["min_query_sample_size"]:
+                rules.append(_rule("REAL-COLD-001", "added_cold_start_share_pct", None, "LTE", budget, "UNKNOWN", policy))
+            else:
+                added = (Decimal(values[2]) / Decimal(values[3]) - Decimal(values[0]) / Decimal(values[1])) * 100
+                rules.append(_rule("REAL-COLD-001", "added_cold_start_share_pct", added, "LTE", budget,
+                                   "PASS" if added <= Decimal(str(budget)) else "FAIL", policy))
+        else:
+            rules.append(_two_part("REAL-QUEUE-001", "queued_query_pct", pre, post, limits["queue_query_pct_safe"], margin,
+                                   "queued_queries", limits["severity_min_affected_queries"], policy, unknown_below_sample=False))
+            if knob == "warehouse_size":
+                rules.append(_two_part("REAL-SPILL-001", "spill_query_pct", pre, post, limits["spill_query_pct_downsize_safe"], margin,
+                                       "spill_queries", limits["severity_min_affected_queries"], policy, unknown_below_sample=False))
+            now, before, shared = (decimal(post.get("p95_execution_ms_shared_sources")), decimal(pre.get("p95_execution_ms_shared_sources")),
+                                   decimal(post.get("shared_source_queries")))
+            if now is None or not before or shared is None or shared < Decimal(str(limits["canary_p95_min_queries"])):
+                result = "UNKNOWN"
+            else:
+                result = "FAIL" if now > before * (1 + p95_limit / 100) else "PASS"
+            rules.append(_rule("REAL-P95-001", "p95_execution_ms_shared_sources", now, "LTE_PREVIOUS_X_MARGIN", p95_limit, result, policy,
+                               previous=before, sample=shared, min_sample=limits["canary_p95_min_queries"]))
+    else:
+        p95 = decimal(perf.get("normalized_p95_runtime_regression_pct"))
+        reliability = perf.get("reliability_pass")
+        correctness = perf.get("correctness_pass", True)
+        rules.append(_rule("REAL-PERF-P95-001", "normalized_p95_runtime_regression_pct", p95, "LTE", p95_limit,
+                           "UNKNOWN" if p95 is None else "PASS" if p95 <= p95_limit else "FAIL", policy))
+        rules.append(_rule("REAL-REL-001", "reliability_pass", reliability, "EQ", True,
+                           "UNKNOWN" if reliability is None else "PASS" if reliability is True else "FAIL", policy))
+        rules.append(_rule("REAL-CORRECT-001", "correctness_pass", correctness, "NE", False, "FAIL" if correctness is False else "PASS", policy))
+    results = {r["result"] for r in rules}
+    state = "FAILED" if "FAIL" in results else "UNKNOWN" if "UNKNOWN" in results else "PASSED"
+    return {"state": state, "hard_guardrails_pass": state == "PASSED", "rules": rules}
+
+
+def canary_window_open(app: Mapping[str, Any], observation: Mapping[str, Any]) -> bool:
+    """Whether the applied step is a canary-type change still inside the Publisher's guard window: its realization is
+    provisional until the window ends."""
+    return str(app.get("execution_state")) == "READY_FOR_CANARY" and int(observation.get("elapsed_days") or 0) < CANARY_GUARD_WINDOW_DAYS
 
 
 def counterfactual_eligible(observation: Mapping[str, Any]) -> Tuple[bool, str]:

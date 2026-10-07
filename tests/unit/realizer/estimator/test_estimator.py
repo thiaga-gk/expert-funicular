@@ -181,9 +181,10 @@ class RunTests(unittest.TestCase):
         self.assertIsNone(estimate.correction)
 
     def test_a_currency_other_than_the_packages_is_never_claimable(self):
-        econ = self.base["economics"]
-        self.assertEqual(self.estimate(self.base).measurement.attribution["attribution_claim_status"], "CLAIMABLE")
-        euro = self.estimate({**self.base, "economics": {**econ, "currency": "EUR"}})
+        base = {**self.base, "elapsed_days": 30}  # past the size canary's guard window, so only the currency can block
+        econ = base["economics"]
+        self.assertEqual(self.estimate(base).measurement.attribution["attribution_claim_status"], "CLAIMABLE")
+        euro = self.estimate({**base, "economics": {**econ, "currency": "EUR"}})
         self.assertIsNone(euro.halt)
         gate = euro.economics["quality_gates"]["currency_consistency"]
         self.assertEqual((gate["pass"], gate["currency"], gate["package_currency"]), (False, "EUR", "USD"))

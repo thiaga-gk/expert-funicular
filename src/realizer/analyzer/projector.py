@@ -194,6 +194,16 @@ def financial_quality(plan: MeasurementPlan, evidence: Mapping[str, Any], replay
     }
 
 
+def guard_metrics(evidence: Mapping[str, Any], pre: Optional[Mapping[str, Any]], post: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    """The guard metrics before and after the change (the canary guard rows over the pre- and post-change windows) and
+    the restarts per query of both windows, for the Governor's guardrails."""
+    guard = evidence.get("guard") or {}
+    period = lambda name: None if guard.get(name) is None else {k: (None if v is None else _fmt(v, "0.0001")) for k, v in guard[name].items()}
+    cold = None if post is None else {"pre_restarts": None if pre is None else pre["restarts"], "pre_queries": None if pre is None else pre["queries"],
+                                      "post_restarts": post["restarts"], "post_queries": post["queries"]}
+    return {"pre": period("PREVIOUS"), "post": period("CURRENT"), "cold_start": cold}
+
+
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any]) -> Dict[str, Any]:
     """The observation (format 2.1.0) of *package*'s warehouse that *evidence* states."""
     warehouse = package["warehouse"]
@@ -262,7 +272,8 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any])
         "window_start_utc": window[0], "window_end_utc": window[1], "config": config,
         "elapsed_days": plan.settled_days_since_change, "query_count": None if post is None else post["queries"],
         "representative_regime": representative, "evidence_quality": evidence_quality(plan, evidence), "workload": {},
-        "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None, "guards": None},
+        "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None,
+                        "guards": guard_metrics(evidence, pre, post) if plan.post else None},
         "financial_quality": financial_quality(plan, evidence, replay),
         "economics": economics, "overlap_count": 0, "origin_attribution": "UNKNOWN", "intent_state": "UNKNOWN",
         "intent_reference": None, "actor": None, "applied_scenario_id": None,

@@ -23,12 +23,15 @@ def run(context: RunContext, analysis: RealizationAnalysis) -> GovernanceResult:
     observation = analysis.observation
     if observation is None:
         return GovernanceResult(policy=policy, policy_snapshot_id=snapshot_id)
-    raw = observation.raw
+    raw, package = observation.raw, context.request.package
+    performance = Deferred.of(validate_performance, raw, policy, package)
     return GovernanceResult(
         policy=policy,
         policy_snapshot_id=snapshot_id,
-        readiness=Deferred.of(readiness, raw, policy),
-        performance=Deferred.of(validate_performance, raw, policy),
+        # Readiness reads the guardrail verdict only when it can be reached: a malformed performance input still raises
+        # where the performance verdict is needed, never earlier.
+        readiness=Deferred.of(readiness, raw, policy, performance.value if performance.error is None else None),
+        performance=performance,
         counterfactual=Deferred.of(counterfactual_eligible, raw),
         economic_quality=Deferred.of(economic_quality_result, raw, policy, package_currency(context.request.package)),
     )

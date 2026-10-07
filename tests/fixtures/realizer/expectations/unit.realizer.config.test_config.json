@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8532,
-  "sha256": "f78396979b3ad216c4b1aec0b940beb7d4f75849701cc132d2db11dd77861ad9",
+  "length": 8685,
+  "sha256": "094900fe7743f4ff8698a8b68715c49207aa14773b16853e77bf0ee99dfb8d0e",
   "spot": {
    "logging": [
     [
@@ -9,7 +9,7 @@
     ],
     {}
    ],
-   "stdout_characters": 7611
+   "stdout_characters": 7750
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
@@ -29,8 +29,8 @@
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 8538,
-  "sha256": "a01cb45d27ec8cd4c0ebf8c4171ac867c549637a49634c1e00223ea2ff6c2d85",
+  "length": 8691,
+  "sha256": "e971c149a815cf5ea046be0df97552e91128299c5de1e648096a4fc758ab9501",
   "spot": {
    "logging": [
     [
@@ -38,13 +38,13 @@
     ],
     {}
    ],
-   "stdout_characters": 7619
+   "stdout_characters": 7758
   }
  },
  "PolicyTests.test_defaults/policy": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -58,13 +58,13 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+   "snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D"
   }
  },
  "PolicyTests.test_from_mapping/mapping 0": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -78,13 +78,13 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+   "snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D"
   }
  },
  "PolicyTests.test_from_mapping/mapping 1": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -98,13 +98,13 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+   "snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D"
   }
  },
  "PolicyTests.test_from_mapping/mapping 2": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 3,
     "minimum_material_savings_delta_pct": "5",
@@ -118,13 +118,13 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-EF47B2EA8E896452967B3634"
+   "snapshot_id": "PSNAP-198ED4D4C135276E220B9C87"
   }
  },
  "PolicyTests.test_from_mapping/mapping 3": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -138,7 +138,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.4"
    },
-   "snapshot_id": "PSNAP-79DB690FA432F23F19A58A9F"
+   "snapshot_id": "PSNAP-35F2461996B0999F0519B27A"
   }
  },
  "PolicyTests.test_from_mapping/mapping 4": {
@@ -164,7 +164,7 @@
  "PolicyTests.test_from_mapping/mapping 5": {
   "value": {
    "policy": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "90",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "2",
@@ -178,11 +178,11 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-CA8EEE3EF28FDF12DE2C1839"
+   "snapshot_id": "PSNAP-11419B14D942FD148E0BE6C6"
   }
  },
  "PolicyTests.test_policy_file_round_trip_through_the_loader/snapshot id": {
-  "value": "PSNAP-CA8EEE3EF28FDF12DE2C1839"
+  "value": "PSNAP-11419B14D942FD148E0BE6C6"
  },
  "SettingsTests.test_config_knobs/knobs": {
   "value": [

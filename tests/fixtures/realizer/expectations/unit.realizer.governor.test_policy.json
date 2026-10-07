@@ -1,7 +1,7 @@
 {
  "CheckTests.test_a_malformed_field_only_breaks_the_check_that_reads_it/results": {
-  "length": 2096,
-  "sha256": "23e5043f467cdf668638c43e38b8b4f1e93dec1093a621bb2bbf809f3b16de5d"
+  "length": 2098,
+  "sha256": "3ba0fad49c7572f00814f3d027827c9cc148c7e9397413475bdc4e69d69952d8"
  },
  "CheckTests.test_authority_eligible/results": {
   "value": {
@@ -42,8 +42,8 @@
   }
  },
  "CheckTests.test_checks_on_every_scenario_observation_and_policy/results": {
-  "length": 460830,
-  "sha256": "404e0c0f7199b41ced656d9667699af03ac38367d62925c858029df6889d2f9e",
+  "length": 461095,
+  "sha256": "7bdfcb53f6b7b5a8b2788fd66e93720075b0e63c4a1dfb513dd9c01993f1653e",
   "spot": {
    "count": 1224,
    "exceptions": [],
@@ -236,8 +236,8 @@
   }
  },
  "CheckTests.test_malformed_observations_raise/validate_performance": {
-  "length": 10607,
-  "sha256": "d3d517a644ac9208f8eacee7de2ed78e2743bdc045bf72a78064f0df2612ca26",
+  "length": 10630,
+  "sha256": "843486b030bb5cb65ea7208cbd970fd518ca2aaf3673dd95e9f85d56138afb9b",
   "spot": {
    "count": 21,
    "exceptions": {
@@ -384,7 +384,7 @@
  "PolicyClassTests.test_defaults_snapshot_id_and_dict/defaults": {
   "value": {
    "dict": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -399,7 +399,7 @@
     "under_realized_ratio_min": "0.5"
    },
    "fields": {
-    "max_normalized_p95_runtime_regression_pct": "5",
+    "max_normalized_p95_runtime_regression_pct": null,
     "minimum_attributable_spend_pct": "95",
     "minimum_days": 7,
     "minimum_material_savings_delta_pct": "5",
@@ -413,7 +413,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.50"
    },
-   "snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F"
+   "snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D"
   }
  },
  "PolicyClassTests.test_defaults_snapshot_id_and_dict/field names": {
@@ -434,18 +434,18 @@
   ]
  },
  "PolicyClassTests.test_from_mapping_and_snapshot_ids_for_overrides/policies": {
-  "length": 4082,
-  "sha256": "60fea928cb0f3f9fde449a85ec947eb7c7c92c9fe12bca4e048104b11835f722",
+  "length": 4088,
+  "sha256": "f0dab497640c91fa2bb6f9d3ce264c96fb91d422a40a05edd8f965b588b8aa47",
   "spot": {
    "count": 7,
    "snapshot_ids": {
-    "0 {}": "PSNAP-FEF164129C29BEC36EE4002F",
-    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-7030358386B4DA924F816EBC",
+    "0 {}": "PSNAP-2BD3D59B39FE34137D5DE95D",
+    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-C9657290947ECAE6FA35B3CB",
     "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-7B4F27B45C189186A953D381",
-    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-A3FE8B1B44DFE84A4551EC2C",
-    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-C0E0FB400DA29A433A756BB6",
-    "5 None": "PSNAP-FEF164129C29BEC36EE4002F",
-    "6 {}": "PSNAP-FEF164129C29BEC36EE4002F"
+    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-54A25354784C3B43CFEB1F29",
+    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-486EBBF9D46EAB272417B514",
+    "5 None": "PSNAP-2BD3D59B39FE34137D5DE95D",
+    "6 {}": "PSNAP-2BD3D59B39FE34137D5DE95D"
    }
   }
  },
@@ -476,7 +476,7 @@
    [
     "ok",
     {
-     "max_normalized_p95_runtime_regression_pct": "5",
+     "max_normalized_p95_runtime_regression_pct": null,
      "minimum_attributable_spend_pct": "95",
      "minimum_days": "Opaque()",
      "minimum_material_savings_delta_pct": "5",
@@ -497,12 +497,12 @@
   "value": [
    [
     "ok",
-    "PSNAP-5AE92060B771DED931550404"
+    "PSNAP-0E8027B02AFC51608F547718"
    ],
    [
     "ok",
     {
-     "max_normalized_p95_runtime_regression_pct": "5",
+     "max_normalized_p95_runtime_regression_pct": null,
      "minimum_attributable_spend_pct": "95",
      "minimum_days": 7,
      "minimum_material_savings_delta_pct": "5",
@@ -528,7 +528,7 @@
    [
     "ok",
     {
-     "max_normalized_p95_runtime_regression_pct": "5",
+     "max_normalized_p95_runtime_regression_pct": null,
      "minimum_attributable_spend_pct": "95",
      "minimum_days": 7,
      "minimum_material_savings_delta_pct": "5",

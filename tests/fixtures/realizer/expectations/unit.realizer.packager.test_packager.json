@@ -1,7 +1,7 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
   "length": 33190,
-  "sha256": "f9c7585aae331692c277772c738af92b002e8c6f23c17358d24e65a06e6319e9",
+  "sha256": "cbb1abbdf3fe99b38aafcb6342d897e23c92f31831dc64be3e58986c603b19f5",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
@@ -49,10 +49,10 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "03f15a5e285dc095",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "404cde10ede1c59b",
-    "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
-    "realization/snapshots/RSNAP-61441B90B1CA24DAD4ECBFB3.json": "404cde10ede1c59b"
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4e003fe5942dccdb",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "24dd954a35ba00c7",
+    "realization/regeneration/RERUN-B33616801EE2A91E68FC4A26.json": "b9917c9db8bbb28f",
+    "realization/snapshots/RSNAP-02F2E570BAE7BF86F3C9809F.json": "24dd954a35ba00c7"
    }
   }
  },
@@ -60,12 +60,12 @@
   "value": [
    "INFO ledger.duplicate_suppressed rle=RLE-43CE3E553F852E732746AC84",
    "INFO ledger.duplicate_suppressed rle=RLE-F37E14742ED1954717D95909",
-   "INFO ledger.duplicate_suppressed rle=RLE-A22A27DA84A8856088BCD563",
-   "INFO ledger.duplicate_suppressed rle=RLE-99EEF7EB301C5437DC42909C",
-   "INFO ledger.duplicate_suppressed rle=RLE-281427BD9DD240089224E069",
-   "INFO ledger.duplicate_suppressed rle=RLE-A1804599F0A691CE28B54F3A",
-   "INFO ledger.duplicate_suppressed rle=RLE-3A47C0BC60248EFB4B383B75",
-   "INFO ledger.duplicate_suppressed rle=RLE-89F34373F9F66C59447E82EE"
+   "INFO ledger.duplicate_suppressed rle=RLE-EED9E4C847832752C2AB2DAD",
+   "INFO ledger.duplicate_suppressed rle=RLE-40D8C45935A5E4F969C01286",
+   "INFO ledger.duplicate_suppressed rle=RLE-EB301DC462F2A02C2F338CFD",
+   "INFO ledger.duplicate_suppressed rle=RLE-27244255057908C7FF108491",
+   "INFO ledger.duplicate_suppressed rle=RLE-642A80D6EE868850110208A7",
+   "INFO ledger.duplicate_suppressed rle=RLE-5115AA36523D8819466D247D"
   ]
  },
  "LineageTests.test_lineage_only_run_records_nothing_more/tree": {
@@ -88,7 +88,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "3e4ea124b55d358d728c9e41d3d86e2352bcf59b7f8e69428387211f63af050f",
+  "sha256": "cbd60dcdfadef0167dfa26dd3335bd085f23f6371c9120042c5bc11ede3d99db",
   "spot": {
    "count": 171,
    "first": [
@@ -101,7 +101,7 @@
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "2aee518cac51742a026b919895041d3c507f58bec0778309569818e2bd31bcb0"
+    "5986a9f932c6994bc56a24a161b9f1342ba3c7bcd33e1151fd1557b6788f2204"
    ],
    "outcomes": {
     "InputError": 41,
@@ -111,7 +111,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
   "length": 36077,
-  "sha256": "939d319b4278da9a3a5d5228930e1a9d17f53ca2e5325d47c59760dd2538cf37",
+  "sha256": "05662a8478811ace09d8d3f39ced5e25dd6659e0ac215fe02f7353ffdff26d83",
   "spot": {
    "files": 259,
    "scenarios": 41

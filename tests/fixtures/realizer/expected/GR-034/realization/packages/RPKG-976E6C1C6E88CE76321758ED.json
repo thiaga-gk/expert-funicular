@@ -67,7 +67,8 @@
       }
     },
     "hard_disqualifiers": [
-      "HARD_VALIDATION_FAILURE"
+      "HARD_VALIDATION_FAILURE",
+      "CANARY_GUARD_WINDOW_OPEN"
     ],
     "origin_attribution": "CONFIRMED",
     "overlap_count": 0,
@@ -145,7 +146,7 @@
     "latest_effective_at_utc": "2026-10-10T12:00:00Z",
     "latest_entry_id": "RLE-FFAF71AF0DB45738A0576F66",
     "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:3FB102462F1C12D143D1951B31E0F4C59CE592A9810C197010C71AD726A45157",
+    "ledger_checkpoint_hash": "SHA256:0FE73561F1D9E666227F32EF25E512EAF345342CA1DD3D590A47F95D2D7060B7",
     "measurement_count": 2,
     "validation_episode_count": 2
   },
@@ -170,7 +171,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-316E94525C9EF65D41A39BC4",
+  "snapshot_id": "RSNAP-DC32295F78C62A77FFDC1665",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
@@ -190,6 +191,10 @@
           "observed": "SUFFICIENT",
           "pass": true,
           "required": "SUFFICIENT"
+        },
+        "guardrail_evidence": {
+          "pass": true,
+          "unknown_rules": []
         },
         "minimum_days": {
           "observed": 8,

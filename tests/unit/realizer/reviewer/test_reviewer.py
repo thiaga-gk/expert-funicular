@@ -27,7 +27,7 @@ from realizer.contracts.realization import CounterfactualRecord, MeasurementFact
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.estimator import estimator  # noqa: E402
 from realizer.governor import governor  # noqa: E402
-from realizer.governor.policy import RealizerPolicy, readiness  # noqa: E402
+from realizer.governor.policy import RealizerPolicy, readiness, validate_performance  # noqa: E402
 from realizer.realizer import build_context, realize  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
 from realizer.reviewer import economics, reviewer, validation  # noqa: E402
@@ -97,12 +97,13 @@ class RunTests(unittest.TestCase):
         review = self.review(self.base)
         episode = review.validation
         policy_id = RealizerPolicy().snapshot_id
-        ready = readiness(self.base, RealizerPolicy())
+        ready = readiness(self.base, RealizerPolicy(), validate_performance(self.base, RealizerPolicy(), self.pkg))
         self.assertEqual(episode.ready_payload, {"validation_episode_id": episode.validation_episode_id, "readiness": ready, "policy_snapshot_id": policy_id})
         self.assertEqual(episode.started_payload, {"validation_episode_id": episode.validation_episode_id,
                                                    "window_start_utc": self.base["window_start_utc"], "window_end_utc": self.base["window_end_utc"]})
         self.assertEqual(episode.completed_payload["state"], "PASSED")
-        self.assertEqual(review.recognition_status, "CONFIRMED")
+        self.assertEqual(review.recognition_status, "PROVISIONAL")  # the size canary is 8 days old: inside its guard window
+        self.assertEqual(self.review({**self.base, "elapsed_days": 30}).recognition_status, "CONFIRMED")
         # the window falls back to the effective and observed times (no window, so no economics either)
         bare = {**self.base, "window_start_utc": None, "window_end_utc": None, "economics": None}
         started = self.review(bare).validation.started_payload

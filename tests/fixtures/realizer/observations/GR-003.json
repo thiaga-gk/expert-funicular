@@ -1,5 +1,5 @@
 {
-  "derivation": "demo_observation; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
+  "derivation": "demo_observation; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0; elapsed_days=30 (the canary guard window has ended)",
   "package": "inplace-size-canary.json",
   "runs": [
     {
@@ -34,7 +34,7 @@
           "realized_savings_since_application": null
         },
         "effective_time_quality": "OBSERVED_AT_ONLY",
-        "elapsed_days": 8,
+        "elapsed_days": 30,
         "evidence_quality": "SUFFICIENT",
         "financial_quality": {
           "attributable_spend_pct": 100,

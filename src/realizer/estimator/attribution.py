@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from realizer.common.utils import decimal, money
 from realizer.contracts import realization as rc
-from realizer.governor.policy import RealizerPolicy
+from realizer.governor.policy import RealizerPolicy, canary_window_open
 
 
 def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
@@ -45,6 +45,9 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
     if overlap > 0:
         hard.append("PORTFOLIO_SCOPE_OVERLAP")
+    if canary_window_open(app, observation):
+        # A canary-type change is guarded by the Publisher for its first 30 days: its realization stays provisional.
+        hard.append("CANARY_GUARD_WINDOW_OPEN")
     if (((observation.get("measurement") or {}).get("cross_check") or {}).get("outcome")) == "DISAGREES":
         # The billed cost before and after the change does not confirm the replay: a person reviews it first.
         hard.append("BILLED_CROSS_CHECK_DISAGREES")

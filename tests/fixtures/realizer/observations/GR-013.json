@@ -1,5 +1,5 @@
 {
-  "derivation": "demo_observation; performance.normalized_p95_runtime_regression_pct=7; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
+  "derivation": "demo_observation; performance.normalized_p95_runtime_regression_pct=30 (above the balanced profile's 25); re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
   "package": "inplace-size-canary.json",
   "runs": [
     {
@@ -53,7 +53,7 @@
         "performance": {
           "correctness_pass": true,
           "guards": null,
-          "normalized_p95_runtime_regression_pct": "7",
+          "normalized_p95_runtime_regression_pct": "30",
           "reliability_pass": true
         },
         "query_count": 250,
