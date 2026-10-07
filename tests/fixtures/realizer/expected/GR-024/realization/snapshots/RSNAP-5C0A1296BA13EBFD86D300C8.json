@@ -8,7 +8,7 @@
     "compatibility_status": "COMPATIBLE",
     "effective_from_utc": "2026-10-01T12:00:00Z",
     "effective_time_quality": "OBSERVED_AT_ONLY",
-    "effective_to_utc": "2026-10-10T12:00:00Z",
+    "effective_to_utc": "2026-10-11T12:00:00Z",
     "implementation_conformance": "EXACT",
     "intent_state": "ACCEPTED",
     "knob": "warehouse_size",
@@ -36,7 +36,7 @@
     "step": 1,
     "step_role": "SAVINGS"
   },
-  "as_of_utc": "2026-10-10T12:00:00Z",
+  "as_of_utc": "2026-10-11T12:00:00Z",
   "attribution": {
     "attribution_claim_status": "OBSERVABLE_ONLY",
     "attribution_scope": "CANDIDATE",
@@ -86,18 +86,18 @@
   },
   "drift": {
     "drift_type": "CONFIGURATION",
-    "effective_from_utc": "2026-10-10T12:00:00Z",
+    "effective_from_utc": "2026-10-11T12:00:00Z",
     "material": true,
     "observed_config": {
       "auto_stop_minutes": 15,
       "enable_photon": false,
-      "max_clusters": 2,
-      "min_clusters": 1,
+      "max_clusters": 4,
+      "min_clusters": 2,
       "warehouse_channel": "CURRENT",
       "warehouse_size": "MEDIUM",
       "warehouse_type": "PRO"
     },
-    "observed_config_hash": "SHA256:B11AB80FDCA7FCC211CD299592F785C4FAB30367E507541C79A92486704B4163",
+    "observed_config_hash": "SHA256:F3D0C98CCCD8C507A6DDCA78231368C48E888C94BD000FB3C91527A01D367AC8",
     "previous_observed_config_hash": "SHA256:3BC13B50BA99D49F4833338311977CEE4EB4249BD0282D434A0AEAB0CEB13427",
     "required_action": "REGENERATE",
     "state": "DRIFTED"
@@ -174,14 +174,10 @@
     "correction_count": 0,
     "entry_count": 12,
     "first_entry_id": "RLE-58544587BB6A8E6B91232979",
-    "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-    "latest_entry_id": "RLE-E448648EF873C5109B719DCC",
-    "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-<<<<<<<< HEAD:tests/fixtures/realizer/expected/GR-023/realization/snapshots/RSNAP-A853C5755EB7305BCF625474.json
-    "ledger_checkpoint_hash": "SHA256:5CF3B78DF07BD62927968C47A8DBEB7A6C06529C8E419B181300ACD1E5951A71",
-========
-    "ledger_checkpoint_hash": "SHA256:21D7F0BFCB8E209CDAA1745F34F35475729D8FE42A069ACA1EBE890725D2921E",
->>>>>>>> rz-batch4-ledger:tests/fixtures/realizer/expected/GR-023/realization/snapshots/RSNAP-A410727DD61FC195AD8691F4.json
+    "latest_effective_at_utc": "2026-10-11T12:00:00Z",
+    "latest_entry_id": "RLE-3746DC3B13BA90746D472D4A",
+    "latest_recorded_at_utc": "2026-10-11T12:00:00Z",
+    "ledger_checkpoint_hash": "SHA256:5D7249DF9DEB6F1962FE5D53087D067CA1F0EFFDB4F3A9D3B3309413595EAD69",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -202,15 +198,11 @@
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
-    "regeneration_request_id": "RERUN-7332008876CEE9F4A47FEB93",
+    "regeneration_request_id": "RERUN-767721BD487ADD4530B5D014",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-<<<<<<<< HEAD:tests/fixtures/realizer/expected/GR-023/realization/snapshots/RSNAP-A853C5755EB7305BCF625474.json
-  "snapshot_id": "RSNAP-A853C5755EB7305BCF625474",
-========
-  "snapshot_id": "RSNAP-A410727DD61FC195AD8691F4",
->>>>>>>> rz-batch4-ledger:tests/fixtures/realizer/expected/GR-023/realization/snapshots/RSNAP-A410727DD61FC195AD8691F4.json
+  "snapshot_id": "RSNAP-5C0A1296BA13EBFD86D300C8",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

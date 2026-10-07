@@ -40,19 +40,19 @@
   ]
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
-  "length": 63715,
-  "sha256": "09ba82a07beea8e186bdb4fcd51429e981fec6b36e49b5fa48d3d7a389647487",
+  "length": 63548,
+  "sha256": "b0489c95fca514ed6906f81fe6fdf90fbb2aabd71b840d337df1e4bce8e58e8a",
   "spot": {
-   "entries": 362,
+   "entries": 361,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "ledgers": 41
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 541224,
-  "sha256": "9a849f83339ca6c7a59f4f75ee3d0ea9298310468ed9abba87cbdc50cf7c0292",
+  "length": 540243,
+  "sha256": "0c7fc5b3cb4585dbcce73438c3b66690066f3bfce8945d7764a723954cb1eac6",
   "spot": {
-   "entries": 362,
+   "entries": 361,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "latest_of_first": [
     null,
@@ -183,10 +183,10 @@
   ]
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
-  "length": 53542,
-  "sha256": "63b43db7bd39e8bbd77bc9eb664185ca5c253642e10dbf60b68ed0e9197ab6ef",
+  "length": 53357,
+  "sha256": "563dd5564bdd8ec6bd45c9ed4b4117e19ccd1d331bb1f16b99ad4e6dff7351a4",
   "spot": {
-   "count": 362,
+   "count": 361,
    "first": {},
    "last": {
     "application_episode_id": "APP-22D91994058D828E0C0A3DA0",
@@ -215,10 +215,10 @@
   ]
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
-  "length": 289974,
-  "sha256": "0b9e2a90a91bd0fb671913f0f559e928b725d281bead4e643becaeddfdb90008",
+  "length": 289203,
+  "sha256": "582b8d33a6f9d33a9ecb7a26c5989c7f2f2be73b3808ab6093ff8b7b779ee4f0",
   "spot": {
-   "count": 806,
+   "count": 804,
    "first": [
     "GR-001",
     "RPKG-976E6C1C6E88CE76321758ED",
@@ -236,15 +236,15 @@
    "last": [
     "restatement-reprocessed",
     "RPKG-976E6C1C6E88CE76321758ED",
-    16,
+    15,
     "reversed",
     {
-     "entry_count": 16,
+     "entry_count": 15,
      "first_entry_id": "RLE-58544587BB6A8E6B91232979",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-DD99652D5D4D22B6AEFBF4FB",
+     "latest_entry_id": "RLE-397F12B41688224105758F4E",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:8AEE70DFE149113CBF2493D1FD03FCBD27DD95D770F2E664D24F69DDA49EB022"
+     "ledger_checkpoint_hash": "SHA256:14D91DBBE076A6710A7D3FA0AF3F782A49E4F1BC299131084452DD5BD098E9C1"
     }
    ]
   }

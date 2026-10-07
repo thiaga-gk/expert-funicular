@@ -1,11 +1,11 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
-  "length": 33120,
-  "sha256": "ff60a014469a3588d8ac3a634dea135300efc2c52468e82fed5b6148731bf72f",
+  "length": 32964,
+  "sha256": "7e63d48cc1fdbcbfe115d3d8d48a2bc0deb745daa7fa3bb96db4f661e8e75802",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
-    "INFO ledger.append event=BILLING_CORRECTION_RECORDED": 3,
+    "INFO ledger.append event=BILLING_CORRECTION_RECORDED": 2,
     "INFO ledger.append event=COUNTERFACTUAL_RECORDED": 39,
     "INFO ledger.append event=DRIFT_DETECTED": 2,
     "INFO ledger.append event=ECONOMIC_MEASUREMENT_RECORDED": 39,
@@ -20,9 +20,9 @@
     "INFO ledger.append event=VALIDATION_COMPLETED": 39,
     "INFO ledger.append event=VALIDATION_READY": 39,
     "INFO ledger.append event=VALIDATION_STARTED": 39,
-    "INFO ledger.duplicate_suppressed": 46
+    "INFO ledger.duplicate_suppressed": 45
    },
-   "lines": 408,
+   "lines": 406,
    "scenarios": 41
   }
  },
@@ -50,9 +50,9 @@
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "cc6fcdd424500bdd",
     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-    "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+    "realization/snapshots/RSNAP-397C56B7F922EFDFAA2C6C13.json": "cc6fcdd424500bdd"
    }
   }
  },
@@ -88,7 +88,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "5c39d01c07233da06463df5461e70a6381b14286e8d42b71cadf890b037eea07",
+  "sha256": "ceafba148bb3ca7617b88e6cad94625743475ffe4991fd2eb90debf039ada91c",
   "spot": {
    "count": 171,
    "first": [
@@ -101,7 +101,7 @@
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "46477dc69d496ba2d2adea67211ba2b1a203707665215660e4197c6e5e137ba0"
+    "0ca8e92de93ba7d773c58b39c574e247b9de845ce697beab37f88f393b6133e8"
    ],
    "outcomes": {
     "InputError": 41,
@@ -110,10 +110,10 @@
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
-  "length": 35983,
-  "sha256": "7f015a38bc58eda7a61e77292d25373378b5cd33574ec9075758174d2f502c9e",
+  "length": 35874,
+  "sha256": "d002b81f7ba8597686250e0e7a13cf49ff1cb5f46e7d06633e1f4d78f49a3ffa",
   "spot": {
-   "files": 258,
+   "files": 257,
    "scenarios": 41
   }
  },
