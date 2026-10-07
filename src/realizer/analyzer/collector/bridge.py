@@ -139,9 +139,12 @@ def _observed_epochs(epoch_rows: Sequence[Mapping[str, Any]], as_of: str) -> Lis
     """Configuration epochs that started before *as_of*, oldest first; one still open at *as_of* has no end."""
     as_of_dt = parse_datetime(as_of)
     epochs = []
-    for r in sorted(epoch_rows, key=lambda x: parse_datetime(x.get("epoch_start"))):
+    dated = [r for r in epoch_rows if parse_datetime(r.get("epoch_start")) is not None]
+    if len(dated) < len(epoch_rows):
+        LOGGER.warning("bridge.epoch_skipped reason=MISSING_EPOCH_START rows=%d", len(epoch_rows) - len(dated))
+    for r in sorted(dated, key=lambda x: parse_datetime(x.get("epoch_start"))):
         start = parse_datetime(r.get("epoch_start"))
-        if start is None or as_of_dt is None or start >= as_of_dt:
+        if as_of_dt is None or start >= as_of_dt:
             continue  # an epoch that starts after the as-of time is not observed yet
         end = parse_datetime(r.get("epoch_end"))
         epochs.append({

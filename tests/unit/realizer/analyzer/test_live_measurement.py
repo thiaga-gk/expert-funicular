@@ -203,6 +203,14 @@ class ReplayDirectionTests(unittest.TestCase):
 
 
 class BridgeTests(unittest.TestCase):
+    def test_an_epoch_row_without_a_start_is_skipped_not_fatal(self):
+        rows = [{"epoch_start": "2026-10-08T14:32:00+00:00", "epoch_end": None, "auto_stop_minutes": 10},
+                {"epoch_start": None, "epoch_end": None, "auto_stop_minutes": 99},
+                {"epoch_start": "2025-07-01T00:00:00+00:00", "epoch_end": "2026-10-08T14:32:00+00:00", "auto_stop_minutes": 30}]
+        with self.assertLogs("realizer", level="WARNING"):
+            epochs = bridge._observed_epochs(rows, "2026-11-07T12:00:00+00:00")
+        self.assertEqual([e["auto_stop_minutes"] for e in epochs], [30, 10])
+
     def test_the_collector_never_runs_on_the_warehouse_it_measures(self):
         with mock.patch.object(bridge.access, "resolve_cli_token") as token, self.assertRaises(InputError):
             bridge.resolve_live_access("prod", "wh-demo-013", ["wh-demo-013"])
