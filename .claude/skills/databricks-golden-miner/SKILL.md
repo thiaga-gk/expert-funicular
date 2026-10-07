@@ -21,6 +21,9 @@ how to read gaps, mismatches and drift. The row signatures live in `references/s
 ## Ground rules
 
 - **Read-only.** Only SELECT statements and GET-style CLI calls. No `apply`, `edit`, `start` or `stop` calls, and no mutation API.
+  `scripts/cli_sql.py` enforces it: it ignores comments, allows one statement starting with SELECT or WITH, and refuses write
+  keywords (INSERT, UPDATE, DELETE, MERGE, CREATE, DROP, ALTER, TRUNCATE, GRANT, REVOKE, COPY, OPTIMIZE, VACUUM) outside literals.
+  CLI calls that hit HTTP 429 or a transient 5xx are retried up to three times.
   The table probes and queries start a stopped execution warehouse; tell the user before step 0 runs them.
 - **The Databricks CLI is a hard prerequisite.** Nothing live runs until `scripts/preflight.py` passes.
 - **OAuth profiles only.** A profile with a static PAT is refused, the same rule as the publisher. Never print, log or
@@ -37,7 +40,8 @@ how to read gaps, mismatches and drift. The row signatures live in `references/s
 
 1. The OAuth CLI profile (`--profile`).
 2. The SQL warehouse that runs the collector SQL (`--sql-warehouse-id`).
-3. The AWS region (`--source-region`).
+3. The AWS region (`--source-region`). It must be a region in `pricing/aws_ec2_on_demand.json` (today `us-east-1`); otherwise a
+   fleet with Pro or Classic warehouses stops after collection unless `--allow-missing-aws-price` is added, and their AWS cost is unavailable.
 4. Optionally, a run scope (`--warehouse` / `--scope`). The default is all warehouses.
 
 ## Workflow
@@ -54,9 +58,11 @@ works; `current-user me` answers; `warehouses get <W>` works; and a `SELECT 1 ..
 ### 1. Collect through the publisher (single source of the SQL semantics)
 ```bash
 python -m publisher --profile <P> --sql-warehouse-id <W> --source-region <R> --warehouse all \
-  --output-dir mining_out/<YYYY-MM-DD> --flat-output --no-workbook
+  --output-dir mining_out/<date>/pub_full --flat-output
 ```
-Keep `evidence.json`, `packages/`, `manifest.json` and `publisher.log`. Report `unseen_billed_warehouse_count` from
+Always mine a full-scope run: a scoped run lacks the other knobs' candidates. Keep `evidence.json`, `packages/`, `manifest.json`,
+`workbook.xlsx` and `publisher.log`. This is step 1.1 of `docs/proposals/shared/live-run.md`, which places the other runs of the
+same day (`pub_autostop`, `pub_<profile>`, `rz`) beside `pub_full`. Report `unseen_billed_warehouse_count` from
 `manifest.json`. That count answers G4b on its own: billed warehouses that `system.compute.warehouses` does not show.
 
 ### 2. Real-data aggregates (G4b, G5, S4)
@@ -65,13 +71,15 @@ python .claude/skills/databricks-golden-miner/scripts/real_data_queries.py --pro
   --out mining_out/<date>/real_data_answers.json
 ```
 These are aggregate-only queries. The script reads them from `docs/proposals/publisher/real-data-run.md`; `--list` shows them without running.
+A failed statement is recorded under `errors` (error class and first message line, never SQL text); the other statements still
+run, the partial answers file is written, and the exit status is 1. Report the errors; a missing grant is the usual cause.
 
 ### 3. Mine
 ```bash
-python .claude/skills/databricks-golden-miner/scripts/mine_patterns.py --run-dir mining_out/<date> \
+python .claude/skills/databricks-golden-miner/scripts/mine_patterns.py --run-dir mining_out/<date>/pub_full \
   --real-data mining_out/<date>/real_data_answers.json
 ```
-This writes `pattern_report.json` and `.md` under the run folder: coverage, gaps, behaviour mismatches, premise
+`--run-dir` must hold one run; with several, the script refuses and lists them. It writes `pattern_report/pattern_report.json` and `.md` under the run folder: coverage, gaps, behaviour mismatches, premise
 contradictions, drift and real-data answers. The output is deterministic: the same run gives identical reports. Read the
 markdown first, then use the JSON for exact feature values.
 
@@ -83,7 +91,7 @@ Turn the report into a short, ranked list of proposals. A report finding alone i
 | **New row** | a gap group: real warehouses no primary row explains | Registry row text (Scenario, Signature, Expected behaviour, In scope, Coverage, Status) + catalog signature + a live case |
 | **Live case for an existing row** | a matched row with no case folder, or a row marked `fail` | A live case pinning the behaviour the row expects |
 | **Behaviour mismatch** | `mismatches` | Triage into one of three causes (below) and say which one it is and why |
-| **Row premise contradicted** | `premise_contradictions`, a mismatch triaged as premise, or a real-data answer that refutes an assumption a row cites | The current row text, the premise and the setting it rests on (`assumes`), the live evidence against it, and the suggested new row text. When the publisher's behaviour or a setting must change too, a separate decision-change item (see step 6) |
+| **Row premise contradicted** | `premise_contradictions`, a mismatch triaged as premise, or a real-data answer that refutes an assumption a row cites | The current row text, the premise and the setting it rests on (`assumes`), the live evidence against it, and the suggested new row text. When the publisher's behaviour or a setting must change too, a separate decision-change item (step 6, item 4) |
 | **Drift** | `drift` with `demo_outside_live_range` | A `DEMO_FLEET` parameter change in `src/publisher/analyzer/collector/demo.py` with before/after values; expected behaviour unchanged |
 | **Real-data answer** | `real_data` | The text that closes G4b/G5/S4 in `docs/proposals/publisher/real-data-run.md` and the tracker |
 
@@ -117,13 +125,13 @@ treat silence as approval.
 1. Branch first: `git checkout -b golden-mining-<date>`.
 2. **Case:** draft it with
    ```bash
-   python .claude/skills/databricks-golden-miner/scripts/make_case.py --run-dir mining_out/<date> \
+   python .claude/skills/databricks-golden-miner/scripts/make_case.py --run-dir mining_out/<date>/pub_full \
      --warehouse <ws>/<wh> --row <C59> --slug <kebab-name> --description "<pattern; expected behaviour>"
    ```
-   This writes `tests/golden/cases/<row>-<slug>/` with the raw evidence and a draft `expect` block that pins today's decision
+   `--row` is a registry row (`C##` or `A##`) or a scope case (`S##`). This writes `tests/golden/cases/<row>-<slug>/` with the raw evidence and a draft `expect` block that pins today's decision
    per knob. It refuses to overwrite an existing folder. Cut the draft down to the assertions that state the row's expected
    behaviour, and keep the ones the user approved. Only cases that pass today go on the mining branch. A case for a bug or
-   premise item would fail, so it is not added here: it becomes the red test of that item's fix branch (step 5).
+   premise item would fail, so it is not added here: it becomes the red test of that item's fix branch (item 5 below).
    Then generate the baseline:
    `python scripts/update_goldens.py --case <name> --approved-change "<the approval in one line>"`.
 3. **New row:** add it to `docs/proposals/publisher/golden-scenarios.md` and its signature to
@@ -133,7 +141,7 @@ treat silence as approval.
    - **Text-only.** Edit the row's Signature or Expected behaviour in `docs/proposals/publisher/golden-scenarios.md`, and its `expect`
      and `premises` in the catalog. Do this on the mining branch, as long as no publisher decision changes.
    - **Decision change.** The behaviour the row expects differs from what the code does, or the setting it rests on
-     (`assumes`, a `Thresholds` field or product constant) must change. It becomes a fix brief (step 5). Never fold it into
+     (`assumes`, a `Thresholds` field or product constant) must change. It becomes a fix brief (item 5 below). Never fold it into
      the mining branch, and never rewrite existing `expected/` outputs to match the new premise.
    Until the decision change lands, keep the row's Status honest (`fail` if the code now contradicts the corrected row).
 5. **Fix briefs** (hand-off to the fixing loop). Each approved publisher bug, and each premise item that needs a decision
@@ -175,4 +183,4 @@ Give a short summary:
 - files changed;
 - test results.
 
-Point to `mining_out/<date>/pattern_report.md` for the full report.
+Point to `mining_out/<date>/pub_full/pattern_report/pattern_report.md` for the full report.

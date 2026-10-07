@@ -14,7 +14,7 @@ How `scripts/mine_patterns.py` turns a run into a pattern report, and how to rea
 
 The miner reads the folder that holds `evidence.json`, which is the versioned envelope, schema-checked on load, together with the
 `packages/*.json` next to it. A Hive-style run folder (`run_date=.../run_ts=...`) is found automatically when it is the only
-run below `--run-dir`. When the run excluded a warehouse, `manifest.json` lists it, and it has evidence but no package. It
+run below `--run-dir`. When `--run-dir` holds several runs (the live run puts `pub_full`, `pub_autostop`, `pub_<profile>` and `rz` side by side), the miner refuses and lists them; pass one, for example `--run-dir mining_out/<date>/pub_full`. When the run excluded a warehouse, `manifest.json` lists it, and it has evidence but no package. It
 is still matched, but no expectation is checked against it.
 
 ## 2. Features
@@ -93,11 +93,15 @@ check a tolerance band around the assumed value, and name the exact setting in `
   spill, primary source). For each group, open one warehouse's features and package and ask what the
   pattern is and what the optimizer should do with it. If the answer is "nothing special, a healthy warehouse", the
   proposal may be a single "healthy / no-change" row rather than one row per group.
-- **mismatches:** each mismatch names the row, the warehouse and the failed assertions. There are two possible causes:
+- **mismatches:** each mismatch names the row, the warehouse and the failed assertions. There are three possible causes:
   - **publisher bug:** the decision contradicts the row's expected behaviour, and the package rationale confirms it;
   - **signature false positive:** the warehouse isn't really that pattern, for example a canary rollback that also looks
-    over-sized. Then tighten the signature, and record what distinguished the two cases.
-  Mismatches on a `fail` row get priority `high`.
+    over-sized. Then tighten the signature, and record what distinguished the two cases;
+  - **row premise contradicted:** the warehouse is the pattern and the publisher follows the row, but the row's expected
+    behaviour rests on an assumption the live evidence refutes (see premises below).
+  Mismatches on a `fail` row get priority `high`. Packages produced under a run scope (`run_scope` set) lack the candidates
+  of out-of-scope knobs, so mismatches are not evaluated for them; the report says so (`run_scope` in the JSON, a note at the
+  top of the markdown) and still reports coverage, gaps, premises and drift. Mine a full-scope run for mismatches.
 - **premises / premise_contradictions:** counts per premise, then each contradiction with the values that broke it.
   Many *unknown* results mean the evidence can't test the premise on this account. Note that. Don't read it as the premise holding.
 - **drift:** `demo_value` is the demo-fleet warehouse's value, shown against the live min, median and max. A demo value outside
