@@ -78,6 +78,14 @@ The comparison is like for like: a live measurement with a modeled AWS price is 
 
 A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved.
 
+A performance fix (step role `PERFORMANCE`: a capacity add whose objectives are performance, priced as a cost increase) or a capacity guardrail (step role `CAPACITY`: a cut priced at zero) is not a saving. It is judged on the guard metrics before and after the change, with the package's cost-profile safe queue level and p95 regression percentage (`classification_basis` `PERFORMANCE_GUARDS`):
+
+- `PERFORMANCE_VALIDATED`: the queued share fell to at most half its pre-change value or to the safe level, and p95 on the shared sources did not rise past previous x (1 + the regression percentage); detail `PERFORMANCE_VALIDATED_COST_ABOVE_MODEL`, review required, when the annualized cost increase exceeds 1.25 x the modeled increase (minus the candidate's savings base);
+- `CAPACITY_VALIDATED`: the queued share after the change is at or below the safe level, or not above its value before;
+- otherwise `MONITORING` (`PERFORMANCE_NOT_IMPROVED`, `CAPACITY_QUEUEING_REGRESSED`) with re-optimization recommended; without guard rows `MONITORING` (`PERFORMANCE_UNVERIFIED`, `CAPACITY_UNVERIFIED`).
+
+The cost change (`cost_change`) is reported signed (positive = cost went up): the billed change at the pre-change query mix of a live measurement (total, else DBU), else the caller's counterfactual minus observed cost. It is never counted as realized savings, and attribution claims nothing (`NOT_A_SAVINGS_STEP`). Example: max clusters 2 to 5 priced at -15,628.48/yr; queueing 9.72 to 0.76 percent, p95 2,500 ms before and after, billed +12,887.78/yr: `PERFORMANCE_VALIDATED` (12,887.78 is within 19,535.60).
+
 A safety rollback (step role `SAFETY_ROLLBACK`: the Publisher restores a value whose canary guard tripped) is a safety action, not a saving: its validation runs, but no counterfactual or measurement is recorded and nothing is claimed, whatever costs the observation carries (`SAFETY_ACTION_APPLIED`).
 
 ## 8. Modified application

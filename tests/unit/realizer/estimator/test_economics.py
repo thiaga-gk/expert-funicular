@@ -187,7 +187,7 @@ class CalculateEconomicsGridTests(unittest.TestCase):
         sources = {c[2] for c in classes}
         self.assertEqual(states, {None, "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "BLOCKED", "MONITORING"})
         self.assertIn("UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED", details)
-        self.assertEqual(sources, {"UNAVAILABLE", "PUBLISHER_CANDIDATE", "PUBLISHER_SCENARIO", "REESTIMATED_APPLIED_SCOPE"})
+        self.assertEqual(sources, {"UNAVAILABLE", "PUBLISHER_CANDIDATE", "PUBLISHER_SCENARIO", "REESTIMATED_APPLIED_SCOPE", "NOT_APPLICABLE"})
         expect.check(self, "results", results, spot={"count": len(results), "failures": sum(1 for r in results if r[0] != "ok"),
                                                      "classes": sorted(map(list, ((str(a), b, c) for a, b, c in classes)))})
 

@@ -356,8 +356,8 @@
   }
  },
  "PublicSurfaceTests.test_enums_have_identical_members_and_values/members": {
-  "length": 3614,
-  "sha256": "1eae593782025438ab3e3c963a968af697f62b9a5e404f8fa9772b4b50dbce16",
+  "length": 3708,
+  "sha256": "9393f5e02d87010b9480844ecdd88d9f6e1a3d940077797f2870707dc8378f7e",
   "spot": {
    "enums": [
     "IntentState",
@@ -378,7 +378,7 @@
     "CompatibilityStatus",
     "EventType"
    ],
-   "members": 99
+   "members": 101
   }
  },
  "PublicSurfaceTests.test_every_public_name_survives/names": {

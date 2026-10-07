@@ -1,0 +1,22 @@
+id: GE-14
+description: >-
+  A zero-priced capacity cut: the scoped package lowers max clusters 4 to 2 (objective COST_GUARDRAIL, priced at 0
+  because the warehouse never uses the clusters above 2) and the owner applies it exactly. The cut is no saving to
+  realize: it is judged on queueing, which must stay at or below the safe level or not rise.
+publisher:
+  warehouse: wh-demo-006
+  scope: [current:max-clusters]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {max: 2}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  measured: false
+  not_measured_reason: KNOB_NOT_REPLAYED
+  independent_changes: []
+  origin: INFERRED
+  # Queueing stayed at 0 percent: the cut is safe. Its billed change is reported, not claimed.
+  realization_state: CAPACITY_VALIDATED
+  classification: CAPACITY_VALIDATED
+  claim: NOT_ATTRIBUTABLE

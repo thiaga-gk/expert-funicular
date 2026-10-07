@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 6010962,
-  "sha256": "1d9453cbdf2633891aba1e5c1abef8ff6ad22a772374266e582c38064fc4563c",
+  "length": 6134718,
+  "sha256": "683b39cb65f5146d3653fede20add4f8e9a98470a32b6950a09e85cb766f0b50",
   "spot": {
    "classes": [
     [
@@ -23,6 +23,11 @@
      "BLOCKED",
      "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
      "UNAVAILABLE"
+    ],
+    [
+     "MONITORING",
+     "CAPACITY_UNVERIFIED",
+     "NOT_APPLICABLE"
     ],
     [
      "MONITORING",
@@ -106,7 +111,7 @@
     ]
    ],
    "count": 11088,
-   "failures": 3792
+   "failures": 3680
   }
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {

@@ -41,7 +41,9 @@
             "INVALIDATED",
             "REGENERATING",
             "BLOCKED",
-            "SAFETY_ACTION_APPLIED"
+            "SAFETY_ACTION_APPLIED",
+            "PERFORMANCE_VALIDATED",
+            "CAPACITY_VALIDATED"
           ]
         },
         "source_package_disposition": {

@@ -22,6 +22,7 @@ from realizer.common.utils import decimal, money, ratio_string
 from realizer.config.settings import MODELER_GATEWAY_VERSION
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import CorrectionFacts, CounterfactualRecord, MeasurementFacts, make_measurement_id
+from realizer.estimator.performance import NON_SAVINGS_ROLES, performance_economics
 from realizer.governor.policy import RealizerPolicy, authority_eligible, readiness
 
 
@@ -185,6 +186,9 @@ def calculate_economics(
     package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any],
     policy: RealizerPolicy, validation_passed: bool, counterfactual_claim_eligible: bool = True,
 ) -> Dict[str, Any]:
+    if app.get("step_role") in NON_SAVINGS_ROLES and validation_passed:
+        # A performance fix or a capacity guardrail is judged on queueing and p95; its cost is never a saving.
+        return performance_economics(package, app, observation)
     econ = observation.get("economics") or {}
     cf = decimal(econ.get("counterfactual_old_cost"))
     actual = decimal(econ.get("observed_new_cost"))
