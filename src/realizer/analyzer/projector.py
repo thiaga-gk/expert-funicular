@@ -74,8 +74,19 @@ def billed(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
 def _replay_row(window: Mapping[str, Any], target: int) -> Dict[str, Decimal]:
     """The replay row of *target* in a window; a value without a row is a known zero (the collector omits zero rows)."""
     row = next((r for r in window.get("replay") or [] if int(r["target_min"]) == target), None)
-    fields = ("added_idle_cluster_minutes", "avoided_starts", "removable_running_cluster_minutes", "additional_starts")
+    fields = ("added_idle_cluster_minutes", "avoided_starts", "removable_running_cluster_minutes", "additional_starts")  # zero when absent
     return {f: Decimal(str((row or {}).get(f, 0))) for f in fields}
+
+
+def replay_net_cluster_minutes(row: Mapping[str, Decimal], replayed: int, applied: int, restart: Decimal) -> Decimal:
+    """Cluster-minutes the replayed value would have cost more than the applied one on the replayed days (the saving of
+    the change, negative for a cost increase). Replaying a higher value (or never stopping) keeps the warehouse up
+    longer: its added idle less the restarts it avoids. Replaying a lower value stops it sooner: minus its removable
+    idle, plus the restarts it adds. *row* is the replay row of the replayed value on days run at the applied value."""
+    raises = int(replayed) == 0 or (int(applied) != 0 and int(replayed) > int(applied))
+    if raises:
+        return row["added_idle_cluster_minutes"] - row["avoided_starts"] * restart
+    return -(row["removable_running_cluster_minutes"] - row["additional_starts"] * restart)
 
 
 def restart_cost_cluster_minutes(config: Mapping[str, Any], assumptions: Mapping[str, Any]) -> Decimal:
@@ -96,7 +107,8 @@ def replay_economics(plan: MeasurementPlan, evidence: Mapping[str, Any]) -> Opti
     target = replay_target(plan.replayed_value)
     row = _replay_row(post, target)
     restart = restart_cost_cluster_minutes(config, evidence["assumptions"])
-    net = row["added_idle_cluster_minutes"] - row["avoided_starts"] * restart
+    applied = int(config["auto_stop_minutes"])
+    net = replay_net_cluster_minutes(row, plan.replayed_value, applied, restart)
     bill = billed(daily_in(evidence["daily_cost"], plan.post))
     if bill["cost"] is None or len(bill["currencies"]) > 1:
         return None

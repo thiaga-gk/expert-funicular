@@ -180,6 +180,28 @@ class SimulatedWorldTests(unittest.TestCase):
             project_observation(PRO, moved)
 
 
+class ReplayDirectionTests(unittest.TestCase):
+    """The saving of a change, replayed in either direction on the days run at the applied value."""
+
+    def test_both_directions(self):
+        from realizer.analyzer.projector import replay_net_cluster_minutes
+        row = {"added_idle_cluster_minutes": Decimal("5600"), "avoided_starts": Decimal("3"), "removable_running_cluster_minutes": Decimal("900"),
+               "additional_starts": Decimal("20")}
+        self.assertEqual(replay_net_cluster_minutes(row, 30, 10, Decimal("4")), Decimal("5588"))  # lowered: the old value adds idle
+        self.assertEqual(replay_net_cluster_minutes(row, 0, 35, Decimal("4")), Decimal("5588"))  # never stopped before
+        self.assertEqual(replay_net_cluster_minutes(row, 10, 15, Decimal("4")), Decimal("-820"))  # raised: the old value would save idle, add restarts
+        self.assertEqual(replay_net_cluster_minutes(row, 10, 0, Decimal("4")), Decimal("-820"))  # set to never stop
+
+    def test_a_raised_auto_stop_realizes_a_cost_increase(self):
+        spec = world.world_spec("C13", {"auto_stop": 10})
+        raised = world.world_spec("C13", {"auto_stop": 45})
+        pkg = copy.deepcopy(PRO)  # the package says 30 -> 10; the owner raises to 45 instead (contrary)
+        obs = project_observation(pkg, world.measure(pkg, raised, 13))
+        self.assertEqual(obs["measurement"]["applied_value"], 45)
+        self.assertLess(Decimal(obs["economics"]["dbu_realized"]), 0)  # 42-minute gaps now bridged: more idle than at 30
+        self.assertIsNotNone(spec)
+
+
 class BridgeTests(unittest.TestCase):
     def test_the_collector_never_runs_on_the_warehouse_it_measures(self):
         with mock.patch.object(bridge.access, "resolve_cli_token") as token, self.assertRaises(InputError):
