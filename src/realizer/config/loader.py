@@ -20,7 +20,7 @@ import json
 
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json, parse_utc, utc_iso
-from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, latest_run_dir
+from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, is_realizer_run_dir, latest_publisher_run_dir
 from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.fleet import PublisherRun, PublisherRunEntry
@@ -256,15 +256,18 @@ def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
 
 def load_publisher_run(path: str | Path) -> PublisherRun:
     """The Publisher run at *path*: a run folder (it holds ``manifest.json``), or a root holding
-    ``run_date=*/run_ts=*`` run folders, of which the newest is read (``latest_run_dir``). Its manifest's ``packages``
+    ``run_date=*/run_ts=*`` run folders, of which the newest Publisher run is read (``latest_publisher_run_dir``: the Realizer's
+    own run folders under a shared root are skipped). Its manifest's ``packages``
     entries (``path``, ``workspace_id``, ``warehouse_id``, ``recommendation_package_id``) become the run's entries in
     (workspace, warehouse) order; the packages themselves are read per warehouse by the fleet run. No run, an unreadable
     manifest, an entry missing a field, a path outside the run folder or two packages of one warehouse raise
     ``InputError``."""
     try:
-        run_dir = latest_run_dir(Path(path))
+        run_dir = latest_publisher_run_dir(Path(path))
     except (FileNotFoundError, NotADirectoryError):
         raise InputError(f"no Publisher run (manifest.json or run_date=*/run_ts=* folders) under {path}") from None
+    if is_realizer_run_dir(run_dir):
+        raise InputError(f"{run_dir} is a Realizer run, not a Publisher run")
     manifest = read_json_input(run_dir / PUBLISHER_MANIFEST_NAME, "Publisher run manifest")
     packages = manifest.get("packages") if isinstance(manifest, Mapping) else None
     if not isinstance(packages, list):

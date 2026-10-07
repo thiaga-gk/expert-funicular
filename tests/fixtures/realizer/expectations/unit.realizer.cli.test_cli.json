@@ -133,8 +133,8 @@
   "sha256": "f704709e77646f9d42fcaa12c8feb8766442ff387d5b4eb393c851f081bff8b0"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
-  "length": 4373,
-  "sha256": "a7c5b08a9ad7ac14015590f11dedcf1ccf9d196095ad4c77317acc315756619f"
+  "length": 4387,
+  "sha256": "10286a39934474d23283451287f910ca5634fef75aa14a7f52d3c76c2e21d6fb"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [
@@ -170,7 +170,7 @@
    "from_evidence": null,
    "log_level": "INFO",
    "observation": null,
-   "output_dir": "./warehouse_optimizer_out",
+   "output_dir": "./realizer_out",
    "package": "p.json",
    "policy": null,
    "print_json": false,

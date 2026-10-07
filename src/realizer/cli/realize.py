@@ -31,7 +31,7 @@ from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER, attach_log_file, setup_logging
 from realizer.config.loader import (SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping, load_publisher_run,
                                     select_warehouses)
-from realizer.config.output_layout import RunLayout, resolve_layout, resolve_state_dir
+from realizer.config.output_layout import DEFAULT_OUTPUT_DIR, RunLayout, resolve_layout, resolve_state_dir
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts.fleet import SOURCE_DEMO, SOURCE_EVIDENCE, SOURCE_LIVE, FleetRequest, LiveSource
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
@@ -60,9 +60,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     target = p.add_mutually_exclusive_group(required=True)
     target.add_argument("--package", help="Path to immutable RecommendationPackage JSON")
     target.add_argument("--publisher-run", help="Fleet run: a Publisher run folder, or a root holding run_date=*/run_ts=* "
-                        "folders (the newest is used); every warehouse of its manifest, each open lineage kept in the state")
+                        "folders (the newest Publisher run is used); every warehouse of its manifest, each open lineage kept in the state")
     p.add_argument("--observation", help="Path to normalized post-change observation JSON")
-    p.add_argument("--output-dir", default="./warehouse_optimizer_out", help="Root of the run folders "
+    p.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Root of the run folders "
                    "(run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/: realization packages, snapshots, realizer.log)")
     p.add_argument("--state-dir", help="Long-lived state: ledgers, evidence, regeneration requests, measurements, source "
                    "package copies, policies, state index (default <output-dir>/state)")
@@ -104,7 +104,7 @@ def parse_backtest_args(argv: Sequence[str]) -> argparse.Namespace:
     p.add_argument("--version", action="version", version=version_text())
     p.add_argument("--backtest", action="store_true", required=True, help="Backtest past auto-stop changes (no package)")
     p.add_argument("--package", help="Not used by a backtest (refused when given)")
-    p.add_argument("--output-dir", default="./warehouse_optimizer_out")
+    p.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     p.add_argument("--profile", help="Databricks CLI profile (OAuth U2M): read the past changes from system tables")
     p.add_argument("--sql-warehouse-id", help="Live: the SQL warehouse the read-only collector statements run on (never a backtested one)")
     p.add_argument("--warehouse", action="append", default=[], help="Live: backtest only this warehouse (<warehouse_id> or "
