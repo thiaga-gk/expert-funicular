@@ -68,6 +68,8 @@ Groups: package/candidate/technique identity (ending with the warehouse's cost p
 
 The exact ordered set is `REGISTRY_COLUMNS` (**57 columns**) and is regression-tested.
 
+The Realization columns reflect the package as generated, which never changes after it is published; realization after a change is applied (applied value, validation, realized to date, claim, next action) is in the Realizer's realization workbook ([`workbook-compatibility-contract.md`](../realizer/workbook-compatibility-contract.md) section 10).
+
 ## Excel presentation contract
 
 - Rows 1–2: title/context.

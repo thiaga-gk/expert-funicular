@@ -1,4 +1,5 @@
-"""Realizer report contract (src/realizer/contracts/report.py): the Workbook Extension projection, moved verbatim.
+"""Realizer report contract (src/realizer/contracts/report.py): the lineage projection, moved verbatim, and the realization
+workbook's constants (its rows are tested in tests/unit/realizer/reporter/test_realization_workbook.py).
 
 For every scenario of the compatibility baseline, projecting the stored final RPKG and its ledger reproduces the
 stored ``report.json``.
@@ -36,7 +37,7 @@ def _stored(name):
 class ReportContractTests(unittest.TestCase):
     def test_constants(self):
         expect.check(self, "constants", {name: getattr(report, name) for name in
-                                         ("REALIZER_WORKBOOK_EXTENSION_VERSION", "SHEET_REALIZATION_SUMMARY", "SHEET_REALIZATION_TIMELINE", "SHEET_NAMES")})
+                                         ("REALIZATION_WORKBOOK_CONTRACT_VERSION", "SHEET_WAREHOUSES", "SHEET_LINEAGES", "SHEET_TIMELINE", "SHEET_NAMES")})
 
     def test_projection_reproduces_stored_report_for_every_scenario(self):
         for name in canonical.scenario_names():
