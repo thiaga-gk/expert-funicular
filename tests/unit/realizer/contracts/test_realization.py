@@ -71,7 +71,7 @@ class PublicSurfaceTests(unittest.TestCase):
 
     def test_enums_have_identical_members_and_values(self):
         enums = [n for n in rc.__all__ if isinstance(getattr(rc, n), type) and issubclass(getattr(rc, n), Enum)]
-        self.assertEqual(len(enums), 16)
+        self.assertEqual(len(enums), 17)  # the single-file release's 16 plus StepRole
         for name in enums:
             self.assertTrue(issubclass(getattr(rc, name), str), name)
         expect.check(self, "members", {name: [(m.name, m.value) for m in getattr(rc, name)] for name in enums},
@@ -81,7 +81,7 @@ class PublicSurfaceTests(unittest.TestCase):
         grouped = {**{n: analysis for n in analysis.__all__}, **{n: reconciliation for n in reconciliation.__all__}}
         self.assertEqual(set(analysis.__all__), {"IntentState", "OriginAttribution", "EvidenceQuality"})
         self.assertEqual(set(reconciliation.__all__), {"SourcePackageDisposition", "ImplementationConformance",
-                                                       "ApplicationState", "PlanProgressState", "RegenerationStatus"})
+                                                       "ApplicationState", "PlanProgressState", "RegenerationStatus", "StepRole"})
         for name, module in grouped.items():
             self.assertIs(getattr(rc, name), getattr(module, name), name)
 

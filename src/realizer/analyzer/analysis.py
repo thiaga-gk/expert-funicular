@@ -79,6 +79,29 @@ def candidate_steps(package: Mapping[str, Any], scenario_id: Optional[str] = Non
     return [x for x in scenario.get("execution_plan", []) if x.get("step_type") == "CANDIDATE"]
 
 
+# The Publisher's blocker on a candidate that rolls back a canary whose guard tripped.
+CANARY_ROLLBACK_BLOCKER = "CANARY_GUARDRAIL_BREACHED"
+
+
+def step_role(package: Mapping[str, Any], step: Mapping[str, Any]) -> str:
+    """What a CANDIDATE step is for (``StepRole``), from its candidate: ``SAFETY_ROLLBACK`` when the candidate carries
+    the canary-rollback blocker; ``PERFORMANCE`` when its objectives are a performance fix and it is priced as a cost
+    increase (or not priced); ``CAPACITY`` when it is priced at exactly zero (a cost-guardrail cut); ``SAVINGS``
+    otherwise."""
+    candidate = candidate_by_id(package, step.get("candidate_id")) or {}
+    if CANARY_ROLLBACK_BLOCKER in (candidate.get("blockers") or []):
+        return rc.StepRole.SAFETY_ROLLBACK.value
+    savings = ((candidate.get("independent_economics") or {}).get("savings_365d") or {})
+    block = savings.get("total") or savings.get("dbu") or {}
+    base = block.get("base") if isinstance(block, Mapping) else None
+    objectives = set(candidate.get("objectives") or [])
+    if "PERFORMANCE" in objectives and "COST" not in objectives and (base is None or base < 0):
+        return rc.StepRole.PERFORMANCE.value
+    if base is not None and base == 0:
+        return rc.StepRole.CAPACITY.value
+    return rc.StepRole.SAVINGS.value
+
+
 def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, Any]) -> ObservationAnalysis:
     """The normalized view of *observation*: its UTC times, observed and source configurations with their hashes and
     the observed-configuration evidence record (REVID-*).

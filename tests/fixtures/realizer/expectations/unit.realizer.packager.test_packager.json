@@ -1,7 +1,7 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
   "length": 33190,
-  "sha256": "2a65c91d4d6f9b296017b6a8b4235ad971ebafcfc23c73c8657710d6adc3b658",
+  "sha256": "e2a652490cd55db1a26e991d76998e2758937d969f0cbd76d6b7df0a9a6bea69",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
@@ -49,10 +49,10 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "122a114197e3183f",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "c415f58a031acb1c",
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c904fea376701ba6",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "541f9b480da4ad84",
     "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "46c2cddb73edec10",
-    "realization/snapshots/RSNAP-D445A38CD91D440066B8FE9C.json": "c415f58a031acb1c"
+    "realization/snapshots/RSNAP-C1FFE8DB03D3D34030692387.json": "541f9b480da4ad84"
    }
   }
  },
@@ -81,27 +81,27 @@
    ],
    "files": {
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d4c4ff3e18a906c2",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "4b8dd2ed3d0281e9",
-    "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "4b8dd2ed3d0281e9"
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6de245dfe8ddf034",
+    "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "6de245dfe8ddf034"
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "23977b2d2789d8d5ddfd40edb7d3ac1d37b0eb82ab2019b971a6d49fd7a711b9",
+  "sha256": "feecb5ce65c0070d7dd6324436a6e6af614db90e750e1795e57b6540296dd498",
   "spot": {
    "count": 171,
    "first": [
     "GR-001",
     "2026-10-01T12:00:00Z",
     "ok",
-    "b2b360929d75e64d318ef27a988d79e835a0cc66d9a7bc132b4588e1502c8863"
+    "6631c7263c705af53075a7055f74e95b1d8266fb1c6adfb942a41646406db75c"
    ],
    "last": [
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "d4a8a25204182d881fe08c9d6fa198c7003bf2e7559d01fdf7dd0daa03119e05"
+    "ad7905711ff70bedd355db0d80ffe4840dd3a01190a55cc9851e1898c03e31cb"
    ],
    "outcomes": {
     "InputError": 41,
@@ -111,7 +111,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
   "length": 36077,
-  "sha256": "d46d79d0c1ffb4fd1acbef4766a0f5a8d2db5d5301368f072c586e80d43755d6",
+  "sha256": "d276ef40f578c1385c6126321034a8d011fb063678e2ad9b03ba24c59c2680a9",
   "spot": {
    "files": 259,
    "scenarios": 41

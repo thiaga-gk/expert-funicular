@@ -105,8 +105,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-D445A38CD91D440066B8FE9C", "REVID-37F7F275591908182339F44B", "RERUN-5892493D314514DD4D6DF7EE"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-A28F581EC04FBB0ABBEE29E1", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-D09D9A1BFF35E7648D636A79"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-C1FFE8DB03D3D34030692387", "REVID-37F7F275591908182339F44B", "RERUN-5892493D314514DD4D6DF7EE"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-34C79953B192C42DFFBDEFF3", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-D09D9A1BFF35E7648D636A79"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
@@ -119,6 +119,7 @@ class StoredBaselineTests(unittest.TestCase):
     def test_every_scenario_names_one_of_the_fixture_packages(self):
         fixtures = sorted(p.name for p in canonical.PACKAGES.glob("*.json"))
         self.assertEqual(fixtures, ["autostop-scoped-never-stop.json", "autostop-scoped-pro.json", "autostop-scoped-serverless.json",
+                                    "canary-rollback.json", "capacity-add-scoped.json", "capacity-cut-scoped.json",
                                     "inplace-size-canary.json", "scope-migration-only.json", "two-ready-steps.json", "unpriced-candidate.json"])
         for name in self.names:
             with self.subTest(scenario=name):

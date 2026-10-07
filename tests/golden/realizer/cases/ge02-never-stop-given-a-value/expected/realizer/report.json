@@ -2,7 +2,7 @@
   "realization_summary": [
     {
       "annualized_realized_savings": 124802.76,
-      "application_json": "{\"active_episode_id\":\"APP-047DD612B1335FBE475F330C\",\"actor\":null,\"application_scope\":\"CANDIDATE\",\"applied_step_refs\":[],\"effective_from_utc\":\"2026-10-08T14:32:00Z\",\"effective_time_quality\":\"EXACT\",\"effective_to_utc\":null,\"implementation_conformance\":\"EXACT\",\"intent_state\":\"UNKNOWN\",\"knob\":\"auto_stop_minutes\",\"modification_relation\":null,\"observed_applied_value\":35,\"observed_config\":{\"auto_stop_minutes\":35,\"enable_photon\":true,\"max_clusters\":1,\"min_clusters\":1,\"warehouse_channel\":\"CURRENT\",\"warehouse_size\":\"MEDIUM\",\"warehouse_type\":\"PRO\"},\"plan_progress\":{\"applied_steps\":1,\"authoritative_actionable_steps\":1,\"pending_reevaluation_steps\":0,\"state\":\"COMPLETED\"},\"recommended_value\":35,\"scenario_id\":\"SCN-C58EE28009AB0DE5788EC3A7\",\"source_value\":0,\"state\":\"APPLIED\",\"step\":1}",
+      "application_json": "{\"active_episode_id\":\"APP-047DD612B1335FBE475F330C\",\"actor\":null,\"application_scope\":\"CANDIDATE\",\"applied_step_refs\":[],\"effective_from_utc\":\"2026-10-08T14:32:00Z\",\"effective_time_quality\":\"EXACT\",\"effective_to_utc\":null,\"implementation_conformance\":\"EXACT\",\"intent_state\":\"UNKNOWN\",\"knob\":\"auto_stop_minutes\",\"modification_relation\":null,\"observed_applied_value\":35,\"observed_config\":{\"auto_stop_minutes\":35,\"enable_photon\":true,\"max_clusters\":1,\"min_clusters\":1,\"warehouse_channel\":\"CURRENT\",\"warehouse_size\":\"MEDIUM\",\"warehouse_type\":\"PRO\"},\"plan_progress\":{\"applied_steps\":1,\"authoritative_actionable_steps\":1,\"pending_reevaluation_steps\":0,\"state\":\"COMPLETED\"},\"recommended_value\":35,\"scenario_id\":\"SCN-C58EE28009AB0DE5788EC3A7\",\"source_value\":0,\"state\":\"APPLIED\",\"step\":1,\"step_role\":\"SAVINGS\"}",
       "application_scope": "CANDIDATE",
       "application_state": "APPLIED",
       "as_of_utc": "2026-11-07T12:00:00Z",
@@ -28,7 +28,7 @@
       "recommended_value": 35,
       "regeneration_status": "NOT_REQUIRED",
       "replacement_package_id": null,
-      "snapshot_id": "RSNAP-711EEC1BE71F6F0AC7942670",
+      "snapshot_id": "RSNAP-C590942F26876FF67ED7F323",
       "source_package_disposition": "ACTIVE",
       "validation_json": "{\"hard_guardrails_pass\":true,\"policy_snapshot_id\":\"PSNAP-33BCD2A30BD83B8D321F7CCD\",\"readiness\":{\"checks\":{\"evidence_quality\":{\"observed\":\"SUFFICIENT\",\"pass\":true,\"required\":\"SUFFICIENT\"},\"guardrail_evidence\":{\"pass\":true,\"unknown_rules\":[]},\"minimum_days\":{\"observed\":28,\"pass\":true,\"threshold\":7},\"minimum_queries\":{\"observed\":2000,\"pass\":true,\"threshold\":100},\"representative_regime\":{\"observed\":true,\"pass\":true,\"required\":true}},\"ready\":true},\"rules\":[{\"margin_pct\":\"25\",\"metric\":\"failure_cancel_pct\",\"min_sample\":\"100\",\"observed\":\"0.3\",\"operator\":\"NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)\",\"policy_snapshot_id\":\"PSNAP-33BCD2A30BD83B8D321F7CCD\",\"previous\":\"0.3\",\"result\":\"PASS\",\"rule_id\":\"REAL-FAIL-001\",\"sample\":\"2000\",\"threshold\":\"5\"},{\"metric\":\"added_cold_start_share_pct\",\"observed\":\"1\",\"operator\":\"LTE\",\"policy_snapshot_id\":\"PSNAP-33BCD2A30BD83B8D321F7CCD\",\"result\":\"PASS\",\"rule_id\":\"REAL-COLD-001\",\"threshold\":\"2\"}],\"state\":\"PASSED\",\"validation_episode_id\":\"VAL-D4A67A8E5895BE51E9DCC4E8\",\"window_end_utc\":\"2026-11-06T00:00:00Z\",\"window_start_utc\":\"2026-10-09T00:00:00Z\"}",
       "validation_state": "PASSED",
@@ -89,22 +89,6 @@
     {
       "application_episode_id": "APP-047DD612B1335FBE475F330C",
       "corrects_entry_id": null,
-      "effective_at_utc": "2026-10-08T14:32:00Z",
-      "event_type": "APPLICATION_OBSERVED",
-      "evidence_refs": "[\"REVID-EDDE0C4FB7A60D8A69C24F31\"]",
-      "ledger_entry_id": "RLE-2A0FF1A276B2AE5C9E592DDE",
-      "measurement_id": null,
-      "payload_json": "{\"actor\":null,\"application_episode_id\":\"APP-047DD612B1335FBE475F330C\",\"authority_eligible\":true,\"candidate_id\":\"CAND-1A24E08964B7E71783B60FF8\",\"dependencies\":[],\"effective_from_utc\":\"2026-10-08T14:32:00Z\",\"effective_time_quality\":\"EXACT\",\"execution_state\":\"READY\",\"implementation_conformance\":\"EXACT\",\"intent_state\":\"UNKNOWN\",\"invalidates\":[],\"knob\":\"auto_stop_minutes\",\"modification_relation\":null,\"observed_config\":{\"auto_stop_minutes\":35,\"enable_photon\":true,\"max_clusters\":1,\"min_clusters\":1,\"warehouse_channel\":\"CURRENT\",\"warehouse_size\":\"MEDIUM\",\"warehouse_type\":\"PRO\"},\"observed_config_hash\":\"SHA256:38BE602429DC16964B8D7C5BE2A699B49B5840F79978D34B8A9480B3815F3D44\",\"observed_value\":35,\"origin_attribution\":\"INFERRED\",\"recommended_value\":35,\"remeasure_days\":null,\"scenario_id\":\"SCN-C58EE28009AB0DE5788EC3A7\",\"source_config_hash\":\"SHA256:CED5531228B3C7BB51D5375194083B908E10731F4EAC465FA94C36B2C03D9BC2\",\"source_value\":0,\"step\":1,\"technique_id\":\"WH-AUTOSTOP-ASSESS-001\"}",
-      "realization_package_id": "RPKG-6C9BD9923643C84D4FC59F6A",
-      "recommendation_package_id": "PKG-45A8A578D042E3CB61EAA727",
-      "recorded_at_utc": "2026-11-07T12:00:00Z",
-      "validation_episode_id": null,
-      "warehouse_id": "wh-demo-001",
-      "workspace_id": "1234567890123456"
-    },
-    {
-      "application_episode_id": "APP-047DD612B1335FBE475F330C",
-      "corrects_entry_id": null,
       "effective_at_utc": "2026-11-07T12:00:00Z",
       "event_type": "VALIDATION_STARTED",
       "evidence_refs": "[\"REVID-EDDE0C4FB7A60D8A69C24F31\"]",
@@ -115,6 +99,22 @@
       "recommendation_package_id": "PKG-45A8A578D042E3CB61EAA727",
       "recorded_at_utc": "2026-11-07T12:00:00Z",
       "validation_episode_id": "VAL-D4A67A8E5895BE51E9DCC4E8",
+      "warehouse_id": "wh-demo-001",
+      "workspace_id": "1234567890123456"
+    },
+    {
+      "application_episode_id": "APP-047DD612B1335FBE475F330C",
+      "corrects_entry_id": null,
+      "effective_at_utc": "2026-10-08T14:32:00Z",
+      "event_type": "APPLICATION_OBSERVED",
+      "evidence_refs": "[\"REVID-EDDE0C4FB7A60D8A69C24F31\"]",
+      "ledger_entry_id": "RLE-84F009D48AAF85D63C20950A",
+      "measurement_id": null,
+      "payload_json": "{\"actor\":null,\"application_episode_id\":\"APP-047DD612B1335FBE475F330C\",\"authority_eligible\":true,\"candidate_id\":\"CAND-1A24E08964B7E71783B60FF8\",\"dependencies\":[],\"effective_from_utc\":\"2026-10-08T14:32:00Z\",\"effective_time_quality\":\"EXACT\",\"execution_state\":\"READY\",\"implementation_conformance\":\"EXACT\",\"intent_state\":\"UNKNOWN\",\"invalidates\":[],\"knob\":\"auto_stop_minutes\",\"modification_relation\":null,\"observed_config\":{\"auto_stop_minutes\":35,\"enable_photon\":true,\"max_clusters\":1,\"min_clusters\":1,\"warehouse_channel\":\"CURRENT\",\"warehouse_size\":\"MEDIUM\",\"warehouse_type\":\"PRO\"},\"observed_config_hash\":\"SHA256:38BE602429DC16964B8D7C5BE2A699B49B5840F79978D34B8A9480B3815F3D44\",\"observed_value\":35,\"origin_attribution\":\"INFERRED\",\"recommended_value\":35,\"remeasure_days\":null,\"scenario_id\":\"SCN-C58EE28009AB0DE5788EC3A7\",\"source_config_hash\":\"SHA256:CED5531228B3C7BB51D5375194083B908E10731F4EAC465FA94C36B2C03D9BC2\",\"source_value\":0,\"step\":1,\"step_role\":\"SAVINGS\",\"technique_id\":\"WH-AUTOSTOP-ASSESS-001\"}",
+      "realization_package_id": "RPKG-6C9BD9923643C84D4FC59F6A",
+      "recommendation_package_id": "PKG-45A8A578D042E3CB61EAA727",
+      "recorded_at_utc": "2026-11-07T12:00:00Z",
+      "validation_episode_id": null,
       "warehouse_id": "wh-demo-001",
       "workspace_id": "1234567890123456"
     },

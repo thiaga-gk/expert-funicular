@@ -12,7 +12,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from realizer.analyzer.analysis import candidate_steps, normalize_value, recommended_scenario, scenario_by_id
+from realizer.analyzer.analysis import candidate_steps, normalize_value, recommended_scenario, scenario_by_id, step_role
 from realizer.config.settings import SIZE_ORDER
 from realizer.contracts import realization as rc
 from realizer.contracts.reconciliation import PlanMatch
@@ -97,6 +97,7 @@ def choose_application(
             "candidate_id": step.get("candidate_id"),
             "technique_id": step.get("technique_id"),
             "knob": step.get("knob"),
+            "step_role": step_role(package, step),
             "execution_state": step.get("execution_state"),
             "authority_eligible": authority_eligible(step),
             "source_value": step.get("current_value"),
@@ -147,7 +148,7 @@ def independent_changes(package: Mapping[str, Any], obs_config: Mapping[str, Any
         candidate = next((c for c in package.get("candidates") or [] if c.get("knob") == knob), None)
         out.append({
             "scenario_id": scenario_id, "step": None, "candidate_id": None if candidate is None else candidate.get("candidate_id"),
-            "technique_id": None if candidate is None else candidate.get("technique_id"), "knob": knob, "execution_state": None,
+            "technique_id": None if candidate is None else candidate.get("technique_id"), "knob": knob, "step_role": None, "execution_state": None,
             "authority_eligible": False, "source_value": source.get(knob), "recommended_value": None, "observed_value": observed,
             "implementation_conformance": rc.ImplementationConformance.UNRELATED.value, "modification_relation": None,
             "invalidates": [], "dependencies": [], "remeasure_days": None,

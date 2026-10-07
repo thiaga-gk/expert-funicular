@@ -139,6 +139,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "candidate_id": None,
             "technique_id": None,
             "knob": None,
+            "step_role": None,
             "execution_state": "SCENARIO_APPLIED",
             "authority_eligible": True,
             "source_value": None,

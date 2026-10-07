@@ -78,6 +78,8 @@ The comparison is like for like: a live measurement with a modeled AWS price is 
 
 A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved.
 
+A safety rollback (step role `SAFETY_ROLLBACK`: the Publisher restores a value whose canary guard tripped) is a safety action, not a saving: its validation runs, but no counterfactual or measurement is recorded and nothing is claimed, whatever costs the observation carries (`SAFETY_ACTION_APPLIED`).
+
 ## 8. Modified application
 
 `MODIFIED` is eligible for realization. Validate and measure the actual state, re-estimate expected economics for the actual applied target, and regenerate downstream recommendations from that actual state when dependencies require it.

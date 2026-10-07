@@ -31,7 +31,8 @@
     "scenario_id": "SCN-2939C3996D4BBAC63D4F9484",
     "source_value": "LARGE",
     "state": "APPLIED",
-    "step": 1
+    "step": 1,
+    "step_role": "SAVINGS"
   },
   "as_of_utc": "2026-10-09T12:00:00Z",
   "attribution": {
@@ -153,7 +154,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-F9BDA14552044FB888676A4C",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:458933E23A79C7867D13994E948612BCF5367A046DE8A706DE645F57F2752CE8",
+    "ledger_checkpoint_hash": "SHA256:088E3639C10CD00FD8D4DD5DF96E60D62B9C397DBC136BB8E8FBCA28051DDF69",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -178,7 +179,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-BF854786BBC73827309D366D",
+  "snapshot_id": "RSNAP-FA6E9492641723A27D0380B5",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",

@@ -356,8 +356,8 @@
   }
  },
  "PublicSurfaceTests.test_enums_have_identical_members_and_values/members": {
-  "length": 3437,
-  "sha256": "0e87b1b5e44a1889f61fce02c77d1e0c42c5621d998f697df1bdc5442fd742af",
+  "length": 3614,
+  "sha256": "1eae593782025438ab3e3c963a968af697f62b9a5e404f8fa9772b4b50dbce16",
   "spot": {
    "enums": [
     "IntentState",
@@ -373,11 +373,12 @@
     "AttributionClaimStatus",
     "EvidenceQuality",
     "RegenerationStatus",
+    "StepRole",
     "RecognitionStatus",
     "CompatibilityStatus",
     "EventType"
    ],
-   "members": 94
+   "members": 99
   }
  },
  "PublicSurfaceTests.test_every_public_name_survives/names": {
@@ -389,7 +390,7 @@
     "make_rpkg_id",
     "make_val_id"
    ],
-   "count": 30
+   "count": 31
   },
   "value": [
    "ApplicationState",
@@ -412,6 +413,7 @@
    "RecognitionStatus",
    "RegenerationStatus",
    "SourcePackageDisposition",
+   "StepRole",
    "ValidationState",
    "canonical_decimal",
    "canonical_json",

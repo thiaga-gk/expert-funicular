@@ -85,7 +85,12 @@ Unknown material facts are `null`, never synthetic zero.
 `NOT_READY | READY | RUNNING | PASSED | FAILED | INCONCLUSIVE`
 
 ### Realization
-`NOT_APPLIED | APPLIED | VALIDATING | REALIZED | UNDER_REALIZED | VALIDATION_FAILED | MONITORING | ROLLED_BACK | DRIFTED | INVALIDATED | REGENERATING | BLOCKED`
+`NOT_APPLIED | APPLIED | VALIDATING | REALIZED | UNDER_REALIZED | VALIDATION_FAILED | MONITORING | ROLLED_BACK | DRIFTED | INVALIDATED | REGENERATING | BLOCKED | SAFETY_ACTION_APPLIED`
+
+### Step role
+`SAVINGS | PERFORMANCE | CAPACITY | SAFETY_ROLLBACK`
+
+What the applied plan step is for, from its candidate (recorded on the application as `step_role`, null for a scenario-scope application and an independent change): `SAFETY_ROLLBACK` when the candidate carries the Publisher's canary-rollback blocker `CANARY_GUARDRAIL_BREACHED`; `PERFORMANCE` when its objectives are a performance fix priced as a cost increase or not priced; `CAPACITY` when it is priced at exactly zero; `SAVINGS` otherwise. A safety rollback's application is recorded and validated but never measured or claimed: its realization state is `SAFETY_ACTION_APPLIED`.
 
 ### Maturity
 `NOT_APPLIED | COLLECTING | PROVISIONAL | REPRESENTATIVE | MATURE`

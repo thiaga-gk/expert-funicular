@@ -92,6 +92,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         realization_state = rc.RealizationState.INVALIDATED.value  # the opposite of the recommendation: regenerate
     elif validation and not validation.payload.get("hard_guardrails_pass"):
         realization_state = rc.RealizationState.VALIDATION_FAILED.value
+    elif app and app.payload.get("step_role") == rc.StepRole.SAFETY_ROLLBACK.value:
+        realization_state = rc.RealizationState.SAFETY_ACTION_APPLIED.value  # recorded, never measured or claimed
     elif measurement:
         realization_state = str(measurement.payload.get("realization_state") or rc.RealizationState.MONITORING.value)
     elif app:
@@ -147,6 +149,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "scenario_id": app.payload.get("scenario_id") if app else None,
         "step": app.payload.get("step") if app else None,
         "knob": app.payload.get("knob") if app else None,
+        "step_role": app.payload.get("step_role") if app else None,
         "source_value": app.payload.get("source_value") if app else None,
         "recommended_value": app.payload.get("recommended_value") if app else None,
         "observed_applied_value": app.payload.get("observed_value") if app else None,

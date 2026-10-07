@@ -33,6 +33,7 @@ from realizer.contracts.reconciliation import (
     PlanProgressState,
     RegenerationStatus,
     SourcePackageDisposition,
+    StepRole,
 )
 
 if TYPE_CHECKING:  # annotations only: the hand-offs of the earlier capabilities
@@ -67,6 +68,7 @@ class RealizationState(str, Enum):
     INVALIDATED = "INVALIDATED"
     REGENERATING = "REGENERATING"
     BLOCKED = "BLOCKED"
+    SAFETY_ACTION_APPLIED = "SAFETY_ACTION_APPLIED"
 
 
 class MaturityState(str, Enum):
@@ -435,7 +437,7 @@ __all__ = [
     "IntentState", "SourcePackageDisposition", "ImplementationConformance",
     "ApplicationState", "PlanProgressState", "ValidationState", "RealizationState",
     "MaturityState", "OriginAttribution", "AttributionState", "AttributionClaimStatus",
-    "EvidenceQuality", "RegenerationStatus", "RecognitionStatus", "CompatibilityStatus",
+    "EvidenceQuality", "RegenerationStatus", "StepRole", "RecognitionStatus", "CompatibilityStatus",
     "EventType", "RealizationLedgerEntry", "RealizationPackage", "canonical_decimal",
     "canonical_json", "sha256_hex", "content_id",
     "make_rpkg_id", "make_evidence_id", "make_app_id", "make_val_id", "make_measurement_id",

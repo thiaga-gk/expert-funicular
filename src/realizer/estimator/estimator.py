@@ -20,6 +20,14 @@ from realizer.estimator.attribution import attribution_result
 from realizer.estimator.economics import calculate_economics, correction_facts, counterfactual_record, measurement_facts
 
 
+# The economics of a safety action: nothing is measured against a counterfactual and nothing is claimed.
+SAFETY_ACTION_ECONOMICS = {
+    "available": False, "currency": None, "observed_economic_delta": None, "successful_realized_savings": None,
+    "annualized_realized_savings": None, "expected_same_scope_annual_savings": None, "denominator_source": "NOT_APPLICABLE",
+    "realization_ratio": None, "classification_detail": "SAFETY_ACTION",
+}
+
+
 def run(
     context: RunContext, analysis: RealizationAnalysis, governance: GovernanceResult, reconciliation: ReconciliationResult,
 ) -> RealizationEstimate:
@@ -45,6 +53,9 @@ def run(
     try:
         validation_passed = governance.performance.get()["hard_guardrails_pass"]
         facts["validation_passed"] = validation_passed
+        if app_payload.get("step_role") == rc.StepRole.SAFETY_ROLLBACK.value:
+            # A safety rollback restores a value the Publisher's guard rejected: validated, never measured or claimed.
+            return RealizationEstimate(**facts, economics=SAFETY_ACTION_ECONOMICS)
         cf_claim_eligible, cf_method = governance.counterfactual.get()
         counterfactual = counterfactual_record(app_id, observation, package, policy, cf_claim_eligible, cf_method)
         facts["counterfactual"] = counterfactual
