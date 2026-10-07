@@ -18,14 +18,14 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.3.0"
-PROJECTOR_VERSION = "realizer-projector-v1.1.0"
-POLICY_VERSION = "realizer-policy-v1.3.0"
-ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.3.0"
+REALIZER_VERSION = "1.4.0"
+PROJECTOR_VERSION = "realizer-projector-v1.2.0"
+POLICY_VERSION = "realizer-policy-v1.4.0"
+ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.4.0"
 MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.2.0"
-ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.3.0"
-ATTRIBUTION_VERSION = "realizer-attribution-v1.2.0"
-EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.0.0"
+ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.4.0"
+ATTRIBUTION_VERSION = "realizer-attribution-v1.3.0"
+EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.1.0"
 
 CONFIG_KNOBS = (
     "warehouse_type",

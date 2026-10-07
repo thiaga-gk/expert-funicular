@@ -80,13 +80,13 @@
     "hard_disqualifiers": [],
     "origin_attribution": "CONFIRMED",
     "overlap_count": 0,
-    "recommendation_attributed_realized_savings": "6000.00",
-    "validated_observed_realization": "4000.00"
+    "recommendation_attributed_realized_savings": "24000.00",
+    "validated_observed_realization": "16000.00"
   },
-  "contract_version": "1.1.0",
+  "contract_version": "1.2.0",
   "current_state": {
     "maturity_state": "MATURE",
-    "realization_state": "UNDER_REALIZED",
+    "realization_state": "REALIZED",
     "source_package_disposition": "ACTIVE",
     "validation_state": "PASSED"
   },
@@ -94,15 +94,15 @@
     "state": "NONE"
   },
   "economics": {
-    "annualized_realized_savings": "7300.00",
+    "annualized_realized_savings": "29200.00",
     "available": true,
     "aws_cash_realized": null,
     "aws_commitment_freed": null,
     "aws_economic_realized": null,
     "aws_evidence_type": null,
     "classification_basis": "PUBLISHED_RANGE",
-    "classification_detail": "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED",
-    "counterfactual_old_cost": "12000.00",
+    "classification_detail": "REALIZED",
+    "counterfactual_old_cost": "28000.00",
     "currency": "USD",
     "dbu_realized": null,
     "denominator_method": null,
@@ -120,9 +120,9 @@
       "low": "20493.89"
     },
     "expected_same_scope_annual_savings": "31792.93",
-    "mature_ttm_realized_savings": "5650.00",
-    "observed_economic_delta": "4000.00",
-    "observed_new_cost": "8000.00",
+    "mature_ttm_realized_savings": "22600.00",
+    "observed_economic_delta": "16000.00",
+    "observed_new_cost": "12000.00",
     "period_days": "200",
     "quality_gates": {
       "attributable_spend": {
@@ -152,19 +152,19 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": "0.229610797117472343694022539",
-    "realization_state": "UNDER_REALIZED",
-    "realized_savings_period": "4000.00",
-    "realized_savings_since_application": "6000.00",
+    "realization_ratio": "0.9184431884698893747760901559",
+    "realization_state": "REALIZED",
+    "realized_savings_period": "16000.00",
+    "realized_savings_since_application": "24000.00",
     "realized_to_date": {
       "days_covered": "400.00",
       "first_day": "2026-10-02",
       "last_day": "2027-11-05",
       "uncovered_days": 0
     },
-    "reoptimization_recommended": true,
+    "reoptimization_recommended": false,
     "review_required": false,
-    "successful_realized_savings": "4000.00"
+    "successful_realized_savings": "16000.00"
   },
   "history": {
     "application_episode_count": 1,
@@ -172,9 +172,9 @@
     "entry_count": 14,
     "first_entry_id": "RLE-58544587BB6A8E6B91232979",
     "latest_effective_at_utc": "2027-11-06T12:00:00Z",
-    "latest_entry_id": "RLE-3A5D8E177BDEF3F22D0E045D",
+    "latest_entry_id": "RLE-E6F5E07168D3A9504B8F9B7B",
     "latest_recorded_at_utc": "2027-11-06T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:4DD065E595B0468D3DFCCD78C0CA06F55641CBEB12636993C133BE04588A0BD1",
+    "ledger_checkpoint_hash": "SHA256:C25C19DEBF9AC681F39F397C2BC654AD060BD7CD8BE41CE18A7781A9315E3101",
     "measurement_count": 2,
     "validation_episode_count": 2
   },
@@ -182,24 +182,24 @@
     "state": "MATURE"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.3.0",
-    "attribution_version": "realizer-attribution-v1.2.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.3.0",
-    "exclusivity_version": "realizer-exclusivity-v1.0.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.4.0",
+    "attribution_version": "realizer-attribution-v1.3.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.4.0",
+    "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.2.0",
-    "policy_version": "realizer-policy-v1.3.0",
+    "policy_version": "realizer-policy-v1.4.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.1.0",
-    "realizer_contract_version": "1.1.0",
-    "realizer_version": "1.3.0"
+    "projector_version": "realizer-projector-v1.2.0",
+    "realizer_contract_version": "1.2.0",
+    "realizer_version": "1.4.0"
   },
   "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
   "regeneration": {
-    "regeneration_request_id": "RERUN-FD16E8E513742D642187719F",
+    "regeneration_request_id": "RERUN-0FCAA3465636EE32333525D0",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-26AD854E323DC1064F10B5DD",
+  "snapshot_id": "RSNAP-83B8C30A0474D326E5CEC4D3",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -216,7 +216,7 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -251,7 +251,7 @@
         "metric": "normalized_p95_runtime_regression_pct",
         "observed": "2",
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-PERF-P95-001",
         "threshold": "25"
@@ -260,7 +260,7 @@
         "metric": "reliability_pass",
         "observed": true,
         "operator": "EQ",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-REL-001",
         "threshold": true
@@ -269,14 +269,14 @@
         "metric": "correctness_pass",
         "observed": true,
         "operator": "NE",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-CORRECT-001",
         "threshold": false
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-C85C6BDF73919BBE628864AF",
+    "validation_episode_id": "VAL-2BA2CFA2346335ACE8836A3D",
     "window_end_utc": "2027-11-06T00:00:00Z",
     "window_start_utc": "2027-04-20T00:00:00Z"
   },

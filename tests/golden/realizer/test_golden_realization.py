@@ -427,26 +427,27 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-040
     def test_gr_040_mature_ttm_is_earned_from_365_covered_days(self):
-        # Two runs of 200 days each, the second starting where the first ended: realized to date adds both (6000.00), the
-        # trailing year is the second window plus the latest 165 days of the first (200 x 20.00 + 165 x 10.00), and
-        # the run-rate is the second window alone (4000.00 x 365 / 200). After the first run alone: 200 covered days, not mature.
+        # Two runs of 200 days each, the second starting where the first ended: realized to date adds both (24000.00), the
+        # trailing year is the second window plus the latest 165 days of the first (200 x 80.00 + 165 x 40.00), and
+        # the run-rate is the second window alone (16000.00 x 365 / 200, inside the published range: REALIZED). After the first run alone: 200 covered days, not mature.
         def run(window_start, window_end, observed, elapsed, old_cost, new_cost):
             o = self.obs()
             o.update({'window_start_utc': window_start, 'window_end_utc': window_end, 'observed_at_utc': observed,
                       'recorded_at_utc': observed, 'elapsed_days': elapsed})
             o['economics'].update({'period_days': 200, 'counterfactual_old_cost': old_cost, 'observed_new_cost': new_cost})
             return self.realize_case(o)
-        first = run('2026-10-02T00:00:00Z', '2027-04-20T00:00:00Z', '2027-04-20T12:00:00Z', 200, '10000.00', '8000.00')
+        first = run('2026-10-02T00:00:00Z', '2027-04-20T00:00:00Z', '2027-04-20T12:00:00Z', 200, '20000.00', '12000.00')
         self.assertNotEqual(first.maturity['state'], 'MATURE')
-        self.assertEqual(first.economics['realized_savings_since_application'], '2000.00')
+        self.assertEqual(first.economics['realized_savings_since_application'], '8000.00')
         self.assertEqual(first.economics['realized_to_date']['days_covered'], '200.00')
         self.assertIsNone(first.economics['mature_ttm_realized_savings'])
-        s = run('2027-04-20T00:00:00Z', '2027-11-06T00:00:00Z', '2027-11-06T12:00:00Z', 400, '12000.00', '8000.00')
+        s = run('2027-04-20T00:00:00Z', '2027-11-06T00:00:00Z', '2027-11-06T12:00:00Z', 400, '28000.00', '12000.00')
         self.assertEqual(s.maturity['state'], 'MATURE')
-        self.assertEqual(s.economics['realized_savings_since_application'], '6000.00')
-        self.assertEqual(s.economics['mature_ttm_realized_savings'], '5650.00')
-        self.assertEqual(s.economics['annualized_realized_savings'], '7300.00')
+        self.assertEqual(s.economics['realized_savings_since_application'], '24000.00')
+        self.assertEqual(s.economics['mature_ttm_realized_savings'], '22600.00')
+        self.assertEqual(s.economics['annualized_realized_savings'], '29200.00')
         self.assertNotEqual(s.economics['mature_ttm_realized_savings'], s.economics['annualized_realized_savings'])
+        self.assertEqual(s.current_state['realization_state'], 'REALIZED')
 
 
 class GoldenRegistryTests(unittest.TestCase):

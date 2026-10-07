@@ -293,11 +293,11 @@ class LifecycleScenarioTests(unittest.TestCase):
         # an independent change is recorded once, when it moves, not on every later run that sees it again
         self.assertEqual(second.applications, ())
 
-    def test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one(self):
+    def test_an_observation_older_than_the_last_record_changes_nothing(self):
         # A plan that repeats a step number (a second eligible step 1 on the warehouse type, copied from the migration
-        # alternative's step so that the package stays valid) and an observation older than the recorded application: no
-        # drift and no reuse, so the size step opens a new episode, and the repeated step 1 that follows is recorded,
-        # because the active episode is no longer the previous application.
+        # alternative's step so that the package stays valid) and an observation older than the recorded application
+        # that shows that step applied: while the episode is open, only what moved after the configuration last recorded
+        # is new, so the older observation records no drift and no application, and the open episode stays active.
         package = copy.deepcopy(self.pkg)
         plan = next(s for s in package["scenarios"] if s["scenario_id"] == package["recommended_plan"]["scenario_id"])["execution_plan"]
         migration_step = next(s for s in next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"] if s.get("knob") == "warehouse_type")
@@ -308,8 +308,6 @@ class LifecycleScenarioTests(unittest.TestCase):
         (a1, first), (a2, second) = reconcile_runs(self, package, [self.base, earlier])
         self.assertIsNotNone(a2.history.previous_application)
         self.assertIsNone(second.drift)
-        # the configuration last recorded is the one observed again (the older observation moves nothing), so the open
-        # episode is reused and the independent change is not recorded a second time
         self.assertEqual(second.applications, ())
         self.assertTrue(second.active.is_previous)
 

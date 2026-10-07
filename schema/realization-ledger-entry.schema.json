@@ -59,7 +59,7 @@
       "type": "array"
     },
     "ledger_contract_version": {
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "ledger_entry_id": {
       "pattern": "^RLE-[0-9A-F]{24}$",

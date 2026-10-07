@@ -1,5 +1,5 @@
 {
-  "derivation": "demo_observation; two runs of 200 days each on the same package, the second window starting where the first ended (realized 2000.00, then 4000.00); the trailing year is earned from 365 covered days, not stated by the observation; observation format 3.0.0",
+  "derivation": "demo_observation; two runs of 200 days each on the same package, the second window starting where the first ended (realized 8000.00, then 16000.00); the trailing year is earned from 365 covered days, not stated by the observation; observation format 3.0.0",
   "package": "inplace-size-canary.json",
   "runs": [
     {
@@ -23,12 +23,12 @@
           "aws_economic_realized": null,
           "aws_evidence_type": null,
           "counterfactual_method": "MATCHED_HISTORICAL",
-          "counterfactual_old_cost": "10000.00",
+          "counterfactual_old_cost": "20000.00",
           "currency": "USD",
           "dbu_realized": null,
           "economic_basis": "ECONOMIC_COST",
           "expected_annual_savings_actual_scope": null,
-          "observed_new_cost": "8000.00",
+          "observed_new_cost": "12000.00",
           "period_days": 200
         },
         "effective_time_quality": "OBSERVED_AT_ONLY",
@@ -92,12 +92,12 @@
           "aws_economic_realized": null,
           "aws_evidence_type": null,
           "counterfactual_method": "MATCHED_HISTORICAL",
-          "counterfactual_old_cost": "12000.00",
+          "counterfactual_old_cost": "28000.00",
           "currency": "USD",
           "dbu_realized": null,
           "economic_basis": "ECONOMIC_COST",
           "expected_annual_savings_actual_scope": null,
-          "observed_new_cost": "8000.00",
+          "observed_new_cost": "12000.00",
           "period_days": 200
         },
         "effective_time_quality": "OBSERVED_AT_ONLY",
