@@ -129,7 +129,8 @@ def option_grid_savings(package: Mapping[str, Any], step: Mapping[str, Any], app
     published range per component, scaled by the applied value's net cluster-hours over the recommended value's (the
     Publisher's own option grid on the package's evidence). None without a grid value for both, or a non-positive one."""
     candidate = candidate_by_id(package, step.get("candidate_id"))
-    if candidate is None or step.get("knob") != "auto_stop_minutes" or applied is None or int(applied) == 0:
+    if (candidate is None or step.get("knob") != "auto_stop_minutes" or applied is None or int(applied) == 0
+            or step.get("recommended_value") is None):
         return None
     grid = _option_grid(package, candidate)
     target, actual = _grid_hours(grid, int(step.get("recommended_value"))), _grid_hours(grid, int(applied))

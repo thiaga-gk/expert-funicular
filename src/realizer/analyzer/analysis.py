@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from realizer.common.utils import utc_iso
+from realizer.common.utils import decimal, utc_iso
 from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
@@ -92,8 +92,10 @@ def step_role(package: Mapping[str, Any], step: Mapping[str, Any]) -> str:
     if CANARY_ROLLBACK_BLOCKER in (candidate.get("blockers") or []):
         return rc.StepRole.SAFETY_ROLLBACK.value
     savings = ((candidate.get("independent_economics") or {}).get("savings_365d") or {})
+    # The role is the step's intent, its sign: the DBU range gives it when the package has no total (the denominator
+    # never falls back that way).
     block = savings.get("total") or savings.get("dbu") or {}
-    base = block.get("base") if isinstance(block, Mapping) else None
+    base = decimal(block.get("base")) if isinstance(block, Mapping) else None
     objectives = set(candidate.get("objectives") or [])
     if "PERFORMANCE" in objectives and "COST" not in objectives and (base is None or base < 0):
         return rc.StepRole.PERFORMANCE.value

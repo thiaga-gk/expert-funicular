@@ -48,6 +48,9 @@ class GridTests(unittest.TestCase):
     def test_a_value_outside_the_grid_has_none(self):
         self.assertIsNone(option_grid_savings(PRO, STEP, 7))
 
+    def test_a_step_without_a_recommended_value_has_none(self):
+        self.assertIsNone(option_grid_savings(PRO, {**STEP, "recommended_value": None}, 15))
+
 
 class ClassificationTests(unittest.TestCase):
     def test_ge05_modified_15_is_realized_against_the_scaled_range(self):

@@ -246,8 +246,13 @@ def append_regeneration(package: Mapping[str, Any], output_dir: Path, request: R
     )
     appended = append_if_absent(ledger_path(output_dir, rpkg), event)
     path = regeneration_path(output_dir, request.regeneration_request_id)
-    if appended or not path.exists():
+    if appended:
         write_json(path, request.payload)
+    elif not path.exists():
+        # The file of a request already recorded is restored from its first entry, never from this run's payload.
+        first = next((e for e in load_ledger(ledger_path(output_dir, rpkg)) if e.event_type == rc.EventType.REGENERATION_REQUESTED
+                      and e.payload.get("regeneration_request_id") == request.regeneration_request_id), None)
+        write_json(path, first.payload if first is not None else request.payload)
 
 
 def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ...]:

@@ -42,6 +42,20 @@ class RoleTests(unittest.TestCase):
         self.assertEqual(step_role(PRO, first_step(PRO)), "SAVINGS")
 
 
+class RoleFromAmountsTests(unittest.TestCase):
+    """The role reads the savings base as a decimal, whatever its JSON spelling."""
+
+    def candidate(self, base, objectives):
+        return {"candidates": [{"candidate_id": "CAND-X", "objectives": objectives, "blockers": [],
+                                "independent_economics": {"savings_365d": {"total": {"low": base, "base": base, "high": base}}}}]}
+
+    def test_string_amounts(self):
+        step = {"candidate_id": "CAND-X"}
+        self.assertEqual(step_role(self.candidate("-15628.48", ["PERFORMANCE"]), step), "PERFORMANCE")
+        self.assertEqual(step_role(self.candidate("0.00", ["COST_GUARDRAIL"]), step), "CAPACITY")
+        self.assertEqual(step_role(self.candidate("120.5", ["COST"]), step), "SAVINGS")
+
+
 class SafetyRollbackTests(unittest.TestCase):
     """wh-demo-040: the size cut LARGE -> MEDIUM breached its p95 guard; the package restores LARGE. The demo observation
     applies it with a synthetic 1,000 'saving' (old 10,000, new 9,000): before, that was booked and claimable."""
