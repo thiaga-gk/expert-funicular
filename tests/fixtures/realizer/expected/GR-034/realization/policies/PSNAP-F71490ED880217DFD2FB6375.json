@@ -1,0 +1,18 @@
+{
+  "policy": {
+    "max_normalized_p95_runtime_regression_pct": "4",
+    "minimum_attributable_spend_pct": "95",
+    "minimum_days": 7,
+    "minimum_material_savings_delta_pct": "5",
+    "minimum_price_coverage_pct": "100",
+    "minimum_queries": 100,
+    "policy_version": "realizer-policy-v1.3.0",
+    "realized_ratio_min": "0.8",
+    "remeasure_days_after_invalidating_change": 7,
+    "require_confirmed_origin_for_hard_kpi": true,
+    "require_representative_regime": true,
+    "required_currency_consistency_pct": "100",
+    "under_realized_ratio_min": "0.5"
+  },
+  "policy_snapshot_id": "PSNAP-F71490ED880217DFD2FB6375"
+}
