@@ -147,7 +147,7 @@ class MeasurementEvidenceSchemaTests(unittest.TestCase):
         validator = jsonschema.Draft202012Validator(built)
         self.assertTrue(validator.is_valid(evidence))
         self.assertFalse(validator.is_valid({**evidence, "owner": "someone@example.com"}))
-        self.assertFalse(validator.is_valid({**evidence, "measurement_evidence_format_version": "2.0.0"}))
+        self.assertFalse(validator.is_valid({**evidence, "measurement_evidence_format_version": "1.0.0"}))
 
 
 if __name__ == "__main__":

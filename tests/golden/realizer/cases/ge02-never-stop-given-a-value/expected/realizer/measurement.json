@@ -3662,7 +3662,8 @@
       "spill_query_pct": 0.0
     }
   },
-  "measurement_evidence_format_version": "1.0.0",
+  "measurement_evidence_format_version": "2.0.0",
+  "size_runtime": null,
   "source": "DEMO_SIMULATION",
   "source_region": "us-east-1",
   "warehouse_id": "wh-demo-001",
@@ -3672,6 +3673,7 @@
       "first_day": "2026-10-09",
       "label": "post",
       "last_day": "2026-11-05",
+      "levels": null,
       "replay": [
         {
           "added_idle_cluster_minutes": 27710.0,
@@ -3700,6 +3702,7 @@
       "first_day": "2026-09-10",
       "label": "pre",
       "last_day": "2026-10-07",
+      "levels": null,
       "replay": [
         {
           "added_idle_cluster_minutes": 0.0,

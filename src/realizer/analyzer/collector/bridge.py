@@ -7,7 +7,9 @@ definition of a configuration epoch, of billed daily cost, of running idle time 
 * ``collect_history``: the warehouse's configuration epochs, its billed daily cost per epoch and the last settled
   billing day (the Publisher's settle buffer and workspace billing watermark);
 * ``collect_windows``: running idle and the replay of auto-stop values over named epochs and whole UTC days up to the
-  as-of time, and the canary guard over the same pre- and post-change days.
+  as-of time, the running minutes by cluster count of those windows (a cluster-count change), the canary guard over the
+  same pre- and post-change days and, for a size change, the size runtime over them (execution times on the statement
+  sources of both windows and the busy wall-clock minutes of each).
 
 A backtest reads the same rows for many warehouses and past changes: ``collect_fleet_history`` (pass 1 for the fleet),
 then ``collect_epoch_windows`` and ``collect_guard_periods`` (pass 2, several warehouses per statement, one epoch and
@@ -31,8 +33,13 @@ from publisher.analyzer.collector.demo import DEMO_FLEET, DEMO_WORKSPACES, repla
 from publisher.analyzer.collector.pricing import aws_cluster_hourly_price, load_aws_price_registry
 from publisher.analyzer.collector.queries.billing import BILLING_WATERMARK_SQL, EPOCH_DAILY_COST_SQL
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_SQL
-from publisher.analyzer.collector.queries.events import NEVER_STOP_TARGET_MINUTES, build_running_idle_sql, build_running_idle_targets_sql
-from publisher.analyzer.collector.queries.query_history import build_canary_guard_sql
+from publisher.analyzer.collector.queries.events import (
+    NEVER_STOP_TARGET_MINUTES,
+    build_cluster_levels_sql,
+    build_running_idle_sql,
+    build_running_idle_targets_sql,
+)
+from publisher.analyzer.collector.queries.query_history import build_canary_guard_sql, build_size_runtime_sql
 from publisher.analyzer.collector.sql_executor import with_ingestion_cutoff
 from publisher.analyzer.normalizer import normalize_size
 from publisher.common.errors import PublisherError
@@ -41,8 +48,8 @@ from publisher.common.utils import optional_float, safe_float, safe_int
 from publisher.governor.thresholds import Thresholds
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
-from realizer.config.settings import REALIZER_VERSION
-from realizer.contracts.measurement import ASSUMPTION_FIELDS, GUARD_FIELDS, REPLAY_FIELDS, WINDOW_FIELDS
+from realizer.config.settings import REALIZER_VERSION, SIZE_RUNTIME_MIN_SOURCE_QUERIES
+from realizer.contracts.measurement import ASSUMPTION_FIELDS, GUARD_FIELDS, REPLAY_FIELDS, SIZE_RUNTIME_FIELDS, WINDOW_FIELDS
 from workflow_shared.databricks import access
 from workflow_shared.databricks.access import AccessConfig, AuthContext
 
@@ -176,11 +183,15 @@ def _daily_cost(cost_rows: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
     } for r in cost_rows), key=lambda x: (x["usage_date"], x["epoch_start"], x["currency_code"] or ""))
 
 
-def collect_windows(client: Any, workspace_id: str, warehouse_id: str, *, as_of: str, windows: Mapping[str, Optional[Mapping[str, Any]]]) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+def collect_windows(client: Any, workspace_id: str, warehouse_id: str, *, as_of: str, windows: Mapping[str, Optional[Mapping[str, Any]]],
+                    size_runtime: bool = False) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """Pass 2: running idle and the replay of the requested auto-stop values for each window (``pre``, ``post``: an epoch,
-    whole UTC days ``first_day``..``last_day`` and ``targets``), then the canary guard over both windows' days.
-    ``(windows in the evidence format, guard rows by period or None)``."""
+    whole UTC days ``first_day``..``last_day``, ``targets`` and ``levels``, whether to read the running minutes by
+    cluster count), then the canary guard over both windows' days and, with *size_runtime*, the size runtime over them
+    (statement sources with at least ``SIZE_RUNTIME_MIN_SOURCE_QUERIES`` executed, finished queries in each window).
+    ``(windows in the evidence format, guard rows by period or None, size runtime or None)``."""
     out: Dict[str, Any] = {}
+    runtime = None
     try:
         for label in ("pre", "post"):
             spec = windows.get(label)
@@ -193,12 +204,19 @@ def collect_windows(client: Any, workspace_id: str, warehouse_id: str, *, as_of:
             totals = _query(client, build_running_idle_sql(Thresholds(), asked, targets=targets, as_of=as_of), "running_idle")
             replay = _query(client, build_running_idle_targets_sql(Thresholds(), asked, targets=targets, as_of=as_of), "running_idle_targets") if targets else []
             row = next((r for r in totals if str(r.get("window_label")) == label), None)
+            levels = None
+            if spec.get("levels"):
+                rows = _query(client, build_cluster_levels_sql(Thresholds(), asked, as_of=as_of), "cluster_levels")
+                levels = sorted(({"cluster_count": safe_int(r.get("cluster_count")), "running_minutes": safe_float(r.get("running_minutes"))}
+                                 for r in rows if str(r.get("window_label")) == label and safe_int(r.get("cluster_count")) > 0),
+                                key=lambda x: x["cluster_count"])
             out[label] = {
                 "label": label, "epoch_start": spec["epoch_start"], "first_day": spec["first_day"], "last_day": spec["last_day"],
                 "window_start": None if row is None else iso(row.get("window_start")), "window_end": None if row is None else iso(row.get("window_end")),
                 "running": None if row is None else {f: safe_float(row.get(f)) for f in WINDOW_FIELDS},
                 "replay": sorted(({"target_min": safe_int(r.get("target_min")), **{f: safe_float(r.get(f)) for f in REPLAY_FIELDS}}
                                   for r in replay if str(r.get("window_label")) == label), key=lambda x: x["target_min"]),
+                "levels": levels,
             }
         guard = None
         if out.get("pre") and out.get("post"):
@@ -207,12 +225,18 @@ def collect_windows(client: Any, workspace_id: str, warehouse_id: str, *, as_of:
             rows = _query(client, build_canary_guard_sql([period]), "canary_guard")
             by_period = {str(r.get("period")): r for r in rows}
             guard = {p: (None if p not in by_period else {f: optional_float(by_period[p].get(f)) for f in GUARD_FIELDS}) for p in ("CURRENT", "PREVIOUS")}
+            if size_runtime:
+                found = _query(client, build_size_runtime_sql([period], min_source_queries=SIZE_RUNTIME_MIN_SOURCE_QUERIES), "size_runtime")
+                row = next(iter(found), None)
+                runtime = None if row is None else {"min_source_queries": SIZE_RUNTIME_MIN_SOURCE_QUERIES, **{
+                    f: (optional_float(row.get(f)) if f in ("post_ms_at_post_median", "post_ms_at_pre_median")
+                        else safe_float(row.get(f)) if f.endswith("_minutes") else safe_int(row.get(f))) for f in SIZE_RUNTIME_FIELDS}}
     except PublisherError as exc:
         raise InputError(str(exc)) from None
-    LOGGER.info("bridge.windows workspace_id=%s warehouse_id=%s pre=%s post=%s guard=%s", workspace_id, warehouse_id,
+    LOGGER.info("bridge.windows workspace_id=%s warehouse_id=%s pre=%s post=%s guard=%s size_runtime=%s", workspace_id, warehouse_id,
                 out.get("pre") is not None and out["pre"]["running"] is not None, out.get("post") is not None and out["post"]["running"] is not None,
-                guard is not None)
-    return out, guard
+                guard is not None, runtime is not None)
+    return out, guard, runtime
 
 
 def history_first_day(today: dt.date) -> str:

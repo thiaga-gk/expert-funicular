@@ -30,7 +30,7 @@
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "dff1bf60fa3808a8",
-     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "1fdf5cc112b42bd2",
+     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "9da6c3dc4068f007",
      "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "151f131a197ea261",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
      "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
@@ -43,7 +43,7 @@
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 8915,
-  "sha256": "37ab7e48cf293ac2b59aea9f8956f94f4ee9072a7df523cf09303022b6211d2f"
+  "sha256": "38f8a9bd876451a6cd10730f21fadec63b820d52158b7502268ca9d50d832f31"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -128,7 +128,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 6600,
-  "sha256": "f16955b9b01ce6fcb9b87bba5551bc731695bab55df1bfab111be4d661ae9129"
+  "sha256": "594d8b2f69d293d1a18b77e4456110828cf17db011b387e801cbc63f1df83220"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4373,

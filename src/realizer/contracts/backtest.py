@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from realizer.contracts.measurement import SOURCES, measurement_evidence_schema
+from realizer.contracts.measurement import SOURCES, measurement_evidence_schema, window_schema
 
 BACKTEST_EVIDENCE_FORMAT_VERSION = "1.0.0"
 BACKTEST_REPORT_FORMAT_VERSION = "1.0.0"
@@ -33,7 +33,7 @@ def _obj(properties: Dict[str, Any], *, nullable: bool = False) -> Dict[str, Any
 def backtest_evidence_schema() -> Dict[str, Any]:
     """The Draft 2020-12 JSON Schema of backtest evidence format 1.0.0 (rows shaped as in the measurement evidence)."""
     m = measurement_evidence_schema()["properties"]
-    window = m["windows"]["properties"]["post"]
+    window = window_schema(levels=False)
     change = _obj({
         "change_epoch_start": _TIMESTAMP,
         "windows": _obj({"pre": window, "post": window}),

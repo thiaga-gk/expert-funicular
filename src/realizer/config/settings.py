@@ -75,6 +75,12 @@ def volume_shifted(ratio: Any) -> bool:
 # with --aws-price-registry when it used another).
 DEFAULT_AWS_PRICE_REGISTRY = REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"
 
+# The size runtime ratio (a size change's counterfactual): a statement source counts when it has at least this many
+# executed, finished queries in each window; the ratio is measured when the matched sources hold at least the Publisher's
+# ``canary_p95_min_queries`` post-change queries and at least this share of the post-change window's executed queries.
+SIZE_RUNTIME_MIN_SOURCE_QUERIES = 5
+SIZE_RUNTIME_MIN_COVERAGE = Decimal("0.5")
+
 # The Publisher's canary guard window: a canary-type change (one size down, a lower minimum) is guarded for its first 30
 # days, so its realization stays provisional until then.
 CANARY_GUARD_WINDOW_DAYS = 30

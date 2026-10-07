@@ -70,12 +70,15 @@ def shifted_work(work: Any, factor: float, day: str) -> List[Dict[str, Any]]:
     return before + after
 
 
-def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None,
+               runtime: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The fleet spec of warehouse *index* with the owner's *changes* applied: each ``{at: <UTC time>, set: {spec key:
     value}}`` starts a configuration epoch holding the values set so far. The fleet's own epochs before the first change
     are kept. The simulator starts only the last epoch at a time of day, so earlier changes must be at 00:00 UTC. An
-    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on. A change that
-    does not fit the fleet's timeline is a ``ValueError``."""
+    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on, and an optional
+    *runtime* ``{size: factor}`` makes a query started under a configuration of that size run factor x as long (the
+    simulator's ``runtime_factor_by_size``; a size it does not name runs at factor 1). A change that does not fit the
+    fleet's timeline is a ``ValueError``."""
     spec = copy.deepcopy(bridge.DEMO_FLEET[index - 1])
     if workload:
         spec["work"] = shifted_work(spec["work"], float(workload["factor"]), str(workload["from"]))
@@ -103,6 +106,8 @@ def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optio
     if minute:
         spec["epoch_start_minute"] = minute
     spec.pop("created", None)
+    if runtime:
+        spec["runtime_factor_by_size"] = {str(k).strip().upper().replace("-", "_"): float(v) for k, v in runtime.items()}
     if not spec["prior"]:
         spec.pop("prior")
     return spec

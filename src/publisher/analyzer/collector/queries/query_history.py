@@ -212,24 +212,8 @@ def build_canary_guard_sql(periods: Sequence[Mapping[str, Any]]) -> str:
     columns as ``CANARY_GUARD_SQL``. Each period is ``{workspace_id, warehouse_id, epoch_start, previous: [first day,
     last day], current: [first day, last day]}`` (UTC dates, inclusive, previous wholly before current); the row key
     ``epoch_start`` is echoed. Values are validated so none can change the SQL."""
-    rows, seen = [], set()
-    for x in periods:
-        ws, wh = str(x["workspace_id"]), str(x["warehouse_id"])
-        if not _IDENTIFIER.fullmatch(ws) or not _IDENTIFIER.fullmatch(wh):
-            raise PublisherError(f"canary guard period has an invalid identifier: {ws!r}/{wh!r}")
-        if (ws, wh) in seen:
-            raise PublisherError("a canary guard statement compares one pair of periods per warehouse")
-        seen.add((ws, wh))
-        (p0, p1), (c0, c1) = ([dt.date.fromisoformat(str(d)) for d in x[k]] for k in ("previous", "current"))
-        if not p0 <= p1 < c0 <= c1:
-            raise PublisherError("canary guard periods must be ordered: previous wholly before current")
-        epoch = _timestamp(x["epoch_start"])
-        day = lambda d: f"TIMESTAMP'{d.isoformat()}T00:00:00Z'"
-        rows.append(f"('{ws}', '{wh}', {epoch}, {day(p0)}, {day(p1 + dt.timedelta(days=1))}, {day(c0)}, {day(c1 + dt.timedelta(days=1))})")
-    if not rows:
-        raise PublisherError("canary guard needs at least one period")
+    values = _period_values(periods, "canary guard")
     marker = CANARY_GUARD_PERIODS_MARKER + json.dumps([dict(x) for x in periods], sort_keys=True, separators=(",", ":"), default=str)
-    values = ",\n    ".join(rows)
     return marker + r"""
 WITH p AS (
   SELECT * FROM (VALUES
@@ -243,6 +227,111 @@ WITH p AS (
   WHERE x.compute.type = 'WAREHOUSE'
     AND ((x.start_time >= p.cur_a AND x.start_time < p.cur_b) OR (x.start_time >= p.prev_a AND x.start_time < p.prev_b))
 """ + _CANARY_GUARD_AGGREGATE
+
+
+def _period_values(periods: Sequence[Mapping[str, Any]], what: str) -> str:
+    """VALUES rows ``(workspace, warehouse, epoch_start, prev_a, prev_b, cur_a, cur_b)`` of pairs of whole-day periods
+    (one pair per warehouse, previous wholly before current, ends exclusive), validated so no value can change the SQL."""
+    rows, seen = [], set()
+    for x in periods:
+        ws, wh = str(x["workspace_id"]), str(x["warehouse_id"])
+        if not _IDENTIFIER.fullmatch(ws) or not _IDENTIFIER.fullmatch(wh):
+            raise PublisherError(f"{what} period has an invalid identifier: {ws!r}/{wh!r}")
+        if (ws, wh) in seen:
+            raise PublisherError(f"a {what} statement compares one pair of periods per warehouse")
+        seen.add((ws, wh))
+        (p0, p1), (c0, c1) = ([dt.date.fromisoformat(str(d)) for d in x[k]] for k in ("previous", "current"))
+        if not p0 <= p1 < c0 <= c1:
+            raise PublisherError(f"{what} periods must be ordered: previous wholly before current")
+        epoch = _timestamp(x["epoch_start"])
+        day = lambda d: f"TIMESTAMP'{d.isoformat()}T00:00:00Z'"
+        rows.append(f"('{ws}', '{wh}', {epoch}, {day(p0)}, {day(p1 + dt.timedelta(days=1))}, {day(c0)}, {day(c1 + dt.timedelta(days=1))})")
+    if not rows:
+        raise PublisherError(f"{what} needs at least one period")
+    return ",\n    ".join(rows)
+
+
+# Size runtime: query execution time after a size change against before it, on the statement sources of both periods
+# (the canary guard's source key), and the busy wall-clock minutes of each period. Per source, the median execution time
+# of executed (not result-cache), finished queries; a source counts when it has at least ``min_source_queries`` such
+# queries in each period. The index at the post-change mix is post_ms_at_post_median / post_ms_at_pre_median.
+SIZE_RUNTIME_MARKER = "-- size_runtime_request: "
+SIZE_RUNTIME_FIELDS = ("post_executed_queries", "matched_sources", "matched_post_queries", "post_ms_at_post_median", "post_ms_at_pre_median",
+                       "pre_busy_wall_minutes", "post_busy_wall_minutes")
+
+
+def build_size_runtime_sql(periods: Sequence[Mapping[str, Any]], *, min_source_queries: int) -> str:
+    """One row per warehouse: the size runtime fields (``SIZE_RUNTIME_FIELDS``) over a pair of explicit periods
+    (``{workspace_id, warehouse_id, epoch_start, previous: [first day, last day], current: [first day, last day]}``, as
+    ``build_canary_guard_sql``). Busy wall-clock minutes are the length of the union of the intervals of the queries
+    started in the period, ended at the period's end. Values are validated so none can change the SQL."""
+    k = int(min_source_queries)
+    if k < 1:
+        raise PublisherError("size runtime needs at least one query per source")
+    values = _period_values(periods, "size runtime")
+    marker = SIZE_RUNTIME_MARKER + json.dumps({"min_source_queries": k, "periods": [dict(x) for x in periods]}, sort_keys=True,
+                                              separators=(",", ":"), default=str)
+    return marker + r"""
+WITH p AS (
+  SELECT * FROM (VALUES
+    """ + values + r"""
+  ) AS v(workspace_id, warehouse_id, epoch_start, prev_a, prev_b, cur_a, cur_b)
+), q AS (
+  SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
+    CASE WHEN x.start_time >= p.cur_a THEN 'CURRENT' ELSE 'PREVIOUS' END AS period,
+    CASE WHEN x.start_time >= p.cur_a THEN p.cur_b ELSE p.prev_b END AS period_end,
+""" + _CANARY_GUARD_COLUMNS + r""",
+    x.statement_id, x.start_time,
+    COALESCE(x.end_time, TIMESTAMPADD(MILLISECOND, x.total_duration_ms, x.start_time), x.start_time) AS busy_end
+  FROM system.query.history x
+  JOIN p ON x.workspace_id = p.workspace_id AND x.compute.warehouse_id = p.warehouse_id
+  WHERE x.compute.type = 'WAREHOUSE'
+    AND ((x.start_time >= p.cur_a AND x.start_time < p.cur_b) OR (x.start_time >= p.prev_a AND x.start_time < p.prev_b))
+), timed AS (
+  SELECT * FROM q WHERE executed AND execution_status = 'FINISHED' AND execution_duration_ms IS NOT NULL
+), src AS (
+  SELECT workspace_id, warehouse_id, epoch_start, period, source_key, COUNT(*) AS n,
+    PERCENTILE_APPROX(execution_duration_ms, 0.5) AS median_ms
+  FROM timed GROUP BY workspace_id, warehouse_id, epoch_start, period, source_key
+), matched AS (
+  SELECT c.workspace_id, c.warehouse_id, c.epoch_start, COUNT(*) AS matched_sources, SUM(c.n) AS matched_post_queries,
+    SUM(c.n * c.median_ms) AS post_ms_at_post_median, SUM(c.n * v.median_ms) AS post_ms_at_pre_median
+  FROM src c JOIN src v ON v.workspace_id = c.workspace_id AND v.warehouse_id = c.warehouse_id AND v.source_key = c.source_key
+    AND c.period = 'CURRENT' AND v.period = 'PREVIOUS'
+  WHERE c.n >= """ + str(k) + r""" AND v.n >= """ + str(k) + r"""
+  GROUP BY c.workspace_id, c.warehouse_id, c.epoch_start
+), totals AS (
+  SELECT workspace_id, warehouse_id, epoch_start, COUNT(*) AS post_executed_queries
+  FROM timed WHERE period = 'CURRENT' GROUP BY workspace_id, warehouse_id, epoch_start
+), ordered AS (
+  SELECT *, MAX(busy_end) OVER (PARTITION BY workspace_id, warehouse_id, period ORDER BY start_time, busy_end, statement_id
+    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_busy_end
+  FROM q
+), busy AS (
+  SELECT workspace_id, warehouse_id, period,
+    SUM(GREATEST(0, TIMESTAMPDIFF(MILLISECOND, GREATEST(start_time, COALESCE(prev_busy_end, start_time)), LEAST(busy_end, period_end)))) / 60000.0 AS busy_wall_minutes
+  FROM ordered GROUP BY workspace_id, warehouse_id, period
+)
+SELECT p.workspace_id, p.warehouse_id, p.epoch_start,
+  COALESCE(t.post_executed_queries, 0) AS post_executed_queries,
+  COALESCE(m.matched_sources, 0) AS matched_sources,
+  COALESCE(m.matched_post_queries, 0) AS matched_post_queries,
+  m.post_ms_at_post_median, m.post_ms_at_pre_median,
+  COALESCE(bp.busy_wall_minutes, 0) AS pre_busy_wall_minutes,
+  COALESCE(bc.busy_wall_minutes, 0) AS post_busy_wall_minutes
+FROM p
+LEFT JOIN totals t ON t.workspace_id = p.workspace_id AND t.warehouse_id = p.warehouse_id
+LEFT JOIN matched m ON m.workspace_id = p.workspace_id AND m.warehouse_id = p.warehouse_id
+LEFT JOIN busy bp ON bp.workspace_id = p.workspace_id AND bp.warehouse_id = p.warehouse_id AND bp.period = 'PREVIOUS'
+LEFT JOIN busy bc ON bc.workspace_id = p.workspace_id AND bc.warehouse_id = p.warehouse_id AND bc.period = 'CURRENT'
+"""
+
+
+def size_runtime_request_from_statement(statement: str) -> Dict[str, Any]:
+    """The request a size runtime statement was built for (its marker line: periods and minimum queries per source);
+    {} when it has none."""
+    first = statement.lstrip().split("\n", 1)[0]
+    return json.loads(first[len(SIZE_RUNTIME_MARKER):]) if first.startswith(SIZE_RUNTIME_MARKER) else {}
 
 
 def canary_guard_periods_from_statement(statement: str) -> List[Dict[str, Any]]:

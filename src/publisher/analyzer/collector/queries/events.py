@@ -431,6 +431,25 @@ ORDER BY workspace_id, warehouse_id, window_label, target_min
 """
 
 
+CLUSTER_LEVEL_FIELDS = ("cluster_count", "running_minutes")
+
+
+def build_cluster_levels_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]], *, as_of: Any = None) -> str:
+    """Running minutes by cluster count, one row per warehouse, window and cluster count with running time: the RUNNING
+    segments of the running-idle collector (``_running_idle_ctes``) inside each window. Every window names its
+    ``epoch_start`` (one epoch per warehouse), measured up to ``as_of`` (default now)."""
+    if not windows or any(w.get("epoch_start") is None for w in windows):
+        raise PublisherError("cluster levels windows must each name their epoch")
+    return _running_idle_ctes(t, windows, _epoch_bound_request(windows, None, as_of)) + """
+SELECT c.workspace_id, c.warehouse_id, c.epoch_start, w.label AS window_label, s.cluster_count,
+  SUM(TIMESTAMPDIFF(MILLISECOND, GREATEST(s.seg_start, w.a), LEAST(s.seg_end, w.b))) / 60000.0 AS running_minutes
+FROM win w JOIN cur c ON c.workspace_id = w.workspace_id AND c.warehouse_id = w.warehouse_id
+JOIN running s ON s.workspace_id = w.workspace_id AND s.warehouse_id = w.warehouse_id AND s.seg_start < w.b AND s.seg_end > w.a
+GROUP BY c.workspace_id, c.warehouse_id, c.epoch_start, w.label, s.cluster_count
+ORDER BY workspace_id, warehouse_id, window_label, cluster_count
+"""
+
+
 def running_idle_windows_from_statement(statement: str) -> List[Dict[str, Any]]:
     """The windows a running-idle statement was built for (its marker line); [] when it has none."""
     first = statement.lstrip().split("\n", 1)[0]

@@ -455,7 +455,60 @@
       ]
     },
     "measurement_evidence_format_version": {
-      "const": "1.0.0"
+      "const": "2.0.0"
+    },
+    "size_runtime": {
+      "additionalProperties": false,
+      "properties": {
+        "matched_post_queries": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "matched_sources": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_source_queries": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "post_busy_wall_minutes": {
+          "type": "number"
+        },
+        "post_executed_queries": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "post_ms_at_post_median": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "post_ms_at_pre_median": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pre_busy_wall_minutes": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "matched_post_queries",
+        "matched_sources",
+        "min_source_queries",
+        "post_busy_wall_minutes",
+        "post_executed_queries",
+        "post_ms_at_post_median",
+        "post_ms_at_pre_median",
+        "pre_busy_wall_minutes"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "source": {
       "enum": [
@@ -498,6 +551,29 @@
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             },
+            "levels": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "cluster_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "running_minutes": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "cluster_count",
+                  "running_minutes"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
             "replay": {
               "items": {
                 "additionalProperties": false,
@@ -597,6 +673,7 @@
             "first_day",
             "label",
             "last_day",
+            "levels",
             "replay",
             "running",
             "window_end",
@@ -629,6 +706,29 @@
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             },
+            "levels": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "cluster_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "running_minutes": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "cluster_count",
+                  "running_minutes"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
             "replay": {
               "items": {
                 "additionalProperties": false,
@@ -728,6 +828,7 @@
             "first_day",
             "label",
             "last_day",
+            "levels",
             "replay",
             "running",
             "window_end",
@@ -759,6 +860,7 @@
     "epochs",
     "guard",
     "measurement_evidence_format_version",
+    "size_runtime",
     "source",
     "source_region",
     "warehouse_id",

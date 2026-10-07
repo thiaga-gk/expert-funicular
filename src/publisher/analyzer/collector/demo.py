@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from publisher.analyzer.collector.collector import extract_evidence
 from publisher.analyzer.collector.pricing import load_aws_price_registry, model_aws_baseline_cost
 from publisher.analyzer.collector.queries.events import RESOURCE_DAILY_COLLECT_DAYS, running_idle_request_from_statement, running_idle_windows_from_statement
-from publisher.analyzer.collector.queries.query_history import canary_guard_periods_from_statement
+from publisher.analyzer.collector.queries.query_history import canary_guard_periods_from_statement, size_runtime_request_from_statement
 from publisher.analyzer.epochs import (
     DEMAND_CARRY_FIELDS,
     QUEUE_CARRY_FIELDS,
@@ -479,6 +479,12 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
     segments: List[Tuple[float, float, float]] = []  # (start, end, concurrency)
     points: List[Tuple[float, float, str]] = []
     spans: List[Tuple[float, float, float, str]] = []
+    # A world may make queries slower or faster by warehouse size (spec runtime_factor_by_size: {size: factor}, absent =
+    # 1): a query started under a configuration of that size runs factor x as long. The execution time of every query is
+    # kept with it (timed points and spans), for the size runtime statement.
+    runtime = spec.get("runtime_factor_by_size") or {}
+    timed_points: List[Tuple[float, float, str, float]] = []
+    timed_spans: List[Tuple[float, float, float, str, float]] = []
     day = max(created, analysis_day - dt.timedelta(days=366))
     while day <= analysis_day:
         jitter = 0.9 + 0.2 * _demo_unit(spec["scenario"], day)
@@ -494,18 +500,26 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 conc = float(comp["conc"]) * growth
                 k = s
                 while k < e:
-                    segments.append((day_t + k, day_t + min(k + comp["dur"], 1440), conc))
+                    dur = comp["dur"] * float(runtime.get(_demo_config_at(spec, epochs, day_t + k)["warehouse_size"], 1.0)) if runtime else comp["dur"]
+                    segments.append((day_t + k, day_t + min(k + dur, 1440), conc))
                     points.append((day_t + k, conc, key))
+                    if world:
+                        timed_points.append((day_t + k, conc, key, dur))
                     k += comp["every"]
             else:
                 conc = comp["conc"] * jitter * growth
-                segments.append((day_t + s, day_t + e, conc))
+                factor = float(runtime.get(_demo_config_at(spec, epochs, day_t + s)["warehouse_size"], 1.0)) if runtime else 1.0
+                segments.append((day_t + s, day_t + e, conc * factor if runtime else conc))
                 spans.append((day_t + s, day_t + e, conc / comp.get("q_min", 0.5), key))
+                if world:
+                    timed_spans.append((day_t + s, day_t + e, conc / comp.get("q_min", 0.5), key, comp.get("q_min", 0.5) * factor))
         day += dt.timedelta(days=1)
     segments = [(max(a, sim_start), min(b, now_t), c) for a, b, c in segments if b > sim_start and a < now_t]
     points = sorted(x for x in points if sim_start <= x[0] < now_t)
     point_times = [x[0] for x in points]
     spans = sorted((max(a, sim_start), min(b, now_t), r, k) for a, b, r, k in spans if b > sim_start and a < now_t)
+    timed_points = sorted(x for x in timed_points if sim_start <= x[0] < now_t)
+    timed_spans = sorted((max(a, sim_start), min(b, now_t), r, k, d) for a, b, r, k, d in timed_spans if b > sim_start and a < now_t)
 
     day0 = 366 * 1440.0  # the analysis day's 00:00 UTC, in simulation minutes
 
@@ -649,6 +663,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         if ep_end is None and len(epochs) > 1:
             p95, p99 = round(p95 * after.get("p95_factor", 1.0)), round(p99 * after.get("p95_factor", 1.0))
             failure = after.get("failure_pct", failure)
+        if runtime:
+            p95, p99 = round(p95 * float(runtime.get(cfg["warehouse_size"], 1.0))), round(p99 * float(runtime.get(cfg["warehouse_size"], 1.0)))
         # The canary guard reads each epoch's last 30 days (the current epoch's are its 30-day window).
         g_lo = max(ep_start, hi_t - 30 * 1440.0)
         g_n, g_src, _ = queries_between(g_lo, hi_t)
@@ -880,6 +896,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             "spans": [list(x) for x in spans], "runs": [list(x) for x in runs],
             "queued_pieces": [[a, b, qc] for a, b, _, _, qc in pieces if qc > 0], "epochs": rows.pop("world_epochs", []),
             "cache_pct": spec.get("cache_pct", 10.0), "spill_pct": spec.get("spill_pct", 0.0),
+            "timed_points": [list(x) for x in timed_points], "timed_spans": [list(x) for x in timed_spans],
         }]
     return rows
 
@@ -901,7 +918,7 @@ def demo_running_idle_rows(inputs: Sequence[Mapping[str, Any]], windows: Sequenc
         asked.setdefault((str(w["workspace_id"]), str(w["warehouse_id"])), []).append(w)
     epochs = (request or {}).get("epochs")
     targets = (request or {}).get("targets") or auto_stop_targets(th)
-    out: Dict[str, List[Dict[str, Any]]] = {"running_idle": [], "running_idle_targets": []}
+    out: Dict[str, List[Dict[str, Any]]] = {"running_idle": [], "running_idle_targets": [], "cluster_levels": []}
     for x in inputs:
         wins = asked.get((x["workspace_id"], x["warehouse_id"]))
         if not wins:
@@ -931,6 +948,12 @@ def demo_running_idle_rows(inputs: Sequence[Mapping[str, Any]], windows: Sequenc
             out["running_idle"].append({**key, "window_start": stamp(a), "window_end": stamp(b), "queries": int(round(queries)),
                                         **{k: v for k, v in ri[name].items() if k != "running_idle_by_target"}})
             out["running_idle_targets"].extend({**key, "target_min": int(t), **v} for t, v in ri[name]["running_idle_by_target"].items())
+            levels: Dict[int, float] = {}
+            for s0, s1, cl in x["segments"]:
+                overlap = min(s1, hi_t, b) - max(s0, a)
+                if cl > 0 and overlap > 0:
+                    levels[int(cl)] = levels.get(int(cl), 0.0) + overlap
+            out["cluster_levels"].extend({**key, "cluster_count": cl, "running_minutes": round(m, 6)} for cl, m in sorted(levels.items()))
     return out
 
 
@@ -941,7 +964,9 @@ def replay_demo_rows(rows: Mapping[str, Sequence[Mapping[str, Any]]], statement:
     rows per windows asked; it must belong to these ``rows``, since the same windows over other rows give other rows."""
     if label == "canary_guard" and canary_guard_periods_from_statement(statement):
         return demo_canary_guard_rows(rows.get("world_guard", []), canary_guard_periods_from_statement(statement))
-    if label in ("running_idle", "running_idle_targets"):
+    if label == "size_runtime" and size_runtime_request_from_statement(statement):
+        return demo_size_runtime_rows(rows.get("world_guard", []), size_runtime_request_from_statement(statement))
+    if label in ("running_idle", "running_idle_targets", "cluster_levels"):
         windows = running_idle_windows_from_statement(statement)
         request = running_idle_request_from_statement(statement)
         key = json.dumps([windows, request], sort_keys=True) if request is not None else json.dumps(windows, sort_keys=True)
@@ -998,6 +1023,63 @@ def demo_canary_guard_rows(worlds: Sequence[Mapping[str, Any]], periods: Sequenc
                 "decision_queries": dec, "spill_queries": spill_n, "spill_query_pct": round(100.0 * spill_n / dec, 4) if dec else None,
                 "shared_source_queries": shared_n, "p95_execution_ms_shared_sources": st["p95"] if shared_n else None,
             })
+    return out
+
+
+def _weighted_median(items: Sequence[Tuple[float, float]]) -> float:
+    """The smallest value whose cumulative weight reaches half the total, of (value, weight) pairs."""
+    ordered = sorted(items)
+    total = sum(w for _, w in ordered)
+    acc = 0.0
+    for value, weight in ordered:
+        acc += weight
+        if acc >= total / 2.0:
+            return value
+    return ordered[-1][0]
+
+
+def demo_size_runtime_rows(worlds: Sequence[Mapping[str, Any]], request: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """Size runtime rows (``build_size_runtime_sql``) for explicit pairs of periods from simulated worlds: per statement
+    source, the queries started in the period that executed (not result-cache hits) and finished (the epoch's failure
+    rate aside), and the median of their execution times; the busy wall-clock minutes are the busy runs inside the
+    period."""
+    out: List[Dict[str, Any]] = []
+    k = int(request["min_source_queries"])
+    by_wh = {(str(w["workspace_id"]), str(w["warehouse_id"])): w for w in worlds}
+    for x in request["periods"]:
+        w = by_wh.get((str(x["workspace_id"]), str(x["warehouse_id"])))
+        if w is None:
+            continue
+        t0 = parse_datetime(w["t0"])
+        assert t0 is not None
+        minute = lambda day, shift=0: (dt.datetime.combine(dt.date.fromisoformat(day) + dt.timedelta(days=shift), dt.time(), dt.timezone.utc) - t0).total_seconds() / 60.0
+        windows = {"PREVIOUS": (minute(x["previous"][0]), minute(x["previous"][1], 1)), "CURRENT": (minute(x["current"][0]), minute(x["current"][1], 1))}
+        cache = max(0.0, 1.0 - safe_float(w["cache_pct"]) / 100.0)
+        stats: Dict[str, Dict[str, Any]] = {}
+        for period, (lo, hi) in windows.items():
+            epoch = next((e for e in w["epochs"] if e["start"] <= lo and (e["end"] is None or lo < e["end"])), w["epochs"][-1])
+            done = cache * max(0.0, 1.0 - safe_float(epoch["failure"]) / 100.0)
+            sources: Dict[str, List[Tuple[float, float]]] = {}
+            for t, n, key, dur in w["timed_points"]:
+                if lo <= t < hi:
+                    sources.setdefault(key, []).append((dur * 60000.0, n))
+            for a, b, rate, key, dur in w["timed_spans"]:
+                if b > lo and a < hi:
+                    sources.setdefault(key, []).append((dur * 60000.0, (min(b, hi) - max(a, lo)) * rate))
+            counts = {key: int(round(sum(n for _, n in items) * done)) for key, items in sources.items()}
+            busy = sum(min(b, hi) - max(a, lo) for a, b, _ in w["runs"] if b > lo and a < hi)
+            stats[period] = {"n": counts, "median": {key: round(_weighted_median(items)) for key, items in sources.items()}, "busy": busy,
+                             "executed": int(round(sum(sum(n for _, n in items) for items in sources.values()) * done))}
+        cur, prev = stats["CURRENT"], stats["PREVIOUS"]
+        matched = [key for key in sorted(cur["n"]) if cur["n"][key] >= k and prev["n"].get(key, 0) >= k]
+        out.append({
+            "workspace_id": x["workspace_id"], "warehouse_id": x["warehouse_id"], "epoch_start": x["epoch_start"],
+            "post_executed_queries": cur["executed"], "matched_sources": len(matched),
+            "matched_post_queries": sum(cur["n"][key] for key in matched),
+            "post_ms_at_post_median": sum(cur["n"][key] * cur["median"][key] for key in matched) if matched else None,
+            "post_ms_at_pre_median": sum(cur["n"][key] * prev["median"][key] for key in matched) if matched else None,
+            "pre_busy_wall_minutes": round(prev["busy"], 6), "post_busy_wall_minutes": round(cur["busy"], 6),
+        })
     return out
 
 

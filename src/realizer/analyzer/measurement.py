@@ -26,8 +26,14 @@ from realizer.governor.policy import authority_eligible
 
 WEEK_DAYS = 7
 MAX_WINDOW_WEEKS = 12  # the Publisher's long forecast window (84 days)
-# Knobs a replay counterfactual exists for; a change to another knob is observed, not measured.
+# Knobs whose counterfactual is an auto-stop replay.
 REPLAY_KNOBS = ("auto_stop_minutes",)
+# Knobs a counterfactual exists for; a change to another knob is observed, not measured.
+COUNTERFACTUAL_KNOBS = REPLAY_KNOBS
+# Knobs whose windows also read the running minutes by cluster count, and the knob whose measurement reads the size
+# runtime (execution times on matched statement sources and busy minutes before and after the change).
+LEVEL_KNOBS = ("min_clusters", "max_clusters")
+RUNTIME_KNOBS = ("warehouse_size",)
 # An auto-stop that never stops (0): replayed as a value longer than any gap (the bridge's NEVER_STOP_TARGET).
 NEVER_STOP_TARGET_MINUTES = 366 * 1440
 
@@ -57,15 +63,28 @@ class MeasurementPlan:
             return None
         return int(self.step["current_value"])
 
+    @property
+    def reads_levels(self) -> bool:
+        """Whether the windows also read the running minutes by cluster count (a cluster-count change)."""
+        return self.step is not None and self.step.get("knob") in LEVEL_KNOBS
+
+    @property
+    def reads_size_runtime(self) -> bool:
+        """Whether the measurement reads the size runtime over the pre- and post-change days (a size change)."""
+        return self.step is not None and self.step.get("knob") in RUNTIME_KNOBS
+
     def windows(self) -> Dict[str, Optional[Dict[str, Any]]]:
-        """The bridge's second-pass request: per window its epoch, days and the auto-stop values to replay (the source
-        value after the change; the applied value before it, the Publisher's own prediction on pre-change days)."""
+        """The bridge's second-pass request: per window its epoch, days, the auto-stop values to replay (the source
+        value after the change; the applied value before it, the Publisher's own prediction on pre-change days) and
+        whether it reads the running minutes by cluster count."""
         out: Dict[str, Optional[Dict[str, Any]]] = {"pre": None, "post": None}
         if self.post is not None:
-            out["post"] = {**self.post, "targets": [replay_target(self.replayed_value)] if self.replayed_value is not None else []}
+            out["post"] = {**self.post, "targets": [replay_target(self.replayed_value)] if self.replayed_value is not None else [],
+                           "levels": self.reads_levels}
         if self.pre is not None:
             applied = self.observed_epoch.get(str(self.step.get("knob"))) if self.step else None
-            out["pre"] = {**self.pre, "targets": [replay_target(int(applied))] if self.replayed_value is not None and applied is not None else []}
+            out["pre"] = {**self.pre, "targets": [replay_target(int(applied))] if self.replayed_value is not None and applied is not None else [],
+                          "levels": self.reads_levels}
         return out
 
 
@@ -119,7 +138,7 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
     since_change = 0 if settled is None else max(0, (settled - first_full_day(change["epoch_start"])).days + 1)
     # A knob without a replay counterfactual is observed over the same windows (guards, billed cost before and after),
     # never measured: its reason stays KNOB_NOT_REPLAYED whether or not a whole week has settled.
-    unreplayed = None if knob in REPLAY_KNOBS else "KNOB_NOT_REPLAYED"
+    unreplayed = None if knob in COUNTERFACTUAL_KNOBS else "KNOB_NOT_REPLAYED"
     days = 0 if last is None else (last - first).days + 1
     weeks = min(MAX_WINDOW_WEEKS, days // WEEK_DAYS)
     if weeks < 1:
