@@ -207,16 +207,29 @@ class NoDomainLogicTests(unittest.TestCase):
         self.assertEqual([n.name for n in self.tree_.body if isinstance(n, ast.ClassDef)], [])
 
     def test_the_pipeline_function_is_a_straight_line_of_stage_calls(self):
+        """The stage calls run in order inside one ``with packager.lock(context):`` block (the ledger lock of the run)."""
         body = [n for n in self.functions["realize_request"].body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))]
         calls = []
-        for node in body:
-            self.assertIsInstance(node, (ast.Assign, ast.Expr, ast.Return), ast.dump(node))
-            value = node.value
-            self.assertIsInstance(value, ast.Call)
-            func = value.func
-            calls.append(func.id if isinstance(func, ast.Name) else f"{func.value.id}.{func.attr}")
-        self.assertEqual(calls, ["build_context", "packager.begin", "analyzer.run", "governor.run", "reconciler.run", "estimator.run",
-                                 "reviewer.run", "packager.run", "reporter.run"])
+
+        def name(func):
+            return func.id if isinstance(func, ast.Name) else f"{func.value.id}.{func.attr}"
+
+        def walk(nodes):
+            for node in nodes:
+                if isinstance(node, ast.With):
+                    (item,) = node.items
+                    self.assertIsInstance(item.context_expr, ast.Call)
+                    calls.append("with " + name(item.context_expr.func))
+                    walk(node.body)
+                    continue
+                self.assertIsInstance(node, (ast.Assign, ast.Expr, ast.Return), ast.dump(node))
+                value = node.value
+                self.assertIsInstance(value, ast.Call)
+                calls.append(name(value.func))
+
+        walk(body)
+        self.assertEqual(calls, ["build_context", "with packager.lock", "packager.begin", "analyzer.run", "governor.run", "reconciler.run",
+                                 "estimator.run", "reviewer.run", "packager.run", "reporter.run"])
 
     def test_no_control_flow_in_the_pipeline_or_its_entry_points(self):
         forbidden = (ast.If, ast.For, ast.While, ast.Try, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp, ast.IfExp, ast.BoolOp)
@@ -227,7 +240,7 @@ class NoDomainLogicTests(unittest.TestCase):
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
         allowed = {"build_context", "validate_package", "validate_observation", "validate_replay_through", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
-                   "packager.begin", "reporter.run"}
+                   "packager.lock", "packager.begin", "reporter.run"}
         seen = set()
         for function in self.functions.values():
             for node in ast.walk(function):

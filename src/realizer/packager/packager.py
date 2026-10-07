@@ -1,6 +1,8 @@
 """Packager facade: record the run in the ledger and project the realization snapshot.
 
-The capabilities before it decide; the Packager records. ``begin`` records the lineage before the Analyzer reads
+The capabilities before it decide; the Packager records. ``lock`` holds the advisory lock of the package's ledger for a
+whole run (``realizer.packager.ledger.ledger_lock``: a second run on the same ledger is refused, and a truncated last
+line is quarantined under it). ``begin`` records the lineage before the Analyzer reads
 anything, ``run`` records every event the other capabilities decided, in the order the single-file Realizer recorded
 them (``realizer.packager.ledger.commit_events``), reloads the ledger, applies the replay cut and projects the snapshot
 (``realizer.packager.snapshot.project_snapshot``). The two final files (the realization package and the snapshot) are
@@ -9,7 +11,7 @@ written by the engine from the result, not here.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, ContextManager, Mapping, Optional
 
 from realizer.common.utils import parse_utc
 from realizer.contracts.realization import PackagingResult, ReviewResult
@@ -18,6 +20,11 @@ from realizer.governor.policy import RealizerPolicy
 from realizer.packager import ledger
 from realizer.packager.snapshot import project_snapshot
 from realizer.reconciler.lifecycle import regeneration_request
+
+
+def lock(context: RunContext) -> ContextManager[None]:
+    """The lock of the run's ledger, held from before the lineage is recorded until the Reporter has written its files."""
+    return ledger.ledger_lock(ledger.ledger_path(context.request.output_dir, context.realization_package_id))
 
 
 def begin(context: RunContext) -> None:

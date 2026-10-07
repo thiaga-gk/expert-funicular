@@ -177,6 +177,12 @@ A partially completed Plan may contain fully realized completed steps. `PENDING_
 }
 ```
 
+One ledger file per realization package (`realization/ledger/<RPKG>.jsonl`), one entry per newline-terminated line, appended and never rewritten.
+
+A realize run holds an advisory lock on its package's ledger for the whole run: from before the lineage entry is recorded until the realization package and the snapshot are written. The lock is an exclusive file lock on `<RPKG>.jsonl.lock` next to the ledger, present only while a run holds it. A second run on the same ledger waits a short, bounded time and is then refused (`LedgerError`, "locked by another run") without writing anything; a run that fails releases the lock.
+
+A write cut short can leave one unterminated last line. Holding the lock, the run repairs it before anything else: a last line that is a valid entry gets its newline; one that is not is appended to `<RPKG>.jsonl.quarantine` next to the ledger, the ledger is truncated to its last newline, `ledger.quarantined` is logged (with the byte count, never the content) and the run continues. A malformed line that is newline-terminated, or anywhere but last, is never repaired: the run fails closed and the file is left as it is. A read without the lock (a replay or a lineage view) ignores such an unterminated last line when it is not a valid entry and never changes the file; an append without the lock refuses a ledger that ends with one.
+
 ## 10. Event types
 
 ```text
