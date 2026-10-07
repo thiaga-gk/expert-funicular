@@ -142,6 +142,11 @@ class FloorArithmeticTests(unittest.TestCase):
         result = cc.cluster_levels(self.plan(1, 3), self.evidence([(3, 100)]), self.bill(300))
         self.assertEqual((result.counterfactual, result.reason, result.block["basis"], result.block["cluster_minutes"]), (None, "FLOOR_RAISED", None, None))
 
+    def test_an_unchanged_floor_is_not_called_a_raise(self):
+        # A floor at the package's value has no counterfactual and no reason of its own (the plan never measures it).
+        result = cc.cluster_levels(self.plan(2, 2), self.evidence([(2, 100)]), self.bill(200))
+        self.assertEqual((result.counterfactual, result.reason, result.block["basis"]), (None, None, None))
+
     def test_unpriced_billing_keeps_the_quantities_without_a_counterfactual(self):
         result = cc.cluster_levels(self.plan(3, 1), self.evidence([(1, 100)]), {"cost": None, "currencies": ["USD"]})
         self.assertEqual((result.counterfactual, result.reason, result.block["cluster_minutes"], result.block["dbu_cost"]), (None, None, "200", None))

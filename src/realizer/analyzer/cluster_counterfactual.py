@@ -140,7 +140,7 @@ def cluster_levels(plan: MeasurementPlan, evidence: Mapping[str, Any], bill: Map
         "dbu_cost": money(dbu), "aws_cost": money(aws), "total_cost": money(total),
         "annualized_dbu_cost": money(annual(dbu)), "annualized_total_cost": money(annual(total)),
     }
-    if floor and basis is None:
+    if floor and applied > source:
         return ClusterLevels(block, None, FLOOR_RAISED)
     counterfactual = None
     if basis == FLOOR_CUT_REMOVED and dbu is not None:
