@@ -6,6 +6,7 @@ into RLE and RPKG provenance; the RSNAP id hashes ``PROJECTOR_VERSION`` and coun
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
@@ -17,12 +18,12 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.2.0"
+REALIZER_VERSION = "1.3.0"
 PROJECTOR_VERSION = "realizer-projector-v1.1.0"
-POLICY_VERSION = "realizer-policy-v1.2.0"
-ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.2.0"
-MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.1.0"
-ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.2.0"
+POLICY_VERSION = "realizer-policy-v1.3.0"
+ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.3.0"
+MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.2.0"
+ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.3.0"
 ATTRIBUTION_VERSION = "realizer-attribution-v1.2.0"
 EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.0.0"
 
@@ -50,6 +51,24 @@ SUPPORTED_WAREHOUSE_TYPES = PUBLISHER_SUPPORTED_WAREHOUSE_TYPES
 
 # Execution states of a plan step that cannot carry realization authority (its change is only recorded as independent).
 NON_AUTHORITATIVE_EXECUTION_STATES = frozenset({"PENDING_REEVALUATION", "BLOCKED", "INVALIDATED"})
+
+# A measurement window is comparable with the pre-change window when its query volume per day is within this band of
+# the pre-change window's (a ratio, post over pre). Outside it the workload shifted: an auto-stop replay is still
+# measured (it prices the actual post-change days) but never classified against the package's expectation, a step judged
+# on queueing and p95 waits for a comparable workload, and the billed cross-check cannot resolve the saving.
+VOLUME_RATIO_BAND = (Decimal("0.75"), Decimal("1.25"))
+# The detail and readiness reason of a measurement whose query volume moved outside ``VOLUME_RATIO_BAND``.
+WORKLOAD_SHIFT = "WORKLOAD_SHIFT"
+
+
+def volume_shifted(ratio: Any) -> bool:
+    """Whether a measured volume ratio (post over pre, a number or decimal string; ``None`` when unknown) is outside
+    ``VOLUME_RATIO_BAND``. An unknown ratio is not a shift."""
+    if ratio is None:
+        return False
+    value = Decimal(str(ratio))
+    return not VOLUME_RATIO_BAND[0] <= value <= VOLUME_RATIO_BAND[1]
+
 
 # The regional EC2 price registry a live measurement prices modeled AWS with when none is given: the one committed with
 # the Publisher, so the realized AWS component is priced like the package's (pass the Publisher run's own registry

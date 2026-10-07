@@ -396,7 +396,10 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-038
     def test_gr_038_aws_modeled_not_cash(self):
-        o = self.obs(); o['economics'].update({'aws_economic_realized':'50','aws_cash_realized':None,'aws_evidence_type':'MODELED'})
+        o = self.obs()
+        # The components add up to the realized total: the DBU part is the rest of it.
+        dbu = Decimal(o['economics']['counterfactual_old_cost']) - Decimal(o['economics']['observed_new_cost']) - Decimal('50')
+        o['economics'].update({'dbu_realized':str(dbu),'aws_economic_realized':'50','aws_cash_realized':None,'aws_evidence_type':'MODELED'})
         s = self.realize_case(o)
         self.assertEqual(s.economics['aws_economic_realized'], '50.00')
         self.assertIsNone(s.economics['aws_cash_realized'])

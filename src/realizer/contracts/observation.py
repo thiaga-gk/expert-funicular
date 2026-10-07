@@ -158,7 +158,7 @@ def observation_schema() -> Dict[str, Any]:
         "query_count": {"type": ["integer", "null"], "minimum": 0},
         "representative_regime": {"type": ["boolean", "null"]},
         "evidence_quality": {"enum": [x.value for x in EvidenceQuality]},
-        "workload": {"type": "object"},
+        "workload": {"type": "object"},  # informational: enters no identity and no decision
         "performance": performance,
         "financial_quality": financial_quality,
         "economics": economics,

@@ -22,9 +22,10 @@ import math
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from realizer.config.settings import VOLUME_RATIO_BAND as VOLUME_BAND
+
 AGREEMENT_BAND = Decimal("0.25")
 NOISE_MULTIPLE = Decimal("2")
-VOLUME_BAND = (Decimal("0.75"), Decimal("1.25"))
 OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 

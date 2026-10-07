@@ -1,7 +1,7 @@
 {
  "CheckTests.test_a_malformed_field_only_breaks_the_check_that_reads_it/results": {
   "length": 2098,
-  "sha256": "e920675c6d8219bbc262e2b88ca75c93f5aaeb6bd9354d78a7a007e72ac1941e"
+  "sha256": "1520d504ba31eaf21877e2514372a2bfb29408ffa63ff69178e645ebbb8982bd"
  },
  "CheckTests.test_authority_eligible/results": {
   "value": {
@@ -43,7 +43,7 @@
  },
  "CheckTests.test_checks_on_every_scenario_observation_and_policy/results": {
   "length": 461095,
-  "sha256": "057d6f1fdf2ec5523b7fe322fb7765640f06c1f32bd1c0019f9811c976a2e125",
+  "sha256": "8d1a68e5331a29ca00fdd7e38277573e859392568edf5508fa7304c21d9f1a5e",
   "spot": {
    "count": 1224,
    "exceptions": [],
@@ -237,7 +237,7 @@
  },
  "CheckTests.test_malformed_observations_raise/validate_performance": {
   "length": 10630,
-  "sha256": "e228d04c5d3c0a02eb377583d256f1e3919f573add57a4bdeb464deccd424b7c",
+  "sha256": "2587ba6f7259b9b1691727dbc106fc2691945fad6ab230bfc2842f47d8ab7099",
   "spot": {
    "count": 21,
    "exceptions": {
@@ -390,7 +390,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.2.0",
+    "policy_version": "realizer-policy-v1.3.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -405,7 +405,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.2.0",
+    "policy_version": "realizer-policy-v1.3.0",
     "realized_ratio_min": "0.80",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -413,7 +413,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.50"
    },
-   "snapshot_id": "PSNAP-082E3EEFE93D3C72BB4E4644"
+   "snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E"
   }
  },
  "PolicyClassTests.test_defaults_snapshot_id_and_dict/field names": {
@@ -435,17 +435,17 @@
  },
  "PolicyClassTests.test_from_mapping_and_snapshot_ids_for_overrides/policies": {
   "length": 4088,
-  "sha256": "22cad72f62870079f287a8580007ddfdddbe70413ef3d7c1c31a88c97761cb43",
+  "sha256": "439d42dd925dae36a4fc4a44041e28f835e592aab8a8715d91b67cc9082970f1",
   "spot": {
    "count": 7,
    "snapshot_ids": {
-    "0 {}": "PSNAP-082E3EEFE93D3C72BB4E4644",
-    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-350948562E2FAABA62306972",
-    "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-E2932EE682E313CBAEE8D0C0",
-    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-34934C1BC95EBDEE3718AB94",
-    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-D136CA5BD484F536FC2AA965",
-    "5 None": "PSNAP-082E3EEFE93D3C72BB4E4644",
-    "6 {}": "PSNAP-082E3EEFE93D3C72BB4E4644"
+    "0 {}": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-9E980B552C06A7D0E851936E",
+    "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-526B4972FCCFC40737F1C436",
+    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-E9D8E3E708F57F3106E11CF7",
+    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-4715A3E3C5EDCDE6ED3B1E52",
+    "5 None": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+    "6 {}": "PSNAP-3FB9F06EA14CBFC752EBDD3E"
    }
   }
  },
@@ -482,7 +482,7 @@
      "minimum_material_savings_delta_pct": "5",
      "minimum_price_coverage_pct": "100",
      "minimum_queries": 100,
-     "policy_version": "realizer-policy-v1.2.0",
+     "policy_version": "realizer-policy-v1.3.0",
      "realized_ratio_min": "0.8",
      "remeasure_days_after_invalidating_change": 7,
      "require_confirmed_origin_for_hard_kpi": true,
@@ -497,7 +497,7 @@
   "value": [
    [
     "ok",
-    "PSNAP-531CAB13CA469086173252E3"
+    "PSNAP-42507302547CACF039B65B61"
    ],
    [
     "ok",
@@ -508,7 +508,7 @@
      "minimum_material_savings_delta_pct": "5",
      "minimum_price_coverage_pct": "100",
      "minimum_queries": "nan",
-     "policy_version": "realizer-policy-v1.2.0",
+     "policy_version": "realizer-policy-v1.3.0",
      "realized_ratio_min": "0.8",
      "remeasure_days_after_invalidating_change": 7,
      "require_confirmed_origin_for_hard_kpi": true,

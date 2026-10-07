@@ -1,6 +1,6 @@
 # Realizer Known Limitations
 
-This file records limitations that remain true in the current Realizer release (component version 1.2.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
+This file records limitations that remain true in the current Realizer release (component version 1.3.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
 
 ## Not yet possible
 
@@ -16,7 +16,6 @@ This file records limitations that remain true in the current Realizer release (
 The Realizer was extracted from the single-file release with identical outputs, and the behaviors below were found on the way and deliberately not changed, because a fix alters stored outputs and decisions. Each is a candidate for a separately reviewed change that regenerates the stored scenarios. The detail of each, with the phase that found it, is in [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md); the gap review ([`gap-review.md`](../../proposals/realizer/gap-review.md)) schedules each.
 
 7. **Billing restatement reprocessed:** reprocessing a billing-restatement observation once more appends a second `BILLING_CORRECTION_RECORDED` entry whose `corrects_entry_id` is the restated measurement itself, and the snapshot's `correction_count` goes from 1 to 2; a further pass adds nothing. Every other scenario is idempotent on its last observation. The `restatement-reprocessed` scenario pins the current behavior.
-8. **Counterfactual id hashes the raw window start:** the counterfactual id hashes the observation's `window_start_utc` as given, while the validation and measurement ids fall back to the applied time when it is null. An observation without a window (one without economics) therefore hashes a null there, not the applied time.
-9. **Redundant readiness evaluation:** on the realize path `calculate_economics` re-evaluates readiness, which is always ready there. Nothing observable changes.
-10. **Cost increase reads as under-realized:** on a savings step, a realization that is a cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings. (A performance fix or a capacity cut is not a savings step: its cost change is reported, never classified or claimed.)
-11. **Duplicate entries still rewrite files:** a repeated entry is suppressed by id on each append, so a run that records an event an earlier run (or an earlier slot) already recorded logs `ledger.duplicate_suppressed` and still rewrites its evidence and regeneration files with the same content.
+8. **Redundant readiness evaluation:** on the realize path `calculate_economics` re-evaluates readiness, which is always ready there. Nothing observable changes.
+9. **Cost increase reads as under-realized:** on a savings step, a realization that is a cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings. (A performance fix or a capacity cut is not a savings step: its cost change is reported, never classified or claimed.)
+10. **Duplicate entries still rewrite files:** a repeated entry is suppressed by id on each append, so a run that records an event an earlier run (or an earlier slot) already recorded logs `ledger.duplicate_suppressed` and still rewrites its evidence and regeneration files with the same content.

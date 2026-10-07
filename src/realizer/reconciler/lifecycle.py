@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
 from realizer.analyzer.analysis import config_hash, normalize_value, observed_config, scenario_by_id
+from realizer.common.logging import LOGGER
 from realizer.common.utils import Deferred
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
@@ -254,7 +255,12 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         state.terminal_regeneration = regeneration_request(package, app_payload, observation, policy, reason="CONTRARY_IMPLEMENTATION", evidence_id=revid)
         return
 
-    state.validation_due = bool(governance.readiness.get()["ready"])
+    ready = governance.readiness.get()
+    state.validation_due = bool(ready["ready"])
+    if not state.validation_due:
+        # Nothing is recorded for evidence that is not ready yet; the log says which checks hold it back and why.
+        failed = [name + (f"({check['reason']})" if check.get("reason") else "") for name, check in ready["checks"].items() if not check["pass"]]
+        LOGGER.info("realizer.not_ready app=%s failed=%s", active.application_episode_id, ",".join(failed))
     if state.validation_due:
         # Invalidating or modified authoritative changes request fresh Publisher analysis after the measurement; the
         # run reaches that point only after validation and measurement, so it is held (and raises) until then.

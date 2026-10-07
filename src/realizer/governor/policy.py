@@ -16,7 +16,8 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import decimal
-from realizer.config.settings import CANARY_GUARD_WINDOW_DAYS, NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION, guard_thresholds
+from realizer.config.settings import (CANARY_GUARD_WINDOW_DAYS, NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION, WORKLOAD_SHIFT,
+                                      guard_thresholds, volume_shifted)
 from realizer.contracts.observation import CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS
 from realizer.contracts import realization as rc
 
@@ -111,7 +112,8 @@ def authority_eligible(step: Mapping[str, Any]) -> bool:
 def readiness(observation: Mapping[str, Any], policy: RealizerPolicy, performance: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """Whether the evidence is sufficient to validate: elapsed days, query sample, representative regime, evidence
     quality and, given the performance verdict, guardrail evidence (no rule UNKNOWN). An input the observation could
-    not establish (``null``) fails its check."""
+    not establish (``null``) fails its check. A regime that is not representative because the measured query volume
+    moved outside the comparable band states the volume ratio and the reason ``WORKLOAD_SHIFT``."""
     elapsed = int(observation["elapsed_days"])
     queries = observation["query_count"]
     representative = observation["representative_regime"]
@@ -122,6 +124,9 @@ def readiness(observation: Mapping[str, Any], policy: RealizerPolicy, performanc
         "representative_regime": {"observed": representative, "required": policy.require_representative_regime, "pass": representative is True or not policy.require_representative_regime},
         "evidence_quality": {"observed": quality, "required": "SUFFICIENT", "pass": quality == "SUFFICIENT"},
     }
+    volume = (observation.get("measurement") or {}).get("volume_ratio")
+    if representative is not True and volume_shifted(volume):
+        checks["representative_regime"].update({"volume_ratio": volume, "reason": WORKLOAD_SHIFT})
     if performance is not None:
         unknown = [r["rule_id"] for r in performance["rules"] if r["result"] == "UNKNOWN"]
         checks["guardrail_evidence"] = {"unknown_rules": unknown, "pass": not unknown}

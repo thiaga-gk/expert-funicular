@@ -1,0 +1,26 @@
+id: GE-15
+description: >-
+  The GE-01 change (auto-stop 30 to 10 on a Pro warehouse, applied exactly) while the warehouse's query volume halves
+  from the change day on. The replay prices the actual post-change days, so the saving is measured and reported, but
+  the package's expectation was priced at twice the volume: the realization is MONITORING with the detail
+  WORKLOAD_SHIFT, never under-realized, and claimable on the usual gates.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10}}
+  workload: {from: 2026-10-08, factor: 0.5}
+expect:
+  conformance: EXACT
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  volume_ratio: 0.5
+  # Billed cost cannot separate a halved workload from the change.
+  cross_check: {outcome: INCONCLUSIVE, reason: VOLUME_SHIFT}
+  realization_state: MONITORING
+  classification: WORKLOAD_SHIFT
+  claim: CLAIMABLE
+  origin: INFERRED
+  disqualifiers: []

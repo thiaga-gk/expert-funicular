@@ -15,8 +15,11 @@ windows it reads are exactly the ones the bridge collected, and states what they
   and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
   the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
   that a positive amount is a cost increase. It includes whatever else moved the bill, so it is reported, never claimed;
-* readiness inputs: settled days since the change, the window's queries, the representative regime (whole weeks,
-  query volume per day within ``VOLUME_RATIO_BAND`` of the pre-change window's) and the evidence quality;
+* readiness inputs: settled days since the change, the window's queries, the representative regime and the evidence
+  quality. The windows are whole weeks; the regime is representative when the query volume per day is within
+  ``VOLUME_RATIO_BAND`` of the pre-change window's, and for an auto-stop replay whenever the volume ratio is known: the
+  replay prices the actual post-change days, so a shifted workload is measured and reported, never classified (the
+  Estimator's ``WORKLOAD_SHIFT``), while a change judged on queueing and p95 waits for a comparable workload;
 * the financial-quality inputs of the window's billed rows.
 
 Values the evidence cannot establish are ``null``; a ``null`` gate input never passes its gate.
@@ -39,10 +42,10 @@ from realizer.analyzer.measurement import (
 )
 from realizer.common.errors import InputError
 from realizer.common.utils import money, ratio_string, utc_iso
+from realizer.config.settings import volume_shifted
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import package_currency
 
-VOLUME_RATIO_BAND = (Decimal("0.75"), Decimal("1.25"))
 REPLAY_METHOD = "AUTO_STOP_REPLAY"
 BILLED_CHANGE_BASIS = "BILLED_PRE_POST_AT_PRE_MIX"
 ANNUAL_DAYS = Decimal("365")
@@ -295,7 +298,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     ratio = volume_ratio(pre, post)
     representative: Optional[bool] = None
     if post is not None and ratio is not None:
-        representative = VOLUME_RATIO_BAND[0] <= ratio <= VOLUME_RATIO_BAND[1]
+        representative = replay is not None or not volume_shifted(ratio)
     window = window_bounds(plan.post) if plan.post else (None, None)
     economics = None
     if replay is not None:

@@ -562,3 +562,16 @@ Batch 2 of the gap review ([`gap-review.md`](gap-review.md)) made the Realizer r
 | Realizer 1.2.0, contract 1.1.0, component versions | none | none | ids only |
 
 A canary-rollback end-to-end case was not added: the demo simulator ties the C55 p95 regression to the newest configuration epoch, so a world where the rollback is applied still shows it (the unit tests cover the role).
+
+## Gap review batch 3: measurement completeness and its decision changes
+
+Batch 3 of the gap review ([`gap-review.md`](gap-review.md)) checked the cost components of an observation, gave the counterfactual an identity over what the evidence states, and measured a change whose workload shifted. Decision RD19 was taken as recommended (option 1: measure and report, never classify while shifted). Each change was checked with the decision-equivalence check over the 41 stored scenarios against the previous commit's stored outputs, and over the end-to-end cases:
+
+| Change | Stored scenarios whose decision changed | End-to-end cases whose decision changed | How |
+|---|---|---|---|
+| Cost components reconcile with the realized total within 0.03; an AWS component needs a DBU component and an evidence type; AWS cash or freed commitment only with `CUR_ACTUAL`; a DBU-only caller observation compared with the DBU range | none | none | the GR-038 input observation gained its DBU component (2,563.12 + modeled AWS 50 = 10,000.00 - 7,386.88), which the new check requires; no stored observation is DBU-only |
+| Counterfactual id over the method, the window (with the measurement id's fallbacks), the replay target, the assumptions and an evidence fingerprint; the workload no longer hashed; the counterfactual payload states them | none | none | ids only |
+| Workload shift (RD19): an auto-stop replay outside 0.75 to 1.25 of the pre-change volume is measured and reported as `MONITORING` / `WORKLOAD_SHIFT`; a guard-judged step waits with the reason stated | none | GE-15 added | GE-15 (the GE-01 change while the volume halves from the change day): before, NOT_READY with nothing measured; now 479.53 in 28 days (6,251.02/yr), `MONITORING`, `WORKLOAD_SHIFT`, claimable; replay DBU 304.81 equals the oracle's |
+| Realizer 1.3.0; policy, analyzer gateway and estimator gateway 1.3.0, modeler gateway 1.2.0; contract unchanged (1.1.0) | none | none | ids only |
+
+The demo simulator gained optional `from`/`until` days on a workload component (a world whose workload changes at a date); the Publisher demo's outputs are unchanged (0 canonical differences against master over 30 runs).

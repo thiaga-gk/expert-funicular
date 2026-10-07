@@ -51,7 +51,7 @@ Historical closed episodes retain the policy snapshot under which they were eval
 
 ## 5. Readiness
 
-All required readiness gates must pass: elapsed period, sample sufficiency, representative regime and sufficient evidence quality. Low-frequency workloads wait for representative execution rather than qualifying from calendar time alone.
+All required readiness gates must pass: elapsed period, sample sufficiency, representative regime and sufficient evidence quality. Low-frequency workloads wait for representative execution rather than qualifying from calendar time alone. A regime that is not representative because the measured query volume moved outside the comparable band (section 7, workload shift) states the volume ratio and the reason `WORKLOAD_SHIFT` in its readiness check; evidence that is not ready is recorded nowhere in the ledger, so a run logs the failing checks and their reasons (`realizer.not_ready`).
 
 ## 6. Guardrails
 
@@ -70,13 +70,15 @@ When the denominator is a Publisher range (the applied step's candidate range, o
 - below the low -> `UNDER_REALIZED`; below half the low -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass;
 - the ratio against the base is reported in every case.
 
-The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
+The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement (or a caller-supplied observation that gives a DBU component and no AWS component) with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
 
 - `ratio >= 0.80` -> `REALIZED`.
 - `0.50 <= ratio < 0.80` -> `UNDER_REALIZED`.
 - `< 0.50` -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass.
 
 A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved.
+
+**Workload shift.** When the measurement's query volume per day after the change is outside 0.75 to 1.25 of the pre-change window's (`measurement.volume_ratio`), the package's expectation, priced at the old workload, is not a fair yardstick, and savings are not proportional to volume (more traffic leaves fewer idle gaps for a shorter auto-stop to cut). The realization is reported, never classified: state `MONITORING`, detail `WORKLOAD_SHIFT`, `classification_basis` `INFORMATIONAL`, the realized saving, its run-rate and the ratio against the package's base reported, never `UNDER_REALIZED` and never a re-optimization; the denominator stays the package's and the claim follows the usual gates. Example: an auto-stop change from 30 to 10 minutes on a Pro warehouse (published 6,242.34 / 9,363.51 / 12,484.69 a year) whose query volume halves from the change day saves 479.53 in 28 days, 6,251.02 a year: `MONITORING`, `WORKLOAD_SHIFT`, claimable. At 1.93 x the volume it saves 7,277.97 a year; an expectation scaled by the volume (18,058.47) would have called that under-realized.
 
 A performance fix (step role `PERFORMANCE`: a capacity add whose objectives are performance, priced as a cost increase) or a capacity guardrail (step role `CAPACITY`: a cut priced at zero) is not a saving. It is judged on the guard metrics before and after the change, with the package's cost-profile safe queue level and p95 regression percentage (`classification_basis` `PERFORMANCE_GUARDS`):
 

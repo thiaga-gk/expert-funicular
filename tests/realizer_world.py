@@ -13,7 +13,7 @@ import functools
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 for _p in (ROOT, ROOT / "src"):
@@ -51,6 +51,14 @@ def world_spec(scenario: str, after: Mapping[str, Any], *, change_day: str = CHA
     spec.update({"prior": prior, "epoch_start": change_day, "epoch_start_minute": change_minute, **(extra or {})})
     spec.pop("created", None)
     return spec
+
+
+def shifted_work(work: Any, factor: float, day: str = CHANGE_DAY) -> List[Dict[str, Any]]:
+    """The workload components *work* until *day*, then scaled by *factor* from *day* on: periodic queries come 1/factor
+    as often, steady load runs factor x as concurrent (the demo simulator's ``from``/``until`` bounds)."""
+    before = [dict(w, until=day) for w in work]
+    after = [dict(w, **({"every": w["every"] / factor} if w.get("every") else {"conc": w["conc"] * factor}), **{"from": day}) for w in work]
+    return before + after
 
 
 @functools.lru_cache(maxsize=None)
