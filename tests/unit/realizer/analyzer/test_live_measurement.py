@@ -93,21 +93,32 @@ class PlanTests(unittest.TestCase):
         self.assertEqual((plan.post["first_day"], plan.post["last_day"]), ("2026-10-09", "2026-10-29"))  # three whole weeks
 
     def test_a_knob_without_a_replay_is_observed_not_measured(self):
-        size_package = world.package("inplace-size-canary")
-        cfg = {k: size_package["current_config"][k] for k in ("warehouse_type", "warehouse_channel", "min_clusters", "max_clusters", "auto_stop_minutes")}
-        step = next(s for s in candidate_steps(size_package) if s["knob"] == "warehouse_size")
-        epochs = [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["current_value"]),
-                  epoch("2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["recommended_value"])]
-        plan = m.plan_measurement(size_package, epochs, "2026-11-05")
-        self.assertEqual((plan.reason, plan.step["knob"], plan.replayed_value), ("KNOB_NOT_REPLAYED", "warehouse_size", None))
+        cut_package = world.package("capacity-cut-scoped")  # max clusters 4 to 2: no counterfactual
+        cfg = {k: cut_package["current_config"][k] for k in ("warehouse_type", "warehouse_channel", "warehouse_size", "min_clusters", "auto_stop_minutes")}
+        step = next(s for s in candidate_steps(cut_package) if s["knob"] == "max_clusters")
+        epochs = [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T14:32:00+00:00", **cfg, max_clusters=step["current_value"]),
+                  epoch("2026-10-08T14:32:00+00:00", **cfg, max_clusters=step["recommended_value"])]
+        plan = m.plan_measurement(cut_package, epochs, "2026-11-05")
+        self.assertEqual((plan.reason, plan.step["knob"], plan.replayed_value), ("KNOB_NOT_REPLAYED", "max_clusters", None))
         # The same windows as a replayed knob (whole weeks after the change day, as many before it), without replay values.
         windows = plan.windows()
         self.assertEqual((windows["post"]["first_day"], windows["post"]["last_day"], windows["post"]["targets"]), ("2026-10-09", "2026-11-05", []))
         self.assertEqual((windows["pre"]["first_day"], windows["pre"]["last_day"], windows["pre"]["targets"]), ("2026-09-10", "2026-10-07", []))
         self.assertEqual(plan.settled_days_since_change, 28)
         # Before a whole settled week it is still not replayed, with no window yet.
-        early = m.plan_measurement(size_package, epochs, "2026-10-14")
+        early = m.plan_measurement(cut_package, epochs, "2026-10-14")
         self.assertEqual((early.reason, early.post, early.pre), ("KNOB_NOT_REPLAYED", None, None))
+
+    def test_a_size_change_has_a_counterfactual_and_reads_the_size_runtime(self):
+        size_package = world.package("inplace-size-canary")
+        cfg = {k: size_package["current_config"][k] for k in ("warehouse_type", "warehouse_channel", "min_clusters", "max_clusters", "auto_stop_minutes")}
+        step = next(s for s in candidate_steps(size_package) if s["knob"] == "warehouse_size")
+        epochs = [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["current_value"]),
+                  epoch("2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["recommended_value"])]
+        plan = m.plan_measurement(size_package, epochs, "2026-11-05")
+        self.assertEqual((plan.reason, plan.replayed_value, plan.reads_size_runtime), (None, None, True))
+        self.assertEqual(plan.windows()["post"]["targets"], [])
+        self.assertEqual(m.plan_measurement(size_package, epochs, "2026-10-14").reason, "NOT_SETTLED")
 
     def test_never_stop_is_replayed_as_a_value_longer_than_any_gap(self):
         self.assertEqual(m.replay_target(0), NEVER_STOP_TARGET_MINUTES)
@@ -213,7 +224,8 @@ class ReplayDirectionTests(unittest.TestCase):
 
 
 class UnreplayedChangeTests(unittest.TestCase):
-    """A changed knob without a replay: observed over the same windows (guards, billed change), never measured."""
+    """A changed knob without a replay: observed over the same windows (guards, billed change); a size change is also
+    measured by its size counterfactual, the billed change staying a diagnostic."""
 
     def test_billed_change_is_post_minus_the_pre_window_at_post_volume_and_length(self):
         from realizer.analyzer.projector import billed_pre_post_change
@@ -232,18 +244,19 @@ class UnreplayedChangeTests(unittest.TestCase):
         self.assertEqual(cheaper["dbu"], Decimal("0"))  # 700 - 100/day x 7: no change
         self.assertEqual((cheaper["aws_modeled"], cheaper["total"], cheaper["annualized_total"]), (None, None, None))  # one AWS price only
 
-    def test_a_size_cut_is_observed_with_guards_and_its_billed_change_priced_at_each_size(self):
+    def test_a_size_cut_is_measured_with_guards_and_its_billed_change_priced_at_each_size(self):
         size_package = world.package("inplace-size-canary")  # Pro LARGE to MEDIUM, step 1
         evidence = world.measure(size_package, world.world_spec("C06", {"size": "MEDIUM"}), 6)
         validate_measurement_evidence(evidence)
         obs = project_observation(size_package, evidence)
         validate_observation(obs, size_package)
         meas = obs["measurement"]
+        # Measured by the size counterfactual (tests.unit.realizer.analyzer.test_size_counterfactual); the billed change stays a diagnostic.
         self.assertEqual((meas["knob"], meas["method"], meas["not_measured_reason"], meas["holds_other_knobs"]),
-                         ("warehouse_size", None, "KNOB_NOT_REPLAYED", False))
-        self.assertIsNone(obs["economics"])
+                         ("warehouse_size", "SIZE_RUNTIME", None, True))
+        self.assertIsNotNone(obs["economics"])
         self.assertIsNone(meas["replay"])
-        self.assertIsNone(meas["cross_check"])
+        self.assertIsNotNone(meas["size"])
         self.assertEqual((meas["pre_window"]["first_day"], meas["pre_window"]["last_day"]), ("2026-09-10", "2026-10-07"))
         self.assertEqual((meas["post_window"]["first_day"], meas["post_window"]["last_day"]), ("2026-10-09", "2026-11-05"))
         self.assertIsNotNone(meas["volume_ratio"])
@@ -272,13 +285,13 @@ class UnreplayedChangeTests(unittest.TestCase):
         obs = project_observation(PRO, world.measure(PRO, world.world_spec("C13", {"auto_stop": 10}), 13))
         self.assertIsNone(obs["measurement"]["billed_change"])
 
-    def test_before_a_whole_settled_week_a_change_without_a_replay_has_no_window(self):
+    def test_before_a_whole_settled_week_a_size_change_has_no_window(self):
         size_package = world.package("inplace-size-canary")
         obs = project_observation(size_package, world.measure(size_package, world.world_spec("C06", {"size": "MEDIUM"}), 6,
                                                               as_of="2026-10-14T12:00:00+00:00"))
         meas = obs["measurement"]
-        self.assertEqual(meas["not_measured_reason"], "KNOB_NOT_REPLAYED")
-        self.assertEqual((meas["post_window"], meas["billed_change"], obs["performance"]["guards"]), (None, None, None))
+        self.assertEqual(meas["not_measured_reason"], "NOT_SETTLED")
+        self.assertEqual((meas["post_window"], meas["billed_change"], meas["size"], obs["performance"]["guards"]), (None, None, None, None))
 
 
 class BridgeTests(unittest.TestCase):

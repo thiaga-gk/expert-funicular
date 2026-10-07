@@ -1,0 +1,16 @@
+id: GE-18
+description: >-
+  A size cut on a warehouse with too few queries to measure the runtime ratio: an hourly job runs about seven times a
+  weekday, far below the 300 matched post-change queries the ratio needs. The change is applied and guarded, its
+  billed change is reported, and no saving is measured.
+publisher:
+  warehouse: wh-demo-038
+  scope: [current:size]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {size: SMALL}}
+expect:
+  conformance: EXACT
+  measured: false
+  not_measured_reason: SIZE_RUNTIME_UNMEASURED
+  billed_change: {dbu: negative}

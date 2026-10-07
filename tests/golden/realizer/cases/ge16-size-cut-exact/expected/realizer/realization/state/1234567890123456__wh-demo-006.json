@@ -1,0 +1,41 @@
+{
+  "active_package_ids": [
+    "PKG-BC22CBAE1973DC42B062440E"
+  ],
+  "applied_knob_owners": [
+    {
+      "effective_from_utc": "2026-10-08T14:32:00Z",
+      "knob": "warehouse_size",
+      "observed_value": "MEDIUM",
+      "realization_package_id": "RPKG-6B03B2A97E840C7A69E658E8",
+      "recommendation_package_id": "PKG-BC22CBAE1973DC42B062440E"
+    }
+  ],
+  "as_of_utc": "2026-11-14T12:00:00Z",
+  "lineages": [
+    {
+      "application_state": "APPLIED",
+      "as_of_utc": "2026-11-14T12:00:00Z",
+      "attribution_claim_status": "CLAIMABLE",
+      "claimed_by": [],
+      "cost_profile": "balanced",
+      "disposition": "ACTIVE",
+      "effective_from_utc": "2026-10-08T14:32:00Z",
+      "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
+      "generated_at_utc": "2026-10-01T12:00:00Z",
+      "knob": "warehouse_size",
+      "observed_applied_value": "MEDIUM",
+      "previous_epoch_id": null,
+      "realization_package_id": "RPKG-6B03B2A97E840C7A69E658E8",
+      "realization_state": "REALIZED",
+      "recommendation_attributed_realized_savings": "3535.11",
+      "recommendation_package_id": "PKG-BC22CBAE1973DC42B062440E",
+      "snapshot_id": "RSNAP-0FF2B8DF1B8FB84AB8C6422C",
+      "successor_package_id": null,
+      "superseded_by_package_id": null
+    }
+  ],
+  "state_index_version": "1.0.0",
+  "warehouse_id": "wh-demo-006",
+  "workspace_id": "1234567890123456"
+}

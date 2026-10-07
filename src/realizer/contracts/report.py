@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.utils import parse_utc
 from realizer.contracts import realization as rrc
+from realizer.contracts.observation import MIGRATION_METHOD
 
 # 2.0.0: the realization workbook (Warehouses, Lineages, Timeline) replaces the two-sheet Realizer Workbook Extension
 # 1.0.0 (Realization Summary, Realization Timeline).
@@ -347,6 +348,7 @@ WHEN_NOTHING_TO_APPLY = "NO_ACTIONABLE_STEP"          # plan progress: the packa
 WHEN_REGENERATION_REQUESTED = "REGENERATION_REQUESTED"  # regeneration status REQUESTED
 WHEN_REPLACED = "REPLACEMENT_LINKED"                    # regeneration status REPLACED: a replacement package is linked
 WHEN_NOT_MEASURED = "VALIDATED_WITHOUT_MEASURED_SAVINGS"  # validation PASSED, economics unavailable (no counterfactual)
+WHEN_MIGRATION_OBSERVED = "MIGRATION_OBSERVED"          # a warehouse-type migration's observed delta (measurement method), never modeled
 
 _RUN_THE_PUBLISHER = "Run the Publisher: regeneration requested"
 _KEEP_MONITORING = "Keep monitoring"
@@ -364,6 +366,7 @@ NEXT_ACTIONS: Mapping[Tuple[str, Optional[str]], str] = {
     ("VALIDATING", None): _WAIT,
     ("REALIZED", None): _KEEP_MONITORING,
     ("MONITORING", None): _KEEP_MONITORING,
+    ("MONITORING", WHEN_MIGRATION_OBSERVED): "Keep monitoring: migration observed, savings not modeled",
     ("PERFORMANCE_VALIDATED", None): _KEEP_MONITORING,
     ("CAPACITY_VALIDATED", None): _KEEP_MONITORING,
     ("SAFETY_ACTION_APPLIED", None): "Keep monitoring: safety rollback in force",
@@ -394,6 +397,8 @@ def _condition(r: rrc.RealizationPackage, state: str) -> Optional[str]:
         candidates.append(WHEN_NOTHING_TO_APPLY)
     if (r.validation or {}).get("state") == "PASSED" and (r.economics or {}).get("available") is False:
         candidates.append(WHEN_NOT_MEASURED)
+    if ((r.economics or {}).get("measurement") or {}).get("method") == MIGRATION_METHOD:
+        candidates.append(WHEN_MIGRATION_OBSERVED)
     return next((c for c in candidates if (state, c) in NEXT_ACTIONS), None)
 
 

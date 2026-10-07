@@ -1,10 +1,11 @@
-"""Realizer observation format 3.0.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 3.1.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
-economics and how they were measured (``measurement``: the replayed knob, the windows before and after the change and
-the replay's quantities, or, for a changed knob without a replay, the billed change before and after it; ``null`` for a
-caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
+economics and how they were measured (``measurement``: the measured knob, the windows before and after the change, the
+replay's quantities for an auto-stop change, the size runtime counterfactual for a size change (``size``), the running
+minutes by cluster count for a cluster-count change (``levels``), and the billed change before and after it; ``null``
+for a caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
 input never passes its gate. The format is checked against ``schema/realization-observation.schema.json`` (built by
 ``observation_schema``) before a run writes anything (``realizer.config.loader.validate_observation``).
 """
@@ -14,7 +15,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "3.0.0"
+OBSERVATION_FORMAT_VERSION = "3.1.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -25,14 +26,26 @@ AWS_EVIDENCE_TYPES = ("MODELED", "CUR_ACTUAL")
 EFFECTIVE_TIME_QUALITIES = ("EXACT", "BOUNDED", "OBSERVED_AT_ONLY")
 CORRECTION_TYPES = ("RESTATEMENT", "RETRACTION")
 DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
-MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY",)
+MIGRATION_METHOD = "MIGRATION_BILLED_OBSERVED"
+MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", MIGRATION_METHOD)
+# The hard disqualifier of a warehouse-type migration: its observed delta has no reverse (new to old) model, so it is never claimed.
+NO_REVERSE_MIGRATION_MODEL = "NO_REVERSE_MIGRATION_MODEL"
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
-NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED")
+NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
+                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE", "FLOOR_RAISED")
 BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
+SIZE_BOUNDS = ("ELASTIC", "INELASTIC")
+SIZE_DIRECTIONS = ("DOWNSIZE", "UPSIZE")
+SIZE_RUNTIME_MULTIPLIER_SOURCES = ("CANDIDATE", "PUBLISHER_THRESHOLDS")
 CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
                  "spill_query_pct", "shared_source_queries", "p95_execution_ms_shared_sources")
+
+def is_migration_observed(measurement: Any) -> bool:
+    """Whether an observation's ``measurement`` states a warehouse-type migration's observed delta."""
+    return bool(measurement) and measurement.get("method") == MIGRATION_METHOD
+
 
 _DECIMAL_PATTERN = r"^-?[0-9]+(\.[0-9]+)?$"
 
@@ -54,8 +67,58 @@ NULLABLE_TIMESTAMP = {"type": ["string", "null"], "format": "date-time"}
 PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "string", "pattern": _DECIMAL_PATTERN}, {"type": "null"}]}
 
 
+def size_schema() -> Dict[str, Any]:
+    """``measurement.size``: the size runtime counterfactual of a size change (``null`` for any other knob, or without
+    size runtime evidence): the runtime ratio and its matched queries, the Publisher's runtime multiplier range, the old
+    and new DBU cost per cluster-minute with their ratio against the published one, the busy share, the AWS prices of both sizes and both bounds (``null`` when not
+    measured), with the one claimed."""
+    count = {"type": "integer", "minimum": 0}
+    bound = _obj({
+        "running_cluster_minutes": _decimal(nullable=False), "dbu_cost": _decimal(nullable=False), "aws_cost": _decimal(),
+        "counterfactual_cost": _decimal(nullable=False), "realized": _decimal(nullable=False),
+    }, nullable=True)
+    return _obj({
+        "runtime_ratio": _decimal(), "matched_sources": count, "matched_post_queries": count, "post_executed_queries": count,
+        "matched_query_coverage": _decimal(),
+        "published_runtime_multiplier": _obj({
+            "source": {"enum": list(SIZE_RUNTIME_MULTIPLIER_SOURCES)}, "direction": {"enum": list(SIZE_DIRECTIONS)},
+            "optimistic": _decimal(nullable=False), "base": _decimal(nullable=False), "conservative": _decimal(nullable=False),
+        }),
+        "runtime_ratio_in_published_range": {"type": ["boolean", "null"]},
+        "old_dbu_cost_per_cluster_minute": _decimal(), "new_dbu_cost_per_cluster_minute": _decimal(),
+        "measured_rate_ratio": _decimal(), "published_rate_ratio": _decimal(), "rate_ratio_within_published_band": {"type": ["boolean", "null"]},
+        "busy_share": _decimal(), "pre_busy_wall_minutes": _decimal(nullable=False), "post_busy_wall_minutes": _decimal(nullable=False),
+        "observed_running_cluster_minutes": _decimal(nullable=False),
+        "old_aws_cluster_hourly_price": _decimal(), "new_aws_cluster_hourly_price": _decimal(),
+        "elastic": bound, "inelastic": bound, "bound_used": {"enum": [None, *SIZE_BOUNDS]},
+    }, nullable=True)
+
+
+LEVELS_BASES = ("FLOOR_CUT_REMOVED", "CLUSTER_LEVELS_ABOVE_OLD_CAP", "OLD_CAP_UPPER_BOUND")
+
+
+def levels_schema() -> Dict[str, Any]:
+    """``measurement.levels``: the running minutes by cluster count of a cluster-count change and what they show
+    (``null`` for any other knob, or without levels): the levels of both windows, the observed cluster-minutes and, per
+    ``basis``, the priced cluster-minutes (removed by a floor cut, above the old cap of a capacity add, or the upper
+    bound of what the old cap of a cap cut could have added) with their DBU, modeled AWS and total cost and its
+    annualized amounts (``basis`` ``null`` for a floor raise, which is not priced)."""
+    level = _obj({"cluster_count": {"type": "integer", "minimum": 1}, "running_minutes": _decimal(nullable=False)})
+    levels = {"type": "array", "items": level}
+    return _obj({
+        "basis": {"enum": [None, *LEVELS_BASES]},
+        "pre_levels": {"anyOf": [levels, {"type": "null"}]}, "post_levels": levels,
+        "observed_cluster_minutes": _decimal(nullable=False), "counterfactual_cluster_minutes": _decimal(),
+        "minutes_at_new_cap": _decimal(), "cluster_minutes": _decimal(),
+        "days": {"type": "integer", "minimum": 1}, "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+        "dbu_cost_per_cluster_minute": _decimal(), "aws_cluster_hourly_price": _decimal(), "aws_status": {"type": "string", "minLength": 1},
+        "dbu_cost": _decimal(), "aws_cost": _decimal(), "total_cost": _decimal(),
+        "annualized_dbu_cost": _decimal(), "annualized_total_cost": _decimal(),
+    }, nullable=True)
+
+
 def observation_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of observation format 3.0.0."""
+    """The Draft 2020-12 JSON Schema of observation format 3.1.0."""
     config = _obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
@@ -139,6 +202,8 @@ def observation_schema() -> Dict[str, Any]:
             "dbu": _decimal(nullable=False), "aws_modeled": _decimal(), "total": _decimal(),
             "annualized_dbu": _decimal(nullable=False), "annualized_total": _decimal(),
         }, nullable=True),
+        "size": size_schema(),
+        "levels": levels_schema(),
     }, nullable=True)
     properties = {
         "observation_format_version": {"const": OBSERVATION_FORMAT_VERSION},

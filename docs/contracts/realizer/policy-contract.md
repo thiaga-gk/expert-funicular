@@ -66,7 +66,7 @@ A canary-type step (execution state `READY_FOR_CANARY`) stays provisional for th
 
 ## 7. Realization classification
 
-When the denominator is a Publisher range (the applied step's candidate range, or the scenario's range for a scenario-scope application) whose low is positive, the annualized realized savings are classified against the range: a replay counterfactual measures the full mechanical effect of the change, the track of the published high, so comparing it with the base would always read high.
+When the denominator is a Publisher range (the applied step's candidate range, or the scenario's range for a scenario-scope application) whose low is positive, the annualized realized savings are classified against the range: a live counterfactual (the auto-stop replay, the size counterfactual) measures the full mechanical effect of the change, the track of the published high, so comparing it with the base would always read high.
 
 - at or above the range's low -> `REALIZED`; above 1.25 x the high -> `REALIZED`, detail `REALIZED_ABOVE_RANGE_REVIEW`, review required;
 - below the low -> `UNDER_REALIZED`; below half the low -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass;
@@ -85,10 +85,10 @@ A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative
 A performance fix (step role `PERFORMANCE`: a capacity add whose objectives are performance, priced as a cost increase) or a capacity guardrail (step role `CAPACITY`: a cut priced at zero) is not a saving. It is judged on the guard metrics before and after the change, with the package's cost-profile safe queue level and p95 regression percentage (`classification_basis` `PERFORMANCE_GUARDS`):
 
 - `PERFORMANCE_VALIDATED`: the queued share fell to at most half its pre-change value or to the safe level, and p95 on the shared sources did not rise past previous x (1 + the regression percentage); detail `PERFORMANCE_VALIDATED_COST_ABOVE_MODEL`, review required, when the annualized cost increase exceeds 1.25 x the modeled increase (minus the candidate's savings base);
-- `CAPACITY_VALIDATED`: the queued share after the change is at or below the safe level, or not above its value before;
+- `CAPACITY_VALIDATED`: the queued share after the change is at or below the safe level, or not above its value before; the verdict's evidence also states, from the running minutes by cluster count, the minutes at the new cap and the upper bound of what the old cap could have added (`old_cap_upper_bound`: those minutes times the clusters removed, priced and annualized), never a saving;
 - otherwise `MONITORING` (`PERFORMANCE_NOT_IMPROVED`, `CAPACITY_QUEUEING_REGRESSED`) with re-optimization recommended; without guard rows `MONITORING` (`PERFORMANCE_UNVERIFIED`, `CAPACITY_UNVERIFIED`).
 
-The cost change (`cost_change`) is reported signed (positive = cost went up): the billed change at the pre-change query mix of a live measurement (total, else DBU), else the caller's counterfactual minus observed cost. It is never counted as realized savings, and attribution claims nothing (`NOT_A_SAVINGS_STEP`). Example: max clusters 2 to 5 priced at -15,628.48/yr; queueing 9.72 to 0.76 percent, p95 2,500 ms before and after, billed +12,887.78/yr: `PERFORMANCE_VALIDATED` (12,887.78 is within 19,535.60).
+The cost change (`cost_change`) is reported signed (positive = cost went up): for a capacity add measured with the running minutes by cluster count, the cluster-minutes above the old cap priced at the post-change window's DBU cost per cluster-minute plus modeled AWS (basis `CLUSTER_LEVELS_ABOVE_OLD_CAP`, the total with an AWS price, else DBU; [source evidence contract](source-evidence-contract.md) section 18); else the billed change at the pre-change query mix of a live measurement (total, else DBU); else the caller's counterfactual minus observed cost. The billed change of the same component is reported next to it (`billed_annualized_cost_increase`) as its cross-check. It is never counted as realized savings, and attribution claims nothing (`NOT_A_SAVINGS_STEP`). Example: max clusters 2 to 5 priced at -15,628.48/yr; queueing 9.72 to 0.76 percent, p95 2,500 ms before and after; 3,795 cluster-minutes above the old cap in 28 days (832.83 DBU + 473.62 modeled AWS), +17,030.48/yr, billed +12,887.78/yr: `PERFORMANCE_VALIDATED` (17,030.48 is within 19,535.60).
 
 A safety rollback (step role `SAFETY_ROLLBACK`: the Publisher restores a value whose canary guard tripped) is a safety action, not a saving: its validation runs, but no counterfactual or measurement is recorded and nothing is claimed, whatever costs the observation carries (`SAFETY_ACTION_APPLIED`).
 
@@ -102,9 +102,11 @@ For auto-stop the re-estimate is the Publisher's own option grid in the package 
 
 Strict product-attributed KPIs require a qualified causal origin: `CONFIRMED` (an approvals file names the package, the knob and the applied value) or `INFERRED` (a measured change applied after the package was generated, to the knob its step recommends). `UNKNOWN`, `INDEPENDENT` and `NOT_ATTRIBUTABLE` origins may still support validated observed-value reporting. The policy setting `require_confirmed_origin_for_hard_kpi` set to false lifts the origin requirement.
 
+A warehouse-type migration is never claimable, whatever its origin: its measurement carries the hard disqualifier `NO_REVERSE_MIGRATION_MODEL` (no model prices the query mix on the type the warehouse left), so it is reported as an observed delta, `OBSERVABLE_ONLY`, with nothing attributed ([`ledger-contract.md`](ledger-contract.md) section 17).
+
 ## 10. Counterfactual
 
-Allowed claim-eligible methods: paired canary, calibrated prior state, matched historical, controlled pre/post. `CORRELATED_ONLY` is diagnostic, not strict claimable attribution.
+Allowed claim-eligible methods: paired canary, calibrated prior state, matched historical, controlled pre/post. `CORRELATED_ONLY` is diagnostic, not strict claimable attribution; it is the method of a warehouse-type migration's observed delta, which is reported and never claimed.
 
 ## 11. Financial quality
 

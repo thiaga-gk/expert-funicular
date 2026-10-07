@@ -49,7 +49,7 @@ DEFAULT_AS_OF = realizer_world.AS_OF
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
                "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
-               "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change", "volume_ratio"}
+               "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change", "volume_ratio", "measurement", "economics"}
 
 
 def dumps(value: Any) -> str:
@@ -172,8 +172,8 @@ def oracle(case: Mapping[str, Any], package: Mapping[str, Any], observation: Map
     key = SPEC_KEYS[meas["knob"]]
     held = [{**c, "set": {**c["set"], key: meas["source_value"]}} for c in world["changes"]]
     wh = f"wh-demo-{index:03d}"
-    new_rows = realizer_world.world_rows(world_spec(index, world["changes"], world.get("workload")), index, as_of)
-    old_rows = realizer_world.world_rows(world_spec(index, held, world.get("workload")), index, as_of)
+    new_rows = realizer_world.world_rows(world_spec(index, world["changes"], world.get("workload"), world.get("runtime")), index, as_of)
+    old_rows = realizer_world.world_rows(world_spec(index, held, world.get("workload"), world.get("runtime")), index, as_of)
     new, old = billed_cost(new_rows, wh, window["first_day"], window["last_day"]), billed_cost(old_rows, wh, window["first_day"], window["last_day"])
     return {"knob": meas["knob"], "held_value": meas["source_value"], "first_day": window["first_day"], "last_day": window["last_day"],
             "old_billed_cost": str(old.quantize(Decimal("0.01"))), "new_billed_cost": str(new.quantize(Decimal("0.01"))),
@@ -190,7 +190,7 @@ def _realizer_stage(name: str, case_text: str, package_text: str) -> Tuple[Tuple
     world = case["world"]
     as_of = str(world.get("as_of") or DEFAULT_AS_OF)
     index = fleet_index(world.get("warehouse") or package["warehouse"]["warehouse_id"])
-    spec = world_spec(index, world["changes"], world.get("workload"))
+    spec = world_spec(index, world["changes"], world.get("workload"), world.get("runtime"))
     files: Dict[str, str] = {}
     stage = "measure"
     try:
@@ -234,6 +234,13 @@ def _candidate_step(package: Mapping[str, Any], knob: str) -> Tuple[Mapping[str,
     scenario = next(s for s in package["scenarios"] if s["scenario_id"] == package["recommended_plan"]["scenario_id"])
     step = next(s for s in scenario["execution_plan"] if s["step_type"] == "CANDIDATE" and s.get("knob") == knob)
     return step, next(c for c in package["candidates"] if c["candidate_id"] == step["candidate_id"])
+
+
+def _path(value: Any, dotted: str) -> Any:
+    """The value at a dotted path of nested mappings (None when a step is missing)."""
+    for key in dotted.split("."):
+        value = value.get(key) if isinstance(value, Mapping) else None
+    return value
 
 
 def _dec(value: Any) -> Optional[Decimal]:
@@ -330,6 +337,11 @@ def check_expect(name: str, case: Mapping[str, Any], package: Mapping[str, Any],
                 fail("billed_change", None, got)
         elif got is None or any(not _matches(v, got.get(k)) for k, v in want.items()):
             fail("billed_change", want, None if got is None else {k: got.get(k) for k in want})
+    for key, source in (("measurement", meas), ("economics", snap_econ)):
+        for dotted, want in (expect.get(key) or {}).items():
+            got = _path(source, dotted)
+            if not _matches(want, got):
+                fail(f"{key}.{dotted}", want, got)
     if any(k in expect for k in ("sign", "near_oracle", "within_pkg")) and economics is None:
         return failures + ["sign/near_oracle/within_pkg: the case measured no economics"]
     if "sign" in expect:

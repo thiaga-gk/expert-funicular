@@ -1,0 +1,23 @@
+id: GE-19
+description: >-
+  A floor cut applied exactly: the scoped package lowers minimum clusters 3 to 1 on a warehouse whose nine concurrent
+  queries need one cluster. The post-change running minutes by cluster count show one cluster all day; with the old
+  floor every minute would have run three, which is the counterfactual. Measured after the canary's 30-day window.
+publisher:
+  warehouse: wh-demo-011
+  scope: [current:min-clusters]
+world:
+  as_of: "2026-11-14T12:00:00Z"
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {min: 1}}
+expect:
+  conformance: EXACT
+  measured: true
+  measurement: {method: FLOOR_LEVELS}
+  sign: positive
+  near_oracle: {pct: 1}
+  # The simulator never holds clusters after demand drops, so the full spare floor is removed: the published high.
+  within_pkg: {component: total, low_factor: 1, high_factor: 1.25}
+  cross_check: AGREES
+  realization_state: REALIZED
+  claim: CLAIMABLE

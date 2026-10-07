@@ -16,6 +16,9 @@ expect:
   not_measured_reason: KNOB_NOT_REPLAYED
   independent_changes: []
   origin: INFERRED
+  # The warehouse never reached the new cap of 2, so the old cap could have added nothing: upper bound 0.
+  measurement: {levels.basis: OLD_CAP_UPPER_BOUND, levels.minutes_at_new_cap: 0, levels.cluster_minutes: 0}
+  economics: {performance.old_cap_upper_bound.cluster_minutes: 0}
   # Queueing stayed at 0 percent: the cut is safe. Its billed change is reported, not claimed.
   realization_state: CAPACITY_VALIDATED
   classification: CAPACITY_VALIDATED

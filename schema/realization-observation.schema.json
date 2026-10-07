@@ -609,10 +609,278 @@
             "warehouse_channel"
           ]
         },
+        "levels": {
+          "additionalProperties": false,
+          "properties": {
+            "annualized_dbu_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "annualized_total_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aws_cluster_hourly_price": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aws_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aws_status": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "basis": {
+              "enum": [
+                null,
+                "FLOOR_CUT_REMOVED",
+                "CLUSTER_LEVELS_ABOVE_OLD_CAP",
+                "OLD_CAP_UPPER_BOUND"
+              ]
+            },
+            "cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "counterfactual_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "currency": {
+              "pattern": "^[A-Z]{3}$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "days": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "dbu_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dbu_cost_per_cluster_minute": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "minutes_at_new_cap": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "observed_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "post_levels": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "cluster_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "running_minutes": {
+                    "anyOf": [
+                      {
+                        "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "cluster_count",
+                  "running_minutes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "pre_levels": {
+              "anyOf": [
+                {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "cluster_count": {
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "running_minutes": {
+                        "anyOf": [
+                          {
+                            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "cluster_count",
+                      "running_minutes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "total_cost": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "annualized_dbu_cost",
+            "annualized_total_cost",
+            "aws_cluster_hourly_price",
+            "aws_cost",
+            "aws_status",
+            "basis",
+            "cluster_minutes",
+            "counterfactual_cluster_minutes",
+            "currency",
+            "days",
+            "dbu_cost",
+            "dbu_cost_per_cluster_minute",
+            "minutes_at_new_cap",
+            "observed_cluster_minutes",
+            "post_levels",
+            "pre_levels",
+            "total_cost"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "method": {
           "enum": [
             null,
-            "AUTO_STOP_REPLAY"
+            "AUTO_STOP_REPLAY",
+            "SIZE_RUNTIME",
+            "FLOOR_LEVELS",
+            "MIGRATION_BILLED_OBSERVED"
           ]
         },
         "not_measured_reason": {
@@ -620,7 +888,12 @@
             null,
             "NOT_APPLIED",
             "NOT_SETTLED",
-            "KNOB_NOT_REPLAYED"
+            "KNOB_NOT_REPLAYED",
+            "SIZE_RUNTIME_UNMEASURED",
+            "SOURCE_RATE_UNAVAILABLE",
+            "BUSY_SHARE_UNKNOWN",
+            "LEVELS_UNAVAILABLE",
+            "FLOOR_RAISED"
           ]
         },
         "observed_epoch_start": {
@@ -894,6 +1167,434 @@
             "null"
           ]
         },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "bound_used": {
+              "enum": [
+                null,
+                "ELASTIC",
+                "INELASTIC"
+              ]
+            },
+            "busy_share": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "elastic": {
+              "additionalProperties": false,
+              "properties": {
+                "aws_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "counterfactual_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "dbu_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "realized": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "running_cluster_minutes": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "aws_cost",
+                "counterfactual_cost",
+                "dbu_cost",
+                "realized",
+                "running_cluster_minutes"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "inelastic": {
+              "additionalProperties": false,
+              "properties": {
+                "aws_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "counterfactual_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "dbu_cost": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "realized": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "running_cluster_minutes": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "aws_cost",
+                "counterfactual_cost",
+                "dbu_cost",
+                "realized",
+                "running_cluster_minutes"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "matched_post_queries": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "matched_query_coverage": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "matched_sources": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "measured_rate_ratio": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "new_aws_cluster_hourly_price": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "new_dbu_cost_per_cluster_minute": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "observed_running_cluster_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "old_aws_cluster_hourly_price": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "old_dbu_cost_per_cluster_minute": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "post_busy_wall_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "post_executed_queries": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pre_busy_wall_minutes": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "published_rate_ratio": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "published_runtime_multiplier": {
+              "additionalProperties": false,
+              "properties": {
+                "base": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "conservative": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "direction": {
+                  "enum": [
+                    "DOWNSIZE",
+                    "UPSIZE"
+                  ]
+                },
+                "optimistic": {
+                  "anyOf": [
+                    {
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "source": {
+                  "enum": [
+                    "CANDIDATE",
+                    "PUBLISHER_THRESHOLDS"
+                  ]
+                }
+              },
+              "required": [
+                "base",
+                "conservative",
+                "direction",
+                "optimistic",
+                "source"
+              ],
+              "type": "object"
+            },
+            "rate_ratio_within_published_band": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "runtime_ratio": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "runtime_ratio_in_published_range": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "bound_used",
+            "busy_share",
+            "elastic",
+            "inelastic",
+            "matched_post_queries",
+            "matched_query_coverage",
+            "matched_sources",
+            "measured_rate_ratio",
+            "new_aws_cluster_hourly_price",
+            "new_dbu_cost_per_cluster_minute",
+            "observed_running_cluster_minutes",
+            "old_aws_cluster_hourly_price",
+            "old_dbu_cost_per_cluster_minute",
+            "post_busy_wall_minutes",
+            "post_executed_queries",
+            "pre_busy_wall_minutes",
+            "published_rate_ratio",
+            "published_runtime_multiplier",
+            "rate_ratio_within_published_band",
+            "runtime_ratio",
+            "runtime_ratio_in_published_range"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "source_value": {
           "type": [
             "integer",
@@ -924,6 +1625,7 @@
         "cross_check",
         "holds_other_knobs",
         "knob",
+        "levels",
         "method",
         "not_measured_reason",
         "observed_epoch_start",
@@ -932,6 +1634,7 @@
         "pre_window",
         "previous_epoch_start",
         "replay",
+        "size",
         "source_value",
         "volume_ratio"
       ],
@@ -941,7 +1644,7 @@
       ]
     },
     "observation_format_version": {
-      "const": "3.0.0"
+      "const": "3.1.0"
     },
     "observed_at_utc": {
       "format": "date-time",

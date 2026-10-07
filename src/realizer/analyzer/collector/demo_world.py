@@ -24,7 +24,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import next_plan_step
+from realizer.analyzer.analysis import next_plan_step, normalize_value
 from realizer.analyzer.collector import bridge
 from realizer.analyzer.collector.collector import collect_measurement, measurement_path
 from realizer.analyzer.projector import project_observation
@@ -70,12 +70,15 @@ def shifted_work(work: Any, factor: float, day: str) -> List[Dict[str, Any]]:
     return before + after
 
 
-def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None,
+               runtime: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The fleet spec of warehouse *index* with the owner's *changes* applied: each ``{at: <UTC time>, set: {spec key:
     value}}`` starts a configuration epoch holding the values set so far. The fleet's own epochs before the first change
     are kept. The simulator starts only the last epoch at a time of day, so earlier changes must be at 00:00 UTC. An
-    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on. A change that
-    does not fit the fleet's timeline is a ``ValueError``."""
+    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on, and an optional
+    *runtime* ``{size: factor}`` makes a query started under a configuration of that size run factor x as long (the
+    simulator's ``runtime_factor_by_size``; a size it does not name runs at factor 1). A change that does not fit the
+    fleet's timeline is a ``ValueError``."""
     spec = copy.deepcopy(bridge.DEMO_FLEET[index - 1])
     if workload:
         spec["work"] = shifted_work(spec["work"], float(workload["factor"]), str(workload["from"]))
@@ -103,6 +106,8 @@ def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optio
     if minute:
         spec["epoch_start_minute"] = minute
     spec.pop("created", None)
+    if runtime:
+        spec["runtime_factor_by_size"] = {normalize_value("warehouse_size", str(k)): float(v) for k, v in runtime.items()}
     if not spec["prior"]:
         spec.pop("prior")
     return spec
@@ -157,7 +162,7 @@ def applied_change(package: Mapping[str, Any], *, modified: bool = False) -> Opt
     if key in INTEGER_KEYS:
         value = int(value)
     else:
-        value = str(value).strip().upper().replace("-", "_")
+        value = normalize_value(str(step["knob"]), str(value))
     if modified and key == "size" and value == "MEDIUM":
         value = "SMALL"
     return {key: value}

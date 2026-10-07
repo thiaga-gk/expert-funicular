@@ -83,7 +83,7 @@ class ObservationSchemaTests(unittest.TestCase):
             self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
         self.assertEqual(sorted(built["properties"]["config"]["properties"]),
                          ["auto_stop_minutes", "enable_photon", "max_clusters", "min_clusters", "warehouse_channel", "warehouse_size", "warehouse_type"])
-        self.assertEqual(built["properties"]["observation_format_version"], {"const": "3.0.0"})
+        self.assertEqual(built["properties"]["observation_format_version"], {"const": "3.1.0"})
         for section in ("measurement",):
             self.assertIs(built["properties"][section]["additionalProperties"], False, section)
             self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
@@ -147,7 +147,7 @@ class MeasurementEvidenceSchemaTests(unittest.TestCase):
         validator = jsonschema.Draft202012Validator(built)
         self.assertTrue(validator.is_valid(evidence))
         self.assertFalse(validator.is_valid({**evidence, "owner": "someone@example.com"}))
-        self.assertFalse(validator.is_valid({**evidence, "measurement_evidence_format_version": "2.0.0"}))
+        self.assertFalse(validator.is_valid({**evidence, "measurement_evidence_format_version": "1.0.0"}))
 
 
 if __name__ == "__main__":

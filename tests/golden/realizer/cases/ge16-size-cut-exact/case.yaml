@@ -1,0 +1,27 @@
+id: GE-16
+description: >-
+  A size cut applied exactly: the scoped package cuts LARGE to MEDIUM and the owner applies it. The simulated queries run
+  as long on MEDIUM as on LARGE, so the measured runtime ratio is 1 and both bounds of the counterfactual agree; the old
+  size's price comes from the pre-change window's billed rate. Measured after the canary's 30-day guard window, so the
+  realization is claimable.
+publisher:
+  warehouse: wh-demo-006
+  scope: [current:size]
+world:
+  as_of: "2026-11-14T12:00:00Z"
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {size: MEDIUM}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  measured: true
+  measurement: {method: SIZE_RUNTIME, size.runtime_ratio: 1, size.bound_used: ELASTIC, size.rate_ratio_within_published_band: true}
+  sign: positive
+  near_oracle: {pct: 1}
+  # The simulator's queries do not slow down on MEDIUM (the Publisher's base assumes 1.30), so the saving lands a little
+  # above the published high.
+  within_pkg: {component: total, low_factor: 1, high_factor: 1.25}
+  cross_check: AGREES
+  independent_changes: []
+  realization_state: REALIZED
+  claim: CLAIMABLE

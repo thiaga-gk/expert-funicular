@@ -25,25 +25,27 @@
      "VALIDATION_READY",
      "VALIDATION_STARTED",
      "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "dff1bf60fa3808a8",
-     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "1fdf5cc112b42bd2",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "151f131a197ea261",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e183435a5acf2d94",
+     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "aad035176f30eb03",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "d95d381911d01b51",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
      "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
-     "realization/snapshots/RSNAP-2B5A16C5B1134852EB0AB3E8.json": "151f131a197ea261",
+     "realization/snapshots/RSNAP-12471364CC112B7C0FA44DF4.json": "d95d381911d01b51",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "1795af7840a0ed87"
+     "realization/state/1234567890123456__wh-demo-006.json": "9640d08afa95fb9a"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 8915,
-  "sha256": "37ab7e48cf293ac2b59aea9f8956f94f4ee9072a7df523cf09303022b6211d2f"
+  "length": 14752,
+  "sha256": "cd81de138a48fd4caf13ed6abee937b3e7a70545b1aee39292d9f1d950d530b4"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -65,11 +67,11 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "18da25e543c3b716",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "090365adc115c7dd",
-     "realization/snapshots/RSNAP-1AC2F3B807DB620570566E00.json": "090365adc115c7dd",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "bd14a10d7ef1b010",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "549eaa1def6ca18c",
+     "realization/snapshots/RSNAP-3459CAB7227EA56EC15FE563.json": "549eaa1def6ca18c",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "b2762f77bfc30349"
+     "realization/state/1234567890123456__wh-demo-006.json": "57d55835667fc0ed"
     }
    }
   ]
@@ -106,13 +108,13 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "cd458e1f982c73ba",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a445c1e31018ae2f",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "808dd5a8b7cc31ce",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f47fb3bb98a60137",
      "realization/policies/PSNAP-253E4865EB2EA331FF7C1FBA.json": "8e52e4fecd7b3ff0",
      "realization/regeneration/RERUN-D08201ED1024BB50A2D341AF.json": "0c5e3bf6f0790976",
-     "realization/snapshots/RSNAP-10D34C3D942088696BFDBD93.json": "a445c1e31018ae2f",
+     "realization/snapshots/RSNAP-9B05E73D29623E0A8F2B7D64.json": "f47fb3bb98a60137",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "f7e44b0191d17dbd"
+     "realization/state/1234567890123456__wh-demo-006.json": "ec1c43fb54c79085"
     }
    }
   ]
@@ -127,12 +129,12 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 6600,
-  "sha256": "f16955b9b01ce6fcb9b87bba5551bc731695bab55df1bfab111be4d661ae9129"
+  "length": 6890,
+  "sha256": "f704709e77646f9d42fcaa12c8feb8766442ff387d5b4eb393c851f081bff8b0"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4373,
-  "sha256": "105e59f282db6407dc73248802b4baf5053df57d16a473149dbe78cf4447fb22"
+  "sha256": "a7c5b08a9ad7ac14015590f11dedcf1ccf9d196095ad4c77317acc315756619f"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [

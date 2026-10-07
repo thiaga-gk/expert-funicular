@@ -11,6 +11,7 @@
     "restart_cost_cluster_minutes_pro_classic": 4.0,
     "restart_cost_cluster_minutes_serverless": 0.1,
     "severity_min_affected_queries": 20.0,
+    "size_rate_published_band": 0.25,
     "spill_query_pct_downsize_safe": 0.1
   },
   "aws": {
@@ -2679,7 +2680,8 @@
     }
   ],
   "guard": null,
-  "measurement_evidence_format_version": "1.0.0",
+  "measurement_evidence_format_version": "2.0.0",
+  "size_runtime": null,
   "source": "DEMO_SIMULATION",
   "source_region": "us-east-1",
   "warehouse_id": "wh-demo-013",

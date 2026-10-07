@@ -276,7 +276,7 @@ Old-state counterfactual is generated under actual post-change workload. Preferr
 4. controlled pre/post;
 5. correlated-only diagnostics.
 
-No defensible counterfactual means no claimable realized savings.
+No defensible counterfactual means no claimable realized savings. A warehouse-type migration is the diagnostic case that is still measured: its baseline is the pre-change window carried forward at the pre-change query mix (method `CORRELATED_ONLY`, [`source-evidence-contract.md`](source-evidence-contract.md) section 18), so it is reported as an observed delta and never claim-eligible.
 
 ## 15. Realized economics
 
@@ -318,7 +318,7 @@ Which Publisher figure is the denominator:
 
 - a candidate-scope step applied exactly: the candidate's isolated economics (`PUBLISHER_CANDIDATE`);
 - a scenario-scope application of one step: that step's candidate economics; of several steps that are the plan's first authority-eligible steps (a prefix): the running savings of the last applied step (`PUBLISHER_SCENARIO`), never the whole scenario, whose later steps were not applied; of steps that are not a prefix: none (`UNAVAILABLE`);
-- a warehouse-type migration: the scenario's range, which is pre-canary, so it is informational (`classification_basis` `INFORMATIONAL`): the realization and its ratio are reported, the state stays `MONITORING` (`MIGRATION_RANGE_INFORMATIONAL`), never `REALIZED` or `UNDER_REALIZED` against it;
+- a warehouse-type migration: the scenario's range, which is pre-canary, so it is informational (`classification_basis` `INFORMATIONAL`): the realization (the observed delta of the migration, with its modeled AWS component) and its ratio are reported, the state stays `MONITORING` (`MIGRATION_RANGE_INFORMATIONAL`), never `REALIZED` or `UNDER_REALIZED` against it; a migration measured without a published range stays `MONITORING` with `VALIDATED_VALUE_UNCLASSIFIED`;
 - any denominator when the measured query volume moved outside the comparable band after the change: reported, informational (`WORKLOAD_SHIFT`, [`policy-contract.md`](policy-contract.md) section 7).
 
 The component compared is the measurement's cost basis (DBU only, or DBU and modeled AWS); a caller-supplied observation that gives a DBU component and no AWS component is compared with the DBU range (its costs are DBU only), any other caller-supplied observation with the total, and a package without a total is `UNAVAILABLE`, never the DBU range in its place. The expected savings per component (DBU, AWS, total) of the chosen figure are reported separately as `expected_components`.
@@ -328,6 +328,8 @@ The component compared is the measurement's cost basis (DBU only, or DBU and mod
 Economic realization and recommendation attribution are separate. A valid observed economic improvement can exist when origin is `UNKNOWN` or `INFERRED`; strict recommendation-attributed KPIs require policy-qualified causal evidence.
 
 When multiple changes are deployed together and contribution cannot be separated defensibly, Realizer reports scenario-level realization rather than fabricating candidate allocations.
+
+A warehouse-type migration's observed delta is never claimed: its attribution is `OBSERVABLE_ONLY` (`CORRELATED_ONLY`, or `PARTIAL_ATTRIBUTION` for an inferred origin) with the hard disqualifier `NO_REVERSE_MIGRATION_MODEL` and nothing attributed to the recommendation. There is no model that prices the query mix on the type the warehouse left, so the delta cannot be separated from whatever else moved the bill; the disqualifier lifts only when such a model exists.
 
 ## 18. Economic exclusivity
 

@@ -49,14 +49,14 @@ def collect_measurement(client: Any, package: Mapping[str, Any], *, as_of: str, 
     if not history["epochs"]:
         raise InputError(f"warehouse {ws}/{wh} has no configuration epoch that started before {as_of}")
     plan = plan_measurement(package, history["epochs"], history["billing"]["settled_through"])
-    windows, guard = bridge.collect_windows(client, ws, wh, as_of=as_of, windows=plan.windows())
+    windows, guard, size_runtime = bridge.collect_windows(client, ws, wh, as_of=as_of, windows=plan.windows(), size_runtime=plan.reads_size_runtime)
     observed = epoch_config(plan.observed_epoch)
     previous = epoch_config(plan.previous_epoch) if plan.previous_epoch is not None else None
     evidence = {
         "measurement_evidence_format_version": MEASUREMENT_EVIDENCE_FORMAT_VERSION, "source": source,
         "workspace_id": ws, "warehouse_id": wh, "as_of_utc": as_of, "source_region": region,
         "billing": history["billing"], "epochs": history["epochs"], "daily_cost": history["daily_cost"],
-        "windows": windows, "guard": guard,
+        "windows": windows, "guard": guard, "size_runtime": size_runtime,
         "aws": {"post": bridge.aws_price(observed["warehouse_type"], observed["warehouse_size"], region, aws_registry),
                 "pre": None if previous is None else bridge.aws_price(previous["warehouse_type"], previous["warehouse_size"], region, aws_registry)},
         "assumptions": assumptions,

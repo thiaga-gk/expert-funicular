@@ -59,6 +59,7 @@
     },
     "holds_other_knobs": true,
     "knob": "auto_stop_minutes",
+    "levels": null,
     "method": "AUTO_STOP_REPLAY",
     "not_measured_reason": null,
     "observed_epoch_start": "2026-10-08T14:32:00Z",
@@ -94,10 +95,11 @@
       "replayed_target_minutes": 527040,
       "restart_cost_cluster_minutes": "4"
     },
+    "size": null,
     "source_value": 0,
     "volume_ratio": "1"
   },
-  "observation_format_version": "3.0.0",
+  "observation_format_version": "3.1.0",
   "observed_at_utc": "2026-11-07T12:00:00Z",
   "origin_attribution": "INFERRED",
   "overlap_count": 0,

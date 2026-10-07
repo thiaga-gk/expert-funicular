@@ -18,6 +18,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
+from realizer.contracts.observation import is_migration_observed
 from realizer.analyzer.analysis import candidate_by_id, candidate_steps, config_hash, package_config, scenario_by_id
 from realizer.common.utils import decimal, money, parse_utc, ratio_string
 from realizer.config.settings import MODELER_GATEWAY_VERSION, WORKLOAD_SHIFT, volume_shifted
@@ -262,6 +263,10 @@ def calculate_economics(
             expected_range = published_range(block)
             expected_components = _components(chosen["savings"])
 
+    # A migration is observed, never claimed (no reverse model): its published range is reported, never classified against.
+    migration_observed = is_migration_observed(measured)
+    informational = informational or (migration_observed and expected is not None)
+
     ratio: Optional[Decimal] = None
     if annualized is not None and expected is not None and expected > 0:
         ratio = annualized / expected
@@ -269,9 +274,12 @@ def calculate_economics(
     if not validation_passed:
         state, detail = rc.RealizationState.VALIDATION_FAILED.value, "HARD_GUARDRAIL_FAILED"
         successful = Decimal("0")
-    elif informational and counterfactual_claim_eligible:
-        # A migration's range is pre-canary: the realization is reported against it, never classified.
-        state, detail = rc.RealizationState.MONITORING.value, "MIGRATION_RANGE_INFORMATIONAL"
+    elif migration_observed or (informational and counterfactual_claim_eligible):
+        # A migration's range is pre-canary: the realization is reported against it, never classified. A migration's
+        # observed delta (its counterfactual method is a diagnostic one) is reported the same way, whatever claim
+        # eligibility says, and without a range there is nothing to report it against.
+        state = rc.RealizationState.MONITORING.value
+        detail = "MIGRATION_RANGE_INFORMATIONAL" if informational else "VALIDATED_VALUE_UNCLASSIFIED"
         successful = realized
     elif not counterfactual_claim_eligible:
         # Retain source actual/counterfactual diagnostics but do not convert an
@@ -313,8 +321,9 @@ def calculate_economics(
         annualized, ratio = None, None
     measured = observation.get("measurement")
     measured_detail = {} if not measured else {"measurement": {
-        k: measured.get(k) for k in ("method", "knob", "source_value", "applied_value", "cost_basis", "replay", "cross_check",
-                                     "post_window", "pre_window", "volume_ratio", "other_knob_changes", "holds_other_knobs")}}
+        k: measured.get(k) for k in ("method", "knob", "source_value", "applied_value", "cost_basis", "replay", "size", "cross_check",
+                                     "post_window", "pre_window", "volume_ratio", "other_knob_changes", "holds_other_knobs",
+                                     "levels")}}
     return {**measured_detail,
         "available": True,
         "currency": str(econ["currency"]),

@@ -9,7 +9,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
+from publisher.analyzer.metrics import size_busy_share as _publisher_size_busy_share
+from publisher.analyzer.normalizer import normalize_size  # noqa: F401  (the Publisher's size spelling, one definition)
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
+from publisher.config.defaults import SQL_DBU_PER_CLUSTER_HOUR as _PUBLISHER_SQL_DBU_PER_CLUSTER_HOUR
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES as PUBLISHER_SUPPORTED_WAREHOUSE_TYPES
 from publisher.governor.thresholds import Thresholds as _PublisherThresholds
 from publisher.config.settings import REPO_ROOT
@@ -18,13 +21,13 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.5.0"
-PROJECTOR_VERSION = "realizer-projector-v1.2.0"
+REALIZER_VERSION = "1.6.0"
+PROJECTOR_VERSION = "realizer-projector-v1.3.0"
 POLICY_VERSION = "realizer-policy-v1.4.0"
-ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.4.0"
-MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.2.0"
-ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.4.0"
-ATTRIBUTION_VERSION = "realizer-attribution-v1.3.0"
+ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.5.0"
+MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.3.0"
+ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.5.0"
+ATTRIBUTION_VERSION = "realizer-attribution-v1.4.0"
 EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.1.0"
 
 CONFIG_KNOBS = (
@@ -74,6 +77,25 @@ def volume_shifted(ratio: Any) -> bool:
 # the Publisher, so the realized AWS component is priced like the package's (pass the Publisher run's own registry
 # with --aws-price-registry when it used another).
 DEFAULT_AWS_PRICE_REGISTRY = REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"
+
+# The size runtime ratio (a size change's counterfactual): a statement source counts when it has at least this many
+# executed, finished queries in each window; the ratio is measured when the matched sources hold at least the Publisher's
+# ``canary_p95_min_queries`` post-change queries and at least this share of the post-change window's executed queries.
+SIZE_RUNTIME_MIN_SOURCE_QUERIES = 5
+SIZE_RUNTIME_MIN_COVERAGE = Decimal("0.5")
+# The Publisher's size facts a size counterfactual relies on: its busy share of running time (the share of running
+# cluster-minutes spent with queries running), its published DBU per cluster-hour by size (the size ratio recorded next
+# to the measured rate ratio) and its busy-runtime multiplier range per direction (optimistic, base, conservative; the
+# measured runtime ratio is published next to it).
+size_busy_share = _publisher_size_busy_share
+SQL_DBU_PER_CLUSTER_HOUR: Dict[str, float] = dict(_PUBLISHER_SQL_DBU_PER_CLUSTER_HOUR)
+# The Publisher's published-ratio band: a measured rate ratio of two sizes is usable only within this relative distance
+# of the published DBU-per-cluster-hour ratio (the check the Publisher applies before it prices a Pro/Classic size change).
+SIZE_RATE_PUBLISHED_BAND = Decimal(str(_PublisherThresholds().size_rate_published_band))
+SIZE_RUNTIME_MULTIPLIERS: Dict[str, Dict[str, float]] = {
+    direction: {bound: float(getattr(_PublisherThresholds(), f"{prefix}_runtime_multiplier_{bound}")) for bound in ("optimistic", "base", "conservative")}
+    for direction, prefix in (("DOWNSIZE", "downsize"), ("UPSIZE", "upsize"))
+}
 
 # The Publisher's canary guard window: a canary-type change (one size down, a lower minimum) is guarded for its first 30
 # days, so its realization stays provisional until then.

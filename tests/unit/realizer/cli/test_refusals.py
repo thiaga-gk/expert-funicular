@@ -127,7 +127,7 @@ class RefusalTests(LoggerRestoringCase):
 
     def test_malformed_observation_is_refused_before_anything_is_written(self):
         self.refuse(["--package", str(PACKAGE), "--observation", str(self.base / "bad-observation.json")],
-                    r"unsupported observation format: 1\.0\.0 \(this Realizer reads 3\.0\.0\)")
+                    r"unsupported observation format: 1\.0\.0 \(this Realizer reads 3\.1\.0\)")
 
     def test_observation_of_another_warehouse_is_refused(self):
         self.refuse(["--package", str(PACKAGE), "--observation", str(self.base / "wrong-warehouse.json")],

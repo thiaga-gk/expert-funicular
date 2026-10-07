@@ -1,0 +1,24 @@
+id: GE-17
+description: >-
+  The same size cut in a world where queries run 1.2 times as long on MEDIUM. The size runtime measures the ratio on the
+  statement sources seen before and after the change (1.2, inside the Publisher's 1.10 to 2.00 range), and p95 rises 20
+  percent, inside the canary rule. The dashboard is queried every minute, so the slower queries fill idle gaps and the
+  running time barely moves: the claimed (elastic) bound is the conservative one and reads below the oracle, which the
+  inelastic bound published next to it would match.
+publisher:
+  warehouse: wh-demo-006
+  scope: [current:size]
+world:
+  as_of: "2026-11-14T12:00:00Z"
+  runtime: {MEDIUM: 1.2}
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {size: MEDIUM}}
+expect:
+  conformance: EXACT
+  measured: true
+  measurement: {method: SIZE_RUNTIME, size.runtime_ratio: 1.2, size.bound_used: ELASTIC}
+  guards:
+    pre: {p95_execution_ms_shared_sources: 2500}
+    post: {p95_execution_ms_shared_sources: 3000}
+  sign: positive
+  realization_state: REALIZED

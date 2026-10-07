@@ -14,6 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Sequence
 
+from realizer.contracts.observation import NO_REVERSE_MIGRATION_MODEL, is_migration_observed
 from realizer.common.utils import decimal, money
 from realizer.contracts import realization as rc
 from realizer.governor.policy import RealizerPolicy, canary_window_open
@@ -43,7 +44,12 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("APPLIED_STATE_UNMATCHED")
     if not validation_passed:
         hard.append("HARD_VALIDATION_FAILURE")
-    if not cf_claim_eligible:
+    # A migration's observed delta has a baseline (the pre-change window at its mix) but no reverse model, so it is
+    # observable and never claimable; the disqualifier names that, not a missing counterfactual.
+    migration = is_migration_observed(observation.get("measurement"))
+    if migration:
+        hard.append(NO_REVERSE_MIGRATION_MODEL)
+    elif not cf_claim_eligible:
         hard.append("NO_DEFENSIBLE_COUNTERFACTUAL")
     if overlap > 0:
         hard.append("PORTFOLIO_SCOPE_OVERLAP")
@@ -68,7 +74,7 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
     if claimable:
         claim = rc.AttributionClaimStatus.CLAIMABLE
         state = rc.AttributionState.HIGH_CONFIDENCE
-    elif economic.get("available") and validation_passed and cf_claim_eligible and origin not in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
+    elif economic.get("available") and validation_passed and (cf_claim_eligible or migration) and origin not in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
         claim = rc.AttributionClaimStatus.OBSERVABLE_ONLY
         state = rc.AttributionState.PARTIAL_ATTRIBUTION if origin == rc.OriginAttribution.INFERRED else rc.AttributionState.CORRELATED_ONLY
     else:
