@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 64514,
-  "sha256": "e4224e5a8f040f234d2c959085280931d830a676c1b9fa1cdd5077f2dca57ff2",
+  "sha256": "ff96aba34c131397565dca54903c7c1a7b7e1634f66d464f85e74452a6668560",
   "spot": {
    "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -50,7 +50,7 @@
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
   "length": 544947,
-  "sha256": "87b589a66c8acddca297fbe8eae466ff9c7838c6c427820975be35a779d055a3",
+  "sha256": "83bc890a9a9f8e7f0decec6e6e9de67bfe69fba54f90a3731c6e1ed176ef2cad",
   "spot": {
    "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -133,7 +133,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "af046f712181174f",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "41e0e79fea59d9bf",
      "realization/regeneration/RERUN-3861F58C1023021C6B7928B2.json": "acc71567604421e7"
     }
    }
@@ -158,7 +158,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "87a025ffcb3b65aa",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "40a5ede78098da77",
      "realization/regeneration/RERUN-1624D79D71FF143B58EF4080.json": "31bd88148140860e"
     }
    }
@@ -184,14 +184,14 @@
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
   "length": 54366,
-  "sha256": "ab37cf54e91b11afb6da04d4a526b77b2397026756303b272e2b7d190b82af8e",
+  "sha256": "c8d7e4c3aa0c5ba336921b1e143475b6f5b1060ef512941cb0c688c046eeb61c",
   "spot": {
    "count": 367,
    "first": {},
    "last": {
     "application_episode_id": "APP-22D91994058D828E0C0A3DA0",
     "correction_key": "oct",
-    "measurement_id": "MEAS-EEF476F94905C300685DBA93",
+    "measurement_id": "MEAS-E8EE6AD334FF33D2104CA650",
     "validation_episode_id": "VAL-D4CE994B1882E1DA4DA20597"
    }
   }
@@ -216,7 +216,7 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 293625,
-  "sha256": "8cacae9ed03d3ea732728cabb13ac83aae4531ab06aac1ca3f5c5725dcc16771",
+  "sha256": "ccc8e8a4c2675594da62856ad1e7bcdf8b56965654fc9ea2d28d8f9076865a2f",
   "spot": {
    "count": 816,
    "first": [
@@ -244,7 +244,7 @@
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
      "latest_entry_id": "RLE-C671B52EDDDF55B39ED50F60",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:7114888DA395547424C7C7FB600DAAD1BEB818F11170C911FEE3DF28358D6260"
+     "ledger_checkpoint_hash": "SHA256:4BB74B2C89DC31A83F345808968B32DE420012E6BF4DE8B22FFC383B644E2CDE"
     }
    ]
   }

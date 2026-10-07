@@ -1,0 +1,312 @@
+{
+  "application": {
+    "active_episode_id": "APP-007975A8BC3250A9CE74E82D",
+    "actor": null,
+    "annotations": [],
+    "application_scope": "CANDIDATE",
+    "applied_step_refs": [],
+    "compatibility_status": "COMPATIBLE",
+    "effective_from_utc": "2026-10-08T14:32:00Z",
+    "effective_time_quality": "EXACT",
+    "effective_to_utc": null,
+    "implementation_conformance": "EXACT",
+    "intent_state": "UNKNOWN",
+    "knob": "max_clusters",
+    "modification_relation": null,
+    "observed_applied_value": 5,
+    "observed_config": {
+      "auto_stop_minutes": 20,
+      "enable_photon": true,
+      "max_clusters": 5,
+      "min_clusters": 1,
+      "warehouse_channel": "CURRENT",
+      "warehouse_size": "MEDIUM",
+      "warehouse_type": "PRO"
+    },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-007975A8BC3250A9CE74E82D",
+        "effective_from_utc": "2026-10-08T14:32:00Z",
+        "knob": "max_clusters",
+        "step": 1
+      }
+    ],
+    "plan_progress": {
+      "applied_steps": 1,
+      "authoritative_actionable_steps": 1,
+      "pending_reevaluation_steps": 0,
+      "state": "COMPLETED"
+    },
+    "recommended_value": 5,
+    "scenario_id": "SCN-C8DA4F554D45F5E3FA5AC3B1",
+    "source_value": 2,
+    "state": "APPLIED",
+    "step": 1,
+    "step_role": "PERFORMANCE"
+  },
+  "as_of_utc": "2026-11-07T12:00:00Z",
+  "attribution": {
+    "attribution_claim_status": "NOT_ATTRIBUTABLE",
+    "attribution_scope": "CANDIDATE",
+    "attribution_state": "NOT_ATTRIBUTABLE",
+    "economic_quality_gates": {
+      "attributable_spend": {
+        "observed_pct": "100",
+        "pass": true,
+        "required_min_pct": "95"
+      },
+      "correction_chain": {
+        "complete": true,
+        "pass": true
+      },
+      "currency_consistency": {
+        "currency": null,
+        "observed_pct": "100",
+        "package_currency": "USD",
+        "pass": false,
+        "required_pct": "100"
+      },
+      "material_cost_components": {
+        "available": false,
+        "pass": false
+      },
+      "pass": false,
+      "price_coverage": {
+        "observed_pct": "100",
+        "pass": true,
+        "required_min_pct": "100"
+      }
+    },
+    "hard_disqualifiers": [
+      "CURRENCY_MISMATCH",
+      "MATERIAL_COST_COMPONENT_UNAVAILABLE",
+      "NO_DEFENSIBLE_COUNTERFACTUAL",
+      "NOT_A_SAVINGS_STEP"
+    ],
+    "origin_attribution": "INFERRED",
+    "overlap_count": 0,
+    "recommendation_attributed_realized_savings": "0.00",
+    "validated_observed_realization": null
+  },
+  "contract_version": "1.2.0",
+  "current_state": {
+    "maturity_state": "REPRESENTATIVE",
+    "realization_state": "PERFORMANCE_VALIDATED",
+    "source_package_disposition": "ACTIVE",
+    "validation_state": "PASSED"
+  },
+  "drift": {
+    "state": "NONE"
+  },
+  "economics": {
+    "annualized_realized_savings": null,
+    "available": true,
+    "classification_basis": "PERFORMANCE_GUARDS",
+    "classification_detail": "PERFORMANCE_VALIDATED",
+    "cost_change": {
+      "annualized_cost_increase": "17030.48",
+      "basis": "CLUSTER_LEVELS_ABOVE_OLD_CAP",
+      "billed_annualized_cost_increase": "12887.78",
+      "component": "total",
+      "modeled_annual_cost_increase": "15628.48",
+      "review_above": "19535.60"
+    },
+    "currency": "USD",
+    "denominator_method": null,
+    "denominator_source": "NOT_APPLICABLE",
+    "economic_basis": "ECONOMIC_COST",
+    "expected_components": null,
+    "expected_range": null,
+    "expected_same_scope_annual_savings": null,
+    "mature_ttm_realized_savings": null,
+    "observed_economic_delta": null,
+    "performance": {
+      "canary_p95_regression_pct": "25",
+      "p95_execution_ms_shared_sources": {
+        "post": "2500",
+        "pre": "2500"
+      },
+      "queue_query_pct_safe": "0.5",
+      "queued_query_pct": {
+        "post": "0.7564",
+        "pre": "9.7173"
+      }
+    },
+    "quality_gates": {
+      "attributable_spend": {
+        "observed_pct": "100",
+        "pass": true,
+        "required_min_pct": "95"
+      },
+      "correction_chain": {
+        "complete": true,
+        "pass": true
+      },
+      "currency_consistency": {
+        "currency": null,
+        "observed_pct": "100",
+        "package_currency": "USD",
+        "pass": false,
+        "required_pct": "100"
+      },
+      "material_cost_components": {
+        "available": false,
+        "pass": false
+      },
+      "pass": false,
+      "price_coverage": {
+        "observed_pct": "100",
+        "pass": true,
+        "required_min_pct": "100"
+      }
+    },
+    "realization_ratio": null,
+    "realization_state": "PERFORMANCE_VALIDATED",
+    "realized_savings_since_application": null,
+    "realized_to_date": null,
+    "reoptimization_recommended": false,
+    "review_required": false,
+    "successful_realized_savings": null
+  },
+  "history": {
+    "application_episode_count": 1,
+    "correction_count": 0,
+    "entry_count": 7,
+    "first_entry_id": "RLE-2821C47EAE3E31499303F88D",
+    "latest_effective_at_utc": "2026-11-07T12:00:00Z",
+    "latest_entry_id": "RLE-9BB2272926AC34FA782F6238",
+    "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
+    "ledger_checkpoint_hash": "SHA256:CF9B2E035BDF2F1F50EEF463FF528E3FA068C874D93A5EF021F467BFF10C98FC",
+    "measurement_count": 1,
+    "validation_episode_count": 1
+  },
+  "maturity": {
+    "state": "REPRESENTATIVE"
+  },
+  "provenance": {
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.5.0",
+    "attribution_version": "realizer-attribution-v1.4.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
+    "exclusivity_version": "realizer-exclusivity-v1.1.0",
+    "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
+    "policy_version": "realizer-policy-v1.4.0",
+    "product_version": "2.14.0",
+    "projector_version": "realizer-projector-v1.3.0",
+    "realizer_contract_version": "1.2.0",
+    "realizer_version": "1.6.0"
+  },
+  "realization_package_id": "RPKG-944841C00A4D62D80EE1E387",
+  "regeneration": {
+    "regeneration_request_id": "RERUN-01AAE5B914CBA9FB736EE22B",
+    "replacement_package_id": null,
+    "status": "REQUESTED"
+  },
+  "snapshot_id": "RSNAP-470FCDB2763BE544EA4B5F8B",
+  "source_recommendation": {
+    "cost_profile": "balanced",
+    "disposition": "ACTIVE",
+    "epoch_id": "EPOCH-1A320ABC01CD24245F21CA5F",
+    "generated_at_utc": "2026-10-01T12:00:00Z",
+    "observed_change": null,
+    "package_hash_full_sha256": "F2C5192B6590C2D6B54BE1EE7C2A3028FE981218098607EE318ACA533470844F",
+    "publisher_contract_version": "3.1.0",
+    "recommendation_package_id": "PKG-F2C5192B6590C2D6B54BE1EE",
+    "recommended_scenario_id": "SCN-C8DA4F554D45F5E3FA5AC3B1",
+    "run_scope": {
+      "safety_inclusions": [],
+      "scenarios": [
+        {
+          "knobs": [
+            "max_clusters"
+          ],
+          "scenario_type": "IN_PLACE_OPTIMIZATION"
+        }
+      ]
+    },
+    "successor_package_id": null,
+    "superseded_by_package_id": null
+  },
+  "validation": {
+    "hard_guardrails_pass": true,
+    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+    "readiness": {
+      "checks": {
+        "evidence_quality": {
+          "observed": "SUFFICIENT",
+          "pass": true,
+          "required": "SUFFICIENT"
+        },
+        "guardrail_evidence": {
+          "pass": true,
+          "unknown_rules": []
+        },
+        "minimum_days": {
+          "observed": 28,
+          "pass": true,
+          "threshold": 7
+        },
+        "minimum_queries": {
+          "observed": 498164,
+          "pass": true,
+          "threshold": 100
+        },
+        "representative_regime": {
+          "observed": true,
+          "pass": true,
+          "required": true
+        }
+      },
+      "ready": true
+    },
+    "rules": [
+      {
+        "margin_pct": "25",
+        "metric": "failure_cancel_pct",
+        "min_sample": "100",
+        "observed": "0.3",
+        "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "previous": "0.3",
+        "result": "PASS",
+        "rule_id": "REAL-FAIL-001",
+        "sample": "498164",
+        "threshold": "5"
+      },
+      {
+        "margin_pct": "25",
+        "metric": "queued_query_pct",
+        "min_sample": "20",
+        "observed": "0.7564",
+        "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "previous": "9.7173",
+        "result": "PASS",
+        "rule_id": "REAL-QUEUE-001",
+        "sample": "3768",
+        "threshold": "0.5"
+      },
+      {
+        "metric": "p95_execution_ms_shared_sources",
+        "min_sample": "300",
+        "observed": "2500",
+        "operator": "LTE_PREVIOUS_X_MARGIN",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "previous": "2500",
+        "result": "PASS",
+        "rule_id": "REAL-P95-001",
+        "sample": "448348",
+        "threshold": "25"
+      }
+    ],
+    "state": "PASSED",
+    "validation_episode_id": "VAL-6CDA3744C1909F5E894502EB",
+    "window_end_utc": "2026-11-06T00:00:00Z",
+    "window_start_utc": "2026-10-09T00:00:00Z"
+  },
+  "warehouse": {
+    "region": "us-east-1",
+    "warehouse_id": "wh-demo-008",
+    "warehouse_name": "Finance Concurrency",
+    "workspace_id": "1234567890123456"
+  }
+}

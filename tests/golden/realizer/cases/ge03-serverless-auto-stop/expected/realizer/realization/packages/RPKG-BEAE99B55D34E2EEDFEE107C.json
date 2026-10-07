@@ -228,9 +228,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-64131C88DC6EA470B19FEC38",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-C050B89185BDA3DF9DA5CFB1",
+    "latest_entry_id": "RLE-DBEFA45F0AC5B9D417E8CB69",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:2B6C502214608CE0D4F5BDC98ADFA727C7D727855D2F8AFE2A0F7890B55012C7",
+    "ledger_checkpoint_hash": "SHA256:FA7E7BA1D4DF9B2E0C6B5EC1A327E44BAFF82126E95965F013B93C50F188A5C3",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -238,16 +238,16 @@
     "state": "REPRESENTATIVE"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.4.0",
-    "attribution_version": "realizer-attribution-v1.3.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.4.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.5.0",
+    "attribution_version": "realizer-attribution-v1.4.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
     "exclusivity_version": "realizer-exclusivity-v1.1.0",
-    "modeler_gateway_version": "m08-realization-adapter-v1.2.0",
+    "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
     "policy_version": "realizer-policy-v1.4.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.2.0",
+    "projector_version": "realizer-projector-v1.3.0",
     "realizer_contract_version": "1.2.0",
-    "realizer_version": "1.5.0"
+    "realizer_version": "1.6.0"
   },
   "realization_package_id": "RPKG-BEAE99B55D34E2EEDFEE107C",
   "regeneration": {
@@ -255,7 +255,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-484B90F5FE52B5971C339471",
+  "snapshot_id": "RSNAP-4D39E1C236CE158DDEEE2EC6",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
