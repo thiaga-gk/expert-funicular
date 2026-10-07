@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
   "length": 7691,
-  "sha256": "9007edae41586ae608895f8b6d1153c641ccbc77b2c9d61add418b2bfbf1bf5c",
+  "sha256": "f3aecfdbbcb0e75717aa38514bddb4cfda56684daaf1289d4694d6d8e865960a",
   "spot": {
    "logging": [
     [
@@ -17,7 +17,7 @@
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
   "length": 4273,
-  "sha256": "7c54ba02a84872fd60172a2812b988d1b55fbeabb265b53a21603c657f5e8425",
+  "sha256": "a4c0f420ab8431d20bd3196ef54594bed5e08c4007cf5820c285f7ddf7f002f0",
   "spot": {
    "logging": [
     [
@@ -30,7 +30,7 @@
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
   "length": 9757,
-  "sha256": "72090f914a06fd92e4f3a44fd6e499c51e8dc301479a1da2d882270fbf41ba17",
+  "sha256": "f83aa07cd849b6bf726b4937c753ac3518a876da151db2c0a96ffd61889a8bb4",
   "spot": {
    "logging": [
     [
@@ -219,7 +219,7 @@
    "POLICY_VERSION": "realizer-policy-v1.4.0",
    "PRODUCT_VERSION": "2.14.0",
    "PROJECTOR_VERSION": "realizer-projector-v1.2.0",
-   "REALIZER_VERSION": "1.4.0"
+   "REALIZER_VERSION": "1.5.0"
   }
  }
 }

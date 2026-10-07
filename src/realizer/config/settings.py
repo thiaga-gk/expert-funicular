@@ -18,7 +18,7 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.4.0"
+REALIZER_VERSION = "1.5.0"
 PROJECTOR_VERSION = "realizer-projector-v1.2.0"
 POLICY_VERSION = "realizer-policy-v1.4.0"
 ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.4.0"
