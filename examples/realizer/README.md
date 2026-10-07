@@ -29,7 +29,7 @@ realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --d
 realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo-modified --output-dir ./realizer_out_modified
 ```
 
-Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
+Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
 
 ## Expected result
 

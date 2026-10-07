@@ -386,6 +386,11 @@ class RealizerGoldenTests(unittest.TestCase):
         validations = [e for e in self.ledger() if e.event_type == rc.EventType.VALIDATION_COMPLETED]
         self.assertGreaterEqual(len(validations), 2)
         self.assertNotEqual(validations[0].payload['policy_snapshot_id'], validations[-1].payload['policy_snapshot_id'])
+        # The change is an explicit PolicyDiff on the episode, naming both snapshots and the setting that changed.
+        (diff,) = [e for e in self.ledger() if e.event_type == rc.EventType.POLICY_DIFF_RECORDED]
+        self.assertEqual((diff.payload['previous_policy_snapshot_id'], diff.payload['policy_snapshot_id']), (p1.snapshot_id, p2.snapshot_id))
+        self.assertEqual(diff.payload['changed_settings'], [{'field': 'max_normalized_p95_runtime_regression_pct', 'previous': '5', 'current': '4'}])
+        self.assertEqual(diff.application_episode_id, validations[0].application_episode_id)
 
     # GR-035
     def test_gr_035_churn_below_5pct_suppressed(self):

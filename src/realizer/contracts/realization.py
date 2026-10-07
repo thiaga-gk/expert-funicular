@@ -130,6 +130,9 @@ class EventType(str, Enum):
     SOURCE_QUALITY_CHANGED = "SOURCE_QUALITY_CHANGED"
     REGENERATION_REQUESTED = "REGENERATION_REQUESTED"
     REPLACEMENT_PACKAGE_LINKED = "REPLACEMENT_PACKAGE_LINKED"
+    APPLICATION_CLAIMED_BY_OTHER_LINEAGE = "APPLICATION_CLAIMED_BY_OTHER_LINEAGE"
+    SUCCESSOR_PACKAGE_LINKED = "SUCCESSOR_PACKAGE_LINKED"
+    POLICY_DIFF_RECORDED = "POLICY_DIFF_RECORDED"
 
 
 def _primitive(value: Any) -> Any:
@@ -428,12 +431,18 @@ class PackagingResult:
 
     ``realization`` is the snapshot projected from ``entries``: the ledger as reloaded after the run's events were
     recorded and cut at ``replay_through`` when the run was asked to replay a prefix. ``written`` holds the evidence
-    (REVID) and regeneration (RERUN) files the Packager wrote, in the order it wrote them. The package and snapshot
-    files are not among them: the Reporter writes those from ``realization``.
+    (REVID), regeneration (RERUN) and policy snapshot (PSNAP) files the Packager wrote, in the order it wrote them. The
+    package and snapshot files are not among them: the Reporter writes those from ``realization``.
+
+    ``others`` are the re-projected snapshots of the other lineages of the warehouse whose ledgers the run appended to
+    (in package id order), and ``state_index`` the warehouse's state index, a view of every lineage's snapshot; the
+    Reporter writes both.
     """
     realization: RealizationPackage
     entries: Tuple[RealizationLedgerEntry, ...]
     written: Tuple[Path, ...] = ()
+    others: Tuple[RealizationPackage, ...] = ()
+    state_index: Optional[Mapping[str, Any]] = None
 
 
 __all__ = [

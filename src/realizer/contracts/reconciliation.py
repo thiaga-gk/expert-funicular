@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Tuple
 
 if TYPE_CHECKING:  # annotations only: realization.py imports this module for the enums
     from realizer.common.utils import Deferred
+    from realizer.contracts.lineage import LineageEvent
     from realizer.contracts.realization import EventType
 
 
@@ -131,6 +132,11 @@ class ReconciliationResult:
     after its measurement once the remeasurement window has passed; it is held lazily because the run reaches it only
     after validation and measurement.
 
+    ``lineage_events`` are the events that follow from the warehouse's lineages taken together and from a policy
+    change: ownership of a change several lineages applied, supersession, successor links, a rollback by a later
+    package, and a PolicyDiff on the active episode. Each names the lineage whose ledger it goes to (the run's own or
+    another); they are recorded after the run's own events, and only when nothing halted.
+
     ``halt`` is the exception reconciliation raised, if any. Everything above it was decided before the exception, so
     the events present are those recorded before the failure; the engine records them and then raises ``halt``.
     ``match`` is ``None`` for a lineage-only run (no observation) and when matching itself failed.
@@ -151,6 +157,7 @@ class ReconciliationResult:
     validation_due: bool = False
     upstream_regeneration: Optional["Deferred[Optional[RegenerationRequest]]"] = None
     halt: Optional[Exception] = None
+    lineage_events: Tuple["LineageEvent", ...] = ()
 
 
 # ``__all__`` is the public Realizer Contract surface (the enums, re-exported by ``realization.py``); the hand-off

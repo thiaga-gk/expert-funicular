@@ -65,7 +65,12 @@ class EveryScenarioRunTests(unittest.TestCase):
                 else:
                     self.assertEqual(relative, [])
                 reruns = [rel for rel in relative if rel.startswith("realization/regeneration/")]
-                self.assertEqual(len(reruns), len(relative) - (1 if run.observation else 0))
+                # the settings of the policy a validation or a PolicyDiff was recorded under are kept, last
+                policies = [rel for rel in relative if rel.startswith("realization/policies/")]
+                if reviewed.validation is not None:
+                    self.assertEqual(policies, [f"realization/policies/{context.policy.snapshot_id}.json"])
+                    self.assertEqual(relative[-1], policies[0])
+                self.assertEqual(len(reruns), len(relative) - len(policies) - (1 if run.observation else 0))
                 rec = reviewed.reconciliation
                 if rec.terminal_regeneration is not None:
                     self.assertEqual(reruns, [f"realization/regeneration/{rec.terminal_regeneration.regeneration_request_id}.json"])
@@ -270,7 +275,8 @@ class SlotOrderMutationTests(unittest.TestCase):
                 self.assertIsNotNone(name, "no scenario records the pair")
                 expected = run_scenario(name)
                 stored = {rel: text for rel, text in canonical_tree(name).items() if rel.startswith("realization/")}
-                self.assertEqual({rel: text for rel, text in expected.items() if text is not None}, stored, "the run is the stored baseline")
+                self.assertEqual({rel: text for rel, text in expected.items() if text is not None and not rel.startswith(canonical.SOURCE_COPIES)},
+                                 stored, "the run is the stored baseline (the source package copy aside)")
                 with mock.patch.object(ledger, "append_if_absent", self.swapping(first, second)):
                     mutant = run_scenario(name)
                 self.assertNotEqual(mutant, expected)
