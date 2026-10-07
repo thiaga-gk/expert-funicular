@@ -1,4 +1,4 @@
-"""Backtest evidence format 1.0.0 and backtest report format 1.0.0: past auto-stop changes measured from system tables.
+"""Backtest evidence format 2.0.0 and backtest report format 1.0.0: past auto-stop changes measured from system tables.
 
 A backtest (``realizer --backtest``) reads every past auto-stop change of the selected warehouses and keeps what it read
 in this record before it computes anything, so ``--from-evidence`` reproduces the report offline from numbers alone. Per
@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 from realizer.contracts.measurement import SOURCES, measurement_evidence_schema, window_schema
 
-BACKTEST_EVIDENCE_FORMAT_VERSION = "1.0.0"
+BACKTEST_EVIDENCE_FORMAT_VERSION = "2.0.0"
 BACKTEST_REPORT_FORMAT_VERSION = "1.0.0"
 # Why an epoch pair whose auto-stop differs is not measured.
 SKIP_REASONS = ("UNSUPPORTED_WAREHOUSE_TYPE", "OTHER_KNOB_CHANGED", "EXECUTION_WAREHOUSE", "NOT_SETTLED", "BEFORE_HISTORY")
@@ -31,7 +31,7 @@ def _obj(properties: Dict[str, Any], *, nullable: bool = False) -> Dict[str, Any
 
 
 def backtest_evidence_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of backtest evidence format 1.0.0 (rows shaped as in the measurement evidence)."""
+    """The Draft 2020-12 JSON Schema of backtest evidence format 2.0.0 (rows shaped as in the measurement evidence)."""
     m = measurement_evidence_schema()["properties"]
     window = window_schema(levels=False)
     change = _obj({

@@ -64,7 +64,7 @@
       "type": "object"
     },
     "backtest_evidence_format_version": {
-      "const": "1.0.0"
+      "const": "2.0.0"
     },
     "execution_warehouse_id": {
       "pattern": "^[A-Za-z0-9_-]+$",
