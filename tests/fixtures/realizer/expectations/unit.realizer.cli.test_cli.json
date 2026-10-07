@@ -10,6 +10,7 @@
      "realization",
      "realization/evidence",
      "realization/ledger",
+     "realization/measurements",
      "realization/packages",
      "realization/policies",
      "realization/regeneration",
@@ -21,30 +22,28 @@
     "events": [
      "REALIZATION_CREATED",
      "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
      "VALIDATION_READY",
      "VALIDATION_STARTED",
      "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "64db93b0a578d3a1",
+     "realization/measurements/1234567890123456__wh-demo-006__20261107T120000Z.json": "1fdf5cc112b42bd2",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "0edb24f712415830",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
-     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
-     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
+     "realization/snapshots/RSNAP-2B5A16C5B1134852EB0AB3E8.json": "0edb24f712415830",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
+     "realization/state/1234567890123456__wh-demo-006.json": "1795af7840a0ed87"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 10669,
-  "sha256": "77f2e66fc7060ca130d9fd9252f2c221ab369d92b030755ad31012dfec510884"
+  "length": 8885,
+  "sha256": "3c7885d546d70c027d1469e1ab9b4780dc5d9b28f935558e6d8de9a153e76d45"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -128,12 +127,12 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 6200,
-  "sha256": "4914f96491ffd227460f6b913f2e4ba935ee10b3a41cfe8c80b5058c0fc227f3"
+  "length": 6450,
+  "sha256": "87ebeaebbe39e099ebbfeb5fdb24a1320f46a6294cd2973da2977707528d9dee"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
-  "length": 2886,
-  "sha256": "e8c45baa02ad109eb955837303fd6cdccaaf4f6411a17692f77a9c549f7e02a0"
+  "length": 3096,
+  "sha256": "fd7a39e03ae5b0b5cbb1a60a0d18348414e6f8c17b221024c8807f41219d5193"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [

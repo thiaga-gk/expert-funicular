@@ -261,7 +261,7 @@ class NamespaceTests(unittest.TestCase):
 
     def test_star_import_exposes_only_the_entry_points_and_the_cli_pass_throughs(self):
         self.assertEqual(sorted(facade.__all__), ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary",
-                                                  "build_context", "demo_observation", "load_observation", "measure_live", "observe_from_evidence",
+                                                  "build_context", "load_observation", "measure_demo", "measure_live", "observe_from_evidence",
                                                   "realize", "realize_request"])
         self.assertTrue(all(hasattr(facade, name) for name in facade.__all__))
 
@@ -270,14 +270,14 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
-            "demo_observation", "load_observation", "make_rpkg_id", "measure_live", "observe_from_evidence",
+            "load_observation", "make_rpkg_id", "measure_demo", "measure_live", "observe_from_evidence",
         "realize", "realize_request",
             "validate_observation", "validate_package", "validate_replay_through",
         })
 
     def test_the_cli_pass_throughs_are_the_capability_functions(self):
-        from realizer.analyzer.collector import collector
-        self.assertIs(facade.demo_observation, collector.demo_observation)
+        from realizer.analyzer.collector import collector, demo_world
+        self.assertIs(facade.measure_demo, demo_world.measure_demo)
         self.assertIs(facade.load_observation, collector.load_observation)
         self.assertIs(facade.RealizerPolicy, RealizerPolicy)
 

@@ -27,7 +27,7 @@ import datetime as dt
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from publisher.analyzer.collector.billing import billing_check_through, effective_billing_watermark
-from publisher.analyzer.collector.demo import DEMO_FLEET, replay_demo_rows, simulate_demo_world
+from publisher.analyzer.collector.demo import DEMO_FLEET, DEMO_WORKSPACES, replay_demo_rows, simulate_demo_world
 from publisher.analyzer.collector.pricing import aws_cluster_hourly_price, load_aws_price_registry
 from publisher.analyzer.collector.queries.billing import BILLING_WATERMARK_SQL, EPOCH_DAILY_COST_SQL
 from publisher.analyzer.collector.queries.config_epochs import CONFIG_EPOCHS_SQL

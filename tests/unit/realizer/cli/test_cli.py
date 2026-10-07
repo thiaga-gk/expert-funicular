@@ -2,7 +2,8 @@
 
 The CLI parses its own arguments, loads the package, the observation and the policy (in that order), configures logging,
 calls the facade and prints the written package path (or the snapshot with ``--print-json``). It never imports a
-capability package. The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
+capability package. ``--demo`` measures the package's demo-fleet warehouse in its simulated world
+(tests/unit/realizer/cli/test_demo_cli.py). The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
 observation-file and policy modes, the exit status, stdout and output tree are stored in tests/fixtures/realizer/expectations/. A refused input exits
 with status 2 (tests/unit/realizer/cli/test_refusals.py); a defect is not mapped to a status.
 """
@@ -141,6 +142,8 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertRegex(stdout, r"^<out>/realization/packages/RPKG-[0-9A-F]{24}\.json\n$")
         self.assertTrue(any(k.startswith("realization/snapshots/RSNAP-") for k in files_))
+        # The demo measures the package's demo-fleet warehouse in its simulated world and keeps the evidence, like a live run.
+        self.assertTrue(any(k.startswith("realization/measurements/") and k.endswith(".json") for k in files_))
 
     def test_demo_modified_and_print_json(self):
         (code, stdout), _ = self.check_run("demo modified", ["--package", str(PACKAGE), "--demo-modified", "--print-json"])
