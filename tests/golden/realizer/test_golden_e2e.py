@@ -26,6 +26,7 @@ simulated world in which the owner changed the warehouse after the package, the 
       - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10, size: X_SMALL}}   # keys: auto_stop, size, min, max, type
       workload: {from: 2026-10-08, factor: 0.5}   # optional: the fleet workload scaled from that day on (periodic
                                                   # queries 1/factor as often, steady load factor x as concurrent)
+      runtime: {MEDIUM: 1.2}        # optional: a query started on that size runs factor x as long (default 1)
     expect: {...}
 
 Before the first change the world is the fleet warehouse the package was built from (analysis time 2026-10-01T12:00Z);
@@ -54,6 +55,8 @@ change, because the simulator's noise depends only on the scenario and the day.
                                     # performance.guards metrics per period (pre, post, cold_start): a number (equal as
                                     # a decimal), positive, negative or null
     billed_change: {dbu: positive, total: positive, days: 28}   # measurement.billed_change fields, the same values; null = none
+    measurement: {method: SIZE_RUNTIME, size.runtime_ratio: 1.2}  # observation measurement fields by dotted path, the same values
+    economics: {cost_change.basis: BILLED_PRE_POST_AT_PRE_MIX}    # the realization package's economics fields by dotted path
     same_evidence_as: <case name>   # the measurement evidence equals that case's, the package's assumptions aside
     realization_state: REALIZED     # the realization package's current_state.realization_state
     classification: REALIZED        # its economics.classification_detail
