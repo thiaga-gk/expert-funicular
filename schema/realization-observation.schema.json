@@ -609,10 +609,19 @@
             "warehouse_channel"
           ]
         },
+        "levels": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "method": {
           "enum": [
             null,
-            "AUTO_STOP_REPLAY"
+            "AUTO_STOP_REPLAY",
+            "SIZE_RUNTIME",
+            "FLOOR_LEVELS",
+            "MIGRATION_BILLED_OBSERVED"
           ]
         },
         "not_measured_reason": {
@@ -620,7 +629,11 @@
             null,
             "NOT_APPLIED",
             "NOT_SETTLED",
-            "KNOB_NOT_REPLAYED"
+            "KNOB_NOT_REPLAYED",
+            "SIZE_RUNTIME_UNMEASURED",
+            "SOURCE_RATE_UNAVAILABLE",
+            "BUSY_SHARE_UNKNOWN",
+            "LEVELS_UNAVAILABLE"
           ]
         },
         "observed_epoch_start": {
@@ -894,6 +907,12 @@
             "null"
           ]
         },
+        "size": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "source_value": {
           "type": [
             "integer",
@@ -924,6 +943,7 @@
         "cross_check",
         "holds_other_knobs",
         "knob",
+        "levels",
         "method",
         "not_measured_reason",
         "observed_epoch_start",
@@ -932,6 +952,7 @@
         "pre_window",
         "previous_epoch_start",
         "replay",
+        "size",
         "source_value",
         "volume_ratio"
       ],
@@ -941,7 +962,7 @@
       ]
     },
     "observation_format_version": {
-      "const": "3.0.0"
+      "const": "3.1.0"
     },
     "observed_at_utc": {
       "format": "date-time",

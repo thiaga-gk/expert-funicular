@@ -1,4 +1,4 @@
-"""Projector: measurement evidence -> one normalized observation (format 3.0.0).
+"""Projector: measurement evidence -> one normalized observation (format 3.1.0).
 
 Pure and Realizer-owned. It plans the measurement again from the evidence (``realizer.analyzer.measurement``), so the
 windows it reads are exactly the ones the bridge collected, and states what they show:
@@ -298,7 +298,7 @@ def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, ep
 
 
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The observation (format 3.0.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    """The observation (format 3.1.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
@@ -350,6 +350,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
             "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
             "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
+            "size": None, "levels": None,
             "cross_check": None if cross_check is None else {
                 "outcome": cross_check["outcome"], "reason": cross_check["reason"],
                 "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),

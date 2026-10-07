@@ -1,10 +1,11 @@
-"""Realizer observation format 3.0.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 3.1.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
-economics and how they were measured (``measurement``: the replayed knob, the windows before and after the change and
-the replay's quantities, or, for a changed knob without a replay, the billed change before and after it; ``null`` for a
-caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
+economics and how they were measured (``measurement``: the measured knob, the windows before and after the change, the
+replay's quantities for an auto-stop change, the size runtime counterfactual for a size change (``size``), the running
+minutes by cluster count for a cluster-count change (``levels``), and the billed change before and after it; ``null``
+for a caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
 input never passes its gate. The format is checked against ``schema/realization-observation.schema.json`` (built by
 ``observation_schema``) before a run writes anything (``realizer.config.loader.validate_observation``).
 """
@@ -14,7 +15,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "3.0.0"
+OBSERVATION_FORMAT_VERSION = "3.1.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -25,9 +26,10 @@ AWS_EVIDENCE_TYPES = ("MODELED", "CUR_ACTUAL")
 EFFECTIVE_TIME_QUALITIES = ("EXACT", "BOUNDED", "OBSERVED_AT_ONLY")
 CORRECTION_TYPES = ("RESTATEMENT", "RETRACTION")
 DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
-MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY",)
+MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", "MIGRATION_BILLED_OBSERVED")
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
-NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED")
+NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
+                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE")
 BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
 CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
@@ -54,8 +56,19 @@ NULLABLE_TIMESTAMP = {"type": ["string", "null"], "format": "date-time"}
 PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "string", "pattern": _DECIMAL_PATTERN}, {"type": "null"}]}
 
 
+def size_schema() -> Dict[str, Any]:
+    """``measurement.size``: the size runtime counterfactual of a size change (``null`` for any other knob)."""
+    return {"type": ["object", "null"]}
+
+
+def levels_schema() -> Dict[str, Any]:
+    """``measurement.levels``: the running minutes by cluster count of a cluster-count change and what they show
+    (``null`` for any other knob)."""
+    return {"type": ["object", "null"]}
+
+
 def observation_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of observation format 3.0.0."""
+    """The Draft 2020-12 JSON Schema of observation format 3.1.0."""
     config = _obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
@@ -139,6 +152,8 @@ def observation_schema() -> Dict[str, Any]:
             "dbu": _decimal(nullable=False), "aws_modeled": _decimal(), "total": _decimal(),
             "annualized_dbu": _decimal(nullable=False), "annualized_total": _decimal(),
         }, nullable=True),
+        "size": size_schema(),
+        "levels": levels_schema(),
     }, nullable=True)
     properties = {
         "observation_format_version": {"const": OBSERVATION_FORMAT_VERSION},
