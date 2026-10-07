@@ -23,6 +23,7 @@ from realizer.realizer import build_context  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 
 WHOLE = "2026-10-09T12:00:00Z"
+VALUES = ("1002", "1003")  # the later of the two has the lower entry id
 LATER = "2026-10-09T12:00:00.500000Z"  # half a second later, but '.' < 'Z' as text
 
 
@@ -104,10 +105,10 @@ class TimeOrderTests(unittest.TestCase):
 class AppendOrderTests(unittest.TestCase):
     """At equal recorded time the entry appended last is the latest; its id never decides."""
 
-    def measurements(self):
+    def measurements(self, episode=None):
         package = fixture_package()
-        first, second = (entry(package, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED, WHOLE,
-                               payload={"economics": {"successful_realized_savings": value}}) for value in ("1001", "1002"))
+        first, second = (entry(package, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED, WHOLE, episode=episode,
+                               payload={"economics": {"available": True, "successful_realized_savings": value}}) for value in VALUES)
         self.assertGreater(first.ledger_entry_id, second.ledger_entry_id)  # the later measurement has the lower id
         return package, first, second
 
@@ -120,20 +121,22 @@ class AppendOrderTests(unittest.TestCase):
             loaded = ledger.load_ledger(path)
         self.assertEqual([e.ledger_entry_id for e in loaded], [first.ledger_entry_id, second.ledger_entry_id])
         latest = ledger.latest_event(loaded, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
-        self.assertEqual(latest.payload["economics"]["successful_realized_savings"], "1002")
+        self.assertEqual(latest.payload["economics"]["successful_realized_savings"], VALUES[1])
         self.assertEqual(ledger.ledger_checkpoint(loaded)["latest_entry_id"], second.ledger_entry_id)
 
     def test_checkpoint_and_snapshot_keep_the_given_order_at_equal_time(self):
-        package, first, second = self.measurements()
         _, entries = stored("GR-003")
+        # the snapshot reads the measurements of the open application episode
+        episode = next(e.application_episode_id for e in entries if e.event_type == rc.EventType.APPLICATION_OBSERVED)
+        package, first, second = self.measurements(episode)
         head = [e for e in entries if e.event_type != rc.EventType.ECONOMIC_MEASUREMENT_RECORDED]
         head = [dataclasses.replace(e, recorded_at_utc="2026-10-01T00:00:00Z") for e in head]
         package = canonical.load_scenario("GR-003")["package_doc"]
         forward = snapshot.project_snapshot(package, head + [first, second])
-        self.assertEqual(forward.economics, {"successful_realized_savings": "1002"})
+        self.assertEqual(forward.economics["successful_realized_savings"], VALUES[1])
         self.assertEqual(forward.history["latest_entry_id"], second.ledger_entry_id)
         backward = snapshot.project_snapshot(package, head + [second, first])
-        self.assertEqual(backward.economics, {"successful_realized_savings": "1001"})
+        self.assertEqual(backward.economics["successful_realized_savings"], VALUES[0])
         self.assertNotEqual(forward.snapshot_id, backward.snapshot_id)
         # entries recorded at different times are ordered by time, whatever order they are given in
         self.assertEqual(snapshot.project_snapshot(package, [first, second] + head).snapshot_id, forward.snapshot_id)

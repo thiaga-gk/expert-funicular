@@ -42,16 +42,16 @@
   }
  },
  "CheckTests.test_checks_on_every_scenario_observation_and_policy/results": {
-  "length": 461095,
-  "sha256": "8d1a68e5331a29ca00fdd7e38277573e859392568edf5508fa7304c21d9f1a5e",
+  "length": 470095,
+  "sha256": "c4f124b065d3062abed5a2c4a09518bfcc1877c9fab84061fee24d5a6a4e4646",
   "spot": {
-   "count": 1224,
+   "count": 1248,
    "exceptions": [],
    "ok": {
-    "counterfactual_eligible": 306,
-    "economic_quality_result": 306,
-    "readiness": 306,
-    "validate_performance": 306
+    "counterfactual_eligible": 312,
+    "economic_quality_result": 312,
+    "readiness": 312,
+    "validate_performance": 312
    }
   }
  },

@@ -361,7 +361,6 @@ class MeasurementFacts:
     economics: Mapping[str, Any]
     attribution: Mapping[str, Any]
     realization_state: Any
-    mature_ttm_realized_savings: Any
     correction_status: Any
 
 

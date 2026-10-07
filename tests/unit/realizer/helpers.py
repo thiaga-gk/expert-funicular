@@ -278,7 +278,7 @@ def measurement_section_entries(context: Any, analysis: Any, reconciliation: Any
         payload = {"measurement_id": m.measurement_id, "window_start_utc": m.window_start_utc, "window_end_utc": m.window_end_utc,
                    "counterfactual_id": m.counterfactual_id, "counterfactual_method": m.counterfactual_method,
                    "recognition_status": review.recognition_status, "economics": m.economics, "attribution": m.attribution,
-                   "realization_state": m.realization_state, "mature_ttm_realized_savings": m.mature_ttm_realized_savings,
+                   "realization_state": m.realization_state,
                    "correction_status": m.correction_status}
         out.append(entry(rc.EventType.ECONOMIC_MEASUREMENT_RECORDED, payload, measurement_id=m.measurement_id))
         if estimate.correction is not None:

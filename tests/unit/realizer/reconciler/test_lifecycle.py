@@ -290,7 +290,8 @@ class LifecycleScenarioTests(unittest.TestCase):
         first, second = [r for _, r in reconcile_runs(self, self.pkg, [both, self.later(10, config=both["config"])])]
         self.assertEqual([a.event_type.value for a in first.applications], ["APPLICATION_OBSERVED", "INDEPENDENT_CHANGE_OBSERVED"])
         self.assertTrue(second.active.is_previous)
-        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", self.pending["step"])])
+        # an independent change is recorded once, when it moves, not on every later run that sees it again
+        self.assertEqual(second.applications, ())
 
     def test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one(self):
         # A plan that repeats a step number (a second eligible step 1 on the warehouse type, copied from the migration
@@ -307,9 +308,10 @@ class LifecycleScenarioTests(unittest.TestCase):
         (a1, first), (a2, second) = reconcile_runs(self, package, [self.base, earlier])
         self.assertIsNotNone(a2.history.previous_application)
         self.assertIsNone(second.drift)
-        self.assertEqual([(a.payload["knob"], a.payload["implementation_conformance"]) for a in second.applications],
-                         [("warehouse_size", "EXACT"), ("warehouse_type", "UNRELATED")])
-        self.assertFalse(second.active.is_previous)
+        # the configuration last recorded is the one observed again (the older observation moves nothing), so the open
+        # episode is reused and the independent change is not recorded a second time
+        self.assertEqual(second.applications, ())
+        self.assertTrue(second.active.is_previous)
 
     def test_drift_ends_with_a_regeneration_on_the_previous_episode(self):
         package, observations = self.scenario("GR-024")

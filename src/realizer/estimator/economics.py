@@ -322,11 +322,9 @@ def calculate_economics(
         "counterfactual_old_cost": money(cf),
         "observed_new_cost": money(actual),
         "realized_savings_period": money(realized),
-        "realized_savings_since_application": money(econ.get("realized_savings_since_application") if econ.get("realized_savings_since_application") is not None else realized),
         "observed_economic_delta": money(realized),
         "successful_realized_savings": money(successful),
         "annualized_realized_savings": money(annualized),
-        "mature_ttm_realized_savings": money(econ.get("mature_ttm_realized_savings")),
         "expected_same_scope_annual_savings": money(expected),
         "denominator_source": denom_source,
         "denominator_method": denom_method,
@@ -379,7 +377,7 @@ def measurement_facts(
     economic: Mapping[str, Any], attribution: Mapping[str, Any], *, effective: str, observed_at: str,
 ) -> MeasurementFacts:
     """The measurement of available economics: the MEAS id and the measurement payload fields (window, counterfactual,
-    economics, attribution, realization state, mature trailing-twelve-month savings, correction status)."""
+    economics, attribution, realization state, correction status)."""
     basis = str(economic.get("economic_basis") or "ECONOMIC_COST")
     meas_id = make_measurement_id(application_episode_id, observation, counterfactual.counterfactual_id, basis)
     return MeasurementFacts(
@@ -391,7 +389,6 @@ def measurement_facts(
         economics=economic,
         attribution=attribution,
         realization_state=economic.get("realization_state"),
-        mature_ttm_realized_savings=economic.get("mature_ttm_realized_savings"),
         correction_status=(observation.get("correction") or {}).get("type", "ORIGINAL"),
     )
 
@@ -401,7 +398,7 @@ def measurement_facts(
 REMEASURED_REASON = "WINDOW_REMEASURED_WITH_DIFFERENT_ECONOMICS"
 
 # What a measurement states about its window besides its identity: equal in all of them, a measurement repeats one.
-MEASURED_FACTS = ("economics", "attribution", "realization_state", "mature_ttm_realized_savings")
+MEASURED_FACTS = ("economics", "attribution", "realization_state")
 
 
 def same_window(entry: rc.RealizationLedgerEntry, application_episode_id: str, measurement: MeasurementFacts) -> bool:
@@ -445,9 +442,8 @@ def _same(entry: rc.RealizationLedgerEntry, measurement: MeasurementFacts, field
 def repeats_earlier_measurement(
     measurement: MeasurementFacts, application_episode_id: str, history: Sequence[rc.RealizationLedgerEntry],
 ) -> bool:
-    """Whether *measurement* says nothing new: the window was measured before with the same economics, attribution,
-    realization state and mature trailing-twelve-month savings (``MEASURED_FACTS``). Such a measurement is a duplicate and
-    is not recorded, whatever its id (a correction object's version alone changes the id)."""
+    """Whether *measurement* says nothing new: the window was measured before with the same economics, attribution and
+    realization state (``MEASURED_FACTS``). Such a measurement is a duplicate and is not recorded, whatever its id (a correction object's version alone changes the id)."""
     prior = earlier_window_measurement(measurement, application_episode_id, history)
     return prior is not None and _same(prior, measurement, MEASURED_FACTS)
 

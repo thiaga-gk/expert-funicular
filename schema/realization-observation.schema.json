@@ -225,20 +225,6 @@
             }
           ]
         },
-        "mature_ttm_realized_savings": {
-          "anyOf": [
-            {
-              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-              "type": "string"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "observed_new_cost": {
           "anyOf": [
             {
@@ -256,20 +242,6 @@
         "period_days": {
           "minimum": 1,
           "type": "integer"
-        },
-        "realized_savings_since_application": {
-          "anyOf": [
-            {
-              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-              "type": "string"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "required": [
@@ -283,10 +255,8 @@
         "dbu_realized",
         "economic_basis",
         "expected_annual_savings_actual_scope",
-        "mature_ttm_realized_savings",
         "observed_new_cost",
-        "period_days",
-        "realized_savings_since_application"
+        "period_days"
       ],
       "type": [
         "object",
@@ -971,7 +941,7 @@
       ]
     },
     "observation_format_version": {
-      "const": "2.2.0"
+      "const": "3.0.0"
     },
     "observed_at_utc": {
       "format": "date-time",
