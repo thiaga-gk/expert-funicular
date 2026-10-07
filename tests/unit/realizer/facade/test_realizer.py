@@ -250,7 +250,8 @@ class NamespaceTests(unittest.TestCase):
         names = {n for n, value in vars(facade).items() if not n.startswith("_") and not inspect.ismodule(value)}
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
-            "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "measure_live", "observe_from_evidence",
+            "annotations", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
+            "demo_observation", "load_observation", "make_rpkg_id", "measure_live", "observe_from_evidence",
         "realize", "realize_request",
             "validate_observation", "validate_package", "validate_replay_through",
         })
