@@ -42,6 +42,9 @@ from realizer.reconciler import reconciler
 from realizer.reporter import reporter
 from realizer.reviewer import reviewer
 
+__all__ = ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
+           "demo_observation", "load_observation", "measure_live", "observe_from_evidence", "realize", "realize_request"]
+
 # ``RealizerPolicy``, ``demo_observation``, ``load_observation``, ``measure_live`` and ``observe_from_evidence`` are re-exported for
 # the CLI, which reaches the core only here; so are the backtest entry points (``backtest_live``, ``backtest_from_evidence``,
 # ``backtest_demo`` and ``backtest_summary``), which use no package and run no capability pipeline.
