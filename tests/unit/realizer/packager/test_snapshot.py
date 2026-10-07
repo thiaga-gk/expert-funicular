@@ -6,6 +6,7 @@ ordering of the entries and malformed input. Every snapshot of the compatibility
 prefix of its ledger, so a replay through a recorded time reconstructs the state the run had then.
 """
 import copy
+import dataclasses
 import json
 import random
 import unittest
@@ -13,6 +14,7 @@ import unittest
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import canonical, fixture_package, outcome  # noqa: E402
 from tests.unit.realizer.packager.test_ledger import stored_ledgers  # noqa: E402
+from realizer.contracts import realization as rc  # noqa: E402
 from realizer.packager import ledger, snapshot  # noqa: E402
 
 
@@ -88,6 +90,31 @@ class ProjectionTests(unittest.TestCase):
         entries = ledger.load_ledger(path)
         base = normalized(snapshot.project_snapshot(package, entries))
         self.assertNotEqual(normalized(snapshot.project_snapshot(package, entries[:-1])), base)
+
+
+class ApplicationAuthorityTests(unittest.TestCase):
+    """Only an application of a plan step is the snapshot's application; a contrary one invalidates the realization."""
+
+    @staticmethod
+    def stored(scenario):
+        _, package, path, _ = next(s for s in stored_ledgers() if s[0] == scenario)
+        return package, ledger.load_ledger(path)
+
+    def test_an_independent_change_is_never_the_application(self):
+        package, entries = self.stored("GR-003")   # an exact, confirmed application that realized
+        self.assertEqual(snapshot.project_snapshot(package, entries).application["state"], "APPLIED")
+        relabeled = [dataclasses.replace(e, event_type=rc.EventType.INDEPENDENT_CHANGE_OBSERVED) if e.event_type == rc.EventType.APPLICATION_OBSERVED else e
+                     for e in entries]
+        self.assertNotEqual(relabeled, entries)
+        result = snapshot.project_snapshot(package, relabeled)
+        self.assertEqual(result.application["state"], "NOT_APPLIED")
+
+    def test_a_contrary_application_is_invalidated(self):
+        package, entries = self.stored("GR-006")
+        result = snapshot.project_snapshot(package, entries)
+        self.assertEqual(result.application["implementation_conformance"], "CONTRARY")
+        self.assertEqual(result.application["state"], "APPLIED")
+        self.assertEqual(result.current_state["realization_state"], "INVALIDATED")
 
 
 if __name__ == "__main__":

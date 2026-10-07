@@ -89,7 +89,18 @@ Workspace, warehouse and region/source context are retained. Regional source cov
 
 Strict recommendation-attributed realization requires application, economics, counterfactual, validation, source-quality, exclusivity and causal-attribution gates to pass. Broader validated observed value may be reported without confirmed causality when policy allows.
 
-## 16. Fail-closed examples
+## 16. Observation format
+
+A realize run consumes one normalized observation in observation format 2.0.0 (`src/realizer/contracts/observation.py`, schema `schema/realization-observation.schema.json`). It is checked before the run writes anything (`validate_observation` in `src/realizer/config/loader.py`).
+
+- Every key is present; a value the source could not establish is `null`, never omitted, and an input that is `null` never passes its gate (readiness, financial quality). The one exception is `performance.correctness_pass`: correctness is failed only by evidence of a failure, so `null` passes.
+- The observation names its workspace and warehouse, which must be the package's; its times are ordered (applied at or before observed, window start at or before window end at or before observed); economics come with a window; `applied_scenario_id`, when present, names a scenario of the package; the observed warehouse type is a supported type.
+- The configuration holds exactly the six decision knobs and the observed Photon state. Values are compared in the Publisher's spelling (a size `X-Large` is `X_LARGE`).
+- The financial-quality inputs (attributable spend, price coverage, currency consistency, correction chain, material cost components) are one block; the currency gate also requires the economics to be stated in the package's currency.
+- The counterfactual method is one of the policy's four claim-eligible methods (`PAIRED_CANARY`, `CALIBRATED_PRIOR_STATE`, `MATCHED_HISTORICAL`, `CONTROLLED_PRE_POST`) or a diagnostic one (`CORRELATED_ONLY`, `NO_DEFENSIBLE_COUNTERFACTUAL`).
+- A change applied before the package was generated is recorded as an independent change (`APPLIED_BEFORE_PACKAGE`), never as an application of the package.
+
+## 17. Fail-closed examples
 
 - unresolved configuration state;
 - no defensible counterfactual;

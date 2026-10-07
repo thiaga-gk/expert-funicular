@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Unprintable, Untestable, compact_tree, events, files, fixture_package, migration_scenario_id, run_sequence  # noqa: E402
+from tests.unit.realizer.helpers import Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, migration_scenario_id, run_sequence  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -52,9 +52,11 @@ class ReconcilerFailedRunTests(unittest.TestCase):
 
     def compare(self, observations, policy=None, package=None, label=None, gate=True):
         """Run *observations* and check the outcomes and the compact output tree against the stored expectation; returns
-        ``(outcomes, tree)``. ``gate=False`` opens the loader's package gate for a package the Publisher's schema refuses."""
+        ``(outcomes, tree)``. ``gate=False`` opens the loader's package gate for a package the Publisher's schema refuses;
+        the observation gate is always open here (the loader refuses a flag with no truth value or an unprintable value
+        before anything is written, see ``tests/unit/realizer/config``; these cases pin what the Reconciler leaves behind)."""
         package = self.pkg if package is None else package
-        outcomes, run_tree = run_sequence(package, observations, policy, gate=gate)
+        outcomes, run_tree = run_sequence(package, observations, policy, gate=gate, observation_gate=False)
         outcomes = [(kind, stable_message(text)) for kind, text in outcomes]
         self.checks = getattr(self, "checks", 0) + 1
         expect.check(self, label or f"run{self.checks}", (outcomes, compact_tree(run_tree)))
@@ -188,7 +190,7 @@ class ReconcilerFailedRunTests(unittest.TestCase):
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
         self.assertEqual(files(tree, "regeneration"), [])
 
-        corrected = {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1", "version": 1}}
+        corrected = {**self.base, "correction": correction(version=1)}
         outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"}, label="correction")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "BILLING_CORRECTION_RECORDED")
@@ -245,13 +247,13 @@ class EagerRaisingIsDetectedTests(unittest.TestCase):
         ]
         for index, observations in enumerate(cases):
             with self.subTest(observations=len(observations)):
-                normal = run_sequence(package, observations)
+                normal = run_sequence(package, observations, observation_gate=False)
                 expect.check(self, f"case{index}", (normal[0], compact_tree(normal[1])))
                 with mock.patch.object(reconciler, "run", eager):
-                    mutated = run_sequence(package, observations)
+                    mutated = run_sequence(package, observations, observation_gate=False)
                 self.assertEqual(mutated[0], normal[0], "the exception itself is the same")
                 self.assertNotEqual(mutated[1], normal[1], "but the ledger it leaves is not")
-                self.assertEqual(run_sequence(package, observations), normal)
+                self.assertEqual(run_sequence(package, observations, observation_gate=False), normal)
 
 
 if __name__ == "__main__":

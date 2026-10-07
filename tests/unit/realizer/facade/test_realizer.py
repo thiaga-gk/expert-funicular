@@ -6,6 +6,7 @@ domain logic: its functions only call capabilities (checked on the source), the 
 themselves, and the facade re-exports nothing but what the CLI needs.
 """
 import ast
+import contextlib
 import copy
 import dataclasses
 import inspect
@@ -14,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.helpers import Untestable, canonical, fixture_package, tree  # noqa: E402
+from tests.unit.realizer.helpers import Untestable, canonical, fixture_package, observation_gate_open, tree  # noqa: E402
 from realizer import realizer as facade  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
@@ -152,8 +153,9 @@ class StageGateTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.base = demo_observation(cls.pkg)
 
-    def stages(self, observation):
-        context = facade.build_context(RealizationRequest(self.pkg, observation, Path("/nonexistent-out")))
+    def stages(self, observation, gate=True):
+        with contextlib.nullcontext() if gate else observation_gate_open():
+            context = facade.build_context(RealizationRequest(self.pkg, observation, Path("/nonexistent-out")))
         analysis = analyzer.run(context)
         governance = governor.run(context, analysis)
         return context, analysis, governance, reconciler.run(context, analysis, governance)
@@ -168,7 +170,7 @@ class StageGateTests(unittest.TestCase):
         }
         for label, observation in cases.items():
             with self.subTest(case=label):
-                stages = self.stages(observation)
+                stages = self.stages(observation, gate=label != "reconciliation halted")   # the gate refuses a flag with no truth value
                 estimate = estimator.run(*stages)
                 self.assertEqual(estimate, RealizationEstimate())
                 reviewed = reviewer.run(*stages, estimate)
@@ -223,7 +225,7 @@ class NoDomainLogicTests(unittest.TestCase):
                 self.assertNotIsInstance(node, forbidden, f"{name}: {ast.dump(node)[:80]}")
 
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
-        allowed = {"build_context", "validate_package", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
+        allowed = {"build_context", "validate_package", "validate_observation", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
                    "packager.begin", "reporter.run"}
         seen = set()
@@ -249,7 +251,7 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "realize", "realize_request",
-            "validate_package",
+            "validate_observation", "validate_package",
         })
 
     def test_the_cli_pass_throughs_are_the_capability_functions(self):

@@ -13,6 +13,8 @@ from pathlib import Path
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import canonical, fixture_package, outcome  # noqa: E402
 from realizer.analyzer.collector import collector  # noqa: E402
+from realizer.config import loader  # noqa: E402
+from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema  # noqa: E402
 
 
 class LoadObservationTests(unittest.TestCase):
@@ -48,6 +50,21 @@ class DemoObservationTests(unittest.TestCase):
                 with self.subTest(package=name, modified=modified):
                     new = collector.demo_observation(copy.deepcopy(package), modified=modified)
                     expect.check(self, f"{name} modified={modified}", new)
+
+    def test_the_demo_observation_is_a_complete_valid_2_0_0_observation_of_the_package(self):
+        for path in sorted(canonical.PACKAGES.glob("*.json")):
+            package = json.loads(path.read_text(encoding="utf-8"))
+            for modified in (False, True):
+                with self.subTest(package=path.name, modified=modified):
+                    observation = collector.demo_observation(package, modified=modified)
+                    self.assertEqual(observation["observation_format_version"], OBSERVATION_FORMAT_VERSION)
+                    self.assertEqual(sorted(observation), observation_schema()["required"])
+                    self.assertEqual((observation["workspace_id"], observation["warehouse_id"]),
+                                     (package["warehouse"]["workspace_id"], package["warehouse"]["warehouse_id"]))
+                    self.assertEqual(observation["economics"]["currency"], package["package_economics"]["currency"])
+                    self.assertEqual(sorted(observation["config"]), sorted(["warehouse_type", "warehouse_size", "min_clusters", "max_clusters",
+                                                                           "auto_stop_minutes", "warehouse_channel", "enable_photon"]))
+                    loader.validate_observation(observation, package)
 
     def test_malformed_packages_raise_the_stored_exception(self):
         good = fixture_package()

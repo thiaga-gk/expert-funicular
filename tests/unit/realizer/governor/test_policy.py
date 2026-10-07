@@ -11,7 +11,8 @@ import unittest
 from decimal import Decimal
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome  # noqa: E402
+from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome, with_quality  # noqa: E402
+from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config import settings  # noqa: E402
 from realizer.governor import policy  # noqa: E402
 
@@ -46,9 +47,19 @@ def plain_outcome(result):
 
 def scenario_observations():
     for name in canonical.scenario_names():
-        for i, run in enumerate(canonical.load_scenario(name)["runs"]):
+        scenario = canonical.load_scenario(name)
+        currency = policy.package_currency(scenario["package_doc"])
+        for i, run in enumerate(scenario["runs"]):
             if run.get("observation"):
-                yield f"{name}[{i}]", run["observation"], run.get("policy")
+                yield f"{name}[{i}]", run["observation"], run.get("policy"), currency
+
+
+def complete_observation():
+    """A complete, valid 2.0.0 observation of the fixture package (every key present)."""
+    return demo_observation(fixture_package())
+
+
+PACKAGE_CURRENCY = policy.package_currency(fixture_package())
 
 
 class PolicyClassTests(unittest.TestCase):
@@ -85,16 +96,18 @@ class PolicyClassTests(unittest.TestCase):
 
 
 class CheckTests(unittest.TestCase):
-    def check_outcome(self, name, observation, mapping):
-        return outcome(getattr(policy, name), copy.deepcopy(observation), make_policy(mapping))
+    def check_outcome(self, name, observation, mapping, currency=PACKAGE_CURRENCY):
+        """``outcome`` of the policy check *name*; the financial-quality check also takes the package's currency."""
+        extra = (currency,) if name == "economic_quality_result" else ()
+        return outcome(getattr(policy, name), copy.deepcopy(observation), make_policy(mapping), *extra)
 
     def test_checks_on_every_scenario_observation_and_policy(self):
         seen = {name: 0 for name in POLICY_CHECKS + ("counterfactual_eligible",)}
         results = {}
-        for label, observation, mapping in scenario_observations():
+        for label, observation, mapping, currency in scenario_observations():
             for index, override in enumerate([mapping] + POLICIES):
                 for name in POLICY_CHECKS:
-                    result = self.check_outcome(name, observation, override)
+                    result = self.check_outcome(name, observation, override, currency)
                     seen[name] += result[0] == "ok"
                     results[f"{label}/{index}/{name}"] = plain_outcome(result)
                 new = outcome(policy.counterfactual_eligible, copy.deepcopy(observation))
@@ -114,15 +127,19 @@ class CheckTests(unittest.TestCase):
         self.assertTrue(policy.readiness({**base, "representative_regime": False}, policy.RealizerPolicy(require_representative_regime=False))["ready"])
 
     def test_malformed_observations_raise(self):
+        """The loader's observation gate refuses every one of these first; the checks' own handling is pinned here."""
+        def quality(**inputs):
+            return {"financial_quality": {**complete_observation()["financial_quality"], **inputs}}
+
         malformed = [
             {"elapsed_days": "abc"}, {"elapsed_days": [1]}, {"query_count": "x"}, {"query_count": {}}, {"representative_regime": Opaque()},
             {"evidence_quality": Opaque()}, {"performance": 5}, {"performance": "x"}, {"performance": []},
             {"performance": {"normalized_p95_runtime_regression_pct": "abc"}}, {"performance": {"normalized_p95_runtime_regression_pct": "NaN"}},
             {"performance": {"normalized_p95_runtime_regression_pct": [1]}}, {"economics": "x"}, {"economics": 5}, {"economics": []},
-            {"attributable_spend_pct": "abc"}, {"attributable_spend_pct": None}, {"price_coverage_pct": "Infinity"}, {"currency_consistency_pct": []},
-            {"correction_chain_complete": Opaque()},
+            quality(attributable_spend_pct="abc"), quality(attributable_spend_pct=None), quality(price_coverage_pct="Infinity"),
+            quality(currency_consistency_pct=[]), quality(correction_chain_complete=Opaque()), {"financial_quality": 5},
         ]
-        base = {"elapsed_days": 8, "query_count": 250, "representative_regime": True, "performance": {"normalized_p95_runtime_regression_pct": "2", "reliability_pass": True}}
+        base = complete_observation()
         raised = set()
         grids = {name: {} for name in POLICY_CHECKS + ("counterfactual_eligible",)}
         for index, patch in enumerate(malformed):
@@ -143,17 +160,21 @@ class CheckTests(unittest.TestCase):
 
     def test_a_malformed_field_only_breaks_the_check_that_reads_it(self):
         """Laziness at the check level: each check ignores fields of the others."""
-        economics_bad = {"economics": "x"}
+        base = complete_observation()
+        economics_bad = {**base, "economics": "x"}
+        both = {**with_quality(base, attributable_spend_pct="x"), "performance": 5}
         results = {
             "readiness": self.check_outcome("readiness", economics_bad, None),
             "validate_performance": self.check_outcome("validate_performance", economics_bad, None),
             "economic_quality_result": self.check_outcome("economic_quality_result", economics_bad, None),
             "counterfactual_eligible": outcome(policy.counterfactual_eligible, economics_bad),
-            "readiness, performance bad": self.check_outcome("readiness", {"performance": 5, "attributable_spend_pct": "x"}, None),
-            "performance, elapsed bad": self.check_outcome("validate_performance", {"elapsed_days": "x"}, None),
+            "readiness, performance bad": self.check_outcome("readiness", both, None),
+            "performance, elapsed bad": self.check_outcome("validate_performance", {**base, "elapsed_days": "x"}, None),
         }
-        for key in ("readiness", "validate_performance", "economic_quality_result", "readiness, performance bad", "performance, elapsed bad"):
+        for key in ("readiness", "validate_performance", "readiness, performance bad", "performance, elapsed bad"):
             self.assertEqual(results[key][0], "ok", key)
+        # The currency gate reads the economics' currency, so economics that are not a mapping break it, as they break the counterfactual check.
+        self.assertEqual(results["economic_quality_result"][0], "AttributeError")
         self.assertEqual(results["counterfactual_eligible"][0], "AttributeError")
         expect.check(self, "results", {key: plain_outcome(value) for key, value in results.items()})
 
@@ -179,6 +200,96 @@ class CheckTests(unittest.TestCase):
         self.assertTrue(policy.savings_improvement_material("400000", "430000", policy.RealizerPolicy()))
         expect.check(self, "results", results, spot={"count": len(results), "true": sum(1 for r in results.values() if r == ["ok", True]),
                                                      "exceptions": sorted({r[0] for r in results.values() if r[0] != "ok"})})
+
+
+class NullSemanticsTests(unittest.TestCase):
+    """A gate input the observation could not establish (``null``) never passes its gate; only an explicit ``False``
+    fails the correctness guardrail."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.base = complete_observation()
+        cls.policy = policy.RealizerPolicy()
+
+    def quality(self, observation=None, currency=PACKAGE_CURRENCY):
+        return policy.economic_quality_result(observation or self.base, self.policy, currency)
+
+    def test_the_complete_observation_passes_every_gate(self):
+        self.assertTrue(policy.readiness(self.base, self.policy)["ready"])
+        self.assertTrue(self.quality()["pass"])
+        self.assertTrue(policy.validate_performance(self.base, self.policy)["hard_guardrails_pass"])
+
+    def test_a_null_query_count_fails_the_minimum_queries_check(self):
+        result = policy.readiness({**self.base, "query_count": None}, self.policy)
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["checks"]["minimum_queries"], {"observed": None, "threshold": self.policy.minimum_queries, "pass": False})
+        self.assertTrue(all(c["pass"] for name, c in result["checks"].items() if name != "minimum_queries"))
+
+    def test_a_null_representative_regime_fails_the_check_unless_the_policy_does_not_require_it(self):
+        result = policy.readiness({**self.base, "representative_regime": None}, self.policy)
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["checks"]["representative_regime"]["pass"])
+        relaxed = policy.RealizerPolicy(require_representative_regime=False)
+        self.assertTrue(policy.readiness({**self.base, "representative_regime": None}, relaxed)["ready"])
+
+    def test_each_null_financial_quality_input_fails_its_gate_and_only_its_gate(self):
+        gate_of = {"attributable_spend_pct": "attributable_spend", "price_coverage_pct": "price_coverage", "currency_consistency_pct": "currency_consistency",
+                   "correction_chain_complete": "correction_chain", "material_cost_component_available": "material_cost_components"}
+        for key, gate in gate_of.items():
+            with self.subTest(input=key):
+                result = self.quality(with_quality(self.base, **{key: None}))
+                self.assertFalse(result[gate]["pass"], gate)
+                self.assertFalse(result["pass"])
+                self.assertEqual([name for name in gate_of.values() if not result[name]["pass"]], [gate])
+        self.assertIsNone(self.quality(with_quality(self.base, attributable_spend_pct=None))["attributable_spend"]["observed_pct"])
+
+    def test_a_flag_gate_passes_only_for_true(self):
+        for key, gate in (("correction_chain_complete", "correction_chain"), ("material_cost_component_available", "material_cost_components")):
+            for value, passes in ((True, True), (False, False), (None, False), (1, False), ("yes", False)):
+                with self.subTest(input=key, value=value):
+                    self.assertIs(self.quality(with_quality(self.base, **{key: value}))[gate]["pass"], passes)
+
+    def test_correctness_null_passes_and_only_an_explicit_false_fails(self):
+        for value, passes in ((True, True), (None, True), (False, False)):
+            with self.subTest(correctness_pass=value):
+                observation = {**self.base, "performance": {**self.base["performance"], "correctness_pass": value}}
+                result = policy.validate_performance(observation, self.policy)
+                self.assertIs(result["hard_guardrails_pass"], passes)
+                self.assertEqual(result["rules"][2]["result"], "PASS" if passes else "FAIL")
+
+    def test_reliability_null_and_p95_null_fail(self):
+        for patch in ({"reliability_pass": None}, {"normalized_p95_runtime_regression_pct": None}):
+            with self.subTest(patch=patch):
+                observation = {**self.base, "performance": {**self.base["performance"], **patch}}
+                self.assertFalse(policy.validate_performance(observation, self.policy)["hard_guardrails_pass"])
+
+    def test_currency_gate_requires_the_package_currency(self):
+        self.assertEqual(PACKAGE_CURRENCY, "USD")
+        self.assertEqual(policy.package_currency(fixture_package()), "USD")
+        self.assertIsNone(policy.package_currency({}))
+        euro = {**self.base, "economics": {**self.base["economics"], "currency": "EUR"}}
+        gate = self.quality(euro)["currency_consistency"]
+        self.assertFalse(gate["pass"])
+        self.assertEqual((gate["currency"], gate["package_currency"]), ("EUR", "USD"))
+        self.assertFalse(self.quality(euro)["pass"])
+        self.assertTrue(self.quality(euro, currency="EUR")["currency_consistency"]["pass"])
+        # no economics, or no package currency: nothing to compare, so the gate does not pass
+        self.assertFalse(self.quality({**self.base, "economics": None})["currency_consistency"]["pass"])
+        self.assertFalse(self.quality(currency=None)["currency_consistency"]["pass"])
+
+    def test_counterfactual_methods_only_the_four_allowed_support_a_claim(self):
+        econ = self.base["economics"]
+        for method in ("PAIRED_CANARY", "CALIBRATED_PRIOR_STATE", "MATCHED_HISTORICAL", "CONTROLLED_PRE_POST"):
+            with self.subTest(method=method):
+                self.assertEqual(policy.counterfactual_eligible({**self.base, "economics": {**econ, "counterfactual_method": method}}), (True, method))
+                self.assertEqual(policy.counterfactual_eligible({**self.base, "economics": {**econ, "counterfactual_method": method, "counterfactual_old_cost": None}}),
+                                 (False, "NO_DEFENSIBLE_COUNTERFACTUAL"))
+        self.assertEqual(policy.counterfactual_eligible({**self.base, "economics": {**econ, "counterfactual_method": "CORRELATED_ONLY"}}), (False, "CORRELATED_ONLY"))
+        self.assertEqual(policy.counterfactual_eligible({**self.base, "economics": {**econ, "counterfactual_method": "NO_DEFENSIBLE_COUNTERFACTUAL"}}),
+                         (False, "NO_DEFENSIBLE_COUNTERFACTUAL"))
+        # an unknown method is never claim eligible
+        self.assertFalse(policy.counterfactual_eligible({**self.base, "economics": {**econ, "counterfactual_method": "GUESS"}})[0])
+        self.assertEqual(policy.counterfactual_eligible({**self.base, "economics": None}), (False, "NO_DEFENSIBLE_COUNTERFACTUAL"))
 
 
 if __name__ == "__main__":

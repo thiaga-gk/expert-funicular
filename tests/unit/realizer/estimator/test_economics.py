@@ -197,7 +197,8 @@ class CalculateEconomicsGridTests(unittest.TestCase):
             "cost not a number": ({"economics": {**econ, "observed_new_cost": "abc"}}, self.app, self.pkg),
             "cost not finite": ({"economics": {**econ, "counterfactual_old_cost": "NaN"}}, self.app, self.pkg),
             "period not a number": ({"economics": {**econ, "period_days": "abc"}}, self.app, self.pkg),
-            "elapsed days not a number": ({"economics": {**econ, "period_days": None}, "elapsed_days": "abc"}, self.app, self.pkg),
+            "period absent": ({"economics": {k: v for k, v in econ.items() if k != "period_days"}}, self.app, self.pkg),
+            "currency absent": ({"economics": {k: v for k, v in econ.items() if k != "currency"}}, self.app, self.pkg),
             "expected not a number": ({"economics": {**econ, "expected_annual_savings_actual_scope": "abc"}}, self.app, self.pkg),
             "ttm not a number": ({"economics": {**econ, "mature_ttm_realized_savings": "abc"}}, self.app, self.pkg),
             "aws not finite": ({"economics": {**econ, "aws_cash_realized": "Infinity"}}, self.app, self.pkg),
@@ -273,9 +274,17 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual(self.econ()["period_days"], "30")
         year = self.econ(counterfactual_old_cost="150000", observed_new_cost="120000", period_days=365, expected_annual_savings_actual_scope="30000")
         self.assertEqual((year["annualized_realized_savings"], year["realization_ratio"], year["realization_state"]), ("30000.00", "1", "REALIZED"))
-        by_elapsed = self.econ(period_days=None)   # falls back to the observation's elapsed days (8)
-        self.assertEqual((by_elapsed["period_days"], by_elapsed["annualized_realized_savings"]), ("8", str((self.realized * 365 / 8).quantize(Decimal("0.01")))))
-        self.assertEqual(self.econ(period_days=0)["period_days"], "8")
+        # The measurement period is required; it is never replaced by the observation's elapsed days.
+        with self.assertRaises(TypeError):
+            self.econ(period_days=None)
+        econ = {k: v for k, v in self.base["economics"].items() if k != "period_days"}
+        with self.assertRaises(KeyError):
+            economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": econ}, RealizerPolicy(), True, True)
+        zero = self.econ(period_days=0)
+        self.assertEqual((zero["period_days"], zero["annualized_realized_savings"], zero["realization_state"]), ("0", None, "MONITORING"))
+        missing_currency = {k: v for k, v in self.base["economics"].items() if k != "currency"}
+        with self.assertRaises(KeyError):
+            economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": missing_currency}, RealizerPolicy(), True, True)
         unrepresentative = self.econ(observation={**self.base, "representative_regime": False})
         self.assertIsNone(unrepresentative["annualized_realized_savings"])
         self.assertEqual((unrepresentative["realization_state"], unrepresentative["realization_ratio"]), ("MONITORING", None))
@@ -317,6 +326,16 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual((blocked["realization_state"], blocked["classification_detail"], blocked["successful_realized_savings"], blocked["observed_economic_delta"]),
                          ("BLOCKED", "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE", "0.00", str(self.realized)))
         self.assertEqual(self.econ(passed=False, eligible=False)["realization_state"], "VALIDATION_FAILED")
+        # A failed or blocked measurement keeps its observed delta but publishes no run-rate and no ratio.
+        for result in (failed, blocked):
+            self.assertIsNone(result["annualized_realized_savings"])
+            self.assertIsNone(result["realization_ratio"])
+        for result in (self.econ(), self.econ(expected_annual_savings_actual_scope="1000000")):
+            self.assertIsNotNone(result["annualized_realized_savings"])
+            self.assertIsNotNone(result["realization_ratio"])
+        monitoring = self.econ(expected_annual_savings_actual_scope="0")
+        self.assertEqual(monitoring["realization_state"], "MONITORING")
+        self.assertIsNotNone(monitoring["annualized_realized_savings"])
 
 
 class MeasurementFactsTests(unittest.TestCase):

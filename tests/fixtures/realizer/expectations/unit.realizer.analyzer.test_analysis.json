@@ -876,85 +876,481 @@
    "SHA256:9172DFC8BE8BD36E098B9879FCE7AC5750814A946CD22B1F25808538AF1E2E8E"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(' large ')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', ' large '))": {
   "value": [
    "ok",
    " large "
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', ''))": {
   "value": [
    "ok",
    ""
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('Classic')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', '2X-Large'))": {
   "value": [
    "ok",
-   "CLASSIC"
+   "2X-Large"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('LARGE')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'Classic'))": {
+  "value": [
+   "ok",
+   "Classic"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'LARGE'))": {
   "value": [
    "ok",
    "LARGE"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('PREVIEW')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'PREVIEW'))": {
   "value": [
    "ok",
    "PREVIEW"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('current')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'X-Large'))": {
   "value": [
    "ok",
-   "CURRENT"
+   "X-Large"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('medium')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'current'))": {
   "value": [
    "ok",
-   "MEDIUM"
+   "current"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('pro')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'medium'))": {
   "value": [
    "ok",
-   "PRO"
+   "medium"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('serverless')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'pro'))": {
   "value": [
    "ok",
-   "SERVERLESS"
+   "pro"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('xx')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'serverless'))": {
+  "value": [
+   "ok",
+   "serverless"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'xx'))": {
   "value": [
    "ok",
    "xx"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(2.5)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 2.5))": {
   "value": [
    "ok",
    2.5
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(4)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 4))": {
   "value": [
    "ok",
    4
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(None)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', None))": {
   "value": [
    "ok",
    null
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(True)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', ' large '))": {
+  "value": [
+   "ok",
+   " large "
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-Large"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'Classic'))": {
+  "value": [
+   "ok",
+   "Classic"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-Large"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'current'))": {
+  "value": [
+   "ok",
+   "current"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'medium'))": {
+  "value": [
+   "ok",
+   "medium"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'pro'))": {
+  "value": [
+   "ok",
+   "pro"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'serverless'))": {
+  "value": [
+   "ok",
+   "serverless"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'xx'))": {
+  "value": [
+   "ok",
+   "xx"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X_LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X_LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', True))": {
   "value": [
    "ok",
    true
@@ -1031,7 +1427,7 @@
     "max_clusters": 4,
     "min_clusters": 1,
     "warehouse_channel": "CURRENT",
-    "warehouse_size": "x",
+    "warehouse_size": "X",
     "warehouse_type": "PRO"
    }
   ]

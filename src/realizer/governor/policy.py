@@ -16,6 +16,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from realizer.common.utils import decimal
 from realizer.config.settings import NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION
+from realizer.contracts.observation import CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS
 from realizer.contracts import realization as rc
 
 
@@ -70,19 +71,26 @@ def policy_to_dict(policy: RealizerPolicy) -> Dict[str, Any]:
     return out
 
 
+def package_currency(package: Mapping[str, Any]) -> Optional[str]:
+    """The currency the package's economics are stated in (its package economics block)."""
+    return (package.get("package_economics") or {}).get("currency")
+
+
 def authority_eligible(step: Mapping[str, Any]) -> bool:
     return str(step.get("execution_state")) not in NON_AUTHORITATIVE_EXECUTION_STATES
 
 
 def readiness(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    elapsed = int(observation.get("elapsed_days", 0) or 0)
-    queries = int(observation.get("query_count", 0) or 0)
-    representative = bool(observation.get("representative_regime", False))
-    quality = str(observation.get("evidence_quality", "SUFFICIENT")).upper()
+    """Whether the evidence is sufficient to validate: elapsed days, query sample, representative regime and evidence
+    quality. An input the observation could not establish (``null``) fails its check."""
+    elapsed = int(observation["elapsed_days"])
+    queries = observation["query_count"]
+    representative = observation["representative_regime"]
+    quality = str(observation["evidence_quality"]).upper()
     checks = {
         "minimum_days": {"observed": elapsed, "threshold": policy.minimum_days, "pass": elapsed >= policy.minimum_days},
-        "minimum_queries": {"observed": queries, "threshold": policy.minimum_queries, "pass": queries >= policy.minimum_queries},
-        "representative_regime": {"observed": representative, "required": policy.require_representative_regime, "pass": representative or not policy.require_representative_regime},
+        "minimum_queries": {"observed": queries, "threshold": policy.minimum_queries, "pass": queries is not None and queries >= policy.minimum_queries},
+        "representative_regime": {"observed": representative, "required": policy.require_representative_regime, "pass": representative is True or not policy.require_representative_regime},
         "evidence_quality": {"observed": quality, "required": "SUFFICIENT", "pass": quality == "SUFFICIENT"},
     }
     return {"ready": all(x["pass"] for x in checks.values()), "checks": checks}
@@ -133,36 +141,42 @@ def validate_performance(observation: Mapping[str, Any], policy: RealizerPolicy)
 
 
 def counterfactual_eligible(observation: Mapping[str, Any]) -> Tuple[bool, str]:
+    """``(claim eligible, method)``: only the policy's claim-eligible methods with a counterfactual cost support a claim."""
     econ = observation.get("economics") or {}
-    method = str(econ.get("counterfactual_method") or "MATCHED_HISTORICAL").upper()
-    if method in {"NO_DEFENSIBLE_COUNTERFACTUAL", "NONE", "BLOCKED"}:
-        return False, method
+    method = str(econ.get("counterfactual_method") or "NO_DEFENSIBLE_COUNTERFACTUAL")
     if econ.get("counterfactual_old_cost") is None:
         return False, "NO_DEFENSIBLE_COUNTERFACTUAL"
-    return method != "CORRELATED_ONLY", method
+    return method in CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS, method
 
 
-def economic_quality_result(observation: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
-    attributable = decimal(observation.get("attributable_spend_pct", "100"))
-    price_coverage = decimal(observation.get("price_coverage_pct", "100"))
-    currency_pct = decimal(observation.get("currency_consistency_pct", "100"))
-    correction_complete = bool(observation.get("correction_chain_complete", True))
-    material_cost_available = bool(observation.get("material_cost_component_available", True))
+def economic_quality_result(observation: Mapping[str, Any], policy: RealizerPolicy, package_currency: Optional[str]) -> Dict[str, Any]:
+    """The financial-quality gates of the observation's evidence. A gate whose input is ``null`` does not pass; the
+    currency gate also requires the economics to be in the package's currency."""
+    fq = observation["financial_quality"]
+    attributable = decimal(fq["attributable_spend_pct"])
+    price_coverage = decimal(fq["price_coverage_pct"])
+    currency_pct = decimal(fq["currency_consistency_pct"])
+    correction_complete = fq["correction_chain_complete"] is True
+    material_cost_available = fq["material_cost_component_available"] is True
+    currency = (observation.get("economics") or {}).get("currency")
     gates = {
         "attributable_spend": {
-            "observed_pct": rc.canonical_decimal(attributable),
+            "observed_pct": None if attributable is None else rc.canonical_decimal(attributable),
             "required_min_pct": rc.canonical_decimal(policy.minimum_attributable_spend_pct),
             "pass": attributable is not None and attributable >= policy.minimum_attributable_spend_pct,
         },
         "price_coverage": {
-            "observed_pct": rc.canonical_decimal(price_coverage),
+            "observed_pct": None if price_coverage is None else rc.canonical_decimal(price_coverage),
             "required_min_pct": rc.canonical_decimal(policy.minimum_price_coverage_pct),
             "pass": price_coverage is not None and price_coverage >= policy.minimum_price_coverage_pct,
         },
         "currency_consistency": {
-            "observed_pct": rc.canonical_decimal(currency_pct),
+            "observed_pct": None if currency_pct is None else rc.canonical_decimal(currency_pct),
             "required_pct": rc.canonical_decimal(policy.required_currency_consistency_pct),
-            "pass": currency_pct is not None and currency_pct >= policy.required_currency_consistency_pct,
+            "currency": currency,
+            "package_currency": package_currency,
+            "pass": currency_pct is not None and currency_pct >= policy.required_currency_consistency_pct
+            and currency is not None and currency == package_currency,
         },
         "correction_chain": {"complete": correction_complete, "pass": correction_complete},
         "material_cost_components": {"available": material_cost_available, "pass": material_cost_available},

@@ -49,7 +49,9 @@
         "pass": true
       },
       "currency_consistency": {
+        "currency": "USD",
         "observed_pct": "100",
+        "package_currency": "USD",
         "pass": true,
         "required_pct": "100"
       },
@@ -83,7 +85,7 @@
     "state": "NONE"
   },
   "economics": {
-    "annualized_realized_savings": "31792.96",
+    "annualized_realized_savings": null,
     "available": true,
     "aws_cash_realized": null,
     "aws_commitment_freed": null,
@@ -111,7 +113,9 @@
         "pass": true
       },
       "currency_consistency": {
+        "currency": "USD",
         "observed_pct": "100",
+        "package_currency": "USD",
         "pass": true,
         "required_pct": "100"
       },
@@ -126,7 +130,7 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": "1.000000943606015551256206962",
+    "realization_ratio": null,
     "realization_state": "BLOCKED",
     "realized_savings_period": "2613.12",
     "realized_savings_since_application": "2613.12",
@@ -141,7 +145,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-F37E14742ED1954717D95909",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:41FC3AEA99F429178A41A3473CB2AC26E7FD34C0384FF9E563D878575E58B426",
+    "ledger_checkpoint_hash": "SHA256:EDD5038E2E9008A7F9861714EA8D9ACCC08478D96A9D106C341B7085B7DA2B49",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -166,7 +170,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-0967161DFFA83B7A96E1CC47",
+  "snapshot_id": "RSNAP-7CC4FAF0F9C706856A2210DC",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",

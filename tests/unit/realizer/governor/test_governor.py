@@ -4,6 +4,7 @@ The Governor evaluates every policy check up front and hands each over as a ``De
 result of the policy check (as the single-file release's inline call did), or raises its exception, and ``run`` itself
 never raises on an observation.
 """
+import contextlib
 import dataclasses
 import logging
 import tempfile
@@ -11,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome, tree  # noqa: E402
+from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, observation_gate_open, outcome, tree, with_quality  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import Deferred  # noqa: E402
@@ -24,10 +25,12 @@ from realizer.realizer import build_context  # noqa: E402
 CHECKS = ("readiness", "performance", "counterfactual", "economic_quality")
 
 
-def govern(observation, policy_mapping=None, out=Path("/nonexistent-out")):
+def govern(observation, policy_mapping=None, out=Path("/nonexistent-out"), gate=True):
+    """The context and the Governor's result; ``gate=False`` opens the loader's observation gate for an observation it refuses."""
     package = fixture_package()
     policy = None if policy_mapping is None else RealizerPolicy.from_mapping(policy_mapping)
-    context = build_context(RealizationRequest(package, observation, out, policy=policy))
+    with contextlib.nullcontext() if gate else observation_gate_open():
+        context = build_context(RealizationRequest(package, observation, out, policy=policy))
     analysis = analyzer.run(context) if observation else analyzer.run(build_context(RealizationRequest(package, None, out)))
     return context, governor.run(context, analysis)
 
@@ -69,19 +72,19 @@ class RunTests(unittest.TestCase):
     def test_malformed_observation_never_fails_run_and_get_raises_the_policy_exception(self):
         cases = {
             "readiness": {"elapsed_days": "abc"}, "performance": {"performance": 5},
-            "counterfactual": {"economics": "x"}, "economic_quality": {"attributable_spend_pct": "abc"},
+            "counterfactual": {"economics": "x"}, "economic_quality": {"financial_quality": {**observation_of()["financial_quality"], "attributable_spend_pct": "abc"}},
         }
         for field, patch in cases.items():
             with self.subTest(field=field):
                 observation = observation_of(**patch)
-                context, result = govern(observation)
+                context, result = govern(observation, gate=False)
                 outcomes = {name: list(outcome(getattr(result, name).get)) for name in CHECKS}
                 self.assertNotEqual(outcomes[field][0], "ok")
                 # the other checks are unaffected by this field
                 expect.check(self, field, outcomes)
 
     def test_a_raised_check_keeps_the_exception_and_raises_it_on_every_get(self):
-        _, result = govern(observation_of(elapsed_days="abc"))
+        _, result = govern(observation_of(elapsed_days="abc"), gate=False)
         self.assertIsNone(result.readiness.value)
         self.assertIsInstance(result.readiness.error, ValueError)
         for _ in range(2):

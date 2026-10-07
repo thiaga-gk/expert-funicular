@@ -59,6 +59,17 @@ def run(tree: Path, args: List[str], out: Path) -> str:
     return proc.stdout
 
 
+def run_dir(out: Path) -> Path:
+    """Where a run wrote its outputs: *out* itself (flat output, and refs before run folders), else the latest
+    ``run_date=*/run_ts=*`` folder under it."""
+    if (out / "publisher.log").is_file():
+        return out
+    folders = sorted(out.glob("run_date=*/run_ts=*"))
+    if not folders:
+        raise SystemExit(f"no publisher.log under {out}")
+    return folders[-1]
+
+
 def non_canonical(text: str, out: Path) -> List[str]:
     """Lines with the leading log timestamp removed and the output directory replaced, for like-for-like comparison."""
     return [_TIMESTAMP.sub("", line).replace(str(out), "<out>") for line in text.splitlines()]
@@ -112,8 +123,9 @@ def main(argv=None) -> int:
                 for side, tree in (("ref", base), ("working", ROOT)):
                     out = tmp_path / "out" / side / label.replace(":", "_")
                     stdout = run(tree, cli, out)
-                    log = (out / "publisher.log").read_text(encoding="utf-8")
-                    outs[side] = (canonical.output_dir_canonical(out), non_canonical(stdout, out), non_canonical(log, out))
+                    folder = run_dir(out)
+                    log = (folder / "publisher.log").read_text(encoding="utf-8")
+                    outs[side] = (canonical.output_dir_canonical(folder), non_canonical(stdout, folder), non_canonical(log, folder))
                 failures += compare(label, outs["ref"][0], outs["working"][0])
                 for idx, name in ((1, "stdout"), (2, "publisher.log")):
                     if outs["ref"][idx] != outs["working"][idx]:

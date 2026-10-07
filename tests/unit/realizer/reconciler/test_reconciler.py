@@ -17,7 +17,9 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Unprintable, Untestable, as_line, fixture_package, ledger_lines, outcome, package_gate_open, staged_scenario_runs, tree  # noqa: E402
+from tests.unit.realizer.helpers import (  # noqa: E402
+    Unprintable, Untestable, as_line, fixture_package, ledger_lines, observation_gate_open, outcome, package_gate_open, staged_scenario_runs, tree,
+)
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -151,9 +153,10 @@ class RunTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.base = demo_observation(cls.pkg)
 
-    def reconcile(self, observation, out, package=None, policy=None):
-        # a package passed in is a deliberately malformed one, which the loader's gate would refuse before any stage ran
-        with package_gate_open() if package is not None else contextlib.nullcontext():
+    def reconcile(self, observation, out, package=None, policy=None, gate=True):
+        # a package passed in is a deliberately malformed one, which the loader's gate would refuse before any stage ran;
+        # so would the observation gate for ``gate=False`` (an observation the Reconciler must survive, see tests/unit/realizer/config)
+        with package_gate_open() if package is not None else contextlib.nullcontext(), contextlib.nullcontext() if gate else observation_gate_open():
             context = build_context(RealizationRequest(package or self.pkg, observation, out, policy=policy))
         analysis = analyzer.run(context)
         return reconciler.run(context, analysis, governor.run(context, analysis))
@@ -196,7 +199,7 @@ class RunTests(unittest.TestCase):
         for label, (patch, package, policy) in cases.items():
             observation = {**self.base, **patch}
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
-                result = self.reconcile(observation, Path(tmp), package=package, policy=policy)
+                result = self.reconcile(observation, Path(tmp), package=package, policy=policy, gate=False)
                 self.assertIsNotNone(result.halt)
                 self.assertIsInstance(result.halt, Exception)
                 expect.check(self, label, (type(result.halt).__name__, str(result.halt)))
@@ -207,7 +210,7 @@ class RunTests(unittest.TestCase):
     def test_halt_keeps_only_the_events_decided_before_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            result = self.reconcile({**self.base, "rollback_observed": True, "replacement_package_id": Untestable()}, out)
+            result = self.reconcile({**self.base, "rollback_observed": True, "replacement_package_id": Untestable()}, out, gate=False)
             self.assertIsInstance(result.halt, ValueError)
             self.assertEqual(len(result.applications), 1)
             self.assertIsNotNone(result.intent)
@@ -222,16 +225,17 @@ class RunTests(unittest.TestCase):
 
     def test_readiness_is_read_only_when_an_active_application_may_be_validated(self):
         unchanged = {**self.base, "config": package_config(self.pkg), "elapsed_days": "abc"}
-        self.assertIsNone(self.reconcile(unchanged, Path("/nonexistent-out")).halt)
+        self.assertIsNone(self.reconcile(unchanged, Path("/nonexistent-out"), gate=False).halt)
         contrary = {**self.base, "config": {**self.base["config"], "warehouse_size": "X_LARGE"}, "elapsed_days": "abc"}
-        self.assertIsNone(self.reconcile(contrary, Path("/nonexistent-out")).halt)
-        self.assertIsInstance(self.reconcile({**self.base, "elapsed_days": "abc"}, Path("/nonexistent-out")).halt, ValueError)
+        self.assertIsNone(self.reconcile(contrary, Path("/nonexistent-out"), gate=False).halt)
+        self.assertIsInstance(self.reconcile({**self.base, "elapsed_days": "abc"}, Path("/nonexistent-out"), gate=False).halt, ValueError)
 
     def test_engine_raises_the_halt_after_recording_the_decided_events(self):
         observation = {**self.base, "rollback_requested": True, "rollback_observed": Untestable()}
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            result = outcome(realize, self.pkg, observation, out)
+            with observation_gate_open():
+                result = outcome(realize, self.pkg, observation, out)
             self.assertEqual(result, ("ValueError", "observation flag has no truth value"))
             self.assertEqual([line["event_type"] for line in ledger_lines(out)],
                              ["REALIZATION_CREATED", "APPLICATION_OBSERVED", "INTENT_RECORDED", "ROLLBACK_REQUESTED"])

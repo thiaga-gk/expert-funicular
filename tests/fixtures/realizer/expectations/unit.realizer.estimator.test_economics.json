@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 7662199,
-  "sha256": "4df4fcbd4453c94a697ceda895630efe48236722cebfc26b3bc0c6f4c7ad3f64",
+  "length": 5217025,
+  "sha256": "85991942f745b296bb4c53c00cc96221eb08beeca535bf8b1d9bc0b7e8e186d7",
   "spot": {
    "classes": [
     [
@@ -101,7 +101,7 @@
     ]
    ],
    "count": 11088,
-   "failures": 0
+   "failures": 3696
   }
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {
@@ -128,6 +128,12 @@
    "non-finite decimal"
   ]
  },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/currency absent": {
+  "value": [
+   "KeyError",
+   "'currency'"
+  ]
+ },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/currency unprintable": {
   "value": [
    "ValueError",
@@ -138,12 +144,6 @@
   "value": [
    "AttributeError",
    "'int' object has no attribute 'get'"
-  ]
- },
- "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/elapsed days not a number": {
-  "value": [
-   "ValueError",
-   "invalid literal for int() with base 10: 'abc'"
   ]
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/expected not a number": {
@@ -182,10 +182,16 @@
    }
   ]
  },
+ "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/period absent": {
+  "value": [
+   "KeyError",
+   "'period_days'"
+  ]
+ },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/period not a number": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "ValueError",
+   "invalid literal for int() with base 10: 'abc'"
   ]
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/plan step": {
@@ -196,8 +202,8 @@
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/readiness": {
   "value": [
-   "ValueError",
-   "invalid literal for int() with base 10: 'abc'"
+   "TypeError",
+   "'>=' not supported between instances of 'str' and 'int'"
   ]
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/ttm not a number": {

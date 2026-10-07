@@ -10,7 +10,7 @@ import copy
 import unittest
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import compact_tree, events, fixture_package, run_sequence  # noqa: E402
+from tests.unit.realizer.helpers import compact_tree, events, fixture_package, run_sequence, with_quality  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 
@@ -28,7 +28,9 @@ class FailedRunTests(unittest.TestCase):
 
     def compare(self, label, observations, policy=None):
         """Run *observations*, check the outcomes and the output tree against the stored expectation *label*, and return them."""
-        outcomes, tree = run_sequence(self.pkg, observations, policy)
+        # The observation gate is open: the loader refuses these observations before anything is written (see
+        # ``tests/unit/realizer/config``); here they pin where the Governor's checks raise.
+        outcomes, tree = run_sequence(self.pkg, observations, policy, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree)))
         return outcomes, tree
 
@@ -56,16 +58,15 @@ class FailedRunTests(unittest.TestCase):
         self.assertEqual(events(tree)[-1], "VALIDATION_COMPLETED")
 
     def test_economic_quality_failure_leaves_the_counterfactual_but_no_measurement(self):
-        for patch in ({"attributable_spend_pct": "abc"}, {"price_coverage_pct": "NaN"}, {"currency_consistency_pct": None},
-                      {"attributable_spend_pct": None}):
-            with self.subTest(patch=patch):
-                outcomes, tree = self.compare(f"economic quality {patch}", [{**self.base, **patch}])
+        for inputs in ({"attributable_spend_pct": "abc"}, {"price_coverage_pct": "NaN"}):
+            with self.subTest(inputs=inputs):
+                outcomes, tree = self.compare(f"economic quality {inputs}", [with_quality(self.base, **inputs)])
                 self.assertNotEqual(outcomes[0][0], "ok", outcomes)
                 self.assertEqual(events(tree)[-1], "COUNTERFACTUAL_RECORDED")
                 self.assertNotIn("ECONOMIC_MEASUREMENT_RECORDED", events(tree))
 
     def test_failure_is_followed_by_recovery(self):
-        for patch in ({"elapsed_days": "abc"}, {"performance": 5}, {"economics": "x"}, {"attributable_spend_pct": "abc"}):
+        for patch in ({"elapsed_days": "abc"}, {"performance": 5}, {"economics": "x"}, {"financial_quality": {**self.base["financial_quality"], "attributable_spend_pct": "abc"}}):
             with self.subTest(patch=patch):
                 outcomes, _ = self.compare(f"recovery {patch}", [{**self.base, **patch}, self.base, self.later(10)])
                 self.assertEqual([o[0] for o in outcomes][0] == "ok", False)
@@ -76,14 +77,14 @@ class FailedRunTests(unittest.TestCase):
         for policy in ({"minimum_days": 1}, {"max_normalized_p95_runtime_regression_pct": "1"}, {"minimum_attributable_spend_pct": 100}):
             with self.subTest(policy=policy):
                 self.compare(f"policy {policy} performance", [{**self.base, "performance": 5}], policy)
-                self.compare(f"policy {policy} economic quality", [{**self.base, "attributable_spend_pct": "abc"}], policy)
+                self.compare(f"policy {policy} economic quality", [with_quality(self.base, attributable_spend_pct="abc")], policy)
 
     # --- malformed fields the run never reads: no failure, as before ------------------------------------------------
 
     def test_unused_malformed_fields_do_not_fail_a_run_that_never_reaches_them(self):
         unchanged = {**self.base, "config": dict(self.source_config)}      # nothing applied: no validation episode
         unready = {**self.base, "elapsed_days": 1}                          # applied but not ready: stops at readiness
-        malformed = {"performance": 5, "economics": "x", "attributable_spend_pct": "abc", "price_coverage_pct": "NaN", "overlap_count": "x"}
+        malformed = {"performance": 5, "economics": "x", "financial_quality": {**self.base["financial_quality"], "attributable_spend_pct": "abc", "price_coverage_pct": "NaN"}, "overlap_count": "x"}
         for label, observation in (("unchanged", unchanged), ("unready", unready)):
             with self.subTest(case=label):
                 outcomes, tree = self.compare(f"unused {label}", [{**observation, **malformed}])
@@ -94,14 +95,14 @@ class FailedRunTests(unittest.TestCase):
         self.assertNotIn("VALIDATION_READY", events(tree))
 
     def test_unused_economic_quality_gate_input_does_not_fail_when_economics_are_unavailable(self):
-        observation = {**self.base, "attributable_spend_pct": "abc", "price_coverage_pct": "NaN", "currency_consistency_pct": []}
+        observation = with_quality(self.base, attributable_spend_pct="abc", price_coverage_pct="NaN", currency_consistency_pct=[])
         observation["economics"] = {**observation["economics"], "observed_new_cost": None}
         outcomes, tree = self.compare("unused economic quality input", [observation])
         self.assertEqual(outcomes[0][0], "ok")
         self.assertNotIn("ECONOMIC_MEASUREMENT_RECORDED", events(tree))
 
     def test_unused_counterfactual_input_does_not_fail_a_regeneration_run(self):
-        malformed = {"elapsed_days": "abc", "performance": 5, "economics": "x", "attributable_spend_pct": "abc"}
+        malformed = {"elapsed_days": "abc", "performance": 5, "economics": "x", "financial_quality": {**self.base["financial_quality"], "attributable_spend_pct": "abc"}}
         first = self.base
         drifted = self.later(10, config={**self.base["config"], "warehouse_size": "SMALL"}, **malformed)     # drift: regenerates before validation
         contrary = self.later(11, config={**self.base["config"], "warehouse_size": "X_LARGE"}, **malformed)

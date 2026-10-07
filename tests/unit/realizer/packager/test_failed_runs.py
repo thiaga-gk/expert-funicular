@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, Unprintable, Untestable, compact_tree, events, files, fixture_package, outcome, run_sequence, tree  # noqa: E402
+from tests.unit.realizer.helpers import Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, outcome, run_sequence, tree  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.packager import ledger  # noqa: E402
@@ -41,8 +41,9 @@ class CommitPositionTests(unittest.TestCase):
 
     def compare(self, label, observations, policy=None, package=None):
         """Run *observations* into one directory and check the outcomes and the output tree against the stored expectation."""
-        # a package passed in is a deliberately malformed one: the loader's gate would refuse it before any stage ran
-        outcomes, tree_ = run_sequence(self.pkg if package is None else package, observations, policy, gate=package is None)
+        # a package passed in is a deliberately malformed one: the loader's gate would refuse it before any stage ran; the
+        # observation gate is open too (it refuses these observations before anything is written, see tests/unit/realizer/config)
+        outcomes, tree_ = run_sequence(self.pkg if package is None else package, observations, policy, gate=package is None, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree_)))
         return outcomes, tree_
 
@@ -101,8 +102,8 @@ class CommitPositionTests(unittest.TestCase):
             "counterfactual": ({**self.base, "economics": {**econ, "counterfactual_old_cost": "abc"}}, "VALIDATION_COMPLETED", "InvalidOperation"),
             "economics": ({**self.base, "economics": {**econ, "observed_new_cost": "abc"}}, "COUNTERFACTUAL_RECORDED", "InvalidOperation"),
             "attribution": ({**self.base, "overlap_count": "abc"}, "COUNTERFACTUAL_RECORDED", "ValueError"),
-            "correction entry": ({**self.base, "correction": {"corrects_entry_id": "bogus"}}, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError"),
-            "correction payload": ({**self.base, "correction": {"reason": Opaque()}}, "ECONOMIC_MEASUREMENT_RECORDED", "TypeError"),
+            "correction entry": ({**self.base, "correction": correction(corrects_entry_id="bogus")}, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError"),
+            "correction payload": ({**self.base, "correction": correction(reason=Opaque())}, "ECONOMIC_MEASUREMENT_RECORDED", "TypeError"),
         }
         for label, (observation, last, kind) in cases.items():
             with self.subTest(case=label):
@@ -112,7 +113,7 @@ class CommitPositionTests(unittest.TestCase):
     def test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction(self):
         bad_window = {"remeasure_days_after_invalidating_change": "abc"}
         self.assert_halts_after("measurement", [self.base], "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", policy=bad_window)
-        tree_ = self.assert_halts_after("correction", [{**self.base, "correction": {"type": "RESTATEMENT", "key": "c1"}}], "BILLING_CORRECTION_RECORDED", "ValueError", policy=bad_window)
+        tree_ = self.assert_halts_after("correction", [{**self.base, "correction": correction()}], "BILLING_CORRECTION_RECORDED", "ValueError", policy=bad_window)
         self.assertEqual(files(tree_, "regeneration"), [])
 
     def test_replay_cut_fails_after_the_whole_commit(self):
@@ -161,12 +162,12 @@ class PackagerMutationTests(unittest.TestCase):
         ]
         for observations in cases:
             with self.subTest(observations=observations):
-                expected = run_sequence(self.pkg, observations)
+                expected = run_sequence(self.pkg, observations, observation_gate=False)
                 with mock.patch.object(ledger, "commit_events", eager):
-                    mutant = run_sequence(self.pkg, observations)
+                    mutant = run_sequence(self.pkg, observations, observation_gate=False)
                 self.assertEqual(mutant[0], expected[0], "the exception itself is the same")
                 self.assertNotEqual(mutant[1], expected[1], "the ledger it leaves is not the unmutated engine's")
-                self.assertEqual(run_sequence(self.pkg, observations), expected)
+                self.assertEqual(run_sequence(self.pkg, observations, observation_gate=False), expected)
 
     def test_forcing_the_downstream_regeneration_early_is_caught(self):
         original = ledger.commit_events
@@ -179,11 +180,11 @@ class PackagerMutationTests(unittest.TestCase):
 
         observations = [{**self.base}]
         policy = {"remeasure_days_after_invalidating_change": "abc"}
-        expected = run_sequence(self.pkg, observations, policy)
+        expected = run_sequence(self.pkg, observations, policy, observation_gate=False)
         with mock.patch.object(ledger, "commit_events", early):
-            mutant = run_sequence(self.pkg, observations, policy)
+            mutant = run_sequence(self.pkg, observations, policy, observation_gate=False)
         self.assertNotEqual(mutant[1], expected[1])
-        self.assertEqual(run_sequence(self.pkg, observations, policy), expected)
+        self.assertEqual(run_sequence(self.pkg, observations, policy, observation_gate=False), expected)
 
 
 if __name__ == "__main__":

@@ -181,7 +181,7 @@ class LegacyCompatibilityTests(unittest.TestCase):
                         projections[f"{name}/{index}"] = projection
                         seen.add((snapshot.current_state["realization_state"], projection["status"], tuple(projection["reasons"])))
         states = {state for state, _, _ in seen}
-        for state in ("NOT_APPLIED", "APPLIED", "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "ROLLED_BACK", "MONITORING", "DRIFTED", "BLOCKED"):
+        for state in ("NOT_APPLIED", "APPLIED", "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "ROLLED_BACK", "MONITORING", "DRIFTED", "BLOCKED", "INVALIDATED"):
             self.assertIn(state, states)
         self.assertGreaterEqual({status for _, status, _ in seen}, {"LOSSLESS", "LOSSY"})
         expect.check(self, "projections", projections, spot={"runs": len(projections), "distinct": sorted([state, status, list(reasons)] for state, status, reasons in seen)})
@@ -191,7 +191,7 @@ class LegacyCompatibilityTests(unittest.TestCase):
 
     def test_every_state_actor_and_conformance(self):
         states = ["NOT_APPLIED", "APPLIED", "VALIDATING", "REALIZED", "UNDER_REALIZED", "VALIDATION_FAILED", "ROLLED_BACK", "MONITORING",
-                  "SOMETHING_NEW", "", "applied"]
+                  "INVALIDATED", "SOMETHING_NEW", "", "applied"]
         applications = [{}, {"state": "APPLIED"}, {"state": "APPLIED", "actor": "ops@example.com"}, {"state": "APPLIED", "actor": ""},
                         {"implementation_conformance": "MODIFIED"}, {"implementation_conformance": "EXACT", "state": "APPLIED", "actor": None},
                         {"state": "APPLIED", "implementation_conformance": "MODIFIED"}]
@@ -209,6 +209,12 @@ class LegacyCompatibilityTests(unittest.TestCase):
         self.assertEqual(reporter.legacy_compatibility(self.snapshot("MONITORING"))["reasons"], ["MONITORING_COLLAPSES_TO_LEGACY_REALIZED"])
         self.assertEqual(reporter.legacy_compatibility(self.snapshot("OTHER")),
                          {"status": "UNREPRESENTABLE", "legacy_realization_status": None, "reasons": ["REALIZER_STATE_OTHER_HAS_NO_LEGACY_MAPPING"]})
+
+    def test_an_invalidated_realization_collapses_to_the_legacy_applied_status(self):
+        result = reporter.legacy_compatibility(self.snapshot("INVALIDATED", state="APPLIED", actor="ops@example.com"))
+        self.assertEqual(result, {"status": "LOSSY", "legacy_realization_status": "APPLIED", "reasons": ["INVALIDATED_COLLAPSES_TO_LEGACY_APPLIED"]})
+        unknown_actor = reporter.legacy_compatibility(self.snapshot("INVALIDATED", state="APPLIED"))
+        self.assertEqual(unknown_actor["reasons"], ["INVALIDATED_COLLAPSES_TO_LEGACY_APPLIED", "LEGACY_APPLIED_BY_REQUIRED_BUT_ACTOR_UNKNOWN"])
 
     def test_malformed_snapshots_raise_the_single_file_exception(self):
         cases = {"no state": types.SimpleNamespace(current_state={}, application={}),

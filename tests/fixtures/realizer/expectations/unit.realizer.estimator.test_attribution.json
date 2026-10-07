@@ -1,47 +1,13 @@
 {
- "AttributionGridTests.test_absent_gates_are_computed_from_the_observation/result": {
-  "value": {
-   "attribution_claim_status": "OBSERVABLE_ONLY",
-   "attribution_scope": "CANDIDATE",
-   "attribution_state": "CORRELATED_ONLY",
-   "economic_quality_gates": {
-    "attributable_spend": {
-     "observed_pct": "90",
-     "pass": false,
-     "required_min_pct": "95"
-    },
-    "correction_chain": {
-     "complete": true,
-     "pass": true
-    },
-    "currency_consistency": {
-     "observed_pct": "100",
-     "pass": true,
-     "required_pct": "100"
-    },
-    "material_cost_components": {
-     "available": true,
-     "pass": true
-    },
-    "pass": false,
-    "price_coverage": {
-     "observed_pct": "100",
-     "pass": true,
-     "required_min_pct": "100"
-    }
-   },
-   "hard_disqualifiers": [
-    "MATERIAL_SPEND_UNRECONCILED"
-   ],
-   "origin_attribution": "CONFIRMED",
-   "overlap_count": 0,
-   "recommendation_attributed_realized_savings": "0.00",
-   "validated_observed_realization": "1000.00"
-  }
+ "AttributionGridTests.test_gates_and_overlap_count_are_required/no gates": {
+  "value": [
+   "KeyError",
+   "'quality_gates'"
+  ]
  },
  "AttributionGridTests.test_grid/results": {
-  "length": 15624321,
-  "sha256": "de7e405b42b983080fe7fc226e7842ef389d4cdfb89999333983f7fd1ac2ee62",
+  "length": 9095909,
+  "sha256": "467e441576292ecfdba5e1af076bff0ee5c9588e0da94069e9063cc36af30913",
   "spot": {
    "claims": [
     [
@@ -62,14 +28,18 @@
     ]
    ],
    "count": 25920,
-   "failure_kinds": [],
-   "failures": 0
+   "failure_kinds": [
+    "KeyError: 'quality_gates'",
+    "TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'",
+    "ValueError: invalid literal for int() with base 10: ''"
+   ],
+   "failures": 12096
   }
  },
- "AttributionGridTests.test_malformed_input_raises/absent gates, malformed observation": {
+ "AttributionGridTests.test_malformed_input_raises/absent gates": {
   "value": [
-   "ValueError",
-   "non-finite decimal"
+   "KeyError",
+   "'quality_gates'"
   ]
  },
  "AttributionGridTests.test_malformed_input_raises/gates not a mapping": {
@@ -115,6 +85,12 @@
     "recommendation_attributed_realized_savings": "0.00",
     "validated_observed_realization": "1000.00"
    }
+  ]
+ },
+ "AttributionGridTests.test_malformed_input_raises/overlap count absent": {
+  "value": [
+   "KeyError",
+   "'overlap_count'"
   ]
  },
  "AttributionGridTests.test_malformed_input_raises/overlap not a number": {

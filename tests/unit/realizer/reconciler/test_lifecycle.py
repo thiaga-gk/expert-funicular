@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, migration_scenario_id, outcome, tree  # noqa: E402
+from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, ledger_lines, migration_scenario_id, outcome, tree  # noqa: E402
 from realizer.analyzer.analysis import candidate_steps, package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import ActiveApplication, PlannedApplication, ReconciliationResult, RegenerationRequest  # noqa: E402
@@ -211,6 +211,7 @@ class LifecycleScenarioTests(unittest.TestCase):
         migration_step = next(s for s in next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"] if s.get("knob") == "warehouse_type")
         plan.insert(1, {**copy.deepcopy(migration_step), "step": 1, "invalidates": []})
         earlier = {**self.base, "observed_at_utc": "2026-10-05T12:00:00Z", "recorded_at_utc": "2026-10-05T12:00:00Z",
+                   "window_start_utc": "2026-09-28T12:00:00Z", "window_end_utc": "2026-10-05T12:00:00Z",
                    "config": {**self.base["config"], "warehouse_type": "CLASSIC"}}
         (a1, first), (a2, second) = reconcile_runs(self, package, [self.base, earlier])
         self.assertIsNotNone(a2.history.previous_application)
@@ -325,6 +326,73 @@ class LifecycleScenarioTests(unittest.TestCase):
         self.assertIsInstance(only, ReconciliationResult)
         with self.assertRaises(Exception):
             only.validation_due = False
+
+
+class IndependentChangeTests(unittest.TestCase):
+    """A step is an application only when the observed value relates to it and was applied after the package existed:
+    otherwise it is an independent change (R03, R08), and a contrary application invalidates the plan."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = fixture_package()
+        cls.base = demo_observation(cls.pkg)
+
+    def run_once(self, observation):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            snapshot = realize(copy.deepcopy(self.pkg), copy.deepcopy(observation), out)
+            return snapshot, ledger_lines(out)
+
+    @staticmethod
+    def kinds(entries):
+        return [entry["event_type"] for entry in entries]
+
+    def test_a_change_applied_two_days_before_the_package_is_never_an_application(self):
+        observation = {**self.base, "applied_at_utc": "2026-09-29T12:00:00Z"}   # generated_at is 2026-10-01T12:00:00Z
+        snapshot, entries = self.run_once(observation)
+        changes = [e for e in entries if e["event_type"] == "INDEPENDENT_CHANGE_OBSERVED"]
+        self.assertTrue(changes)
+        self.assertEqual({e["payload"]["independent_reason"] for e in changes}, {"APPLIED_BEFORE_PACKAGE"})
+        self.assertFalse(any(e["event_type"] in {"APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED"} for e in entries))
+        self.assertEqual(snapshot.current_state["realization_state"], "NOT_APPLIED")
+        self.assertEqual(snapshot.application["state"], "NOT_APPLIED")
+        # nothing is validated or measured, so nothing can be claimed
+        self.assertFalse(any(e["event_type"] in {"VALIDATION_READY", "ECONOMIC_MEASUREMENT_RECORDED", "COUNTERFACTUAL_RECORDED"} for e in entries))
+        self.assertFalse(snapshot.economics.get("available", False))
+        self.assertNotEqual(snapshot.attribution.get("attribution_claim_status"), "CLAIMABLE")
+        self.assertIn(snapshot.attribution.get("recommendation_attributed_realized_savings", "0.00"), ("0.00", None))
+
+    def test_the_same_change_applied_at_generation_is_an_application(self):
+        snapshot, entries = self.run_once(self.base)
+        self.assertIn("APPLICATION_OBSERVED", self.kinds(entries))
+        self.assertEqual(snapshot.application["state"], "APPLIED")
+
+    def test_an_unrelated_value_is_an_independent_change_not_an_application(self):
+        observation = {**self.base, "config": {**self.base["config"], "warehouse_size": "GIGANTIC"}}   # a size the registry does not know
+        snapshot, entries = self.run_once(observation)
+        change = next(e for e in entries if e["event_type"] == "INDEPENDENT_CHANGE_OBSERVED")
+        self.assertEqual(change["payload"]["independent_reason"], "UNRELATED_VALUE")
+        self.assertEqual(change["payload"]["implementation_conformance"], "UNRELATED")
+        self.assertEqual(change["payload"]["knob"], "warehouse_size")
+        self.assertFalse(any(e["event_type"] in {"APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED"} for e in entries))
+        self.assertEqual(snapshot.current_state["realization_state"], "NOT_APPLIED")
+        self.assertEqual(snapshot.application["state"], "NOT_APPLIED")
+        self.assertNotIn("VALIDATION_READY", self.kinds(entries))
+
+    def test_an_independent_reason_is_recorded_only_for_independent_changes(self):
+        _, entries = self.run_once(self.base)
+        for entry in entries:
+            if entry["event_type"] != "INDEPENDENT_CHANGE_OBSERVED":
+                self.assertNotIn("independent_reason", entry["payload"], entry["event_type"])
+
+    def test_a_contrary_application_invalidates_the_realization(self):
+        observation = {**self.base, "config": {**self.base["config"], "warehouse_size": "X_LARGE"}}
+        snapshot, entries = self.run_once(observation)
+        self.assertEqual(snapshot.application["implementation_conformance"], "CONTRARY")
+        self.assertEqual(snapshot.application["state"], "APPLIED")
+        self.assertEqual(snapshot.current_state["realization_state"], "INVALIDATED")
+        self.assertIn("REGENERATION_REQUESTED", self.kinds(entries))
+        self.assertFalse(snapshot.economics.get("available", False))
 
 
 if __name__ == "__main__":

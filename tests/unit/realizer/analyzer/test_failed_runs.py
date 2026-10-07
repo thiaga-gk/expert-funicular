@@ -25,8 +25,10 @@ class AnalyzerFailureTests(unittest.TestCase):
         cls.base = demo_observation(cls.pkg)
 
     def compare(self, label, observations, package=None):
+        """The observation gate is open: these cases pin what the Analyzer leaves behind for an observation it cannot read
+        (the loader's gate refuses all of them before anything is written, see ``tests/unit/realizer/config``)."""
         package = self.pkg if package is None else package
-        outcomes, tree = run_sequence(package, observations)
+        outcomes, tree = run_sequence(package, observations, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree)))
         return outcomes, tree
 

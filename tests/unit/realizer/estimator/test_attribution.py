@@ -62,20 +62,27 @@ class AttributionGridTests(unittest.TestCase):
                                                      "failures": sum(1 for r in results if r[0] != "ok"),
                                                      "failure_kinds": sorted({f"{r[0]}: {r[1]}" for r in results if r[0] != "ok"})})
 
-    def test_absent_gates_are_computed_from_the_observation(self):
-        observation = {"origin_attribution": "CONFIRMED", "attributable_spend_pct": "90"}
-        result = attribution.attribution_result({"implementation_conformance": "EXACT"}, observation, True, True, ECONOMICS["no gates"], policy(None))
-        expect.check(self, "result", result)
-        self.assertEqual(result["hard_disqualifiers"], ["MATERIAL_SPEND_UNRECONCILED"])
+    def test_gates_and_overlap_count_are_required(self):
+        """Nothing is computed from the observation in place of a missing input: the Estimator always passes the gates."""
+        app = {"implementation_conformance": "EXACT"}
+        observation = {"origin_attribution": "CONFIRMED", "overlap_count": 0}
+        with self.assertRaises(KeyError) as no_gates:
+            attribution.attribution_result(app, observation, True, True, ECONOMICS["no gates"], policy(None))
+        self.assertEqual(no_gates.exception.args, ("quality_gates",))
+        with self.assertRaises(KeyError) as no_overlap:
+            attribution.attribution_result(app, {"origin_attribution": "CONFIRMED"}, True, True, ECONOMICS["available"], policy(None))
+        self.assertEqual(no_overlap.exception.args, ("overlap_count",))
+        expect.check(self, "no gates", outcome(attribution.attribution_result, app, observation, True, True, ECONOMICS["no gates"], policy(None)))
 
     def test_malformed_input_raises(self):
         cases = {
             "overlap not a number": ({"overlap_count": "abc"}, ECONOMICS["available"]),
             "overlap not finite": ({"overlap_count": float("inf")}, ECONOMICS["available"]),
-            "origin unprintable": ({"origin_attribution": Unprintable()}, ECONOMICS["available"]),  # caught: UNKNOWN
-            "savings not a number": ({}, {**ECONOMICS["available"], "successful_realized_savings": "abc"}),
-            "gates not a mapping": ({}, {**ECONOMICS["available"], "quality_gates": 5}),
-            "absent gates, malformed observation": ({"price_coverage_pct": "NaN"}, ECONOMICS["no gates"]),
+            "origin unprintable": ({"origin_attribution": Unprintable(), "overlap_count": 0}, ECONOMICS["available"]),  # caught: UNKNOWN
+            "savings not a number": ({"overlap_count": 0}, {**ECONOMICS["available"], "successful_realized_savings": "abc"}),
+            "gates not a mapping": ({"overlap_count": 0}, {**ECONOMICS["available"], "quality_gates": 5}),
+            "absent gates": ({"overlap_count": 0}, ECONOMICS["no gates"]),
+            "overlap count absent": ({}, ECONOMICS["available"]),
             "observation not a mapping": (5, ECONOMICS["available"]),
         }
         for label, (observation, economic) in cases.items():
@@ -86,7 +93,7 @@ class AttributionGridTests(unittest.TestCase):
 
 class AttributionCaseTests(unittest.TestCase):
     def attribute(self, observation=None, economic=None, passed=True, eligible=True, app=None, policy=None):
-        return attribution.attribution_result(app or {"implementation_conformance": "EXACT"}, {"origin_attribution": "CONFIRMED", **(observation or {})},
+        return attribution.attribution_result(app or {"implementation_conformance": "EXACT"}, {"origin_attribution": "CONFIRMED", "overlap_count": 0, **(observation or {})},
                                               passed, eligible, economic or ECONOMICS["available"], policy or RealizerPolicy())
 
     def test_claimable(self):

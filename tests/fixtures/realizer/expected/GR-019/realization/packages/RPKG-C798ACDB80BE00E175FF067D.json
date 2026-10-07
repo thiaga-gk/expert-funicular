@@ -60,7 +60,9 @@
         "pass": true
       },
       "currency_consistency": {
+        "currency": "USD",
         "observed_pct": "100",
+        "package_currency": "USD",
         "pass": true,
         "required_pct": "100"
       },
@@ -120,7 +122,9 @@
         "pass": true
       },
       "currency_consistency": {
+        "currency": "USD",
         "observed_pct": "100",
+        "package_currency": "USD",
         "pass": true,
         "required_pct": "100"
       },
@@ -150,7 +154,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-D49F6505AF98E9F4995A49F4",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:98ECA160D6FD0C83B52EEB6EC11EC3E41070D068DF7D1AAF8EA8E3A8C8529503",
+    "ledger_checkpoint_hash": "SHA256:7CA76064FAAD5F03D13CB516C03D0FF5DA8AEB50757B15D6B570A478028D6DB9",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -175,7 +179,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-226B6129E6F6677764DCB0A8",
+  "snapshot_id": "RSNAP-1C00811838521CC0CF0D128A",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-49B351806B1822703F96670C",

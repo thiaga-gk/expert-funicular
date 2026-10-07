@@ -85,7 +85,7 @@ class RealizerCoreTests(unittest.TestCase):
 
     def test_financial_quality_gates_block_strict_attribution_without_erasing_observed_value(self):
         obs = demo_observation(self.pkg)
-        obs.update({
+        obs['financial_quality'].update({
             'attributable_spend_pct': '90',
             'price_coverage_pct': '99',
             'currency_consistency_pct': '99',

@@ -14,7 +14,8 @@ from typing import Any, Dict, Mapping, Optional
 from realizer.analyzer.analysis import candidate_steps, package_config
 from realizer.common.utils import load_json, money, utc_iso
 from realizer.estimator.economics import expected_annual_for_exact_step
-from realizer.governor.policy import authority_eligible
+from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
+from realizer.governor.policy import authority_eligible, package_currency
 
 
 def load_observation(path: str | Path) -> Any:
@@ -51,10 +52,16 @@ def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> D
     reestimate = money(savings * Decimal("365") / DEMO_PERIOD_DAYS) if modified else None
     generated = (package.get("provenance") or {}).get("generated_at") or "2026-10-01T00:00:00Z"
     d = dt.datetime.fromisoformat(generated.replace("Z", "+00:00")) + dt.timedelta(days=8)
+    warehouse = package["warehouse"]
     return {
+        "observation_format_version": OBSERVATION_FORMAT_VERSION,
+        "workspace_id": warehouse["workspace_id"],
+        "warehouse_id": warehouse["warehouse_id"],
+        "source": "DEMO_NORMALIZED_OBSERVATION",
         "observed_at_utc": utc_iso(d),
         "recorded_at_utc": utc_iso(d),
         "applied_at_utc": utc_iso(d - dt.timedelta(days=8)),
+        "effective_time_quality": "OBSERVED_AT_ONLY",
         "window_start_utc": utc_iso(d - dt.timedelta(days=7)),
         "window_end_utc": utc_iso(d),
         "config": cfg,
@@ -62,18 +69,37 @@ def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> D
         "query_count": 250,
         "representative_regime": True,
         "evidence_quality": "SUFFICIENT",
+        "workload": {},
         "performance": {"normalized_p95_runtime_regression_pct": "2", "reliability_pass": True, "correctness_pass": True},
+        "financial_quality": {
+            "attributable_spend_pct": 100, "price_coverage_pct": 100, "currency_consistency_pct": 100,
+            "correction_chain_complete": True, "material_cost_component_available": True,
+        },
         "economics": {
-            "currency": "USD",
+            "currency": package_currency(package) or "USD",
             "counterfactual_old_cost": money(DEMO_COUNTERFACTUAL_COST),
             "observed_new_cost": money(DEMO_COUNTERFACTUAL_COST - savings),
             "period_days": DEMO_PERIOD_DAYS,
             "expected_annual_savings_actual_scope": reestimate,
             "counterfactual_method": "MATCHED_HISTORICAL",
             "economic_basis": "ECONOMIC_COST",
+            "dbu_realized": None,
+            "aws_economic_realized": None,
+            "aws_cash_realized": None,
+            "aws_commitment_freed": None,
+            "aws_evidence_type": None,
+            "mature_ttm_realized_savings": None,
+            "realized_savings_since_application": None,
         },
+        "overlap_count": 0,
         "origin_attribution": "CONFIRMED",
         "intent_state": "ACCEPTED",
+        "intent_reference": None,
         "actor": "demo-user",
-        "source": "DEMO_NORMALIZED_OBSERVATION",
+        "applied_scenario_id": None,
+        "rollback_requested": False,
+        "rollback_observed": False,
+        "rollback_reason": None,
+        "replacement_package_id": None,
+        "correction": None,
     }

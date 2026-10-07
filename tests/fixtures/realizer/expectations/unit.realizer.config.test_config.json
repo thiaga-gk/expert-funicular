@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8440,
-  "sha256": "1292711e80c3adbccdc2e7d2c4070020e7ae30bb93c4511464cf05e6c7ea43fd",
+  "length": 8584,
+  "sha256": "e5d6d9fb4ccab4e05757743a8923e2fcc773748b82b49292ed0dbdd6a1bf6573",
   "spot": {
    "logging": [
     [],
@@ -10,7 +10,7 @@
      "level": 10
     }
    ],
-   "stdout_characters": 7486
+   "stdout_characters": 7610
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
@@ -31,8 +31,8 @@
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 8446,
-  "sha256": "6dc048d75a768183fff650f397f15133232edd0eeb49ec19c523461ef98ed66a",
+  "length": 8590,
+  "sha256": "cd27b636213a8f7792e4534698b8af8e063406cd1d52e1b0bc613c4d39fc33a4",
   "spot": {
    "logging": [
     [],
@@ -41,7 +41,7 @@
      "level": 10
     }
    ],
-   "stdout_characters": 7494
+   "stdout_characters": 7618
   }
  },
  "PolicyTests.test_defaults/policy": {

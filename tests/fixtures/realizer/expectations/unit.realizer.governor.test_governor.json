@@ -1,7 +1,7 @@
 {
  "RunTests.test_checks_for_every_scenario_observation/results": {
-  "length": 74036,
-  "sha256": "d0c3379bd0c6f69e24283aa56f4d343fb69b78eeb56fe481e0bed1dc59a57a91",
+  "length": 76181,
+  "sha256": "2ec016f53b11439fe242fb5ca054aa3a15c5d58a30531e80f6ba415e29e807da",
   "spot": {
    "count": 51,
    "exceptions": []
@@ -14,33 +14,8 @@
     "'str' object has no attribute 'get'"
    ],
    "economic_quality": [
-    "ok",
-    {
-     "attributable_spend": {
-      "observed_pct": "100",
-      "pass": true,
-      "required_min_pct": "95"
-     },
-     "correction_chain": {
-      "complete": true,
-      "pass": true
-     },
-     "currency_consistency": {
-      "observed_pct": "100",
-      "pass": true,
-      "required_pct": "100"
-     },
-     "material_cost_components": {
-      "available": true,
-      "pass": true
-     },
-     "pass": true,
-     "price_coverage": {
-      "observed_pct": "100",
-      "pass": true,
-      "required_min_pct": "100"
-     }
-    }
+    "AttributeError",
+    "'str' object has no attribute 'get'"
    ],
    "performance": [
     "ok",
@@ -209,7 +184,9 @@
       "pass": true
      },
      "currency_consistency": {
+      "currency": "USD",
       "observed_pct": "100",
+      "package_currency": "USD",
       "pass": true,
       "required_pct": "100"
      },
@@ -281,7 +258,9 @@
       "pass": true
      },
      "currency_consistency": {
+      "currency": "USD",
       "observed_pct": "100",
+      "package_currency": "USD",
       "pass": true,
       "required_pct": "100"
      },

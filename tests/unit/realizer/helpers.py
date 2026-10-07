@@ -63,6 +63,16 @@ class Untestable:
         return 2
 
 
+def with_quality(observation: Mapping[str, Any], **inputs: Any) -> Dict[str, Any]:
+    """*observation* with some of its ``financial_quality`` inputs replaced (the quality inputs are nested in 2.0.0)."""
+    return {**observation, "financial_quality": {**observation["financial_quality"], **inputs}}
+
+
+def correction(**patch: Any) -> Dict[str, Any]:
+    """A complete billing correction (format 2.0.0: every key present)."""
+    return {"key": "c1", "type": "RESTATEMENT", "version": 2, "reason": None, "corrects_entry_id": None, **patch}
+
+
 def outcome(fn: Callable[..., Any], *args: Any, **kwargs: Any):
     """``("ok", value)``, or ``(exception type name, message)`` when *fn* raises."""
     try:
@@ -127,17 +137,33 @@ def package_gate_open() -> Iterator[None]:
         yield
 
 
-def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None, *, gate: bool = True):
+@contextlib.contextmanager
+def observation_gate_open() -> Iterator[None]:
+    """Run the engine without the loader's observation gate (``validate_observation``).
+
+    The gate refuses every observation that is not a complete, consistent format 2.0.0 observation of the package's
+    warehouse before anything is written, so a malformed observation (a configuration that is not a mapping, an
+    unreadable time, a flag with no truth value) never reaches the stages in production. The stage-level failure-ordering
+    tests still feed such observations to the engine, to pin what each stage leaves behind when it raises; this opens the
+    gate for them, and only for them.
+    """
+    with mock.patch.object(_facade, "validate_observation", lambda observation, package: None):
+        yield
+
+
+def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None, *, gate: bool = True,
+                 observation_gate: bool = True):
     """Run each observation through ``realize`` into one fresh directory, continuing past a failure.
 
     Returns ``(outcomes, tree)``: per observation ``("ok", snapshot id)`` or ``(exception type, message)``, and the
     files and directories left behind (so a crash is compared together with the ledger it left half written). With
-    ``gate=False`` the package is not checked by the loader's gate (``package_gate_open``).
+    ``gate=False`` the package is not checked by the loader's gate (``package_gate_open``); with ``observation_gate=False``
+    the observation is not (``observation_gate_open``).
     """
     with tempfile.TemporaryDirectory(prefix="realizer-run-") as tmp:
         out = Path(tmp)
         outcomes: List[Any] = []
-        with contextlib.nullcontext() if gate else package_gate_open():
+        with contextlib.nullcontext() if gate else package_gate_open(), contextlib.nullcontext() if observation_gate else observation_gate_open():
             for observation in observations:
                 kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
                 result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)

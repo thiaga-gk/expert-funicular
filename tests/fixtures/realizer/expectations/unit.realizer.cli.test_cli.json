@@ -27,17 +27,17 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "33145e9e29f042e5",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "82c315bbe3c83e24",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c0e79128411047eb",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "8d13b6c11a5fa35a",
      "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
-     "realization/snapshots/RSNAP-370D181E943A40CCB9809E31.json": "82c315bbe3c83e24"
+     "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "8d13b6c11a5fa35a"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9157,
-  "sha256": "0902f36f30f269115b05d43adcf5cf50a5e2e8410bbf26d7a0b9903ed5ecfd4e"
+  "length": 9301,
+  "sha256": "659ecf8ddb1ba45bf5c88ac5076821f48ccfe92ab23d4629848aa93e4af2e924"
  },
  "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 0": {
   "value": "ValueError: unsupported Publisher contract: None (this Realizer reads 3.1.0)"
@@ -100,17 +100,17 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "72a466b33ab12150",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "4a3566f6fc1f844d",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1c3fa5c24f5165aa",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b73c62d866088939",
      "realization/regeneration/RERUN-3908769AAF62FB3768C5C200.json": "f2dd416d4820174d",
-     "realization/snapshots/RSNAP-91309FCF9B7A30CDA765B0F7.json": "4a3566f6fc1f844d"
+     "realization/snapshots/RSNAP-418E7F3D714E52CFF2192E40.json": "b73c62d866088939"
     }
    }
   ]
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4370,
-  "sha256": "2eb97212a79eedbc326115ecc287fbc6b5ec9f378bde3af184632db23850fea0"
+  "sha256": "fc92b465828a8c4aa833792e84658af19d2acc8297395a29aff151ab051ed3ba"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "value": [

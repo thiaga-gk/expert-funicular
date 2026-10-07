@@ -1,7 +1,9 @@
 """Realizer Contract JSON Schema builders (src/realizer/contracts/realization_schema.py).
 
 The builders reproduce the committed schema files (``schema/realization-package.schema.json`` and
-``schema/realization-ledger-entry.schema.json``) byte for byte, and accept every stored RPKG/RSNAP and RLE.
+``schema/realization-ledger-entry.schema.json``) byte for byte, and accept every stored RPKG/RSNAP and RLE. The observation
+schema (``schema/realization-observation.schema.json``, built by ``realizer.contracts.observation.observation_schema``) is
+reproduced byte for byte too, and every stored scenario observation and shipped example validates against it.
 """
 import json
 import sys
@@ -17,6 +19,7 @@ for _path in (ROOT, ROOT / "src"):
 from tests.regression.realizer import canonical  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
+from realizer.contracts import observation as observation_module  # noqa: E402
 from realizer.contracts import realization_schema as schema  # noqa: E402
 
 COMMITTED = ROOT / "schema"
@@ -57,6 +60,51 @@ class SchemaBuilderTests(unittest.TestCase):
                     entries += 1
         self.assertGreater(packages, 41)
         self.assertGreater(entries, 300)
+
+
+class ObservationSchemaTests(unittest.TestCase):
+    FILE = COMMITTED / "realization-observation.schema.json"
+
+    def test_builder_reproduces_the_committed_schema_file_byte_for_byte(self):
+        self.assertTrue(self.FILE.is_file())
+        self.assertEqual(serialize(observation_module.observation_schema()), self.FILE.read_bytes())
+
+    def test_schema_is_valid_draft_2020_12_and_strict(self):
+        built = observation_module.observation_schema()
+        jsonschema.Draft202012Validator.check_schema(built)
+        self.assertEqual(built["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertIs(built["additionalProperties"], False)
+        self.assertEqual(built["required"], sorted(built["properties"]), "every key is required")
+        for section in ("config", "performance", "financial_quality"):
+            self.assertIs(built["properties"][section]["additionalProperties"], False, section)
+            self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
+        self.assertEqual(sorted(built["properties"]["config"]["properties"]),
+                         ["auto_stop_minutes", "enable_photon", "max_clusters", "min_clusters", "warehouse_channel", "warehouse_size", "warehouse_type"])
+        self.assertEqual(built["properties"]["observation_format_version"], {"const": "2.0.0"})
+
+    def test_every_stored_scenario_observation_and_the_examples_validate(self):
+        validator = jsonschema.Draft202012Validator(observation_module.observation_schema())
+        checked = 0
+        for name in canonical.scenario_names():
+            for run in canonical.load_scenario(name)["runs"]:
+                if run.get("observation"):
+                    with self.subTest(scenario=name):
+                        validator.validate(run["observation"])
+                        checked += 1
+        for variant in ("exact", "modified"):
+            with self.subTest(example=variant):
+                validator.validate(json.loads((ROOT / "examples" / "realizer" / variant / "observation.json").read_text(encoding="utf-8")))
+                checked += 1
+        self.assertGreater(checked, 41)
+
+    def test_the_schema_refuses_an_incomplete_or_extended_observation(self):
+        validator = jsonschema.Draft202012Validator(observation_module.observation_schema())
+        observation = json.loads((ROOT / "examples" / "realizer" / "exact" / "observation.json").read_text(encoding="utf-8"))
+        self.assertTrue(validator.is_valid(observation))
+        self.assertFalse(validator.is_valid({k: v for k, v in observation.items() if k != "financial_quality"}))
+        self.assertFalse(validator.is_valid({**observation, "tag_only": "x"}))
+        self.assertFalse(validator.is_valid({**observation, "config": {**observation["config"], "tag_only": "x"}}))
+        self.assertFalse(validator.is_valid({**observation, "observation_format_version": "1.0.0"}))
 
 
 if __name__ == "__main__":
