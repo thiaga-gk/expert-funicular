@@ -60,18 +60,13 @@ GROUP BY ALL ORDER BY queries DESC;
 Deferred until the cadence-aware forecast window lands. Tuning needs 365 days of per-minute query starts from real
 warehouses with known month-end, quarter-end or yearly peaks.
 
-## Order of the run (after batch 8)
+## Order of the run
 
-1. Run the three queries above and paste their output. The `databricks-golden-miner` skill runs them read-only through the Databricks CLI and saves the results (`scripts/real_data_queries.py`, which reads the SQL from this page).
-2. Set up from a checkout (`python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`), then one live read-only publisher run on the account (`python -m publisher --profile <oauth-profile> --sql-warehouse-id <warehouse that runs the collector SQL> --source-region <aws-region> --output-dir <dir>`), keeping `evidence.json` for replay. Optional live checks: set `PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID` (and `PUBLISHER_LIVE_SERVERLESS_WAREHOUSE_ID`) and run `python -m unittest discover -s tests/integration -t .`.
-3. The backtest below on the same account.
-4. The cost-profile replays below.
-   The Realizer's backtest, live measurement and fleet run on the same account follow in [`../realizer/real-data-run.md`](../realizer/real-data-run.md); its restart-billing and realization-factor questions are the assumptions below.
-5. Review together: which assumptions held, which policy values to recalibrate (each recalibration goes through its own approval).
+The sequence across both products (setup, the day-0 runs, the one applied change, the weekly measurements and the review) is in [`../shared/live-run.md`](../shared/live-run.md). The queries above run there in step 1.1 (`.claude/skills/databricks-golden-miner/scripts/real_data_queries.py` reads them from this page), the live Publisher runs in steps 1.2 and 1.3 and the cost-profile replays in step 1.4.
 
 ## Backtest of the savings math (tracker G56)
 
-For every warehouse whose configuration changed in the last 365 days, predict the new period's cost from the old
+Not built yet; the auto-stop part runs today as the Realizer's backtest (step 1.5 of the live run sequence). For every warehouse whose configuration changed in the last 365 days, predict the new period's cost from the old
 period's evidence and compare it with the cost actually billed in the new period. Older configuration periods are
 allowed for calibration and backtest (CLAUDE.md); they never choose a change. Output per knob: predicted vs billed
 annualized change, bias and spread. It calibrates the assumed values:

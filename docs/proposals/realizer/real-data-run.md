@@ -4,22 +4,9 @@ What cannot be closed from code or simulation alone: the Realizer's measurements
 
 This page points to where each command and meaning lives and does not restate them: commands and flags in the [README](../../../README.md#realizer) and [`lld.md`](../../architecture/realizer/lld.md) section 14; measurement, counterfactuals, backtest and evidence formats in [`source-evidence-contract.md`](../../contracts/realizer/source-evidence-contract.md) sections 16 to 19; lineages, the state directory, the fleet run and its exit status in [`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) sections 18, 19 and 24; what the Realizer cannot measure yet in [`known-limitations.md`](../../reference/realizer/known-limitations.md).
 
-## Before you start
-
-- Install from a checkout (`python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`). The Databricks CLI must be on `PATH`.
-- An OAuth U2M CLI profile (`databricks auth login`). Static personal access tokens are rejected; never paste a token anywhere.
-- A collector SQL warehouse: the Realizer's collector statements run on it. It must never be a warehouse the run measures or backtests (the run refuses it by name for a backtest; for a live measurement it is the operator's rule, because the statements would change the measured warehouse's idle time and cost).
-- The AWS region of the account (`--source-region`) for the modeled AWS cost of Pro and Classic; without it the cost basis is DBU only.
-- Every command is read-only. The owner applies a change in the Databricks UI or API; neither product does.
-
 ## Order of the run
 
-1. **Publisher packages.** One live Publisher run scoped to auto-stop first, then the full scope (the commands and the Publisher's own open items are in its runbook): `publisher --profile <p> --sql-warehouse-id <collector> --source-region <region> --scope current:auto-stop --output-dir ./real_out`, then the same without `--scope`. Keep the run folders; the Realizer reads their `packages/`. Do not keep or send `evidence.json` (it holds owner emails and tags).
-2. **Backtest.** `realizer --backtest --profile <p> --sql-warehouse-id <collector> --source-region <region> --output-dir ./rz_real` over every past auto-stop change in the last 365 days (`--warehouse <id>`, repeatable, to focus). Each change is reported with the Publisher-style prediction from the days before it, the realized saving from the days after it and the billed cross-check. No package, no ledger, and no waiting: this is the first real evidence for the questions below.
-3. **One live package.** The owner applies one change recommended by a package on a test warehouse (an owner action; note the time). Then `realizer --package <PKG.json> --profile <p> --sql-warehouse-id <collector> --source-region <region> --output-dir ./rz_real`. Nothing is measured before one whole settled week after the change; allow about four weeks for a stable number, and run it again as the weeks settle (each run adds a measurement to the lineage). Pass `--approvals` if the change is to be recorded as confirmed.
-4. **Fleet run.** `realizer --publisher-run <Publisher run folder or root> --profile <p> --sql-warehouse-id <collector> --source-region <region> --output-dir ./rz_real` realizes every warehouse of the Publisher run and every open lineage kept in the state; keep one `--output-dir` (so one state) across runs. Check the exit status (1: a warehouse crashed; 2: one was refused) and the per-warehouse lines.
-5. **Replay.** The evidence files of steps 3 and 4 replay offline to the same observations: `realizer --package <PKG.json> --from-evidence <file>`, or for a fleet `realizer --publisher-run <folder> --from-evidence ./rz_real/state/realization/measurements --output-dir ./rz_replay`. A replay that differs from the live result is a defect to report.
-6. Review together, per change: predicted, realized and billed, the cross-check outcome and its reason, and the questions below.
+The sequence across both products is in [`../shared/live-run.md`](../shared/live-run.md): setup and the collector warehouse (phase 0), the Publisher packages, the Realizer's backtest, a baseline fleet run and its offline replay on day 0 (phase 1), the one change an owner applies (phase 2), the weekly measurements and their replays (phase 3) and the review (phase 4). A live measurement needs one whole settled week after the change day and settles over about four weeks; the collector warehouse is never a measured one, because its statements would change the measured warehouse's idle time and cost.
 
 ## What to send back
 
