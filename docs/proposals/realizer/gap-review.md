@@ -4,6 +4,8 @@ Review of the Realizer (`src/realizer/`) at master 5bcae87 for gaps, correctness
 
 Method: five independent reviews in parallel (package contract, live collector and counterfactual, correctness with probe scripts, golden scenarios, operations), each finding checked against the code before it entered this list. Findings carry IDs `R<NN>`; decisions `RD<NN>`. Live status is in the tracker; the repo copy is [`tracker.md`](tracker.md). The process is the Publisher's per-issue loop ([`../publisher/remediation-runbook.md`](../publisher/remediation-runbook.md)) applied per batch, in the worktree `.worktrees/realizer-gaps`.
 
+**Status (2026-10-07): closed.** All 65 findings are done (batches 1 to 7, decisions RD01 to RD40, Realizer 1.7.0). What remains open belongs to the real-data run ([`real-data-run.md`](real-data-run.md)) and the known limitations ([`known-limitations.md`](../../reference/realizer/known-limitations.md)).
+
 ## 1. Where the Realizer stands
 
 The Realizer is a correct-looking shell around numbers it is given. A run takes a PKG and one "observation" mapping, and every number that matters is in the observation: the counterfactual old cost, the new cost, the days, the query count, the p95 change, the reliability verdict, the origin. Nothing measures them.

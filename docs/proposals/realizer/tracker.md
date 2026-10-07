@@ -2,19 +2,9 @@
 
 A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/DeXxtwUBaiEhFTM1o1t6MQ, collection `findings`); this file is regenerated from it at each batch merge. Findings, worked examples and decisions: [`gap-review.md`](gap-review.md).
 
-Snapshot: 2026-10-07. Rows: 65 (Open: 5, Done: 60).
+Snapshot: 2026-10-07. Rows: 65 (Done: 65).
 
-## Open (5)
-
-| ID | Title | Band | Batch | Decision | Note | Updated |
-|---|---|---|---|---|---|---|
-| R58 | Weak non-waivable goldens | P1 | 7 |  | Fix: Rebuild them as end-to-end cases with real second packages. Detail: GR-004 and 039 never call `realize()`; GR-022/023/030 use a literal id or a flag instead of a second package; GR-023 repeats one comparison | 2026-10-06 |
-| R59 | Spec section 4 ledger invariants (append-only prefix across runs, non-overlapping intervals, lineage, replay) are not... | P2 | 7 |  | Fix: One invariant checker run over every case; registry gains kind and non-waivable flags. Detail: ecked generically; the registry checks only that a test method exists | 2026-10-06 |
-| R60 | Realizer docs (PRD, HLD, LLD, contracts, known limitations, README, examples) describe the 1.0.0 shell | P2 | 7 |  | Fix: Update with each batch; a real-data runbook section for the Realizer next to the Publisher's. | 2026-10-06 |
-| R61 | Small hygiene | P3 | 7 |  | Fix: Plausibility flag above the package's high; default `./realizer_out`; retention note. Covers known limitations 12, 13, 16. Detail: over-realization (ratio 30) shows REALIZED with no plausibility flag; `recommended == current` steps are always EXACT; snapshots never pruned; default output dir is the Publisher's | 2026-10-06 |
-| R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Found in batch 1.5 (R37): add a currency switch to the demo world and a GE case whose billing currency differs from the package's (currency gate fails, not claimable). | 2026-10-07 |
-
-## Done (60)
+## Done (65)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
@@ -78,3 +68,8 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 5, Done: 60).
 | R55 | Size | P1 | 6 | RD28-RD30 decided 2026-10-07 as recommended | Done (70d18544, merged 6eec3e52): size counterfactual from the runtime ratio on matched sources (>=300 queries, half coverage), the pre-change billed rate within the Publisher's 25% size-rate band, busy share, elastic/inelastic bounds (smaller saving claimed). GE-16 36,866/yr REALIZED (oracle within 1%); GE-17 ratio 1.2; GE-18 SIZE_RUNTIME_UNMEASURED. | 2026-10-07 |
 | R56 | Max and min clusters need minutes by cluster level, which are not collected | P1 | 6 | RD31-RD33 decided 2026-10-07 as recommended | Done (b3b47b2d, 1ba6515f, merged 6eec3e52): minutes by cluster level collected; floor cut counterfactual (GE-19 113,511/yr = oracle, REALIZED); capacity add cost from clusters above the old cap (GE-13 17,030/yr); cap cut upper bound as evidence (GE-14 0). | 2026-10-07 |
 | R57 | Migration has no reverse (new to old) model | P2 | 6 | RD26 decided 2026-10-07 as recommended (observe-only; Serverless AWS a true zero) | Done (87662f9c, merged 6eec3e52): migration observe-only, billed delta at the pre-change mix, informational range, OBSERVABLE_ONLY with NO_REVERSE_MIGRATION_MODEL; Serverless AWS a true zero. GE-20 33,193/yr observed. Reverse model later. | 2026-10-07 |
+| R58 | Weak non-waivable goldens | P1 | 7 | RD34 | Done (RD34): GR-004/022/023/030/039 realize real package fixtures in one state (supersession, handoff, ownership, option-grid denominator, scenario denominator 38,863.07 not 39,200.01); GE-05 asserts its denominator. Batch 7 merge fef6269b. | 2026-10-07 |
+| R59 | Spec section 4 ledger invariants (append-only prefix across runs, non-overlapping intervals, lineage, replay) are not... | P2 | 7 | RD35 | Done (RD35): one ledger invariant checker (7 invariants) after every stored-scenario run, over every GE case, golden/lineage tests and the fleet state; registry 1.1.0 with kind and non_waivable. Batch 7 merge fef6269b. | 2026-10-07 |
+| R60 | Realizer docs (PRD, HLD, LLD, contracts, known limitations, README, examples) describe the 1.0.0 shell | P2 | 7 | RD40 | Done (RD40): PRD/HLD/LLD/context refreshed (CLI section in the LLD), README/examples/doc map/contracts fixed; Realizer runbook docs/proposals/realizer/real-data-run.md. Batch 7 merge fef6269b. | 2026-10-07 |
+| R61 | Small hygiene | P3 | 7 | RD36-RD39 | Done (RD36-RD39): review_above_realized_ratio 2.0 (policy 1.5.0); no-op plan step refused; default ./realizer_out and --publisher-run skips Realizer run folders (fixed an exit-2 bug); retention note. Batch 7 merge fef6269b. | 2026-10-07 |
+| R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Done: world-only billing-currency switch (Publisher demo unchanged), GE-21 (EUR vs USD package: CURRENCY_MISMATCH, observable only); a measurement in another currency is no longer classified against the package (MONITORING CURRENCY_MISMATCH_UNCLASSIFIED). Batch 7 merge fef6269b. | 2026-10-07 |
