@@ -96,7 +96,7 @@ Modeled AWS economic realization MUST NOT be mislabeled as hard-cash AWS realiza
 
 ## 10. Realization workbook
 
-A person sees realization in the **realization workbook**, a separate `.xlsx` the Realizer writes, never in the Publisher's workbook. The Publisher's workbook is unchanged: its realization columns show the package as generated (an immutable package never learns that it was applied). The Realizer's fleet run writes the realization workbook into each run folder by calling `write_realization_workbook(path, warehouse_runs)` (`src/realizer/reporter/workbook.py`) with one `WarehouseRun` per warehouse of the run: its status (`OK`, `REFUSED`, `CRASHED`) and reason, the realization packages it projected, their ledger entries and the warehouse's state index.
+A person sees realization in the **realization workbook**, a separate `.xlsx` the Realizer writes, never in the Publisher's workbook. The Publisher's workbook is unchanged: its realization columns show the package as generated (an immutable package never learns that it was applied). The Realizer's fleet run writes the realization workbook into each run folder by calling `write_realization_workbook(path, warehouse_runs)` (`src/realizer/reporter/workbook.py`) with one `WarehouseRun` per warehouse of the run: its status (`OK`, `REFUSED`, `CRASHED`) and reason, the realization packages it projected, their ledger entries, the warehouse's state index and, per package, the first step of its plan a person applies (the first authority-eligible step of the recommended plan: number, knob, current and recommended value).
 
 Realization Workbook Contract v2.0.0 replaces the Realizer Workbook Extension v1.0.0 (two sheets, Realization Summary and Realization Timeline, rendered only by the single-file release). The summary and timeline row projections of v1.0.0 remain, unchanged, as the lineage projection (`project_summary`, `project_timeline`, `project_realizer_workbook`), which the stored scenario baseline pins and the Lineages and Timeline sheets reuse.
 
@@ -155,6 +155,7 @@ One fixed label per state (`NEXT_ACTIONS`). The state is the lineage's realizati
 | run `REFUSED` | | Fix the run: REFUSED |
 | run `CRASHED` | | Fix the run: CRASHED |
 | no lineage | | None: no realization to show |
+| `NOT_APPLIED` | the package's first plan step is given | Apply step *n*: *knob* *current* → *recommended* (for example "Apply step 1: auto_stop_minutes 30 → 10") |
 | `NOT_APPLIED` | | Apply the recommended change |
 | `NOT_APPLIED` | the plan has no authority-eligible step | None: no step to apply |
 | `APPLIED`, `VALIDATING` | | Wait for validation |
