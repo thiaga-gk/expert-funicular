@@ -174,9 +174,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-2821C47EAE3E31499303F88D",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-9BB2272926AC34FA782F6238",
+    "latest_entry_id": "RLE-AFF4831D19E87BD7A1D23520",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:CF9B2E035BDF2F1F50EEF463FF528E3FA068C874D93A5EF021F467BFF10C98FC",
+    "ledger_checkpoint_hash": "SHA256:4FF3EDC963584E5D603ED3C5BBA76D4E10331D0A192D9A1375A7265F523FDD9F",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -186,22 +186,22 @@
   "provenance": {
     "analyzer_gateway_version": "post-change-analyzer-adapter-v1.5.0",
     "attribution_version": "realizer-attribution-v1.4.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.6.0",
     "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "product_version": "2.14.0",
     "projector_version": "realizer-projector-v1.3.0",
     "realizer_contract_version": "1.2.0",
-    "realizer_version": "1.6.0"
+    "realizer_version": "1.7.0"
   },
   "realization_package_id": "RPKG-944841C00A4D62D80EE1E387",
   "regeneration": {
-    "regeneration_request_id": "RERUN-01AAE5B914CBA9FB736EE22B",
+    "regeneration_request_id": "RERUN-5BB421EFB6C8A30E0BF16508",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-470FCDB2763BE544EA4B5F8B",
+  "snapshot_id": "RSNAP-8BEB407D39D3614B7CEF074B",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -228,7 +228,7 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+    "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -265,7 +265,7 @@
         "min_sample": "100",
         "observed": "0.3",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
@@ -278,7 +278,7 @@
         "min_sample": "20",
         "observed": "0.7564",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "9.7173",
         "result": "PASS",
         "rule_id": "REAL-QUEUE-001",
@@ -290,7 +290,7 @@
         "min_sample": "300",
         "observed": "2500",
         "operator": "LTE_PREVIOUS_X_MARGIN",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "2500",
         "result": "PASS",
         "rule_id": "REAL-P95-001",
@@ -299,7 +299,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-6CDA3744C1909F5E894502EB",
+    "validation_episode_id": "VAL-93134F847480A51C867D3415",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

@@ -1,7 +1,7 @@
 {
  "CheckTests.test_a_malformed_field_only_breaks_the_check_that_reads_it/results": {
   "length": 2098,
-  "sha256": "549ff1359bce7b9b4be34ce7d900d11ba39dc4dbc7c2dc93025c98ace9c2dfe4"
+  "sha256": "68cac9cc85496249a115eb0d9d1f23eefd8fd97e99f15350bc873b3ee54d9afe"
  },
  "CheckTests.test_authority_eligible/results": {
   "value": {
@@ -43,7 +43,7 @@
  },
  "CheckTests.test_checks_on_every_scenario_observation_and_policy/results": {
   "length": 470095,
-  "sha256": "aa5e4445b62aa2331c525594000b931172bd75617a677f90da305e0325b5e36d",
+  "sha256": "a9621ac97c9c2c3fabb9a47ade3eeb4fc2f7ec95b3211f35984ff211fbeb8141",
   "spot": {
    "count": 1248,
    "exceptions": [],
@@ -237,7 +237,7 @@
  },
  "CheckTests.test_malformed_observations_raise/validate_performance": {
   "length": 10630,
-  "sha256": "f97c3ec4d66b61f818eb38ae5f7f7fcb31a1546905b742227eaf87d7eed873b7",
+  "sha256": "5bea64ef831e904d73ba81b37bf10b8c06302d9ff665f3e38ca12ffb26a3016c",
   "spot": {
    "count": 21,
    "exceptions": {
@@ -390,12 +390,13 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
    "fields": {
@@ -405,15 +406,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.80",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2.0",
     "under_realized_ratio_min": "0.50"
    },
-   "snapshot_id": "PSNAP-167AEEC26827AAB347759037"
+   "snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB"
   }
  },
  "PolicyClassTests.test_defaults_snapshot_id_and_dict/field names": {
@@ -424,6 +426,7 @@
    "max_normalized_p95_runtime_regression_pct",
    "realized_ratio_min",
    "under_realized_ratio_min",
+   "review_above_realized_ratio",
    "remeasure_days_after_invalidating_change",
    "minimum_attributable_spend_pct",
    "minimum_price_coverage_pct",
@@ -434,18 +437,18 @@
   ]
  },
  "PolicyClassTests.test_from_mapping_and_snapshot_ids_for_overrides/policies": {
-  "length": 4088,
-  "sha256": "d092731fdd94ba1c318a0bac0456d04226dc9ff563b0bce7eaec9432bbfd7290",
+  "length": 4326,
+  "sha256": "6e3ce8319b5338b79bc4570e4b5f596e88a9fde3653699a1d8b4f974cbfa861d",
   "spot": {
    "count": 7,
    "snapshot_ids": {
-    "0 {}": "PSNAP-167AEEC26827AAB347759037",
-    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-959616E58FF460EDCBE17DD1",
-    "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-0A967420BE415858B82A58A4",
-    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-95C15DE30BBC68CE258C003B",
-    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-472A741DAE7454D383D79EAF",
-    "5 None": "PSNAP-167AEEC26827AAB347759037",
-    "6 {}": "PSNAP-167AEEC26827AAB347759037"
+    "0 {}": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
+    "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-5CF6F6791778B200F549D5A5",
+    "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-F27C006C62C099B0E9B6154C",
+    "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-CA1F6AEC5629ABC1A8EAF2D6",
+    "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-1AAEC8116DBF5E4B03FC2A9A",
+    "5 None": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
+    "6 {}": "PSNAP-097ED33EBEB7E9FCEE56AEBB"
    }
   }
  },
@@ -482,12 +485,13 @@
      "minimum_material_savings_delta_pct": "5",
      "minimum_price_coverage_pct": "100",
      "minimum_queries": 100,
-     "policy_version": "realizer-policy-v1.4.0",
+     "policy_version": "realizer-policy-v1.5.0",
      "realized_ratio_min": "0.8",
      "remeasure_days_after_invalidating_change": 7,
      "require_confirmed_origin_for_hard_kpi": true,
      "require_representative_regime": true,
      "required_currency_consistency_pct": "100",
+     "review_above_realized_ratio": "2",
      "under_realized_ratio_min": "0.5"
     }
    ]
@@ -497,7 +501,7 @@
   "value": [
    [
     "ok",
-    "PSNAP-1E45A7B97DA1D9B01E1D181D"
+    "PSNAP-F918758E2DF5F52B6605254D"
    ],
    [
     "ok",
@@ -508,12 +512,13 @@
      "minimum_material_savings_delta_pct": "5",
      "minimum_price_coverage_pct": "100",
      "minimum_queries": "nan",
-     "policy_version": "realizer-policy-v1.4.0",
+     "policy_version": "realizer-policy-v1.5.0",
      "realized_ratio_min": "0.8",
      "remeasure_days_after_invalidating_change": 7,
      "require_confirmed_origin_for_hard_kpi": true,
      "require_representative_regime": true,
      "required_currency_consistency_pct": "100",
+     "review_above_realized_ratio": "2",
      "under_realized_ratio_min": "0.5"
     }
    ]
@@ -543,6 +548,7 @@
      "require_confirmed_origin_for_hard_kpi": true,
      "require_representative_regime": true,
      "required_currency_consistency_pct": "100",
+     "review_above_realized_ratio": "2",
      "under_realized_ratio_min": "0.5"
     }
    ]

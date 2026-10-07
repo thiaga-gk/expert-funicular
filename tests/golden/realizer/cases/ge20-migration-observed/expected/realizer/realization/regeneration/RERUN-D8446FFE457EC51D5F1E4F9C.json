@@ -1,0 +1,36 @@
+{
+  "actual_config": {
+    "auto_stop_minutes": 0,
+    "enable_photon": true,
+    "max_clusters": 1,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "MEDIUM",
+    "warehouse_type": "SERVERLESS"
+  },
+  "actual_config_hash": "SHA256:E4FE4D5C41718138E54E7A292C79259BE02645585AE8475BF489EB954AEFCC4C",
+  "changed_knobs": [
+    "warehouse_type"
+  ],
+  "evidence_id": "REVID-78A1E2ACF7F76883315C9367",
+  "impacted_knobs": [
+    "auto_stop_minutes",
+    "max_clusters",
+    "min_clusters",
+    "warehouse_size"
+  ],
+  "observation_window": {
+    "end_utc": "2026-11-06T00:00:00Z",
+    "start_utc": "2026-10-09T00:00:00Z"
+  },
+  "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
+  "reasons": [
+    "UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM"
+  ],
+  "regeneration_request_id": "RERUN-D8446FFE457EC51D5F1E4F9C",
+  "scenario_id": "SCN-AC43BE6C0BCC906295F0B9A3",
+  "source_realization_package_id": "RPKG-A909B313435622E85C9E08BB",
+  "source_recommendation_package_id": "PKG-EA1202864D64FCB46D81F07E",
+  "status": "REQUESTED",
+  "step": null
+}

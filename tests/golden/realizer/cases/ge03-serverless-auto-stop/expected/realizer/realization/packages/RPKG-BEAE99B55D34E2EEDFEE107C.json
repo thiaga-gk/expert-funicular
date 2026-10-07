@@ -228,9 +228,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-64131C88DC6EA470B19FEC38",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-DBEFA45F0AC5B9D417E8CB69",
+    "latest_entry_id": "RLE-5E9F8A8BBB5FAF53465E4DF8",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:FA7E7BA1D4DF9B2E0C6B5EC1A327E44BAFF82126E95965F013B93C50F188A5C3",
+    "ledger_checkpoint_hash": "SHA256:C92D5655E94772E094A60BACAE93A5AEE0CF5F91E6CF50140F07D3312333166F",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -240,14 +240,14 @@
   "provenance": {
     "analyzer_gateway_version": "post-change-analyzer-adapter-v1.5.0",
     "attribution_version": "realizer-attribution-v1.4.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.6.0",
     "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "product_version": "2.14.0",
     "projector_version": "realizer-projector-v1.3.0",
     "realizer_contract_version": "1.2.0",
-    "realizer_version": "1.6.0"
+    "realizer_version": "1.7.0"
   },
   "realization_package_id": "RPKG-BEAE99B55D34E2EEDFEE107C",
   "regeneration": {
@@ -255,7 +255,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-4D39E1C236CE158DDEEE2EC6",
+  "snapshot_id": "RSNAP-36A3A9F89CE3D7F914CFEA42",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -282,7 +282,7 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+    "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -319,7 +319,7 @@
         "min_sample": "100",
         "observed": "0.3",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
@@ -330,7 +330,7 @@
         "metric": "added_cold_start_share_pct",
         "observed": null,
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "reason": "NO_COLD_START_BUDGET",
         "result": "PASS",
         "rule_id": "REAL-COLD-001",
@@ -338,7 +338,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-BCD4113B98241A81FA855E36",
+    "validation_episode_id": "VAL-A93A3D58D7D8E398AD6F73AC",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

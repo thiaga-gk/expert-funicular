@@ -1,242 +1,322 @@
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "scenario_count": 40,
   "scenarios": [
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-001",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_001_no_implementation",
       "title": "No Implementation"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-002",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_002_exact_application_intent_unknown",
       "title": "Exact Application Intent Unknown"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-003",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_003_exact_confirmed_origin",
       "title": "Exact Confirmed Origin"
     },
     {
+      "kind": "END_TO_END",
+      "non_waivable": true,
       "scenario_id": "GR-004",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_004_modified_less_aggressive_numeric",
       "title": "Modified Less Aggressive Numeric"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-005",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_005_modified_more_aggressive_can_realize",
       "title": "Modified More Aggressive Can Realize"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-006",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_006_contrary_implementation",
       "title": "Contrary Implementation"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-007",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_007_unrelated_change",
       "title": "Unrelated Change"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-008",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_008_applied_but_immature",
       "title": "Applied But Immature"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-009",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_009_rare_workload_waits_for_regime",
       "title": "Rare Workload Waits For Regime"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-010",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_010_exact_realized_success",
       "title": "Exact Realized Success"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-011",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_011_safe_under_realized_60pct",
       "title": "Safe Under Realized 60Pct"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-012",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_012_safe_below_50_requests_reopt",
       "title": "Safe Below 50 Requests Reopt"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-013",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_013_positive_savings_p95_failure",
       "title": "Positive Savings P95 Failure"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-014",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_014_reliability_failure",
       "title": "Reliability Failure"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-015",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_015_no_defensible_counterfactual",
       "title": "No Defensible Counterfactual"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-016",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_016_modified_missing_same_scope_denominator",
       "title": "Modified Missing Same Scope Denominator"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-017",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_017_first_plan_a_step_realized_downstream_pending",
       "title": "First Plan A Step Realized Downstream Pending"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-018",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_018_modified_plan_a_regenerates_from_actual",
       "title": "Modified Plan A Regenerates From Actual"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-019",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_019_multiple_compatible_changes_scenario_scope",
       "title": "Multiple Compatible Changes Scenario Scope"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-020",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_020_pending_downstream_change_not_credited",
       "title": "Pending Downstream Change Not Credited"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-021",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_021_plan_b_migration_scenario_realization",
       "title": "Plan B Migration Scenario Realization"
     },
     {
+      "kind": "LINEAGE",
+      "non_waivable": true,
       "scenario_id": "GR-022",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_022_superseded_package_can_continue_applied_measurement",
       "title": "Superseded Package Can Continue Applied Measurement"
     },
     {
+      "kind": "LINEAGE",
+      "non_waivable": true,
       "scenario_id": "GR-023",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_023_economic_handoff_uses_same_boundary_without_overlap",
       "title": "Economic Handoff Uses Same Boundary Without Overlap"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-024",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_024_config_drift_closes_interval",
       "title": "Config Drift Closes Interval"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-025",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_025_rollback_preserves_history",
       "title": "Rollback Preserves History"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-026",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_026_billing_restatement_appends_and_recomputes",
       "title": "Billing Restatement Appends And Recomputes"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-027",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_027_provider_price_effects_keep_economic_basis_separate",
       "title": "Provider Price Effects Keep Economic Basis Separate"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-028",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_028_workload_growth_uses_counterfactual_not_naive_before_after",
       "title": "Workload Growth Uses Counterfactual Not Naive Before After"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-029",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_029_negative_realization_preserved",
       "title": "Negative Realization Preserved"
     },
     {
+      "kind": "LINEAGE",
+      "non_waivable": true,
       "scenario_id": "GR-030",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_030_overlap_blocks_recommendation_attribution",
       "title": "Overlap Blocks Recommendation Attribution"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-031",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_031_independent_similar_change_not_optimizer_attributed",
       "title": "Independent Similar Change Not Optimizer Attributed"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-032",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_032_duplicate_event_idempotent",
       "title": "Duplicate Event Idempotent"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-033",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_033_deterministic_replay",
       "title": "Deterministic Replay"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-034",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_034_policy_change_revalidates_without_rewriting_history",
       "title": "Policy Change Revalidates Without Rewriting History"
     },
     {
+      "kind": "FUNCTION",
+      "non_waivable": false,
       "scenario_id": "GR-035",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_035_churn_below_5pct_suppressed",
       "title": "Churn Below 5Pct Suppressed"
     },
     {
+      "kind": "FUNCTION",
+      "non_waivable": false,
       "scenario_id": "GR-036",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_036_material_improvement_eligible",
       "title": "Material Improvement Eligible"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-037",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_037_conflicting_source_evidence_blocks_claim",
       "title": "Conflicting Source Evidence Blocks Claim"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-038",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_038_aws_modeled_not_cash",
       "title": "Aws Modeled Not Cash"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": true,
       "scenario_id": "GR-039",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_039_cumulative_authoritative_not_blind_incremental_sum",
       "title": "Cumulative Authoritative Not Blind Incremental Sum"
     },
     {
+      "kind": "CONTRACT",
+      "non_waivable": false,
       "scenario_id": "GR-040",
       "status": "MANDATORY",
       "test_id": "tests.golden.realizer.test_golden_realization.RealizerGoldenTests.test_gr_040_mature_ttm_is_earned_from_365_covered_days",

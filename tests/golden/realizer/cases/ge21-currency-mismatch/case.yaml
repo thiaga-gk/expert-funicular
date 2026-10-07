@@ -1,0 +1,23 @@
+id: GE-21
+description: >-
+  The auto-stop change of GE-01 (wh-demo-013, Pro, 30 to 10, applied exactly), on an account whose billing switched to
+  EUR before the pre-change window: every billed row is in EUR while the package is priced in USD. The replay still
+  measures the change in the billing currency; it is reported, never classified against the USD range (no exchange
+  rate is guessed), and the currency gate fails, so nothing is claimed.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10}}
+  currency: {from: 2026-09-01, code: EUR}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  measured: true
+  sign: positive
+  realization_state: MONITORING
+  classification: CURRENCY_MISMATCH_UNCLASSIFIED
+  economics: {currency: EUR, realization_ratio: null}
+  claim: OBSERVABLE_ONLY
+  disqualifiers: [CURRENCY_MISMATCH]

@@ -83,7 +83,8 @@ class OptionParityTests(unittest.TestCase):
                                       ["--package", "p", "--observation", "o", "--output-dir", "x", "--policy", "pol", "--demo", "--demo-modified",
                                        "--replay-through", "2026-10-01T00:00:00Z", "--print-json", "--log-level", "DEBUG"])):
             expect.check(self, f"argv {index}", vars(cli_realize.parse_args(argv)))
-        self.assertEqual(cli_realize.parse_args(["--package", "p"]).output_dir, "./warehouse_optimizer_out")
+        self.assertEqual(cli_realize.parse_args(["--package", "p"]).output_dir, "./realizer_out")
+        self.assertEqual(cli_realize.parse_backtest_args(["--backtest", "--demo"]).output_dir, "./realizer_out")
 
     def test_help_text_and_errors(self):
         def outcome(argv):

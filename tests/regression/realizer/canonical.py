@@ -152,8 +152,12 @@ def normalize(text: str, out: Path) -> str:
     return text.replace(str(out), OUT_PLACEHOLDER)
 
 
-def run_scenario(engine: Engine, scenario: Mapping[str, Any], out: Path) -> Dict[str, str]:
-    """Run every step of *scenario* into *out* and return its canonical file map (relative path -> text)."""
+def run_scenario(engine: Engine, scenario: Mapping[str, Any], out: Path,
+                 after_run: Optional[Callable[[Mapping[str, Any], Mapping[str, Any], Path], None]] = None) -> Dict[str, str]:
+    """Run every step of *scenario* into *out* and return its canonical file map (relative path -> text).
+
+    *after_run(package, step, out)*, when given, is called after each run (the ledger invariant checker,
+    ``invariants.RunChecker``)."""
     package = scenario["package_doc"]
     runs = []
     snapshot = None
@@ -161,6 +165,8 @@ def run_scenario(engine: Engine, scenario: Mapping[str, Any], out: Path) -> Dict
         snapshot = engine.realize(package, step.get("observation"), out,
                                   policy=engine.policy(step.get("policy")),
                                   replay_through=step.get("replay_through"))
+        if after_run is not None:
+            after_run(package, step, out)
         runs.append({
             "realization_package_id": snapshot.realization_package_id,
             "snapshot_id": snapshot.snapshot_id,
@@ -176,10 +182,10 @@ def run_scenario(engine: Engine, scenario: Mapping[str, Any], out: Path) -> Dict
     return files
 
 
-def produce(engine: Engine, name: str) -> Dict[str, str]:
-    """Canonical output of scenario *name* run by *engine* in a fresh temporary directory."""
+def produce(engine: Engine, name: str, after_run: Optional[Callable[[Mapping[str, Any], Mapping[str, Any], Path], None]] = None) -> Dict[str, str]:
+    """Canonical output of scenario *name* run by *engine* in a fresh temporary directory (*after_run*: ``run_scenario``)."""
     with tempfile.TemporaryDirectory(prefix=f"realizer-{name}-") as tmp:
-        return run_scenario(engine, load_scenario(name), Path(tmp))
+        return run_scenario(engine, load_scenario(name), Path(tmp), after_run)
 
 
 def stored_expected(name: str) -> Dict[str, str]:

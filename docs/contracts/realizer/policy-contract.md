@@ -1,6 +1,6 @@
-# Realizer Policy Contract v1.0.0
+# Realizer Policy Contract
 
-> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+> Policy version `realizer-policy-v1.5.0` (`POLICY_VERSION` in `src/realizer/config/settings.py`). The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED
 
@@ -20,6 +20,7 @@ validation:
 realization:
   realized_ratio_min: 0.80
   under_realized_ratio_min: 0.50
+  review_above_realized_ratio: 2.0   # without a published range: realized and flagged for review above this ratio
 
 maturity:
   annualization_requires: REPRESENTATIVE
@@ -74,11 +75,12 @@ When the denominator is a Publisher range (the applied step's candidate range, o
 
 The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement (or a caller-supplied observation that gives a DBU component and no AWS component) with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
 
+- `ratio > 2.0` (`review_above_realized_ratio`) -> `REALIZED`, detail `REALIZED_ABOVE_RANGE_REVIEW`, review required: a realization more than twice the expectation is implausible enough for a person to look at, as one far above a published range is. A policy file may set it, never below `realized_ratio_min`.
 - `ratio >= 0.80` -> `REALIZED`.
 - `0.50 <= ratio < 0.80` -> `UNDER_REALIZED`.
 - `< 0.50` -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass.
 
-A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved.
+A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative realization is preserved. A measurement billed in another currency than the package's is reported in its own currency and never compared with the package's range or base (no exchange rate is guessed): `MONITORING`, detail `CURRENCY_MISMATCH_UNCLASSIFIED`, no ratio, and the currency gate keeps it from being claimed (`CURRENCY_MISMATCH`).
 
 **Workload shift.** When the measurement's query volume per day after the change is outside 0.75 to 1.25 of the pre-change window's (`measurement.volume_ratio`), the package's expectation, priced at the old workload, is not a fair yardstick, and savings are not proportional to volume (more traffic leaves fewer idle gaps for a shorter auto-stop to cut). The realization is reported, never classified: state `MONITORING`, detail `WORKLOAD_SHIFT`, `classification_basis` `INFORMATIONAL`, the realized saving, its run-rate and the ratio against the package's base reported, never `UNDER_REALIZED` and never a re-optimization; the denominator stays the package's and the claim follows the usual gates. Example: an auto-stop change from 30 to 10 minutes on a Pro warehouse (published 6,242.34 / 9,363.51 / 12,484.69 a year) whose query volume halves from the change day saves 479.53 in 28 days, 6,251.02 a year: `MONITORING`, `WORKLOAD_SHIFT`, claimable. At 1.93 x the volume it saves 7,277.97 a year; an expectation scaled by the volume (18,058.47) would have called that under-realized.
 

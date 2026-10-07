@@ -32,6 +32,24 @@ class PublisherRunTests(unittest.TestCase):
                          sorted((p["warehouse"]["workspace_id"], p["warehouse"]["warehouse_id"]) for p in self.packages))
         self.assertEqual(load_publisher_run(older).entries[0].recommendation_package_id, self.packages[0]["recommendation_package_id"])
 
+    def test_a_root_skips_the_realizers_own_run_folders(self):
+        # The Realizer's fleet run writes run_date=*/run_ts=* folders too; under a root shared with the Publisher, its
+        # newest folder is a Realizer run (a run manifest, no packages list) and is never read as a Publisher run.
+        publisher = fleet_support.run_folder(self.root, self.packages, "run_date=2026-10-07/run_ts=20261007T120000Z")
+        realizer_run = self.root / "run_date=2026-10-07" / "run_ts=20261007T130000Z"
+        realizer_run.mkdir(parents=True)
+        (realizer_run / "manifest.json").write_text(json.dumps({"run_manifest_version": "1.0.0", "warehouses": []}), encoding="utf-8")
+        self.assertEqual(load_publisher_run(self.root).run_dir, publisher)
+        with self.assertRaisesRegex(InputError, r"is a Realizer run, not a Publisher run$"):
+            load_publisher_run(realizer_run)
+
+    def test_a_root_with_only_realizer_runs_is_refused(self):
+        realizer_run = self.root / "run_date=2026-10-07" / "run_ts=20261007T130000Z"
+        realizer_run.mkdir(parents=True)
+        (realizer_run / "manifest.json").write_text(json.dumps({"run_manifest_version": "1.0.0", "warehouses": []}), encoding="utf-8")
+        with self.assertRaisesRegex(InputError, r"^no Publisher run"):
+            load_publisher_run(self.root)
+
     def test_the_real_publisher_demo_run(self):
         run = load_publisher_run(fleet_support.publisher_demo_root())
         self.assertEqual([e.warehouse_id for e in run.entries], list(fleet_support.DEMO_WAREHOUSES))

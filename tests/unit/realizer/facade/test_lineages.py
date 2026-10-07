@@ -12,61 +12,22 @@ Reporter's cross-lineage files), realized from real Publisher packages.
 * A canary rollback (``canary-rollback``) applied after its canary (``canary-before-cut``, the epoch the rollback's
   observed change starts from): the earlier lineage is rolled back at the time the rollback was applied.
 """
-import copy
-import json
 import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Mapping, Sequence, Tuple
 from unittest import mock
 
 from tests.unit.realizer.helpers import canonical, fixture_package  # noqa: F401  (canonical: src/realizer, never a shadowing copy)
-from tests import realizer_world
+from tests.unit.realizer.lineage_support import AGGRESSIVE, BALANCED, final_files, measured, realize_all, rpkg_file, state_index, stored_run
 from tests.golden.realizer import e2e
 from realizer.analyzer.collector.collector import demo_observation
-from realizer.analyzer.projector import project_observation
 from realizer.common.errors import InputError
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.packager.ledger import ledger_path, load_ledger
 from realizer.realizer import realize
-
-AGGRESSIVE, BALANCED = "ge06-profile-aggressive-modified", "ge07-profile-balanced-exact"
-CHANGE = [{"at": "2026-10-08T14:32:00Z", "set": {"auto_stop": 210}}]
-
-
-def stored_run(case: str) -> Tuple[Dict, Dict]:
-    """A golden case's stored package and observation."""
-    base = e2e.case_dir(case) / "expected"
-    return (json.loads((base / "publisher" / "package.json").read_text(encoding="utf-8")),
-            json.loads((base / "realizer" / "observation.json").read_text(encoding="utf-8")))
-
-
-def measured(package: Mapping) -> Dict:
-    """The observation of the auto-stop change in wh-demo-039's simulated world, measured against *package*."""
-    spec = e2e.world_spec(39, CHANGE)
-    return project_observation(package, realizer_world.measure(package, spec, 39))
-
-
-def realize_all(runs: Sequence[Tuple[Mapping, Optional[Mapping]]], out: Path) -> None:
-    for package, observation in runs:
-        realize(copy.deepcopy(package), copy.deepcopy(observation), out)
-
-
-def rpkg_file(out: Path, package: Mapping) -> Dict:
-    return json.loads((out / "realization" / "packages" / f"{make_rpkg_id(package['recommendation_package_id'])}.json").read_text(encoding="utf-8"))
-
-
-def state_index(out: Path) -> Dict:
-    (path,) = sorted((out / "realization" / "state").glob("*.json"))
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def final_files(out: Path) -> Dict[str, str]:
-    """The files a reader uses: the ledgers, the realization packages and the state index (snapshots are history)."""
-    return {p.relative_to(out).as_posix(): p.read_text(encoding="utf-8") for p in sorted((out / "realization").rglob("*"))
-            if p.suffix in {".json", ".jsonl"} and p.parent.name in {"ledger", "packages", "state"}}
 
 
 class ProfileAlternativesTests(unittest.TestCase):

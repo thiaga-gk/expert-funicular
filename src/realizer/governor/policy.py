@@ -31,6 +31,8 @@ class RealizerPolicy:
     max_normalized_p95_runtime_regression_pct: Optional[Decimal] = None
     realized_ratio_min: Decimal = Decimal("0.80")
     under_realized_ratio_min: Decimal = Decimal("0.50")
+    # Against an explicit denominator (no published range), a ratio above this is realized and flagged for review.
+    review_above_realized_ratio: Decimal = Decimal("2.0")
     remeasure_days_after_invalidating_change: int = 7
     minimum_attributable_spend_pct: Decimal = Decimal("95")
     minimum_price_coverage_pct: Decimal = Decimal("100")
@@ -75,6 +77,8 @@ class RealizerPolicy:
         policy = cls(**kwargs)
         if not policy.under_realized_ratio_min <= policy.realized_ratio_min:
             raise InputError("policy under_realized_ratio_min must not exceed realized_ratio_min")
+        if policy.review_above_realized_ratio < policy.realized_ratio_min:
+            raise InputError("policy review_above_realized_ratio must not be below realized_ratio_min")
         return policy
 
     @property
@@ -83,7 +87,7 @@ class RealizerPolicy:
 
 
 _DECIMAL_SETTINGS = frozenset({
-    "max_normalized_p95_runtime_regression_pct", "realized_ratio_min", "under_realized_ratio_min",
+    "max_normalized_p95_runtime_regression_pct", "realized_ratio_min", "under_realized_ratio_min", "review_above_realized_ratio",
     "minimum_attributable_spend_pct", "minimum_price_coverage_pct", "required_currency_consistency_pct",
     "minimum_material_savings_delta_pct",
 })

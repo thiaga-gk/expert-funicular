@@ -25,7 +25,7 @@ from realizer.config.settings import MODELER_GATEWAY_VERSION, WORKLOAD_SHIFT, vo
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import CorrectionFacts, CounterfactualRecord, MeasurementFacts, make_measurement_id
 from realizer.estimator.performance import NON_SAVINGS_ROLES, performance_economics
-from realizer.governor.policy import RealizerPolicy, authority_eligible, readiness
+from realizer.governor.policy import RealizerPolicy, authority_eligible, package_currency, readiness
 
 
 RUN_RATE_STATES = frozenset({rc.RealizationState.REALIZED.value, rc.RealizationState.UNDER_REALIZED.value, rc.RealizationState.MONITORING.value})
@@ -68,6 +68,8 @@ def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str
 # How far above the published high a realization may read before it is flagged for review (the replay measures the
 # full mechanical effect, the published high's track, so a little above it is noise; far above it is not).
 REVIEW_ABOVE_HIGH = Decimal("1.25")
+# The classification detail of a measurement billed in another currency than the package's.
+CURRENCY_MISMATCH_UNCLASSIFIED = "CURRENCY_MISMATCH_UNCLASSIFIED"
 REOPTIMIZE_BELOW_LOW = Decimal("0.5")
 
 
@@ -267,8 +269,13 @@ def calculate_economics(
     migration_observed = is_migration_observed(measured)
     informational = informational or (migration_observed and expected is not None)
 
+    # The package's expectation is priced in its currency; a measurement billed in another is never compared with it
+    # (no exchange rate is guessed).
+    stated = package_currency(package)
+    foreign_currency = expected is not None and stated is not None and econ.get("currency") is not None and str(econ["currency"]) != stated
+
     ratio: Optional[Decimal] = None
-    if annualized is not None and expected is not None and expected > 0:
+    if annualized is not None and expected is not None and expected > 0 and not foreign_currency:
         ratio = annualized / expected
 
     if not validation_passed:
@@ -287,6 +294,10 @@ def calculate_economics(
         # value. This is the fail-closed REAL-INV-009 path.
         state, detail = rc.RealizationState.BLOCKED.value, "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE"
         successful = Decimal("0")
+    elif foreign_currency:
+        # Reported in its own currency, never classified against the package's range or base.
+        state, detail = rc.RealizationState.MONITORING.value, CURRENCY_MISMATCH_UNCLASSIFIED
+        successful = realized
     elif volume_shifted((observation.get("measurement") or {}).get("volume_ratio")):
         # The query volume moved outside the comparable band after the change: the counterfactual prices the actual
         # post-change days, so the saving is reported, but the package's expectation was priced at the old workload and
@@ -309,7 +320,9 @@ def calculate_economics(
             state = rc.RealizationState.UNDER_REALIZED.value
             detail = "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED" if annualized < low * REOPTIMIZE_BELOW_LOW else "UNDER_REALIZED"
     elif ratio >= policy.realized_ratio_min:
-        state, detail = rc.RealizationState.REALIZED.value, "REALIZED"
+        # No published range to judge against: a ratio far above the expectation is realized and flagged for review.
+        state = rc.RealizationState.REALIZED.value
+        detail = "REALIZED_ABOVE_RANGE_REVIEW" if ratio > policy.review_above_realized_ratio else "REALIZED"
         successful = realized
     else:
         state = rc.RealizationState.UNDER_REALIZED.value
@@ -339,7 +352,7 @@ def calculate_economics(
         "denominator_method": denom_method,
         "expected_range": None if expected_range is None else {"component": component, **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
         "expected_components": expected_components,
-        "classification_basis": "INFORMATIONAL" if informational or detail == WORKLOAD_SHIFT else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
+        "classification_basis": "INFORMATIONAL" if informational or detail in (WORKLOAD_SHIFT, CURRENCY_MISMATCH_UNCLASSIFIED) else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",
         "review_required": detail == "REALIZED_ABOVE_RANGE_REVIEW",
         "realization_ratio": ratio_string(ratio),
         "realization_state": state,

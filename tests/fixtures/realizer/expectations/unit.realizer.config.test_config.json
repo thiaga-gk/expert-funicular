@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
   "length": 13495,
-  "sha256": "211aac4b5d053aabae8956647abd96e3982fad263cb27f8d19ac6574c8a907e3",
+  "sha256": "4c35bd78964fb10b7c9890706ca65d6169c8745208d2e03400879c6f27501667",
   "spot": {
    "logging": [
     [
@@ -19,7 +19,7 @@
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
   "length": 4298,
-  "sha256": "26c3ed6eb2c481dd7de4b548ec24fda514472cde461c575fa94f8447e2671b11",
+  "sha256": "cd1b3230449fc6c45bc07c938225f3d58916903be8bf77fa6e13bda343bf8bf2",
   "spot": {
    "logging": [
     [
@@ -34,7 +34,7 @@
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
   "length": 9782,
-  "sha256": "e75bc46bc1a9a572de39193ecc2f136f09d7469e97094dd723a1e3b6b8b6c83e",
+  "sha256": "50aa6ca7da5005a87c439858fda1872ed87c9030dd968c86d75fbb00fb2a0ca2",
   "spot": {
    "logging": [
     [
@@ -56,15 +56,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-167AEEC26827AAB347759037"
+   "snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB"
   }
  },
  "PolicyTests.test_from_mapping/mapping 0": {
@@ -76,15 +77,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-167AEEC26827AAB347759037"
+   "snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB"
   }
  },
  "PolicyTests.test_from_mapping/mapping 1": {
@@ -96,15 +98,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-167AEEC26827AAB347759037"
+   "snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB"
   }
  },
  "PolicyTests.test_from_mapping/mapping 2": {
@@ -116,15 +119,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-253E4865EB2EA331FF7C1FBA"
+   "snapshot_id": "PSNAP-68A493221CA08A19A577615C"
   }
  },
  "PolicyTests.test_from_mapping/mapping 3": {
@@ -136,15 +140,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.9",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.4"
    },
-   "snapshot_id": "PSNAP-D89E4E6F693BE1C24522B4AD"
+   "snapshot_id": "PSNAP-1DA911686B43A4F1DADE66C7"
   }
  },
  "PolicyTests.test_from_mapping/mapping 4": {
@@ -156,15 +161,16 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
     "require_representative_regime": false,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-17A2CCBCD95C58E924E3E19A"
+   "snapshot_id": "PSNAP-B583CA7057B68F3F1DCA55EB"
   }
  },
  "PolicyTests.test_from_mapping/mapping 5": {
@@ -182,13 +188,14 @@
     "require_confirmed_origin_for_hard_kpi": false,
     "require_representative_regime": true,
     "required_currency_consistency_pct": "100",
+    "review_above_realized_ratio": "2",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-11419B14D942FD148E0BE6C6"
+   "snapshot_id": "PSNAP-EC509F8F774D39931628BFBE"
   }
  },
  "PolicyTests.test_policy_file_round_trip_through_the_loader/snapshot id": {
-  "value": "PSNAP-11419B14D942FD148E0BE6C6"
+  "value": "PSNAP-EC509F8F774D39931628BFBE"
  },
  "SettingsTests.test_config_knobs/knobs": {
   "value": [
@@ -219,13 +226,13 @@
   "value": {
    "ANALYZER_GATEWAY_VERSION": "post-change-analyzer-adapter-v1.5.0",
    "ATTRIBUTION_VERSION": "realizer-attribution-v1.4.0",
-   "ESTIMATOR_GATEWAY_VERSION": "realized-estimator-adapter-v1.5.0",
+   "ESTIMATOR_GATEWAY_VERSION": "realized-estimator-adapter-v1.6.0",
    "EXCLUSIVITY_VERSION": "realizer-exclusivity-v1.1.0",
    "MODELER_GATEWAY_VERSION": "m08-realization-adapter-v1.3.0",
-   "POLICY_VERSION": "realizer-policy-v1.4.0",
+   "POLICY_VERSION": "realizer-policy-v1.5.0",
    "PRODUCT_VERSION": "2.14.0",
    "PROJECTOR_VERSION": "realizer-projector-v1.3.0",
-   "REALIZER_VERSION": "1.6.0"
+   "REALIZER_VERSION": "1.7.0"
   }
  }
 }

@@ -27,6 +27,7 @@ simulated world in which the owner changed the warehouse after the package, the 
       workload: {from: 2026-10-08, factor: 0.5}   # optional: the fleet workload scaled from that day on (periodic
                                                   # queries 1/factor as often, steady load factor x as concurrent)
       runtime: {MEDIUM: 1.2}        # optional: a query started on that size runs factor x as long (default 1)
+      currency: {from: 2026-09-01, code: EUR}   # optional: billed in that currency from that day on (default USD)
     expect: {...}
 
 Before the first change the world is the fleet warehouse the package was built from (analysis time 2026-10-01T12:00Z);
@@ -70,7 +71,8 @@ The expectations are about the measurement and the application's conformance; th
 classification are pinned by the stored output only.
 
 Checks: the Realizer stage of every case, run from its stored package, equals ``expected/realizer/`` and passes its
-``expect`` block (fast; worlds and stages are cached per process); a separate test runs the Publisher demo once per
+``expect`` block (fast; worlds and stages are cached per process), and its ledger holds the ledger invariants
+(``tests/regression/realizer/invariants.py``); a separate test runs the Publisher demo once per
 distinct (scope, cost profile) group and compares each stored package. Regenerate with
 ``python scripts/update_realizer_e2e_goldens.py --approved-change "<why>" [--stage publisher|realizer|all] [--case <name>]``
 (``--check`` reports drift and writes nothing).
@@ -104,6 +106,7 @@ class EndToEndCaseTests(unittest.TestCase):
                 self.assertTrue(name.startswith(f"ge{case['id'][3:]}-"), "the folder name starts with ge<NN>-")
                 self.assertTrue(case.get("description"))
                 self.assertTrue(case["world"]["changes"])
+                self.assertEqual(set(case["world"]) - e2e.WORLD_KEYS, set(), "unknown world keys")
                 self.assertTrue(case["expect"], "an empty expect block")
                 self.assertEqual(set(case["expect"]) - e2e.EXPECT_KEYS, set(), "unknown expect keys")
                 package = e2e.stored_package(name)
@@ -131,6 +134,21 @@ class EndToEndCaseTests(unittest.TestCase):
                 case = e2e.load_case(name)
                 failures = e2e.check_expect(name, case, e2e.stored_package(name), produced[name], produced)
                 self.assertEqual(failures, [], f"{case['id']} {name}")
+
+    def test_ledger_invariants(self):
+        # The Realizer stage's state of every case holds the ledger invariants (tests/regression/realizer/invariants.py).
+        from tests.regression.realizer import invariants
+        checked = 0
+        for name in e2e.case_names():
+            with self.subTest(case=name):
+                files = e2e.realizer_stage(name)
+                if "refusal.json" in files:
+                    self.assertEqual(invariants.ledgers(files), {})
+                    continue
+                self.assertTrue(invariants.ledgers(files), f"{name}: no ledger")
+                invariants.assert_state(files, name, packages=[e2e.stored_package(name)])
+                checked += 1
+        self.assertGreater(checked, 0)
 
     def test_the_world_changes_the_package_warehouse_after_its_fleet_epochs(self):
         spec = e2e.world_spec(13, [{"at": "2026-10-01T00:00:00Z", "set": {"size": "X_SMALL"}},

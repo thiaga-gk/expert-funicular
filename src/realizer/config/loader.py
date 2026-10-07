@@ -20,7 +20,7 @@ import json
 
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json, parse_utc, utc_iso
-from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, latest_run_dir
+from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, is_realizer_run_dir, latest_publisher_run_dir
 from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.fleet import PublisherRun, PublisherRunEntry
@@ -74,7 +74,9 @@ def validate_package(package: Any) -> None:
     Checks, in order: a mapping; ``contract_version`` equal to ``SUPPORTED_PUBLISHER_CONTRACT``; the Publisher's committed
     Draft 2020-12 schema; the ``PKG-`` id and ``provenance.package_hash_full_sha256`` recomputed from the hashed fields;
     the ``realization`` block is the Publisher's empty placeholder (status NOT_APPLIED, no records; the Realizer's own
-    lineage is the RPKG, never this block); and no carried-forward plan (reserved, never published yet).
+    lineage is the RPKG, never this block); no carried-forward plan (reserved, never published yet); the recommended
+    scenario exists; a supported warehouse type; and no plan step recommending its current value (matching would read it
+    as applied whatever the warehouse runs; the Publisher never writes one).
     """
     if not isinstance(package, Mapping):
         raise InputError("a RecommendationPackage must be a JSON object")
@@ -102,6 +104,10 @@ def validate_package(package: Any) -> None:
     warehouse_type = str(package["current_config"].get("warehouse_type") or "").upper()
     if warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
         raise InputError(f"unsupported warehouse type in the package: {warehouse_type or None}")
+    for scenario in package["scenarios"]:
+        for step in scenario["execution_plan"]:
+            if step.get("step_type") == "CANDIDATE" and step.get("recommended_value") == step.get("current_value"):
+                raise InputError(f"plan step {step.get('step')} of scenario {scenario['scenario_id']} recommends its current value")
 
 
 TIME_FIELDS = ("observed_at_utc", "recorded_at_utc", "applied_at_utc", "window_start_utc", "window_end_utc")
@@ -256,15 +262,18 @@ def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
 
 def load_publisher_run(path: str | Path) -> PublisherRun:
     """The Publisher run at *path*: a run folder (it holds ``manifest.json``), or a root holding
-    ``run_date=*/run_ts=*`` run folders, of which the newest is read (``latest_run_dir``). Its manifest's ``packages``
+    ``run_date=*/run_ts=*`` run folders, of which the newest Publisher run is read (``latest_publisher_run_dir``: the Realizer's
+    own run folders under a shared root are skipped). Its manifest's ``packages``
     entries (``path``, ``workspace_id``, ``warehouse_id``, ``recommendation_package_id``) become the run's entries in
     (workspace, warehouse) order; the packages themselves are read per warehouse by the fleet run. No run, an unreadable
     manifest, an entry missing a field, a path outside the run folder or two packages of one warehouse raise
     ``InputError``."""
     try:
-        run_dir = latest_run_dir(Path(path))
+        run_dir = latest_publisher_run_dir(Path(path))
     except (FileNotFoundError, NotADirectoryError):
         raise InputError(f"no Publisher run (manifest.json or run_date=*/run_ts=* folders) under {path}") from None
+    if is_realizer_run_dir(run_dir):
+        raise InputError(f"{run_dir} is a Realizer run, not a Publisher run")
     manifest = read_json_input(run_dir / PUBLISHER_MANIFEST_NAME, "Publisher run manifest")
     packages = manifest.get("packages") if isinstance(manifest, Mapping) else None
     if not isinstance(packages, list):

@@ -34,9 +34,14 @@ class StoredBaselineTests(unittest.TestCase):
         self.assertEqual(Path(sys.modules["realizer"].__file__).resolve().parent, canonical.SRC.resolve())
 
     def test_engine_reproduces_stored_outputs(self):
+        # After every run of every scenario the state holds the ledger invariants (tests/regression/realizer/invariants.py).
+        from tests.regression.realizer import invariants
         for name in self.names:
             with self.subTest(scenario=name):
-                produced = canonical.produce(self.engine, name)
+                check = invariants.RunChecker(name)
+                produced = canonical.produce(self.engine, name,
+                                             lambda package, step, out: check(package, out, replay_through=step.get("replay_through")))
+                self.assertEqual(check.runs, len(canonical.load_scenario(name)["runs"]))
                 problems = canonical.semantic_diff(name, canonical.stored_expected(name), produced)
                 self.assertEqual(problems, [])
 
@@ -89,8 +94,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-8C6B4D2BC18B6C3958C42378", "REVID-37F7F275591908182339F44B", "RERUN-0FCAA3465636EE32333525D0"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-6BA9410AD67A2706DA581986", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-6A24F009F8BEB67A7129E53A"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-01752AB27669B07E544B2B5D", "REVID-37F7F275591908182339F44B", "RERUN-B1F60D50B9002716EC15E4DE"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-B8A90CA3DC90055A4E7D4A8E", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-4A94ACD1AFCA25E7D3EA709A"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():

@@ -47,6 +47,7 @@ PACKAGE_FILE = Path("expected") / "publisher" / "package.json"
 REALIZER_DIR = Path("expected") / "realizer"
 DEFAULT_AS_OF = realizer_world.AS_OF
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
+WORLD_KEYS = {"warehouse", "as_of", "changes", "workload", "runtime", "currency"}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
                "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
                "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change", "volume_ratio", "measurement", "economics"}
@@ -172,8 +173,8 @@ def oracle(case: Mapping[str, Any], package: Mapping[str, Any], observation: Map
     key = SPEC_KEYS[meas["knob"]]
     held = [{**c, "set": {**c["set"], key: meas["source_value"]}} for c in world["changes"]]
     wh = f"wh-demo-{index:03d}"
-    new_rows = realizer_world.world_rows(world_spec(index, world["changes"], world.get("workload"), world.get("runtime")), index, as_of)
-    old_rows = realizer_world.world_rows(world_spec(index, held, world.get("workload"), world.get("runtime")), index, as_of)
+    new_rows = realizer_world.world_rows(world_spec(index, world["changes"], world.get("workload"), world.get("runtime"), world.get("currency")), index, as_of)
+    old_rows = realizer_world.world_rows(world_spec(index, held, world.get("workload"), world.get("runtime"), world.get("currency")), index, as_of)
     new, old = billed_cost(new_rows, wh, window["first_day"], window["last_day"]), billed_cost(old_rows, wh, window["first_day"], window["last_day"])
     return {"knob": meas["knob"], "held_value": meas["source_value"], "first_day": window["first_day"], "last_day": window["last_day"],
             "old_billed_cost": str(old.quantize(Decimal("0.01"))), "new_billed_cost": str(new.quantize(Decimal("0.01"))),
@@ -190,7 +191,7 @@ def _realizer_stage(name: str, case_text: str, package_text: str) -> Tuple[Tuple
     world = case["world"]
     as_of = str(world.get("as_of") or DEFAULT_AS_OF)
     index = fleet_index(world.get("warehouse") or package["warehouse"]["warehouse_id"])
-    spec = world_spec(index, world["changes"], world.get("workload"), world.get("runtime"))
+    spec = world_spec(index, world["changes"], world.get("workload"), world.get("runtime"), world.get("currency"))
     files: Dict[str, str] = {}
     stage = "measure"
     try:

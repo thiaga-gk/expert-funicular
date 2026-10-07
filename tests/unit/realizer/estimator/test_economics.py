@@ -317,6 +317,30 @@ class EconomicsCaseTests(unittest.TestCase):
             result = self.econ(expected_annual_savings_actual_scope=expected)
             self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"]), ("MONITORING", "VALIDATED_VALUE_UNCLASSIFIED", None))
 
+    def test_a_ratio_far_above_the_expectation_is_realized_and_flagged_for_review(self):
+        # Against an explicit denominator (the ratio branch) a realization twice the expectation or less is plainly
+        # realized; above the policy's review ratio (2.0 by default) it is realized and flagged for review, as a
+        # realization far above a published range is.
+        for factor, detail in (("1", "REALIZED"), ("0.5", "REALIZED"), ("0.49", "REALIZED_ABOVE_RANGE_REVIEW"), ("1/30", "REALIZED_ABOVE_RANGE_REVIEW")):
+            divisor = Decimal(1) / Decimal(30) if factor == "1/30" else Decimal(factor)
+            expected = str((self.annualized * divisor).quantize(Decimal("0.01")))
+            with self.subTest(factor=factor):
+                result = self.econ(expected_annual_savings_actual_scope=expected)
+                self.assertEqual((result["realization_state"], result["classification_detail"], result["review_required"], result["classification_basis"]),
+                                 ("REALIZED", detail, detail != "REALIZED", "RATIO_POLICY"))
+        flagged = str((self.annualized / 3).quantize(Decimal("0.01")))   # ratio 3: plain at a review ratio of 4
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope=flagged)["classification_detail"], "REALIZED_ABOVE_RANGE_REVIEW")
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope=flagged, policy=stage_policy({"review_above_realized_ratio": "4"}))["classification_detail"], "REALIZED")
+
+    def test_a_measurement_in_another_currency_is_never_classified_against_the_package(self):
+        # The package's range is priced in its currency; a measurement billed in another is reported, never compared
+        # with it (no exchange rate is guessed): no ratio, no run-rate class, MONITORING.
+        result = self.econ(currency="EUR")
+        self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"], result["review_required"]),
+                         ("MONITORING", "CURRENCY_MISMATCH_UNCLASSIFIED", None, False))
+        self.assertEqual((result["currency"], result["realized_savings_period"], result["classification_basis"]), ("EUR", str(self.realized), "INFORMATIONAL"))
+        self.assertEqual(self.econ()["classification_detail"], "REALIZED")
+
     def test_denominators(self):
         self.assertEqual(self.econ()["denominator_source"], "PUBLISHER_CANDIDATE")
         self.assertEqual(self.econ()["expected_same_scope_annual_savings"], str(self.published))

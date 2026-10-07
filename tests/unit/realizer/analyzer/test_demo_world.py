@@ -141,5 +141,37 @@ class SimulatedWorldTests(unittest.TestCase):
             demo_world.measure_demo(world.package("autostop-scoped-pro"), Path(tmp), as_of="yesterday")
 
 
+
+class BillingCurrencyTests(unittest.TestCase):
+    """A world can switch the account's billing currency from a day on (``currency``; the simulator's ``currency_from``);
+    the fleet itself bills in USD, so the Publisher demo is unchanged."""
+
+    CHANGES = [{"at": "2026-10-08T14:32:00Z", "set": {"auto_stop": 10}}]
+
+    def billed(self, currency=None):
+        rows = world.world_rows(demo_world.world_spec(13, self.CHANGES, currency=currency), 13)["billing_daily_cost"]
+        return {r["usage_date"]: r["currency_code"] for r in rows if r["usage_date"] >= "2026-10-15"}
+
+    def test_the_fleet_bills_in_usd_and_a_world_switches_from_its_day(self):
+        self.assertEqual(set(self.billed().values()), {"USD"})
+        switched = self.billed({"from": "2026-10-20", "code": "EUR"})
+        self.assertEqual({d: c for d, c in switched.items() if d < "2026-10-20"}, {d: "USD" for d in switched if d < "2026-10-20"})
+        self.assertEqual({c for d, c in switched.items() if d >= "2026-10-20"}, {"EUR"})
+        self.assertNotIn("currency_from", demo_world.world_spec(13, self.CHANGES))
+
+    def test_a_window_billed_in_two_currencies_is_not_measured_and_never_claimed(self):
+        # The switch falls inside the post-change window: its billing is not priced in one currency, so there is no
+        # counterfactual and no economics; the currency consistency gate records the majority share.
+        package = json.loads((ROOT / "tests" / "golden" / "realizer" / "cases" / "ge21-currency-mismatch" / "expected" / "publisher" / "package.json").read_text(encoding="utf-8"))
+        spec = demo_world.world_spec(13, self.CHANGES, currency={"from": "2026-10-20", "code": "EUR"})
+        observation = demo_world.project_observation(package, world.measure(package, spec, 13), None)
+        self.assertIsNone(observation["economics"])
+        self.assertEqual(observation["financial_quality"]["currency_consistency_pct"], "65.42")
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = realize(package, observation, Path(tmp))
+        self.assertEqual(snapshot.current_state["realization_state"], "APPLIED")
+        self.assertEqual(snapshot.attribution["recommendation_attributed_realized_savings"], "0.00")
+
+
 if __name__ == "__main__":
     unittest.main()

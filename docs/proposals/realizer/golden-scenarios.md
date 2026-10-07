@@ -1,8 +1,10 @@
 # Golden Realization Scenario Specification v1.0.0
 
-> The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario that calls `realize()` has its canonical output under `tests/fixtures/realizer/expected/`.
+> The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario realized from a hand-built observation has its canonical output under `tests/fixtures/realizer/expected/`.
 >
-> These scenarios are the contract layer: each runs a frozen package and a hand-built observation. The end-to-end layer, cases `GE-NN` under `tests/golden/realizer/cases/` (`tests/golden/realizer/test_golden_e2e.py`), runs the whole path on demo-fleet warehouses: a real Publisher package under a given run scope and cost profile, a simulated owner change after it, the live measurement on that world and `realize()`, checked against an oracle from the same simulator with the old value; `tests/golden/README.md` describes it.
+> These scenarios are the contract layer: most run a frozen package and a hand-built observation. The rows about a modified application, several lineages and plan economics (GR-004, GR-022, GR-023, GR-030, GR-039) call `realize()` on real Publisher packages instead (`tests/fixtures/realizer/packages/` and the end-to-end cases' stored packages), with observations measured in the demo fleet's simulated world where one exists, and realize several packages into one state where the row is about more than one lineage: a later package of the same epoch, a cost-profile alternative, a canary rollback after its canary. The stored scenarios of GR-022, GR-023 and GR-030 stay as the regression of their single-lineage forms: a replacement package the caller names, an interval a drift closes, an overlap count the caller supplies.
+>
+> The end-to-end layer, cases `GE-NN` under `tests/golden/realizer/cases/` (`tests/golden/realizer/test_golden_e2e.py`), runs the whole path on demo-fleet warehouses: a real Publisher package under a given run scope and cost profile, a simulated owner change after it, the live measurement on that world and `realize()`, checked against an oracle from the same simulator with the old value; `tests/golden/README.md` describes it.
 
 **Status:** LOCKED
 
@@ -59,9 +61,28 @@ Executable behavioral truth for the Realizer. Implementation behavior that confl
 
 GR-002, GR-004, GR-010, GR-013, GR-015, GR-017, GR-018, GR-022, GR-023, GR-024, GR-025, GR-026, GR-028, GR-030, GR-032, GR-033 and GR-039.
 
+The registry (`tests/fixtures/realizer/golden-registry.json`, version 1.1.0) lists each scenario with its test and two fields:
+
+- `kind`: how the test exercises the Realizer. `CONTRACT` realizes a package with a hand-built observation, one lineage; `LINEAGE` realizes several packages of one warehouse into one state; `END_TO_END` realizes a real Publisher package with an observation measured in the demo fleet's simulated world; `FUNCTION` calls a single function without `realize()`.
+- `non_waivable`: true for exactly the scenarios listed above. A non-waivable scenario is never `FUNCTION`: it must realize a package.
+
+The registry test checks that the ids run GR-001 to GR-040, that each named test exists, that every kind is one of the four, and that the non-waivable rows are the ones listed here.
+
 ## 4. Ledger assertions
 
 Every applicable golden test proves append-only history, idempotency, PKG/RPKG lineage, correction references, non-overlapping intervals, separate effective/recorded times, deterministic state replay and no snapshot-only business truth.
+
+One ledger invariant checker (`tests/regression/realizer/invariants.py`) asserts these over the files a run leaves, whatever produced them:
+
+1. Every ledger of the state before a run is a byte prefix of the same file after it, other lineages' ledgers included.
+2. Entry ids are unique, and each ledger names one workspace and one warehouse.
+3. The RPKG id of every entry derives from its PKG id and matches the ledger file.
+4. `caused_by_entry_id` and `corrects_entry_id` resolve to earlier entries of the same ledger.
+5. A successor, an owner (claimed by), a rollback or a replacement decided across lineages names a lineage present in the state (its source package and ledger); a replacement package the caller names is checked for its form only.
+6. Each ledger replayed (cut at `replay_through` for the run's own lineage when the run used it) projects the realization package written for it: the same snapshot id and the same content.
+7. Owned application intervals per workspace, warehouse and knob are half-open and do not overlap; an application another lineage claims is not owned.
+
+It runs after every run of the stored scenarios, over the state of every end-to-end case, after every run of the golden scenarios and the lineage tests, and over the state and run folder of a small fleet after a first and a second daily run. Its own tests show it catches a hand-corrupted ledger for each invariant.
 
 ## 5. Economic assertions
 

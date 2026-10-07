@@ -4,7 +4,7 @@
 
 **Status:** LOCKED  
 **Product:** Databricks SQL Warehouse Optimizer — Realizer  
-**Publisher release:** v2.8.0
+**Input:** Reporter JSON Contract 3.1.0 (`PKG-*`)
 
 ## 1. Purpose
 
@@ -50,7 +50,7 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 ```json
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.2.0",
   "realization_package_id": "RPKG-...",
   "snapshot_id": "RSNAP-...",
   "source_recommendation": {},
@@ -146,7 +146,7 @@ A drift or an observed rollback closes the episodes it applies to. A closed epis
 
 The snapshot shows one episode: the open episode of the plan's earliest applied step (the one a live run measures; a scenario-scope application counts as the earliest), else the latest application. Its application state is `ROLLED_BACK` or `DRIFTED` when a rollback or a drift closed it, else `APPLIED`; its validation, measurements, realization state and `drift` section are that episode's own (an earlier episode's are history); `application.open_episodes` lists every open episode (id, step, knob, effective time).
 
-`PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
+`PARTIALLY_APPLIED` is not a normal step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
 ## 7. Modified implementation
 
@@ -176,7 +176,7 @@ A partially completed Plan may contain fully realized completed steps. `PENDING_
 ```json
 {
   "ledger_entry_id": "RLE-...",
-  "ledger_contract_version": "1.0.0",
+  "ledger_contract_version": "1.1.0",
   "realization_package_id": "RPKG-...",
   "recommendation_package_id": "PKG-...",
   "event_type": "APPLICATION_OBSERVED",
@@ -438,3 +438,5 @@ A run reads, besides its own ledger, every other lineage of its warehouse in the
 Realizing the same packages with the same observations in any order gives every lineage the same final decisions (owner, claim status, disposition, replacement, successor, rollback). When each lineage learns the same facts in either order, as for two packages of one generation time, the ledgers, realization packages and state index are identical files too. Otherwise a ledger can hold extra history of what was known in between (a package superseded first by the next day's package, then by the newest), so its snapshot id differs while its decisions do not; snapshots already written are history and stay.
 
 **Fleet run.** A fleet run (`realizer --publisher-run`) realizes the warehouses of a Publisher run one at a time, in workspace and warehouse order. For each it holds the warehouse's advisory lock in the state (`realization/state/<workspace>__<warehouse>.lock`, present only while held; a single-package CLI run holds it too), so a second run of the same warehouse at the same time is refused for that warehouse (`warehouse <workspace>/<warehouse> is locked by another run`) instead of deciding the cross-lineage events from ledgers another run is changing; the per-ledger lock of section 9 stays. Under it the run realizes every open lineage kept in the state, oldest package first, and then the Publisher run's package (once, also when it is itself an open lineage), each with its own observation from the run's source. A lineage is open when its package is not superseded (`active_package_ids`) or it owns an applied knob (`applied_knob_owners`), both decided from the ledgers, never from the state index file. The owner of a change therefore records its application, validation and measurement in every daily run, whichever package the Publisher generated last: with PKG-A (auto-stop 365 to 210, applied 2026-10-08) kept in the state and a Publisher run carrying only PKG-B (2026-10-15), the run realizes PKG-A first, which claims 1,069.73, then PKG-B, linked as its successor. A failure is isolated to its warehouse: a refusal is recorded with its message, any other exception by its type only, and the other warehouses are realized. The run writes a run manifest (`manifest.json`, run manifest version 1.0.0: versions and contracts, source, as-of time, the Publisher run folder and its package counts, the state directory, the workbook file, status counts, and per warehouse its package, status (`OK`, `REFUSED`, `CRASHED`), reason, realization package ids and the realization packages and snapshots it wrote, relative to the run folder; sorted keys, no wall-clock time) and the realization workbook (`realization_workbook.xlsx`) into its run folder. The exit status is 1 when any warehouse crashed, else 2 when any was refused, else 0.
+
+**Retention.** Nothing is pruned by the Realizer. A run folder holds projections only (realization packages, snapshots, run manifest, realization workbook, log), rebuilt from the state by any later run, so old run folders can be deleted; a fleet run of the 41-warehouse demo writes about 1 MB. Measurement evidence (`realization/measurements/`) grows by one file per package and measurement time, about 85 KB per warehouse, so a daily live run of 41 warehouses adds about 3.4 MB a day (about 1.2 GB a year); it backs `--from-evidence` replay and the audit of a recorded measurement, so keep at least each lineage's newest file and any file whose measurement a ledger records that may need to be replayed. Ledgers, source package copies and policies are never deleted: the ledger is the history, and a lineage without its source copy cannot be read by another run.
