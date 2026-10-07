@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 5938240,
-  "sha256": "a5dd6d156b18eb46dbaa58260d63a01b47a711b30ebebf6700dfdaeea0038d3b",
+  "length": 6010962,
+  "sha256": "1d9453cbdf2633891aba1e5c1abef8ff6ad22a772374266e582c38064fc4563c",
   "spot": {
    "classes": [
     [
@@ -106,7 +106,7 @@
     ]
    ],
    "count": 11088,
-   "failures": 3696
+   "failures": 3792
   }
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {
@@ -172,6 +172,7 @@
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
+    "denominator_method": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
     "expected_components": {

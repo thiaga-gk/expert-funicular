@@ -93,6 +93,57 @@ def _scenario_step(package: Mapping[str, Any], scenario_id: Any, number: Any) ->
     return next((st for st in candidate_steps(package, scenario_id) if int(st.get("step", 0)) == int(number if number is not None else -1)), None)
 
 
+# The Publisher's annual net cluster-hours saved for every auto-stop value it evaluated (package evidence).
+OPTION_GRID_METRIC = "auto_stop_annual_cluster_hours_by_value"
+
+
+def _option_grid(package: Mapping[str, Any], candidate: Mapping[str, Any]) -> Dict[int, Decimal]:
+    """The candidate's auto-stop option grid: ``{value: annual net cluster-hours}`` (empty without one)."""
+    evidence = package.get("evidence") or {}
+    refs = [evidence.get(r) for r in candidate.get("evidence_refs") or []] or list(evidence.values())
+    item = next((e for e in refs if isinstance(e, Mapping) and e.get("metric") == OPTION_GRID_METRIC), None)
+    grid: Dict[int, Decimal] = {}
+    for value, row in ((item or {}).get("value") or {}).items():
+        hours = decimal((row or {}).get("net_cluster_hours")) if isinstance(row, Mapping) else None
+        if hours is not None:
+            grid[int(value)] = hours
+    return grid
+
+
+def _grid_hours(grid: Mapping[int, Decimal], value: int) -> Optional[Decimal]:
+    """The net cluster-hours of *value*: its grid entry, else linear between the two grid values around it (None
+    outside the grid)."""
+    if value in grid:
+        return grid[value]
+    below = [v for v in grid if v < value]
+    above = [v for v in grid if v > value]
+    if not below or not above:
+        return None
+    lo, hi = max(below), min(above)
+    return grid[lo] + (grid[hi] - grid[lo]) * Decimal(value - lo) / Decimal(hi - lo)
+
+
+def option_grid_savings(package: Mapping[str, Any], step: Mapping[str, Any], applied: Any) -> Optional[Dict[str, Dict[str, Decimal]]]:
+    """The expected savings of an auto-stop step applied at *applied* instead of its recommended value: the step's
+    published range per component, scaled by the applied value's net cluster-hours over the recommended value's (the
+    Publisher's own option grid on the package's evidence). None without a grid value for both, or a non-positive one."""
+    candidate = candidate_by_id(package, step.get("candidate_id"))
+    if candidate is None or step.get("knob") != "auto_stop_minutes" or applied is None or int(applied) == 0:
+        return None
+    grid = _option_grid(package, candidate)
+    target, actual = _grid_hours(grid, int(step.get("recommended_value"))), _grid_hours(grid, int(applied))
+    if target is None or actual is None or target <= 0:
+        return None
+    factor = actual / target
+    savings = (candidate.get("independent_economics") or {}).get("savings_365d") or {}
+    out: Dict[str, Dict[str, Decimal]] = {}
+    for component, block in savings.items():
+        rng = published_range(block) if isinstance(block, Mapping) else None
+        if rng is not None:
+            out[component] = {k: v * factor for k, v in zip(("low", "base", "high"), rng)}
+    return out or None
+
+
 def denominator(package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any], component: str) -> Dict[str, Any]:
     """The expected annual savings an application is measured against: ``savings`` (the per-component ranges the
     denominator comes from, ``{}`` when none), ``source`` and ``informational`` (a range reported, never classified
@@ -117,10 +168,16 @@ def denominator(package: Mapping[str, Any], app: Mapping[str, Any], observation:
             savings = (last.get("projected_economics") or {}).get("running_savings_365d") or {}
             return {"savings": savings, "source": "PUBLISHER_SCENARIO", "informational": False}
         return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
+    step = _scenario_step(package, app.get("scenario_id"), app.get("step"))
+    if step is None or not authority_eligible(step):
+        return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
     if conformance == rc.ImplementationConformance.EXACT.value:
-        step = _scenario_step(package, app.get("scenario_id"), app.get("step"))
-        if step is not None and authority_eligible(step):
-            return {"savings": _candidate_savings(package, step), "source": "PUBLISHER_CANDIDATE", "informational": False}
+        return {"savings": _candidate_savings(package, step), "source": "PUBLISHER_CANDIDATE", "informational": False}
+    if conformance == rc.ImplementationConformance.MODIFIED.value:
+        # A modified auto-stop: the package's option grid prices the applied value on the package's own evidence.
+        grid = option_grid_savings(package, step, app.get("observed_value"))
+        if grid is not None:
+            return {"savings": grid, "source": "REESTIMATED_APPLIED_SCOPE", "informational": False, "method": "PACKAGE_OPTION_GRID"}
     return {"savings": {}, "source": "UNAVAILABLE", "informational": False}
 
 
@@ -152,6 +209,7 @@ def calculate_economics(
     expected_range: Optional[Tuple[Decimal, Decimal, Decimal]] = None
     expected_components: Optional[Dict[str, Optional[str]]] = None
     denom_source = "UNAVAILABLE"
+    denom_method: Optional[str] = None
     informational = False
     # A live measurement compares like with like: DBU only when it has no AWS price, else the total; a caller-supplied
     # observation is compared with the total.
@@ -169,7 +227,7 @@ def calculate_economics(
         block = _savings_block(chosen["savings"], component)
         expected = None if block is None else decimal(block.get("base"))
         if expected is not None:
-            denom_source, informational = chosen["source"], chosen["informational"]
+            denom_source, informational, denom_method = chosen["source"], chosen["informational"], chosen.get("method")
             expected_range = published_range(block)
             expected_components = _components(chosen["savings"])
 
@@ -234,6 +292,7 @@ def calculate_economics(
         "mature_ttm_realized_savings": money(econ.get("mature_ttm_realized_savings")),
         "expected_same_scope_annual_savings": money(expected),
         "denominator_source": denom_source,
+        "denominator_method": denom_method,
         "expected_range": None if expected_range is None else {"component": component, **dict(zip(("low", "base", "high"), (money(v) for v in expected_range)))},
         "expected_components": expected_components,
         "classification_basis": "INFORMATIONAL" if informational else "PUBLISHED_RANGE" if expected_range is not None and expected_range[0] > 0 else "RATIO_POLICY",

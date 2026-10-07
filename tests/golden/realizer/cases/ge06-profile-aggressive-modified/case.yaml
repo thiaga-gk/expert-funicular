@@ -20,5 +20,6 @@ expect:
   cross_check: AGREES
   independent_changes: []
   same_evidence_as: ge07-profile-balanced-exact
-  realization_state: MONITORING
+  # The aggressive package's option grid prices 210 minutes at 10,448.98 (the balanced package's exact step: 10,476.47).
+  realization_state: REALIZED
   claim: CLAIMABLE

@@ -27,17 +27,17 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d01710ffa204684f",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6eedbedb0a50f818",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a030586b675949d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "08784d971810d138",
      "realization/regeneration/RERUN-5892493D314514DD4D6DF7EE.json": "5be568bae077a1c6",
-     "realization/snapshots/RSNAP-7A2890E3013F7C5F411D57E9.json": "6eedbedb0a50f818"
+     "realization/snapshots/RSNAP-0E6EF4B814FE95E19C63BD38.json": "08784d971810d138"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9805,
-  "sha256": "e679d95e6201fe248d3bab7a5565077252d099f70a7b232f91455d6f16ed0468"
+  "length": 9840,
+  "sha256": "62c5b285bbdb8e09b4111a0bbc982ae7cf13ebd0e009daf9d835698b06eba154"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -91,10 +91,10 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "522d6ff741bb92d4",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "da5522716426c1b3",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "30251364d133935f",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "dc489b7ec94dd72d",
      "realization/regeneration/RERUN-3F37BA35B1F0875240E38293.json": "440bd1e15f95d87d",
-     "realization/snapshots/RSNAP-D599DA98D429EB257AEBF2F2.json": "da5522716426c1b3"
+     "realization/snapshots/RSNAP-9E90D379322AA0A45ECA5EFA.json": "dc489b7ec94dd72d"
     }
    }
   ]
@@ -110,7 +110,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 4330,
-  "sha256": "99b2ae91d97dfe18db473f4689ba9dfe1c239236e3c96aee906a35eee7c60c10"
+  "sha256": "97e201c05c0cd39cd3d5fd6a4f161e74490bf6638c2d32e1574274b8467bf52e"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2886,

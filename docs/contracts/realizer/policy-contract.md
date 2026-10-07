@@ -84,6 +84,8 @@ A safety rollback (step role `SAFETY_ROLLBACK`: the Publisher restores a value w
 
 `MODIFIED` is eligible for realization. Validate and measure the actual state, re-estimate expected economics for the actual applied target, and regenerate downstream recommendations from that actual state when dependencies require it.
 
+For auto-stop the re-estimate is the Publisher's own option grid in the package (`auto_stop_annual_cluster_hours_by_value`, the annual net cluster-hours of every value it evaluated): the step's published range per component, scaled by the applied value's net cluster-hours over the recommended value's (`denominator_method` `PACKAGE_OPTION_GRID`); a value between two grid values is interpolated linearly and a value outside the grid has no denominator (`MONITORING`). The realization is then classified against that range like an exact step's. Example: the package recommends 30 to 10 minutes (6,242.34 / 9,363.51 / 12,484.69 for 1,212.6 cluster-hours); the owner sets 15 (909.4 cluster-hours): 4,681.50 / 7,022.25 / 9,363.00. A caller's re-estimate (`expected_annual_savings_actual_scope`) takes precedence; other knobs have no re-estimate yet.
+
 ## 9. Attribution
 
 Strict product-attributed KPIs require a qualified causal origin: `CONFIRMED` (an approvals file names the package, the knob and the applied value) or `INFERRED` (a measured change applied after the package was generated, to the knob its step recommends). `UNKNOWN`, `INDEPENDENT` and `NOT_ATTRIBUTABLE` origins may still support validated observed-value reporting. The policy setting `require_confirmed_origin_for_hard_kpi` set to false lifts the origin requirement.

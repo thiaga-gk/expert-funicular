@@ -78,7 +78,7 @@
   "contract_version": "1.0.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
-    "realization_state": "MONITORING",
+    "realization_state": "REALIZED",
     "source_package_disposition": "ACTIVE",
     "validation_state": "PASSED"
   },
@@ -92,16 +92,26 @@
     "aws_commitment_freed": null,
     "aws_economic_realized": "386.88",
     "aws_evidence_type": "MODELED",
-    "classification_basis": "RATIO_POLICY",
-    "classification_detail": "VALIDATED_VALUE_UNCLASSIFIED",
+    "classification_basis": "PUBLISHED_RANGE",
+    "classification_detail": "REALIZED",
     "counterfactual_old_cost": "4106.40",
     "currency": "USD",
     "dbu_realized": "682.86",
-    "denominator_source": "UNAVAILABLE",
+    "denominator_method": "PACKAGE_OPTION_GRID",
+    "denominator_source": "REESTIMATED_APPLIED_SCOPE",
     "economic_basis": "ECONOMIC_COST",
-    "expected_components": null,
-    "expected_range": null,
-    "expected_same_scope_annual_savings": null,
+    "expected_components": {
+      "aws": "3783.90",
+      "dbu": "6665.08",
+      "total": "10448.98"
+    },
+    "expected_range": {
+      "base": "10448.98",
+      "component": "total",
+      "high": "13967.72",
+      "low": "6930.24"
+    },
+    "expected_same_scope_annual_savings": "10448.98",
     "mature_ttm_realized_savings": null,
     "measurement": {
       "applied_value": 210,
@@ -188,8 +198,8 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": null,
-    "realization_state": "MONITORING",
+    "realization_ratio": "1.334550828291289016268496674",
+    "realization_state": "REALIZED",
     "realized_savings_period": "1069.73",
     "realized_savings_since_application": "1069.73",
     "reoptimization_recommended": false,
@@ -202,9 +212,9 @@
     "entry_count": 8,
     "first_entry_id": "RLE-44B66ED8E6EC63D82480C2BE",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-F80824A8997233F935356D45",
+    "latest_entry_id": "RLE-F8CE57A7C55213BB7900E565",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:AA04A594F5CAEEC3635DC531237D5B92B3C378404ABB79B0E2E32D353DCF2CC2",
+    "ledger_checkpoint_hash": "SHA256:AD84AB9763483BCA19652A27215C0DDA3DB692FCA4DA6F7D4C79B6B3636AAE48",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -229,7 +239,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-06DD4908FC99F3B69B8C80AF",
+  "snapshot_id": "RSNAP-09723151C003D21556C0709E",
   "source_recommendation": {
     "cost_profile": "aggressive",
     "disposition": "ACTIVE",

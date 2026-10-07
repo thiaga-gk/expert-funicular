@@ -105,6 +105,7 @@
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
+    "denominator_method": null,
     "denominator_source": "PUBLISHER_SCENARIO",
     "economic_basis": "ECONOMIC_COST",
     "expected_components": {
@@ -167,7 +168,7 @@
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
     "latest_entry_id": "RLE-ECA2E1DB6C54E6B3EC3147F4",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:46E6C88B9506DC763365A1550FE06D31C4ECF1368E2767443D49FBDB2CE94327",
+    "ledger_checkpoint_hash": "SHA256:209A329FA65F76CCAFD3E5782D40512554B0515E7D8724CF70548E2B26949170",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -192,7 +193,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-E3F371496CE66614C7D1CC11",
+  "snapshot_id": "RSNAP-29E0D81E29739BD1C7286282",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
