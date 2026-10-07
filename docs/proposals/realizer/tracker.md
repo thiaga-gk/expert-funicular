@@ -2,24 +2,12 @@
 
 A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/DeXxtwUBaiEhFTM1o1t6MQ, collection `findings`); this file is regenerated from it at each batch merge. Findings, worked examples and decisions: [`gap-review.md`](gap-review.md).
 
-Snapshot: 2026-10-07. Rows: 65 (Open: 24, Done: 41).
+Snapshot: 2026-10-07. Rows: 65 (Open: 12, Done: 53).
 
-## Open (24)
+## Open (12)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
-| R39 | No cross-package exclusivity | P0 | 4 | RD20 pending | Fix: One owner per (warehouse, knob, interval). RD20. Detail: two RPKGs for one warehouse both report CLAIMABLE 1,000 (GR-030 passes only because the test sets `overlap_count` by hand) | 2026-10-06 |
-| R40 | No registry of the current package per warehouse | P0 | 4 |  | Fix: State index by warehouse; package family link through the later package's `observed_change.previous_epoch_id`; retire never-applied lineages when a newer package for the same epoch arrives. Detail: supersession only through a caller-set `replacement_package_id`; NOT_APPLIED lineages accumulate forever | 2026-10-06 |
-| R41 | After ROLLED_BACK or DRIFTED the snapshot still shows CLAIMABLE 1,000 and an annualized 12,166.67 | P1 | 4 | RD21 pending | Fix: RD21. | 2026-10-06 |
-| R42 | Re-application after a rollback is folded into the old episode | P1 | 4 |  | Fix: Recurring lifecycle events carry the effective time in their identity; a closed episode never absorbs a new application. Detail: a second identical drift or rollback is suppressed (event ids exclude time) | 2026-10-06 |
-| R43 | `rollback_observed` is a trusted flag (accepted with the configuration unchanged) | P1 | 4 |  | Fix: Rollback only when the observed value returns to the step's source value. | 2026-10-06 |
-| R44 | A later authoritative step of the same plan reads as DRIFT and stops realization | P1 | 4 | RD22 pending | Fix: RD22. | 2026-10-06 |
-| R45 | Realized to date and mature TTM are labels | P1 | 4 | RD23 pending | Fix: RD23. Detail: "since application" is the latest window, any supplied TTM makes the state MATURE | 2026-10-06 |
-| R46 | Measurement identity excludes the costs, and "latest" is decided by hash order at equal recorded time | P1 | 4 |  | Fix: Ledger sequence tie-break; a second measurement of an existing window with different economics must be a correction. Detail: a re-measured window kept the older value | 2026-10-06 |
-| R47 | Billing restatement | P2 | 4 |  | Fix: The collector compares with the prior measurement of the same window and emits the correction; one correction per key. Covers known limitations 7 and 10. Detail: re-collection without a correction object replaces the number silently; reprocessing a restatement adds a second correction | 2026-10-06 |
-| R48 | Timestamps compared as strings (microseconds break ordering) | P2 | 4 |  | Fix: Compare parsed times; end after start; effective time from the epoch boundary. Detail: drift/rollback intervals can be zero-length | 2026-10-06 |
-| R49 | Ledger has no lock and a truncated last line breaks the lineage permanently | P1 | 4 |  | Fix: Advisory lock per ledger; quarantine one unterminated trailing line. | 2026-10-06 |
-| R50 | Supersession is unconditional (any string, even the package itself) | P2 | 4 |  | Fix: Validate the id; run the 5 percent rule and PolicyDiff in the lifecycle. Detail: the churn rule (GR-035/036) and PolicyDiff (GR-034) are not on the run path | 2026-10-06 |
 | R51 | One `--package` per process | P0 | 5 | RD24 pending | Fix: `realizer --publisher-run <dir or root>` over the manifest (latest run by default), failures isolated per warehouse, exit 2 if any failed, run manifest. RD24. Detail: no run-folder mode, no per-warehouse failure isolation, no overall exit status | 2026-10-06 |
 | R52 | Ledger lives under `--output-dir` | P1 | 5 | RD24 pending | Fix: `--state-dir` (long-lived ledger, evidence, regeneration) separate from Hive run folders for projections, manifest and log. RD24. Detail: a fresh dated output folder each day silently forks the history | 2026-10-06 |
 | R53 | No realization view for a person | P1 | 5 | RD25 pending | Fix: RD25. Detail: the Publisher workbook shows NOT_APPLIED for applied warehouses | 2026-10-06 |
@@ -33,7 +21,7 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 24, Done: 41).
 | R61 | Small hygiene | P3 | 7 |  | Fix: Plausibility flag above the package's high; default `./realizer_out`; retention note. Covers known limitations 12, 13, 16. Detail: over-realization (ratio 30) shows REALIZED with no plausibility flag; `recommended == current` steps are always EXACT; snapshots never pruned; default output dir is the Publisher's | 2026-10-06 |
 | R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Found in batch 1.5 (R37): add a currency switch to the demo world and a GE case whose billing currency differs from the package's (currency gate fails, not claimable). | 2026-10-07 |
 
-## Done (41)
+## Done (53)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
@@ -78,3 +66,15 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 24, Done: 41).
 | R36 | Counterfactual record hashes the caller's empty `workload` and a raw window start | P3 | 3 |  | CF id hashes method, window (applied/observed fallback), replay target, assumptions, evidence fingerprint; payload states them; workload no longer hashed. 9306dc4; merged 7879871. | 2026-10-07 |
 | R37 | No end-to-end goldens | P1 | 1.5 | RD18 decided 2026-10-07: GE-NN cases, simulator public function, stages regenerated separately | Done (c84ca5c, 1c15a4b, merged 3591b5d): 12 GE cases Publisher->Realizer, oracle from the simulator, stages regenerated separately (scripts/update_realizer_e2e_goldens.py). | 2026-10-07 |
 | R38 | Workload shift after the change is read as under-realization | P2 | 3 | RD19 option 1 (2026-10-07): measure a shifted auto-stop replay, report MONITORING/WORKLOAD_SHIFT with the volume ratio, claimable, never under-realized or re-optimized; denominator stays the package's (informational); guard-judged steps wait with WORKLOAD_SHIFT as the reason. | Shifted auto-stop replay measured: MONITORING/WORKLOAD_SHIFT, claimable, no re-opt (halved volume: 479.53/28 d, 6,251.02/yr); guard-judged steps wait with the reason; GE-15. adc5d1c; merged 7879871. | 2026-10-07 |
+| R39 | No cross-package exclusivity | P0 | 4 | RD20 decided 2026-10-07: option 1 (latest package before the change with a realizing step owns; ties EXACT>MODIFIED>id) | Done cea9cffe: one owner per change across a warehouse's lineages (newest package before the change with a realizing step; EXACT>MODIFIED>id), others OBSERVABLE_ONLY naming the owner; GE-06+GE-07 fleet claim 2,139.46 -> 1,069.73. | 2026-10-07 |
+| R40 | No registry of the current package per warehouse | P0 | 4 | RD20 decided 2026-10-07 (state index, supersession of never-applied lineages) | Done cea9cffe: same-epoch supersession, successor link via observed_change, per-warehouse state index rebuilt from ledgers, source package copies. | 2026-10-07 |
+| R41 | After ROLLED_BACK or DRIFTED the snapshot still shows CLAIMABLE 1,000 and an annualized 12,166.67 | P1 | 4 | RD21 decided 2026-10-07: option 1 (to date kept, annualized/ratio null) | Done cea9cffe: closed episode keeps realized to date (claimable), annualized/ratio null; GE-12 rollback 422.78 + 7,348.32/yr -> 523.54 to date, null run-rate. | 2026-10-07 |
+| R42 | Re-application after a rollback is folded into the old episode | P1 | 4 |  | Done cea9cffe: closed episodes never absorb a new application; drift/rollback carry their effective time. | 2026-10-07 |
+| R43 | `rollback_observed` is a trusted flag (accepted with the configuration unchanged) | P1 | 4 |  | Done cea9cffe: rollback read from the configuration returning to source; contradicting flag refused. | 2026-10-07 |
+| R44 | A later authoritative step of the same plan reads as DRIFT and stops realization | P1 | 4 | RD22 decided 2026-10-07: option 1 (later READY step = plan progress, per-step episodes) | Done cea9cffe: later plan step = own application, earlier keeps measuring; held step early = independent + PENDING_STEP_APPLIED regeneration; only unexplained changes drift. | 2026-10-07 |
+| R45 | Realized to date and mature TTM are labels | P1 | 4 | RD23 decided 2026-10-07: option 1 (per-day latest covering measurement, coverage stated, MATURE at 365 days) | Done cea9cffe: realized to date over every measurement (latest covering per instant), coverage stated, MATURE at 365 covered days; observation format 3.0.0. GE-12 Oct 30: 282.71 -> 403.88. | 2026-10-07 |
+| R46 | Measurement identity excludes the costs, and "latest" is decided by hash order at equal recorded time | P1 | 4 |  | Done cea9cffe: ledger order by parsed time then append order. | 2026-10-07 |
+| R47 | Billing restatement | P2 | 4 |  | Done cea9cffe: re-measured window = correction of that window; one correction per key+version; unchanged files not rewritten (limitations 7, 10 resolved). | 2026-10-07 |
+| R48 | Timestamps compared as strings (microseconds break ordering) | P2 | 4 |  | Done cea9cffe: times compared as instants; drift/rollback at the epoch boundary, strictly after the episode. | 2026-10-07 |
+| R49 | Ledger has no lock and a truncated last line breaks the lineage permanently | P1 | 4 |  | Done cea9cffe: advisory lock per ledger for a run; unterminated last line quarantined. | 2026-10-07 |
+| R50 | Supersession is unconditional (any string, even the package itself) | P2 | 4 |  | Done cea9cffe: self-replacement refused; 5% churn rule and POLICY_DIFF_RECORDED on the run path. | 2026-10-07 |
