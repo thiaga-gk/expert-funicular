@@ -80,3 +80,45 @@ Once a week, on the same weekday, with the same `--output-dir` (one state for th
 3. Next changes, one at a time on agreed warehouses, each measured to a stable number before the next: a size cut (claimable only after the 30-day canary guard, so about five weeks), then a minimum-cluster cut. A plan's later steps are not measured once an earlier step is applied ([Realizer known limitations](../../reference/realizer/known-limitations.md)), so apply one step and measure it before the next.
 4. The Publisher's backtest of size, floor and maximum-cluster changes (tracker G56) follows from the same evidence.
 5. State retention between runs: [`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 24.
+
+## Starter prompts
+
+Paste one into a fresh Claude Code session started at the root of a checkout of master on the machine that can reach the account (`claude --model claude-opus-5-5 --effort high`). The first starts the run; the second resumes it each week.
+
+**Day 0 (phases 0 to 2, up to checkpoint A):**
+
+```text
+Start the live run of the Publisher and the Realizer on this account. Read CLAUDE.md, then
+docs/proposals/shared/live-run.md (the sequence you follow, step by step), the two checklists it links
+(docs/proposals/publisher/real-data-run.md, docs/proposals/realizer/real-data-run.md) and
+.claude/skills/databricks-golden-miner/SKILL.md (phase 2 runs that skill).
+
+Ask me once, up front: the OAuth CLI profile <P>, the collector SQL warehouse <C>, the AWS region <R>, and
+the test warehouse <T> with its owner's agreement (or help me choose one after step 1.1). Use today's UTC
+date as <D>.
+
+Rules: every command is read-only, and only the owner of <T> changes anything (step 3.1, by hand). Refuse
+a static token profile. Write every output under mining_out/<D>/ and never put evidence.json, a token or a
+CLI config into chat, git or a message. Run phase 0 to step 1.7 in order, check each step's "Check"
+column, and on a failure stop and show me the command, its exit status and the error. Then run phase 2:
+give me the pattern report and take the miner's proposals one at a time in chat (real numbers, then
+approve/reject/adjust); apply approved ones on a branch golden-mining-<D> and commit only when I say so.
+
+Stop at checkpoint A: summarize, per step, what ran and what it showed (real numbers in tables), list
+the checkpoint A files to send back, give the first answers to the checklist questions the day-0 data
+settles (restart billing and the 0.75 factor from the backtest), and recommend the change for <T> with
+its package's value. Then wait for me.
+```
+
+**Each week (phase 4, checkpoints B and C):**
+
+```text
+Resume the live run: read CLAUDE.md and docs/proposals/shared/live-run.md. The run's folder is
+mining_out/<D>/; the owner applied the change on <T> at <UTC time> (step 3.1). Run steps 4.1 and 4.2 for
+week <N> with the same profile, collector warehouse and region as before, the same --output-dir
+(mining_out/<D>/rz) and nothing else changed. Report for <T>: state, classification, claim status,
+predicted (the package's range) against realized (the replay) against billed (cross-check outcome and
+reason), in a table next to the earlier weeks, and whether the replay matched. At week 1 and week 4 list
+the checkpoint files to send back; after week 4 go on to phase 5 (review, second mining, next change)
+and propose before doing.
+```
