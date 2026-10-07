@@ -80,13 +80,13 @@
     "hard_disqualifiers": [],
     "origin_attribution": "INFERRED",
     "overlap_count": 0,
-    "recommendation_attributed_realized_savings": "959.05",
-    "validated_observed_realization": "959.05"
+    "recommendation_attributed_realized_savings": "479.53",
+    "validated_observed_realization": "479.53"
   },
   "contract_version": "1.2.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
-    "realization_state": "REALIZED",
+    "realization_state": "MONITORING",
     "source_package_disposition": "ACTIVE",
     "validation_state": "PASSED"
   },
@@ -94,17 +94,17 @@
     "state": "NONE"
   },
   "economics": {
-    "annualized_realized_savings": "12501.90",
+    "annualized_realized_savings": "6251.02",
     "available": true,
     "aws_cash_realized": null,
     "aws_commitment_freed": null,
-    "aws_economic_realized": "349.44",
+    "aws_economic_realized": "174.72",
     "aws_evidence_type": "MODELED",
-    "classification_basis": "PUBLISHED_RANGE",
-    "classification_detail": "REALIZED",
-    "counterfactual_old_cost": "1582.44",
+    "classification_basis": "INFORMATIONAL",
+    "classification_detail": "WORKLOAD_SHIFT",
+    "counterfactual_old_cost": "791.22",
     "currency": "USD",
-    "dbu_realized": "609.61",
+    "dbu_realized": "304.81",
     "denominator_method": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
@@ -125,32 +125,32 @@
       "applied_value": 10,
       "cost_basis": "DBU_AND_MODELED_AWS",
       "cross_check": {
-        "billed_dbu_reduction": "614.95",
+        "billed_dbu_reduction": "307.48",
         "difference_pct": "0.88",
-        "noise": "4.61",
-        "outcome": "AGREES",
+        "noise": null,
+        "outcome": "INCONCLUSIVE",
         "pre_weekly_costs": [
           "253.89",
           "248.82",
           "254.33",
           "254.16"
         ],
-        "reason": null,
-        "replay_dbu_saving": "609.61"
+        "reason": "VOLUME_SHIFT",
+        "replay_dbu_saving": "304.81"
       },
       "holds_other_knobs": true,
       "knob": "auto_stop_minutes",
       "method": "AUTO_STOP_REPLAY",
       "other_knob_changes": [],
       "post_window": {
-        "billed_cost": "396.25",
-        "billed_dbu": "720.454",
+        "billed_cost": "198.12",
+        "billed_dbu": "360.227",
         "days": 28,
         "first_day": "2026-10-09",
         "last_day": "2026-11-05",
-        "queries": 280,
-        "restarts": 280,
-        "running_cluster_minutes": "3640"
+        "queries": 140,
+        "restarts": 140,
+        "running_cluster_minutes": "1820"
       },
       "pre_window": {
         "billed_cost": "1011.20",
@@ -163,20 +163,21 @@
         "running_cluster_minutes": "9240"
       },
       "replay": {
-        "added_idle_cluster_minutes": "5600",
+        "added_idle_cluster_minutes": "2800",
         "avoided_starts": "0",
         "aws_cluster_hourly_price": "3.744",
         "aws_status": "MODELED",
         "dbu_cost_per_cluster_minute": "0.10886",
-        "net_cluster_minutes": "5600",
+        "net_cluster_minutes": "2800",
         "replayed_target_minutes": 30,
         "restart_cost_cluster_minutes": "4"
       },
+      "size": null,
       "source_value": 30,
-      "volume_ratio": "1"
+      "volume_ratio": "0.5"
     },
-    "observed_economic_delta": "959.05",
-    "observed_new_cost": "623.39",
+    "observed_economic_delta": "479.53",
+    "observed_new_cost": "311.69",
     "period_days": "28",
     "quality_gates": {
       "attributable_spend": {
@@ -206,10 +207,10 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": "1.335172577987772289908988647",
-    "realization_state": "REALIZED",
-    "realized_savings_period": "959.05",
-    "realized_savings_since_application": "959.05",
+    "realization_ratio": "0.6675932499061325751317004597",
+    "realization_state": "MONITORING",
+    "realized_savings_period": "479.53",
+    "realized_savings_since_application": "479.53",
     "realized_to_date": {
       "days_covered": "28.00",
       "first_day": "2026-10-09",
@@ -218,7 +219,7 @@
     },
     "reoptimization_recommended": false,
     "review_required": false,
-    "successful_realized_savings": "959.05"
+    "successful_realized_savings": "479.53"
   },
   "history": {
     "application_episode_count": 1,
@@ -226,9 +227,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-D142350AA4E2551E75F9F81A",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-76D6A3C3AAEF730839F5258A",
+    "latest_entry_id": "RLE-1E0265084547E55E3FEFD517",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:A553C2C568FE7AEE05F9B2F5DEF93BC0F61BFD33650198FB70728EC4FADEA6E4",
+    "ledger_checkpoint_hash": "SHA256:D5876D365FB9FDD80B47A6DBF522C9848F245A2FEEC04B561F276795EDA031E2",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -253,7 +254,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-FCF643AFE450193250EF95D3",
+  "snapshot_id": "RSNAP-A13EF930A9DFEF143117C308",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -298,7 +299,7 @@
           "threshold": 7
         },
         "minimum_queries": {
-          "observed": 280,
+          "observed": 140,
           "pass": true,
           "threshold": 100
         },
@@ -321,7 +322,7 @@
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
-        "sample": "280",
+        "sample": "140",
         "threshold": "5"
       },
       {
@@ -335,7 +336,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-2480E534A821005DEC9337FC",
+    "validation_episode_id": "VAL-F6F4AC09155AA2306208E88F",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },
