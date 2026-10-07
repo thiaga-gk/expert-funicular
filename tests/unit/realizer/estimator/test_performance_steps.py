@@ -36,7 +36,8 @@ def with_queue(observation, pre, post):
 
 
 class CapacityAddTests(unittest.TestCase):
-    """The simulated world: queued share 9.7173 -> 0.7564 percent, p95 2,500 ms both, billed +12,887.78/yr at the pre mix."""
+    """The simulated world: queued share 9.7173 -> 0.7564 percent, p95 2,500 ms both, 3,795 cluster-minutes above the old
+    cap in 28 days (+17,030.48/yr), billed +12,887.78/yr at the pre mix."""
 
     @classmethod
     def setUpClass(cls):
@@ -48,7 +49,8 @@ class CapacityAddTests(unittest.TestCase):
         self.assertEqual((snapshot["current_state"]["realization_state"], econ["classification_detail"]),
                          ("PERFORMANCE_VALIDATED", "PERFORMANCE_VALIDATED"))
         self.assertEqual(econ["performance"]["queued_query_pct"], {"pre": "9.7173", "post": "0.7564"})
-        self.assertEqual(econ["cost_change"], {"annualized_cost_increase": "12887.78", "basis": "BILLED_PRE_POST_AT_PRE_MIX", "component": "total",
+        self.assertEqual(econ["cost_change"], {"annualized_cost_increase": "17030.48", "basis": "CLUSTER_LEVELS_ABOVE_OLD_CAP", "component": "total",
+                                               "billed_annualized_cost_increase": "12887.78",
                                                "modeled_annual_cost_increase": "15628.48", "review_above": "19535.60"})
         self.assertIsNone(econ["successful_realized_savings"])
         self.assertEqual(snapshot["attribution"]["recommendation_attributed_realized_savings"], "0.00")
@@ -62,7 +64,7 @@ class CapacityAddTests(unittest.TestCase):
 
     def test_a_cost_far_above_the_model_is_flagged(self):
         obs = copy.deepcopy(self.observation)
-        obs["measurement"]["billed_change"]["annualized_total"] = "25000.00"
+        obs["measurement"]["levels"]["annualized_total_cost"] = "25000.00"
         econ = run(ADD, obs)["economics"]
         self.assertEqual((econ["realization_state"], econ["classification_detail"], econ["review_required"]),
                          ("PERFORMANCE_VALIDATED", "PERFORMANCE_VALIDATED_COST_ABOVE_MODEL", True))

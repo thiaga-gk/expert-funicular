@@ -29,7 +29,7 @@ DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clust
 MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", "MIGRATION_BILLED_OBSERVED")
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
-                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE")
+                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE", "FLOOR_RAISED")
 BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
 CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
@@ -61,10 +61,27 @@ def size_schema() -> Dict[str, Any]:
     return {"type": ["object", "null"]}
 
 
+LEVELS_BASES = ("FLOOR_CUT_REMOVED", "CLUSTER_LEVELS_ABOVE_OLD_CAP", "OLD_CAP_UPPER_BOUND")
+
+
 def levels_schema() -> Dict[str, Any]:
     """``measurement.levels``: the running minutes by cluster count of a cluster-count change and what they show
-    (``null`` for any other knob)."""
-    return {"type": ["object", "null"]}
+    (``null`` for any other knob, or without levels): the levels of both windows, the observed cluster-minutes and, per
+    ``basis``, the priced cluster-minutes (removed by a floor cut, above the old cap of a capacity add, or the upper
+    bound of what the old cap of a cap cut could have added) with their DBU, modeled AWS and total cost and its
+    annualized amounts (``basis`` ``null`` for a floor raise, which is not priced)."""
+    level = _obj({"cluster_count": {"type": "integer", "minimum": 1}, "running_minutes": _decimal(nullable=False)})
+    levels = {"type": "array", "items": level}
+    return _obj({
+        "basis": {"enum": [None, *LEVELS_BASES]},
+        "pre_levels": {"anyOf": [levels, {"type": "null"}]}, "post_levels": levels,
+        "observed_cluster_minutes": _decimal(nullable=False), "counterfactual_cluster_minutes": _decimal(),
+        "minutes_at_new_cap": _decimal(), "cluster_minutes": _decimal(),
+        "days": {"type": "integer", "minimum": 1}, "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+        "dbu_cost_per_cluster_minute": _decimal(), "aws_cluster_hourly_price": _decimal(), "aws_status": {"type": "string", "minLength": 1},
+        "dbu_cost": _decimal(), "aws_cost": _decimal(), "total_cost": _decimal(),
+        "annualized_dbu_cost": _decimal(), "annualized_total_cost": _decimal(),
+    }, nullable=True)
 
 
 def observation_schema() -> Dict[str, Any]:

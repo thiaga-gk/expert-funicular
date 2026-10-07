@@ -11,14 +11,17 @@ windows it reads are exactly the ones the bridge collected, and states what they
   value would have avoided at the package's restart assumption (the Publisher's cost of one restart per floor cluster);
   priced at the window's billed DBU cost per running cluster-minute and, for Pro and Classic, at the modeled AWS price
   of a cluster-hour. Realized = counterfactual - observed, holding every other knob at its observed value;
+* for a min- or max-cluster change, what the running minutes by cluster count show (``cluster_counterfactual``,
+  ``measurement.levels``): a floor cut's counterfactual (priced like the replay, same shape), a capacity add's cluster-
+  minutes above the old cap, a cap cut's upper bound of what the old cap could have added;
 * for a changed knob without a replay (``KNOB_NOT_REPLAYED``): no counterfactual and no economics, but the guards before
   and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
   the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
   that a positive amount is a cost increase. It includes whatever else moved the bill, so it is reported, never claimed;
 * readiness inputs: settled days since the change, the window's queries, the representative regime and the evidence
   quality. The windows are whole weeks; the regime is representative when the query volume per day is within
-  ``VOLUME_RATIO_BAND`` of the pre-change window's, and for an auto-stop replay whenever the volume ratio is known: the
-  replay prices the actual post-change days, so a shifted workload is measured and reported, never classified (the
+  ``VOLUME_RATIO_BAND`` of the pre-change window's, and for a counterfactual (replay or floor cut) whenever the volume
+  ratio is known: it prices the actual post-change days, so a shifted workload is measured and reported, never classified (the
   Estimator's ``WORKLOAD_SHIFT``), while a change judged on queueing and p95 waits for a comparable workload;
 * the financial-quality inputs of the window's billed rows.
 
@@ -30,6 +33,7 @@ from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer.analysis import normalize_value, photon_bool_from_package
+from realizer.analyzer.cluster_counterfactual import FLOOR_METHOD, cluster_levels
 from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.measurement import (
     MeasurementPlan,
@@ -312,26 +316,28 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     post = window_summary(windows.get("post") if plan.post else None, evidence["daily_cost"])
     pre = window_summary(windows.get("pre") if plan.pre else None, evidence["daily_cost"])
     replay = replay_economics(plan, evidence)
+    levels = cluster_levels(plan, evidence, billed(daily_in(evidence["daily_cost"], plan.post)))
+    counterfactual = replay or levels.counterfactual  # the auto-stop replay or a floor cut's levels: same shape
     ratio = volume_ratio(pre, post)
     representative: Optional[bool] = None
     if post is not None and ratio is not None:
-        representative = replay is not None or not volume_shifted(ratio)
+        representative = counterfactual is not None or not volume_shifted(ratio)
     window = window_bounds(plan.post) if plan.post else (None, None)
     economics = None
-    if replay is not None:
+    if counterfactual is not None:
         economics = {
-            "currency": replay["currency"] or package_currency(package),
-            "counterfactual_old_cost": money(replay["counterfactual_old_cost"]), "observed_new_cost": money(replay["observed_new_cost"]),
+            "currency": counterfactual["currency"] or package_currency(package),
+            "counterfactual_old_cost": money(counterfactual["counterfactual_old_cost"]), "observed_new_cost": money(counterfactual["observed_new_cost"]),
             "period_days": window_days(plan.post), "counterfactual_method": "CALIBRATED_PRIOR_STATE", "economic_basis": "ECONOMIC_COST",
-            "expected_annual_savings_actual_scope": None, "dbu_realized": money(replay["dbu_realized"]),
-            "aws_economic_realized": money(replay["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
-            "aws_evidence_type": "MODELED" if replay["aws_realized"] is not None else None,
+            "expected_annual_savings_actual_scope": None, "dbu_realized": money(counterfactual["dbu_realized"]),
+            "aws_economic_realized": money(counterfactual["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
+            "aws_evidence_type": "MODELED" if counterfactual["aws_realized"] is not None else None,
         }
     cross_check = None
-    if replay is not None:
+    if counterfactual is not None:
         pre_rows = daily_in(evidence["daily_cost"], plan.pre)
         cross_check = billed_cross_check(
-            replay_dbu_saving=replay["dbu_realized"],
+            replay_dbu_saving=counterfactual["dbu_realized"],
             pre=None if pre is None else {"days": pre["days"], "billed_cost": billed(pre_rows)["cost"]},
             post={"days": post["days"], "billed_cost": billed(daily_in(evidence["daily_cost"], plan.post))["cost"]} if post else None,
             pre_weekly=None if plan.pre is None else weekly_costs(pre_rows, plan.pre["first_day"], window_days(plan.pre)),
@@ -340,17 +346,17 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     if plan.step is not None:
         detail = None if replay is None else {k: (_fmt(v, "0.000001") if isinstance(v, Decimal) else v) for k, v in replay["detail"].items()}
         measurement = {
-            "method": REPLAY_METHOD if replay is not None else None,
+            "method": REPLAY_METHOD if replay is not None else FLOOR_METHOD if levels.counterfactual is not None else None,
             "knob": plan.step["knob"], "source_value": plan.step["current_value"], "applied_value": plan.observed_epoch.get(plan.step["knob"]),
             "change_epoch_start": utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch else None,
             "observed_epoch_start": utc_iso(plan.observed_epoch["epoch_start"]),
             "previous_epoch_start": utc_iso(plan.previous_epoch["epoch_start"]) if plan.previous_epoch else None,
-            "not_measured_reason": plan.reason,
+            "not_measured_reason": plan.reason or levels.reason,
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
-            "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
-            "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
+            "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": counterfactual is not None,
+            "cost_basis": None if counterfactual is None else counterfactual["cost_basis"], "replay": detail,
             "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
-            "size": None, "levels": None,
+            "size": None, "levels": levels.block,
             "cross_check": None if cross_check is None else {
                 "outcome": cross_check["outcome"], "reason": cross_check["reason"],
                 "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),
@@ -370,7 +376,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
         "representative_regime": representative, "evidence_quality": evidence_quality(plan, evidence), "workload": {},
         "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None,
                         "guards": guard_metrics(evidence, pre, post) if plan.post else None},
-        "financial_quality": financial_quality(plan, evidence, replay),
+        "financial_quality": financial_quality(plan, evidence, counterfactual),
         "economics": economics, "overlap_count": 0, "origin_attribution": origin_attribution, "intent_state": intent_state,
         "intent_reference": intent_reference, "actor": None, "applied_scenario_id": None,
         "rollback_requested": False, "rollback_observed": False, "rollback_reason": None, "replacement_package_id": None,
