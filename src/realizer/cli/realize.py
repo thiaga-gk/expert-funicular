@@ -1,9 +1,13 @@
 """``realizer``: one realize run, or one backtest, from command-line arguments.
 
-The CLI only parses its own arguments, loads the package, the observation and the policy (in that order), configures
-logging, calls ``realizer.realizer.realize`` and prints the written package path (or the snapshot with ``--print-json``).
-It reaches the observation sources (the demo's simulated world, a live measurement, an evidence replay, an observation
-file) and the policy type through the facade and never imports a capability package.
+The CLI only parses its own arguments, resolves the output layout (``realizer.config.output_layout``: a new run folder
+under ``--output-dir`` for the projections and the log, the history in ``--state-dir``, default ``<output-dir>/state``;
+``--flat-output`` writes both under ``--output-dir`` itself), loads the package, the observation and the policy (in that
+order), configures logging, calls ``realizer.realizer.realize_package`` and prints the written package path (or the
+snapshot with ``--print-json``). It reaches the observation sources (the demo's simulated world, a live measurement, an
+evidence replay, an observation file) and the policy type through the facade and never imports a capability package.
+The inputs are checked, and a demo or live measurement is written to the state, before the run folder is created, so a
+refused input writes nothing; the log lines from the start of the run are written to the run folder's log once it exists.
 
 ``--backtest`` is a separate mode with its own options (``parse_backtest_args``; ``realizer --backtest --help``): no
 package, one source (``--profile`` with ``--sql-warehouse-id``, ``--from-evidence`` or ``--demo``), the facade's backtest
@@ -12,28 +16,32 @@ entry points, and a one-line summary per past change followed by the written rep
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from realizer.common.errors import InputError
-from realizer.common.logging import LOGGER, setup_logging
-from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping, validate_replay_through
+from realizer.common.logging import LOGGER, attach_log_file, setup_logging
+from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping
+from realizer.config.output_layout import RunLayout, resolve_layout, resolve_state_dir
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
+from realizer.contracts.request import RealizationRequest
 from realizer.realizer import (
     RealizerPolicy,
     backtest_demo,
     backtest_from_evidence,
     backtest_live,
     backtest_summary,
+    build_context,
     load_observation,
     measure_demo,
     measure_live,
     observe_from_evidence,
-    realize,
+    realize_package,
 )
 
 
@@ -43,7 +51,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--version", action="version", version=version_text())
     p.add_argument("--package", required=True, help="Path to immutable RecommendationPackage JSON")
     p.add_argument("--observation", help="Path to normalized post-change observation JSON")
-    p.add_argument("--output-dir", default="./warehouse_optimizer_out")
+    p.add_argument("--output-dir", default="./warehouse_optimizer_out", help="Root of the run folders "
+                   "(run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/: realization packages, snapshots, realizer.log)")
+    p.add_argument("--state-dir", help="Long-lived state: ledgers, evidence, regeneration requests, measurements, source "
+                   "package copies, policies, state index (default <output-dir>/state)")
+    p.add_argument("--flat-output", action="store_true", help="Write the state and the projections under --output-dir "
+                   "itself (single-folder layout, no run folder, no log file)")
     p.add_argument("--policy", help="Optional Realizer policy override JSON")
     p.add_argument("--demo", action="store_true", help="Measure the package's Publisher demo-fleet warehouse in a simulated world "
                    "where its first eligible step was applied (demo-fleet packages only)")
@@ -122,13 +135,14 @@ def run_backtest(argv: Sequence[str]) -> int:
     return 0
 
 
-def demo_measurement(args: argparse.Namespace, package: Mapping[str, Any]) -> Mapping[str, Any]:
-    """``--demo``/``--demo-modified``: the package's demo-fleet warehouse measured in its simulated world at ``--as-of``,
-    the measurement evidence written under the output directory like a live run's. The replay cut and the policy are
-    checked first, so a refused input writes nothing."""
-    validate_replay_through(args.replay_through, package)
-    RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
-    return measure_demo(package, Path(args.output_dir), as_of=args.as_of, modified=args.demo_modified)
+def run_layout(args: argparse.Namespace) -> RunLayout:
+    """The layout of this run (``realizer.config.output_layout.resolve_layout``); the run folder is created and, outside
+    the single-folder layout, the log is written to ``<run folder>/realizer.log`` from here on."""
+    layout = resolve_layout(Path(args.output_dir), Path(args.state_dir) if args.state_dir else None, flat=args.flat_output)
+    if layout.log_path is not None:
+        attach_log_file(layout.log_path)
+    LOGGER.info("realizer.layout run_dir=%s state_dir=%s flat=%s", layout.run_dir, layout.state_dir, layout.flat)
+    return layout
 
 
 def run(argv: Optional[Sequence[str]] = None) -> int:
@@ -147,23 +161,28 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     package = load_package(args.package)
     approvals = load_approvals(args.approvals)
     observation: Optional[Mapping[str, Any]] = None
-    if args.demo or args.demo_modified:
-        observation = demo_measurement(args, package)
-    elif args.observation:
+    if args.observation:
         observation = load_observation(args.observation)
-    elif args.profile:
-        observation = measure_live(package, Path(args.output_dir), profile=args.profile, sql_warehouse_id=args.sql_warehouse_id,
-                                   config_file=args.databricks_config_file, source_region=args.source_region,
-                                   aws_price_registry=args.aws_price_registry, as_of=args.as_of, ingestion_cutoff=args.billing_ingested_through,
-                                   approvals=approvals)
     elif args.from_evidence:
         observation = observe_from_evidence(package, args.from_evidence, approvals)
     policy = RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
-    snapshot = realize(package, observation, Path(args.output_dir), policy=policy, replay_through=args.replay_through)
+    request = RealizationRequest(package=package, observation=observation, output_dir=Path(args.output_dir), policy=policy,
+                                 replay_through=args.replay_through)
+    build_context(request)  # a refused input writes nothing
+    state_dir = resolve_state_dir(Path(args.output_dir), Path(args.state_dir) if args.state_dir else None, flat=args.flat_output)
+    if args.demo or args.demo_modified:
+        observation = measure_demo(package, state_dir, as_of=args.as_of, modified=args.demo_modified)
+    elif args.profile:
+        observation = measure_live(package, state_dir, profile=args.profile, sql_warehouse_id=args.sql_warehouse_id,
+                                   config_file=args.databricks_config_file, source_region=args.source_region,
+                                   aws_price_registry=args.aws_price_registry, as_of=args.as_of, ingestion_cutoff=args.billing_ingested_through,
+                                   approvals=approvals)
+    layout = run_layout(args)
+    snapshot = realize_package(dataclasses.replace(request, observation=observation, output_dir=layout.run_dir, state_dir=layout.state_dir)).realization
     LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s", snapshot.realization_package_id, snapshot.snapshot_id,
                 snapshot.current_state["realization_state"])
     if args.print_json:
         print(json.dumps(snapshot.to_dict(), indent=2, sort_keys=True))
     else:
-        print(Path(args.output_dir) / "realization" / "packages" / f"{snapshot.realization_package_id}.json")
+        print(layout.run_dir / "realization" / "packages" / f"{snapshot.realization_package_id}.json")
     return 0

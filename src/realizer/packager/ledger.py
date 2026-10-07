@@ -154,17 +154,15 @@ def repair_trailing_line(path: Path) -> None:
 
 
 @contextlib.contextmanager
-def ledger_lock(path: Path) -> Iterator[None]:
-    """Hold the advisory lock of the ledger at *path* for the block, then release it.
+def exclusive_lock(lock: Path, refusal: str) -> Iterator[None]:
+    """Hold the advisory lock file *lock* for the block, then release it.
 
-    The lock is an exclusive ``flock`` on ``lock_path``, tried without blocking every ``LOCK_POLL_SECONDS`` for up to
-    ``LOCK_WAIT_SECONDS``; a ledger still locked after that raises ``LedgerError`` ("locked by another run"). Holding it,
-    the ledger's truncated last line is repaired first (``repair_trailing_line``). On release the lock file is removed;
-    a run that opened it meanwhile notices on acquiring that the file at the path is no longer the one it locked, and
-    tries again.
+    The lock is an exclusive ``flock`` on *lock*, tried without blocking every ``LOCK_POLL_SECONDS`` for up to
+    ``LOCK_WAIT_SECONDS``; a file still locked after that raises ``LedgerLockedError`` with the message *refusal*. On
+    release the lock file is removed; a run that opened it meanwhile notices on acquiring that the file at the path is
+    no longer the one it locked, and tries again.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lock = lock_path(path)
+    lock.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + LOCK_WAIT_SECONDS
     while True:
         fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
@@ -173,7 +171,7 @@ def ledger_lock(path: Path) -> Iterator[None]:
         except BlockingIOError:
             os.close(fd)
             if time.monotonic() >= deadline:
-                raise LedgerLockedError(f"ledger {path.name} is locked by another run") from None
+                raise LedgerLockedError(refusal) from None
             time.sleep(LOCK_POLL_SECONDS)
             continue
         try:
@@ -184,7 +182,6 @@ def ledger_lock(path: Path) -> Iterator[None]:
             break
         os.close(fd)  # the run that held it removed the file on release: lock the file now at the path
     try:
-        repair_trailing_line(path)
         yield
     finally:
         try:
@@ -193,6 +190,19 @@ def ledger_lock(path: Path) -> Iterator[None]:
             pass
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
+
+
+@contextlib.contextmanager
+def ledger_lock(path: Path) -> Iterator[None]:
+    """Hold the advisory lock of the ledger at *path* for the block, then release it.
+
+    The lock is ``exclusive_lock`` on ``lock_path``: a ledger still locked after ``LOCK_WAIT_SECONDS`` raises
+    ``LedgerLockedError`` ("locked by another run"). Holding it, the ledger's truncated last line is repaired first
+    (``repair_trailing_line``).
+    """
+    with exclusive_lock(lock_path(path), f"ledger {path.name} is locked by another run"):
+        repair_trailing_line(path)
+        yield
 
 
 def latest_event(entries: Sequence[rc.RealizationLedgerEntry], *types: rc.EventType) -> Optional[rc.RealizationLedgerEntry]:
@@ -357,7 +367,7 @@ def record_creation(context: RunContext) -> None:
     """Record the lineage (REALIZATION_CREATED) before the run reads anything else; the inputs were checked before it, and
     a corrupt ledger raises here, before anything is written."""
     package, rpkg = context.request.package, context.realization_package_id
-    lpath = ledger_path(context.request.output_dir, rpkg)
+    lpath = ledger_path(context.request.state_root, rpkg)
     load_ledger(lpath)  # a corrupt ledger fails here, before anything is built or written
 
     # Stable lineage creation uses Publisher generation time so replay does not
@@ -408,7 +418,7 @@ def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ..
     remeasurement windows are checked last. Every entry is built immediately before its own append, so a malformed
     value fails at the position it always failed.
     """
-    package, output_dir = context.request.package, context.request.output_dir
+    package, output_dir = context.request.package, context.request.state_root
     analysis, reconciliation, estimate = reviewed.analysis, reviewed.reconciliation, reviewed.estimate
     observed = analysis.observation
     if observed is None:

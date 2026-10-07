@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple
 
-from realizer.analyzer.lineages import policies_dir, source_path, warehouse_key
+from realizer.analyzer.lineages import key_of, policies_dir, read_kept_lineages, source_path, warehouse_key
 from realizer.common.logging import LOGGER
 from realizer.common.utils import write_json
 from realizer.contracts import realization as rc
@@ -145,10 +145,31 @@ def project_others(output_dir: Path, others: Sequence[LineageRecord], grown: Set
     return tuple(changed), every
 
 
+def kept_snapshots(state_dir: Path, workspace_id: Any, warehouse_id: Any) -> List[Tuple[LineageRecord, rc.RealizationPackage]]:
+    """Every lineage of the warehouse kept in the state with its snapshot projected from its whole ledger (a lineage
+    whose ledger holds nothing yet is left out), in package id order."""
+    return [(record, project_snapshot(record.package, record.entries))
+            for record in read_kept_lineages(state_dir, workspace_id, warehouse_id) if record.entries]
+
+
+def open_lineages(state_dir: Path, workspace_id: Any, warehouse_id: Any) -> Tuple[LineageRecord, ...]:
+    """The lineages of the warehouse a fleet run realizes again, oldest package first (the state index's order): those
+    not superseded (``active_package_ids``) and those that own an applied knob (``applied_knob_owners``), so the owner
+    of a change records its application, validation and measurement in every run, whichever package the Publisher
+    generated last. Decided from the ledgers, never from the state index file."""
+    kept = kept_snapshots(state_dir, workspace_id, warehouse_id)
+    if not kept:
+        return ()
+    index = state_index(kept[0][0].package, [snapshot for _, snapshot in kept])
+    wanted = set(index["active_package_ids"]) | {o["recommendation_package_id"] for o in index["applied_knob_owners"]}
+    records = {record.recommendation_package_id: record for record, _ in kept}
+    return tuple(records[row["recommendation_package_id"]] for row in index["lineages"] if row["recommendation_package_id"] in wanted)
+
+
 def recorded_policy(events: Sequence[LineageEvent], validation_recorded: bool) -> bool:
     """Whether the run recorded anything under its policy (a validation or a PolicyDiff), so its settings are kept."""
     return validation_recorded or any(e.event_type == rc.EventType.POLICY_DIFF_RECORDED for e in events)
 
 
-__all__ = ["STATE_INDEX_VERSION", "keep_policy", "keep_source", "project_others", "record_events",
+__all__ = ["STATE_INDEX_VERSION", "keep_policy", "keep_source", "kept_snapshots", "open_lineages", "project_others", "record_events",
            "recorded_policy", "state_index", "state_index_path"]

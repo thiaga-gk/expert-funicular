@@ -12,7 +12,7 @@ from typing import Optional, Sequence
 
 from realizer.cli import realize
 from realizer.common.errors import RealizerError
-from realizer.common.logging import LOGGER
+from realizer.common.logging import LOGGER, detach_log_files
 
 EXIT_REFUSED = 2
 
@@ -30,6 +30,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if LOGGER.handlers:
             LOGGER.error("realizer.crashed error_type=%s", type(exc).__name__)
         raise
+    finally:
+        detach_log_files()
 
 
 if __name__ == "__main__":

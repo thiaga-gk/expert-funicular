@@ -123,7 +123,7 @@ class BehaviourTests(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             try:
-                code = entry(argv + ["--output-dir", str(out)])
+                code = entry(argv + ["--output-dir", str(out), "--flat-output"])
             except Exception as exc:  # noqa: BLE001 - compared
                 code = f"{type(exc).__name__}: {exc}".replace(str(out), "<out>")
         return code, stdout.getvalue().replace(str(out), "<out>")
@@ -177,7 +177,7 @@ class BehaviourTests(unittest.TestCase):
             with self.subTest(argv=argv[1:]):
                 out, err = io.StringIO(), io.StringIO()
                 with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                    code = main(argv + ["--output-dir", str(Path(self.root.name) / "o1")])
+                    code = main(argv + ["--output-dir", str(Path(self.root.name) / "o1")])  # the run-folder layout: still nothing
                 self.assertEqual((code, out.getvalue()), (2, ""))
                 message = err.getvalue().splitlines()[-1]
                 self.assertTrue(message.startswith("realizer: "), message)
@@ -185,7 +185,7 @@ class BehaviourTests(unittest.TestCase):
         self.assertFalse((Path(self.root.name) / "o1").exists(), "an input refusal writes nothing")
 
     def test_a_defect_is_not_mapped_to_an_exit_status(self):
-        with mock.patch.object(cli_realize, "realize", side_effect=RuntimeError("boom")), tempfile.TemporaryDirectory() as tmp, \
+        with mock.patch.object(cli_realize, "realize_package", side_effect=RuntimeError("boom")), tempfile.TemporaryDirectory() as tmp, \
                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError):
             main(["--package", str(PACKAGE), "--demo", "--output-dir", tmp])
 
@@ -210,7 +210,7 @@ class EntryPointTests(unittest.TestCase):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
         for command in ([sys.executable, "-m", "realizer"], [sys.executable, str(ROOT / "scripts" / "run_realizer.py")]):
             with self.subTest(command=command[1:]), tempfile.TemporaryDirectory() as tmp:
-                done = subprocess.run([*command, "--package", str(PACKAGE), "--demo", "--output-dir", tmp], capture_output=True, text=True, env=env, cwd=tmp)
+                done = subprocess.run([*command, "--package", str(PACKAGE), "--demo", "--output-dir", tmp, "--flat-output"], capture_output=True, text=True, env=env, cwd=tmp)
                 self.assertEqual(done.returncode, 0, done.stderr)
                 path = Path(done.stdout.strip())
                 self.assertTrue(path.is_file(), done.stdout)

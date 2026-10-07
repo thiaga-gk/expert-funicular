@@ -69,15 +69,19 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 ## 13. Phase-1 outputs
 
 ```text
-<output>/packages/PKG-*.json
-<output>/realization/ledger/RPKG-*.jsonl
-<output>/realization/packages/RPKG-*.json
-<output>/realization/snapshots/RSNAP-*.json
-<output>/realization/evidence/REVID-*.json
-<output>/realization/regeneration/RERUN-*.json
-<output>/realization/measurements/<workspace>__<warehouse>__<as-of>.json   # live measurement evidence
-<output>/realization/backtest/evidence-<as-of>.json                       # backtest evidence
-<output>/realization/backtest/backtest-<as-of>.json                       # backtest report
+<publisher run>/packages/<workspace>__<warehouse>.json                           # the Publisher's PKG-*
+<state>/realization/ledger/RPKG-*.jsonl                                          # the history (--state-dir, default <output>/state)
+<state>/realization/evidence/REVID-*.json
+<state>/realization/regeneration/RERUN-*.json
+<state>/realization/measurements/<workspace>__<warehouse>__<PKG>__<as-of>.json  # live or demo measurement evidence
+<state>/realization/sources/<workspace>__<warehouse>/PKG-*.json                  # source package copies
+<state>/realization/policies/PSNAP-*.json
+<state>/realization/state/<workspace>__<warehouse>.json                          # state index
+<run>/realization/packages/RPKG-*.json                                           # the projections (<output>/run_date=.../run_ts=.../)
+<run>/realization/snapshots/RSNAP-*.json
+<run>/realizer.log
+<output>/realization/backtest/evidence-<as-of>.json                              # backtest evidence
+<output>/realization/backtest/backtest-<as-of>.json                              # backtest report
 ```
 
 ## 14. Phase-2 boundary

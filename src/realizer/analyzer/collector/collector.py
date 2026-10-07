@@ -72,19 +72,45 @@ def load_measurement_evidence(path: str | Path) -> Dict[str, Any]:
     return evidence
 
 
-def measurement_path(output_dir: Path, evidence: Mapping[str, Any]) -> Path:
-    """Where a live run keeps its measurement evidence: ``realization/measurements/<workspace>__<warehouse>__<as of>.json``."""
+MEASUREMENTS_DIR = ("realization", "measurements")
+
+
+def _evidence_prefix(workspace_id: Any, warehouse_id: Any, package_id: Any) -> str:
+    return f"{workspace_id}__{warehouse_id}__{package_id}__"
+
+
+def measurement_path(state_dir: Path, evidence: Mapping[str, Any], package_id: str) -> Path:
+    """Where a live run keeps the measurement evidence it read for the package *package_id*:
+    ``realization/measurements/<workspace>__<warehouse>__<PKG>__<as of>.json`` under the state directory. The package id
+    keeps two lineages of one warehouse measured at the same time from overwriting each other."""
     stamp = utc_iso(evidence["as_of_utc"]).replace("-", "").replace(":", "")
-    return Path(output_dir) / "realization" / "measurements" / f"{evidence['workspace_id']}__{evidence['warehouse_id']}__{stamp}.json"
+    name = _evidence_prefix(evidence["workspace_id"], evidence["warehouse_id"], package_id) + f"{stamp}.json"
+    return Path(state_dir).joinpath(*MEASUREMENTS_DIR, name)
+
+
+def newest_measurement(folder: str | Path, package: Mapping[str, Any]) -> Path:
+    """The newest measurement evidence file of *package* in *folder* (a ``realization/measurements/`` folder, or any
+    folder holding such files): the latest measurement time in the file names of that package. None raises
+    ``InputError`` naming the package."""
+    warehouse = package["warehouse"]
+    prefix = _evidence_prefix(warehouse["workspace_id"], warehouse["warehouse_id"], package["recommendation_package_id"])
+    folder = Path(folder)
+    if not folder.is_dir():
+        raise InputError(f"measurement evidence folder not found: {folder}")
+    files = sorted(p for p in folder.glob(f"{prefix}*.json") if p.is_file())
+    if not files:
+        raise InputError(f"no measurement evidence of package {package['recommendation_package_id']} in {folder}")
+    return files[-1]
 
 
 def measure_live(
-    package: Mapping[str, Any], output_dir: Path, *, profile: str, sql_warehouse_id: str, config_file: Optional[str] = None,
+    package: Mapping[str, Any], state_dir: Path, *, profile: str, sql_warehouse_id: str, config_file: Optional[str] = None,
     source_region: Optional[str] = None, aws_price_registry: Optional[str] = None, as_of: Optional[str] = None,
     ingestion_cutoff: Optional[str] = None, approvals: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Measure *package*'s warehouse from system tables (read-only OAuth, on another SQL warehouse) and return its
-    observation; the measurement evidence is written first, so the run can be replayed with ``observe_from_evidence``."""
+    observation; the measurement evidence is written first, under the state directory *state_dir* (``measurement_path``),
+    so the run can be replayed with ``observe_from_evidence``."""
     validate_package(package)
     warehouse = package["warehouse"]
     registry = bridge.load_registry(aws_price_registry or str(DEFAULT_AWS_PRICE_REGISTRY))
@@ -93,7 +119,7 @@ def measure_live(
     with bridge.LiveSqlClient(auth) as client:
         evidence = collect_measurement(client, package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
                                        aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
-    write_json(measurement_path(output_dir, evidence), evidence)
+    write_json(measurement_path(state_dir, evidence, package["recommendation_package_id"]), evidence)
     return project_observation(package, evidence, approvals)
 
 

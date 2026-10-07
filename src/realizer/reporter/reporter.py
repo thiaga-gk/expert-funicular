@@ -44,7 +44,7 @@ def run(context: RunContext, packaged: PackagingResult) -> RealizationReport:
     for other in packaged.others:
         files.extend(_write(output_dir, other))
     if packaged.state_index is not None:
-        path = state_index_path(output_dir, context.request.package)
+        path = state_index_path(context.request.state_root, context.request.package)
         write_json(path, packaged.state_index)
         files.append(path)
     return RealizationReport(realization=packaged.realization, files=tuple(files))

@@ -22,14 +22,14 @@ realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json \
   --observation examples/realizer/modified/observation.json --output-dir ./realizer_out_modified
 ```
 
-`--demo` and `--demo-modified` do not read these files: they measure the package's warehouse (a Publisher demo-fleet warehouse) in its simulated world, with the recommended step (or, modified, SMALL) applied a week after the package was generated, through the same path as a live run, and keep the measurement evidence under `<output-dir>/realization/measurements/` for `--from-evidence`. The size step has no counterfactual replay, so the demo observes the application and its guards but measures no savings; its outcome differs from the examples below.
+`--demo` and `--demo-modified` do not read these files: they measure the package's warehouse (a Publisher demo-fleet warehouse) in its simulated world, with the recommended step (or, modified, SMALL) applied a week after the package was generated, through the same path as a live run, and keep the measurement evidence in the state, under `<output-dir>/state/realization/measurements/`, for `--from-evidence`. The size step has no counterfactual replay, so the demo observes the application and its guards but measures no savings; its outcome differs from the examples below.
 
 ```bash
 realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo --output-dir ./realizer_demo
 realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo-modified --output-dir ./realizer_demo_modified
 ```
 
-Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
+Each run prints the path of the written realization package in its run folder, `<output-dir>/run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json` (with `--flat-output`, `<output-dir>/realization/packages/...`); `--print-json` prints the snapshot instead. The snapshot and the run log `realizer.log` are in the same run folder; the history goes under `<output-dir>/state/realization/` (`ledger/`, `evidence/`, `regeneration/`, `measurements/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share a state. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
 
 ## Expected result
 

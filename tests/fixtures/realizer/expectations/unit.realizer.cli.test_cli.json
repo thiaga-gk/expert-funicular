@@ -30,7 +30,7 @@
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "64db93b0a578d3a1",
-     "realization/measurements/1234567890123456__wh-demo-006__20261107T120000Z.json": "1fdf5cc112b42bd2",
+     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "1fdf5cc112b42bd2",
      "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "0edb24f712415830",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
      "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
@@ -42,8 +42,8 @@
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 8885,
-  "sha256": "3c7885d546d70c027d1469e1ab9b4780dc5d9b28f935558e6d8de9a153e76d45"
+  "length": 8915,
+  "sha256": "c104ba7fd54b55ec70c58a44f74ba147547fa97136ac9271eddaa97b02450de4"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -127,32 +127,32 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 6450,
-  "sha256": "87ebeaebbe39e099ebbfeb5fdb24a1320f46a6294cd2973da2977707528d9dee"
+  "length": 6600,
+  "sha256": "aef06cb3dbae4893b2d616315c45b600bee9f78b121fa610301e2fbf0b86b431"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
-  "length": 3096,
-  "sha256": "fd7a39e03ae5b0b5cbb1a60a0d18348414e6f8c17b221024c8807f41219d5193"
+  "length": 3708,
+  "sha256": "ab6eadb8bed7cfc3a6d7a11330ddc5f27486f546cf2e8b7fd6e57b7c71a1ad94"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: the following arguments are required: --package\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR] [--flat-output]\n                [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: the following arguments are required: --package\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 2": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR] [--flat-output]\n                [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 3": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR] [--flat-output]\n                [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
   ]
  },
  "OptionParityTests.test_parse_args_defaults_and_values/argv 0": {
@@ -164,6 +164,7 @@
    "databricks_config_file": null,
    "demo": false,
    "demo_modified": false,
+   "flat_output": false,
    "from_evidence": null,
    "log_level": "INFO",
    "observation": null,
@@ -174,7 +175,8 @@
    "profile": null,
    "replay_through": null,
    "source_region": null,
-   "sql_warehouse_id": null
+   "sql_warehouse_id": null,
+   "state_dir": null
   }
  },
  "OptionParityTests.test_parse_args_defaults_and_values/argv 1": {
@@ -186,6 +188,7 @@
    "databricks_config_file": null,
    "demo": true,
    "demo_modified": true,
+   "flat_output": false,
    "from_evidence": null,
    "log_level": "DEBUG",
    "observation": "o",
@@ -196,7 +199,8 @@
    "profile": null,
    "replay_through": "2026-10-01T00:00:00Z",
    "source_region": null,
-   "sql_warehouse_id": null
+   "sql_warehouse_id": null,
+   "state_dir": null
   }
  }
 }
