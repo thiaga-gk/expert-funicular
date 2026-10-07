@@ -1,0 +1,26 @@
+id: GE-13
+description: >-
+  A capacity add for queueing: the scoped package raises max clusters 2 to 5 (objective PERFORMANCE, priced as a cost
+  increase) and the owner applies it exactly. Max clusters has no replay counterfactual, so the change is observed, not
+  measured: the guards and the billed cost are read over the same windows as a measured change (whole settled weeks
+  after the change day, as many before it), queueing falls while p95 holds, and the billed change at the pre-change
+  query mix is a signed cost increase in both components.
+publisher:
+  warehouse: wh-demo-008
+  scope: [current:max-clusters]
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {max: 5}}
+expect:
+  conformance: EXACT
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: false
+  not_measured_reason: KNOB_NOT_REPLAYED
+  independent_changes: []
+  guards:
+    pre: {queued_query_pct: 9.7173, p95_execution_ms_shared_sources: 2500}
+    post: {queued_query_pct: 0.7564, p95_execution_ms_shared_sources: 2500}
+  # Post minus the pre-change window's cost per day at the post-change volume (ratio 1.0385) over 28 days: a cost increase.
+  billed_change: {basis: BILLED_PRE_POST_AT_PRE_MIX, days: 28, dbu: positive, aws_modeled: positive, total: positive}
+  origin: INFERRED

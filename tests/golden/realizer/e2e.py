@@ -53,7 +53,7 @@ SPEC_KEYS = {"auto_stop_minutes": "auto_stop", "warehouse_size": "size", "min_cl
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
                "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
-               "claim", "origin", "disqualifiers", "recognition"}
+               "claim", "origin", "disqualifiers", "recognition", "guards", "billed_change"}
 
 
 def dumps(value: Any) -> str:
@@ -291,6 +291,17 @@ def _dec(value: Any) -> Optional[Decimal]:
     return None if value is None else Decimal(str(value))
 
 
+def _matches(want: Any, got: Any) -> bool:
+    """An expected value: ``positive``/``negative`` (the sign of a decimal), null, a number (equal as a decimal) or text."""
+    if want in ("positive", "negative"):
+        return got is not None and (_dec(got) > 0 if want == "positive" else _dec(got) < 0)
+    if want is None or got is None:
+        return want is None and got is None
+    if isinstance(want, (int, float)) and not isinstance(want, bool):
+        return _dec(got) == _dec(want)
+    return got == want
+
+
 def check_expect(name: str, case: Mapping[str, Any], package: Mapping[str, Any], files: Mapping[str, str],
                  others: Optional[Mapping[str, Mapping[str, str]]] = None) -> List[str]:
     """Failures of the case's ``expect`` block against its Realizer-stage output (empty when it holds)."""
@@ -355,6 +366,19 @@ def check_expect(name: str, case: Mapping[str, Any], package: Mapping[str, Any],
         got = meas.get("cross_check") or {}
         if any(got.get(k) != v for k, v in want.items()):
             fail("cross_check", want, {k: got.get(k) for k in want})
+    if "guards" in expect:
+        guards = (obs.get("performance") or {}).get("guards") or {}
+        for period, metrics in expect["guards"].items():
+            got = guards.get(period) or {}
+            if any(not _matches(v, got.get(k)) for k, v in metrics.items()):
+                fail(f"guards.{period}", metrics, {k: got.get(k) for k in metrics})
+    if "billed_change" in expect:
+        want, got = expect["billed_change"], meas.get("billed_change")
+        if want is None:
+            if got is not None:
+                fail("billed_change", None, got)
+        elif got is None or any(not _matches(v, got.get(k)) for k, v in want.items()):
+            fail("billed_change", want, None if got is None else {k: got.get(k) for k in want})
     if any(k in expect for k in ("sign", "near_oracle", "within_pkg")) and economics is None:
         return failures + ["sign/near_oracle/within_pkg: the case measured no economics"]
     if "sign" in expect:

@@ -2,8 +2,8 @@
 
 ``realizer.analyzer.measurement`` (which epochs and whole UTC days), ``realizer.analyzer.collector.bridge`` (the
 Publisher SQL, read-only access), ``realizer.analyzer.collector.collector.collect_measurement`` (two passes into the
-measurement evidence format) and ``realizer.analyzer.projector`` (evidence -> observation 2.1.0, with the auto-stop
-replay counterfactual). Worlds are simulated demo-fleet warehouses changed after their package (``tests/realizer_world``).
+measurement evidence format) and ``realizer.analyzer.projector`` (evidence -> observation 2.2.0, with the auto-stop
+replay counterfactual, or the billed change before and after a change without a replay). Worlds are simulated demo-fleet warehouses changed after their package (``tests/realizer_world``).
 """
 import contextlib
 import copy
@@ -95,9 +95,18 @@ class PlanTests(unittest.TestCase):
         size_package = world.package("inplace-size-canary")
         cfg = {k: size_package["current_config"][k] for k in ("warehouse_type", "warehouse_channel", "min_clusters", "max_clusters", "auto_stop_minutes")}
         step = next(s for s in m.candidate_steps(size_package) if s["knob"] == "warehouse_size")
-        plan = m.plan_measurement(size_package, [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T00:00:00+00:00", **cfg, warehouse_size=step["current_value"]),
-                                                 epoch("2026-10-08T00:00:00+00:00", **cfg, warehouse_size=step["recommended_value"])], "2026-11-05")
-        self.assertEqual((plan.reason, plan.post, plan.step["knob"]), ("KNOB_NOT_REPLAYED", None, "warehouse_size"))
+        epochs = [epoch("2025-07-01T00:00:00+00:00", "2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["current_value"]),
+                  epoch("2026-10-08T14:32:00+00:00", **cfg, warehouse_size=step["recommended_value"])]
+        plan = m.plan_measurement(size_package, epochs, "2026-11-05")
+        self.assertEqual((plan.reason, plan.step["knob"], plan.replayed_value), ("KNOB_NOT_REPLAYED", "warehouse_size", None))
+        # The same windows as a replayed knob (whole weeks after the change day, as many before it), without replay values.
+        windows = plan.windows()
+        self.assertEqual((windows["post"]["first_day"], windows["post"]["last_day"], windows["post"]["targets"]), ("2026-10-09", "2026-11-05", []))
+        self.assertEqual((windows["pre"]["first_day"], windows["pre"]["last_day"], windows["pre"]["targets"]), ("2026-09-10", "2026-10-07", []))
+        self.assertEqual(plan.settled_days_since_change, 28)
+        # Before a whole settled week it is still not replayed, with no window yet.
+        early = m.plan_measurement(size_package, epochs, "2026-10-14")
+        self.assertEqual((early.reason, early.post, early.pre), ("KNOB_NOT_REPLAYED", None, None))
 
     def test_never_stop_is_replayed_as_a_value_longer_than_any_gap(self):
         self.assertEqual(m.replay_target(0), NEVER_STOP_TARGET_MINUTES)
@@ -200,6 +209,75 @@ class ReplayDirectionTests(unittest.TestCase):
         self.assertEqual(obs["measurement"]["applied_value"], 45)
         self.assertLess(Decimal(obs["economics"]["dbu_realized"]), 0)  # 42-minute gaps now bridged: more idle than at 30
         self.assertIsNotNone(spec)
+
+
+class UnreplayedChangeTests(unittest.TestCase):
+    """A changed knob without a replay: observed over the same windows (guards, billed change), never measured."""
+
+    def test_billed_change_is_post_minus_the_pre_window_at_post_volume_and_length(self):
+        from realizer.analyzer.projector import billed_pre_post_change
+        # Pre: 14 days, 1,400 billed, 2,800 running cluster-minutes at 2/cluster-hour. Post: 7 days, 900 billed, 1,680 minutes
+        # at 4/cluster-hour, 1.2 x the pre-change queries per day. Expected without the change: 100/day x 1.2 x 7 = 840 DBU
+        # cost and 2,800 / 60 x 2 / 14 x 1.2 x 7 = 56 AWS; observed 900 and 1,680 / 60 x 4 = 112.
+        change = billed_pre_post_change(pre_days=14, pre_cost=Decimal("1400"), pre_running=Decimal("2800"), post_days=7,
+                                        post_cost=Decimal("900"), post_running=Decimal("1680"), volume_ratio=Decimal("1.2"),
+                                        pre_aws_hourly=Decimal("2"), post_aws_hourly=Decimal("4"))
+        self.assertEqual((change["dbu"], change["aws_modeled"], change["total"]), (Decimal("60"), Decimal("56"), Decimal("116")))
+        self.assertEqual(change["annualized_dbu"].quantize(Decimal("0.01")), Decimal("3128.57"))  # 60 x 365 / 7
+        self.assertEqual(change["annualized_total"].quantize(Decimal("0.01")), Decimal("6048.57"))
+        cheaper = billed_pre_post_change(pre_days=14, pre_cost=Decimal("1400"), pre_running=Decimal("2800"), post_days=7,
+                                         post_cost=Decimal("700"), post_running=Decimal("1680"), volume_ratio=Decimal("1"),
+                                         pre_aws_hourly=None, post_aws_hourly=Decimal("4"))
+        self.assertEqual(cheaper["dbu"], Decimal("0"))  # 700 - 100/day x 7: no change
+        self.assertEqual((cheaper["aws_modeled"], cheaper["total"], cheaper["annualized_total"]), (None, None, None))  # one AWS price only
+
+    def test_a_size_cut_is_observed_with_guards_and_its_billed_change_priced_at_each_size(self):
+        size_package = world.package("inplace-size-canary")  # Pro LARGE to MEDIUM, step 1
+        evidence = world.measure(size_package, world.world_spec("C06", {"size": "MEDIUM"}), 6)
+        validate_measurement_evidence(evidence)
+        obs = project_observation(size_package, evidence)
+        validate_observation(obs, size_package)
+        meas = obs["measurement"]
+        self.assertEqual((meas["knob"], meas["method"], meas["not_measured_reason"], meas["holds_other_knobs"]),
+                         ("warehouse_size", None, "KNOB_NOT_REPLAYED", False))
+        self.assertIsNone(obs["economics"])
+        self.assertIsNone(meas["replay"])
+        self.assertIsNone(meas["cross_check"])
+        self.assertEqual((meas["pre_window"]["first_day"], meas["pre_window"]["last_day"]), ("2026-09-10", "2026-10-07"))
+        self.assertEqual((meas["post_window"]["first_day"], meas["post_window"]["last_day"]), ("2026-10-09", "2026-11-05"))
+        self.assertIsNotNone(meas["volume_ratio"])
+        guards = obs["performance"]["guards"]
+        self.assertIsNotNone(guards["pre"]["p95_execution_ms_shared_sources"])
+        self.assertIsNotNone(guards["post"]["queued_query_pct"])
+        self.assertEqual(guards["cold_start"]["post_queries"], meas["post_window"]["queries"])
+        # The AWS price of each window's own size: the pre-change epoch's LARGE, the observed epoch's MEDIUM.
+        self.assertEqual(evidence["aws"]["pre"]["cluster_hourly_price"], bridge.aws_price("PRO", "LARGE", "us-east-1", world.registry())["cluster_hourly_price"])
+        self.assertEqual(evidence["aws"]["post"]["cluster_hourly_price"], bridge.aws_price("PRO", "MEDIUM", "us-east-1", world.registry())["cluster_hourly_price"])
+        change = meas["billed_change"]
+        self.assertEqual((change["basis"], change["days"], change["currency"]), ("BILLED_PRE_POST_AT_PRE_MIX", 28, "USD"))
+        self.assertLess(Decimal(change["dbu"]), 0)  # a smaller size bills less
+        self.assertLess(Decimal(change["aws_modeled"]), 0)
+        self.assertEqual(Decimal(change["total"]), Decimal(change["dbu"]) + Decimal(change["aws_modeled"]))
+        self.assertEqual(obs["evidence_quality"], "SUFFICIENT")
+
+    def test_without_an_aws_price_the_billed_change_is_dbu_only(self):
+        size_package = world.package("inplace-size-canary")
+        obs = project_observation(size_package, world.measure(size_package, world.world_spec("C06", {"size": "MEDIUM"}), 6, aws_registry={}))
+        change = obs["measurement"]["billed_change"]
+        self.assertIsNotNone(change["dbu"])
+        self.assertEqual((change["aws_modeled"], change["total"], change["annualized_total"]), (None, None, None))
+
+    def test_a_replayed_knob_keeps_billed_change_null(self):
+        obs = project_observation(PRO, world.measure(PRO, world.world_spec("C13", {"auto_stop": 10}), 13))
+        self.assertIsNone(obs["measurement"]["billed_change"])
+
+    def test_before_a_whole_settled_week_a_change_without_a_replay_has_no_window(self):
+        size_package = world.package("inplace-size-canary")
+        obs = project_observation(size_package, world.measure(size_package, world.world_spec("C06", {"size": "MEDIUM"}), 6,
+                                                              as_of="2026-10-14T12:00:00+00:00"))
+        meas = obs["measurement"]
+        self.assertEqual(meas["not_measured_reason"], "KNOB_NOT_REPLAYED")
+        self.assertEqual((meas["post_window"], meas["billed_change"], obs["performance"]["guards"]), (None, None, None))
 
 
 class BridgeTests(unittest.TestCase):
