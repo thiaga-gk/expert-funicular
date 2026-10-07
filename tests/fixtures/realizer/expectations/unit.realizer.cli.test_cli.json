@@ -11,8 +11,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -28,16 +32,19 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7c2d377ae229ccb1",
+     "realization/policies/PSNAP-3FB9F06EA14CBFC752EBDD3E.json": "365d2607e0acc18f",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "7c2d377ae229ccb1",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "47c4b92835d9434c"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9840,
-  "sha256": "db61b4dabd04f8b45b3ee2310dbf0a35453a99a835bec126d7b1f17cb21939da"
+  "length": 10251,
+  "sha256": "4ddf860ee1d31b762560fc2e6d519eb3b9c04bc68e8786a9dd00a2387381f028"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -50,15 +57,20 @@
      "realization",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7f0d3461393f9969",
-     "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "7f0d3461393f9969"
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f93b71e928c2ef9d",
+     "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "f93b71e928c2ef9d",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "a4f348be8b896cba"
     }
    }
   ]
@@ -75,8 +87,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -92,9 +108,12 @@
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "bafb3c91e2f301f9",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "aa8f6588d54fc8ab",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "93a0686591336fa6",
+     "realization/policies/PSNAP-E5A957D6AE9B7F12DA3F3005.json": "cc6acd9c03a1c75e",
      "realization/regeneration/RERUN-D4935E84281B1D0D3D6857C2.json": "343a4bfcf8ff92be",
-     "realization/snapshots/RSNAP-E589C748E3CFFEB67AC8A109.json": "aa8f6588d54fc8ab"
+     "realization/snapshots/RSNAP-E589C748E3CFFEB67AC8A109.json": "93a0686591336fa6",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "6f350506bf190811"
     }
    }
   ]
@@ -109,8 +128,8 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 4330,
-  "sha256": "ddc57bf2d4f8dd8da39ff49fe432648184c0abd270774223731b4110abe8d3f0"
+  "length": 6200,
+  "sha256": "de0a40d5fd3fb1895366b9abec4d61a3c96dabc048c9bea83bba66c9d09b55c8"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 2886,

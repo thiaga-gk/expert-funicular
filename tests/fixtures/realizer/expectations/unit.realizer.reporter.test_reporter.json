@@ -10,7 +10,10 @@
      "realization",
      "realization/evidence",
      "realization/ledger",
-     "realization/regeneration"
+     "realization/policies",
+     "realization/regeneration",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -27,7 +30,9 @@
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
      "realization/packages": "aacd1cd8cc810c3e",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949"
+     "realization/policies/PSNAP-3FB9F06EA14CBFC752EBDD3E.json": "365d2607e0acc18f",
+     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -44,7 +49,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/regeneration"
+     "realization/policies",
+     "realization/regeneration",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -60,9 +68,11 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7c2d377ae229ccb1",
+     "realization/policies/PSNAP-3FB9F06EA14CBFC752EBDD3E.json": "365d2607e0acc18f",
      "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots": "aacd1cd8cc810c3e"
+     "realization/snapshots": "aacd1cd8cc810c3e",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -200,15 +210,20 @@
     "realization",
     "realization/ledger",
     "realization/packages",
-    "realization/snapshots"
+    "realization/snapshots",
+    "realization/sources",
+    "realization/sources/1234567890123456__wh-demo-006",
+    "realization/state"
    ],
    "events": [
     "REALIZATION_CREATED"
    ],
    "files": {
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7f0d3461393f9969",
-    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "7f0d3461393f9969"
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f93b71e928c2ef9d",
+    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "f93b71e928c2ef9d",
+    "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+    "realization/state/1234567890123456__wh-demo-006.json": "a4f348be8b896cba"
    }
   }
  }

@@ -1,7 +1,7 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
-  "length": 33190,
-  "sha256": "8c83ebfbf0e9ec456fff4ec1ce942af624c0f0813225058efdb001dbc8f044f0",
+  "length": 33271,
+  "sha256": "ff2d147e2982b5b435119243de123e3176951327376b0dd886ccad2e642b66a8",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
@@ -12,6 +12,7 @@
     "INFO ledger.append event=INDEPENDENT_CHANGE_OBSERVED": 2,
     "INFO ledger.append event=INTENT_RECORDED": 39,
     "INFO ledger.append event=MODIFIED_APPLICATION_OBSERVED": 4,
+    "INFO ledger.append event=POLICY_DIFF_RECORDED": 1,
     "INFO ledger.append event=REALIZATION_CREATED": 41,
     "INFO ledger.append event=REGENERATION_REQUESTED": 39,
     "INFO ledger.append event=REPLACEMENT_PACKAGE_LINKED": 1,
@@ -22,7 +23,7 @@
     "INFO ledger.append event=VALIDATION_STARTED": 39,
     "INFO ledger.duplicate_suppressed": 46
    },
-   "lines": 409,
+   "lines": 410,
    "scenarios": 41
   }
  },
@@ -33,8 +34,12 @@
     "realization/evidence",
     "realization/ledger",
     "realization/packages",
+    "realization/policies",
     "realization/regeneration",
-    "realization/snapshots"
+    "realization/snapshots",
+    "realization/sources",
+    "realization/sources/1234567890123456__wh-demo-006",
+    "realization/state"
    ],
    "events": [
     "REALIZATION_CREATED",
@@ -50,9 +55,12 @@
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7c2d377ae229ccb1",
+    "realization/policies/PSNAP-3FB9F06EA14CBFC752EBDD3E.json": "365d2607e0acc18f",
     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-    "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+    "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "7c2d377ae229ccb1",
+    "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+    "realization/state/1234567890123456__wh-demo-006.json": "47c4b92835d9434c"
    }
   }
  },
@@ -74,34 +82,39 @@
     "realization",
     "realization/ledger",
     "realization/packages",
-    "realization/snapshots"
+    "realization/snapshots",
+    "realization/sources",
+    "realization/sources/1234567890123456__wh-demo-006",
+    "realization/state"
    ],
    "events": [
     "REALIZATION_CREATED"
    ],
    "files": {
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7f0d3461393f9969",
-    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "7f0d3461393f9969"
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f93b71e928c2ef9d",
+    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "f93b71e928c2ef9d",
+    "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+    "realization/state/1234567890123456__wh-demo-006.json": "a4f348be8b896cba"
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "3e049e36b9b84a1b393aee82c06ae3f0c8660ff0cf644ec9761983e6122e0b8b",
+  "sha256": "b23c0e4554729e29150e7ae170fd65a1f84eae4061a26d25e7e8f7c4ffd54d9e",
   "spot": {
    "count": 171,
    "first": [
     "GR-001",
     "2026-10-01T12:00:00Z",
     "ok",
-    "f8378dcafbb01f9b84a51965ae63543d7e41c3701ec34e0ecdf6ee6e4056479f"
+    "7ba842560d1aa0106135c7460c9b423904938f794591df89fdfa1d5996a38d8a"
    ],
    "last": [
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "46477dc69d496ba2d2adea67211ba2b1a203707665215660e4197c6e5e137ba0"
+    "18d693f8f491d376f48a455149e39d94439354ce5d5bca092a958016cf2ef74a"
    ],
    "outcomes": {
     "InputError": 41,
@@ -110,10 +123,10 @@
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
-  "length": 36077,
-  "sha256": "9860fe26c0ef6d4e49658b25dd83af3283860e86082403756aa86181eb32336a",
+  "length": 50805,
+  "sha256": "eeb0886347a4d2e3811a9f627a8b2310ebccb77da5fcdeb0cf42f8df109292cb",
   "spot": {
-   "files": 259,
+   "files": 376,
    "scenarios": 41
   }
  },

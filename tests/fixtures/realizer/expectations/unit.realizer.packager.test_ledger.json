@@ -40,19 +40,19 @@
   ]
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
-  "length": 63864,
-  "sha256": "93fdb4df9209b9708770331324cb3c2151c7472aa8a3ee28f71a6fac75e7c138",
+  "length": 64024,
+  "sha256": "ba398b8c0d50491aa42eb4425a8cb72a2b6194029561ed3466fab0bf06286ab3",
   "spot": {
-   "entries": 363,
+   "entries": 364,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "ledgers": 41
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 541893,
-  "sha256": "c4748c733d4c4dfc9f75332cc1f4b621e1bfaaa8f6f9087f241341ea6dcaaceb",
+  "length": 542838,
+  "sha256": "b0e592f5dcbfae9a86f382499c1c60174638a5f70e5a378740365d9a63b46be0",
   "spot": {
-   "entries": 363,
+   "entries": 364,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "latest_of_first": [
     null,
@@ -183,10 +183,10 @@
   ]
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
-  "length": 53492,
-  "sha256": "0f8ee65743e50b8b590b984439af8a267416daf85802c631df0880423db4b38a",
+  "length": 53550,
+  "sha256": "d511325a48aac775200ec96ed39c65053b96d49f83723a5bbd25fb3b09d15b86",
   "spot": {
-   "count": 363,
+   "count": 364,
    "first": {},
    "last": {
     "application_episode_id": "APP-22D91994058D828E0C0A3DA0",
@@ -215,10 +215,10 @@
   ]
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
-  "length": 290711,
-  "sha256": "9c81e40881cdf56b8fcddfd40b971cb870f8e1b2045e3142a2cd4647327d47be",
+  "length": 291448,
+  "sha256": "c41b2fe527f39ee03f98cd437ccf1fbc9de4e83a107940e5e8a674a796c9c68b",
   "spot": {
-   "count": 808,
+   "count": 810,
    "first": [
     "GR-001",
     "RPKG-976E6C1C6E88CE76321758ED",
