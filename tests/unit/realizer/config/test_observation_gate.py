@@ -71,8 +71,8 @@ class ObservationGateTests(unittest.TestCase):
                 loader.validate_observation(observation, self.pkg)
 
     def test_format_version(self):
-        self.assertEqual(OBSERVATION_FORMAT_VERSION, "2.2.0")
-        for version in ("1.0.0", "2.0.1", "2.1.0", None, 2):
+        self.assertEqual(OBSERVATION_FORMAT_VERSION, "3.0.0")
+        for version in ("1.0.0", "2.0.1", "2.1.0", "2.2.0", None, 2):
             with self.subTest(version=version):
                 self.refused({**self.base, "observation_format_version": version}, "unsupported observation format")
         legacy = {k: v for k, v in self.base.items() if k != "observation_format_version"}
@@ -105,6 +105,14 @@ class ObservationGateTests(unittest.TestCase):
                 observation = copy.deepcopy(self.base)
                 observation[section]["tag_only"] = "x"
                 self.refused(observation, section)
+
+    def test_the_economics_state_no_realized_to_date_or_trailing_year(self):
+        # Both come from the ledger (every measurement of the episode), so a caller cannot state them (format 3.0.0).
+        for key in ("realized_savings_since_application", "mature_ttm_realized_savings"):
+            with self.subTest(key=key):
+                observation = copy.deepcopy(self.base)
+                observation["economics"][key] = "11000"
+                self.refused(observation, "economics")
 
     def test_a_value_outside_its_vocabulary_is_refused(self):
         cases = {

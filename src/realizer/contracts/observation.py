@@ -1,4 +1,4 @@
-"""Realizer observation format 2.2.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 3.0.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "2.2.0"
+OBSERVATION_FORMAT_VERSION = "3.0.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -55,7 +55,7 @@ PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": 
 
 
 def observation_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of observation format 2.2.0."""
+    """The Draft 2020-12 JSON Schema of observation format 3.0.0."""
     config = _obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
@@ -97,8 +97,6 @@ def observation_schema() -> Dict[str, Any]:
         "aws_cash_realized": _decimal(),
         "aws_commitment_freed": _decimal(),
         "aws_evidence_type": {"enum": [None, *AWS_EVIDENCE_TYPES]},
-        "mature_ttm_realized_savings": _decimal(),
-        "realized_savings_since_application": _decimal(),
     }, nullable=True)
     correction = _obj({
         "key": {"type": "string", "minLength": 1},

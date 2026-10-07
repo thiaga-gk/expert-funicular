@@ -1,5 +1,5 @@
 {
-  "derivation": "demo_observation; mature_ttm_realized_savings=11000; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
+  "derivation": "demo_observation; two runs of 200 days each on the same package, the second window starting where the first ended (realized 2000.00, then 4000.00); the trailing year is earned from 365 covered days, not stated by the observation; observation format 3.0.0",
   "package": "inplace-size-canary.json",
   "runs": [
     {
@@ -28,13 +28,11 @@
           "dbu_realized": null,
           "economic_basis": "ECONOMIC_COST",
           "expected_annual_savings_actual_scope": null,
-          "mature_ttm_realized_savings": "11000",
-          "observed_new_cost": "7386.88",
-          "period_days": 30,
-          "realized_savings_since_application": null
+          "observed_new_cost": "8000.00",
+          "period_days": 200
         },
         "effective_time_quality": "OBSERVED_AT_ONLY",
-        "elapsed_days": 8,
+        "elapsed_days": 200,
         "evidence_quality": "SUFFICIENT",
         "financial_quality": {
           "attributable_spend_pct": 100,
@@ -46,8 +44,8 @@
         "intent_reference": null,
         "intent_state": "ACCEPTED",
         "measurement": null,
-        "observation_format_version": "2.2.0",
-        "observed_at_utc": "2026-10-09T12:00:00Z",
+        "observation_format_version": "3.0.0",
+        "observed_at_utc": "2027-04-20T12:00:00Z",
         "origin_attribution": "CONFIRMED",
         "overlap_count": 0,
         "performance": {
@@ -57,7 +55,7 @@
           "reliability_pass": true
         },
         "query_count": 250,
-        "recorded_at_utc": "2026-10-09T12:00:00Z",
+        "recorded_at_utc": "2027-04-20T12:00:00Z",
         "replacement_package_id": null,
         "representative_regime": true,
         "rollback_observed": false,
@@ -65,8 +63,77 @@
         "rollback_requested": false,
         "source": "DEMO_NORMALIZED_OBSERVATION",
         "warehouse_id": "wh-demo-006",
-        "window_end_utc": "2026-10-09T12:00:00Z",
-        "window_start_utc": "2026-10-02T12:00:00Z",
+        "window_end_utc": "2027-04-20T00:00:00Z",
+        "window_start_utc": "2026-10-02T00:00:00Z",
+        "workload": {},
+        "workspace_id": "1234567890123456"
+      },
+      "policy": null,
+      "replay_through": null
+    },
+    {
+      "observation": {
+        "actor": "demo-user",
+        "applied_at_utc": "2026-10-01T12:00:00Z",
+        "applied_scenario_id": null,
+        "config": {
+          "auto_stop_minutes": 15,
+          "enable_photon": false,
+          "max_clusters": 4,
+          "min_clusters": 1,
+          "warehouse_channel": "CURRENT",
+          "warehouse_size": "MEDIUM",
+          "warehouse_type": "PRO"
+        },
+        "correction": null,
+        "economics": {
+          "aws_cash_realized": null,
+          "aws_commitment_freed": null,
+          "aws_economic_realized": null,
+          "aws_evidence_type": null,
+          "counterfactual_method": "MATCHED_HISTORICAL",
+          "counterfactual_old_cost": "12000.00",
+          "currency": "USD",
+          "dbu_realized": null,
+          "economic_basis": "ECONOMIC_COST",
+          "expected_annual_savings_actual_scope": null,
+          "observed_new_cost": "8000.00",
+          "period_days": 200
+        },
+        "effective_time_quality": "OBSERVED_AT_ONLY",
+        "elapsed_days": 400,
+        "evidence_quality": "SUFFICIENT",
+        "financial_quality": {
+          "attributable_spend_pct": 100,
+          "correction_chain_complete": true,
+          "currency_consistency_pct": 100,
+          "material_cost_component_available": true,
+          "price_coverage_pct": 100
+        },
+        "intent_reference": null,
+        "intent_state": "ACCEPTED",
+        "measurement": null,
+        "observation_format_version": "3.0.0",
+        "observed_at_utc": "2027-11-06T12:00:00Z",
+        "origin_attribution": "CONFIRMED",
+        "overlap_count": 0,
+        "performance": {
+          "correctness_pass": true,
+          "guards": null,
+          "normalized_p95_runtime_regression_pct": "2",
+          "reliability_pass": true
+        },
+        "query_count": 250,
+        "recorded_at_utc": "2027-11-06T12:00:00Z",
+        "replacement_package_id": null,
+        "representative_regime": true,
+        "rollback_observed": false,
+        "rollback_reason": null,
+        "rollback_requested": false,
+        "source": "DEMO_NORMALIZED_OBSERVATION",
+        "warehouse_id": "wh-demo-006",
+        "window_end_utc": "2027-11-06T00:00:00Z",
+        "window_start_utc": "2027-04-20T00:00:00Z",
         "workload": {},
         "workspace_id": "1234567890123456"
       },
@@ -75,5 +142,5 @@
     }
   ],
   "scenario_id": "GR-040",
-  "title": "Mature Ttm Is Distinct"
+  "title": "Mature Ttm Is Earned From 365 Covered Days"
 }

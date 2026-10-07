@@ -1,4 +1,4 @@
-"""Projector: measurement evidence -> one normalized observation (format 2.2.0).
+"""Projector: measurement evidence -> one normalized observation (format 3.0.0).
 
 Pure and Realizer-owned. It plans the measurement again from the evidence (``realizer.analyzer.measurement``), so the
 windows it reads are exactly the ones the bridge collected, and states what they show:
@@ -298,7 +298,7 @@ def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, ep
 
 
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The observation (format 2.2.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    """The observation (format 3.0.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
@@ -326,7 +326,6 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "expected_annual_savings_actual_scope": None, "dbu_realized": money(replay["dbu_realized"]),
             "aws_economic_realized": money(replay["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
             "aws_evidence_type": "MODELED" if replay["aws_realized"] is not None else None,
-            "mature_ttm_realized_savings": None, "realized_savings_since_application": None,
         }
     cross_check = None
     if replay is not None:

@@ -320,7 +320,6 @@ def measurement_payload(measurement: MeasurementFacts, recognition_status: Optio
         "economics": measurement.economics,
         "attribution": measurement.attribution,
         "realization_state": measurement.realization_state,
-        "mature_ttm_realized_savings": measurement.mature_ttm_realized_savings,
         "correction_status": measurement.correction_status,
     }
 

@@ -95,8 +95,9 @@ Strict recommendation-attributed realization requires application, economics, co
 
 ## 16. Observation format
 
-A realize run consumes one normalized observation in observation format 2.2.0 (`src/realizer/contracts/observation.py`, schema `schema/realization-observation.schema.json`). It is checked before the run writes anything (`validate_observation` in `src/realizer/config/loader.py`).
+A realize run consumes one normalized observation in observation format 3.0.0 (`src/realizer/contracts/observation.py`, schema `schema/realization-observation.schema.json`). It is checked before the run writes anything (`validate_observation` in `src/realizer/config/loader.py`).
 
+- The economics state one window's costs and components, never realized to date or the trailing twelve months: both are computed from every measurement of the application episode in the ledger ([ledger contract](ledger-contract.md) section 15), so an observation cannot state them and an observation that carries either key is refused.
 - Every key is present; a value the source could not establish is `null`, never omitted, and an input that is `null` never passes its gate (readiness, financial quality). The one exception is `performance.correctness_pass`: correctness is failed only by evidence of a failure, so `null` passes.
 - The observation names its workspace and warehouse, which must be the package's; its times are ordered (applied at or before observed, window start at or before window end at or before observed); economics come with a window; `applied_scenario_id`, when present, names a scenario of the package; the observed warehouse type is a supported type.
 - `workload` (an object) is informational: it enters no identity and no decision.

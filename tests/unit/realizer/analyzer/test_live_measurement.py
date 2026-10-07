@@ -2,7 +2,7 @@
 
 ``realizer.analyzer.measurement`` (which epochs and whole UTC days), ``realizer.analyzer.collector.bridge`` (the
 Publisher SQL, read-only access), ``realizer.analyzer.collector.collector.collect_measurement`` (two passes into the
-measurement evidence format) and ``realizer.analyzer.projector`` (evidence -> observation 2.2.0, with the auto-stop
+measurement evidence format) and ``realizer.analyzer.projector`` (evidence -> observation 3.0.0, with the auto-stop
 replay counterfactual, or the billed change before and after a change without a replay). Worlds are simulated demo-fleet warehouses changed after their package (``tests/realizer_world``).
 """
 import contextlib

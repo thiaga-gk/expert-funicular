@@ -224,8 +224,7 @@ class CalculateEconomicsGridTests(unittest.TestCase):
             {**econ, "expected_annual_savings_actual_scope": "30000"},
             {**econ, "expected_annual_savings_actual_scope": "0"},
             {**econ, "expected_annual_savings_actual_scope": "-5"},
-            {**econ, "currency": None, "economic_basis": None, "mature_ttm_realized_savings": "4321.005",
-             "realized_savings_since_application": "2500", "dbu_realized": "400", "aws_economic_realized": "350.555",
+            {**econ, "currency": None, "economic_basis": None, "dbu_realized": "400", "aws_economic_realized": "350.555",
              "aws_cash_realized": 0, "aws_commitment_freed": "12", "aws_evidence_type": "CUR"},
         ]
 
@@ -262,7 +261,6 @@ class CalculateEconomicsGridTests(unittest.TestCase):
             "period absent": ({"economics": {k: v for k, v in econ.items() if k != "period_days"}}, self.app, self.pkg),
             "currency absent": ({"economics": {k: v for k, v in econ.items() if k != "currency"}}, self.app, self.pkg),
             "expected not a number": ({"economics": {**econ, "expected_annual_savings_actual_scope": "abc"}}, self.app, self.pkg),
-            "ttm not a number": ({"economics": {**econ, "mature_ttm_realized_savings": "abc"}}, self.app, self.pkg),
             "aws not finite": ({"economics": {**econ, "aws_cash_realized": "Infinity"}}, self.app, self.pkg),
             "currency unprintable": ({"economics": {**econ, "currency": Unprintable()}}, self.app, self.pkg),
             "application step": ({}, {**self.app, "step": "x"}, self.pkg),
@@ -360,13 +358,16 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual({k: result[k] for k in ("dbu_realized", "aws_economic_realized", "aws_cash_realized", "aws_commitment_freed", "aws_evidence_type")},
                          {"dbu_realized": "400.00", "aws_economic_realized": "350.56", "aws_cash_realized": "0.00", "aws_commitment_freed": "12.00", "aws_evidence_type": "CUR"})
         bare = self.econ()
-        for key in ("dbu_realized", "aws_economic_realized", "aws_cash_realized", "aws_commitment_freed", "aws_evidence_type", "mature_ttm_realized_savings"):
+        for key in ("dbu_realized", "aws_economic_realized", "aws_cash_realized", "aws_commitment_freed", "aws_evidence_type"):
             self.assertIsNone(bare[key], key)
 
-    def test_trailing_twelve_months_and_since_application(self):
+    def test_the_measurement_states_no_to_date_or_trailing_year(self):
+        # Realized to date and the trailing twelve months come from every measurement of the episode (the snapshot), so a
+        # measurement's economics carry neither, whatever the observation's economics hold.
         result = self.econ(mature_ttm_realized_savings="4321.005", realized_savings_since_application="2500")
-        self.assertEqual((result["mature_ttm_realized_savings"], result["realized_savings_since_application"]), ("4321.01", "2500.00"))
-        self.assertEqual(self.econ()["realized_savings_since_application"], str(self.realized))
+        self.assertNotIn("mature_ttm_realized_savings", result)
+        self.assertNotIn("realized_savings_since_application", result)
+        self.assertEqual(result["realized_savings_period"], str(self.realized))
 
     def test_cost_increase(self):
         result = self.econ(counterfactual_old_cost="9000", observed_new_cost="10000")
@@ -430,7 +431,7 @@ class MeasurementFactsTests(unittest.TestCase):
                                             effective="2026-10-01T12:00:00Z", observed_at="2026-10-09T12:00:00Z")
         self.assertEqual((facts.window_start_utc, facts.window_end_utc), ("2026-10-01T12:00:00Z", "2026-10-09T12:00:00Z"))
         self.assertEqual(facts.measurement_id, make_measurement_id("APP-X", {**self.base, "window_start_utc": None, "window_end_utc": ""}, record.counterfactual_id, "ECONOMIC_COST"))
-        self.assertEqual((facts.realization_state, facts.mature_ttm_realized_savings, facts.correction_status), ("REALIZED", None, "ORIGINAL"))
+        self.assertEqual((facts.realization_state, facts.correction_status), ("REALIZED", "ORIGINAL"))
 
     def test_correction_facts(self):
         """The correction of a measurement against the ledger history: a window measured earlier with other economics is
@@ -443,15 +444,14 @@ class MeasurementFactsTests(unittest.TestCase):
         def measured(mid, start="2026-10-02T12:00:00Z", end="2026-10-09T12:00:00Z", economics_=None, app="APP-" + "A" * 24):
             return MeasurementFacts(measurement_id=mid, window_start_utc=start, window_end_utc=end, counterfactual_id="CF-X",
                                     counterfactual_method="M", economics=economics_ or {"successful_realized_savings": "1.00"},
-                                    attribution={}, realization_state="REALIZED", mature_ttm_realized_savings=None, correction_status="ORIGINAL")
+                                    attribution={}, realization_state="REALIZED", correction_status="ORIGINAL")
 
         def entry(m, app="APP-" + "A" * 24, event=EventType.ECONOMIC_MEASUREMENT_RECORDED, payload=None):
             return make_ledger_entry(package=self.pkg, rpkg_id=rpkg, event_type=event, effective_at_utc="2026-10-09T12:00:00Z",
                                      recorded_at_utc="2026-10-09T12:00:00Z", application_episode_id=app,
                                      measurement_id=m.measurement_id if event == EventType.ECONOMIC_MEASUREMENT_RECORDED else None,
                                      payload=payload or {"window_start_utc": m.window_start_utc, "window_end_utc": m.window_end_utc, "economics": m.economics,
-                                                        "attribution": m.attribution, "realization_state": m.realization_state,
-                                                        "mature_ttm_realized_savings": m.mature_ttm_realized_savings})
+                                                        "attribution": m.attribution, "realization_state": m.realization_state})
 
         app = "APP-" + "A" * 24
         first = measured("MEAS-" + "1" * 24)
