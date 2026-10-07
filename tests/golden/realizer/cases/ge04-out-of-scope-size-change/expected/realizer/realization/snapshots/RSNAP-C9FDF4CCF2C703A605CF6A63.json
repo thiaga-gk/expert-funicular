@@ -230,15 +230,9 @@
     "entry_count": 8,
     "first_entry_id": "RLE-D142350AA4E2551E75F9F81A",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-<<<<<<<< HEAD:tests/golden/realizer/cases/ge04-out-of-scope-size-change/expected/realizer/realization/snapshots/RSNAP-135CB282D1847684B1659BAE.json
-    "latest_entry_id": "RLE-783E1714ACA976E1AE3E8702",
+    "latest_entry_id": "RLE-FF5287AA20EC6738B9585475",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:5080943066FD26646483162D5C5AE3BC80F399851272532234D667ABD6626DCB",
-========
-    "latest_entry_id": "RLE-ABC43BDAFED2608B438A32D9",
-    "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:1FDA24C6F7651A134E3621178D81C62C380883ADA18206746A589A0F36150DA8",
->>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge04-out-of-scope-size-change/expected/realizer/realization/snapshots/RSNAP-1F39206BE06A43F8E49BCD4D.json
+    "ledger_checkpoint_hash": "SHA256:B264FB6C984BE229585AC107815A2C0F2F1ACD3828C324C73CB612C71D878AFA",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -263,11 +257,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-<<<<<<<< HEAD:tests/golden/realizer/cases/ge04-out-of-scope-size-change/expected/realizer/realization/snapshots/RSNAP-135CB282D1847684B1659BAE.json
-  "snapshot_id": "RSNAP-135CB282D1847684B1659BAE",
-========
-  "snapshot_id": "RSNAP-1F39206BE06A43F8E49BCD4D",
->>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge04-out-of-scope-size-change/expected/realizer/realization/snapshots/RSNAP-1F39206BE06A43F8E49BCD4D.json
+  "snapshot_id": "RSNAP-C9FDF4CCF2C703A605CF6A63",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

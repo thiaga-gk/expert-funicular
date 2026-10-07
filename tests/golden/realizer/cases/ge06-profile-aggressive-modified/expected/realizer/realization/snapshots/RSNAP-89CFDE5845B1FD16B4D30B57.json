@@ -230,11 +230,7 @@
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
     "latest_entry_id": "RLE-83B9707541A1E7C26CE8769A",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-<<<<<<<< HEAD:tests/golden/realizer/cases/ge06-profile-aggressive-modified/expected/realizer/realization/snapshots/RSNAP-06493AA15EAD54D8827EE294.json
-    "ledger_checkpoint_hash": "SHA256:CA470D40E3A49D1CB98909ACCB03C19A09BD9DE922E2F0527343CDF4871AC58D",
-========
-    "ledger_checkpoint_hash": "SHA256:FC5590A1C02967BEA18FF7236D59CB08505EA4B8647A99371832A35620F8A777",
->>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge06-profile-aggressive-modified/expected/realizer/realization/snapshots/RSNAP-78276917E2ED35658A60E2DF.json
+    "ledger_checkpoint_hash": "SHA256:9DAD8393ACAD29C9DFEEDFBF658D311B102FB04E98D4A6DA79DD53ABE2BC904A",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -259,11 +255,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-<<<<<<<< HEAD:tests/golden/realizer/cases/ge06-profile-aggressive-modified/expected/realizer/realization/snapshots/RSNAP-06493AA15EAD54D8827EE294.json
-  "snapshot_id": "RSNAP-06493AA15EAD54D8827EE294",
-========
-  "snapshot_id": "RSNAP-78276917E2ED35658A60E2DF",
->>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge06-profile-aggressive-modified/expected/realizer/realization/snapshots/RSNAP-78276917E2ED35658A60E2DF.json
+  "snapshot_id": "RSNAP-89CFDE5845B1FD16B4D30B57",
   "source_recommendation": {
     "cost_profile": "aggressive",
     "disposition": "ACTIVE",

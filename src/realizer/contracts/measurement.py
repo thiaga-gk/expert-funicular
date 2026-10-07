@@ -30,7 +30,8 @@ SIZE_RUNTIME_FIELDS = ("post_executed_queries", "matched_sources", "matched_post
 # Publisher policy values a measurement relies on, recorded with the evidence so a replay uses the same ones.
 ASSUMPTION_FIELDS = ("restart_cost_cluster_minutes_pro_classic", "restart_cost_cluster_minutes_serverless", "billing_settle_hours",
                      "failure_cancel_pct_downsize_safe", "spill_query_pct_downsize_safe", "queue_query_pct_safe", "canary_p95_regression_pct",
-                     "canary_p95_min_queries", "min_query_sample_size", "severity_min_affected_queries", "cold_start_added_share_max_pct")
+                     "canary_p95_min_queries", "min_query_sample_size", "severity_min_affected_queries", "cold_start_added_share_max_pct",
+                     "size_rate_published_band")
 SOURCES = ("LIVE_SYSTEM_TABLES", "DEMO_SIMULATION")
 
 _DATE = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}

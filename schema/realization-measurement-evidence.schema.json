@@ -40,6 +40,9 @@
         "severity_min_affected_queries": {
           "type": "number"
         },
+        "size_rate_published_band": {
+          "type": "number"
+        },
         "spill_query_pct_downsize_safe": {
           "type": "number"
         }
@@ -55,6 +58,7 @@
         "restart_cost_cluster_minutes_pro_classic",
         "restart_cost_cluster_minutes_serverless",
         "severity_min_affected_queries",
+        "size_rate_published_band",
         "spill_query_pct_downsize_safe"
       ],
       "type": "object"

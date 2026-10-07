@@ -100,12 +100,13 @@ def published_rate_ratio(source: str, applied: str) -> Optional[Decimal]:
     return Decimal(str(new)) / Decimal(str(old)) if old and new else None
 
 
-def within_published_band(measured: Optional[Decimal], published: Optional[Decimal]) -> Optional[bool]:
-    """Whether a measured rate ratio is within ``SIZE_RATE_PUBLISHED_BAND`` of the published one (``None`` when either is
-    unknown)."""
+def within_published_band(measured: Optional[Decimal], published: Optional[Decimal], band: Any = None) -> Optional[bool]:
+    """Whether a measured rate ratio is within *band* (the Publisher's ``size_rate_published_band`` the evidence recorded;
+    ``SIZE_RATE_PUBLISHED_BAND`` when not given) of the published one (``None`` when either is unknown)."""
     if measured is None or published is None or published <= 0:
         return None
-    return abs(measured / published - 1) <= SIZE_RATE_PUBLISHED_BAND
+    limit = SIZE_RATE_PUBLISHED_BAND if band is None else Decimal(str(band))
+    return abs(measured / published - 1) <= limit
 
 
 def published_runtime_multiplier(package: Mapping[str, Any], step: Mapping[str, Any], source: str, applied: str) -> Dict[str, Any]:
@@ -159,7 +160,7 @@ def size_counterfactual(package: Mapping[str, Any], plan: MeasurementPlan, evide
     published = published_runtime_multiplier(package, step, source, applied)
     measured_ratio = new_rate / old_rate if new_rate is not None and old_rate else None
     published_ratio = published_rate_ratio(source, applied)
-    in_band = within_published_band(measured_ratio, published_ratio)
+    in_band = within_published_band(measured_ratio, published_ratio, (evidence.get("assumptions") or {}).get("size_rate_published_band"))
     aws = evidence.get("aws") or {}
     old_hourly, new_hourly = _d((aws.get("pre") or {}).get("cluster_hourly_price")), _d((aws.get("post") or {}).get("cluster_hourly_price"))
     edges = sorted(Decimal(str(published[k])) for k in ("optimistic", "conservative"))
