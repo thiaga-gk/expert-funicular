@@ -1,8 +1,8 @@
 # Realizer Phase-1 Implementation & Release Plan v1.0.0
 
-> Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](repo-reorg-parity.md).
+> Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
-> The paths this plan cites (`docs/realizer/`) are in the tag `realizer-reorg-oracle-1.0.0` under `legacy/realizer_single_file/` (now moved to `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](repo-reorg-parity.md)); read one with `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/<path>"`. `docs/phase2/migration-release-plan.md` is not in the tag or anywhere in this repository's history.
+> The paths this plan cites (`docs/realizer/`) are in the tag `realizer-reorg-oracle-1.0.0` under `legacy/realizer_single_file/` (now moved to `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md)); read one with `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/<path>"`. `docs/phase2/migration-release-plan.md` is not in the tag or anywhere in this repository's history.
 
 **Status:** LOCKED FOR EXECUTION  
 **Baseline:** Product v2.8.0 repository (evolved from the Publisher v2.7.0 baseline)  

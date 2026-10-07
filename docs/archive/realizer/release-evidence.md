@@ -1,6 +1,6 @@
 # Realizer Phase-1 Release Evidence v1.0.0
 
-> Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](repo-reorg-parity.md).
+> Frozen record of the v1.0.0 release, written when the Realizer was a single-file implementation (`realizer.py`). The code it describes is now `src/realizer/`; that single-file implementation is kept only as the git tag `realizer-reorg-oracle-1.0.0`. Paths and commands below are those of the release and are not maintained; see [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 > The artifacts this record cites by path (`examples/test-results.txt`, `examples/realizer_demo/`, `examples/realizer_jsons/`, `docs/realizer/`) are in the tag `realizer-reorg-oracle-1.0.0` under `legacy/realizer_single_file/`; read one with `git show "realizer-reorg-oracle-1.0.0:legacy/realizer_single_file/<path>"`. `docs/phase2/` is not in the tag or anywhere in this repository's history.
 
@@ -20,7 +20,7 @@
 - `schema/realization-ledger-entry.schema.json`
 - `contracts/realizer_workbook_contract.py`
 - `reporters/realizer_workbook_reporter.py`
-- complete `docs/realizer/` contract/design set (in the tag under `legacy/realizer_single_file/docs/realizer/`; now in `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](repo-reorg-parity.md)).
+- complete `docs/realizer/` contract/design set (in the tag under `legacy/realizer_single_file/docs/realizer/`; now in `docs/<type>/realizer/`, see [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md)).
 - `.claude/skills/realizer-delivery/SKILL.md`.
 
 ## 2. Final compile command

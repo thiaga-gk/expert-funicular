@@ -75,7 +75,7 @@ Once a week, on the same weekday, with the same `--output-dir` (one state for th
 
 ## Phase 5 · Review and next changes
 
-1. Review together, per change: predicted against realized against billed, in real-number tables, and every question of both checklists the run answered. Findings go to the trackers ([Publisher](../publisher/tracker.md), [Realizer](../realizer/gap-review.md)); a recalibrated value goes through its own approval, a version bump and regenerated goldens.
+1. Review together, per change: predicted against realized against billed, in real-number tables, and every question of both checklists the run answered. Findings go to the Publisher tracker ([`tracker.md`](../publisher/tracker.md)) or, for the Realizer, whose gap review is closed ([archive](../../archive/realizer/gap-review.md)), to a new review; a recalibrated value goes through its own approval, a version bump and regenerated goldens.
 2. Mine again after week 4 (step 1.1 and phase 2 on a new date): `<T>` then shows its new epoch, so the miner checks the Publisher's decision on the changed warehouse, and drift is compared with day 0.
 3. Next changes, one at a time on agreed warehouses, each measured to a stable number before the next: a size cut (claimable only after the 30-day canary guard, so about five weeks), then a minimum-cluster cut. A plan's later steps are not measured once an earlier step is applied ([Realizer known limitations](../../reference/realizer/known-limitations.md)), so apply one step and measure it before the next.
 4. The Publisher's backtest of size, floor and maximum-cluster changes (tracker G56) follows from the same evidence.

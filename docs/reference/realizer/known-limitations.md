@@ -14,7 +14,7 @@ This file records limitations that remain true in the current Realizer release (
 
 ## Original behavior kept for parity
 
-The Realizer was extracted from the single-file release with identical outputs, and the behaviors below were found on the way and deliberately not changed, because a fix alters stored outputs and decisions. Each is a candidate for a separately reviewed change that regenerates the stored scenarios. The detail of each, with the phase that found it, is in [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md); the gap review ([`gap-review.md`](../../proposals/realizer/gap-review.md)) schedules each.
+The Realizer was extracted from the single-file release with identical outputs, and the behaviors below were found on the way and deliberately not changed, because a fix alters stored outputs and decisions. Each is a candidate for a separately reviewed change that regenerates the stored scenarios. The detail of each, with the phase that found it, is in [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md); none is scheduled since the gap review closed ([`gap-review.md`](../../archive/realizer/gap-review.md)).
 
 8. **Redundant readiness evaluation:** on the realize path `calculate_economics` re-evaluates readiness, which is always ready there. Nothing observable changes.
 9. **Cost increase reads as under-realized:** on a savings step, a realization that is a cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings. (A performance fix or a capacity cut is not a savings step: its cost change is reported, never classified or claimed.)
