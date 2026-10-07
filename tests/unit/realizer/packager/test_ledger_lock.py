@@ -107,7 +107,7 @@ class LockTests(LedgerFixture):
         before = self.path.read_text(encoding="utf-8")
         with ledger.ledger_lock(self.path), mock.patch.object(ledger, "LOCK_WAIT_SECONDS", 0.2):
             result = outcome(self.realize)
-        self.assertEqual(result, ("LedgerError", f"ledger {self.path.name} is locked by another run"))
+        self.assertEqual(result, ("LedgerLockedError", f"ledger {self.path.name} is locked by another run"))  # a LedgerError: exit 2
         self.assertEqual(self.path.read_text(encoding="utf-8"), before)
         self.realize()  # released: the next run proceeds
 
@@ -129,7 +129,7 @@ class LockTests(LedgerFixture):
 
             with mock.patch.object(ledger, "record_creation", probing_begin):
                 self.realize()
-        self.assertEqual([h[0] for h in held], ["LedgerError", "LedgerError"])
+        self.assertEqual([h[0] for h in held], ["LedgerLockedError", "LedgerLockedError"])
         self.assertFalse(ledger.lock_path(self.path).exists(), "the lock file is removed on release")
         self.assertEqual(outcome(self._try_lock), ("ok", None))
 

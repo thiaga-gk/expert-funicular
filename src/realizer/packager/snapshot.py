@@ -236,7 +236,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         drift=(drift.payload if drift else {"state": "NONE"}),
         regeneration={
             "status": regen_status,
-            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen is not None else None,
+            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen is not None and replacement is None else None,
             "replacement_package_id": replacement.payload.get("replacement_package_id") if replacement else None,
         },
         history={
