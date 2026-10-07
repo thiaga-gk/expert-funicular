@@ -48,6 +48,12 @@ change, because the simulator's noise depends only on the scenario and the day.
     cross_check: AGREES             # the billed cross-check outcome, or {outcome: INCONCLUSIVE, reason: OTHER_KNOB_CHANGED}
     independent_changes: [warehouse_size]   # the measurement's other_knob_changes, exactly
     same_evidence_as: <case name>   # the measurement evidence equals that case's, the package's assumptions aside
+    realization_state: REALIZED     # the realization package's current_state.realization_state
+    classification: REALIZED        # its economics.classification_detail
+    claim: CLAIMABLE                # its attribution.attribution_claim_status
+    origin: INFERRED                # its attribution.origin_attribution
+    disqualifiers: []               # its attribution.hard_disqualifiers (as a set)
+    recognition: CONFIRMED          # the last measurement's recognition status in the ledger
     refused: "<text>"               # the case must be refused: an InputError whose message contains the text
 
 The expectations are about the measurement and the application's conformance; the realization state, claim and

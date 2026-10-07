@@ -100,11 +100,40 @@
   },
   "observation_format_version": "2.1.0",
   "observed_at_utc": "2026-11-07T12:00:00Z",
-  "origin_attribution": "UNKNOWN",
+  "origin_attribution": "INFERRED",
   "overlap_count": 0,
   "performance": {
     "correctness_pass": null,
-    "guards": null,
+    "guards": {
+      "cold_start": {
+        "post_queries": 2000,
+        "post_restarts": 20,
+        "pre_queries": 2000,
+        "pre_restarts": 0
+      },
+      "post": {
+        "decision_queries": "1800",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "2500",
+        "queries": "2000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "1800",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      },
+      "pre": {
+        "decision_queries": "1800",
+        "failure_cancel_pct": "0.3",
+        "p95_execution_ms_shared_sources": "2500",
+        "queries": "2000",
+        "queued_queries": "0",
+        "queued_query_pct": "0",
+        "shared_source_queries": "1800",
+        "spill_queries": "0",
+        "spill_query_pct": "0"
+      }
+    },
     "normalized_p95_runtime_regression_pct": null,
     "reliability_pass": null
   },

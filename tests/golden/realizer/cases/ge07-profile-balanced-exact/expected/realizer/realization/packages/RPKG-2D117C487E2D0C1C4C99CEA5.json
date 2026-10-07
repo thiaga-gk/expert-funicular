@@ -35,9 +35,9 @@
   },
   "as_of_utc": "2026-11-07T12:00:00Z",
   "attribution": {
-    "attribution_claim_status": "NOT_ATTRIBUTABLE",
+    "attribution_claim_status": "CLAIMABLE",
     "attribution_scope": "CANDIDATE",
-    "attribution_state": "NOT_ATTRIBUTABLE",
+    "attribution_state": "HIGH_CONFIDENCE",
     "economic_quality_gates": {
       "attributable_spend": {
         "observed_pct": "100",
@@ -66,37 +66,42 @@
         "required_min_pct": "100"
       }
     },
-    "hard_disqualifiers": [
-      "HARD_VALIDATION_FAILURE"
-    ],
-    "origin_attribution": "UNKNOWN",
+    "hard_disqualifiers": [],
+    "origin_attribution": "INFERRED",
     "overlap_count": 0,
-    "recommendation_attributed_realized_savings": "0.00",
-    "validated_observed_realization": "0.00"
+    "recommendation_attributed_realized_savings": "1069.73",
+    "validated_observed_realization": "1069.73"
   },
   "contract_version": "1.0.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
-    "realization_state": "VALIDATION_FAILED",
+    "realization_state": "REALIZED",
     "source_package_disposition": "ACTIVE",
-    "validation_state": "FAILED"
+    "validation_state": "PASSED"
   },
   "drift": {
     "state": "NONE"
   },
   "economics": {
-    "annualized_realized_savings": null,
+    "annualized_realized_savings": "13944.69",
     "available": true,
     "aws_cash_realized": null,
     "aws_commitment_freed": null,
     "aws_economic_realized": "386.88",
     "aws_evidence_type": "MODELED",
-    "classification_detail": "HARD_GUARDRAIL_FAILED",
+    "classification_basis": "PUBLISHED_RANGE",
+    "classification_detail": "REALIZED",
     "counterfactual_old_cost": "4106.40",
     "currency": "USD",
     "dbu_realized": "682.86",
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_range": {
+      "base": "10476.47",
+      "component": "total",
+      "high": "13968.63",
+      "low": "6984.32"
+    },
     "expected_same_scope_annual_savings": "10476.47",
     "mature_ttm_realized_savings": null,
     "measurement": {
@@ -184,12 +189,13 @@
         "required_min_pct": "100"
       }
     },
-    "realization_ratio": null,
-    "realization_state": "VALIDATION_FAILED",
+    "realization_ratio": "1.331048973829652817899813309",
+    "realization_state": "REALIZED",
     "realized_savings_period": "1069.73",
     "realized_savings_since_application": "1069.73",
     "reoptimization_recommended": false,
-    "successful_realized_savings": "0.00"
+    "review_required": false,
+    "successful_realized_savings": "1069.73"
   },
   "history": {
     "application_episode_count": 1,
@@ -197,9 +203,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-5ABDA5BAEE3886EB9E731FA9",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-F236D430606FDE334C559006",
+    "latest_entry_id": "RLE-A246DA8AF942415FD2A8DDC3",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:9918BBD3D8C8C9319068B8849F292371DD433F4A64E4DEF87C0ED3FA7C39FBC5",
+    "ledger_checkpoint_hash": "SHA256:0EB6E6834CB98D11C7BFBE15001EE9BEA580D5A8849C1511CBE07698D4C9E689",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -224,7 +230,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-6883C032D02B7D3084B764FC",
+  "snapshot_id": "RSNAP-751C1CF8E2E5F496C3270426",
   "source_recommendation": {
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-ECBE8AAD6F30BF616893AB17",
@@ -236,14 +242,18 @@
     "superseded_by_package_id": null
   },
   "validation": {
-    "hard_guardrails_pass": false,
-    "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+    "hard_guardrails_pass": true,
+    "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
     "readiness": {
       "checks": {
         "evidence_quality": {
           "observed": "SUFFICIENT",
           "pass": true,
           "required": "SUFFICIENT"
+        },
+        "guardrail_evidence": {
+          "pass": true,
+          "unknown_rules": []
         },
         "minimum_days": {
           "observed": 28,
@@ -265,35 +275,30 @@
     },
     "rules": [
       {
-        "metric": "normalized_p95_runtime_regression_pct",
-        "observed": null,
-        "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
-        "result": "FAIL",
-        "rule_id": "REAL-PERF-P95-001",
+        "margin_pct": "25",
+        "metric": "failure_cancel_pct",
+        "min_sample": "100",
+        "observed": "0.3",
+        "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
+        "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
+        "previous": "0.3",
+        "result": "PASS",
+        "rule_id": "REAL-FAIL-001",
+        "sample": "788",
         "threshold": "5"
       },
       {
-        "metric": "reliability_pass",
-        "observed": null,
-        "operator": "EQ",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
-        "result": "FAIL",
-        "rule_id": "REAL-REL-001",
-        "threshold": true
-      },
-      {
-        "metric": "correctness_pass",
-        "observed": null,
-        "operator": "NE",
-        "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+        "metric": "added_cold_start_share_pct",
+        "observed": "-0.143110903657026534674005355",
+        "operator": "LTE",
+        "policy_snapshot_id": "PSNAP-2BD3D59B39FE34137D5DE95D",
         "result": "PASS",
-        "rule_id": "REAL-CORRECT-001",
-        "threshold": false
+        "rule_id": "REAL-COLD-001",
+        "threshold": "2"
       }
     ],
-    "state": "FAILED",
-    "validation_episode_id": "VAL-F3FE2E4C29BCF06810BC5D86",
+    "state": "PASSED",
+    "validation_episode_id": "VAL-47364E0ECAB0A5CBFBBAEA0B",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

@@ -14,3 +14,5 @@ expect:
   window: null
   measured: false
   not_measured_reason: NOT_SETTLED
+  realization_state: APPLIED
+  origin: INFERRED

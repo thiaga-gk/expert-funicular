@@ -18,3 +18,7 @@ expect:
   within_pkg: {component: dbu, low_factor: 1, high_factor: 1.25}
   cross_check: AGREES
   independent_changes: []
+  realization_state: REALIZED
+  claim: CLAIMABLE
+  origin: INFERRED
+  disqualifiers: []

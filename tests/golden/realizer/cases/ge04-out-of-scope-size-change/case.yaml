@@ -19,3 +19,7 @@ expect:
   near_oracle: {pct: 1}
   cross_check: {outcome: INCONCLUSIVE, reason: OTHER_KNOB_CHANGED}
   independent_changes: [warehouse_size]
+  # The replay holds the size cut at its new value, so the auto-stop saving alone stays claimable.
+  realization_state: REALIZED
+  claim: CLAIMABLE
+  disqualifiers: []

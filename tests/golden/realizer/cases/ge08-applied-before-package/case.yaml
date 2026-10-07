@@ -16,3 +16,7 @@ expect:
   measured: true
   near_oracle: {pct: 1}
   cross_check: AGREES
+  # Applied before the package existed: an independent change, never its application.
+  realization_state: NOT_APPLIED
+  claim: NOT_ATTRIBUTABLE
+  origin: UNKNOWN

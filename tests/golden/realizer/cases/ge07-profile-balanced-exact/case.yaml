@@ -19,3 +19,6 @@ expect:
   within_pkg: {component: dbu, low_factor: 1, high_factor: 1.25}
   cross_check: AGREES
   same_evidence_as: ge06-profile-aggressive-modified
+  realization_state: REALIZED
+  classification: REALIZED
+  claim: CLAIMABLE

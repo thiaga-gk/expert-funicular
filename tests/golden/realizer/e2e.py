@@ -52,7 +52,8 @@ DEFAULT_AS_OF = realizer_world.AS_OF
 SPEC_KEYS = {"auto_stop_minutes": "auto_stop", "warehouse_size": "size", "min_clusters": "min", "max_clusters": "max", "warehouse_type": "type"}
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
-               "cross_check", "independent_changes", "refused", "sign", "same_evidence_as"}
+               "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
+               "claim", "origin", "disqualifiers", "recognition"}
 
 
 def dumps(value: Any) -> str:
@@ -330,6 +331,19 @@ def check_expect(name: str, case: Mapping[str, Any], package: Mapping[str, Any],
                 fail("window", None, got)
         elif any(got.get(k) != str(v) for k, v in want.items()):
             fail("window", want, {k: got.get(k) for k in want})
+    snapshot = _rpkg(files)
+    state, attribution, snap_econ = snapshot.get("current_state") or {}, snapshot.get("attribution") or {}, snapshot.get("economics") or {}
+    for key, got in (("realization_state", state.get("realization_state")), ("classification", snap_econ.get("classification_detail")),
+                     ("claim", attribution.get("attribution_claim_status")), ("origin", attribution.get("origin_attribution"))):
+        if key in expect and got != expect[key]:
+            fail(key, expect[key], got)
+    if "disqualifiers" in expect and sorted(attribution.get("hard_disqualifiers") or []) != sorted(expect["disqualifiers"]):
+        fail("disqualifiers", sorted(expect["disqualifiers"]), sorted(attribution.get("hard_disqualifiers") or []))
+    if "recognition" in expect:
+        ledger = [json.loads(line) for path, text in sorted(files.items()) if path.startswith("realization/ledger/") for line in text.splitlines() if line.strip()]
+        got = [e["payload"].get("recognition_status") for e in ledger if e["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"]
+        if got[-1:] != [expect["recognition"]]:
+            fail("recognition", expect["recognition"], got[-1:] or None)
     if "measured" in expect and (economics is not None) != bool(expect["measured"]):
         fail("measured", expect["measured"], economics is not None)
     if "not_measured_reason" in expect and meas.get("not_measured_reason") != expect["not_measured_reason"]:

@@ -18,3 +18,7 @@ expect:
   near_oracle: {pct: 1}
   cross_check: AGREES
   independent_changes: []
+  # A modified value has no re-estimated denominator yet: measured and claimable, not classified.
+  realization_state: MONITORING
+  classification: VALIDATED_VALUE_UNCLASSIFIED
+  claim: CLAIMABLE
