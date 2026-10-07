@@ -275,7 +275,8 @@ class SlotOrderMutationTests(unittest.TestCase):
                 self.assertIsNotNone(name, "no scenario records the pair")
                 expected = run_scenario(name)
                 stored = {rel: text for rel, text in canonical_tree(name).items() if rel.startswith("realization/")}
-                self.assertEqual({rel: text for rel, text in expected.items() if text is not None}, stored, "the run is the stored baseline")
+                self.assertEqual({rel: text for rel, text in expected.items() if text is not None and not rel.startswith(canonical.SOURCE_COPIES)},
+                                 stored, "the run is the stored baseline (the source package copy aside)")
                 with mock.patch.object(ledger, "append_if_absent", self.swapping(first, second)):
                     mutant = run_scenario(name)
                 self.assertNotEqual(mutant, expected)
