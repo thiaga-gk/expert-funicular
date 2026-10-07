@@ -2,15 +2,12 @@
 
 A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/DeXxtwUBaiEhFTM1o1t6MQ, collection `findings`); this file is regenerated from it at each batch merge. Findings, worked examples and decisions: [`gap-review.md`](gap-review.md).
 
-Snapshot: 2026-10-07. Rows: 65 (Open: 27, Done: 38).
+Snapshot: 2026-10-07. Rows: 65 (Open: 24, Done: 41).
 
-## Open (27)
+## Open (24)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
-| R34 | DBU/AWS components are echoed, not computed | P2 | 3 |  | Fix: Compute per component, reconcile to the total within 0.03, `aws_cash_realized` null until CUR exists, AWS labeled MODELED. Detail: modeled AWS can be reported as cash | 2026-10-06 |
-| R36 | Counterfactual record hashes the caller's empty `workload` and a raw window start | P3 | 3 |  | Fix: Hash the evidence fingerprint, window, method, replay target and assumptions into the CF id. Covers known limitation 11. | 2026-10-06 |
-| R38 | Workload shift after the change is read as under-realization | P2 | 3 | RD19 pending | Fix: Report a workload-shift detail and suppress re-optimization when the shortfall is volume (RD19). | 2026-10-06 |
 | R39 | No cross-package exclusivity | P0 | 4 | RD20 pending | Fix: One owner per (warehouse, knob, interval). RD20. Detail: two RPKGs for one warehouse both report CLAIMABLE 1,000 (GR-030 passes only because the test sets `overlap_count` by hand) | 2026-10-06 |
 | R40 | No registry of the current package per warehouse | P0 | 4 |  | Fix: State index by warehouse; package family link through the later package's `observed_change.previous_epoch_id`; retire never-applied lineages when a newer package for the same epoch arrives. Detail: supersession only through a caller-set `replacement_package_id`; NOT_APPLIED lineages accumulate forever | 2026-10-06 |
 | R41 | After ROLLED_BACK or DRIFTED the snapshot still shows CLAIMABLE 1,000 and an annualized 12,166.67 | P1 | 4 | RD21 pending | Fix: RD21. | 2026-10-06 |
@@ -36,7 +33,7 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 27, Done: 38).
 | R61 | Small hygiene | P3 | 7 |  | Fix: Plausibility flag above the package's high; default `./realizer_out`; retention note. Covers known limitations 12, 13, 16. Detail: over-realization (ratio 30) shows REALIZED with no plausibility flag; `recommended == current` steps are always EXACT; snapshots never pruned; default output dir is the Publisher's | 2026-10-06 |
 | R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Found in batch 1.5 (R37): add a currency switch to the demo world and a GE case whose billing currency differs from the package's (currency gate fails, not claimable). | 2026-10-07 |
 
-## Done (38)
+## Done (41)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
@@ -76,5 +73,8 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 27, Done: 38).
 | R32 | Closed-epoch `_30` fields are false zeros (relative to now) | P1 | 1.5 |  | Done (81ead45, merged 3591b5d): live path reads only window-bound SQL; no _30 fields. | 2026-10-07 |
 | R33 | Restart billing (4 cluster-minutes per Pro/Classic start) is an assumption that moves the auto-stop result up to 5x | P1 | 1.5 | RD16 decided 2026-10-07: package's restart assumption, recorded; settled by billed cross-check and backtest | Done (81ead45, merged 3591b5d): package restart assumption recorded in the replay; sims show restart-heavy changes DISAGREE with a bill that has no restart time: settle in the real-data run. | 2026-10-07 |
 | R63 | No independent check of the counterfactual model | P1 | 1.5 | RD27 decided 2026-10-07: AGREES within 25% same sign; INCONCLUSIVE below 2x noise or other knob changed; DISAGREES blocks CLAIMABLE until review | Done (1c44ec8, merged 3591b5d): billed cross-check AGREES/INCONCLUSIVE/DISAGREES (25% band, 2x noise, volume, other knob); DISAGREES -> BILLED_CROSS_CHECK_DISAGREES; both numbers in RPKG. Pro 30->10: 609.61 vs 614.95 AGREES. | 2026-10-07 |
+| R34 | DBU/AWS components are echoed, not computed | P2 | 3 |  | Caller components reconcile to the total within 0.03; AWS needs DBU + evidence type; cash/commitment only with CUR_ACTUAL; DBU-only caller observation vs the DBU range. 229568c, 0558820; merged 7879871 (Realizer 1.3.0). | 2026-10-07 |
 | R35 | Origin has no source | P1 | 1.5 | RD17 decided 2026-10-07: INFERRED qualifies; CONFIRMED via --approvals; audit deferred | Done (617efc4, merged 3591b5d): INFERRED (applied after package) and CONFIRMED (--approvals file, format 1.0.0) both qualify; live sim REALIZED CLAIMABLE. | 2026-10-07 |
+| R36 | Counterfactual record hashes the caller's empty `workload` and a raw window start | P3 | 3 |  | CF id hashes method, window (applied/observed fallback), replay target, assumptions, evidence fingerprint; payload states them; workload no longer hashed. 9306dc4; merged 7879871. | 2026-10-07 |
 | R37 | No end-to-end goldens | P1 | 1.5 | RD18 decided 2026-10-07: GE-NN cases, simulator public function, stages regenerated separately | Done (c84ca5c, 1c15a4b, merged 3591b5d): 12 GE cases Publisher->Realizer, oracle from the simulator, stages regenerated separately (scripts/update_realizer_e2e_goldens.py). | 2026-10-07 |
+| R38 | Workload shift after the change is read as under-realization | P2 | 3 | RD19 option 1 (2026-10-07): measure a shifted auto-stop replay, report MONITORING/WORKLOAD_SHIFT with the volume ratio, claimable, never under-realized or re-optimized; denominator stays the package's (informational); guard-judged steps wait with WORKLOAD_SHIFT as the reason. | Shifted auto-stop replay measured: MONITORING/WORKLOAD_SHIFT, claimable, no re-opt (halved volume: 479.53/28 d, 6,251.02/yr); guard-judged steps wait with the reason; GE-15. adc5d1c; merged 7879871. | 2026-10-07 |
