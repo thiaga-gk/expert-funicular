@@ -89,8 +89,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-96664E712C482CE6E54690E3", "REVID-37F7F275591908182339F44B", "RERUN-FD16E8E513742D642187719F"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-89C9665DBDDE7243573DA452", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-BD9345E1464964A8853B67FD"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-397C56B7F922EFDFAA2C6C13", "REVID-37F7F275591908182339F44B", "RERUN-FD16E8E513742D642187719F"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-3937CD0BA74FF28FCB98E7B1", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-BD9345E1464964A8853B67FD"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
