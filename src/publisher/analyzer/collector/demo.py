@@ -271,7 +271,8 @@ DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 # The resulting collector rows go through the real extract_evidence. Workload components:
 #   days: weekdays | all | month_end (last business day) | half_year_end (last 5 business days of June and December)
 #   start/end: "HH:MM" window; conc: concurrent queries; every/dur: periodic queries (minutes) instead of steady load;
-#   q_min: average query minutes for steady load; src: query source; client: client application.
+#   q_min: average query minutes for steady load; src: query source; client: client application; from/until: optional
+#   ISO days bounding the component (from inclusive, until exclusive), for a workload that changes at a date.
 # Warehouse options: keepalive (an open session keeps it running with no queries), restart_every_days (restarts with no
 # downtime; an always-on warehouse that never restarts has no retained warehouse event), growth (volume doubles every 30
 # days), prior (earlier configuration epochs), epoch_start/created, unpriced_from (promotional SKU without a list
@@ -411,6 +412,12 @@ def _demo_day_matches(rule: str, day: dt.date) -> bool:
     raise ValueError(f"unknown demo day rule {rule}")
 
 
+def _demo_in_bounds(comp: Mapping[str, Any], day: dt.date) -> bool:
+    """Whether ``day`` is inside a workload component's optional ``from`` (inclusive) and ``until`` (exclusive) ISO days."""
+    return ((comp.get("from") is None or day >= dt.date.fromisoformat(comp["from"]))
+            and (comp.get("until") is None or day < dt.date.fromisoformat(comp["until"])))
+
+
 def _demo_config_at(spec: Mapping[str, Any], epochs: Sequence[Tuple[float, Optional[float], Dict[str, Any]]], t: float) -> Dict[str, Any]:
     """Configuration in force at simulation minute ``t`` (the first epoch's if none covers it); ``spec`` is unused."""
     for start, end, cfg in epochs:
@@ -479,7 +486,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
         growth = max(0.05, 2.0 ** ((day - analysis_day).days / 30.0)) if spec.get("growth") else 1.0
         day_t = at(day)
         for comp in spec["work"]:
-            if not _demo_day_matches(comp["days"], day):
+            if not _demo_day_matches(comp["days"], day) or not _demo_in_bounds(comp, day):
                 continue
             s, e = _demo_minutes(comp["start"]), _demo_minutes(comp["end"])
             key = comp["src"] + "|" + comp.get("client", "")
