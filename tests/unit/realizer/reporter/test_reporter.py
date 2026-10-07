@@ -7,6 +7,7 @@ stored in ``tests/fixtures/realizer/expectations/``. ``legacy_compatibility`` gi
 snapshot of every scenario and for every state the mapping knows or does not know. The Reporter decides nothing: it logs
 nothing and changes neither the snapshot nor the ledger.
 """
+import ast
 import contextlib
 import copy
 import dataclasses
@@ -346,11 +347,18 @@ class LegacyCompatibilityTests(unittest.TestCase):
 
 
 class ReporterShapeTests(unittest.TestCase):
-    def test_no_workbook_stub(self):
-        """The single-file ``.xlsx`` renderer needs ``artifact_tool`` and the retired Publisher's workbook reporter; no
-        module is created for it until it has code (design 4.3). The projection it renders is ``contracts/report.py``."""
+    def test_the_workbook_renderer_is_its_own_module_and_imports_no_publisher_code(self):
+        """The realization workbook renderer (``workbook.py``) follows the Publisher workbook's rules with its own code:
+        the products share no workbook module. The projection it renders is ``contracts/report.py``."""
         folder = Path(reporter.__file__).parent
-        self.assertEqual(sorted(p.name for p in folder.glob("*.py")), ["__init__.py", "reporter.py"])
+        self.assertEqual(sorted(p.name for p in folder.glob("*.py")), ["__init__.py", "reporter.py", "run_manifest.py", "workbook.py"])
+        imported = set()
+        for node in ast.walk(ast.parse((folder / "workbook.py").read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                imported.add(node.module or "")
+        self.assertFalse([name for name in imported if name.split(".")[0] == "publisher"])
 
     def test_run_and_legacy_compatibility_are_the_public_names(self):
         self.assertEqual(list(inspect.signature(reporter.run).parameters), ["context", "packaged"])

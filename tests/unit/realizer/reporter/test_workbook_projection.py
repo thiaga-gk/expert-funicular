@@ -1,4 +1,4 @@
-"""Realizer Workbook Extension projection (src/realizer/contracts/report.py). The projection is data only: summary and timeline rows."""
+"""The lineage projection (src/realizer/contracts/report.py, `project_realizer_workbook`): summary and timeline rows, data only."""
 import sys
 import tempfile
 import unittest

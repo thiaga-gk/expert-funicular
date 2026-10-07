@@ -31,7 +31,12 @@ def safe_name(value: Any) -> str:
 def warehouse_key(package: Mapping[str, Any]) -> str:
     """``<workspace>__<warehouse>``: the name of a warehouse's source folder and state index file."""
     warehouse = package["warehouse"]
-    return f"{safe_name(warehouse['workspace_id'])}__{safe_name(warehouse['warehouse_id'])}"
+    return key_of(warehouse["workspace_id"], warehouse["warehouse_id"])
+
+
+def key_of(workspace_id: Any, warehouse_id: Any) -> str:
+    """``warehouse_key`` from the two ids."""
+    return f"{safe_name(workspace_id)}__{safe_name(warehouse_id)}"
 
 
 def sources_dir(output_dir: Path, package: Mapping[str, Any]) -> Path:
@@ -52,14 +57,20 @@ def read_lineages(output_dir: Path, package: Mapping[str, Any]) -> Tuple[Lineage
 
     A copy that is not the package it is named after (edited, or of another warehouse) raises ``InputError``; a corrupt
     ledger raises ``LedgerError``, as the run's own would."""
-    folder = sources_dir(output_dir, package)
+    warehouse = package["warehouse"]
+    return read_kept_lineages(output_dir, warehouse["workspace_id"], warehouse["warehouse_id"], exclude=package["recommendation_package_id"])
+
+
+def read_kept_lineages(output_dir: Path, workspace_id: Any, warehouse_id: Any, *, exclude: Any = None) -> Tuple[LineageRecord, ...]:
+    """Every lineage of the warehouse kept in *output_dir* (but the package *exclude*), in package id order, with its
+    ledger; the checks of ``read_lineages``."""
+    folder = output_dir / "realization" / "sources" / key_of(workspace_id, warehouse_id)
     if not folder.is_dir():
         return ()
-    own = package["recommendation_package_id"]
-    warehouse = (package["warehouse"]["workspace_id"], package["warehouse"]["warehouse_id"])
+    warehouse = (workspace_id, warehouse_id)
     records = []
     for path in sorted(folder.glob("PKG-*.json")):
-        if path.stem == own:
+        if exclude is not None and path.stem == exclude:
             continue
         try:
             other = load_json(path)

@@ -125,7 +125,8 @@ class EntryPointTests(unittest.TestCase):
     def test_realize_keeps_its_positional_signature(self):
         self.assertEqual(str(inspect.signature(facade.realize)),
                          "(package: 'Mapping[str, Any]', observation: 'Optional[Mapping[str, Any]]', output_dir: 'Path', *, "
-                         "policy: 'Optional[RealizerPolicy]' = None, replay_through: 'Optional[str]' = None) -> 'rc.RealizationPackage'")
+                         "policy: 'Optional[RealizerPolicy]' = None, replay_through: 'Optional[str]' = None, state_dir: 'Optional[Path]' = None) "
+                         "-> 'rc.RealizationPackage'")
         self.assertEqual(list(inspect.signature(facade.realize_request).parameters), ["request"])
 
     def test_every_scenario_through_the_request_entry_equals_realize(self):
@@ -203,7 +204,7 @@ class NoDomainLogicTests(unittest.TestCase):
     functions = {n.name: n for n in tree_.body if isinstance(n, ast.FunctionDef)}
 
     def test_its_own_functions_are_the_orchestration_entries(self):
-        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize"})
+        self.assertEqual(set(self.functions), {"build_context", "realize_request", "realize", "realize_package", "realize_fleet"})
         self.assertEqual([n.name for n in self.tree_.body if isinstance(n, ast.ClassDef)], [])
 
     def test_the_pipeline_function_is_a_straight_line_of_stage_calls(self):
@@ -233,14 +234,14 @@ class NoDomainLogicTests(unittest.TestCase):
 
     def test_no_control_flow_in_the_pipeline_or_its_entry_points(self):
         forbidden = (ast.If, ast.For, ast.While, ast.Try, ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp, ast.IfExp, ast.BoolOp)
-        for name in ("realize_request", "realize"):  # build_context applies the policy default (``or``)
+        for name in ("realize_request", "realize", "realize_package"):  # build_context applies the policy default (``or``)
             for node in ast.walk(self.functions[name]):
                 self.assertNotIsInstance(node, forbidden, f"{name}: {ast.dump(node)[:80]}")
 
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
         allowed = {"build_context", "validate_package", "validate_observation", "validate_replay_through", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
-                   "packager.lock", "packager.begin", "reporter.run"}
+                   "packager.lock", "packager.begin", "reporter.run", "packager.warehouse_lock", "run_fleet"}
         seen = set()
         for function in self.functions.values():
             for node in ast.walk(function):
@@ -261,23 +262,23 @@ class NamespaceTests(unittest.TestCase):
 
     def test_star_import_exposes_only_the_entry_points_and_the_cli_pass_throughs(self):
         self.assertEqual(sorted(facade.__all__), ["RealizerPolicy", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary",
-                                                  "build_context", "demo_observation", "load_observation", "measure_live", "observe_from_evidence",
-                                                  "realize", "realize_request"])
+                                                  "build_context", "load_observation", "measure_demo", "measure_live", "observe_from_evidence",
+                                                  "realize", "realize_fleet", "realize_package", "realize_request"])
         self.assertTrue(all(hasattr(facade, name) for name in facade.__all__))
 
     def test_the_public_names_are_the_entry_points_the_imports_they_need_and_the_cli_pass_throughs(self):
         names = {n for n, value in vars(facade).items() if not n.startswith("_") and not inspect.ismodule(value)}
         self.assertEqual(names, {
-            "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
+            "Any", "FleetReport", "FleetRequest", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "backtest_demo", "backtest_from_evidence", "backtest_live", "backtest_summary", "build_context",
-            "demo_observation", "load_observation", "make_rpkg_id", "measure_live", "observe_from_evidence",
-        "realize", "realize_request",
+            "load_observation", "make_rpkg_id", "measure_demo", "measure_live", "observe_from_evidence",
+        "realize", "realize_fleet", "realize_package", "realize_request",
             "validate_observation", "validate_package", "validate_replay_through",
         })
 
     def test_the_cli_pass_throughs_are_the_capability_functions(self):
-        from realizer.analyzer.collector import collector
-        self.assertIs(facade.demo_observation, collector.demo_observation)
+        from realizer.analyzer.collector import collector, demo_world
+        self.assertIs(facade.measure_demo, demo_world.measure_demo)
         self.assertIs(facade.load_observation, collector.load_observation)
         self.assertIs(facade.RealizerPolicy, RealizerPolicy)
 

@@ -10,6 +10,7 @@
      "realization",
      "realization/evidence",
      "realization/ledger",
+     "realization/measurements",
      "realization/packages",
      "realization/policies",
      "realization/regeneration",
@@ -21,30 +22,28 @@
     "events": [
      "REALIZATION_CREATED",
      "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
      "VALIDATION_READY",
      "VALIDATION_STARTED",
      "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "dff1bf60fa3808a8",
+     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "1fdf5cc112b42bd2",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "151f131a197ea261",
      "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
-     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
-     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
+     "realization/snapshots/RSNAP-2B5A16C5B1134852EB0AB3E8.json": "151f131a197ea261",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
+     "realization/state/1234567890123456__wh-demo-006.json": "1795af7840a0ed87"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 10669,
-  "sha256": "77f2e66fc7060ca130d9fd9252f2c221ab369d92b030755ad31012dfec510884"
+  "length": 8915,
+  "sha256": "37ab7e48cf293ac2b59aea9f8956f94f4ee9072a7df523cf09303022b6211d2f"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -66,9 +65,9 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "d6ce8511fdd0e9d5",
-     "realization/snapshots/RSNAP-1AC2F3B807DB620570566E00.json": "d6ce8511fdd0e9d5",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "18da25e543c3b716",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "090365adc115c7dd",
+     "realization/snapshots/RSNAP-1AC2F3B807DB620570566E00.json": "090365adc115c7dd",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
      "realization/state/1234567890123456__wh-demo-006.json": "b2762f77bfc30349"
     }
@@ -107,11 +106,11 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c10afe3ee43bf057",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "770df82532f6ec71",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "cd458e1f982c73ba",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a445c1e31018ae2f",
      "realization/policies/PSNAP-253E4865EB2EA331FF7C1FBA.json": "8e52e4fecd7b3ff0",
      "realization/regeneration/RERUN-D08201ED1024BB50A2D341AF.json": "0c5e3bf6f0790976",
-     "realization/snapshots/RSNAP-10D34C3D942088696BFDBD93.json": "770df82532f6ec71",
+     "realization/snapshots/RSNAP-10D34C3D942088696BFDBD93.json": "a445c1e31018ae2f",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
      "realization/state/1234567890123456__wh-demo-006.json": "f7e44b0191d17dbd"
     }
@@ -128,32 +127,32 @@
   "value": "realizer: choose one observation source, not --observation and --demo"
  },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 6200,
-  "sha256": "4914f96491ffd227460f6b913f2e4ba935ee10b3a41cfe8c80b5058c0fc227f3"
+  "length": 6600,
+  "sha256": "f16955b9b01ce6fcb9b87bba5551bc731695bab55df1bfab111be4d661ae9129"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
-  "length": 2886,
-  "sha256": "e8c45baa02ad109eb955837303fd6cdccaaf4f6411a17692f77a9c549f7e02a0"
+  "length": 4373,
+  "sha256": "105e59f282db6407dc73248802b4baf5053df57d16a473149dbe78cf4447fb22"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: the following arguments are required: --package\n"
+   "usage: realizer [-h] [--version] (--package PACKAGE | --publisher-run PUBLISHER_RUN)\n                [--observation OBSERVATION] [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR]\n                [--flat-output] [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--warehouse WAREHOUSE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: one of the arguments --package --publisher-run is required\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 2": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
+   "usage: realizer [-h] [--version] (--package PACKAGE | --publisher-run PUBLISHER_RUN)\n                [--observation OBSERVATION] [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR]\n                [--flat-output] [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--warehouse WAREHOUSE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 3": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--profile PROFILE] [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
+   "usage: realizer [-h] [--version] (--package PACKAGE | --publisher-run PUBLISHER_RUN)\n                [--observation OBSERVATION] [--output-dir OUTPUT_DIR] [--state-dir STATE_DIR]\n                [--flat-output] [--policy POLICY] [--demo] [--demo-modified] [--profile PROFILE]\n                [--sql-warehouse-id SQL_WAREHOUSE_ID]\n                [--databricks-config-file DATABRICKS_CONFIG_FILE] [--source-region SOURCE_REGION]\n                [--aws-price-registry AWS_PRICE_REGISTRY] [--as-of AS_OF]\n                [--billing-ingested-through BILLING_INGESTED_THROUGH]\n                [--from-evidence FROM_EVIDENCE] [--warehouse WAREHOUSE] [--approvals APPROVALS]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
   ]
  },
  "OptionParityTests.test_parse_args_defaults_and_values/argv 0": {
@@ -165,6 +164,7 @@
    "databricks_config_file": null,
    "demo": false,
    "demo_modified": false,
+   "flat_output": false,
    "from_evidence": null,
    "log_level": "INFO",
    "observation": null,
@@ -173,9 +173,12 @@
    "policy": null,
    "print_json": false,
    "profile": null,
+   "publisher_run": null,
    "replay_through": null,
    "source_region": null,
-   "sql_warehouse_id": null
+   "sql_warehouse_id": null,
+   "state_dir": null,
+   "warehouse": []
   }
  },
  "OptionParityTests.test_parse_args_defaults_and_values/argv 1": {
@@ -187,6 +190,7 @@
    "databricks_config_file": null,
    "demo": true,
    "demo_modified": true,
+   "flat_output": false,
    "from_evidence": null,
    "log_level": "DEBUG",
    "observation": "o",
@@ -195,9 +199,12 @@
    "policy": "pol",
    "print_json": true,
    "profile": null,
+   "publisher_run": null,
    "replay_through": "2026-10-01T00:00:00Z",
    "source_region": null,
-   "sql_warehouse_id": null
+   "sql_warehouse_id": null,
+   "state_dir": null,
+   "warehouse": []
   }
  }
 }

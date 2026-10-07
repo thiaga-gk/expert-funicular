@@ -7,9 +7,9 @@ then the same two files for each other lineage of the warehouse the run re-proje
 (``realization/state/<workspace>__<warehouse>.json``). ``legacy_compatibility`` is the Reporter
 v1.0.0 compatibility projection of a snapshot (nothing on the realize path calls it).
 
-The single-file release's ``.xlsx`` renderer was not carried over: it needs the ``artifact_tool`` runtime and the retired
-Publisher's workbook reporter, and nothing on the realize path calls it. The workbook projection it renders is
-``realizer.contracts.report``; a renderer is added when it has code to hold.
+The realization workbook of a fleet run is rendered by ``realizer.reporter.workbook`` (from the projection in
+``realizer.contracts.report``) and the fleet run's manifest by ``realizer.reporter.run_manifest``; a single realize run
+writes neither.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def run(context: RunContext, packaged: PackagingResult) -> RealizationReport:
     for other in packaged.others:
         files.extend(_write(output_dir, other))
     if packaged.state_index is not None:
-        path = state_index_path(output_dir, context.request.package)
+        path = state_index_path(context.request.state_root, context.request.package)
         write_json(path, packaged.state_index)
         files.append(path)
     return RealizationReport(realization=packaged.realization, files=tuple(files))

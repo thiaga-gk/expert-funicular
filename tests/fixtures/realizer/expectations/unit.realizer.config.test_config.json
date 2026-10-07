@@ -1,42 +1,48 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 9525,
-  "sha256": "b6f0fd31a81f8b249d57da4516f482ba3894d0ddf0c48a740a057e07e3a62910",
+  "length": 7716,
+  "sha256": "f26be05f440b4e3404b2d593d4f511d56cb407d71bb2654f94eff1107140cc84",
   "spot": {
    "logging": [
     [
      "DEBUG"
     ],
-    {}
+    {
+     "keep_for_log_file": false
+    }
    ],
-   "stdout_characters": 8500
+   "stdout_characters": 6858
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
   "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
-  "length": 4273,
-  "sha256": "7c54ba02a84872fd60172a2812b988d1b55fbeabb265b53a21603c657f5e8425",
+  "length": 4298,
+  "sha256": "769361b6693ef5f4b004dee71d9d790fde04705e04e8abd3b799daac7d8c94d4",
   "spot": {
    "logging": [
     [
      "DEBUG"
     ],
-    {}
+    {
+     "keep_for_log_file": false
+    }
    ],
    "stdout_characters": 3836
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 9757,
-  "sha256": "72090f914a06fd92e4f3a44fd6e499c51e8dc301479a1da2d882270fbf41ba17",
+  "length": 9782,
+  "sha256": "4cd9ea277a017686612c37a1c575f941091fa355dca6af20299e044d95c67607",
   "spot": {
    "logging": [
     [
      "DEBUG"
     ],
-    {}
+    {
+     "keep_for_log_file": false
+    }
    ],
    "stdout_characters": 8697
   }
@@ -219,7 +225,7 @@
    "POLICY_VERSION": "realizer-policy-v1.4.0",
    "PRODUCT_VERSION": "2.14.0",
    "PROJECTOR_VERSION": "realizer-projector-v1.2.0",
-   "REALIZER_VERSION": "1.4.0"
+   "REALIZER_VERSION": "1.5.0"
   }
  }
 }

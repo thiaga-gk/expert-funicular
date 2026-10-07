@@ -2,7 +2,8 @@
 
 The CLI parses its own arguments, loads the package, the observation and the policy (in that order), configures logging,
 calls the facade and prints the written package path (or the snapshot with ``--print-json``). It never imports a
-capability package. The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
+capability package. ``--demo`` measures the package's demo-fleet warehouse in its simulated world
+(tests/unit/realizer/cli/test_demo_cli.py). The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
 observation-file and policy modes, the exit status, stdout and output tree are stored in tests/fixtures/realizer/expectations/. A refused input exits
 with status 2 (tests/unit/realizer/cli/test_refusals.py); a defect is not mapped to a status.
 """
@@ -122,7 +123,7 @@ class BehaviourTests(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             try:
-                code = entry(argv + ["--output-dir", str(out)])
+                code = entry(argv + ["--output-dir", str(out), "--flat-output"])
             except Exception as exc:  # noqa: BLE001 - compared
                 code = f"{type(exc).__name__}: {exc}".replace(str(out), "<out>")
         return code, stdout.getvalue().replace(str(out), "<out>")
@@ -141,6 +142,8 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertRegex(stdout, r"^<out>/realization/packages/RPKG-[0-9A-F]{24}\.json\n$")
         self.assertTrue(any(k.startswith("realization/snapshots/RSNAP-") for k in files_))
+        # The demo measures the package's demo-fleet warehouse in its simulated world and keeps the evidence, like a live run.
+        self.assertTrue(any(k.startswith("realization/measurements/") and k.endswith(".json") for k in files_))
 
     def test_demo_modified_and_print_json(self):
         (code, stdout), _ = self.check_run("demo modified", ["--package", str(PACKAGE), "--demo-modified", "--print-json"])
@@ -174,7 +177,7 @@ class BehaviourTests(unittest.TestCase):
             with self.subTest(argv=argv[1:]):
                 out, err = io.StringIO(), io.StringIO()
                 with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                    code = main(argv + ["--output-dir", str(Path(self.root.name) / "o1")])
+                    code = main(argv + ["--output-dir", str(Path(self.root.name) / "o1")])  # the run-folder layout: still nothing
                 self.assertEqual((code, out.getvalue()), (2, ""))
                 message = err.getvalue().splitlines()[-1]
                 self.assertTrue(message.startswith("realizer: "), message)
@@ -182,7 +185,7 @@ class BehaviourTests(unittest.TestCase):
         self.assertFalse((Path(self.root.name) / "o1").exists(), "an input refusal writes nothing")
 
     def test_a_defect_is_not_mapped_to_an_exit_status(self):
-        with mock.patch.object(cli_realize, "realize", side_effect=RuntimeError("boom")), tempfile.TemporaryDirectory() as tmp, \
+        with mock.patch.object(cli_realize, "realize_package", side_effect=RuntimeError("boom")), tempfile.TemporaryDirectory() as tmp, \
                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError):
             main(["--package", str(PACKAGE), "--demo", "--output-dir", tmp])
 
@@ -199,7 +202,12 @@ class BehaviourTests(unittest.TestCase):
     def test_logging_is_configured_from_the_flag(self):
         with mock.patch.object(cli_realize, "setup_logging") as setup, tempfile.TemporaryDirectory() as tmp:
             self.run_cli(main, ["--package", str(PACKAGE), "--log-level", "WARNING"], Path(tmp))
-        setup.assert_called_once_with("WARNING")
+        # The single-folder layout writes no log file, so no line is kept for one.
+        setup.assert_called_once_with("WARNING", keep_for_log_file=False)
+        with mock.patch.object(cli_realize, "setup_logging") as setup, tempfile.TemporaryDirectory() as tmp:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                main(["--package", str(PACKAGE), "--log-level", "WARNING", "--output-dir", tmp])
+        setup.assert_called_once_with("WARNING", keep_for_log_file=True)
 
 
 class EntryPointTests(unittest.TestCase):
@@ -207,7 +215,7 @@ class EntryPointTests(unittest.TestCase):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
         for command in ([sys.executable, "-m", "realizer"], [sys.executable, str(ROOT / "scripts" / "run_realizer.py")]):
             with self.subTest(command=command[1:]), tempfile.TemporaryDirectory() as tmp:
-                done = subprocess.run([*command, "--package", str(PACKAGE), "--demo", "--output-dir", tmp], capture_output=True, text=True, env=env, cwd=tmp)
+                done = subprocess.run([*command, "--package", str(PACKAGE), "--demo", "--output-dir", tmp, "--flat-output"], capture_output=True, text=True, env=env, cwd=tmp)
                 self.assertEqual(done.returncode, 0, done.stderr)
                 path = Path(done.stdout.strip())
                 self.assertTrue(path.is_file(), done.stdout)

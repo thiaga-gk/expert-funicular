@@ -7,8 +7,8 @@ shared by that test and ``scripts/update_realizer_e2e_goldens.py``.
   (run scope, cost profile) group, every case warehouse of the group through a repeated ``--warehouse``; each case keeps
   its warehouse's package as ``expected/publisher/package.json``.
 * Realizer stage: from the stored package, the case's simulated world (the demo-fleet warehouse with the owner's
-  configuration changes on a timeline, ``publisher.analyzer.collector.demo.simulate_demo_world``) is measured through the
-  live path (``collect_measurement`` on ``DemoWorldClient``), projected (``project_observation``) and realized
+  configuration changes on a timeline, ``realizer.analyzer.collector.demo_world``, the worlds ``realizer --demo``
+  measures) is measured through the live path (``collect_measurement`` on ``DemoWorldClient``), projected (``project_observation``) and realized
   (``realize`` into a temporary directory). Its canonical output, under ``expected/realizer/``, is the measurement
   evidence, the observation, the oracle and the realization files in the stored-baseline form of
   ``tests/regression/realizer/canonical.py`` (or the refusal, for a case that must be refused).
@@ -19,8 +19,6 @@ shared by that test and ``scripts/update_realizer_e2e_goldens.py``.
 """
 from __future__ import annotations
 
-import copy
-import datetime as dt
 import functools
 import json
 import os
@@ -38,7 +36,7 @@ for _p in (ROOT, ROOT / "src"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from publisher.analyzer.collector import demo  # noqa: E402
+from realizer.analyzer.collector.demo_world import SPEC_KEYS, fleet_index, world_spec  # noqa: E402
 from realizer.analyzer.projector import project_observation  # noqa: E402
 from realizer.common.errors import InputError  # noqa: E402
 from tests import realizer_world  # noqa: E402
@@ -48,8 +46,6 @@ CASES = Path(__file__).resolve().parent / "cases"
 PACKAGE_FILE = Path("expected") / "publisher" / "package.json"
 REALIZER_DIR = Path("expected") / "realizer"
 DEFAULT_AS_OF = realizer_world.AS_OF
-# Package knob -> demo fleet spec key.
-SPEC_KEYS = {"auto_stop_minutes": "auto_stop", "warehouse_size": "size", "min_clusters": "min", "max_clusters": "max", "warehouse_type": "type"}
 KNOB_OF_KEY = {v: k for k, v in SPEC_KEYS.items()}
 EXPECT_KEYS = {"conformance", "relation", "applied_at", "window", "measured", "not_measured_reason", "near_oracle", "within_pkg",
                "cross_check", "independent_changes", "refused", "sign", "same_evidence_as", "realization_state", "classification",
@@ -156,56 +152,6 @@ def publisher_packages(names: Sequence[str]) -> Dict[str, str]:
 # ---------------------------------------------------------------------------
 # Worlds
 # ---------------------------------------------------------------------------
-
-def fleet_index(warehouse_id: str) -> int:
-    """The demo fleet number of ``wh-demo-<NNN>`` (its 1-based position in ``DEMO_FLEET``)."""
-    index = int(str(warehouse_id).rsplit("-", 1)[-1])
-    if not 1 <= index <= len(demo.DEMO_FLEET):
-        raise ValueError(f"{warehouse_id} is not a demo fleet warehouse")
-    return index
-
-
-def _ts(value: Any) -> dt.datetime:
-    text = value.isoformat() if isinstance(value, (dt.datetime, dt.date)) else str(value)
-    return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
-
-
-def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The fleet spec of warehouse *index* with the owner's *changes* applied: each ``{at: <UTC time>, set: {spec key:
-    value}}`` starts a configuration epoch holding the values set so far. The fleet's own epochs before the first change
-    are kept. The simulator starts only the last epoch at a time of day, so earlier changes must be at 00:00 UTC. An
-    optional *workload* ``{from: <UTC day>, factor: x}`` scales the fleet workload from that day on."""
-    spec = copy.deepcopy(demo.DEMO_FLEET[index - 1])
-    if workload:
-        spec["work"] = realizer_world.shifted_work(spec["work"], float(workload["factor"]), str(workload["from"]))
-    keys = tuple(SPEC_KEYS.values())
-    current = {k: spec[k] for k in keys}
-    epochs: List[Tuple[dt.date, Dict[str, Any]]] = [(dt.date.fromisoformat(p["start"]), {**current, **{k: v for k, v in p.items() if k != "start"}})
-                                                     for p in spec.get("prior") or []]
-    epochs.append((dt.date.fromisoformat(spec.get("epoch_start") or spec.get("created") or "2025-07-01"), dict(current)))
-    minute = 0
-    ordered = sorted(changes, key=lambda c: _ts(c["at"]))
-    for n, change in enumerate(ordered):
-        at = _ts(change["at"])
-        unknown = set(change["set"]) - set(keys)
-        if unknown:
-            raise ValueError(f"unknown world knob(s) {sorted(unknown)}; use {list(keys)}")
-        if at.date() <= epochs[-1][0]:
-            raise ValueError(f"a change at {at.isoformat()} does not start after the fleet's last epoch ({epochs[-1][0]})")
-        if n < len(ordered) - 1 and at.time() != dt.time(0):
-            raise ValueError("only the last change can start at a time of day")
-        epochs.append((at.date(), {**epochs[-1][1], **change["set"]}))
-        minute = at.hour * 60 + at.minute
-    spec.update(epochs[-1][1])
-    spec["prior"] = [{"start": d.isoformat(), **cfg} for d, cfg in epochs[:-1]]
-    spec["epoch_start"] = epochs[-1][0].isoformat()
-    if minute:
-        spec["epoch_start_minute"] = minute
-    spec.pop("created", None)
-    if not spec["prior"]:
-        spec.pop("prior")
-    return spec
-
 
 def billed_cost(rows: Mapping[str, Any], warehouse_id: str, first_day: str, last_day: str) -> Decimal:
     """Billed DBU list cost of a simulated warehouse over whole days ``first_day``..``last_day``."""

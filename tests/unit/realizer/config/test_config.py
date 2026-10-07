@@ -194,10 +194,10 @@ class CliLoadingTests(unittest.TestCase):
                                  ("demo modified", ["--demo-modified"]), ("lineage only", [])):
                 with self.subTest(args=label):
                     common = ["--package", str(pkg), "--print-json", "--log-level", "DEBUG", *extra]
-                    stdout, logging_call = self._run(common + ["--output-dir", str(base / f"out{len(extra)}")], base)
+                    stdout, logging_call = self._run(common + ["--output-dir", str(base / f"out{len(extra)}"), "--flat-output"], base)
                     self.assertTrue(stdout.startswith("{"))
                     expect.check(self, label, (stdout, logging_call), spot={"stdout_characters": len(stdout), "logging": logging_call})
-            expect.check(self, "demo prints the package path", self._run(["--package", str(pkg), "--demo", "--output-dir", str(base / "p")], base)[0])
+            expect.check(self, "demo prints the package path", self._run(["--package", str(pkg), "--demo", "--output-dir", str(base / "p"), "--flat-output"], base)[0])
 
 
 if __name__ == "__main__":

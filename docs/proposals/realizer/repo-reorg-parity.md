@@ -593,3 +593,17 @@ Batch 4 of the gap review ([`gap-review.md`](gap-review.md)) made the Realizer h
 | Realizer 1.4.0; projector 1.2.0, policy 1.4.0, analyzer and estimator gateways 1.4.0, attribution 1.3.0, exclusivity 1.1.0; realization package contract 1.2.0, ledger envelope 1.1.0 | none | none | ids only |
 
 New package fixtures from dated Publisher demo runs (`autostop-daily-oct02`, `autostop-daily-oct03`, `successor-after-autostop`, `canary-before-cut`) back the cross-lineage tests; the existing fixtures and the Publisher's outputs are unchanged.
+
+## Gap review batch 5: fleet operations and visibility and its decision changes
+
+Batch 5 of the gap review ([`gap-review.md`](gap-review.md)) made the Realizer run over a whole Publisher run, every day, with one history: a long-lived state separate from Hive run folders, a fleet run with per-warehouse failure isolation and an overall exit status, every open lineage of a warehouse realized under one warehouse lock, a realization workbook for a person, and a demo that measures the demo-fleet warehouse's simulated world. Decisions RD24 (a to d) and RD25 were taken as recommended. Each change was checked with the decision-equivalence check over the 41 stored scenarios against the previous commit's stored outputs, and over the end-to-end cases:
+
+| Change | Stored scenarios whose decision changed | End-to-end cases whose decision changed | How |
+|---|---|---|---|
+| The demo measures the simulated world of the package's demo-fleet warehouse through the live path (the end-to-end goldens' world construction moved into the source); a warehouse outside the fleet is refused | none | none | the end-to-end goldens are byte-identical; the synthetic demo observation remains a test fixture source only |
+| Long-lived state (ledgers, evidence, regeneration, measurements, sources, policies, state index) separate from the run folder's projections; the CLI writes Hive run folders by default, `--flat-output` keeps the single folder, the facade stays flat; measurement evidence named per package | none | none | paths only; no stored output holds a measurement file name |
+| Fleet run over a Publisher run's manifest: per warehouse, under a warehouse lock, every open lineage kept in the state and then the run's package; failures isolated; exit 1, 2 or 0; run manifest | none | none | a single-package run decides as before; in a fleet run the owner of an earlier change records its claim in the same run (former known limitation 10) and a second concurrent run of a warehouse is refused for it (former known limitation 11) |
+| Realization workbook (Warehouses, Lineages, Timeline; realization workbook contract 2.0.0) written into each fleet run folder by the Realizer's own renderer | none | none | presentation only (former known limitation 4) |
+| Realizer 1.5.0 | none | none | provenance only |
+
+On the Publisher demo run (41 packages) two daily fleet runs with `--demo` end with every warehouse OK: 14 REALIZED, 1 MONITORING, 1 UNDER_REALIZED, 1 VALIDATION_FAILED, 19 size changes APPLIED with their guards passed and no counterfactual yet, and 5 packages with no step to apply. The Publisher's code and outputs are unchanged.

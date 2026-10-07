@@ -146,6 +146,17 @@ class LoggingTests(unittest.TestCase):
         self.assertEqual(len(rlogging.LOGGER.handlers), 1)
         self.assertEqual(stream.getvalue().count("realizer.test once"), 1)
 
+    def test_lines_are_kept_for_a_log_file_only_when_one_will_be_attached(self):
+        stream = io.StringIO()
+        with mock.patch.object(sys, "stderr", stream):
+            rlogging.setup_logging("INFO")
+            for n in range(5):
+                rlogging.LOGGER.info("realizer.test line=%d", n)
+            self.assertIsNone(rlogging.LOGGER.handlers[0].early, "a run without a log file keeps no lines")
+            rlogging.setup_logging("INFO", keep_for_log_file=True)
+            rlogging.LOGGER.info("realizer.test kept")
+            self.assertEqual(len(rlogging.LOGGER.handlers[0].early), 1)
+
     def test_lines_go_to_stderr_at_the_chosen_level(self):
         stream = io.StringIO()
         with mock.patch.object(sys, "stderr", stream):

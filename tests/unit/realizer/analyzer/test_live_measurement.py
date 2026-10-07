@@ -321,7 +321,8 @@ class BridgeTests(unittest.TestCase):
     def test_only_the_bridge_and_config_import_the_publisher(self):
         importers = sorted(str(p.relative_to(ROOT / "src")) for p in (ROOT / "src" / "realizer").rglob("*.py")
                            if "from publisher" in p.read_text(encoding="utf-8") or "import publisher" in p.read_text(encoding="utf-8"))
-        self.assertEqual(importers, ["realizer/analyzer/collector/bridge.py", "realizer/config/loader.py", "realizer/config/settings.py"])
+        self.assertEqual(importers, ["realizer/analyzer/collector/bridge.py", "realizer/config/loader.py", "realizer/config/output_layout.py",
+                                     "realizer/config/settings.py"])
 
 
 class EvidenceReplayCliTests(unittest.TestCase):
@@ -354,7 +355,8 @@ class EvidenceReplayCliTests(unittest.TestCase):
             client.return_value.__enter__.return_value = object()
             obs = collector.measure_live(PRO, Path(tmp), profile="p", sql_warehouse_id="wh-collector", as_of=world.AS_OF)
             written = sorted(Path(tmp, "realization", "measurements").glob("*.json"))
-            self.assertEqual([p.name for p in written], ["2234567890123456__wh-demo-013__20261107T120000Z.json"])
+            # The file name carries the package id: two lineages of one warehouse measured at once never overwrite each other.
+            self.assertEqual([p.name for p in written], [f"2234567890123456__wh-demo-013__{PRO['recommendation_package_id']}__20261107T120000Z.json"])
             self.assertEqual(json.loads(written[0].read_text()), evidence)
             self.assertEqual(obs["economics"]["dbu_realized"], "609.61")
 
@@ -366,7 +368,7 @@ class EvidenceReplayCliTests(unittest.TestCase):
     def test_a_live_run_on_the_measured_warehouse_is_refused_with_status_2(self):
         with tempfile.TemporaryDirectory() as tmp:
             code, _, err = self.run_cli("--package", str(world.PACKAGES / "autostop-scoped-pro.json"), "--profile", "p",
-                                        "--sql-warehouse-id", "wh-demo-013", "--output-dir", tmp)
+                                        "--sql-warehouse-id", "wh-demo-013", "--output-dir", tmp, "--flat-output")
             self.assertEqual(code, EXIT_REFUSED)
             self.assertIn("cannot run on the warehouse it measures", err)
             self.assertEqual(list(Path(tmp).iterdir()), [])

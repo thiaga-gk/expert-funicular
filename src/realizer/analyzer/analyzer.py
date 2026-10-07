@@ -23,9 +23,9 @@ def run(context: RunContext) -> RealizationAnalysis:
     """
     request = context.request
     observation = analysis.analyze_observation(request.package, request.observation) if request.observation else None
-    history = analysis.summarize_history(load_ledger(ledger_path(request.output_dir, context.realization_package_id)))
+    history = analysis.summarize_history(load_ledger(ledger_path(request.state_root, context.realization_package_id)))
     if observation is not None:
         analysis.check_rollback_flag(request.package, history, observation)
     drift = observation is not None and analysis.config_drift(history, observation.observed_config_hash, observation.observed_at_utc)
-    warehouse = read_warehouse_history(request.output_dir, request.package)
+    warehouse = read_warehouse_history(request.state_root, request.package)
     return RealizationAnalysis(observation=observation, history=history, config_drift_observed=drift, warehouse=warehouse)

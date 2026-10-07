@@ -2,6 +2,7 @@
 """Run the Realizer CLI from a checkout without installing it: same arguments as ``python -m realizer``.
 
 Usage: python scripts/run_realizer.py --package <PKG.json> [--observation <file> | --demo] [options]
+       python scripts/run_realizer.py --publisher-run <Publisher run folder or root> --demo [options]
 """
 import sys
 from pathlib import Path
