@@ -22,6 +22,7 @@ from unittest import mock
 
 from tests.unit.realizer.helpers import fixture_package  # noqa: F401  (src/realizer on the path)
 from tests.unit.realizer import fleet_support
+from tests.regression.realizer import invariants
 from tests.unit.realizer.lineage_support import BALANCED, measured, stored_run
 from realizer import fleet
 from realizer import realizer as facade
@@ -97,9 +98,13 @@ class FleetDemoTests(unittest.TestCase):
     def test_a_second_daily_run_continues_the_state_and_writes_the_same_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             state = Path(tmp, "state")
+            # After each day the state and the day's run folder hold the ledger invariants, day 1's ledgers a prefix of day 2's.
+            check = invariants.RunChecker("fleet")
             first = realize_fleet(request(self.root, Path(tmp, "day1"), state))
+            check(None, Path(tmp, "day1"), state=state)
             ledgers = files(state / "realization" / "ledger")
             second = realize_fleet(request(self.root, Path(tmp, "day2"), state))
+            check(None, Path(tmp, "day2"), state=state)
             self.assertEqual(second.manifest_path.read_text(encoding="utf-8"), first.manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(files(state / "realization" / "ledger"), ledgers, "the same observation again appends nothing")
             self.assertEqual(len(list((state / "realization" / "ledger").glob("*.jsonl"))), 3)

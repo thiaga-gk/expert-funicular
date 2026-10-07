@@ -10,6 +10,7 @@ from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 from tests.unit.realizer.helpers import canonical  # noqa: F401  (src/realizer on the path, never a shadowing copy)
 from tests import realizer_world
+from tests.regression.realizer import invariants
 from tests.golden.realizer import e2e
 from realizer.analyzer.projector import project_observation
 from realizer.contracts.realization import make_rpkg_id
@@ -35,9 +36,12 @@ def measured(package: Mapping) -> Dict:
 
 
 def realize_all(runs: Sequence[Tuple[Mapping, Optional[Mapping]]], out: Path) -> None:
-    """Realize each (package, observation) into *out*, in order."""
+    """Realize each (package, observation) into *out*, in order; after each run the state holds the ledger invariants
+    (``tests/regression/realizer/invariants.py``), the ledgers before it being a prefix of those after it."""
+    check = invariants.RunChecker(str(out), before=invariants.ledgers(invariants.read_state(out)))
     for package, observation in runs:
         realize(copy.deepcopy(package), copy.deepcopy(observation), out)
+        check(package, out)
 
 
 def rpkg_file(out: Path, package: Mapping) -> Dict:

@@ -70,7 +70,8 @@ The expectations are about the measurement and the application's conformance; th
 classification are pinned by the stored output only.
 
 Checks: the Realizer stage of every case, run from its stored package, equals ``expected/realizer/`` and passes its
-``expect`` block (fast; worlds and stages are cached per process); a separate test runs the Publisher demo once per
+``expect`` block (fast; worlds and stages are cached per process), and its ledger holds the ledger invariants
+(``tests/regression/realizer/invariants.py``); a separate test runs the Publisher demo once per
 distinct (scope, cost profile) group and compares each stored package. Regenerate with
 ``python scripts/update_realizer_e2e_goldens.py --approved-change "<why>" [--stage publisher|realizer|all] [--case <name>]``
 (``--check`` reports drift and writes nothing).
@@ -131,6 +132,21 @@ class EndToEndCaseTests(unittest.TestCase):
                 case = e2e.load_case(name)
                 failures = e2e.check_expect(name, case, e2e.stored_package(name), produced[name], produced)
                 self.assertEqual(failures, [], f"{case['id']} {name}")
+
+    def test_ledger_invariants(self):
+        # The Realizer stage's state of every case holds the ledger invariants (tests/regression/realizer/invariants.py).
+        from tests.regression.realizer import invariants
+        checked = 0
+        for name in e2e.case_names():
+            with self.subTest(case=name):
+                files = e2e.realizer_stage(name)
+                if "refusal.json" in files:
+                    self.assertEqual(invariants.ledgers(files), {})
+                    continue
+                self.assertTrue(invariants.ledgers(files), f"{name}: no ledger")
+                invariants.assert_state(files, name, packages=[e2e.stored_package(name)])
+                checked += 1
+        self.assertGreater(checked, 0)
 
     def test_the_world_changes_the_package_warehouse_after_its_fleet_epochs(self):
         spec = e2e.world_spec(13, [{"at": "2026-10-01T00:00:00Z", "set": {"size": "X_SMALL"}},

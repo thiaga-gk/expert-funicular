@@ -10,7 +10,9 @@ scenario registry is tests/fixtures/realizer/golden-registry.json.
 """
 import copy
 import datetime as dt
+import importlib
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -20,7 +22,7 @@ from decimal import Decimal
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.regression.realizer import canonical  # noqa: E402
+from tests.regression.realizer import canonical, invariants  # noqa: E402
 canonical.modular()  # src/realizer, never a shadowing copy
 from tests.unit.realizer.helpers import fixture_package  # noqa: E402
 from tests.unit.realizer.lineage_support import AGGRESSIVE, BALANCED, measured, realize_all, rpkg_file, state_index, stored_run  # noqa: E402
@@ -55,6 +57,7 @@ class RealizerGoldenTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.out = Path(self.tmp.name)
         self.pkg = copy.deepcopy(self.package)
+        self.checkers = {}
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -63,7 +66,12 @@ class RealizerGoldenTests(unittest.TestCase):
         return demo_observation(self.pkg, modified=modified)
 
     def realize_case(self, obs=None, *, package=None, policy=None, out=None):
-        return realize(package or self.pkg, obs, out or self.out, policy=policy)
+        """Realize into *out* (the test's directory by default); after each run the state holds the ledger invariants
+        (tests/regression/realizer/invariants.py), its ledgers before the run being a prefix of those after it."""
+        package, out = package or self.pkg, out or self.out
+        result = realize(package, obs, out, policy=policy)
+        self.checkers.setdefault(str(out), invariants.RunChecker(f'{self.id()} {out}'))(package, out)
+        return result
 
     def later(self, obs, *, days=1, new_application=False):
         x = copy.deepcopy(obs)
@@ -557,15 +565,43 @@ class RealizerGoldenTests(unittest.TestCase):
 
 
 class GoldenRegistryTests(unittest.TestCase):
+    """The registry (tests/fixtures/realizer/golden-registry.json, 1.1.0): GR-001..GR-040, each with an existing test,
+    a kind and a non-waivable flag. A non-waivable row (golden-scenarios.md section 3) never rests on a direct function
+    call: it realizes a package (CONTRACT, LINEAGE or END_TO_END)."""
+    KINDS = {'CONTRACT', 'LINEAGE', 'END_TO_END', 'FUNCTION'}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.registry = json.loads((canonical.FIXTURES / 'golden-registry.json').read_text(encoding='utf-8'))
+
     def test_registry_lists_gr_001_to_040_and_each_test_exists(self):
-        registry = json.loads((canonical.FIXTURES / 'golden-registry.json').read_text(encoding='utf-8'))
+        registry = self.registry
+        self.assertEqual(registry['contract_version'], '1.1.0')
         ids = [s['scenario_id'] for s in registry['scenarios']]
         self.assertEqual(ids, [f'GR-{n:03d}' for n in range(1, 41)])
         self.assertEqual(registry['scenario_count'], 40)
         for s in registry['scenarios']:
-            module, cls, method = s['test_id'].rsplit('.', 2)
-            self.assertEqual((module, cls), ('tests.golden.realizer.test_golden_realization', 'RealizerGoldenTests'), s['test_id'])
-            self.assertTrue(hasattr(RealizerGoldenTests, method), s['test_id'])
+            with self.subTest(scenario=s['scenario_id']):
+                self.assertEqual(set(s), {'scenario_id', 'title', 'status', 'kind', 'non_waivable', 'test_id'})
+                module, cls, method = s['test_id'].rsplit('.', 2)
+                self.assertTrue(module.startswith('tests.'), s['test_id'])
+                self.assertTrue(callable(getattr(getattr(importlib.import_module(module), cls, None), method, None)), s['test_id'])
+
+    def test_kinds_and_the_non_waivable_rows(self):
+        rows = self.registry['scenarios']
+        for s in rows:
+            with self.subTest(scenario=s['scenario_id']):
+                self.assertIn(s['kind'], self.KINDS)
+                self.assertIsInstance(s['non_waivable'], bool)
+                if s['non_waivable']:
+                    self.assertNotEqual(s['kind'], 'FUNCTION', 'a non-waivable row must realize a package')
+        # exactly the rows golden-scenarios.md section 3 lists
+        doc = (ROOT / 'docs' / 'proposals' / 'realizer' / 'golden-scenarios.md').read_text(encoding='utf-8')
+        listing = doc.split('## 3. Non-waivable scenarios', 1)[1].strip().split('\n\n', 1)[0]  # the section's first paragraph
+        listed = sorted(set(re.findall(r'GR-\d{3}', listing)))
+        self.assertEqual(len(listed), 17)
+        self.assertEqual(sorted(s['scenario_id'] for s in rows if s['non_waivable']), listed)
+        self.assertEqual([s['scenario_id'] for s in rows if s['kind'] == 'FUNCTION'], ['GR-035', 'GR-036'])
 
 
 if __name__ == '__main__':
