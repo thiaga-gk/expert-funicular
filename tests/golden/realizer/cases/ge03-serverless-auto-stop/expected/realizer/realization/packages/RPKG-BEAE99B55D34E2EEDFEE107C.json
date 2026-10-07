@@ -23,6 +23,14 @@
       "warehouse_size": "SMALL",
       "warehouse_type": "SERVERLESS"
     },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-37E6011721B9158628CF3F95",
+        "effective_from_utc": "2026-10-08T14:32:00Z",
+        "knob": "auto_stop_minutes",
+        "step": 1
+      }
+    ],
     "plan_progress": {
       "applied_steps": 1,
       "authoritative_actionable_steps": 1,
@@ -75,7 +83,7 @@
     "recommendation_attributed_realized_savings": "209.52",
     "validated_observed_realization": "209.52"
   },
-  "contract_version": "1.1.0",
+  "contract_version": "1.2.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
     "realization_state": "REALIZED",
@@ -202,6 +210,12 @@
     "realization_state": "REALIZED",
     "realized_savings_period": "209.52",
     "realized_savings_since_application": "209.52",
+    "realized_to_date": {
+      "days_covered": "28.00",
+      "first_day": "2026-10-09",
+      "last_day": "2026-11-05",
+      "uncovered_days": 0
+    },
     "reoptimization_recommended": false,
     "review_required": false,
     "successful_realized_savings": "209.52"
@@ -212,9 +226,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-64131C88DC6EA470B19FEC38",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-B258D179FD10A57EF56D9F61",
+    "latest_entry_id": "RLE-AA69A05572F6BB323FAD55D4",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:72C441FC1F387161307424E243C4C722072CD984BC081E0C446438C75EAE899D",
+    "ledger_checkpoint_hash": "SHA256:87FE83DB63B08EF729138C697E01AD41E51F885EE8249DA69AD22DB07D6DB326",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -222,16 +236,16 @@
     "state": "REPRESENTATIVE"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.3.0",
-    "attribution_version": "realizer-attribution-v1.2.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.3.0",
-    "exclusivity_version": "realizer-exclusivity-v1.0.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.4.0",
+    "attribution_version": "realizer-attribution-v1.3.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.4.0",
+    "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.2.0",
-    "policy_version": "realizer-policy-v1.3.0",
+    "policy_version": "realizer-policy-v1.4.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.1.0",
-    "realizer_contract_version": "1.1.0",
-    "realizer_version": "1.3.0"
+    "projector_version": "realizer-projector-v1.2.0",
+    "realizer_contract_version": "1.2.0",
+    "realizer_version": "1.4.0"
   },
   "realization_package_id": "RPKG-BEAE99B55D34E2EEDFEE107C",
   "regeneration": {
@@ -239,7 +253,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-74DEF3D6D3FAEF10031280B5",
+  "snapshot_id": "RSNAP-806427109792A735718E3132",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -261,11 +275,12 @@
         }
       ]
     },
+    "successor_package_id": null,
     "superseded_by_package_id": null
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -302,7 +317,7 @@
         "min_sample": "100",
         "observed": "0.3",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
@@ -313,7 +328,7 @@
         "metric": "added_cold_start_share_pct",
         "observed": null,
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "reason": "NO_COLD_START_BUDGET",
         "result": "PASS",
         "rule_id": "REAL-COLD-001",
@@ -321,7 +336,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-B7FEF119CF2C5CC7B2C3D19A",
+    "validation_episode_id": "VAL-BCD4113B98241A81FA855E36",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

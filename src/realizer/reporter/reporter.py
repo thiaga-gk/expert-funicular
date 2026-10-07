@@ -2,7 +2,9 @@
 
 The Reporter presents what the Packager projected: it decides, infers and recomputes nothing and never touches the
 ledger. ``run`` writes the realization package (``realization/packages/<RPKG>.json``) and then the snapshot
-(``realization/snapshots/<RSNAP>.json``), the same canonical JSON in both, after checking it against the committed schema. ``legacy_compatibility`` is the Reporter
+(``realization/snapshots/<RSNAP>.json``), the same canonical JSON in both, after checking it against the committed schema;
+then the same two files for each other lineage of the warehouse the run re-projected, and the warehouse's state index
+(``realization/state/<workspace>__<warehouse>.json``). ``legacy_compatibility`` is the Reporter
 v1.0.0 compatibility projection of a snapshot (nothing on the realize path calls it).
 
 The single-file release's ``.xlsx`` renderer was not carried over: it needs the ``artifact_tool`` runtime and the retired
@@ -11,7 +13,8 @@ Publisher's workbook reporter, and nothing on the realize path calls it. The wor
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 from realizer.common.utils import write_json
 from realizer.contracts import realization as rc
@@ -19,19 +22,32 @@ from realizer.contracts.realization import PackagingResult
 from realizer.contracts.realization_schema import validate_realization_package
 from realizer.contracts.report import RealizationReport
 from realizer.contracts.request import RunContext
+from realizer.packager.lineage import state_index_path
 
 
-def run(context: RunContext, packaged: PackagingResult) -> RealizationReport:
-    """Write the realization package, then the snapshot, from the projected snapshot (the same payload in both)."""
-    snapshot = packaged.realization
+def _write(output_dir: Path, snapshot: rc.RealizationPackage) -> Tuple[Path, Path]:
+    """Write a realization package, then its snapshot (the same payload in both); return the two paths."""
     payload = snapshot.to_dict()
     validate_realization_package(payload)
-    output_dir = context.request.output_dir
-    package_path = output_dir / "realization" / "packages" / f"{context.realization_package_id}.json"
+    package_path = output_dir / "realization" / "packages" / f"{snapshot.realization_package_id}.json"
     snapshot_path = output_dir / "realization" / "snapshots" / f"{snapshot.snapshot_id}.json"
     write_json(package_path, payload)
     write_json(snapshot_path, payload)
-    return RealizationReport(realization=snapshot, files=(package_path, snapshot_path))
+    return package_path, snapshot_path
+
+
+def run(context: RunContext, packaged: PackagingResult) -> RealizationReport:
+    """Write the realization package, then the snapshot, from the projected snapshot (the same payload in both); then
+    the re-projected other lineages' files and the state index."""
+    output_dir = context.request.output_dir
+    files: List[Path] = list(_write(output_dir, packaged.realization))
+    for other in packaged.others:
+        files.extend(_write(output_dir, other))
+    if packaged.state_index is not None:
+        path = state_index_path(output_dir, context.request.package)
+        write_json(path, packaged.state_index)
+        files.append(path)
+    return RealizationReport(realization=packaged.realization, files=tuple(files))
 
 
 # ---------------------------------------------------------------------------

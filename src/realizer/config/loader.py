@@ -18,7 +18,7 @@ from publisher.reviewer.package import validate_locked_package_schema
 import json
 
 from realizer.common.errors import InputError
-from realizer.common.utils import load_json, utc_iso
+from realizer.common.utils import load_json, parse_utc, utc_iso
 from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
@@ -60,7 +60,7 @@ def validate_replay_through(value: Optional[str], package: Mapping[str, Any]) ->
     except (TypeError, ValueError):
         raise InputError("replay cut (--replay-through) is not an ISO-8601 time") from None
     generated = (package.get("provenance") or {}).get("generated_at")
-    if generated and dt.datetime.fromisoformat(cut.replace("Z", "+00:00")) < dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00")):
+    if generated and parse_utc(cut) < parse_utc(generated):
         raise InputError(f"replay cut {cut} is before the package was generated ({generated}): nothing to project")
     return cut
 
@@ -126,8 +126,9 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
     strict types, enumerated vocabularies); the observation names the package's workspace and warehouse; its times are
     ISO-8601 with a UTC offset and ordered (applied at or before observed, window start at or before window end, window end at or before observed);
     measured economics come with a window; their cost components agree with their costs (``_check_components``);
-    ``applied_scenario_id`` names a scenario of the package; the observed warehouse type is a supported one. The messages
-    name the failing field, never its value, except ids and the type.
+    ``applied_scenario_id`` names a scenario of the package; a ``replacement_package_id`` (a package id in the contract
+    format, checked by the schema) is not the package itself; the observed warehouse type is a supported one. The
+    messages name the failing field, never its value, except ids and the type.
     """
     import jsonschema  # a gate that cannot run must not pass; jsonschema is a declared dependency
 
@@ -160,6 +161,8 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
     scenario = observation["applied_scenario_id"]
     if scenario is not None and scenario not in {s["scenario_id"] for s in package["scenarios"]}:
         raise InputError(f"applied_scenario_id {scenario} names no scenario of the package")
+    if observation["replacement_package_id"] == package["recommendation_package_id"]:
+        raise InputError(f"replacement_package_id {observation['replacement_package_id']} is the package itself: a package cannot replace itself")
     observed_type = observation["config"]["warehouse_type"].strip().upper()
     if observed_type not in SUPPORTED_WAREHOUSE_TYPES:
         raise InputError(f"unsupported warehouse type observed: {observed_type}")

@@ -29,7 +29,7 @@ realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --d
 realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json --demo-modified --output-dir ./realizer_out_modified
 ```
 
-Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
+Each run prints the path of the written realization package, `<output-dir>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json`; `--print-json` prints the snapshot instead. The other files go under `<output-dir>/realization/` (`ledger/`, `evidence/`, `regeneration/`, `snapshots/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share one. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
 
 ## Expected result
 
@@ -39,9 +39,9 @@ Both variants realize the same package, so the realization package ID is the sam
 
 ```text
 RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-96664E712C482CE6E54690E3
+RSNAP RSNAP-73D5B591D24C9C3AD102920E
 REVID REVID-37F7F275591908182339F44B
-RERUN RERUN-FD16E8E513742D642187719F
+RERUN RERUN-0FCAA3465636EE32333525D0
 ```
 
 ```text
@@ -56,9 +56,9 @@ denominator_source          = PUBLISHER_CANDIDATE
 
 ```text
 RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-89C9665DBDDE7243573DA452
+RSNAP RSNAP-3297523D4A5B8E7CFEC8B5E5
 REVID REVID-0054A9DB9BEB251DB6B705DA
-RERUN RERUN-BD9345E1464964A8853B67FD
+RERUN RERUN-6A24F009F8BEB67A7129E53A
 ```
 
 ```text

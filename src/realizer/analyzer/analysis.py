@@ -8,9 +8,10 @@ and with the same failure modes, gathered here.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.common.utils import decimal, utc_iso
+from realizer.common.errors import InputError
+from realizer.common.utils import decimal, parse_utc, utc_iso
 from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
@@ -161,16 +162,103 @@ def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
 
 
+# The lifecycle events that end application episodes: a drift ends every episode open when it is recorded (the plan
+# stops), an observed rollback the episode it names and the episodes its payload lists (``rolled_back_episode_ids``).
+CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
+APPLICATION_EVENTS = (rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
+
+
+def episodes(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str, Dict[str, Any]]:
+    """Every application episode of a ledger (*entries* in recorded order), in the order it started:
+    ``{episode id: {"application": its first application entry, "closers": the drifts and observed rollbacks that closed
+    it, in recorded order}}``. An episode without a closer is open; a closed one never absorbs a new application. Several
+    episodes are open at once when a plan's steps were applied one after another."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        episode = entry.application_episode_id
+        if entry.event_type in APPLICATION_EVENTS and episode and episode not in out:
+            out[episode] = {"application": entry, "closers": []}
+        elif entry.event_type == rc.EventType.DRIFT_DETECTED:
+            closed = {e for e, v in out.items() if not v["closers"]} | ({episode} if episode in out else set())
+            for e in closed:
+                out[e]["closers"].append(entry)
+        elif entry.event_type == rc.EventType.ROLLBACK_OBSERVED:
+            for e in {episode, *(entry.payload.get("rolled_back_episode_ids") or [])}:
+                if e in out:
+                    out[e]["closers"].append(entry)
+    return out
+
+
+def open_applications(entries: Sequence[rc.RealizationLedgerEntry]) -> Tuple[rc.RealizationLedgerEntry, ...]:
+    """The first application entry of every open episode, in the order they started."""
+    return tuple(v["application"] for v in episodes(entries).values() if not v["closers"])
+
+
+def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Optional[rc.RealizationLedgerEntry], *,
+                  first: bool = False) -> Optional[rc.RealizationLedgerEntry]:
+    """The latest (*first*: the earliest) drift or observed rollback that closed *application*'s episode (*entries* in
+    recorded order); ``None`` while the episode is open."""
+    if application is None:
+        return None
+    closers = (episodes(entries).get(application.application_episode_id) or {}).get("closers") or []
+    return (closers[0] if first else closers[-1]) if closers else None
+
+
 def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> RealizationHistory:
-    """The history view of a loaded ledger (recorded order): its latest application and latest measurement."""
+    """The history view of a loaded ledger (recorded order): its latest application, whether that application's episode
+    is closed, the episodes still open and its latest measurement."""
+    previous = latest_event(entries, *APPLICATION_EVENTS)
     return RealizationHistory(
         entries=tuple(entries),
-        previous_application=latest_event(entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED),
+        previous_application=previous,
         prior_measurement=latest_event(entries, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED),
+        closure=closing_event(entries, previous),
+        open_applications=open_applications(entries),
     )
+
+
+def applied_sources(package: Mapping[str, Any], app_payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """The source value (the package's, in the Publisher's spelling) of each knob an application changed: the step's knob
+    for a step application, every applied step's knob for a scenario-scope one."""
+    if app_payload.get("application_scope") == "SCENARIO":
+        steps = {step.get("step"): step for step in candidate_steps(package, app_payload.get("scenario_id"))}
+        applied = [steps[ref.get("step")] for ref in app_payload.get("applied_step_refs") or [] if ref.get("step") in steps]
+        pairs = [(step.get("knob"), step.get("current_value")) for step in applied]
+    else:
+        pairs = [(app_payload.get("knob"), app_payload.get("source_value"))]
+    return {str(knob): normalize_value(str(knob), value) for knob, value in pairs if knob is not None}
+
+
+def back_at_source(package: Mapping[str, Any], app_payload: Mapping[str, Any], observed: Mapping[str, Any]) -> bool:
+    """Whether the observed configuration rolled the application back: every knob it changed is at its source value
+    again. A package's own safety-rollback step is an application like any other, so rolling it back means returning to
+    the value it replaced."""
+    sources = applied_sources(package, app_payload)
+    return bool(sources) and all(observed.get(knob) == value for knob, value in sources.items())
+
+
+def check_rollback_flag(package: Mapping[str, Any], history: RealizationHistory, observation: ObservationAnalysis) -> None:
+    """Refuse (``InputError``) an observation whose ``rollback_observed`` flag contradicts its configuration.
+
+    The configuration governs whether a change was rolled back; the flag is only checked against it. A flag set while the
+    configuration is not back at the source value of the previous application (with no application yet: while a knob
+    of the plan's steps differs from the package's configuration) is refused before anything for the observation is
+    written. A flag left unset on a configuration that is back at the source value is not refused: it is a rollback.
+    """
+    if not observation.raw.get("rollback_observed"):
+        return
+    previous = history.previous_application
+    if previous is not None:
+        rolled_back = back_at_source(package, previous.payload, observation.observed_config)
+    else:
+        source = package_config(package)
+        knobs = {str(step.get("knob")) for step in plan_steps(package) if step.get("knob") is not None}
+        rolled_back = all(observation.observed_config.get(knob) == source.get(knob) for knob in knobs)
+    if not rolled_back:
+        raise InputError("observation rollback_observed contradicts its configuration, which is not back at the source value of the applied change")
 
 
 def config_drift(history: RealizationHistory, observed_hash: str, observed_at_utc: str) -> bool:
     """Whether the observed configuration differs from the previous application's and is newer than its record."""
     previous = history.previous_application
-    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and observed_at_utc > previous.recorded_at_utc)
+    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and parse_utc(observed_at_utc) > parse_utc(previous.recorded_at_utc))

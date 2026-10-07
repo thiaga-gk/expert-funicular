@@ -1,10 +1,11 @@
 """Realization ledger: where a package's ledger lives, loading it, building and appending its entries, and the ordered
 commit of one run's events.
 
-Moved from the single-file Realizer. The path layout, loading and the latest-event lookup are the read side (the
-Analyzer reads prior history through them); ``make_ledger_entry``, ``append_if_absent`` (which reloads the file for
-every append, so a repeated event is suppressed, and logs ``ledger.append`` and ``ledger.duplicate_suppressed``) and
-``ledger_checkpoint`` are the write side. ``commit_events`` records what the capabilities decided, in the order the
+Moved from the single-file Realizer. The path layout, loading (in ledger order: recorded time, then append order) and
+the latest-event lookup are the read side (the Analyzer reads prior history through them); ``ledger_lock`` is the
+advisory lock a run holds on its ledger, under which a truncated last line is quarantined; ``make_ledger_entry``,
+``append_if_absent`` (which reloads the file for every append, so a repeated event is suppressed, and logs
+``ledger.append`` and ``ledger.duplicate_suppressed``) and ``ledger_checkpoint`` are the write side. ``commit_events`` records what the capabilities decided, in the order the
 single-file Realizer recorded it: the evidence file (REVID), drift, the application events, intent, rollback,
 supersession, then either the terminal regeneration or the validation episode, the counterfactual, the measurement, its
 billing correction and the downstream regeneration. The capabilities hand over facts, never events; the order lives
@@ -13,15 +14,18 @@ the ledger it always left.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
+import fcntl
 import json
 import os
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.common.errors import LedgerError
+from realizer.common.errors import LedgerError, LedgerLockedError
 from realizer.common.logging import LOGGER
-from realizer.common.utils import utc_iso, write_json
+from realizer.common.utils import parse_utc, utc_iso, write_json
 from realizer.config.settings import POLICY_VERSION, PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import MeasurementFacts, ReviewResult
@@ -34,27 +38,161 @@ def ledger_path(output_dir: Path, rpkg_id: str) -> Path:
     return output_dir / "realization" / "ledger" / f"{rpkg_id}.jsonl"
 
 
+def _parse_entry(line: str) -> rc.RealizationLedgerEntry:
+    raw = json.loads(line)
+    raw["event_type"] = rc.EventType(raw["event_type"])
+    entry = rc.RealizationLedgerEntry(**raw)
+    entry.validate()
+    return entry
+
+
+def _trailing_entry(fragment: bytes) -> Optional[rc.RealizationLedgerEntry]:
+    """The entry an unterminated last line holds, ``None`` when it holds none (a write cut short)."""
+    try:
+        return _parse_entry(fragment.decode("utf-8"))
+    except (ValueError, TypeError, KeyError):  # json.JSONDecodeError and UnicodeDecodeError are ValueErrors
+        return None
+
+
+def _read(path: Path) -> Tuple[bytes, bytes]:
+    """The ledger's bytes through its last newline, and the unterminated bytes after it (empty when the file ends with a
+    newline)."""
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise LedgerError(f"ledger {path.name} cannot be read ({type(exc).__name__})") from exc
+    cut = data.rfind(b"\n") + 1
+    return data[:cut], data[cut:]
+
+
 def load_ledger(path: Path) -> List[rc.RealizationLedgerEntry]:
+    """The entries of the ledger at *path* in ledger order (``in_ledger_order``); empty when there is no ledger.
+
+    Every newline-terminated line must be a valid entry, or ``LedgerError`` names the file and line. An unterminated last
+    line (a write cut short, which only the lock holder repairs: ``ledger_lock``) is read when it is a valid entry and
+    otherwise ignored; the file is never changed here.
+    """
     if not path.exists():
         return []
     entries: List[rc.RealizationLedgerEntry] = []
+    body, fragment = _read(path)
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
         raise LedgerError(f"ledger {path.name} cannot be read ({type(exc).__name__})") from exc
     for line_no, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
         try:
-            raw = json.loads(line)
-            raw["event_type"] = rc.EventType(raw["event_type"])
-            entry = rc.RealizationLedgerEntry(**raw)
-            entry.validate()
+            entry = _parse_entry(line)
         except (ValueError, TypeError, KeyError) as exc:  # json.JSONDecodeError is a ValueError
             raise LedgerError(f"ledger {path.name} line {line_no} is not a valid ledger entry ({type(exc).__name__})") from exc
         entries.append(entry)
-    # recorded time governs projection order; RLE id is deterministic tie-break.
-    return sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    trailing = _trailing_entry(fragment) if fragment.strip() else None
+    if trailing is not None:
+        entries.append(trailing)
+    return in_ledger_order(entries)
+
+
+def in_ledger_order(entries: Sequence[rc.RealizationLedgerEntry]) -> List[rc.RealizationLedgerEntry]:
+    """*entries* in projection order: recorded time (parsed, never compared as text), then the order given, which for a
+    loaded ledger is its append order (the file sequence). The entry id never breaks a tie: at equal recorded time the
+    entry appended last is the latest, so a window measured again keeps its newer value."""
+    return sorted(entries, key=lambda x: parse_utc(x.recorded_at_utc))
+
+
+# ---------------------------------------------------------------------------
+# The lock a run holds on its ledger, and the repair of a truncated last line under it
+# ---------------------------------------------------------------------------
+
+# How long a run waits for the lock of a ledger another run holds, and how often it tries, before it refuses.
+LOCK_WAIT_SECONDS = 2.0
+LOCK_POLL_SECONDS = 0.05
+
+
+def lock_path(path: Path) -> Path:
+    """The lock file of the ledger at *path*: next to it, present only while a run holds the lock."""
+    return path.with_name(path.name + ".lock")
+
+
+def quarantine_path(path: Path) -> Path:
+    """Where the unterminated last line of the ledger at *path* is moved when it is not a valid entry."""
+    return path.with_name(path.name + ".quarantine")
+
+
+def _fsync(fh: Any) -> None:
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def repair_trailing_line(path: Path) -> None:
+    """Make the ledger at *path* end with a newline; called only under its lock (``ledger_lock``).
+
+    An unterminated last line that is a valid entry gets its newline. One that is not (a write cut short) is appended to
+    the quarantine file (``quarantine_path``) and the ledger is truncated to its last newline; ``ledger.quarantined`` is
+    logged with the byte count, never the content. Nothing else is repaired: a malformed newline-terminated line fails
+    here (``LedgerError``, as the load does) and the file is left as it is.
+    """
+    if not path.exists():
+        return
+    body, fragment = _read(path)
+    if not fragment:
+        return
+    load_ledger(path)  # the terminated lines must all be valid before the last one is touched
+    if _trailing_entry(fragment) is not None:
+        with path.open("ab") as fh:
+            fh.write(b"\n")
+            _fsync(fh)
+        return
+    with quarantine_path(path).open("ab") as fh:
+        fh.write(fragment + b"\n")
+        _fsync(fh)
+    with path.open("r+b") as fh:
+        fh.truncate(len(body))
+        _fsync(fh)
+    LOGGER.warning("ledger.quarantined ledger=%s bytes=%d", path.name, len(fragment))
+
+
+@contextlib.contextmanager
+def ledger_lock(path: Path) -> Iterator[None]:
+    """Hold the advisory lock of the ledger at *path* for the block, then release it.
+
+    The lock is an exclusive ``flock`` on ``lock_path``, tried without blocking every ``LOCK_POLL_SECONDS`` for up to
+    ``LOCK_WAIT_SECONDS``; a ledger still locked after that raises ``LedgerError`` ("locked by another run"). Holding it,
+    the ledger's truncated last line is repaired first (``repair_trailing_line``). On release the lock file is removed;
+    a run that opened it meanwhile notices on acquiring that the file at the path is no longer the one it locked, and
+    tries again.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock = lock_path(path)
+    deadline = time.monotonic() + LOCK_WAIT_SECONDS
+    while True:
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            if time.monotonic() >= deadline:
+                raise LedgerLockedError(f"ledger {path.name} is locked by another run") from None
+            time.sleep(LOCK_POLL_SECONDS)
+            continue
+        try:
+            current = os.stat(lock).st_ino == os.fstat(fd).st_ino
+        except FileNotFoundError:
+            current = False
+        if current:
+            break
+        os.close(fd)  # the run that held it removed the file on release: lock the file now at the path
+    try:
+        repair_trailing_line(path)
+        yield
+    finally:
+        try:
+            os.unlink(lock)
+        except FileNotFoundError:
+            pass
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def latest_event(entries: Sequence[rc.RealizationLedgerEntry], *types: rc.EventType) -> Optional[rc.RealizationLedgerEntry]:
@@ -135,6 +273,9 @@ def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
     if entry.ledger_entry_id in existing:
         LOGGER.info("ledger.duplicate_suppressed rle=%s", entry.ledger_entry_id)
         return False
+    if path.exists() and _read(path)[1]:
+        # Appending would join the entry to an unterminated last line; only the lock holder repairs it (``ledger_lock``).
+        raise LedgerError(f"ledger {path.name} ends with an unterminated line")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
         fh.write(rc.canonical_json(entry.to_dict()) + "\n")
@@ -145,7 +286,7 @@ def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
 
 
 def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str, Any]:
-    ordered = sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    ordered = in_ledger_order(entries)
     ids = [e.ledger_entry_id for e in ordered]
     digest = "SHA256:" + rc.sha256_hex({"ordered_entry_ids": ids})
     return {
@@ -153,7 +294,7 @@ def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str,
         "first_entry_id": ids[0] if ids else None,
         "latest_entry_id": ids[-1] if ids else None,
         "latest_recorded_at_utc": ordered[-1].recorded_at_utc if ordered else None,
-        "latest_effective_at_utc": max((e.effective_at_utc for e in ordered), default=None),
+        "latest_effective_at_utc": max((e.effective_at_utc for e in ordered), key=parse_utc, default=None),
         "ledger_checkpoint_hash": digest,
     }
 
@@ -179,7 +320,6 @@ def measurement_payload(measurement: MeasurementFacts, recognition_status: Optio
         "economics": measurement.economics,
         "attribution": measurement.attribution,
         "realization_state": measurement.realization_state,
-        "mature_ttm_realized_savings": measurement.mature_ttm_realized_savings,
         "correction_status": measurement.correction_status,
     }
 
@@ -291,18 +431,21 @@ def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ..
 
     # Lifecycle: drift, the application events, intent, rollback, supersession.
     if reconciliation.drift is not None:
-        record(rc.EventType.DRIFT_DETECTED, effective, reconciliation.drift, [revid], application_episode_id=reconciliation.drift_episode_id)
+        record(rc.EventType.DRIFT_DETECTED, reconciliation.drift["effective_from_utc"], reconciliation.drift, [revid], application_episode_id=reconciliation.drift_episode_id)
     for planned in reconciliation.applications:
         record(planned.event_type, effective, planned.payload, [revid], application_episode_id=planned.application_episode_id)
     if reconciliation.intent is not None:
         record(rc.EventType.INTENT_RECORDED, effective, reconciliation.intent, [], application_episode_id=reconciliation.intent_episode_id)
     if reconciliation.rollback_requested is not None:
-        record(rc.EventType.ROLLBACK_REQUESTED, effective, reconciliation.rollback_requested, [revid], application_episode_id=reconciliation.rollback_episode_id)
+        record(rc.EventType.ROLLBACK_REQUESTED, reconciliation.rollback_requested["effective_from_utc"], reconciliation.rollback_requested, [revid], application_episode_id=reconciliation.rollback_episode_id)
     if reconciliation.rollback_observed is not None:
-        record(rc.EventType.ROLLBACK_OBSERVED, effective, reconciliation.rollback_observed, [revid], application_episode_id=reconciliation.rollback_episode_id)
+        record(rc.EventType.ROLLBACK_OBSERVED, reconciliation.rollback_observed["effective_from_utc"], reconciliation.rollback_observed, [revid], application_episode_id=reconciliation.rollback_episode_id)
     if reconciliation.replacement_package_id:
         record(rc.EventType.SOURCE_PACKAGE_SUPERSEDED, effective, replacement_payload(reconciliation.replacement_package_id), [])
         record(rc.EventType.REPLACEMENT_PACKAGE_LINKED, effective, replacement_payload(reconciliation.replacement_package_id), [])
+    if reconciliation.step_regeneration is not None:
+        append_regeneration(package, output_dir, reconciliation.step_regeneration, recorded, effective)
+        written.append(regeneration_path(output_dir, reconciliation.step_regeneration.regeneration_request_id))
     if reconciliation.halt is not None:
         raise reconciliation.halt
 

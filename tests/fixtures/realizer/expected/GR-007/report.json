@@ -2,7 +2,7 @@
   "realization_summary": [
     {
       "annualized_realized_savings": null,
-      "application_json": "{\"active_episode_id\":null,\"actor\":null,\"annotations\":[],\"application_scope\":null,\"applied_step_refs\":[],\"compatibility_status\":null,\"effective_from_utc\":null,\"effective_time_quality\":null,\"effective_to_utc\":null,\"implementation_conformance\":\"NOT_APPLIED\",\"intent_state\":\"UNKNOWN\",\"knob\":null,\"modification_relation\":null,\"observed_applied_value\":null,\"observed_config\":null,\"plan_progress\":{\"applied_steps\":0,\"authoritative_actionable_steps\":2,\"pending_reevaluation_steps\":1,\"state\":\"NOT_STARTED\"},\"recommended_value\":null,\"scenario_id\":null,\"source_value\":null,\"state\":\"NOT_APPLIED\",\"step\":null,\"step_role\":null}",
+      "application_json": "{\"active_episode_id\":null,\"actor\":null,\"annotations\":[],\"application_scope\":null,\"applied_step_refs\":[],\"compatibility_status\":null,\"effective_from_utc\":null,\"effective_time_quality\":null,\"effective_to_utc\":null,\"implementation_conformance\":\"NOT_APPLIED\",\"intent_state\":\"UNKNOWN\",\"knob\":null,\"modification_relation\":null,\"observed_applied_value\":null,\"observed_config\":null,\"open_episodes\":[],\"plan_progress\":{\"applied_steps\":0,\"authoritative_actionable_steps\":2,\"pending_reevaluation_steps\":1,\"state\":\"NOT_STARTED\"},\"recommended_value\":null,\"scenario_id\":null,\"source_value\":null,\"state\":\"NOT_APPLIED\",\"step\":null,\"step_role\":null}",
       "application_scope": null,
       "application_state": "NOT_APPLIED",
       "as_of_utc": "2026-10-09T12:00:00Z",
@@ -28,7 +28,7 @@
       "recommended_value": null,
       "regeneration_status": "NOT_REQUIRED",
       "replacement_package_id": null,
-      "snapshot_id": "RSNAP-7D729171A01AA48DE8C659D8",
+      "snapshot_id": "RSNAP-73C2571E55DFE8C6E0D84040",
       "source_package_disposition": "ACTIVE",
       "validation_json": "{\"readiness\":null,\"rules\":[],\"state\":\"NOT_READY\"}",
       "validation_state": "NOT_READY",

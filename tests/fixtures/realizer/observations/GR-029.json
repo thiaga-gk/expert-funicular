@@ -28,10 +28,8 @@
           "dbu_realized": null,
           "economic_basis": "ECONOMIC_COST",
           "expected_annual_savings_actual_scope": "12000",
-          "mature_ttm_realized_savings": null,
           "observed_new_cost": "11000",
-          "period_days": 30,
-          "realized_savings_since_application": null
+          "period_days": 30
         },
         "effective_time_quality": "OBSERVED_AT_ONLY",
         "elapsed_days": 8,
@@ -46,7 +44,7 @@
         "intent_reference": null,
         "intent_state": "ACCEPTED",
         "measurement": null,
-        "observation_format_version": "2.2.0",
+        "observation_format_version": "3.0.0",
         "observed_at_utc": "2026-10-09T12:00:00Z",
         "origin_attribution": "CONFIRMED",
         "overlap_count": 0,

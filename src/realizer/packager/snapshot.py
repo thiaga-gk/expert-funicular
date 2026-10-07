@@ -1,7 +1,7 @@
 """Snapshot projection: the realization state of a package, folded from its ledger.
 
-``project_snapshot`` is moved whole and unchanged from the single-file Realizer: it folds lifecycle precedence
-(rollback, then drift, then applied), plan progress, validation, realization and maturity state and regeneration status
+``project_snapshot`` is moved whole from the single-file Realizer: it folds lifecycle precedence (the drift or observed
+rollback that closed the active application episode, else applied), plan progress, validation, realization and maturity state and regeneration status
 over every entry, so splitting it would risk the snapshot identity (RSNAP-*) drifting. It reads the ledger entries it is
 given and the immutable source package; it decides nothing new and writes nothing.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from realizer.analyzer.analysis import candidate_steps
+from realizer.analyzer.analysis import candidate_steps, episodes
 from realizer.config.settings import (
     ANALYZER_GATEWAY_VERSION,
     ATTRIBUTION_VERSION,
@@ -24,11 +24,13 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import authority_eligible
-from realizer.packager.ledger import latest_event, ledger_checkpoint, source_scope
+from realizer.packager import lineage_projection
+from realizer.packager.to_date import measured_window, realized_to_date
+from realizer.packager.ledger import in_ledger_order, latest_event, ledger_checkpoint, source_scope
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
-    ordered = sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    ordered = in_ledger_order(entries)
     cp = ledger_checkpoint(ordered)
     if not ordered:
         raise ValueError("cannot project empty ledger")
@@ -42,17 +44,35 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     app_events = [e for e in ordered if e.event_type in {rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED, rc.EventType.INDEPENDENT_CHANGE_OBSERVED}]
     # Only an application of a plan step is an application; an independent change never is, whatever its step.
     auth_apps = [e for e in app_events if e.event_type != rc.EventType.INDEPENDENT_CHANGE_OBSERVED and e.payload.get("authority_eligible")]
-    app = auth_apps[-1] if auth_apps else None
-    validation = latest_event(ordered, rc.EventType.VALIDATION_COMPLETED)
-    measurement = latest_event(ordered, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
-    drift = latest_event(ordered, rc.EventType.DRIFT_DETECTED)
-    rollback = latest_event(ordered, rc.EventType.ROLLBACK_OBSERVED)
-    regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
+    # The application shown is the open episode of the plan's earliest applied step (the one measured; several are open
+    # when the plan's steps were applied one after another), else the latest application. Its own validation and
+    # measurements are the ones shown: an earlier episode's are history.
+    lineage = episodes(ordered)
+    open_apps = [v["application"] for v in lineage.values() if not v["closers"] and v["application"].payload.get("authority_eligible")]
+    app = min(open_apps, key=lambda e: int(e.payload.get("step") or 0)) if open_apps else (auth_apps[-1] if auth_apps else None)
+    own = [e for e in ordered if app is not None and e.application_episode_id == app.application_episode_id]
+    validation = latest_event(own, rc.EventType.VALIDATION_COMPLETED)
+    measurement = latest_event(own, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
+    to_date = realized_to_date([w for w in (measured_window(m.payload.get("window_start_utc"), m.payload.get("window_end_utc"),
+                                                               (m.payload.get("economics") or {}).get("realized_savings_period"))
+                                            for m in own if m.event_type == rc.EventType.ECONOMIC_MEASUREMENT_RECORDED
+                                            and (m.payload.get("economics") or {}).get("available")) if w is not None])
+    # The active episode's state: the drift or observed rollback that closed it, if any. An earlier episode's closure
+    # (a drift or rollback before the configuration was applied again) is history, never the active episode's state.
+    closers = (lineage.get(app.application_episode_id) or {}).get("closers") or [] if app is not None else []
+    closure = closers[-1] if closers else None
+    # The applied interval ends at the first closing event (a rollback after a drift ends nothing more), at the time it
+    # took effect (an entry recorded before that time was stated carries only its effective time).
+    first_closure = closers[0] if closers else None
+    closed_at = (first_closure.payload.get("effective_from_utc") or first_closure.effective_at_utc) if first_closure is not None else None
+    drift = closure if closure is not None and closure.event_type == rc.EventType.DRIFT_DETECTED else None
+    rollback = closure if closure is not None and closure.event_type == rc.EventType.ROLLBACK_OBSERVED else None
+    regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED)
     superseded = latest_event(ordered, rc.EventType.SOURCE_PACKAGE_SUPERSEDED)
 
-    if rollback and (not app or rollback.recorded_at_utc >= app.recorded_at_utc):
+    if rollback:
         app_state = rc.ApplicationState.ROLLED_BACK.value
-    elif drift and app and drift.recorded_at_utc >= app.recorded_at_utc:
+    elif drift:
         app_state = rc.ApplicationState.DRIFTED.value
     elif app:
         app_state = rc.ApplicationState.APPLIED.value
@@ -61,7 +81,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
 
     projected_scenario_id = app.payload.get("scenario_id") if app else (package.get("recommended_plan") or {}).get("scenario_id")
     steps = candidate_steps(package, projected_scenario_id)
-    applied_refs = {(e.payload.get("scenario_id"), e.payload.get("step")) for e in auth_apps if e.payload.get("implementation_conformance") in {"EXACT", "MODIFIED"}}
+    # The steps applied: those the open episodes hold while any is open, else every application's.
+    applied_refs = {(e.payload.get("scenario_id"), e.payload.get("step")) for e in (open_apps or auth_apps) if e.payload.get("implementation_conformance") in {"EXACT", "MODIFIED"}}
     eligible_steps = [s for s in steps if authority_eligible(s)]
     if app and app.payload.get("application_scope") == "SCENARIO":
         applied_step_refs = {(x.get("scenario_id"), x.get("step")) for x in app.payload.get("applied_step_refs", [])}
@@ -79,9 +100,9 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     val_state = rc.ValidationState.NOT_READY.value
     if validation:
         val_state = rc.ValidationState.PASSED.value if validation.payload.get("hard_guardrails_pass") else rc.ValidationState.FAILED.value
-    elif latest_event(ordered, rc.EventType.VALIDATION_STARTED):
+    elif latest_event(own, rc.EventType.VALIDATION_STARTED):
         val_state = rc.ValidationState.RUNNING.value
-    elif latest_event(ordered, rc.EventType.VALIDATION_READY):
+    elif latest_event(own, rc.EventType.VALIDATION_READY):
         val_state = rc.ValidationState.READY.value
 
     if app_state == rc.ApplicationState.ROLLED_BACK.value:
@@ -104,24 +125,29 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     if not app:
         maturity = rc.MaturityState.NOT_APPLIED.value
     elif measurement and validation and validation.payload.get("readiness", {}).get("ready"):
-        maturity = rc.MaturityState.MATURE.value if measurement.payload.get("mature_ttm_realized_savings") is not None else rc.MaturityState.REPRESENTATIVE.value
+        maturity = rc.MaturityState.MATURE.value if to_date is not None and to_date["mature"] else rc.MaturityState.REPRESENTATIVE.value
     elif measurement:
         maturity = rc.MaturityState.PROVISIONAL.value
     else:
         maturity = rc.MaturityState.COLLECTING.value
 
-    attr = (measurement.payload.get("attribution") if measurement else None) or {
+    attr = lineage_projection.attribution((measurement.payload.get("attribution") if measurement else None) or {
         "origin_attribution": (app.payload.get("origin_attribution") if app else "UNKNOWN"),
         "attribution_state": "NOT_ATTRIBUTABLE",
         "attribution_claim_status": "NOT_ATTRIBUTABLE",
         "validated_observed_realization": None,
         "recommendation_attributed_realized_savings": "0.00",
-    }
+    }, ordered, app.application_episode_id if app else None)
+    if to_date is not None and attr.get("attribution_claim_status") == "CLAIMABLE":
+        # A claim covers what was realized to date, not one window: an episode closed by a rollback or a drift keeps
+        # its claim for the interval it was in force.
+        attr = {**attr, "recommendation_attributed_realized_savings": to_date["realized_to_date"]}
 
-    replacement = latest_event(ordered, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
-    regen_status = rc.RegenerationStatus.NOT_REQUIRED.value
-    if regen:
-        regen_status = rc.RegenerationStatus.REPLACED.value if regen.event_type == rc.EventType.REPLACEMENT_PACKAGE_LINKED else rc.RegenerationStatus.REQUESTED.value
+    replacement = lineage_projection.replacement(ordered)
+    # A linked replacement fulfils any regeneration request, whichever was recorded first (the order the packages were
+    # realized in never decides it); else a request recorded makes it REQUESTED.
+    regen_status = (rc.RegenerationStatus.REPLACED.value if replacement is not None
+                    else rc.RegenerationStatus.REQUESTED.value if regen is not None else rc.RegenerationStatus.NOT_REQUIRED.value)
 
     source = {
         "recommendation_package_id": package["recommendation_package_id"],
@@ -132,6 +158,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "generated_at_utc": (package.get("provenance") or {}).get("generated_at"),
         "disposition": rc.SourcePackageDisposition.SUPERSEDED.value if superseded else rc.SourcePackageDisposition.ACTIVE.value,
         "superseded_by_package_id": (replacement.payload.get("replacement_package_id") if replacement else None),
+        "successor_package_id": lineage_projection.successor_package_id(ordered),
         **source_scope(package),
     }
     app_section = {
@@ -143,6 +170,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
             "pending_reevaluation_steps": pending_count,
         },
         "active_episode_id": app.application_episode_id if app else None,
+        "open_episodes": [{"application_episode_id": e.application_episode_id, "step": e.payload.get("step"), "knob": e.payload.get("knob"),
+                           "effective_from_utc": e.payload.get("effective_from_utc")} for e in open_apps],
         "application_scope": app.payload.get("application_scope", "CANDIDATE") if app else None,
         "applied_step_refs": app.payload.get("applied_step_refs", []) if app else [],
         "implementation_conformance": app.payload.get("implementation_conformance") if app else "NOT_APPLIED",
@@ -158,7 +187,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "observed_applied_value": app.payload.get("observed_value") if app else None,
         "observed_config": app.payload.get("observed_config") if app else None,
         "effective_from_utc": app.payload.get("effective_from_utc") if app else None,
-        "effective_to_utc": rollback.effective_at_utc if rollback else drift.effective_at_utc if drift else None,
+        "effective_to_utc": closed_at,
         "effective_time_quality": app.payload.get("effective_time_quality") if app else None,
         "intent_state": app.payload.get("intent_state", "UNKNOWN") if app else "UNKNOWN",
         "actor": app.payload.get("actor") if app else None,
@@ -172,6 +201,15 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "expected_same_scope_annual_savings": None,
         "realization_ratio": None,
     }
+    if measurement is not None and econ_section.get("available"):
+        # Realized to date and the trailing twelve months come from every measurement of the episode (to_date.py); an
+        # episode a rollback or a drift closed keeps what it realized and has no run-rate or ratio any more.
+        econ_section = {**econ_section,
+                        "realized_savings_since_application": None if to_date is None else to_date["realized_to_date"],
+                        "mature_ttm_realized_savings": None if to_date is None else to_date["mature_ttm_realized_savings"],
+                        "realized_to_date": None if to_date is None else {k: to_date[k] for k in ("first_day", "last_day", "days_covered", "uncovered_days")}}
+        if app_state in (rc.ApplicationState.ROLLED_BACK.value, rc.ApplicationState.DRIFTED.value):
+            econ_section.update({"annualized_realized_savings": None, "realization_ratio": None})
     result = rc.RealizationPackage(
         contract_version=rc.CONTRACT_VERSION,
         realization_package_id=rpkg,
@@ -198,7 +236,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         drift=(drift.payload if drift else {"state": "NONE"}),
         regeneration={
             "status": regen_status,
-            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen and regen.event_type == rc.EventType.REGENERATION_REQUESTED else None,
+            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen is not None and replacement is None else None,
             "replacement_package_id": replacement.payload.get("replacement_package_id") if replacement else None,
         },
         history={

@@ -116,7 +116,7 @@ class RunTests(unittest.TestCase):
             validation_passed=False,
             counterfactual=CounterfactualRecord("CF-X", "M", False, None),
             economics={"available": True, "realization_state": "REALIZED"},
-            measurement=MeasurementFacts("MEAS-X", None, None, "CF-Y", "M", {}, {}, "REALIZED", "-1", Opaque()),
+            measurement=MeasurementFacts("MEAS-X", None, None, "CF-Y", "M", {}, {}, "REALIZED", Opaque()),
             halt=KeyError("estimate"),
         )
         review = reviewer.run(*stages, odd)

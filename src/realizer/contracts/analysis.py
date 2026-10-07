@@ -7,9 +7,11 @@ dataclasses are internal values passed from the Analyzer to the next capabilitie
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Tuple
+
+from realizer.contracts.lineage import WarehouseHistory
 
 if TYPE_CHECKING:  # annotations only: realization.py imports this module for the enums
     from realizer.contracts.realization import RealizationLedgerEntry
@@ -68,11 +70,16 @@ class RealizationHistory:
 
     ``previous_application`` is its latest application observation (APPLICATION_OBSERVED or
     MODIFIED_APPLICATION_OBSERVED) and ``prior_measurement`` its latest ECONOMIC_MEASUREMENT_RECORDED, each ``None``
-    when there is none. Nothing a run appends is ever read back into its own decisions.
+    when there is none. ``closure`` is the latest drift or observed rollback recorded on the previous application's
+    episode (``None`` while the episode is open): a closed episode never absorbs a new application.
+    ``open_applications`` are the first application entries of the episodes still open, in the order they started
+    (several when a plan's steps were applied one after another). Nothing a run appends is ever read back into its own decisions.
     """
     entries: Tuple["RealizationLedgerEntry", ...]
     previous_application: Optional["RealizationLedgerEntry"]
     prior_measurement: Optional["RealizationLedgerEntry"]
+    closure: Optional["RealizationLedgerEntry"] = None
+    open_applications: Tuple["RealizationLedgerEntry", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,11 +87,13 @@ class RealizationAnalysis:
     """Analyzer output. ``observation`` is ``None`` for a lineage-only run (no observation).
 
     ``config_drift_observed`` is true when the observed configuration hash differs from the one recorded with the
-    previous application and the observation is later than that application's record time.
+    previous application and the observation is later than that application's record time. ``warehouse`` is the rest
+    of the output directory's history of the warehouse: its other lineages and the recorded policy snapshots.
     """
     observation: Optional[ObservationAnalysis]
     history: RealizationHistory
     config_drift_observed: bool
+    warehouse: WarehouseHistory = field(default_factory=WarehouseHistory)
 
 
 # ``__all__`` is the public Realizer Contract surface (the enums, re-exported by ``realization.py``); the hand-off

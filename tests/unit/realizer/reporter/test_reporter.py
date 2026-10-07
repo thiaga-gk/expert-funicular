@@ -70,10 +70,14 @@ class EveryScenarioRunTests(unittest.TestCase):
                         packaged = packager.run(context, reviewer.run(context, analysis, governance, reconciliation, estimate))
                         report = reporter.run(context, packaged)
                         rpkg = context.realization_package_id
+                        # one lineage per scenario: its package and snapshot, then the warehouse's state index
+                        state = out / "realization" / "state" / f"{package['warehouse']['workspace_id']}__{package['warehouse']['warehouse_id']}.json"
                         self.assertEqual(report.files, (out / "realization" / "packages" / f"{rpkg}.json",
-                                                        out / "realization" / "snapshots" / f"{report.realization.snapshot_id}.json"))
-                        for path in report.files:
+                                                        out / "realization" / "snapshots" / f"{report.realization.snapshot_id}.json", state))
+                        for path in report.files[:2]:
                             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), report.realization.to_dict())
+                        self.assertEqual(json.loads(state.read_text(encoding="utf-8")), packaged.state_index)
+                        self.assertEqual([r["snapshot_id"] for r in packaged.state_index["lineages"]], [report.realization.snapshot_id])
                         self.assertIs(report.realization, packaged.realization)
                         runs += 1
         self.assertGreaterEqual(runs, 53)
@@ -96,11 +100,13 @@ class RunTests(unittest.TestCase):
                 report = reporter.run(context, packaged)
             after = tree(out)
             self.assertEqual([p for p, _ in order], list(report.files))
-            self.assertEqual([p.parent.name for p, _ in order], ["packages", "snapshots"])
+            self.assertEqual([p.parent.name for p, _ in order], ["packages", "snapshots", "state"])
             self.assertEqual(order[0][1], order[1][1])
+            self.assertEqual(order[2][1], packaged.state_index)
             written = {k for k in set(after) - set(before) if after[k] is not None}
             self.assertEqual(written, {f"realization/packages/{context.realization_package_id}.json",
-                                       f"realization/snapshots/{report.realization.snapshot_id}.json"})
+                                       f"realization/snapshots/{report.realization.snapshot_id}.json",
+                                       f"realization/state/{self.pkg['warehouse']['workspace_id']}__{self.pkg['warehouse']['warehouse_id']}.json"})
             self.assertEqual({k: v for k, v in after.items() if k in before}, before, "nothing the run wrote before is touched")
 
     def test_is_idempotent_and_logs_nothing(self):
@@ -127,7 +133,7 @@ class RunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             context, packaged = packaged_run(copy.deepcopy(self.pkg), None, Path(tmp))
             report = reporter.run(context, packaged)
-            self.assertEqual(len(report.files), 2)
+            self.assertEqual([p.parent.name for p in report.files], ["packages", "snapshots", "state"])
             expect.check(self, "tree", compact_tree(tree(Path(tmp))))
 
 
@@ -224,8 +230,8 @@ class SchemaGateTests(unittest.TestCase):
             from realizer.contracts.realization_schema import validate_realization_package
             self.assertIsNone(validate_realization_package(packaged.realization.to_dict()))
             report = reporter.run(context, packaged)
-            self.assertEqual(len(report.files), 2)
-            for path in report.files:
+            self.assertEqual(len(report.files), 3)  # the package, the snapshot and the state index
+            for path in report.files[:2]:
                 self.assertIsNone(validate_realization_package(json.loads(Path(path).read_text(encoding="utf-8"))))
 
     def test_every_stored_package_and_snapshot_of_the_baseline_validates(self):

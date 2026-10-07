@@ -29,7 +29,7 @@ economics:
   attributable_spend_pct_min: 95.0
   mandatory_price_coverage_pct: 100.0
   currency_consistency_pct: 100.0
-  portfolio_overlap_count_max: 0
+  portfolio_overlap_count_max: 0   # the caller's overlap count; ownership across lineages is decided from the ledgers
 
 attribution:
   confirmed_origin_required_for_hard_kpi: true   # CONFIRMED or INFERRED origin
@@ -48,6 +48,8 @@ Publisher pre-change realization assumptions such as conservative/base/optimisti
 ## 4. Historical policy reproducibility
 
 Historical closed episodes retain the policy snapshot under which they were evaluated. Later policy changes create explicit PolicyDiff/re-evaluation events; they never silently rewrite history.
+
+When a run evaluates an active application episode under a policy whose snapshot differs from the one the episode was last evaluated under (its last validation, or its last PolicyDiff), the run records `POLICY_DIFF_RECORDED` on that episode: `previous_policy_snapshot_id`, `policy_snapshot_id`, the run's `observed_at_utc` and `changed_settings`, one `{field, previous, current}` per setting that changed (`null` when the previous policy's settings were not recorded in the output directory: the change is never guessed). The settings of every policy a validation or a PolicyDiff was recorded under are kept as `realization/policies/<PSNAP>.json`. The validations before the diff keep their snapshot; the validation that follows is evaluated under the new policy. Example: a run validated under a p95 limit of 5 percent and the next under 4 records the diff `max_normalized_p95_runtime_regression_pct` 5 to 4, and the next validation fails a 4.5 percent regression that had passed.
 
 ## 5. Readiness
 
@@ -106,7 +108,7 @@ Allowed claim-eligible methods: paired canary, calibrated prior state, matched h
 
 ## 11. Financial quality
 
-Financial-grade publication requires at least 95% attributable spend, 100% mandatory material price coverage, 100% currency consistency, reconciled corrections and zero portfolio overlap.
+Financial-grade publication requires at least 95% attributable spend, 100% mandatory material price coverage, 100% currency consistency, reconciled corrections and zero portfolio overlap: one owner per change across the lineages of a warehouse ([ledger contract](ledger-contract.md) section 18), and no overlap the caller states.
 
 ## 12. Corrections and drift
 
@@ -115,6 +117,8 @@ Corrections always append and reproject. Configuration target-field changes are 
 ## 13. Supersession
 
 Savings-only package churn requires >=5% material improvement unless another trigger applies (invalid package, material risk/confidence/config/workload/policy/capability change, explicit reoptimization). New package generation alone does not stop valid existing realization.
+
+On the run path ([ledger contract](ledger-contract.md) section 19): a newer package of the same epoch replaces a lineage (nothing was applied in between); a successor whose configuration change applied none of the lineage's steps replaces it (a configuration change); a successor whose change applied the lineage's own step replaces it only when its expected savings are at least `minimum_material_savings_delta_pct` above the lineage's (a lineage expecting 10,476.47 a year is replaced by a successor expecting 11,000.29 or more, such as 11,105.06, 6 percent more, never by one expecting 10,895.53, 4 percent more; an unpriced successor never replaces it). A replacement the caller names (`replacement_package_id`) is an explicit trigger. Supersession changes the source package's disposition only: a superseded lineage that owns an applied change keeps measuring it.
 
 ## 14. Determinism
 

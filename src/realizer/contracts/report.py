@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from realizer.common.utils import parse_utc
 from realizer.contracts import realization as rrc
 
 REALIZER_WORKBOOK_EXTENSION_VERSION = "1.0.0"
@@ -24,9 +25,10 @@ class RealizationReport:
     """Reporter output: the realization package a run projected and the files the Reporter wrote for it.
 
     ``realization`` is the RealizationPackage (RPKG-*) body the package and the snapshot file both hold. ``files`` are
-    the paths written, in write order: ``realization/packages/<RPKG>.json``, then ``realization/snapshots/<RSNAP>.json``
-    (the evidence and regeneration files are the Packager's, in ``PackagingResult.written``). An internal hand-off, not
-    part of the public contract surface.
+    the paths written, in write order: ``realization/packages/<RPKG>.json``, then ``realization/snapshots/<RSNAP>.json``,
+    then the same two for each other lineage of the warehouse the run re-projected, then the warehouse's state index
+    ``realization/state/<workspace>__<warehouse>.json`` (the evidence, regeneration and policy files are the Packager's,
+    in ``PackagingResult.written``). An internal hand-off, not part of the public contract surface.
     """
     realization: rrc.RealizationPackage
     files: Tuple[Path, ...] = ()
@@ -112,7 +114,7 @@ def project_timeline(entries: Sequence[rrc.RealizationLedgerEntry]) -> List[Dict
             "evidence_refs": _json(e.evidence_refs),
             "payload_json": _json(e.payload),
         }
-        for e in sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+        for e in sorted(entries, key=lambda x: parse_utc(x.recorded_at_utc))  # ledger order: time, then append order
     ]
 
 

@@ -1,4 +1,4 @@
-"""Canonical Realizer Contract v1.1.0 (the realization package; the ledger envelope stays v1.0.0).
+"""Canonical Realizer Contract v1.2.0 (the realization package) and ledger envelope v1.1.0.
 
 The RecommendationPackage (PKG-*) remains immutable.  This module defines the
 separate realization lineage (RPKG-*), append-only ledger envelope (RLE-*), and
@@ -6,7 +6,7 @@ derived snapshot (RSNAP-*), plus the deterministic public ID builders.  Domain
 calculations live in the engine and its capabilities; this module owns stable
 public types, canonical serialization/IDs and semantic validation only.
 
-It presents the complete v1.1.0 surface: the observation-side enums
+It presents the complete v1.2.0 surface: the observation-side enums
 (``realizer.contracts.analysis``) and the reconciliation enums
 (``realizer.contracts.reconciliation``) are defined with their group and
 re-exported here, so ``__all__`` is the single-file contract's ``__all__``
@@ -42,9 +42,12 @@ if TYPE_CHECKING:  # annotations only: the hand-offs of the earlier capabilities
     from realizer.contracts.reconciliation import ReconciliationResult
 
 # 1.1.0 adds the step role, the safety, performance and capacity realization states, the application's compatibility
-# status and annotations, and the source package's run scope, cost profile and observed change. RPKG ids hash the major.
-CONTRACT_VERSION = "1.1.0"
-LEDGER_CONTRACT_VERSION = "1.0.0"
+# status and annotations, and the source package's run scope, cost profile and observed change. 1.2.0 adds the open
+# episodes, realized to date with its coverage, the owner of a change another lineage claims and the successor package.
+# Ledger 1.1.0 adds the cross-lineage events (claimed by another lineage, successor linked) and the policy diff. RPKG and
+# RLE ids hash the major.
+CONTRACT_VERSION = "1.2.0"
+LEDGER_CONTRACT_VERSION = "1.1.0"
 HASH_HEX_LENGTH = 24
 
 
@@ -130,6 +133,9 @@ class EventType(str, Enum):
     SOURCE_QUALITY_CHANGED = "SOURCE_QUALITY_CHANGED"
     REGENERATION_REQUESTED = "REGENERATION_REQUESTED"
     REPLACEMENT_PACKAGE_LINKED = "REPLACEMENT_PACKAGE_LINKED"
+    APPLICATION_CLAIMED_BY_OTHER_LINEAGE = "APPLICATION_CLAIMED_BY_OTHER_LINEAGE"
+    SUCCESSOR_PACKAGE_LINKED = "SUCCESSOR_PACKAGE_LINKED"
+    POLICY_DIFF_RECORDED = "POLICY_DIFF_RECORDED"
 
 
 def _primitive(value: Any) -> Any:
@@ -361,14 +367,13 @@ class MeasurementFacts:
     economics: Mapping[str, Any]
     attribution: Mapping[str, Any]
     realization_state: Any
-    mature_ttm_realized_savings: Any
     correction_status: Any
 
 
 @dataclass(frozen=True)
 class CorrectionFacts:
     """A billing correction of the measurement: the BILLING_CORRECTION_RECORDED payload and the ledger entry it
-    corrects (the observation's reference, else the previous measurement)."""
+    corrects (the earlier measurement of the same window, else the observation's reference or the previous measurement)."""
     payload: Mapping[str, Any]
     corrects_entry_id: Any
 
@@ -379,8 +384,9 @@ class RealizationEstimate:
 
     Everything is ``None`` when no validation is due. ``validation_passed`` is the hard-guardrail verdict the
     economics depend on; ``counterfactual`` the baseline; ``economics`` the realized economics (the unavailable form when
-    the observation lacks costs); ``measurement`` the measurement (only for available economics) and ``correction`` its
-    billing correction, when the observation carries one.
+    the observation lacks costs); ``measurement`` the measurement (only for available economics that do not repeat an
+    earlier measurement of the window) and ``correction`` its billing correction, when the observation carries one or
+    restates a window measured earlier.
 
     ``halt`` is the exception the estimation raised, if any. The facts present were decided before it, so the engine
     records them and then raises ``halt``: the ledger a failed run leaves behind is the one it always left.
@@ -428,12 +434,18 @@ class PackagingResult:
 
     ``realization`` is the snapshot projected from ``entries``: the ledger as reloaded after the run's events were
     recorded and cut at ``replay_through`` when the run was asked to replay a prefix. ``written`` holds the evidence
-    (REVID) and regeneration (RERUN) files the Packager wrote, in the order it wrote them. The package and snapshot
-    files are not among them: the Reporter writes those from ``realization``.
+    (REVID), regeneration (RERUN) and policy snapshot (PSNAP) files the Packager wrote, in the order it wrote them. The
+    package and snapshot files are not among them: the Reporter writes those from ``realization``.
+
+    ``others`` are the re-projected snapshots of the other lineages of the warehouse whose ledgers the run appended to
+    (in package id order), and ``state_index`` the warehouse's state index, a view of every lineage's snapshot; the
+    Reporter writes both.
     """
     realization: RealizationPackage
     entries: Tuple[RealizationLedgerEntry, ...]
     written: Tuple[Path, ...] = ()
+    others: Tuple[RealizationPackage, ...] = ()
+    state_index: Optional[Mapping[str, Any]] = None
 
 
 __all__ = [

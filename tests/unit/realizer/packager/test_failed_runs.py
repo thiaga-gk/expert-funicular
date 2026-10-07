@@ -19,6 +19,7 @@ from unittest import mock
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, outcome, run_sequence, tree, without_remeasure_window  # noqa: E402
+from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.packager import ledger  # noqa: E402
@@ -80,8 +81,9 @@ class CommitPositionTests(unittest.TestCase):
             "after drift": ([self.base, self.later(10, config={**self.base["config"], "warehouse_size": "SMALL"}, effective_time_quality=Unprintable())],
                             "DRIFT_DETECTED", "ValueError"),
             "after intent": ([{**self.base, "rollback_requested": Untestable()}], "INTENT_RECORDED", "ValueError"),
-            "after rollback requested": ([{**self.base, "rollback_requested": True, "rollback_observed": Untestable()}], "ROLLBACK_REQUESTED", "ValueError"),
-            "after rollback observed": ([{**self.base, "rollback_observed": True, "replacement_package_id": Untestable()}], "ROLLBACK_OBSERVED", "ValueError"),
+            "after rollback requested": ([{**self.base, "rollback_requested": True, "replacement_package_id": Untestable()}], "ROLLBACK_REQUESTED", "ValueError"),
+            # the size back at its source value rolls the application back
+            "after rollback observed": ([self.base, self.later(10, config=package_config(self.pkg), replacement_package_id=Untestable())], "ROLLBACK_OBSERVED", "ValueError"),
         }
         for label, (observations, last, kind) in cases.items():
             with self.subTest(case=label):

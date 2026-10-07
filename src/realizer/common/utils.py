@@ -1,4 +1,4 @@
-"""Deterministic helpers: UTC timestamps, decimals and money strings, and JSON file I/O.
+"""Deterministic helpers: UTC timestamps (written and compared), decimals and money strings, and JSON file I/O.
 
 Moved unchanged from the single-file Realizer, plus ``Deferred``. No domain logic: configuration normalization and
 hashing belong to the analyzer.
@@ -16,7 +16,13 @@ from typing import Any, Callable, Generic, Optional, TypeVar
 from realizer.contracts.realization import canonical_decimal
 
 
-def utc_iso(value: Any) -> str:
+def parse_utc(value: Any) -> dt.datetime:
+    """The aware UTC time of *value* (a ``datetime`` or an ISO-8601 text; a naive one is read as UTC).
+
+    Times are compared and ordered through this, never as text: ``utc_iso`` writes ``...T12:00:00Z`` without and
+    ``...T12:00:00.500000Z`` with microseconds, and ``.`` sorts before ``Z``, so the text of a later time can sort first.
+    A missing value raises ``ValueError``, as does a text that is not a time.
+    """
     if isinstance(value, dt.datetime):
         d = value
     else:
@@ -25,7 +31,11 @@ def utc_iso(value: Any) -> str:
         d = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if d.tzinfo is None:
         d = d.replace(tzinfo=dt.timezone.utc)
-    return d.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    return d.astimezone(dt.timezone.utc)
+
+
+def utc_iso(value: Any) -> str:
+    return parse_utc(value).isoformat().replace("+00:00", "Z")
 
 
 def decimal(value: Any) -> Optional[Decimal]:
@@ -52,11 +62,20 @@ def load_json(path: str | Path) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def write_json(path: Path, value: Any) -> None:
+def write_json(path: Path, value: Any) -> bool:
+    """Write *value* as sorted, indented JSON through a temporary file; return whether the file was written. A file that
+    already holds exactly that text is left alone (a repeated run does not rewrite what it wrote before)."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    try:
+        if path.read_text(encoding="utf-8") == text:
+            return False
+    except (OSError, UnicodeDecodeError):
+        pass  # missing or unreadable: written below
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
+    return True
 
 
 T = TypeVar("T")

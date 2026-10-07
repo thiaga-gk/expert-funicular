@@ -11,13 +11,16 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -31,7 +34,7 @@
     ],
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ]
    ],
    {
@@ -40,8 +43,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -56,10 +63,13 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -135,13 +145,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -157,13 +170,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -179,13 +195,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -201,13 +220,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -223,13 +245,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -245,13 +270,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -267,13 +295,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -289,13 +320,16 @@
    {
     "directories": [
      "realization",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]

@@ -34,6 +34,14 @@
       "warehouse_size": "SMALL",
       "warehouse_type": "PRO"
     },
+    "open_episodes": [
+      {
+        "application_episode_id": "APP-D13D5BD44AB587E956087B2D",
+        "effective_from_utc": "2026-10-01T12:00:00Z",
+        "knob": null,
+        "step": null
+      }
+    ],
     "plan_progress": {
       "applied_steps": 2,
       "authoritative_actionable_steps": 2,
@@ -86,7 +94,7 @@
     "recommendation_attributed_realized_savings": "1000.00",
     "validated_observed_realization": "1000.00"
   },
-  "contract_version": "1.1.0",
+  "contract_version": "1.2.0",
   "current_state": {
     "maturity_state": "REPRESENTATIVE",
     "realization_state": "REALIZED",
@@ -150,6 +158,12 @@
     "realization_state": "REALIZED",
     "realized_savings_period": "1000.00",
     "realized_savings_since_application": "1000.00",
+    "realized_to_date": {
+      "days_covered": "7.00",
+      "first_day": "2026-10-02",
+      "last_day": "2026-10-09",
+      "uncovered_days": 0
+    },
     "reoptimization_recommended": false,
     "review_required": false,
     "successful_realized_savings": "1000.00"
@@ -160,9 +174,9 @@
     "entry_count": 9,
     "first_entry_id": "RLE-3255736A21C86A59130DA91C",
     "latest_effective_at_utc": "2026-10-09T12:00:00Z",
-    "latest_entry_id": "RLE-DAA296F79F29E3066DB766D8",
+    "latest_entry_id": "RLE-0537A89A4B9E87197AEDF58E",
     "latest_recorded_at_utc": "2026-10-09T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:14A45D3F784A75D1830C9E1C09AC53E333944C3FE7E5BEDBD09E07BAA3B80C08",
+    "ledger_checkpoint_hash": "SHA256:8FB7370264A0B4ACFFA94C3EFD5B168AA8AF36373E7B31C879C1BB1CA6EF698A",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -170,24 +184,24 @@
     "state": "REPRESENTATIVE"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.3.0",
-    "attribution_version": "realizer-attribution-v1.2.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.3.0",
-    "exclusivity_version": "realizer-exclusivity-v1.0.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.4.0",
+    "attribution_version": "realizer-attribution-v1.3.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.4.0",
+    "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.2.0",
-    "policy_version": "realizer-policy-v1.3.0",
+    "policy_version": "realizer-policy-v1.4.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.1.0",
-    "realizer_contract_version": "1.1.0",
-    "realizer_version": "1.3.0"
+    "projector_version": "realizer-projector-v1.2.0",
+    "realizer_contract_version": "1.2.0",
+    "realizer_version": "1.4.0"
   },
   "realization_package_id": "RPKG-C798ACDB80BE00E175FF067D",
   "regeneration": {
-    "regeneration_request_id": "RERUN-5C7A857FFA0EEB0B6EC51109",
+    "regeneration_request_id": "RERUN-CD7161F5D22D2D23DD4A4A86",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-6AE5E44CF4BB76DC3C344F7F",
+  "snapshot_id": "RSNAP-757CF66E3BED536931FCCBD9",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -199,11 +213,12 @@
     "recommendation_package_id": "PKG-AF604CC0ACF59D583A57D57D",
     "recommended_scenario_id": "SCN-37BB3A2EB5D10AD17D2BAF1B",
     "run_scope": null,
+    "successor_package_id": null,
     "superseded_by_package_id": null
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -238,7 +253,7 @@
         "metric": "normalized_p95_runtime_regression_pct",
         "observed": "2",
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-PERF-P95-001",
         "threshold": "25"
@@ -247,7 +262,7 @@
         "metric": "reliability_pass",
         "observed": true,
         "operator": "EQ",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-REL-001",
         "threshold": true
@@ -256,14 +271,14 @@
         "metric": "correctness_pass",
         "observed": true,
         "operator": "NE",
-        "policy_snapshot_id": "PSNAP-3FB9F06EA14CBFC752EBDD3E",
+        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
         "result": "PASS",
         "rule_id": "REAL-CORRECT-001",
         "threshold": false
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-9105CE1CD5D525A6BEBD9D99",
+    "validation_episode_id": "VAL-9EE892F7AEC9E26EEBCF31DA",
     "window_end_utc": "2026-10-09T12:00:00Z",
     "window_start_utc": "2026-10-02T12:00:00Z"
   },

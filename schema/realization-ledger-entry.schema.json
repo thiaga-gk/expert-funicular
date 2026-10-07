@@ -46,7 +46,10 @@
         "FINANCIAL_BASIS_CHANGED",
         "SOURCE_QUALITY_CHANGED",
         "REGENERATION_REQUESTED",
-        "REPLACEMENT_PACKAGE_LINKED"
+        "REPLACEMENT_PACKAGE_LINKED",
+        "APPLICATION_CLAIMED_BY_OTHER_LINEAGE",
+        "SUCCESSOR_PACKAGE_LINKED",
+        "POLICY_DIFF_RECORDED"
       ]
     },
     "evidence_refs": {
@@ -56,7 +59,7 @@
       "type": "array"
     },
     "ledger_contract_version": {
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "ledger_entry_id": {
       "pattern": "^RLE-[0-9A-F]{24}$",

@@ -21,7 +21,7 @@ from tests.unit.realizer.packager.test_ledger import capture_logs  # noqa: E402
 from tests.unit.realizer.helpers import stage_policy, as_line, canonical, compact_tree, events, files, fixture_package, ledger_lines, outcome, staged_scenario_runs, tree  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
-from realizer.common.utils import utc_iso  # noqa: E402
+from realizer.common.utils import parse_utc  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.realization import PackagingResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
@@ -44,10 +44,10 @@ class EveryScenarioRunTests(unittest.TestCase):
                 self.assertIs(result.realization.__class__, rc.RealizationPackage)
                 # the ledger the run left, as the file lines (file order before and after the run), cut at the replay time
                 lines = run.before + run.appended
-                ordered = sorted(lines, key=lambda x: (x["recorded_at_utc"], x["ledger_entry_id"]))
+                ordered = sorted(lines, key=lambda x: parse_utc(x["recorded_at_utc"]))  # time, then file order
                 if run.replay_through:
-                    cut = utc_iso(run.replay_through)
-                    ordered = [x for x in ordered if x["recorded_at_utc"] <= cut]
+                    cut = parse_utc(run.replay_through)
+                    ordered = [x for x in ordered if parse_utc(x["recorded_at_utc"]) <= cut]
                     prefixes += 1
                 self.assertEqual([as_line(e) for e in result.entries], ordered)
                 # the snapshot is the package body the Reporter wrote, under its RPKG and RSNAP names
@@ -65,7 +65,12 @@ class EveryScenarioRunTests(unittest.TestCase):
                 else:
                     self.assertEqual(relative, [])
                 reruns = [rel for rel in relative if rel.startswith("realization/regeneration/")]
-                self.assertEqual(len(reruns), len(relative) - (1 if run.observation else 0))
+                # the settings of the policy a validation or a PolicyDiff was recorded under are kept, last
+                policies = [rel for rel in relative if rel.startswith("realization/policies/")]
+                if reviewed.validation is not None:
+                    self.assertEqual(policies, [f"realization/policies/{context.policy.snapshot_id}.json"])
+                    self.assertEqual(relative[-1], policies[0])
+                self.assertEqual(len(reruns), len(relative) - len(policies) - (1 if run.observation else 0))
                 rec = reviewed.reconciliation
                 if rec.terminal_regeneration is not None:
                     self.assertEqual(reruns, [f"realization/regeneration/{rec.terminal_regeneration.regeneration_request_id}.json"])
@@ -224,12 +229,12 @@ class IdempotencyTests(unittest.TestCase):
 
 class SlotOrderMutationTests(unittest.TestCase):
     """Mutation checks: recording two adjacent events in the other order is caught by the ledger file comparison (the
-    snapshot cannot notice, it sorts by recorded time)."""
+    snapshot notices too: at equal recorded time it keeps the append order)."""
 
     PAIRS = (
         ("SOURCE_PACKAGE_SUPERSEDED", "REPLACEMENT_PACKAGE_LINKED"),
         ("APPLICATION_OBSERVED", "INTENT_RECORDED"),
-        ("DRIFT_DETECTED", "ROLLBACK_OBSERVED"),
+        ("DRIFT_DETECTED", "INDEPENDENT_CHANGE_OBSERVED"),
         ("VALIDATION_READY", "VALIDATION_STARTED"),
         ("VALIDATION_STARTED", "VALIDATION_COMPLETED"),
         ("VALIDATION_COMPLETED", "COUNTERFACTUAL_RECORDED"),
@@ -270,7 +275,8 @@ class SlotOrderMutationTests(unittest.TestCase):
                 self.assertIsNotNone(name, "no scenario records the pair")
                 expected = run_scenario(name)
                 stored = {rel: text for rel, text in canonical_tree(name).items() if rel.startswith("realization/")}
-                self.assertEqual({rel: text for rel, text in expected.items() if text is not None}, stored, "the run is the stored baseline")
+                self.assertEqual({rel: text for rel, text in expected.items() if text is not None and not rel.startswith(canonical.SOURCE_COPIES)},
+                                 stored, "the run is the stored baseline (the source package copy aside)")
                 with mock.patch.object(ledger, "append_if_absent", self.swapping(first, second)):
                     mutant = run_scenario(name)
                 self.assertNotEqual(mutant, expected)

@@ -1,6 +1,6 @@
 # Realizer Known Limitations
 
-This file records limitations that remain true in the current Realizer release (component version 1.3.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
+This file records limitations that remain true in the current Realizer release (component version 1.4.0). Resolved implementation gaps are intentionally not retained here. The Publisher's own limitations are in [`../publisher/known-limitations.md`](../publisher/known-limitations.md).
 
 ## Not yet possible
 
@@ -10,12 +10,16 @@ This file records limitations that remain true in the current Realizer release (
 4. **No `.xlsx` workbook writer:** the single-file release rendered a Realizer workbook extension with the `artifact_tool` runtime and the retired Workbook v1.1.0 reporter, and that renderer is not part of this repository. The workbook projection (the rows a renderer would draw, [`workbook-compatibility-contract.md`](../../contracts/realizer/workbook-compatibility-contract.md)) remains in `src/realizer/contracts/report.py`.
 5. **Realization levels are not implemented:** the step, plan and package realization levels ([`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) section 10) do not exist. The measurement per application episode (candidate or scenario scope) is the closest thing; inventing the levels would be new behavior.
 6. **Reviewer checks are not implemented:** the reviewer checks of design section 11 (evidence completeness, lifecycle, baseline, attribution, overlap, no double count, annualization, consistency) are not implemented as checks that can reject. The Reviewer assembles what the single-file release decided.
+7. **The last days before a rollback or a drift are not measured:** a live run measures whole settled weeks of the configuration in force, so once a rollback or a drift has closed an episode, the days between its last measurement and the closing change are never measured; the savings to date cover the measured days only and say how many days they cover ([`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 15). Runs more than twelve weeks apart leave uncovered days the same way.
 
 ## Original behavior kept for parity
 
 The Realizer was extracted from the single-file release with identical outputs, and the behaviors below were found on the way and deliberately not changed, because a fix alters stored outputs and decisions. Each is a candidate for a separately reviewed change that regenerates the stored scenarios. The detail of each, with the phase that found it, is in [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md); the gap review ([`gap-review.md`](../../proposals/realizer/gap-review.md)) schedules each.
 
-7. **Billing restatement reprocessed:** reprocessing a billing-restatement observation once more appends a second `BILLING_CORRECTION_RECORDED` entry whose `corrects_entry_id` is the restated measurement itself, and the snapshot's `correction_count` goes from 1 to 2; a further pass adds nothing. Every other scenario is idempotent on its last observation. The `restatement-reprocessed` scenario pins the current behavior.
 8. **Redundant readiness evaluation:** on the realize path `calculate_economics` re-evaluates readiness, which is always ready there. Nothing observable changes.
 9. **Cost increase reads as under-realized:** on a savings step, a realization that is a cost increase is classified as under-realized with re-optimization recommended and a negative ratio, and a claimable one is attributed as negative savings. (A performance fix or a capacity cut is not a savings step: its cost change is reported, never classified or claimed.)
-10. **Duplicate entries still rewrite files:** a repeated entry is suppressed by id on each append, so a run that records an event an earlier run (or an earlier slot) already recorded logs `ledger.duplicate_suppressed` and still rewrites its evidence and regeneration files with the same content.
+
+## Across the lineages of one warehouse
+
+10. **The owner claims only from its own run:** the lineage that owns a change ([`ledger-contract.md`](../../contracts/realizer/ledger-contract.md) section 18) claims it only once that lineage is realized with an observation after the change. A run of a later package (which starts from the applied value) links itself as the successor but never records the application, its validation or its measurement into the owner's lineage, so realizing only the newest package of a warehouse records no claim for a change an earlier package recommended. A lineage created before its source package copy was kept is seen by the other runs only after its package is realized again.
+11. **Concurrent runs of one warehouse:** each run decides the cross-lineage events from the ledgers as they stood when it started, so two runs of the same warehouse at once can each miss the other's application until a later run of the warehouse decides again; an event whose ledger another run holds locked is left for that later run.

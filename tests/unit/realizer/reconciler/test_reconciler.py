@@ -72,7 +72,7 @@ def regeneration_entry(context, analysis, request):
 class EveryScenarioRunTests(unittest.TestCase):
     def test_decided_events_are_the_ledger_entries_for_every_run_of_every_scenario(self):
         seen = {key: 0 for key in ("runs", "drift", "scenario", "independent", "modified", "contrary", "reuse", "rollback",
-                                   "supersession", "intent", "terminal", "validation", "upstream", "suppressed")}
+                                   "supersession", "intent", "terminal", "validation", "upstream", "suppressed", "policy_diff")}
         for run in staged_scenario_runs():
             name, index, observation, before, appended = run.scenario, run.index, run.observation, run.before, run.appended
             with self.subTest(scenario=name, run=index):
@@ -98,6 +98,21 @@ class EveryScenarioRunTests(unittest.TestCase):
                     expected.append(as_line(entry))
                 self.assertEqual(appended[:len(expected)], expected, f"{name} run {index}: lifecycle slots")
                 rest = appended[len(expected):]
+
+                # 3. last, the events the lineages taken together decide for this lineage (one lineage per scenario, so
+                #    only a PolicyDiff), each suppressed when already on the ledger
+                lineage_lines = []
+                for event in result.lineage_events:
+                    self.assertEqual(event.realization_package_id, context.realization_package_id)
+                    entry = make_ledger_entry(package=context.request.package, rpkg_id=event.realization_package_id, event_type=event.event_type,
+                                              effective_at_utc=event.effective_at_utc, recorded_at_utc=event.recorded_at_utc,
+                                              payload=event.payload, application_episode_id=event.application_episode_id)
+                    if entry.ledger_entry_id not in existing:
+                        lineage_lines.append(as_line(entry))
+                    seen["policy_diff"] += event.event_type == rc.EventType.POLICY_DIFF_RECORDED
+                if lineage_lines:
+                    self.assertEqual(rest[-len(lineage_lines):], lineage_lines, f"{name} run {index}: lineage events")
+                    rest = rest[:-len(lineage_lines)]
 
                 # 2. then the end of the run: a regeneration request, the validation episode, or nothing
                 if result.terminal_regeneration is not None:
@@ -216,11 +231,11 @@ class RunTests(unittest.TestCase):
     def test_halt_keeps_only_the_events_decided_before_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            result = self.reconcile({**self.base, "rollback_observed": True, "replacement_package_id": Untestable()}, out, gate=False)
+            result = self.reconcile({**self.base, "rollback_requested": True, "replacement_package_id": Untestable()}, out, gate=False)
             self.assertIsInstance(result.halt, ValueError)
             self.assertEqual(len(result.applications), 1)
             self.assertIsNotNone(result.intent)
-            self.assertIsNotNone(result.rollback_observed)
+            self.assertIsNotNone(result.rollback_requested)
             self.assertIsNone(result.replacement_package_id)
             # matching failed: nothing at all was decided
             bad_plan = copy.deepcopy(self.pkg)
@@ -237,7 +252,7 @@ class RunTests(unittest.TestCase):
         self.assertIsInstance(self.reconcile({**self.base, "elapsed_days": "abc"}, Path("/nonexistent-out"), gate=False).halt, ValueError)
 
     def test_engine_raises_the_halt_after_recording_the_decided_events(self):
-        observation = {**self.base, "rollback_requested": True, "rollback_observed": Untestable()}
+        observation = {**self.base, "rollback_requested": True, "replacement_package_id": Untestable()}
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             with observation_gate_open():

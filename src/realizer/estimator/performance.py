@@ -117,7 +117,6 @@ def performance_economics(package: Mapping[str, Any], app: Mapping[str, Any], ob
         "observed_economic_delta": money(delta),
         "successful_realized_savings": None,
         "annualized_realized_savings": None,
-        "mature_ttm_realized_savings": None,
         "expected_same_scope_annual_savings": None,
         "denominator_source": "NOT_APPLICABLE",
         "denominator_method": None,

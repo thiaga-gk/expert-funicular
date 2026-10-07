@@ -1,4 +1,4 @@
-"""Projector: measurement evidence -> one normalized observation (format 2.2.0).
+"""Projector: measurement evidence -> one normalized observation (format 3.0.0).
 
 Pure and Realizer-owned. It plans the measurement again from the evidence (``realizer.analyzer.measurement``), so the
 windows it reads are exactly the ones the bridge collected, and states what they show:
@@ -41,7 +41,7 @@ from realizer.analyzer.measurement import (
     window_days,
 )
 from realizer.common.errors import InputError
-from realizer.common.utils import money, ratio_string, utc_iso
+from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.config.settings import volume_shifted
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import package_currency
@@ -275,13 +275,30 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
                 and normalize_value(knob, approval["value"]) == observed):
             return "CONFIRMED", "ACCEPTED", str(approval["reference"])
     generated = (package.get("provenance") or {}).get("generated_at")
-    if generated and utc_iso(plan.change_epoch["epoch_start"]) > utc_iso(generated):
+    if generated and parse_utc(plan.change_epoch["epoch_start"]) > parse_utc(generated):
         return "INFERRED", "UNKNOWN", None
     return "UNKNOWN", "UNKNOWN", None
 
 
+def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, epochs: Sequence[Mapping[str, Any]]) -> Optional[str]:
+    """When no plan step's knob differs from its source value: when the observed configuration took effect (the start of
+    the run of latest epochs with that configuration) if that was after the package was generated, as for a rollback to
+    the package's configuration or a change no step makes; ``None`` when the configuration the package saw is still in
+    force (epochs that changed nothing it reads do not count)."""
+    generated = (package.get("provenance") or {}).get("generated_at")
+    if not generated:
+        return None
+    ordered = sorted(epochs, key=lambda e: parse_utc(e["epoch_start"]))
+    observed = epoch_config(plan.observed_epoch)
+    i = len(ordered) - 1
+    while i > 0 and epoch_config(ordered[i - 1]) == observed:
+        i -= 1
+    start = utc_iso(ordered[i]["epoch_start"])
+    return start if parse_utc(start) > parse_utc(generated) else None
+
+
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The observation (format 2.2.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    """The observation (format 3.0.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
@@ -309,7 +326,6 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "expected_annual_savings_actual_scope": None, "dbu_realized": money(replay["dbu_realized"]),
             "aws_economic_realized": money(replay["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
             "aws_evidence_type": "MODELED" if replay["aws_realized"] is not None else None,
-            "mature_ttm_realized_savings": None, "realized_savings_since_application": None,
         }
     cross_check = None
     if replay is not None:
@@ -341,7 +357,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
                 "pre_weekly_costs": [money(x) for x in cross_check["pre_weekly_costs"]],
             },
         }
-    applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else None
+    applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else _changed_since_package(package, plan, evidence["epochs"])
     origin_attribution, intent_state, intent_reference = origin(package, plan, approvals)
     return {
         "observation_format_version": OBSERVATION_FORMAT_VERSION,

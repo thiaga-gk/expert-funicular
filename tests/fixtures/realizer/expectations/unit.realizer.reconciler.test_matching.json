@@ -1,9 +1,9 @@
 {
  "ChooseApplicationTests.test_every_scenario_observation_and_scenario_choice/results": {
-  "length": 457181,
-  "sha256": "5bb44abeeb74446193cf2b770747f5054a0835049357251946cf2dbdd7ab554b",
+  "length": 468357,
+  "sha256": "071a2480e9b9a9f90b7e10c461027af89ef1e331920cec596876dd2f531b7629",
   "spot": {
-   "count": 255,
+   "count": 260,
    "kinds": [
     "ok"
    ]
@@ -71,8 +71,8 @@
   }
  },
  "CompareStepTests.test_every_plan_step_against_every_observed_configuration/results": {
-  "length": 3363,
-  "sha256": "4889c2f19e4773bb4cfe1269f8aa9755fbfef5fed5e84bc4cb07352bb5c4febd",
+  "length": 3369,
+  "sha256": "dca8c329ca021496e01c1e381c222e27bbd3071114d00b8a8e6aaa56999dfd44",
   "spot": {
    "count": 112,
    "distinct": [
@@ -181,13 +181,13 @@
   ]
  },
  "MatchTests.test_match_for_every_scenario_observation/results": {
-  "length": 133215,
-  "sha256": "1f826f00f88c0a7e28ec78b7ce01c35e3a5515dd9a3db93a9a3387736ceeed61",
+  "length": 137939,
+  "sha256": "503b6668d1ad21eccbc8669c9e194f340124575dd8fa590a3a93f1927224da9b",
   "spot": {
-   "changes": 47,
-   "count": 51,
+   "changes": 49,
+   "count": 52,
    "other_scenario": 1,
-   "primary": 47,
+   "primary": 49,
    "scope": 2
   }
  }

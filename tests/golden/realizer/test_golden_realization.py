@@ -280,7 +280,7 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_023_economic_handoff_uses_same_boundary_without_overlap(self):
         o = self.obs(); old = self.realize_case(o)
         boundary = _iso_add(o['observed_at_utc'], days=1)
-        drift = self.later(o, days=1, new_application=True); drift['config']['max_clusters'] = 3; drift['economics'] = None
+        drift = self.later(o, days=1, new_application=True); drift['config']['min_clusters'] = 2; drift['economics'] = None
         old2 = self.realize_case(drift)
         self.assertEqual(old2.application['effective_to_utc'], boundary)
         # A replacement package starts its own interval at the same boundary.
@@ -290,7 +290,8 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-024
     def test_gr_024_config_drift_closes_interval(self):
         o = self.obs(); self.realize_case(o)
-        d = self.later(o, days=2, new_application=True); d['config']['warehouse_size'] = 'LARGE'; d['economics'] = None
+        # a knob no step changes (the size back at LARGE would be a rollback, not a drift)
+        d = self.later(o, days=2, new_application=True); d['config']['min_clusters'] = 2; d['economics'] = None
         s = self.realize_case(d)
         self.assertEqual(s.current_state['realization_state'], 'DRIFTED')
         self.assertEqual(s.application['state'], 'DRIFTED')
@@ -303,6 +304,13 @@ class RealizerGoldenTests(unittest.TestCase):
         s = self.realize_case(rb)
         self.assertEqual(s.current_state['realization_state'], 'ROLLED_BACK')
         self.assertGreater(s.history['entry_count'], 1)
+        # back at the package's own configuration: no drift and nothing to regenerate
+        types = [e.event_type.value for e in self.ledger()]
+        self.assertIn('ROLLBACK_OBSERVED', types)
+        self.assertNotIn('DRIFT_DETECTED', types)
+        self.assertEqual(s.drift['state'], 'NONE')
+        reasons = [r for e in self.ledger() if e.event_type == rc.EventType.REGENERATION_REQUESTED for r in e.payload['reasons']]
+        self.assertNotIn('CONFIGURATION_DRIFT', reasons)
 
     # GR-026
     def test_gr_026_billing_restatement_appends_and_recomputes(self):
@@ -378,6 +386,11 @@ class RealizerGoldenTests(unittest.TestCase):
         validations = [e for e in self.ledger() if e.event_type == rc.EventType.VALIDATION_COMPLETED]
         self.assertGreaterEqual(len(validations), 2)
         self.assertNotEqual(validations[0].payload['policy_snapshot_id'], validations[-1].payload['policy_snapshot_id'])
+        # The change is an explicit PolicyDiff on the episode, naming both snapshots and the setting that changed.
+        (diff,) = [e for e in self.ledger() if e.event_type == rc.EventType.POLICY_DIFF_RECORDED]
+        self.assertEqual((diff.payload['previous_policy_snapshot_id'], diff.payload['policy_snapshot_id']), (p1.snapshot_id, p2.snapshot_id))
+        self.assertEqual(diff.payload['changed_settings'], [{'field': 'max_normalized_p95_runtime_regression_pct', 'previous': '5', 'current': '4'}])
+        self.assertEqual(diff.application_episode_id, validations[0].application_episode_id)
 
     # GR-035
     def test_gr_035_churn_below_5pct_suppressed(self):
@@ -413,12 +426,28 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(Decimal(x['interaction_delta']), Decimal('-20'))
 
     # GR-040
-    def test_gr_040_mature_ttm_is_distinct(self):
-        o = self.obs(); o['economics']['mature_ttm_realized_savings'] = '11000'
-        s = self.realize_case(o)
+    def test_gr_040_mature_ttm_is_earned_from_365_covered_days(self):
+        # Two runs of 200 days each, the second starting where the first ended: realized to date adds both (24000.00), the
+        # trailing year is the second window plus the latest 165 days of the first (200 x 80.00 + 165 x 40.00), and
+        # the run-rate is the second window alone (16000.00 x 365 / 200, inside the published range: REALIZED). After the first run alone: 200 covered days, not mature.
+        def run(window_start, window_end, observed, elapsed, old_cost, new_cost):
+            o = self.obs()
+            o.update({'window_start_utc': window_start, 'window_end_utc': window_end, 'observed_at_utc': observed,
+                      'recorded_at_utc': observed, 'elapsed_days': elapsed})
+            o['economics'].update({'period_days': 200, 'counterfactual_old_cost': old_cost, 'observed_new_cost': new_cost})
+            return self.realize_case(o)
+        first = run('2026-10-02T00:00:00Z', '2027-04-20T00:00:00Z', '2027-04-20T12:00:00Z', 200, '20000.00', '12000.00')
+        self.assertNotEqual(first.maturity['state'], 'MATURE')
+        self.assertEqual(first.economics['realized_savings_since_application'], '8000.00')
+        self.assertEqual(first.economics['realized_to_date']['days_covered'], '200.00')
+        self.assertIsNone(first.economics['mature_ttm_realized_savings'])
+        s = run('2027-04-20T00:00:00Z', '2027-11-06T00:00:00Z', '2027-11-06T12:00:00Z', 400, '28000.00', '12000.00')
         self.assertEqual(s.maturity['state'], 'MATURE')
-        self.assertEqual(s.economics['mature_ttm_realized_savings'], '11000.00')
+        self.assertEqual(s.economics['realized_savings_since_application'], '24000.00')
+        self.assertEqual(s.economics['mature_ttm_realized_savings'], '22600.00')
+        self.assertEqual(s.economics['annualized_realized_savings'], '29200.00')
         self.assertNotEqual(s.economics['mature_ttm_realized_savings'], s.economics['annualized_realized_savings'])
+        self.assertEqual(s.current_state['realization_state'], 'REALIZED')
 
 
 class GoldenRegistryTests(unittest.TestCase):

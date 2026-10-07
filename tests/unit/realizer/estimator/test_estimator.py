@@ -116,7 +116,7 @@ class RunTests(unittest.TestCase):
             out = Path(tmp)
             realize(self.pkg, self.base, out)
             before = tree(out)
-            corrected = {**self.base, "correction": correction()}
+            corrected = {**self.base, "correction": correction(), "window_start_utc": "2026-10-03T12:00:00Z"}
             stages = self.stages(corrected, out)
             with self.assertNoLogs("realizer", logging.DEBUG):
                 estimate = estimator.run(*stages)
@@ -210,10 +210,11 @@ class RunTests(unittest.TestCase):
                 self.assertNotEqual(estimate.measurement.attribution["attribution_claim_status"], "CLAIMABLE")
 
     def test_billing_correction_falls_back_to_the_previous_measurement(self):
+        """A correction object for a window not measured before corrects the previous measurement."""
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
-            corrected = {**self.base, "correction": correction()}
+            corrected = {**self.base, "correction": correction(), "window_start_utc": "2026-10-03T12:00:00Z"}
             context, analysis, governance, reconciliation = self.stages(corrected, out)
             estimate = estimator.run(context, analysis, governance, reconciliation)
             prior = analysis.history.prior_measurement

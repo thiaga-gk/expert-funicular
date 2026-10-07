@@ -13,7 +13,7 @@
       "type": "object"
     },
     "contract_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "current_state": {
       "additionalProperties": false,
@@ -122,13 +122,29 @@
             "object",
             "null"
           ]
+        },
+        "successor_package_id": {
+          "pattern": "^PKG-[0-9A-F]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "superseded_by_package_id": {
+          "pattern": "^PKG-[0-9A-F]+$",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "recommendation_package_id",
         "run_scope",
         "cost_profile",
-        "observed_change"
+        "observed_change",
+        "superseded_by_package_id",
+        "successor_package_id"
       ],
       "type": "object"
     },

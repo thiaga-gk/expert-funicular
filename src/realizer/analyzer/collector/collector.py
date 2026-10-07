@@ -176,8 +176,6 @@ def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> D
             "aws_cash_realized": None,
             "aws_commitment_freed": None,
             "aws_evidence_type": None,
-            "mature_ttm_realized_savings": None,
-            "realized_savings_since_application": None,
         },
         "overlap_count": 0,
         "origin_attribution": "CONFIRMED",

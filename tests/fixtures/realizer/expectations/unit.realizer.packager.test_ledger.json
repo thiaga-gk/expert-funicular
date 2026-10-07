@@ -40,19 +40,19 @@
   ]
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
-  "length": 63864,
-  "sha256": "93fdb4df9209b9708770331324cb3c2151c7472aa8a3ee28f71a6fac75e7c138",
+  "length": 64514,
+  "sha256": "f930751ca15a2b71917bd42081baad555adae8e55a4e7d50cfa50e740fce82e4",
   "spot": {
-   "entries": 363,
+   "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "ledgers": 41
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 541893,
-  "sha256": "c4748c733d4c4dfc9f75332cc1f4b621e1bfaaa8f6f9087f241341ea6dcaaceb",
+  "length": 544947,
+  "sha256": "451d41a3ea0f49d029ffc90c8227d30f9eb03c906273e920e763a0c1f5dfd794",
   "spot": {
-   "entries": 363,
+   "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "latest_of_first": [
     null,
@@ -121,7 +121,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-A8956EE48077C32D4DE572E5"
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-C3809396032745AAD3267FDE"
    ],
    {
     "directories": [
@@ -133,8 +133,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "f6e672446382d23e",
-     "realization/regeneration/RERUN-8507D156EAC322007A872A3C.json": "4106a6e62ca6f2be"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ec07d475c64cedd5",
+     "realization/regeneration/RERUN-3861F58C1023021C6B7928B2.json": "acc71567604421e7"
     }
    }
   ]
@@ -146,7 +146,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-6EE37EC6D565246B49C4439B"
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-4ED052F4E099188557A8F1EB"
    ],
    {
     "directories": [
@@ -158,8 +158,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "96ea75d7a2c09408",
-     "realization/regeneration/RERUN-35A6ECB2E66A3C52D9D5A38B.json": "c31ac2389b52f490"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d4a0e4cd8a868ac0",
+     "realization/regeneration/RERUN-1624D79D71FF143B58EF4080.json": "31bd88148140860e"
     }
    }
   ]
@@ -183,16 +183,16 @@
   ]
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
-  "length": 53492,
-  "sha256": "0f8ee65743e50b8b590b984439af8a267416daf85802c631df0880423db4b38a",
+  "length": 54366,
+  "sha256": "ab37cf54e91b11afb6da04d4a526b77b2397026756303b272e2b7d190b82af8e",
   "spot": {
-   "count": 363,
+   "count": 367,
    "first": {},
    "last": {
     "application_episode_id": "APP-22D91994058D828E0C0A3DA0",
     "correction_key": "oct",
-    "measurement_id": "MEAS-105E02268AF05149EE019AF5",
-    "validation_episode_id": "VAL-09FBC69B13AA00DA74919A60"
+    "measurement_id": "MEAS-EEF476F94905C300685DBA93",
+    "validation_episode_id": "VAL-D4CE994B1882E1DA4DA20597"
    }
   }
  },
@@ -215,10 +215,10 @@
   ]
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
-  "length": 290711,
-  "sha256": "9c81e40881cdf56b8fcddfd40b971cb870f8e1b2045e3142a2cd4647327d47be",
+  "length": 293625,
+  "sha256": "8cacae9ed03d3ea732728cabb13ac83aae4531ab06aac1ca3f5c5725dcc16771",
   "spot": {
-   "count": 808,
+   "count": 816,
    "first": [
     "GR-001",
     "RPKG-976E6C1C6E88CE76321758ED",
@@ -236,15 +236,15 @@
    "last": [
     "restatement-reprocessed",
     "RPKG-976E6C1C6E88CE76321758ED",
-    16,
+    15,
     "reversed",
     {
-     "entry_count": 16,
+     "entry_count": 15,
      "first_entry_id": "RLE-58544587BB6A8E6B91232979",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-DD99652D5D4D22B6AEFBF4FB",
+     "latest_entry_id": "RLE-C671B52EDDDF55B39ED50F60",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:8AEE70DFE149113CBF2493D1FD03FCBD27DD95D770F2E664D24F69DDA49EB022"
+     "ledger_checkpoint_hash": "SHA256:7114888DA395547424C7C7FB600DAAD1BEB818F11170C911FEE3DF28358D6260"
     }
    ]
   }

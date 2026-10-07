@@ -1,10 +1,66 @@
 {
+ "LifecycleScenarioTests.test_an_observation_older_than_the_last_record_changes_nothing/run1": {
+  "value": [
+   [
+    [
+     "ok",
+     "RSNAP-73D5B591D24C9C3AD102920E"
+    ],
+    [
+     "ok",
+     "RSNAP-12D0D832167FC9FC8761EADA"
+    ]
+   ],
+   {
+    "directories": [
+     "realization",
+     "realization/evidence",
+     "realization/ledger",
+     "realization/packages",
+     "realization/policies",
+     "realization/regeneration",
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
+    ],
+    "events": [
+     "REALIZATION_CREATED",
+     "APPLICATION_OBSERVED",
+     "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED"
+    ],
+    "files": {
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/evidence/REVID-5519FC52BC587A605D547129.json": "87a619895870b346",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ca983ebdfbdadb4f",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6967ccc4ce24db70",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-12D0D832167FC9FC8761EADA.json": "6967ccc4ce24db70",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "acf5fa443d1ead9b",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "2655e94cb243aa68",
+     "realization/state/1234567890123456__wh-demo-006.json": "837c55123a74f0d2"
+    }
+   }
+  ]
+ },
  "LifecycleScenarioTests.test_contrary_application_ends_with_a_regeneration/run1": {
   "value": [
    [
     [
      "ok",
-     "RSNAP-E774CE986BE8DBDE4A668E6E"
+     "RSNAP-FB7CDF98F3CA339B8AC3166C"
     ]
    ],
    {
@@ -14,7 +70,10 @@
      "realization/ledger",
      "realization/packages",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -24,10 +83,12 @@
     ],
     "files": {
      "realization/evidence/REVID-3B817BA5AC164C54682AB451.json": "3728fe479ddc6c9b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6de50292f7ef3217",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "000a528fa7049c1f",
-     "realization/regeneration/RERUN-5289A082A5BA786FDB7A3583.json": "d8a23e35391652cc",
-     "realization/snapshots/RSNAP-E774CE986BE8DBDE4A668E6E.json": "000a528fa7049c1f"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d4043d35e97322f0",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "e19b87234d5b607a",
+     "realization/regeneration/RERUN-B9859B2BEA1750D1983E36BC.json": "0b93bbe6d6fea739",
+     "realization/snapshots/RSNAP-FB7CDF98F3CA339B8AC3166C.json": "e19b87234d5b607a",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "ab9549181023b5e8"
     }
    }
   ]
@@ -37,11 +98,11 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-2F558D8CAEA06F7E9473E6D3"
+     "RSNAP-F085A93FD26CA36A1CDC07F5"
     ]
    ],
    {
@@ -50,8 +111,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -64,17 +129,21 @@
      "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED",
      "DRIFT_DETECTED",
+     "INDEPENDENT_CHANGE_OBSERVED",
      "REGENERATION_REQUESTED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/evidence/REVID-774F8DAC845D68A88F32A7A1.json": "16b5babab827b8b5",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "73f9f2899492dabd",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5baff938e90e11b7",
-     "realization/regeneration/RERUN-CC5DA527CF46B29DADF75F19.json": "e6d8facc79f4c3be",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-2F558D8CAEA06F7E9473E6D3.json": "5baff938e90e11b7",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/evidence/REVID-F5AB60BE3B2D02B5298AD725.json": "67bf67e2a41b2ea8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "aa5d93720642e781",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6e023c679538f80d",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/regeneration/RERUN-E8987831212D5CA4BE532886.json": "1c92444d5013e36c",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/snapshots/RSNAP-F085A93FD26CA36A1CDC07F5.json": "6e023c679538f80d",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "6b18fca068905bff"
     }
    }
   ]
@@ -84,11 +153,11 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-164DD4DCD6F13A9DE0A7B863"
+     "RSNAP-FAD963AD90C69D40ABBA2E96"
     ]
    ],
    {
@@ -97,8 +166,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -117,12 +190,15 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-8E644D1270EA6243C8312D5E.json": "02be0617ca264790",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "212a9523dd042b82",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "8cd019463cd595ca",
-     "realization/regeneration/RERUN-E98695DA15C002DC2C1BCB12.json": "fa05ea7e4dd59043",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-164DD4DCD6F13A9DE0A7B863.json": "8cd019463cd595ca",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d58f50cb263742c4",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "508ee35e7e560a1e",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/regeneration/RERUN-94036CFCC43545568D8055D7.json": "7b6a3ddf117bd9ac",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/snapshots/RSNAP-FAD963AD90C69D40ABBA2E96.json": "508ee35e7e560a1e",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "d4dcae00bb446635"
     }
    }
   ]
@@ -132,7 +208,7 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ]
    ],
    {
@@ -141,8 +217,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -157,10 +237,13 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -170,7 +253,7 @@
    [
     [
      "ok",
-     "RSNAP-D4D6C4E8BC1AAA7EC4080D7E"
+     "RSNAP-87DD3D2B9E452885274D16C3"
     ]
    ],
    {
@@ -179,8 +262,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -195,10 +282,13 @@
     ],
     "files": {
      "realization/evidence/REVID-02CD49F576810D7EA932586A.json": "7a069ced7fd020c1",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "241af2445bf2c2cd",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "477e53493d86233a",
-     "realization/regeneration/RERUN-650C5BCC2B0457300C5A1932.json": "31b1e1971c632d39",
-     "realization/snapshots/RSNAP-D4D6C4E8BC1AAA7EC4080D7E.json": "477e53493d86233a"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "f454e04bda0503f2",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "8f7bff55c57cca0f",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-ABE57C0B771BD1DF97B34E35.json": "d8cdffbb84aa14cb",
+     "realization/snapshots/RSNAP-87DD3D2B9E452885274D16C3.json": "8f7bff55c57cca0f",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "0235e51b75604c53"
     }
    }
   ]
@@ -208,7 +298,7 @@
    [
     [
      "ok",
-     "RSNAP-89C9665DBDDE7243573DA452"
+     "RSNAP-3297523D4A5B8E7CFEC8B5E5"
     ]
    ],
    {
@@ -217,8 +307,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -233,10 +327,13 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "200037a3eea72c06",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7531efdd798df629",
-     "realization/regeneration/RERUN-BD9345E1464964A8853B67FD.json": "eca87c8c146a16a6",
-     "realization/snapshots/RSNAP-89C9665DBDDE7243573DA452.json": "7531efdd798df629"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fd0605dcdef16bcc",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "2800730adc476538",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-6A24F009F8BEB67A7129E53A.json": "37708c40b3f9b401",
+     "realization/snapshots/RSNAP-3297523D4A5B8E7CFEC8B5E5.json": "2800730adc476538",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "16fcdc703e4f5777"
     }
    }
   ]
@@ -246,7 +343,7 @@
    [
     [
      "ok",
-     "RSNAP-71AD35E4067FA059A49B51F0"
+     "RSNAP-AB0E2C584904054B09F602E6"
     ]
    ],
    {
@@ -255,7 +352,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -264,9 +364,11 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b9d17be4d64621ec",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f685ef1f8c2b13e5",
-     "realization/snapshots/RSNAP-71AD35E4067FA059A49B51F0.json": "f685ef1f8c2b13e5"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a970312d22cbb27",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "bcde911df03ea0f3",
+     "realization/snapshots/RSNAP-AB0E2C584904054B09F602E6.json": "bcde911df03ea0f3",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "75a25a5845a5db6d"
     }
    }
   ]
@@ -276,7 +378,7 @@
    [
     [
      "ok",
-     "RSNAP-15DEE2B6CDCAA2891D472EE7"
+     "RSNAP-7C302234084695E30ADDA005"
     ]
    ],
    {
@@ -285,7 +387,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -294,9 +399,11 @@
     ],
     "files": {
      "realization/evidence/REVID-36C7E44C8AC79D00473B662C.json": "cb32263d836b352d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e745ab01549845da",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "983a79e5856f0de6",
-     "realization/snapshots/RSNAP-15DEE2B6CDCAA2891D472EE7.json": "983a79e5856f0de6"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d247596bb3cf9c37",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "9456b561913527c9",
+     "realization/snapshots/RSNAP-7C302234084695E30ADDA005.json": "9456b561913527c9",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "b3b6f2fa9ede061e"
     }
    }
   ]
@@ -306,7 +413,7 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ]
    ],
    {
@@ -315,8 +422,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -331,64 +442,13 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
-    }
-   }
-  ]
- },
- "LifecycleScenarioTests.test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one/run1": {
-  "value": [
-   [
-    [
-     "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
-    ],
-    [
-     "ok",
-     "RSNAP-4C16CFFABA0B7C9206528A35"
-    ]
-   ],
-   {
-    "directories": [
-     "realization",
-     "realization/evidence",
-     "realization/ledger",
-     "realization/packages",
-     "realization/regeneration",
-     "realization/snapshots"
-    ],
-    "events": [
-     "REALIZATION_CREATED",
-     "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED",
-     "APPLICATION_OBSERVED",
-     "INDEPENDENT_CHANGE_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED"
-    ],
-    "files": {
-     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/evidence/REVID-5519FC52BC587A605D547129.json": "87a619895870b346",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "577f638ea74b6778",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6397b3c67ff33746",
-     "realization/regeneration/RERUN-B4E190CAF064C02D4C2E0030.json": "49c526bfdb6e1015",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-4C16CFFABA0B7C9206528A35.json": "6397b3c67ff33746",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "f53aa4ff5ea31b5d"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -398,11 +458,11 @@
    [
     [
      "ok",
-     "RSNAP-86283DE5801757E799665C3B"
+     "RSNAP-E32CC1E92AD4919CF3BC52DA"
     ],
     [
      "ok",
-     "RSNAP-B953F4756A4604248E0CAE3E"
+     "RSNAP-36EC87CDBF7C1E77819EB7E5"
     ]
    ],
    {
@@ -411,8 +471,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -425,16 +489,19 @@
      "COUNTERFACTUAL_RECORDED",
      "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED",
-     "INDEPENDENT_CHANGE_OBSERVED"
+     "ECONOMIC_MEASUREMENT_RECORDED"
     ],
     "files": {
      "realization/evidence/REVID-17AB4DB1C7391015692D0CD0.json": "d24f330073fb66a1",
      "realization/evidence/REVID-AA1C319A490E0522661B63F0.json": "f49d60bcd4b1911a",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "a923d8af5323b2ca",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b56f8257ca2221a6",
-     "realization/regeneration/RERUN-0D6CCF26B741C8AA40F1BEE1.json": "118684f82286272e",
-     "realization/snapshots/RSNAP-86283DE5801757E799665C3B.json": "c6c190c037186203",
-     "realization/snapshots/RSNAP-B953F4756A4604248E0CAE3E.json": "b56f8257ca2221a6"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "60ae765038e02886",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5b4b2930441363c1",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-3EFC2DCA05F5E8B262614BF0.json": "a2ccb141ed375dc4",
+     "realization/snapshots/RSNAP-36EC87CDBF7C1E77819EB7E5.json": "5b4b2930441363c1",
+     "realization/snapshots/RSNAP-E32CC1E92AD4919CF3BC52DA.json": "8e671b19213703b4",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "dd50556d55af1b4c"
     }
    }
   ]
@@ -444,11 +511,11 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-0F62FA38568C66C98870FD6E"
+     "RSNAP-7F9B1C523740E1462D1534BF"
     ]
    ],
    {
@@ -457,8 +524,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -470,19 +541,19 @@
      "COUNTERFACTUAL_RECORDED",
      "ECONOMIC_MEASUREMENT_RECORDED",
      "REGENERATION_REQUESTED",
-     "DRIFT_DETECTED",
-     "ROLLBACK_OBSERVED",
-     "REGENERATION_REQUESTED"
+     "ROLLBACK_OBSERVED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-774F8DAC845D68A88F32A7A1.json": "16b5babab827b8b5",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "efb10866057fef67",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f65667f3be74a4cc",
-     "realization/regeneration/RERUN-CC5DA527CF46B29DADF75F19.json": "e6d8facc79f4c3be",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-0F62FA38568C66C98870FD6E.json": "f65667f3be74a4cc",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "782aee3261a8feec",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "580c1c3c0f74b399",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/snapshots/RSNAP-7F9B1C523740E1462D1534BF.json": "580c1c3c0f74b399",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "27de2c815bbf60e6"
     }
    }
   ]
@@ -492,7 +563,7 @@
    [
     [
      "ok",
-     "RSNAP-5D2A265EAF09E6A6F8A636B8"
+     "RSNAP-2C21E57E09EF04D284C11BAB"
     ]
    ],
    {
@@ -501,8 +572,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -518,10 +593,13 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6e7523c62150ef21",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "02036d46ace8c163",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-5D2A265EAF09E6A6F8A636B8.json": "02036d46ace8c163"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "087f54d4c8c6dd5b",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "3deb6d7799a4d97a",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-2C21E57E09EF04D284C11BAB.json": "3deb6d7799a4d97a",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "0ba28f811a8825af"
     }
    }
   ]
@@ -531,7 +609,7 @@
    [
     [
      "ok",
-     "RSNAP-625EE90C7D2EF44A4015FE29"
+     "RSNAP-73C2571E55DFE8C6E0D84040"
     ]
    ],
    {
@@ -540,18 +618,22 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
-     "INTENT_RECORDED",
-     "ROLLBACK_OBSERVED"
+     "INTENT_RECORDED"
     ],
     "files": {
      "realization/evidence/REVID-EDCDD0576010DF361996749F.json": "4f2c3c9440254477",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a9933eeb39dddcc",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5c055b5460850807",
-     "realization/snapshots/RSNAP-625EE90C7D2EF44A4015FE29.json": "5c055b5460850807"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "07dab499bc53de0c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "546a7fb2680d18cc",
+     "realization/snapshots/RSNAP-73C2571E55DFE8C6E0D84040.json": "546a7fb2680d18cc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "5f2e574bcd29693c"
     }
    }
   ]
@@ -561,11 +643,11 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ]
    ],
    {
@@ -574,8 +656,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -591,10 +677,13 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-B7C397E7C40C15DC81B974B5.json": "6a6514a4a68e8751",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1430707ea394a123",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -604,7 +693,7 @@
    [
     [
      "ok",
-     "RSNAP-6AE5E44CF4BB76DC3C344F7F"
+     "RSNAP-757CF66E3BED536931FCCBD9"
     ]
    ],
    {
@@ -613,8 +702,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-009",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -629,10 +722,13 @@
     ],
     "files": {
      "realization/evidence/REVID-E6F4A239F4256078ED0B66C3.json": "8862445704876a22",
-     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "97fa90a193320f80",
-     "realization/packages/RPKG-C798ACDB80BE00E175FF067D.json": "818b617031a6b8c1",
-     "realization/regeneration/RERUN-5C7A857FFA0EEB0B6EC51109.json": "b05955d641aa1a9a",
-     "realization/snapshots/RSNAP-6AE5E44CF4BB76DC3C344F7F.json": "818b617031a6b8c1"
+     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "a889018d6d9eb675",
+     "realization/packages/RPKG-C798ACDB80BE00E175FF067D.json": "583aa0c400d6a626",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-CD7161F5D22D2D23DD4A4A86.json": "6f5df3ebbfa46039",
+     "realization/snapshots/RSNAP-757CF66E3BED536931FCCBD9.json": "583aa0c400d6a626",
+     "realization/sources/1234567890123456__wh-demo-009/PKG-AF604CC0ACF59D583A57D57D.json": "3892109c8fa0e9a6",
+     "realization/state/1234567890123456__wh-demo-009.json": "5c818eb2764c34d9"
     }
    }
   ]
@@ -642,11 +738,11 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-5F225882AF611076F73B3353"
+     "RSNAP-8141F4C6D1FFF838C5BC8A4F"
     ]
    ],
    {
@@ -655,8 +751,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -679,11 +779,14 @@
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-44C2727633EC939D0CC882C4.json": "8ed2e6d035d530bb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8f26252f367bd216",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "1d2146f2e6763657",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-5F225882AF611076F73B3353.json": "1d2146f2e6763657",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4805671ebba89329",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a4e59b0b2b459fe4",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/snapshots/RSNAP-8141F4C6D1FFF838C5BC8A4F.json": "a4e59b0b2b459fe4",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "31a8963144b1840d"
     }
    }
   ]
@@ -704,8 +807,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "96ea75d7a2c09408",
-     "realization/regeneration/RERUN-35A6ECB2E66A3C52D9D5A38B.json": "c31ac2389b52f490"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d4a0e4cd8a868ac0",
+     "realization/regeneration/RERUN-1624D79D71FF143B58EF4080.json": "31bd88148140860e"
     }
    }
   ]
@@ -726,8 +829,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "2e8d04d84a1fdd27",
-     "realization/regeneration/RERUN-8507D156EAC322007A872A3C.json": "0252cce8b58c16bb"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0df75e94621bbeba",
+     "realization/regeneration/RERUN-3861F58C1023021C6B7928B2.json": "c0629aec064363f6"
     }
    }
   ]
@@ -759,14 +862,14 @@
   ]
  },
  "RegenerationRequestTests.test_every_stored_application_payload_and_reason/requests": {
-  "length": 113108,
-  "sha256": "ec681f9fbd630332dcbeede9a402bb2a588e87afacc36a33159004fb28161dd4",
+  "length": 115905,
+  "sha256": "1458c814cac2265f7ba07639e55fea0d99df4d96ddaca9c4d4c42036d09dc2c6",
   "spot": {
-   "count": 120,
+   "count": 123,
    "ids": [
-    "RERUN-059AC93E78D408A29F0903BB",
-    "RERUN-0D6CCF26B741C8AA40F1BEE1",
-    "RERUN-2CFA4CC78F65773352680253"
+    "RERUN-0A706C61B8CED8793D8A3992",
+    "RERUN-0D9E17BF096D9D19392F5ACA",
+    "RERUN-0FCAA3465636EE32333525D0"
    ],
    "scenarios": [
     "GR-002",
@@ -813,16 +916,16 @@
  },
  "RegenerationRequestTests.test_fallback_to_the_observed_configuration_and_other_policies/requests": {
   "length": 10149,
-  "sha256": "93c0077977aa410b11bd18fb8217646b155af28e6cb9f97c013c0b9eec7030f7",
+  "sha256": "f3eeea063a2d0cd6b2b4aec86d2ab9d58067b2623cdc82c2b8c80a19264534ec",
   "spot": {
    "count": 12,
    "ids": [
-    "RERUN-35A6ECB2E66A3C52D9D5A38B",
-    "RERUN-4E435DB2C7F7C2CD1171F051",
-    "RERUN-8507D156EAC322007A872A3C",
-    "RERUN-923B552EC40898C75F640996",
-    "RERUN-A863244B80FA128F01AA3E34",
-    "RERUN-FC8DC8C849458B34AA70293D"
+    "RERUN-0C73A0D8B25FB399293E1B73",
+    "RERUN-1624D79D71FF143B58EF4080",
+    "RERUN-167A4A9482893180188B1B18",
+    "RERUN-2F9402816210910509CE24B8",
+    "RERUN-3861F58C1023021C6B7928B2",
+    "RERUN-CAE529416FC51EE7E9030C78"
    ]
   }
  },
@@ -864,7 +967,7 @@
  },
  "UpstreamRegenerationTests.test_rule_over_its_inputs/results": {
   "length": 175039,
-  "sha256": "83e62622b3e317ee9e11116d1eaa6977ec8e8477562bab3f47e9144f9f9b8874",
+  "sha256": "ef9a26ee2eae2fa531372ee1def227e50db19b00e05208436bcd5915049c434e",
   "spot": {
    "count": 1440,
    "ids": 3,

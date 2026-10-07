@@ -11,7 +11,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -20,7 +22,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b9d17be4d64621ec"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a970312d22cbb27",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -30,7 +33,7 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ValueError",
@@ -43,8 +46,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -61,10 +68,13 @@
     "files": {
      "realization/evidence/REVID-2910FFCD737864CC6FCE4AF1.json": "fefc1f1e1aa5ec1b",
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0c1cc80f77a1ac25",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fc33db8e72e10730",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -81,7 +91,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -90,7 +102,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b9d17be4d64621ec"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a970312d22cbb27",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -107,7 +120,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -122,7 +137,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4bc3759ac5e1d16b"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6741c618ad0a24d7",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "e3d8f1328961a7a6"
     }
    }
   ]
@@ -139,7 +155,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -153,7 +171,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ab73f2c95e2ab76d"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "33815bb173047e11",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "e3d8f1328961a7a6"
     }
    }
   ]
@@ -170,7 +189,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -184,7 +205,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "851cf4eff80cc0b5"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "85dda6d9bac8c4cb",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "e64892ed86947e90"
     }
    }
   ]
@@ -194,7 +216,7 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ValueError",
@@ -207,8 +229,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -224,11 +250,14 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/evidence/REVID-DFEFB42F7FD858218BFE9BA0.json": "0cf00c9e0d83ac3e",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ba21701133d064ea",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/evidence/REVID-558FD688CA6ED764BBF979F7.json": "a5821c6060d6efe8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c3e6d34c71433ef8",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -238,7 +267,7 @@
    [
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ValueError",
@@ -251,8 +280,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -269,10 +302,13 @@
     "files": {
      "realization/evidence/REVID-2910FFCD737864CC6FCE4AF1.json": "fefc1f1e1aa5ec1b",
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0c1cc80f77a1ac25",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "85d6a87f7428897c",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fc33db8e72e10730",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -280,6 +316,10 @@
  "ReconcilerFailedRunTests.test_failure_after_intent_and_rollback_keeps_what_came_before/replacement package": {
   "value": [
    [
+    [
+     "ok",
+     "RSNAP-73D5B591D24C9C3AD102920E"
+    ],
     [
      "ValueError",
      "observation flag has no truth value"
@@ -289,17 +329,37 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/packages",
+     "realization/policies",
+     "realization/regeneration",
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
      "APPLICATION_OBSERVED",
      "INTENT_RECORDED",
+     "VALIDATION_READY",
+     "VALIDATION_STARTED",
+     "VALIDATION_COMPLETED",
+     "COUNTERFACTUAL_RECORDED",
+     "ECONOMIC_MEASUREMENT_RECORDED",
+     "REGENERATION_REQUESTED",
      "ROLLBACK_OBSERVED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6d877f2337c122be"
+     "realization/evidence/REVID-D9EF0231236E0BA0253093B3.json": "f319ce61d5ded899",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0db45d34ae74dae4",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "b93ea05e960578fc",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "22268d55bea62837"
     }
    }
   ]
@@ -316,7 +376,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -326,7 +388,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "5f804f6f9d1182ce"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "2f47afcb6f9d954e",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -343,7 +406,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -352,7 +417,8 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b9d17be4d64621ec"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a970312d22cbb27",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -366,15 +432,15 @@
     ],
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-96664E712C482CE6E54690E3"
+     "RSNAP-73D5B591D24C9C3AD102920E"
     ],
     [
      "ok",
-     "RSNAP-2D646E03498B4BABAF6EBFD9"
+     "RSNAP-0EAB6333B51AC249AF5F577F"
     ]
    ],
    {
@@ -383,8 +449,12 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
+     "realization/policies",
      "realization/regeneration",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -403,12 +473,15 @@
      "realization/evidence/REVID-0177E545B6F256424E9637FB.json": "cd8ca18b06033166",
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
      "realization/evidence/REVID-B7C397E7C40C15DC81B974B5.json": "6a6514a4a68e8751",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "dc2dbb905e0b766e",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "33d861c616a24630",
-     "realization/regeneration/RERUN-059AC93E78D408A29F0903BB.json": "96eccaaa680bc2c4",
-     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-     "realization/snapshots/RSNAP-2D646E03498B4BABAF6EBFD9.json": "33d861c616a24630",
-     "realization/snapshots/RSNAP-96664E712C482CE6E54690E3.json": "85d6a87f7428897c"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "517ff7706fd74919",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "5d6adb6d91fb59eb",
+     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
+     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "ef2457b131decfbc",
+     "realization/regeneration/RERUN-A89E4624DDEFEE1865B19A02.json": "b91296f3bdda4695",
+     "realization/snapshots/RSNAP-0EAB6333B51AC249AF5F577F.json": "5d6adb6d91fb59eb",
+     "realization/snapshots/RSNAP-73D5B591D24C9C3AD102920E.json": "b93ea05e960578fc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "08d7745f34f01b17"
     }
    }
   ]
@@ -425,14 +498,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-02CD49F576810D7EA932586A.json": "7a069ced7fd020c1",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "d2240d58bf5f9bda"
     }
    }
   ]
@@ -449,14 +525,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "24725690594d4c22"
     }
    }
   ]
@@ -473,14 +552,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "88c2ef14efb9c82a"
     }
    }
   ]
@@ -497,14 +579,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "0c54d0a006dc79d9"
     }
    }
   ]
@@ -521,14 +606,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "f8ad47d2dab1761b"
     }
    }
   ]
@@ -545,14 +633,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b3c34ee9d759ffcc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "57f5200268b1428a"
     }
    }
   ]
@@ -569,14 +660,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-009"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-E6F4A239F4256078ED0B66C3.json": "8862445704876a22",
-     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "8e8a4847af40dd28"
+     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "8b78fd118348c1dd",
+     "realization/sources/1234567890123456__wh-demo-009/PKG-AF604CC0ACF59D583A57D57D.json": "9cf44a7a5400a6af"
     }
    }
   ]
@@ -593,14 +687,17 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-009"
     ],
     "events": [
      "REALIZATION_CREATED"
     ],
     "files": {
      "realization/evidence/REVID-E6F4A239F4256078ED0B66C3.json": "8862445704876a22",
-     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "8e8a4847af40dd28"
+     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "8b78fd118348c1dd",
+     "realization/sources/1234567890123456__wh-demo-009/PKG-AF604CC0ACF59D583A57D57D.json": "5e2dbf25199a0a8e"
     }
    }
   ]
@@ -617,7 +714,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-009"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -626,7 +725,8 @@
     ],
     "files": {
      "realization/evidence/REVID-E6F4A239F4256078ED0B66C3.json": "8862445704876a22",
-     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "d120d363d6549e6e"
+     "realization/ledger/RPKG-C798ACDB80BE00E175FF067D.jsonl": "72f9ed1a1eff83c4",
+     "realization/sources/1234567890123456__wh-demo-009/PKG-AF604CC0ACF59D583A57D57D.json": "3892109c8fa0e9a6"
     }
    }
   ]
@@ -643,7 +743,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -652,7 +754,8 @@
     ],
     "files": {
      "realization/evidence/REVID-3B817BA5AC164C54682AB451.json": "3728fe479ddc6c9b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fc25b180521ad1e3"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "99105f85ce4b258e",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -673,7 +776,9 @@
     "directories": [
      "realization",
      "realization/evidence",
-     "realization/ledger"
+     "realization/ledger",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -686,7 +791,8 @@
     "files": {
      "realization/evidence/REVID-2910FFCD737864CC6FCE4AF1.json": "fefc1f1e1aa5ec1b",
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ad2618e6f7496271"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "780a2231651aade3",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
     }
    }
   ]
@@ -696,7 +802,7 @@
    [
     [
      "ok",
-     "RSNAP-71AD35E4067FA059A49B51F0"
+     "RSNAP-AB0E2C584904054B09F602E6"
     ]
    ],
    {
@@ -705,7 +811,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -714,9 +823,11 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "b9d17be4d64621ec",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f685ef1f8c2b13e5",
-     "realization/snapshots/RSNAP-71AD35E4067FA059A49B51F0.json": "f685ef1f8c2b13e5"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4a970312d22cbb27",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "bcde911df03ea0f3",
+     "realization/snapshots/RSNAP-AB0E2C584904054B09F602E6.json": "bcde911df03ea0f3",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "75a25a5845a5db6d"
     }
    }
   ]
@@ -726,7 +837,7 @@
    [
     [
      "ok",
-     "RSNAP-7D729171A01AA48DE8C659D8"
+     "RSNAP-73C2571E55DFE8C6E0D84040"
     ]
    ],
    {
@@ -735,7 +846,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -743,9 +857,11 @@
     ],
     "files": {
      "realization/evidence/REVID-EDCDD0576010DF361996749F.json": "4f2c3c9440254477",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "32d737b52d32dc6d",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a674e67a378462bf",
-     "realization/snapshots/RSNAP-7D729171A01AA48DE8C659D8.json": "a674e67a378462bf"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "07dab499bc53de0c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "546a7fb2680d18cc",
+     "realization/snapshots/RSNAP-73C2571E55DFE8C6E0D84040.json": "546a7fb2680d18cc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "5f2e574bcd29693c"
     }
    }
   ]
@@ -755,7 +871,7 @@
    [
     [
      "ok",
-     "RSNAP-7D729171A01AA48DE8C659D8"
+     "RSNAP-73C2571E55DFE8C6E0D84040"
     ]
    ],
    {
@@ -764,7 +880,10 @@
      "realization/evidence",
      "realization/ledger",
      "realization/packages",
-     "realization/snapshots"
+     "realization/snapshots",
+     "realization/sources",
+     "realization/sources/1234567890123456__wh-demo-006",
+     "realization/state"
     ],
     "events": [
      "REALIZATION_CREATED",
@@ -772,9 +891,11 @@
     ],
     "files": {
      "realization/evidence/REVID-EDCDD0576010DF361996749F.json": "4f2c3c9440254477",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "32d737b52d32dc6d",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a674e67a378462bf",
-     "realization/snapshots/RSNAP-7D729171A01AA48DE8C659D8.json": "a674e67a378462bf"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "07dab499bc53de0c",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "546a7fb2680d18cc",
+     "realization/snapshots/RSNAP-73C2571E55DFE8C6E0D84040.json": "546a7fb2680d18cc",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
+     "realization/state/1234567890123456__wh-demo-006.json": "5f2e574bcd29693c"
     }
    }
   ]

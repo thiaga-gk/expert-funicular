@@ -241,8 +241,7 @@ class RegenerationEvidenceTests(unittest.TestCase):
                                                                "end_utc": raw.get("window_end_utc") or analysis.observed_at_utc})
                 source = package_config(package)
                 self.assertEqual(rerun["changed_knobs"], [k for k in lifecycle.DECISION_KNOBS if rerun["actual_config"][k] != source[k]])
-                # the drift scenario reverts to the package's own configuration: nothing differs from it
-                self.assertEqual(bool(rerun["changed_knobs"]), reason != "CONFIGURATION_DRIFT")
+                self.assertTrue(rerun["changed_knobs"])
 
 
 class LifecycleScenarioTests(unittest.TestCase):
@@ -291,13 +290,14 @@ class LifecycleScenarioTests(unittest.TestCase):
         first, second = [r for _, r in reconcile_runs(self, self.pkg, [both, self.later(10, config=both["config"])])]
         self.assertEqual([a.event_type.value for a in first.applications], ["APPLICATION_OBSERVED", "INDEPENDENT_CHANGE_OBSERVED"])
         self.assertTrue(second.active.is_previous)
-        self.assertEqual([(a.event_type.value, a.payload["step"]) for a in second.applications], [("INDEPENDENT_CHANGE_OBSERVED", self.pending["step"])])
+        # an independent change is recorded once, when it moves, not on every later run that sees it again
+        self.assertEqual(second.applications, ())
 
-    def test_reuse_rule_applies_only_while_the_active_episode_is_the_previous_one(self):
+    def test_an_observation_older_than_the_last_record_changes_nothing(self):
         # A plan that repeats a step number (a second eligible step 1 on the warehouse type, copied from the migration
-        # alternative's step so that the package stays valid) and an observation older than the recorded application: no
-        # drift and no reuse, so the size step opens a new episode, and the repeated step 1 that follows is recorded,
-        # because the active episode is no longer the previous application.
+        # alternative's step so that the package stays valid) and an observation older than the recorded application
+        # that shows that step applied: while the episode is open, only what moved after the configuration last recorded
+        # is new, so the older observation records no drift and no application, and the open episode stays active.
         package = copy.deepcopy(self.pkg)
         plan = next(s for s in package["scenarios"] if s["scenario_id"] == package["recommended_plan"]["scenario_id"])["execution_plan"]
         migration_step = next(s for s in next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"] if s.get("knob") == "warehouse_type")
@@ -308,9 +308,8 @@ class LifecycleScenarioTests(unittest.TestCase):
         (a1, first), (a2, second) = reconcile_runs(self, package, [self.base, earlier])
         self.assertIsNotNone(a2.history.previous_application)
         self.assertIsNone(second.drift)
-        self.assertEqual([(a.payload["knob"], a.payload["implementation_conformance"]) for a in second.applications],
-                         [("warehouse_size", "EXACT"), ("warehouse_type", "UNRELATED")])
-        self.assertFalse(second.active.is_previous)
+        self.assertEqual(second.applications, ())
+        self.assertTrue(second.active.is_previous)
 
     def test_drift_ends_with_a_regeneration_on_the_previous_episode(self):
         package, observations = self.scenario("GR-024")
@@ -335,19 +334,25 @@ class LifecycleScenarioTests(unittest.TestCase):
 
     def test_rollback_attaches_to_the_active_or_previous_episode(self):
         package, observations = self.scenario("GR-025")
-        _, second = [r for _, r in reconcile_runs(self, package, observations)]
-        self.assertEqual(second.rollback_observed, {"observed_config": second.drift["observed_config"], "reason": None})
+        (a1, first), (a2, second) = reconcile_runs(self, package, observations)
+        previous = a2.history.previous_application
+        self.assertEqual(second.rollback_observed["observed_config"], a2.observation.observed_config)
+        self.assertEqual(second.rollback_observed["observed_config_hash"], a2.observation.source_config_hash)
         self.assertIsNone(second.rollback_requested)
-        self.assertEqual(second.rollback_episode_id, second.drift_episode_id)
+        self.assertEqual(second.rollback_episode_id, previous.application_episode_id)
+        # back at the package's own configuration: no drift, no regeneration, no validation
+        self.assertIsNone(second.drift)
+        self.assertIsNone(second.terminal_regeneration)
+        self.assertFalse(second.validation_due)
         # requested on an application this run opens
         (only,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "rollback_requested": True, "rollback_reason": "slow"}])]
-        self.assertEqual(only.rollback_requested, {"reason": "slow"})
+        self.assertEqual(only.rollback_requested, {"reason": "slow", "effective_from_utc": self.base["observed_at_utc"]})
         self.assertEqual(only.rollback_episode_id, only.active.application_episode_id)
-        # nothing applied, no history: no episode
+        # nothing applied, no history: nothing to roll back, whatever the flag says
         (none,) = [r for _, r in reconcile_runs(self, self.pkg, [{**self.base, "config": dict(self.source), "rollback_observed": True}])]
         self.assertIsNone(none.active)
         self.assertIsNone(none.rollback_episode_id)
-        self.assertIsNotNone(none.rollback_observed)
+        self.assertIsNone(none.rollback_observed)
 
     def test_supersession_records_the_replacement(self):
         package, observations = self.scenario("GR-022")
