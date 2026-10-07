@@ -291,8 +291,8 @@ class LiveDailyRunsTests(unittest.TestCase):
         self.assertEqual(snapshot["economics"]["realized_savings_period"], "141.13")
 
     def test_a_later_change_is_a_drift_from_its_own_epoch(self):
-        # (whether a later step of the same plan is plan progress rather than drift is decided separately)
-        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-10-22T09:00:00Z", "set": {"size": "MEDIUM"}}]
+        # min clusters is no step of the plan: a drift (a later step of the plan is plan progress, test_plan_progress)
+        changes = [{"at": "2026-10-08T00:00:00Z", "set": {"auto_stop": 10}}, {"at": "2026-10-22T09:00:00Z", "set": {"min": 2}}]
         runs, _ = self.daily(changes, ["2026-10-21", "2026-10-23"])
         (drift,) = [e for e in runs.lines if e["event_type"] == "DRIFT_DETECTED"]
         self.assertEqual(drift["payload"]["effective_from_utc"], "2026-10-22T09:00:00Z")

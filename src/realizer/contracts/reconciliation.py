@@ -121,8 +121,9 @@ class ReconciliationResult:
     previous application's episode ``drift_episode_id``), ``applications`` (the scenario-scope application first, then
     the changed steps in plan order), ``intent`` (INTENT_RECORDED payload, on ``intent_episode_id``),
     ``rollback_requested`` and ``rollback_observed`` (on ``rollback_episode_id``) and ``replacement_package_id``
-    (SOURCE_PACKAGE_SUPERSEDED, then REPLACEMENT_PACKAGE_LINKED). ``active`` is the application episode in force after
-    them.
+    (SOURCE_PACKAGE_SUPERSEDED, then REPLACEMENT_PACKAGE_LINKED). ``step_regeneration`` is the regeneration a step the
+    package holds for re-evaluation requests when it is applied while the plan is in progress (recorded after them; the
+    run goes on). ``active`` is the application episode in force after them.
 
     Then exactly one of: ``terminal_regeneration`` (configuration drift or a contrary application: the run ends with a
     regeneration request), ``validation_due`` (an active application whose evidence is ready: the validation episode
@@ -145,6 +146,7 @@ class ReconciliationResult:
     rollback_observed: Optional[Mapping[str, Any]] = None
     rollback_episode_id: Optional[str] = None
     replacement_package_id: Any = None
+    step_regeneration: Optional[RegenerationRequest] = None
     terminal_regeneration: Optional[RegenerationRequest] = None
     validation_due: bool = False
     upstream_regeneration: Optional["Deferred[Optional[RegenerationRequest]]"] = None

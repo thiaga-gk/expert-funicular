@@ -444,6 +444,9 @@ def commit_events(context: RunContext, reviewed: ReviewResult) -> Tuple[Path, ..
     if reconciliation.replacement_package_id:
         record(rc.EventType.SOURCE_PACKAGE_SUPERSEDED, effective, replacement_payload(reconciliation.replacement_package_id), [])
         record(rc.EventType.REPLACEMENT_PACKAGE_LINKED, effective, replacement_payload(reconciliation.replacement_package_id), [])
+    if reconciliation.step_regeneration is not None:
+        append_regeneration(package, output_dir, reconciliation.step_regeneration, recorded, effective)
+        written.append(regeneration_path(output_dir, reconciliation.step_regeneration.regeneration_request_id))
     if reconciliation.halt is not None:
         raise reconciliation.halt
 

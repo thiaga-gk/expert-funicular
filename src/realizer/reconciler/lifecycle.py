@@ -15,10 +15,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import back_at_source, config_hash, normalize_value, observed_config, scenario_by_id
+from realizer.analyzer.analysis import APPLICATION_EVENTS, applied_sources, back_at_source, config_hash, normalize_value, observed_config, scenario_by_id
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
 from realizer.common.utils import Deferred, parse_utc, utc_iso
+from realizer.config.settings import HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
@@ -51,6 +52,7 @@ class LifecyclePlan:
     rollback_observed: Optional[Mapping[str, Any]] = None
     rollback_episode_id: Optional[str] = None
     replacement_package_id: Any = None
+    step_regeneration: Optional[RegenerationRequest] = None
     terminal_regeneration: Optional[RegenerationRequest] = None
     validation_due: bool = False
     upstream_regeneration: Optional[Deferred[Optional[RegenerationRequest]]] = None
@@ -69,6 +71,7 @@ class LifecyclePlan:
             rollback_observed=self.rollback_observed,
             rollback_episode_id=self.rollback_episode_id,
             replacement_package_id=self.replacement_package_id,
+            step_regeneration=self.step_regeneration,
             terminal_regeneration=self.terminal_regeneration,
             validation_due=self.validation_due,
             upstream_regeneration=self.upstream_regeneration,
@@ -95,40 +98,63 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     step_results, primary = state.match.step_matches, state.match.primary
     authority_changes, scenario_scope = state.match.authority_changes, state.match.scenario_scope
     previous_app, closure = analysis.history.previous_application, analysis.history.closure
-    changed = analysis.config_drift_observed   # a later configuration than the previous application's
-    # A closed episode (a drift or an observed rollback recorded after its application) never absorbs a new application:
-    # its configuration observed again is a new episode. A later configuration is a rollback when every knob the
-    # application changed is back at its source value (the warehouse is at the package's own configuration again; an
-    # episode already rolled back is not rolled back twice), the closing configuration observed again on a later run
-    # records nothing new (a drift still ends the run with its regeneration request), and any other later configuration
-    # is a drift, unless it closed the episode before and now applies a plan step: then it is a new application.
-    rolled_back = bool(changed and previous_app is not None and (closure is None or closure.event_type == rc.EventType.DRIFT_DETECTED)
-                       and back_at_source(package, previous_app.payload, obs_cfg))
-    closed_again = bool(changed and closure is not None and not rolled_back and closure.payload.get("observed_config_hash") == observed_hash)
-    material_config_drift = bool(changed and not rolled_back and not closed_again and (closure is None or primary is None))
-    drifted = material_config_drift or (closed_again and closure.event_type == rc.EventType.DRIFT_DETECTED)
-    # A drift and an observed rollback carry the time they took effect, so a recurring one is a new event.
-    closed_at = closing_time(observed, previous_app) if (material_config_drift or rolled_back) and previous_app is not None else None
+    open_apps = analysis.history.open_applications
+    # While application episodes are open (one per plan step applied, or one scenario-scope application), the run reads
+    # the change against the configuration last recorded (``_plan_progress``): a later step of the plan applied is a
+    # new application and the open episodes go on; a step the package holds for re-evaluation applied early is an
+    # independent change that requests regeneration; open episodes whose knobs are all back at their source value are
+    # rolled back; anything else is a drift, which closes every open episode.
+    progress = _plan_progress(package, analysis.history, open_apps, step_results, obs_cfg, observed) if open_apps else None
+    if progress is not None:
+        changed = progress.changed
+        rolled_back = bool(progress.rolled and not progress.unexplained)
+        closed_again = False
+        material_config_drift = progress.unexplained
+        drifted = material_config_drift
+        anchor = open_apps[-1]
+        closed_at = closing_time(observed, anchor) if progress.diff else None
+    else:
+        changed = analysis.config_drift_observed   # a later configuration than the previous application's
+        # A closed episode (a drift or an observed rollback recorded after its application) never absorbs a new
+        # application: its configuration observed again is a new episode. A later configuration is a rollback when every
+        # knob the application changed is back at its source value (the warehouse is at the package's own configuration
+        # again; an episode already rolled back is not rolled back twice), the closing configuration observed again on a
+        # later run records nothing new (a drift still ends the run with its regeneration request), and any other later
+        # configuration is a drift, unless it closed the episode before and now applies a plan step: then it is a new
+        # application.
+        rolled_back = bool(changed and previous_app is not None and (closure is None or closure.event_type == rc.EventType.DRIFT_DETECTED)
+                           and back_at_source(package, previous_app.payload, obs_cfg))
+        closed_again = bool(changed and closure is not None and not rolled_back and closure.payload.get("observed_config_hash") == observed_hash)
+        material_config_drift = bool(changed and not rolled_back and not closed_again and (closure is None or primary is None))
+        drifted = material_config_drift or (closed_again and closure.event_type == rc.EventType.DRIFT_DETECTED)
+        anchor = previous_app
+        # A drift and an observed rollback carry the time they took effect, so a recurring one is a new event.
+        closed_at = closing_time(observed, previous_app) if (material_config_drift or rolled_back) and previous_app is not None else None
 
     if material_config_drift:
         state.drift = {
             "state": "DRIFTED",
             "drift_type": "CONFIGURATION",
-            "previous_observed_config_hash": previous_app.payload.get("observed_config_hash"),
+            "previous_observed_config_hash": (progress.reference.payload if progress is not None else previous_app.payload).get("observed_config_hash"),
             "observed_config_hash": observed_hash,
             "observed_config": obs_cfg,
             "material": True,
             "required_action": "REGENERATE",
             "effective_from_utc": closed_at,
         }
-        state.drift_episode_id = previous_app.application_episode_id
+        state.drift_episode_id = anchor.application_episode_id
 
     # Record every materially changed candidate relationship; only authority-
     # eligible primary scope can enter recommendation realization. Repeated
     # observations of the same already-applied configuration remain in the same
     # application episode, while it is open, rather than creating a new APP on every daily run.
-    active: Optional[ActiveApplication] = _previous(previous_app) if drifted else None
-    if not drifted and closure is None and previous_app and primary and (
+    active: Optional[ActiveApplication] = _previous(anchor) if drifted else None
+    if progress is not None:
+        if not drifted and primary is not None:
+            # The open episode of the plan's first applied step is the one measured (the live measurement reads it).
+            owner = next((a for a in progress.still_open if _covers(a.payload, primary)), None)
+            active = _previous(owner) if owner is not None else None
+    elif not drifted and closure is None and previous_app and primary and (
         previous_app.payload.get("observed_config_hash") == observed_hash
         and previous_app.payload.get("scenario_id") == primary.get("scenario_id")
         and (scenario_scope or previous_app.payload.get("step") == primary.get("step"))
@@ -139,7 +165,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     # Multiple compatible authoritative changes (or a migration alternative)
     # are one scenario-scope application episode. This avoids fabricating
     # candidate allocation for inseparable economics.
-    if scenario_scope and authority_changes and active is None:
+    if progress is None and scenario_scope and authority_changes and active is None:
         scenario_conf = (
             rc.ImplementationConformance.CONTRARY.value
             if any(i["implementation_conformance"] == rc.ImplementationConformance.CONTRARY.value for i in authority_changes)
@@ -210,7 +236,16 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             payload["independent_reason"] = "UNRELATED_VALUE"
         if drifted and authority:
             continue
-        if scenario_scope and authority:
+        if progress is not None:
+            # Only what changed since the configuration last recorded is new: a later step of the plan (from the epoch
+            # that brought it) or an independent change; a step an open episode holds is that episode.
+            if authority and item.get("step") not in progress.steps:
+                continue
+            if not authority and item.get("knob") not in progress.moved:
+                continue
+            if authority:
+                payload["effective_from_utc"] = closed_at
+        elif scenario_scope and authority:
             continue
         if (
             previous_app is not None
@@ -247,10 +282,11 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         state.rollback_episode_id = rollback_episode_id
         state.rollback_requested = {"reason": observation.get("rollback_reason"), "effective_from_utc": observed.observed_at_utc}
     if rolled_back:
-        assert previous_app is not None
-        state.rollback_episode_id = previous_app.application_episode_id
+        rolled = list(progress.rolled) if progress is not None else [previous_app]
+        assert rolled and rolled[-1] is not None
+        state.rollback_episode_id = rolled[-1].application_episode_id
         state.rollback_observed = {"observed_config": obs_cfg, "observed_config_hash": observed_hash, "reason": observation.get("rollback_reason"),
-                                   "effective_from_utc": closed_at}
+                                   "effective_from_utc": closed_at, "rolled_back_episode_ids": sorted(a.application_episode_id for a in rolled)}
 
     # Replacement/supersession events are explicit; package generation alone is
     # not inferred from observation time.
@@ -258,8 +294,14 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     if replacement_pkg:
         state.replacement_package_id = replacement_pkg
 
-    if drifted and previous_app:
-        drift_app_payload = dict(previous_app.payload)
+    if progress is not None and progress.pending and not drifted:
+        # A step the package holds for re-evaluation applied while the plan is in progress: no credit (an independent
+        # change, above) and a fresh analysis is requested; the open episodes go on.
+        step_payload = {**anchor.payload, "observed_config": obs_cfg, "observed_config_hash": observed_hash}
+        state.step_regeneration = regeneration_request(package, step_payload, observation, policy, reason="PENDING_STEP_APPLIED", evidence_id=revid)
+
+    if drifted and anchor:
+        drift_app_payload = dict(anchor.payload)
         drift_app_payload["observed_config"] = obs_cfg
         drift_app_payload["observed_config_hash"] = observed_hash
         state.terminal_regeneration = regeneration_request(package, drift_app_payload, observation, policy, reason="CONFIGURATION_DRIFT", evidence_id=revid)
@@ -285,6 +327,76 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         # Invalidating or modified authoritative changes request fresh Publisher analysis after the measurement; the
         # run reaches that point only after validation and measurement, so it is held (and raises) until then.
         state.upstream_regeneration = Deferred.of(upstream_regeneration_request, package, app_payload, observation, policy, evidence_id=revid)
+
+
+@dataclass(frozen=True)
+class PlanProgress:
+    """How an observation relates to the configuration last recorded while application episodes are open.
+
+    ``reference`` is that record (the latest application, independent change or observed rollback), ``changed`` whether
+    the observation is a later, different configuration, ``moved`` the decision knobs that differ from it (``diff``: those
+    of them the configuration hash covers, the channel moves without a priced effect), ``rolled``
+    the open episodes whose knobs are all back at their source value, ``still_open`` the others, ``steps`` the plan
+    steps applied since (each a new application), ``pending`` the knobs of steps held for re-evaluation applied since,
+    and ``unexplained`` whether any changed knob is explained by none of these (a drift)."""
+    reference: rc.RealizationLedgerEntry
+    changed: bool
+    moved: frozenset
+    diff: frozenset
+    rolled: tuple
+    still_open: tuple
+    steps: frozenset
+    pending: frozenset
+    unexplained: bool
+
+
+# The independent reasons of a changed step the package holds (PENDING_REEVALUATION) or blocks.
+HELD_STEP_REASONS = frozenset({"PENDING_REEVALUATION", "BLOCKED_STEP"})
+APPLIED_CONFORMANCES = frozenset({rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value})
+REFERENCE_EVENTS = (*APPLICATION_EVENTS, rc.EventType.INDEPENDENT_CHANGE_OBSERVED, rc.EventType.ROLLBACK_OBSERVED)
+
+
+def _covers(app_payload: Mapping[str, Any], item: Mapping[str, Any]) -> bool:
+    """Whether an application (a step's, or a scenario-scope one) holds the plan step of *item* at *item*'s value."""
+    if app_payload.get("scenario_id") != item.get("scenario_id") or item.get("step") is None:
+        return False
+    if app_payload.get("application_scope") == "SCENARIO":
+        steps = {ref.get("step") for ref in app_payload.get("applied_step_refs") or []}
+        return item.get("step") in steps and (app_payload.get("observed_config") or {}).get(str(item.get("knob"))) == item.get("observed_value")
+    return app_payload.get("step") == item.get("step") and app_payload.get("observed_value") == item.get("observed_value")
+
+
+def _plan_progress(package: Mapping[str, Any], history: Any, open_apps: Any, step_results: Any, obs_cfg: Mapping[str, Any],
+                   observed: ObservationAnalysis) -> PlanProgress:
+    """The observation against the configuration last recorded while *open_apps* are open (``PlanProgress``)."""
+    reference = next(e for e in reversed(history.entries) if e.event_type in REFERENCE_EVENTS and e.payload.get("observed_config_hash"))
+    ref_cfg = reference.payload.get("observed_config") or {}
+    later = parse_utc(observed.observed_at_utc) > parse_utc(reference.recorded_at_utc)
+    changed = bool(reference.payload.get("observed_config_hash") != observed.observed_config_hash and later)
+    # Every decision knob that moved is recorded; only the configuration's own knobs (not the channel, which has no
+    # priced effect) can be a step, a rollback or a drift.
+    moved = frozenset(k for k in DECISION_KNOBS if later and obs_cfg.get(k) != ref_cfg.get(k))
+    diff = frozenset(k for k in moved if k in HASHED_CONFIG_KNOBS)
+    rolled = tuple(a for a in open_apps if diff and set(applied_sources(package, a.payload)) <= diff and back_at_source(package, a.payload, obs_cfg))
+    still_open = tuple(a for a in open_apps if a not in rolled)
+    rolled_knobs = {k for a in rolled for k in applied_sources(package, a.payload)}
+    steps, pending, unexplained = set(), set(), False
+    for knob in sorted(diff - rolled_knobs):
+        item = next((i for i in step_results if i.get("knob") == knob), None)
+        conformance = None if item is None else item.get("implementation_conformance")
+        held = item is not None and any(a.payload.get("scenario_id") == item.get("scenario_id")
+                                        and (a.payload.get("step") == item.get("step") or a.payload.get("application_scope") == "SCENARIO" and item.get("step") in {r.get("step") for r in a.payload.get("applied_step_refs") or []})
+                                        for a in still_open)
+        if item is None or held:
+            unexplained = True   # a knob no step relates to, or an open step's value changed again
+        elif item.get("authority_eligible") and conformance in APPLIED_CONFORMANCES:
+            steps.add(item.get("step"))
+        elif not item.get("authority_eligible") and item.get("independent_reason") in HELD_STEP_REASONS and conformance not in {None, rc.ImplementationConformance.NOT_APPLIED.value}:
+            pending.add(knob)
+        else:
+            unexplained = True
+    return PlanProgress(reference=reference, changed=changed, moved=moved, diff=diff, rolled=rolled, still_open=still_open,
+                        steps=frozenset(steps), pending=frozenset(pending), unexplained=unexplained)
 
 
 def closing_time(observed: ObservationAnalysis, application: rc.RealizationLedgerEntry) -> str:

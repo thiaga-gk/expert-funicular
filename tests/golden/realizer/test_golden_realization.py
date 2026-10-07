@@ -280,7 +280,7 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_023_economic_handoff_uses_same_boundary_without_overlap(self):
         o = self.obs(); old = self.realize_case(o)
         boundary = _iso_add(o['observed_at_utc'], days=1)
-        drift = self.later(o, days=1, new_application=True); drift['config']['max_clusters'] = 3; drift['economics'] = None
+        drift = self.later(o, days=1, new_application=True); drift['config']['min_clusters'] = 2; drift['economics'] = None
         old2 = self.realize_case(drift)
         self.assertEqual(old2.application['effective_to_utc'], boundary)
         # A replacement package starts its own interval at the same boundary.

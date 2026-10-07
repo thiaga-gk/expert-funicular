@@ -8,7 +8,7 @@ and with the same failure modes, gathered here.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import decimal, parse_utc, utc_iso
@@ -162,32 +162,58 @@ def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
 
 
-# The lifecycle events that end an application episode: once one is recorded on the episode at or after its application,
-# the episode is closed and never absorbs a new application.
+# The lifecycle events that end application episodes: a drift ends every episode open when it is recorded (the plan
+# stops), an observed rollback the episode it names and the episodes its payload lists (``rolled_back_episode_ids``).
 CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
+APPLICATION_EVENTS = (rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
+
+
+def episodes(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str, Dict[str, Any]]:
+    """Every application episode of a ledger (*entries* in recorded order), in the order it started:
+    ``{episode id: {"application": its first application entry, "closers": the drifts and observed rollbacks that closed
+    it, in recorded order}}``. An episode without a closer is open; a closed one never absorbs a new application. Several
+    episodes are open at once when a plan's steps were applied one after another."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        episode = entry.application_episode_id
+        if entry.event_type in APPLICATION_EVENTS and episode and episode not in out:
+            out[episode] = {"application": entry, "closers": []}
+        elif entry.event_type == rc.EventType.DRIFT_DETECTED:
+            closed = {e for e, v in out.items() if not v["closers"]} | ({episode} if episode in out else set())
+            for e in closed:
+                out[e]["closers"].append(entry)
+        elif entry.event_type == rc.EventType.ROLLBACK_OBSERVED:
+            for e in {episode, *(entry.payload.get("rolled_back_episode_ids") or [])}:
+                if e in out:
+                    out[e]["closers"].append(entry)
+    return out
+
+
+def open_applications(entries: Sequence[rc.RealizationLedgerEntry]) -> Tuple[rc.RealizationLedgerEntry, ...]:
+    """The first application entry of every open episode, in the order they started."""
+    return tuple(v["application"] for v in episodes(entries).values() if not v["closers"])
 
 
 def closing_event(entries: Sequence[rc.RealizationLedgerEntry], application: Optional[rc.RealizationLedgerEntry], *,
                   first: bool = False) -> Optional[rc.RealizationLedgerEntry]:
-    """The latest (*first*: the earliest) drift or observed rollback recorded on *application*'s episode at or after the
-    application (*entries* in recorded order); ``None`` while the episode is open."""
+    """The latest (*first*: the earliest) drift or observed rollback that closed *application*'s episode (*entries* in
+    recorded order); ``None`` while the episode is open."""
     if application is None:
         return None
-    start = parse_utc(application.recorded_at_utc)
-    closing = [e for e in entries if e.event_type in CLOSING_EVENTS and e.application_episode_id == application.application_episode_id
-               and parse_utc(e.recorded_at_utc) >= start]
-    return (closing[0] if first else closing[-1]) if closing else None
+    closers = (episodes(entries).get(application.application_episode_id) or {}).get("closers") or []
+    return (closers[0] if first else closers[-1]) if closers else None
 
 
 def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> RealizationHistory:
     """The history view of a loaded ledger (recorded order): its latest application, whether that application's episode
-    is closed, and its latest measurement."""
-    previous = latest_event(entries, rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
+    is closed, the episodes still open and its latest measurement."""
+    previous = latest_event(entries, *APPLICATION_EVENTS)
     return RealizationHistory(
         entries=tuple(entries),
         previous_application=previous,
         prior_measurement=latest_event(entries, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED),
         closure=closing_event(entries, previous),
+        open_applications=open_applications(entries),
     )
 
 

@@ -26,10 +26,11 @@ WHOLE = "2026-10-09T12:00:00Z"
 LATER = "2026-10-09T12:00:00.500000Z"  # half a second later, but '.' < 'Z' as text
 
 
-def entry(package, event_type, recorded, payload=None, effective=None):
+def entry(package, event_type, recorded, payload=None, effective=None, episode=None):
     return ledger.make_ledger_entry(
         package=package, rpkg_id=rc.make_rpkg_id(package["recommendation_package_id"]), event_type=event_type,
         effective_at_utc=effective or recorded, recorded_at_utc=recorded, payload=payload or {"note": recorded},
+        application_episode_id=episode,
     )
 
 
@@ -82,7 +83,7 @@ class TimeOrderTests(unittest.TestCase):
         base = [dataclasses.replace(e, recorded_at_utc=WHOLE) if e.recorded_at_utc == app.recorded_at_utc else e for e in entries]
         for event_type, state in ((rc.EventType.ROLLBACK_OBSERVED, "ROLLED_BACK"), (rc.EventType.DRIFT_DETECTED, "DRIFTED")):
             with self.subTest(event=event_type.value):
-                later = entry(package, event_type, LATER, payload={"state": "DETECTED"})
+                later = entry(package, event_type, LATER, payload={"state": "DETECTED"}, episode=app.application_episode_id)
                 result = snapshot.project_snapshot(package, base + [later])
                 self.assertEqual(result.application["state"], state)
 
