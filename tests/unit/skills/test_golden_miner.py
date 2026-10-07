@@ -183,6 +183,71 @@ class FindRunTests(unittest.TestCase):
             mine_patterns.find_run(self.base / "empty")
 
 
+class ScopedRunTests(unittest.TestCase):
+    """A scoped run lacks the candidates of out-of-scope knobs, so the expected behaviour cannot be judged on it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.run_dir = Path(cls.tmp.name) / "scoped"
+        code, _ = _quiet(publisher_main, ["--demo", "--scope", "current:auto-stop", "--output-dir", str(cls.run_dir),
+                                          "--flat-output", "--no-workbook"])
+        assert code == 0
+        logging.disable(logging.CRITICAL)
+        cls.out = Path(cls.tmp.name) / "report"
+        code, cls.stdout = _quiet(mine_patterns.main, ["--run-dir", str(cls.run_dir), "--out", str(cls.out)])
+        assert code == 0
+        cls.report = json.loads((cls.out / "pattern_report.json").read_text())
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET)
+        cls.tmp.cleanup()
+
+    def test_packages_carry_a_run_scope(self):
+        _, packages = mine_patterns.load_run(self.run_dir)
+        self.assertTrue(packages and all(p.get("run_scope") for p in packages.values()))
+
+    def test_a_scoped_run_reports_no_false_mismatch(self):
+        self.assertEqual(self.report["mismatches"], [])
+
+    def test_the_report_states_that_mismatches_were_not_evaluated(self):
+        scope = self.report["run_scope"]
+        self.assertTrue(scope["scoped"])
+        self.assertFalse(scope["mismatches_evaluated"])
+        self.assertEqual(scope["scoped_packages"], self.report["warehouse_count"])
+        self.assertEqual(scope["full_scope_packages"], 0)
+        md = (self.out / "pattern_report.md").read_text()
+        self.assertIn("Scoped run", md)
+        self.assertIn("not evaluated", md.split("## Coverage")[0])
+        self.assertIn("Not evaluated", md.split("## Behaviour mismatches")[1].split("##")[0])
+        self.assertIn("scoped", self.stdout)
+
+    def test_coverage_and_drift_still_come_from_the_evidence(self):
+        self.assertTrue(any(row["warehouses"] for row in self.report["coverage"]["rows"]))
+        self.assertTrue(self.report["drift"])
+
+    def test_only_scoped_packages_are_skipped_in_a_mixed_run(self):
+        warehouses, packages = mine_patterns.load_run(self.run_dir)
+        catalog = mine_patterns.load_catalog(mine_patterns.DEFAULT_CATALOG)
+        key = next(iter(packages))
+        # A full-scope package for one warehouse (run_scope None) that contradicts every size expectation.
+        for k, pkg in packages.items():
+            if k != key:
+                continue
+            pkg["run_scope"] = None
+            for c in pkg["candidates"]:
+                c["status"] = "BLOCKED"
+                c["recommended_value"] = None
+        report = mine_patterns.mine(warehouses, packages, catalog, None, None)
+        self.assertEqual(report["run_scope"]["full_scope_packages"], 1)
+        self.assertEqual(report["run_scope"]["scoped_packages"], len(packages) - 1)
+        self.assertTrue(report["run_scope"]["mismatches_evaluated"])
+        self.assertTrue(report["run_scope"]["mismatches_evaluated_for"] == [f"{key[0]}/{key[1]}"])
+        self.assertTrue(report["mismatches"])
+        self.assertTrue(all(m["warehouse"] == f"{key[0]}/{key[1]}" for m in report["mismatches"]))
+
+
 class PreflightTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

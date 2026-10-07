@@ -11,7 +11,10 @@ pattern_report.md with six parts:
   coverage    -- warehouses per catalog row, and rows with no live match
   gaps        -- warehouses no row matches, grouped by a coarse fingerprint
   mismatches  -- a row matches but the package contradicts that row's expected behavior (its `expect` assertions,
-                 the golden assertion DSL of tests/golden/harness.py)
+                 the golden assertion DSL of tests/golden/harness.py). Packages produced under a run scope (non-null
+                 `run_scope`) lack the candidates of out-of-scope knobs, so their expectations cannot be judged: they
+                 are skipped, and the report header and the `run_scope` object say so. Coverage, gaps, premises and
+                 drift come from the evidence and are still reported.
   premises    -- per premise (an assumption a row's expected behavior rests on, e.g. a Pro restart takes ~4 minutes):
                  live warehouses where it holds, is contradicted or cannot be checked, and each contradiction
   drift       -- per matched row, the live range of its drift features next to the demo-fleet warehouse's value
@@ -47,7 +50,7 @@ from publisher.governor.thresholds import Thresholds  # noqa: E402
 from tests.golden.harness import check, resolve  # noqa: E402
 
 DEFAULT_CATALOG = SKILL_DIR / "references" / "signature-catalog.yaml"
-REPORT_VERSION = "1.0.0"
+REPORT_VERSION = "1.1.0"
 OPS = ("eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "is_null", "not_null")
 
 
@@ -295,6 +298,8 @@ def mine(warehouses: List[Dict[str, Any]], packages: Dict[Tuple[str, str], Dict[
     premises = sorted(catalog.get("premises") or [], key=lambda p: p["id"])
     tally = {p["id"]: {"holds": 0, "contradicted": 0, "unknown": 0} for p in premises}
     per_wh, hits, mismatches, gaps, contradictions = [], {r["id"]: [] for r in rows}, [], {}, []
+    scoped_refs: List[str] = []  # packages produced under a run scope: expectations are not evaluated
+    evaluated_refs: List[str] = []  # full-scope packages: expectations are evaluated
     feats: Dict[str, Dict[str, Any]] = {}
     for w in sorted(warehouses, key=lambda x: (x["workspace_id"], x["warehouse_id"])):
         ref = f"{w['workspace_id']}/{w['warehouse_id']}"
@@ -302,7 +307,12 @@ def mine(warehouses: List[Dict[str, Any]], packages: Dict[Tuple[str, str], Dict[
         feats[ref] = f
         matched = [r["id"] for r in rows if r.get("signature") and matches(f, r["signature"])]
         pkg = packages.get((w["workspace_id"], w["warehouse_id"]))
-        annotated = annotate(pkg) if pkg is not None else None
+        is_scoped = pkg is not None and bool(pkg.get("run_scope"))
+        annotated = annotate(pkg) if pkg is not None and not is_scoped else None
+        if is_scoped:
+            scoped_refs.append(ref)
+        elif pkg is not None:
+            evaluated_refs.append(ref)
         broken: Dict[str, List[str]] = {}  # row -> premises contradicted on this warehouse
         for p in premises:
             on_rows = [r for r in p["rows"] if r in matched]
@@ -347,6 +357,14 @@ def mine(warehouses: List[Dict[str, Any]], packages: Dict[Tuple[str, str], Dict[
         "report_version": REPORT_VERSION,
         "catalog_version": str(catalog.get("version")),
         "warehouse_count": len(per_wh),
+        "run_scope": {
+            "scoped": bool(scoped_refs),
+            "scoped_packages": len(scoped_refs),
+            "full_scope_packages": len(evaluated_refs),
+            "mismatches_evaluated": bool(evaluated_refs),
+            "mismatches_evaluated_for": evaluated_refs,
+            "mismatches_not_evaluated_for": scoped_refs,
+        },
         "coverage": {
             "rows": [{"row": r["id"], "title": r.get("title"), "registry_status": r.get("status"), "warehouses": hits[r["id"]]} for r in rows],
             "rows_without_live_match": [r["id"] for r in rows if r.get("signature") and not hits[r["id"]]],
@@ -406,17 +424,32 @@ def evaluate(pkg: Dict[str, Any], assertion: Dict[str, Any]) -> Optional[str]:
         return f"{assertion.get('path')}: {type(exc).__name__}: {exc}"
 
 
+def scope_note(r: Dict[str, Any]) -> str:
+    """One sentence for the report header and the console when any package was produced under a run scope; else ''."""
+    s = r["run_scope"]
+    if not s["scoped"]:
+        return ""
+    which = "all" if not s["full_scope_packages"] else f"{s['scoped_packages']} of {s['scoped_packages'] + s['full_scope_packages']}"
+    return (f"Scoped run: {which} package(s) were produced under a run scope (`run_scope` is set), so their candidates for "
+            "out-of-scope knobs are absent and behaviour mismatches were not evaluated for them. Coverage, gaps, premises and "
+            "drift come from the evidence and are reported as usual; mine a full-scope run for mismatches.")
+
+
 def render_md(r: Dict[str, Any]) -> str:
     out = [f"# Golden pattern report ({r['warehouse_count']} warehouses, catalog {r['catalog_version']})", ""]
+    if scope_note(r):
+        out += [f"> {scope_note(r)}", ""]
     out += ["## Coverage", "", "| Row | Title | Registry status | Live warehouses |", "|---|---|---|---|"]
     out += [f"| {c['row']} | {c['title']} | {c['registry_status']} | {len(c['warehouses'])} |" for c in r["coverage"]["rows"] if c["warehouses"]]
     out += ["", f"Rows with no live match: {', '.join(r['coverage']['rows_without_live_match']) or 'none'}",
             f"Rows checked by hand only: {', '.join(r['coverage']['manual_rows']) or 'none'}", "", "## Gaps", ""]
     out += [f"- `{g['fingerprint']}`: {len(g['warehouses'])} warehouse(s): {', '.join(g['warehouses'])}" for g in r["gaps"]] or ["None."]
     out += ["", "## Behaviour mismatches", ""]
+    if r["run_scope"]["scoped"]:
+        out += [f"Not evaluated for {len(r['run_scope']['mismatches_not_evaluated_for'])} scoped package(s) (see the note at the top).", ""]
     out += [f"- **{m['row']}** ({m['priority']}) {m['warehouse']} {m['warehouse_name']}: " + "; ".join(m["failed_assertions"])
             + (f" [premise contradicted: {', '.join(m['premises_contradicted'])}]" if m["premises_contradicted"] else "")
-            for m in r["mismatches"]] or ["None."]
+            for m in r["mismatches"]] or ([] if not r["run_scope"]["mismatches_evaluated"] else ["None."])
     out += ["", "## Premise contradictions", "", "| Premise | Assumes | Rows | Holds | Contradicted | Unknown |", "|---|---|---|---|---|---|"]
     out += [f"| {p['premise']} | {p['assumes']['name']} = {p['assumes']['value']} | {', '.join(p['rows'])} | {p['live']['holds']} | "
             f"{p['live']['contradicted']} | {p['live']['unknown']} |" for p in r["premises"]]
@@ -448,7 +481,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     (out / "pattern_report.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
     (out / "pattern_report.md").write_text(render_md(report), encoding="utf-8")
     print(f"pattern report: {out} | warehouses={report['warehouse_count']} gaps={sum(len(g['warehouses']) for g in report['gaps'])} "
-          f"mismatches={len(report['mismatches'])} premise_contradictions={len(report['premise_contradictions'])} "
+          f"mismatches={len(report['mismatches']) if report['run_scope']['mismatches_evaluated'] else 'not evaluated (scoped run)'} premise_contradictions={len(report['premise_contradictions'])} "
           f"drift_flags={sum(d['demo_outside_live_range'] for d in report['drift'])}")
     return 0
 
