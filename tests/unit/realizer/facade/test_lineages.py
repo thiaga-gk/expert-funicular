@@ -19,6 +19,7 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence, Tuple
+from unittest import mock
 
 from tests.unit.realizer.helpers import canonical, fixture_package  # noqa: F401  (canonical: src/realizer, never a shadowing copy)
 from tests import realizer_world
@@ -26,6 +27,7 @@ from tests.golden.realizer import e2e
 from realizer.analyzer.collector.collector import demo_observation
 from realizer.analyzer.projector import project_observation
 from realizer.common.errors import InputError
+from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.packager.ledger import ledger_path, load_ledger
 from realizer.realizer import realize
@@ -246,6 +248,31 @@ class CanaryRollbackTests(unittest.TestCase):
                                  ("CANARY_ROLLBACK", self.rollback["recommendation_package_id"]))
                 self.assertEqual(later["current_state"]["realization_state"], "SAFETY_ACTION_APPLIED")
         self.assertEqual(outcomes[0], outcomes[1])
+
+
+class OtherLedgerErrorTests(unittest.TestCase):
+    """Only another run's lock leaves a cross-lineage event for a later run; a ledger that cannot be written fails."""
+
+    def test_a_locked_ledger_is_skipped_and_any_other_ledger_error_raises(self):
+        from realizer.common.errors import LedgerError, LedgerLockedError
+        from realizer.contracts.lineage import LineageEvent, LineageRecord
+        from realizer.packager import lineage as packager_lineage
+        own, other = e2e.stored_package(BALANCED), e2e.stored_package(AGGRESSIVE)
+        own_rpkg, other_rpkg = make_rpkg_id(own["recommendation_package_id"]), make_rpkg_id(other["recommendation_package_id"])
+        event = LineageEvent(realization_package_id=other_rpkg, event_type=rc.EventType.SUCCESSOR_PACKAGE_LINKED,
+                             effective_at_utc="2026-10-01T12:00:00Z", recorded_at_utc="2026-10-01T12:00:00Z",
+                             payload={"successor_package_id": own["recommendation_package_id"]}, application_episode_id=None)
+        record = LineageRecord(realization_package_id=other_rpkg, recommendation_package_id=other["recommendation_package_id"], package=other, entries=())
+        for error, raises in ((LedgerLockedError("ledger x is locked by another run"), False), (LedgerError("ledger x line 3 is not a valid ledger entry"), True)):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as tmp:
+                def locked(path, error=error):
+                    raise error
+                with mock.patch.object(packager_lineage, "ledger_lock", locked):
+                    if raises:
+                        with self.assertRaises(LedgerError):
+                            packager_lineage.record_events(Path(tmp), own_rpkg, own, [event], [record])
+                    else:
+                        self.assertEqual(packager_lineage.record_events(Path(tmp), own_rpkg, own, [event], [record]), set())
 
 
 class ReplacementGateTests(unittest.TestCase):

@@ -67,7 +67,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     closed_at = (first_closure.payload.get("effective_from_utc") or first_closure.effective_at_utc) if first_closure is not None else None
     drift = closure if closure is not None and closure.event_type == rc.EventType.DRIFT_DETECTED else None
     rollback = closure if closure is not None and closure.event_type == rc.EventType.ROLLBACK_OBSERVED else None
-    regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
+    regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED)
     superseded = latest_event(ordered, rc.EventType.SOURCE_PACKAGE_SUPERSEDED)
 
     if rollback:
@@ -144,9 +144,10 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         attr = {**attr, "recommendation_attributed_realized_savings": to_date["realized_to_date"]}
 
     replacement = lineage_projection.replacement(ordered)
-    regen_status = rc.RegenerationStatus.NOT_REQUIRED.value
-    if regen:
-        regen_status = rc.RegenerationStatus.REPLACED.value if regen.event_type == rc.EventType.REPLACEMENT_PACKAGE_LINKED else rc.RegenerationStatus.REQUESTED.value
+    # A linked replacement fulfils any regeneration request, whichever was recorded first (the order the packages were
+    # realized in never decides it); else a request recorded makes it REQUESTED.
+    regen_status = (rc.RegenerationStatus.REPLACED.value if replacement is not None
+                    else rc.RegenerationStatus.REQUESTED.value if regen is not None else rc.RegenerationStatus.NOT_REQUIRED.value)
 
     source = {
         "recommendation_package_id": package["recommendation_package_id"],
@@ -235,7 +236,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         drift=(drift.payload if drift else {"state": "NONE"}),
         regeneration={
             "status": regen_status,
-            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen and regen.event_type == rc.EventType.REGENERATION_REQUESTED else None,
+            "regeneration_request_id": regen.payload.get("regeneration_request_id") if regen is not None else None,
             "replacement_package_id": replacement.payload.get("replacement_package_id") if replacement else None,
         },
         history={

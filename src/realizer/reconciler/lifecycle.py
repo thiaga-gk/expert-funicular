@@ -32,7 +32,7 @@ from realizer.contracts.reconciliation import (
     RegenerationRequest,
 )
 from realizer.contracts.request import RunContext
-from realizer.reconciler.matching import DECISION_KNOBS, compatibility
+from realizer.reconciler.matching import APPLIED_CONFORMANCES, DECISION_KNOBS, compatibility
 
 
 @dataclass
@@ -352,7 +352,6 @@ class PlanProgress:
 
 # The independent reasons of a changed step the package holds (PENDING_REEVALUATION) or blocks.
 HELD_STEP_REASONS = frozenset({"PENDING_REEVALUATION", "BLOCKED_STEP"})
-APPLIED_CONFORMANCES = frozenset({rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value})
 REFERENCE_EVENTS = (*APPLICATION_EVENTS, rc.EventType.INDEPENDENT_CHANGE_OBSERVED, rc.EventType.ROLLBACK_OBSERVED)
 
 
@@ -369,7 +368,9 @@ def _covers(app_payload: Mapping[str, Any], item: Mapping[str, Any]) -> bool:
 def _plan_progress(package: Mapping[str, Any], history: Any, open_apps: Any, step_results: Any, obs_cfg: Mapping[str, Any],
                    observed: ObservationAnalysis) -> PlanProgress:
     """The observation against the configuration last recorded while *open_apps* are open (``PlanProgress``)."""
-    reference = next(e for e in reversed(history.entries) if e.event_type in REFERENCE_EVENTS and e.payload.get("observed_config_hash"))
+    # An open episode's application always records its configuration, so a reference exists; the latest open
+    # application stands in should a later record lack one.
+    reference = next((e for e in reversed(history.entries) if e.event_type in REFERENCE_EVENTS and e.payload.get("observed_config_hash")), open_apps[-1])
     ref_cfg = reference.payload.get("observed_config") or {}
     later = parse_utc(observed.observed_at_utc) > parse_utc(reference.recorded_at_utc)
     changed = bool(reference.payload.get("observed_config_hash") != observed.observed_config_hash and later)

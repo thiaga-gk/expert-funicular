@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.common.errors import LedgerError
+from realizer.common.errors import LedgerError, LedgerLockedError
 from realizer.common.logging import LOGGER
 from realizer.common.utils import parse_utc, utc_iso, write_json
 from realizer.config.settings import POLICY_VERSION, PRODUCT_VERSION, REALIZER_VERSION
@@ -173,7 +173,7 @@ def ledger_lock(path: Path) -> Iterator[None]:
         except BlockingIOError:
             os.close(fd)
             if time.monotonic() >= deadline:
-                raise LedgerError(f"ledger {path.name} is locked by another run") from None
+                raise LedgerLockedError(f"ledger {path.name} is locked by another run") from None
             time.sleep(LOCK_POLL_SECONDS)
             continue
         try:

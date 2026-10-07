@@ -34,8 +34,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import normalize_value, package_config, plan_steps, scenario_by_id
-from realizer.common.utils import decimal, utc_iso
+from realizer.analyzer.analysis import episodes, normalize_value, package_config, plan_steps, scenario_by_id
+from realizer.common.utils import decimal, parse_utc, utc_iso
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.lineage import LineageEvent
@@ -45,13 +45,10 @@ from realizer.governor.policy import RealizerPolicy, authority_eligible, savings
 from realizer.reconciler.matching import APPLIED_CONFORMANCES, compare_step
 
 AUTHORITATIVE_EVENTS = (rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
-# Entries that end an application's interval in its own lineage.
-INTERVAL_END_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
 OWNERSHIP_RULE = "MOST_RECENT_PACKAGE_BEFORE_CHANGE"
 
 
-def _time(value: Any) -> dt.datetime:
-    return dt.datetime.fromisoformat(utc_iso(value).replace("Z", "+00:00"))
+_time = parse_utc
 
 
 def _latest(*values: str) -> str:
@@ -117,8 +114,30 @@ def _step_knob(package: Mapping[str, Any], scenario_id: Any, step: Any) -> Optio
     return next((s for s in scenario.get("execution_plan") or [] if s.get("step_type") == "CANDIDATE" and s.get("step") == step), None)
 
 
+def _closing_time(entry_payload: Mapping[str, Any], effective_at_utc: Optional[str] = None) -> dt.datetime:
+    return _time(entry_payload.get("effective_from_utc") or effective_at_utc)
+
+
+def episode_ends(entries: Sequence[rc.RealizationLedgerEntry],
+                 planned: Sequence[Tuple[rc.EventType, Mapping[str, Any], Optional[str]]] = (),
+                 planned_episodes: Sequence[str] = ()) -> Dict[str, dt.datetime]:
+    """When each closed application episode of a lineage ended: its first drift or observed rollback (``episodes``), at
+    the time it took effect, and for the run's own lineage the drift or rollback the run is about to record (*planned*:
+    a drift ends every episode still open, including those the run's own applications open, *planned_episodes*; a
+    rollback the episodes it lists). An episode a later step left open is not ended by a rollback of another step."""
+    lineage = episodes(entries)
+    ends = {e: _closing_time(v["closers"][0].payload, v["closers"][0].effective_at_utc) for e, v in lineage.items() if v["closers"]}
+    for event_type, payload, episode in planned:
+        when = _closing_time(payload)
+        closed = ([e for e in [*lineage, *planned_episodes] if e not in ends] if event_type == rc.EventType.DRIFT_DETECTED
+                  else [e for e in {episode, *(payload.get("rolled_back_episode_ids") or [])} if e])
+        for e in closed:
+            ends.setdefault(e, when)
+    return ends
+
+
 def _claims_of(rpkg: str, package: Mapping[str, Any], applications: Iterable[Tuple[str, Mapping[str, Any], str, str]],
-               ends: Sequence[dt.datetime]) -> Tuple[Claim, ...]:
+               ends: Mapping[str, dt.datetime]) -> Tuple[Claim, ...]:
     """The claims of a lineage's authoritative applications (event type, payload, episode id, recorded time), the first
     application of each episode and knob only. A scenario-scope application claims each knob of its applied steps."""
     generated = generated_at(package)
@@ -140,7 +159,8 @@ def _claims_of(rpkg: str, package: Mapping[str, Any], applications: Iterable[Tup
         else:
             parts = []
         effective = _time(payload.get("effective_from_utc") or recorded)
-        end = min((t for t in ends if t > effective), default=None)
+        end = ends.get(episode)
+        end = end if end is not None and end > effective else None
         for knob, value, source, conformance, role in parts:
             key = (episode, knob)
             if key in out:
@@ -156,11 +176,13 @@ def _claims_of(rpkg: str, package: Mapping[str, Any], applications: Iterable[Tup
 
 
 def lineage_of(rpkg: str, package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry],
-               planned: Iterable[Tuple[str, Mapping[str, Any], str, str]] = (), planned_ends: Sequence[str] = ()) -> Lineage:
+               planned: Iterable[Tuple[str, Mapping[str, Any], str, str]] = (),
+               planned_closers: Sequence[Tuple[rc.EventType, Mapping[str, Any], Optional[str]]] = ()) -> Lineage:
     """The decision view of a lineage from its ledger *entries* and, for the run's own lineage, the applications and
-    interval ends the run is about to record (*planned*, *planned_ends*)."""
+    the drift or rollback the run is about to record (*planned*, *planned_closers*)."""
     recorded = [(e.event_type.value, e.payload, e.application_episode_id, e.recorded_at_utc) for e in entries]
-    ends = [_time(e.effective_at_utc) for e in entries if e.event_type in INTERVAL_END_EVENTS] + [_time(t) for t in planned_ends]
+    planned = list(planned)
+    ends = episode_ends(entries, planned_closers, [episode for _, _, episode, _ in planned if episode])
     current = (package.get("warehouse") or {}).get("current_epoch") or {}
     generated = generated_at(package)
     return Lineage(
@@ -327,7 +349,10 @@ def resolve(context: RunContext, analysis: RealizationAnalysis, result: Reconcil
     observed = analysis.observation
     recorded = observed.recorded_at_utc if observed is not None else None
     planned = [(p.event_type.value, p.payload, p.application_episode_id, recorded) for p in result.applications] if recorded else []
-    ends = [observed.effective_at_utc] if observed is not None and (result.drift is not None or result.rollback_observed is not None) else []
-    own = lineage_of(context.realization_package_id, request.package, analysis.history.entries, planned, ends)
+    # The drift or rollback this run records ends its episodes at the time it took effect (its payload's), as the entry
+    # a later run reads will say.
+    closers = ([(rc.EventType.DRIFT_DETECTED, result.drift, result.drift_episode_id)] if result.drift is not None else []) + \
+              ([(rc.EventType.ROLLBACK_OBSERVED, result.rollback_observed, result.rollback_episode_id)] if result.rollback_observed is not None else [])
+    own = lineage_of(context.realization_package_id, request.package, analysis.history.entries, planned, closers)
     others = [lineage_of(r.realization_package_id, r.package, r.entries) for r in analysis.warehouse.lineages]
     return decide([own, *others], context.policy)

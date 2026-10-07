@@ -32,10 +32,12 @@ def claim(conformance="EXACT", value=210, at=CHANGE_AT, episode="APP-" + "A" * 2
 
 
 def view(package, *claims, generated=None, ends=()):
+    """A lineage of *claims* the run is about to record; each time in *ends* a drift the run records then."""
     package = copy.deepcopy(package)
     if generated:
         package["provenance"]["generated_at"] = generated
-    return lineage.lineage_of(make_rpkg_id(package["recommendation_package_id"]), package, (), claims, ends)
+    closers = [(rc.EventType.DRIFT_DETECTED, {"effective_from_utc": end}, None) for end in ends]
+    return lineage.lineage_of(make_rpkg_id(package["recommendation_package_id"]), package, (), claims, closers)
 
 
 def owners_named(events):
@@ -75,6 +77,37 @@ class OwnershipTests(unittest.TestCase):
         self.assertEqual((event.effective_at_utc, event.recorded_at_utc), (CHANGE_AT, "2026-11-08T00:00:00Z"))
         self.assertEqual(event.payload["owner_realization_package_id"], make_rpkg_id(BALANCED["recommendation_package_id"]))
         self.assertEqual(event.payload["rule"], "MOST_RECENT_PACKAGE_BEFORE_CHANGE")
+
+
+class EpisodeEndTests(unittest.TestCase):
+    """A claim ends when its own episode closes: a rollback of a later plan step alone leaves the earlier step's claim
+    open (plan progress), a drift ends every episode still open."""
+
+    def entries(self, *rows):
+        package = copy.deepcopy(BALANCED)
+        rpkg = make_rpkg_id(package["recommendation_package_id"])
+        from realizer.packager.ledger import make_ledger_entry
+        return [make_ledger_entry(package=package, rpkg_id=rpkg, event_type=kind, effective_at_utc=at, recorded_at_utc=at,
+                                  payload=payload, application_episode_id=episode) for kind, payload, episode, at in rows]
+
+    def test_a_rollback_ends_only_the_episodes_it_lists(self):
+        step1, step2 = "APP-" + "1" * 24, "APP-" + "2" * 24
+        rows = self.entries(
+            (rc.EventType.APPLICATION_OBSERVED, {"authority_eligible": True, "step": 1}, step1, "2026-10-08T00:00:00Z"),
+            (rc.EventType.APPLICATION_OBSERVED, {"authority_eligible": True, "step": 2}, step2, "2026-10-22T09:00:00Z"),
+            (rc.EventType.ROLLBACK_OBSERVED, {"effective_from_utc": "2026-10-29T09:00:00Z", "rolled_back_episode_ids": [step2]}, step2, "2026-10-29T09:00:00Z"))
+        ends = lineage.episode_ends(rows)
+        # Before: any drift or rollback ended every claim of the lineage, so the open auto-stop claim ended too.
+        self.assertEqual(sorted(ends), [step2])
+        self.assertEqual(ends[step2].isoformat(), "2026-10-29T09:00:00+00:00")
+
+    def test_a_planned_drift_ends_every_open_episode_at_its_effective_time(self):
+        step1, step2 = "APP-" + "1" * 24, "APP-" + "2" * 24
+        rows = self.entries(
+            (rc.EventType.APPLICATION_OBSERVED, {"authority_eligible": True, "step": 1}, step1, "2026-10-08T00:00:00Z"),
+            (rc.EventType.APPLICATION_OBSERVED, {"authority_eligible": True, "step": 2}, step2, "2026-10-22T09:00:00Z"))
+        ends = lineage.episode_ends(rows, [(rc.EventType.DRIFT_DETECTED, {"effective_from_utc": "2026-10-29T09:00:00Z"}, step2)])
+        self.assertEqual({e: t.isoformat() for e, t in ends.items()}, {step1: "2026-10-29T09:00:00+00:00", step2: "2026-10-29T09:00:00+00:00"})
 
 
 class SupersessionTests(unittest.TestCase):

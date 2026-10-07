@@ -25,7 +25,7 @@ from realizer.common.utils import write_json
 from realizer.contracts import realization as rc
 from realizer.contracts.lineage import LineageEvent, LineageRecord
 from realizer.governor.policy import policy_to_dict
-from realizer.common.errors import LedgerError
+from realizer.common.errors import LedgerLockedError
 from realizer.packager.ledger import append_if_absent, ledger_lock, ledger_path, load_ledger, make_ledger_entry
 from realizer.packager.snapshot import project_snapshot
 
@@ -68,8 +68,8 @@ def record_events(output_dir: Path, own_rpkg: str, own_package: Mapping[str, Any
             try:
                 with ledger_lock(path):
                     appended = append_if_absent(path, entry)
-            except LedgerError:
-                # Another run holds that ledger: every run decides the warehouse's cross-lineage events afresh, so the
+            except LedgerLockedError:
+                # Another run holds that ledger (a ledger that cannot be read still fails the run): every run decides the warehouse's cross-lineage events afresh, so the
                 # event is left for a later run.
                 LOGGER.warning("realizer.lineage_locked rpkg=%s event=%s", event.realization_package_id, event.event_type.value)
                 continue

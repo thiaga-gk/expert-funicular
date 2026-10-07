@@ -18,3 +18,7 @@ class InputError(RealizerError, ValueError):
 
 class LedgerError(RealizerError):
     """A realization ledger that cannot be read as the Realizer wrote it."""
+
+
+class LedgerLockedError(LedgerError):
+    """A realization ledger another run holds the lock of."""
