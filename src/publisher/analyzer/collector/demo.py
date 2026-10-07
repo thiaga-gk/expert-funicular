@@ -277,6 +277,8 @@ DEMO_SCALE_UP_LAG_MINUTES = {"CLASSIC": 5.0, "PRO": 5.0, "SERVERLESS": 1.0}
 # downtime; an always-on warehouse that never restarts has no retained warehouse event), growth (volume doubles every 30
 # days), prior (earlier configuration epochs), epoch_start/created, unpriced_from (promotional SKU without a list
 # price), correction (a RETRACTION/RESTATEMENT day), and query-quality parameters (p95/p99, spill, failures, cache).
+# Simulated worlds only (no fleet entry sets them): runtime_factor_by_size, and currency_from ({day, code}: the account
+# bills in that currency from that day on, at the same list price, as after a billing-currency change).
 DEMO_FLEET: Tuple[Dict[str, Any], ...] = (
     {"scenario": "C01", "restart_every_days": 30, "name": "Finance Planning", "ws": 0, "type": "PRO", "size": "MEDIUM", "min": 1, "max": 1, "auto_stop": 0,
      "work": [{"days": "weekdays", "start": "08:00", "end": "18:00", "every": 6, "dur": 1.5, "conc": 1, "src": "DASHBOARD"}]},
@@ -790,6 +792,8 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
                 if first_billed_day <= dd < analysis_day:
                     by_day[dd] = by_day.get(dd, 0.0) + (b - a) * cl / 60.0 * rate
         unpriced_from = dt.date.fromisoformat(spec["unpriced_from"]) if spec.get("unpriced_from") else None
+        currency_from = spec.get("currency_from") or {}
+        currency_day = dt.date.fromisoformat(currency_from["day"]) if currency_from else None
         correction = spec.get("correction") or {}
         photon_true = photon_false = photon_null = 0.0
         for dd in sorted(by_day):
@@ -801,7 +805,7 @@ def _simulate_demo_warehouse(spec: Mapping[str, Any], index: int, analysis_time:
             unpriced = unpriced_from is not None and dd >= unpriced_from
             rows["billing_daily_cost"].append({
                 "workspace_id": workspace, "warehouse_id": wh, "epoch_start": start_iso, "usage_date": dd.isoformat(),
-                "currency_code": None if unpriced else "USD", "dbu_quantity": net, "unpriced_dbu_quantity": net if unpriced else 0.0,
+                "currency_code": None if unpriced else currency_from["code"] if currency_day is not None and dd >= currency_day else "USD", "dbu_quantity": net, "unpriced_dbu_quantity": net if unpriced else 0.0,
                 "list_cost": None if unpriced else round(net * DEMO_SKU_PRICES[sku], 6),
                 "retracted_dbu_quantity": retracted, "restated_dbu_quantity": restated,
             })

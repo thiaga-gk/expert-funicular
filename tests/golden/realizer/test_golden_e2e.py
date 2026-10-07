@@ -27,6 +27,7 @@ simulated world in which the owner changed the warehouse after the package, the 
       workload: {from: 2026-10-08, factor: 0.5}   # optional: the fleet workload scaled from that day on (periodic
                                                   # queries 1/factor as often, steady load factor x as concurrent)
       runtime: {MEDIUM: 1.2}        # optional: a query started on that size runs factor x as long (default 1)
+      currency: {from: 2026-09-01, code: EUR}   # optional: billed in that currency from that day on (default USD)
     expect: {...}
 
 Before the first change the world is the fleet warehouse the package was built from (analysis time 2026-10-01T12:00Z);
@@ -104,6 +105,7 @@ class EndToEndCaseTests(unittest.TestCase):
                 self.assertTrue(name.startswith(f"ge{case['id'][3:]}-"), "the folder name starts with ge<NN>-")
                 self.assertTrue(case.get("description"))
                 self.assertTrue(case["world"]["changes"])
+                self.assertEqual(set(case["world"]) - e2e.WORLD_KEYS, set(), "unknown world keys")
                 self.assertTrue(case["expect"], "an empty expect block")
                 self.assertEqual(set(case["expect"]) - e2e.EXPECT_KEYS, set(), "unknown expect keys")
                 package = e2e.stored_package(name)
