@@ -32,7 +32,7 @@ economics:
   portfolio_overlap_count_max: 0
 
 attribution:
-  confirmed_origin_required_for_hard_kpi: true
+  confirmed_origin_required_for_hard_kpi: true   # CONFIRMED or INFERRED origin
 
 regeneration:
   remeasure_days_after_invalidating_change: 7
@@ -84,7 +84,7 @@ A hard validation failure is `VALIDATION_FAILED` regardless of savings. Negative
 
 ## 9. Attribution
 
-Strict product-attributed KPIs require confirmed causal origin in v1. Inferred/unknown origin may still support validated observed-value reporting.
+Strict product-attributed KPIs require a qualified causal origin: `CONFIRMED` (an approvals file names the package, the knob and the applied value) or `INFERRED` (a measured change applied after the package was generated, to the knob its step recommends). `UNKNOWN`, `INDEPENDENT` and `NOT_ATTRIBUTABLE` origins may still support validated observed-value reporting. The policy setting `require_confirmed_origin_for_hard_kpi` set to false lifts the origin requirement.
 
 ## 10. Counterfactual
 

@@ -14,7 +14,7 @@ from typing import Any, Mapping, Optional, Sequence
 
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER, setup_logging
-from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_package, load_policy_mapping
+from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
@@ -38,6 +38,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--as-of", help="Live: measurement time, UTC ISO-8601 (default: now)")
     p.add_argument("--billing-ingested-through", help="Live: only billing records ingested on or before this YYYY-MM-DD date")
     p.add_argument("--from-evidence", help="Replay the measurement evidence file a live run wrote (realization/measurements/)")
+    p.add_argument("--approvals", help="Live or replay: approvals file naming approved changes (their origin is then CONFIRMED)")
     p.add_argument("--replay-through", help="Project only ledger entries recorded through this UTC time")
     p.add_argument("--print-json", action="store_true")
     p.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
@@ -59,7 +60,10 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
                                         ("--profile", args.profile), ("--from-evidence", args.from_evidence)) if given]
     if len(sources) > 1:
         raise InputError(f"choose one observation source, not {' and '.join(sources)}")
+    if args.approvals and not (args.profile or args.from_evidence):
+        raise InputError("--approvals applies to a measured change: use it with --profile or --from-evidence")
     package = load_package(args.package)
+    approvals = load_approvals(args.approvals)
     observation: Optional[Mapping[str, Any]] = None
     if args.demo or args.demo_modified:
         observation = demo_observation(package, modified=args.demo_modified)
@@ -68,9 +72,10 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     elif args.profile:
         observation = measure_live(package, Path(args.output_dir), profile=args.profile, sql_warehouse_id=args.sql_warehouse_id,
                                    config_file=args.databricks_config_file, source_region=args.source_region,
-                                   aws_price_registry=args.aws_price_registry, as_of=args.as_of, ingestion_cutoff=args.billing_ingested_through)
+                                   aws_price_registry=args.aws_price_registry, as_of=args.as_of, ingestion_cutoff=args.billing_ingested_through,
+                                   approvals=approvals)
     elif args.from_evidence:
-        observation = observe_from_evidence(package, args.from_evidence)
+        observation = observe_from_evidence(package, args.from_evidence, approvals)
     policy = RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
     snapshot = realize(package, observation, Path(args.output_dir), policy=policy, replay_through=args.replay_through)
     LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s", snapshot.realization_package_id, snapshot.snapshot_id,

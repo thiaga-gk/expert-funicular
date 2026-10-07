@@ -80,7 +80,7 @@ def measurement_path(output_dir: Path, evidence: Mapping[str, Any]) -> Path:
 def measure_live(
     package: Mapping[str, Any], output_dir: Path, *, profile: str, sql_warehouse_id: str, config_file: Optional[str] = None,
     source_region: Optional[str] = None, aws_price_registry: Optional[str] = None, as_of: Optional[str] = None,
-    ingestion_cutoff: Optional[str] = None,
+    ingestion_cutoff: Optional[str] = None, approvals: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Measure *package*'s warehouse from system tables (read-only OAuth, on another SQL warehouse) and return its
     observation; the measurement evidence is written first, so the run can be replayed with ``observe_from_evidence``."""
@@ -93,13 +93,13 @@ def measure_live(
         evidence = collect_measurement(client, package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
                                        aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
     write_json(measurement_path(output_dir, evidence), evidence)
-    return project_observation(package, evidence)
+    return project_observation(package, evidence, approvals)
 
 
-def observe_from_evidence(package: Mapping[str, Any], path: str | Path) -> Dict[str, Any]:
+def observe_from_evidence(package: Mapping[str, Any], path: str | Path, approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The observation a measurement evidence file (written by a live run) states for *package*."""
     validate_package(package)
-    return project_observation(package, load_measurement_evidence(path))
+    return project_observation(package, load_measurement_evidence(path), approvals)
 __all__ = ["RealizerPolicy", "build_context", "demo_observation", "load_observation", "measure_live", "observe_from_evidence", "realize",
            "realize_request"]
 

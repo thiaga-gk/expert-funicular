@@ -20,9 +20,9 @@ Values the evidence cannot establish are ``null``; a ``null`` gate input never p
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import photon_bool_from_package
+from realizer.analyzer.analysis import normalize_value, photon_bool_from_package
 from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.measurement import (
     MeasurementPlan,
@@ -204,8 +204,28 @@ def guard_metrics(evidence: Mapping[str, Any], pre: Optional[Mapping[str, Any]],
     return {"pre": period("PREVIOUS"), "post": period("CURRENT"), "cold_start": cold}
 
 
-def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any]) -> Dict[str, Any]:
-    """The observation (format 2.1.0) of *package*'s warehouse that *evidence* states."""
+def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optional[Mapping[str, Any]]) -> Tuple[str, str, Optional[str]]:
+    """``(origin attribution, intent state, intent reference)`` of the measured change. CONFIRMED (intent ACCEPTED) when
+    an approval names this package, the step's knob and the observed value; INFERRED when the change was applied after
+    the package was generated (the package's step is the knob that changed); UNKNOWN otherwise (nothing changed, or the
+    change came before the package and so cannot be its application)."""
+    if plan.step is None or plan.change_epoch is None:
+        return "UNKNOWN", "UNKNOWN", None
+    knob = str(plan.step["knob"])
+    observed = normalize_value(knob, plan.observed_epoch.get(knob))
+    for approval in (approvals or {}).get("approvals") or []:
+        if (approval["recommendation_package_id"] == package["recommendation_package_id"] and approval["knob"] == knob
+                and normalize_value(knob, approval["value"]) == observed):
+            return "CONFIRMED", "ACCEPTED", str(approval["reference"])
+    generated = (package.get("provenance") or {}).get("generated_at")
+    if generated and utc_iso(plan.change_epoch["epoch_start"]) > utc_iso(generated):
+        return "INFERRED", "UNKNOWN", None
+    return "UNKNOWN", "UNKNOWN", None
+
+
+def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """The observation (format 2.1.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
         raise InputError(f"measurement evidence is for {evidence['workspace_id']}/{evidence['warehouse_id']}, "
@@ -264,6 +284,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any])
             },
         }
     applied_at = utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch is not None else None
+    origin_attribution, intent_state, intent_reference = origin(package, plan, approvals)
     return {
         "observation_format_version": OBSERVATION_FORMAT_VERSION,
         "workspace_id": warehouse["workspace_id"], "warehouse_id": warehouse["warehouse_id"],
@@ -275,8 +296,8 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any])
         "performance": {"normalized_p95_runtime_regression_pct": None, "reliability_pass": None, "correctness_pass": None,
                         "guards": guard_metrics(evidence, pre, post) if plan.post else None},
         "financial_quality": financial_quality(plan, evidence, replay),
-        "economics": economics, "overlap_count": 0, "origin_attribution": "UNKNOWN", "intent_state": "UNKNOWN",
-        "intent_reference": None, "actor": None, "applied_scenario_id": None,
+        "economics": economics, "overlap_count": 0, "origin_attribution": origin_attribution, "intent_state": intent_state,
+        "intent_reference": intent_reference, "actor": None, "applied_scenario_id": None,
         "rollback_requested": False, "rollback_observed": False, "rollback_reason": None, "replacement_package_id": None,
         "correction": None, "measurement": measurement,
     }
