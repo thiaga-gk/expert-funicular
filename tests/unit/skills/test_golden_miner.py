@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / ".claude" / "skills" / "databricks-golden-miner" / "scripts"
 for p in (ROOT, ROOT / "src", SCRIPTS):
     sys.path.insert(0, str(p))
+import cli_sql  # noqa: E402
 import make_case  # noqa: E402
 import mine_patterns  # noqa: E402
 import preflight  # noqa: E402
@@ -287,6 +288,96 @@ class PreflightTests(unittest.TestCase):
             code, out = _quiet(preflight.main, ["--profile", "OAUTH", "--warehouse-id", "abc", "--config-file", str(self.cfg)])
         self.assertEqual(code, 1)
         self.assertIn("FAIL databricks CLI", out)
+
+
+class CliSqlGuardTests(unittest.TestCase):
+    """execute() sends only a single read statement: comments are ignored, DML/DDL words outside literals are refused."""
+
+    def refused(self, sql):
+        with self.assertRaises(cli_sql.CliError):
+            cli_sql.check_read_only(sql)
+
+    def test_plain_select_and_with_pass(self):
+        for sql in ("SELECT 1", "  select * from system.compute.warehouses;", "WITH a AS (SELECT 1 AS x) SELECT x FROM a",
+                    "SELECT update_time, created_by, `copy` FROM t WHERE note = 'drop table x; -- not a comment'"):
+            cli_sql.check_read_only(sql)
+
+    def test_leading_comments_are_ignored(self):
+        cli_sql.check_read_only("-- the G5 check\n-- second line\nSELECT 1")
+        cli_sql.check_read_only("/* header\n  block */ SELECT 1 /* trailing */ -- more")
+        cli_sql.check_read_only("/* outer /* nested */ still comment */ SELECT 1")
+
+    def test_a_comment_cannot_hide_the_statement_kind(self):
+        self.refused("-- SELECT 1\nDROP TABLE t")
+        self.refused("/* SELECT */ DELETE FROM t")
+        self.refused("SELECT 1 /* unterminated")
+
+    def test_a_cte_ending_in_dml_is_refused(self):
+        self.refused("WITH a AS (SELECT 1 AS id) INSERT INTO t SELECT id FROM a")
+        self.refused("WITH a AS (SELECT 1 AS id) MERGE INTO t USING a ON t.id = a.id WHEN MATCHED THEN DELETE")
+        self.refused("with a as (select 1) delete from t")
+
+    def test_every_write_keyword_is_refused_as_a_whole_word(self):
+        for word in ("INSERT", "UPDATE", "DELETE", "MERGE", "CREATE", "DROP", "ALTER", "TRUNCATE", "GRANT", "REVOKE",
+                     "COPY", "OPTIMIZE", "VACUUM"):
+            self.refused(f"SELECT 1 FROM t WHERE x IN (SELECT 1) {word.lower()} x")
+        self.refused("SELECT 1; DROP TABLE t")
+
+    def test_keywords_inside_literals_and_identifiers_do_not_trip_the_guard(self):
+        cli_sql.check_read_only("SELECT 'a '' delete ' AS s, \"vacuum\" AS q, `optimize` FROM t WHERE c = 'x\\' drop'")
+        cli_sql.check_read_only("SELECT updated_at, grant_id, insert_count FROM t")
+
+    def test_non_select_starts_are_refused(self):
+        for sql in ("", "   ", "SHOW TABLES", "DESCRIBE t", "USE x", "-- only a comment"):
+            self.refused(sql)
+
+    def test_every_statement_of_the_real_data_run_doc_passes_the_guard(self):
+        for item, sqls in real_data_queries.statements(real_data_queries.DOC.read_text(encoding="utf-8")).items():
+            for sql in sqls:
+                cli_sql.check_read_only(sql)
+
+    def test_execute_refuses_before_calling_the_cli(self):
+        with unittest.mock.patch.object(cli_sql, "run_cli") as run:
+            with self.assertRaises(cli_sql.CliError):
+                cli_sql.execute("WITH a AS (SELECT 1) DROP TABLE t", "w", "p")
+        run.assert_not_called()
+
+
+class CliRetryTests(unittest.TestCase):
+    """429 and transient 5xx answers from the CLI are retried a few times with a short backoff; anything else is not."""
+
+    def completed(self, code, out="", err=""):
+        return unittest.mock.Mock(returncode=code, stdout=out, stderr=err)
+
+    def run_with(self, results):
+        sleeps = []
+        with unittest.mock.patch.object(cli_sql.subprocess, "run", side_effect=results) as run, \
+                unittest.mock.patch.object(cli_sql, "_sleep", sleeps.append):
+            try:
+                out = cli_sql.run_cli(["api", "get", "/x"], "p")
+            except cli_sql.CliError as exc:
+                out = exc
+        return out, run.call_count, sleeps
+
+    def test_429_is_retried_until_it_succeeds(self):
+        out, calls, sleeps = self.run_with([self.completed(1, err="Error: 429 Too Many Requests"),
+                                            self.completed(1, err="Error: REQUEST_LIMIT_EXCEEDED rate limit"),
+                                            self.completed(0, out="{}")])
+        self.assertEqual((out, calls, len(sleeps)), ("{}", 3, 2))
+        self.assertTrue(all(0 < s <= 10 for s in sleeps) and sleeps == sorted(sleeps))
+
+    def test_transient_5xx_is_retried_and_gives_up_after_three_attempts(self):
+        out, calls, sleeps = self.run_with([self.completed(1, err="Error: 503 Service Unavailable")] * 5)
+        self.assertIsInstance(out, cli_sql.CliError)
+        self.assertIn("503", str(out))
+        self.assertEqual(calls, 3)
+        self.assertEqual(len(sleeps), 2)
+
+    def test_other_errors_are_not_retried(self):
+        for err in ("Error: 403 Forbidden", "Error: PERMISSION_DENIED", "Error: 400 Bad Request: PARSE_SYNTAX_ERROR"):
+            out, calls, sleeps = self.run_with([self.completed(1, err=err)] * 3)
+            self.assertIsInstance(out, cli_sql.CliError, err)
+            self.assertEqual((calls, sleeps), (1, []), err)
 
 
 class RealDataQueryTests(unittest.TestCase):
