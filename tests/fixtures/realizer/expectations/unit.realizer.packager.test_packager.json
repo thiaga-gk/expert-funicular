@@ -1,19 +1,19 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
-  "length": 33190,
-  "sha256": "8c83ebfbf0e9ec456fff4ec1ce942af624c0f0813225058efdb001dbc8f044f0",
+  "length": 33120,
+  "sha256": "ff60a014469a3588d8ac3a634dea135300efc2c52468e82fed5b6148731bf72f",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
     "INFO ledger.append event=BILLING_CORRECTION_RECORDED": 3,
     "INFO ledger.append event=COUNTERFACTUAL_RECORDED": 39,
-    "INFO ledger.append event=DRIFT_DETECTED": 3,
+    "INFO ledger.append event=DRIFT_DETECTED": 2,
     "INFO ledger.append event=ECONOMIC_MEASUREMENT_RECORDED": 39,
-    "INFO ledger.append event=INDEPENDENT_CHANGE_OBSERVED": 2,
+    "INFO ledger.append event=INDEPENDENT_CHANGE_OBSERVED": 3,
     "INFO ledger.append event=INTENT_RECORDED": 39,
     "INFO ledger.append event=MODIFIED_APPLICATION_OBSERVED": 4,
     "INFO ledger.append event=REALIZATION_CREATED": 41,
-    "INFO ledger.append event=REGENERATION_REQUESTED": 39,
+    "INFO ledger.append event=REGENERATION_REQUESTED": 38,
     "INFO ledger.append event=REPLACEMENT_PACKAGE_LINKED": 1,
     "INFO ledger.append event=ROLLBACK_OBSERVED": 1,
     "INFO ledger.append event=SOURCE_PACKAGE_SUPERSEDED": 1,
@@ -22,7 +22,7 @@
     "INFO ledger.append event=VALIDATION_STARTED": 39,
     "INFO ledger.duplicate_suppressed": 46
    },
-   "lines": 409,
+   "lines": 408,
    "scenarios": 41
   }
  },
@@ -88,7 +88,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "3e049e36b9b84a1b393aee82c06ae3f0c8660ff0cf644ec9761983e6122e0b8b",
+  "sha256": "5c39d01c07233da06463df5461e70a6381b14286e8d42b71cadf890b037eea07",
   "spot": {
    "count": 171,
    "first": [
@@ -110,10 +110,10 @@
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
-  "length": 36077,
-  "sha256": "9860fe26c0ef6d4e49658b25dd83af3283860e86082403756aa86181eb32336a",
+  "length": 35983,
+  "sha256": "7f015a38bc58eda7a61e77292d25373378b5cd33574ec9075758174d2f502c9e",
   "spot": {
-   "files": 259,
+   "files": 258,
    "scenarios": 41
   }
  },

@@ -1,7 +1,7 @@
 {
  "ProjectionTests.test_entry_order_and_duplicates/doubled ledgers": {
   "length": 4417,
-  "sha256": "0b03ac05f17bedb1b730ac4a8b8bb54054a81e171cdc24bd85348f310c91ff93",
+  "sha256": "1e5d667337e57c56bfc9cc9f30ca3ca6743cd27e94e61159f7e97aa17923005c",
   "spot": {
    "count": 41,
    "first": [
@@ -11,10 +11,10 @@
   }
  },
  "ProjectionTests.test_every_ledger_prefix_projects_and_every_stored_snapshot_is_reproduced/projections": {
-  "length": 75128,
-  "sha256": "9fa0916682173201c2a529e41096b082f899e607632878ec507df9b077576ef8",
+  "length": 74968,
+  "sha256": "8bc29556061b5feee9aefcdb4711609f50854cb0b1ae2c51484c2538e5c28d51",
   "spot": {
-   "count": 452,
+   "count": 451,
    "distinct snapshots": 142,
    "first": [
     "GR-001",
