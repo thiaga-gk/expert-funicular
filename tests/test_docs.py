@@ -75,7 +75,7 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(broken, [])
 
     def test_realizer_documents_exist_and_their_links_resolve(self):
-        self.assertEqual(len(REALIZER_DOCS), 21)
+        self.assertEqual(len(REALIZER_DOCS), 22)
         self.assertEqual(len(REALIZER_SPEC), 8)
         broken = []
         for path in REALIZER_DOCS:

@@ -2,16 +2,12 @@
 
 A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/DeXxtwUBaiEhFTM1o1t6MQ, collection `findings`); this file is regenerated from it at each batch merge. Findings, worked examples and decisions: [`gap-review.md`](gap-review.md).
 
-Snapshot: 2026-10-07. Rows: 65 (Open: 12, Done: 53).
+Snapshot: 2026-10-07. Rows: 65 (Open: 8, Done: 57).
 
-## Open (12)
+## Open (8)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
-| R51 | One `--package` per process | P0 | 5 | RD24 pending | Fix: `realizer --publisher-run <dir or root>` over the manifest (latest run by default), failures isolated per warehouse, exit 2 if any failed, run manifest. RD24. Detail: no run-folder mode, no per-warehouse failure isolation, no overall exit status | 2026-10-06 |
-| R52 | Ledger lives under `--output-dir` | P1 | 5 | RD24 pending | Fix: `--state-dir` (long-lived ledger, evidence, regeneration) separate from Hive run folders for projections, manifest and log. RD24. Detail: a fresh dated output folder each day silently forks the history | 2026-10-06 |
-| R53 | No realization view for a person | P1 | 5 | RD25 pending | Fix: RD25. Detail: the Publisher workbook shows NOT_APPLIED for applied warehouses | 2026-10-06 |
-| R54 | `realizer --demo` is one package with constants | P2 | 5 |  | Fix: `realizer --demo` over a Publisher demo run through the golden twin (batch 3), honoring scope and profile; refuses packages that are not demo-fleet members. | 2026-10-06 |
 | R55 | Size | P1 | 6 |  | Fix: Measure the runtime ratio on matched sources and use it; old size's DBU per cluster-hour from the previous epoch of the same warehouse; publish the measured multiplier. Detail: reusing the Publisher's runtime multiplier makes the counterfactual circular | 2026-10-06 |
 | R56 | Max and min clusters need minutes by cluster level, which are not collected | P1 | 6 |  | Fix: Level-histogram SQL; cut realized against the old cap or floor; performance criteria per R20. | 2026-10-06 |
 | R57 | Migration has no reverse (new to old) model | P2 | 6 | RD26 pending | Fix: Observe-only first (RD26), reverse model with the billing reconciliation band later. | 2026-10-06 |
@@ -21,7 +17,7 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 12, Done: 53).
 | R61 | Small hygiene | P3 | 7 |  | Fix: Plausibility flag above the package's high; default `./realizer_out`; retention note. Covers known limitations 12, 13, 16. Detail: over-realization (ratio 30) shows REALIZED with no plausibility flag; `recommended == current` steps are always EXACT; snapshots never pruned; default output dir is the Publisher's | 2026-10-06 |
 | R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Found in batch 1.5 (R37): add a currency switch to the demo world and a GE case whose billing currency differs from the package's (currency gate fails, not claimable). | 2026-10-07 |
 
-## Done (53)
+## Done (57)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
@@ -78,3 +74,7 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 12, Done: 53).
 | R48 | Timestamps compared as strings (microseconds break ordering) | P2 | 4 |  | Done cea9cffe: times compared as instants; drift/rollback at the epoch boundary, strictly after the episode. | 2026-10-07 |
 | R49 | Ledger has no lock and a truncated last line breaks the lineage permanently | P1 | 4 |  | Done cea9cffe: advisory lock per ledger for a run; unterminated last line quarantined. | 2026-10-07 |
 | R50 | Supersession is unconditional (any string, even the package itself) | P2 | 4 |  | Done cea9cffe: self-replacement refused; 5% churn rule and POLICY_DIFF_RECORDED on the run path. | 2026-10-07 |
+| R51 | One `--package` per process | P0 | 5 | RD24 decided 2026-10-07: all recommended (a-d) | Done 9f29343e: realizer --publisher-run (newest run or named folder; --profile/--demo/--from-evidence dir; --warehouse); per warehouse under a lock every open lineage then the run's package; failures isolated (exit 1 crash, 2 refused, 0); run manifest. Limitations 10/11 resolved (owner claims 1,069.73 in the same run). Demo fleet 41/41 OK. | 2026-10-07 |
+| R52 | Ledger lives under `--output-dir` | P1 | 5 | RD24 decided 2026-10-07: all recommended (a-d) | Done 9f29343e: long-lived --state-dir (default <output-dir>/state) holds ledgers, evidence, regeneration, measurements, sources, policies, index; Hive run folders for projections, manifest, workbook, log; --flat-output keeps one folder. wh-demo-013 Mar 13: 2,900.14/84 d (dated folders) -> 5,316.49/154 d. | 2026-10-07 |
+| R53 | No realization view for a person | P1 | 5 | RD25 decided 2026-10-07: as recommended | Done 9f29343e: realization_workbook.xlsx per fleet run (Warehouses, Lineages, Timeline; contract 2.0.0), own openpyxl renderer, fixed next-action table (names the first plan step; validated-but-unmeasured keeps monitoring). Limitation 4 resolved; Publisher workbook unchanged. | 2026-10-07 |
+| R54 | `realizer --demo` is one package with constants | P2 | 5 |  | Done 9f29343e: --demo applies the package's first plan step in its demo-fleet warehouse's simulated world, measured through the live path (replayable evidence); non-fleet refused; world construction moved into src (demo_world.py), e2e goldens byte-identical. wh-demo-013: 959.05/28 d (= GE-01). | 2026-10-07 |
