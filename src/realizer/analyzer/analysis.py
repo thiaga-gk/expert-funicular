@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.errors import InputError
 from realizer.common.utils import decimal, parse_utc, utc_iso
-from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS, NON_AUTHORITATIVE_EXECUTION_STATES
+from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS, NON_AUTHORITATIVE_EXECUTION_STATES, normalize_size
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
 from realizer.contracts.realization import make_evidence_id
@@ -26,12 +26,14 @@ def config_hash(config: Mapping[str, Any]) -> str:
 
 
 def normalize_value(knob: str, value: Any) -> Any:
-    """One spelling per configuration value, the Publisher's: a size upper-cased with ``-`` as ``_`` (``X-Large`` is
-    ``X_LARGE``), a warehouse type or channel upper-cased, surrounding spaces dropped. Numbers and booleans pass."""
+    """One spelling per configuration value, the Publisher's: a size through the Publisher's ``normalize_size``
+    (upper-cased with ``-`` as ``_``: ``X-Large`` is ``X_LARGE``), a warehouse type or channel upper-cased, surrounding
+    spaces dropped. Numbers and booleans pass."""
     if not isinstance(value, str):
         return value
-    text = value.strip().upper()
-    return text.replace("-", "_") if knob == "warehouse_size" else text if knob in {"warehouse_type", "warehouse_channel"} else value
+    if knob == "warehouse_size":
+        return normalize_size(value)
+    return value.strip().upper() if knob in {"warehouse_type", "warehouse_channel"} else value
 
 
 def photon_bool_from_package(package: Mapping[str, Any]) -> Optional[bool]:

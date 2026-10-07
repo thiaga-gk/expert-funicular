@@ -9,6 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
+from publisher.analyzer.normalizer import normalize_size  # noqa: F401  (the Publisher's size spelling, one definition)
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES as PUBLISHER_SUPPORTED_WAREHOUSE_TYPES
 from publisher.governor.thresholds import Thresholds as _PublisherThresholds

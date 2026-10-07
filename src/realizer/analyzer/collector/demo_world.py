@@ -24,7 +24,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import next_plan_step
+from realizer.analyzer.analysis import next_plan_step, normalize_value
 from realizer.analyzer.collector import bridge
 from realizer.analyzer.collector.collector import collect_measurement, measurement_path
 from realizer.analyzer.projector import project_observation
@@ -107,7 +107,7 @@ def world_spec(index: int, changes: Sequence[Mapping[str, Any]], workload: Optio
         spec["epoch_start_minute"] = minute
     spec.pop("created", None)
     if runtime:
-        spec["runtime_factor_by_size"] = {str(k).strip().upper().replace("-", "_"): float(v) for k, v in runtime.items()}
+        spec["runtime_factor_by_size"] = {normalize_value("warehouse_size", str(k)): float(v) for k, v in runtime.items()}
     if not spec["prior"]:
         spec.pop("prior")
     return spec
@@ -162,7 +162,7 @@ def applied_change(package: Mapping[str, Any], *, modified: bool = False) -> Opt
     if key in INTEGER_KEYS:
         value = int(value)
     else:
-        value = str(value).strip().upper().replace("-", "_")
+        value = normalize_value(str(step["knob"]), str(value))
     if modified and key == "size" and value == "MEDIUM":
         value = "SMALL"
     return {key: value}
