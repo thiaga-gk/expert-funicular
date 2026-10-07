@@ -47,6 +47,10 @@ change, because the simulator's noise depends only on the scenario and the day.
     sign: positive                  # sign of the realized saving (counterfactual - observed): positive or negative
     cross_check: AGREES             # the billed cross-check outcome, or {outcome: INCONCLUSIVE, reason: OTHER_KNOB_CHANGED}
     independent_changes: [warehouse_size]   # the measurement's other_knob_changes, exactly
+    guards: {pre: {queued_query_pct: 9.7173}, post: {p95_execution_ms_shared_sources: 2500}}
+                                    # performance.guards metrics per period (pre, post, cold_start): a number (equal as
+                                    # a decimal), positive, negative or null
+    billed_change: {dbu: positive, total: positive, days: 28}   # measurement.billed_change fields, the same values; null = none
     same_evidence_as: <case name>   # the measurement evidence equals that case's, the package's assumptions aside
     realization_state: REALIZED     # the realization package's current_state.realization_state
     classification: REALIZED        # its economics.classification_detail

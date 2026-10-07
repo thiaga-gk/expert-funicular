@@ -1,6 +1,6 @@
-# Realizer JSON + Realization Ledger Contract v1.0.0
+# Realizer JSON Contract v1.1.0 + Realization Ledger Contract v1.0.0
 
-> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+> The Realizer specification (realization package contract v1.1.0, ledger envelope v1.0.0; v1.1.0 added the step role, the `SAFETY_ACTION_APPLIED`, `PERFORMANCE_VALIDATED` and `CAPACITY_VALIDATED` states, the application's compatibility status and annotations, and the source package's run scope, cost profile and observed change; RPKG ids hash only the major version). The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED  
 **Product:** Databricks SQL Warehouse Optimizer — Realizer  
@@ -70,6 +70,8 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 Unknown material facts are `null`, never synthetic zero.
 
+`source_recommendation` identifies the immutable PKG (id, contract version, full hash, epoch, recommended scenario, generation time, disposition and the superseding PKG) and states the conditions it was produced under, copied from it: `run_scope` (the restricted scope of a scoped run), `cost_profile` (the name of the profile the warehouse was evaluated under) and `observed_change` (the configuration change that started the current epoch). Each is `null` when the package has none. The `REALIZATION_CREATED` entry carries the same three values with the PKG id. Plan progress is derived from the package's own plan, which a run scope has already cut to the in-scope steps (and a canary rollback kept outside it); a pending-reevaluation step of that plan still keeps the plan partially completed.
+
 ## 5. Orthogonal state dimensions
 
 ### Intent
@@ -85,7 +87,12 @@ Unknown material facts are `null`, never synthetic zero.
 `NOT_READY | READY | RUNNING | PASSED | FAILED | INCONCLUSIVE`
 
 ### Realization
-`NOT_APPLIED | APPLIED | VALIDATING | REALIZED | UNDER_REALIZED | VALIDATION_FAILED | MONITORING | ROLLED_BACK | DRIFTED | INVALIDATED | REGENERATING | BLOCKED`
+`NOT_APPLIED | APPLIED | VALIDATING | REALIZED | UNDER_REALIZED | VALIDATION_FAILED | MONITORING | ROLLED_BACK | DRIFTED | INVALIDATED | REGENERATING | BLOCKED | SAFETY_ACTION_APPLIED | PERFORMANCE_VALIDATED | CAPACITY_VALIDATED`
+
+### Step role
+`SAVINGS | PERFORMANCE | CAPACITY | SAFETY_ROLLBACK`
+
+What the applied plan step is for, from its candidate (recorded on the application as `step_role`, null for a scenario-scope application and an independent change): `SAFETY_ROLLBACK` when the candidate carries the Publisher's canary-rollback blocker `CANARY_GUARDRAIL_BREACHED`; `PERFORMANCE` when its objectives are a performance fix priced as a cost increase or not priced; `CAPACITY` when it is priced at exactly zero; `SAVINGS` otherwise. A safety rollback's application is recorded and validated but never measured or claimed: its realization state is `SAFETY_ACTION_APPLIED`.
 
 ### Maturity
 `NOT_APPLIED | COLLECTING | PROVISIONAL | REPRESENTATIVE | MATURE`
@@ -118,6 +125,8 @@ source/recommended/observed config hashes
 origin attribution
 actor when known
 ```
+
+The scenario an observation applied is inferred: the one whose authority-eligible steps the observed configuration applies most (exactly or modified), the recommended plan first on a tie and when none is applied; an `applied_scenario_id` in the observation overrides it. So a migration applied under a migration-only run scope (recommended "No change") is still an application of the package's migration scenario. The application records the scenario's `compatibility_status` and `annotations`: a warehouse-type migration whose compatibility the Publisher did not evidence (any status but `COMPATIBLE`) carries `COMPATIBILITY_NOT_EVIDENCED`.
 
 `PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
@@ -263,6 +272,14 @@ Allowed denominator sources:
 
 Modified applications always require `REESTIMATED_APPLIED_SCOPE`. Pending, contingent, invalidated or unapplied steps are forbidden denominator sources.
 
+Which Publisher figure is the denominator:
+
+- a candidate-scope step applied exactly: the candidate's isolated economics (`PUBLISHER_CANDIDATE`);
+- a scenario-scope application of one step: that step's candidate economics; of several steps that are the plan's first authority-eligible steps (a prefix): the running savings of the last applied step (`PUBLISHER_SCENARIO`), never the whole scenario, whose later steps were not applied; of steps that are not a prefix: none (`UNAVAILABLE`);
+- a warehouse-type migration: the scenario's range, which is pre-canary, so it is informational (`classification_basis` `INFORMATIONAL`): the realization and its ratio are reported, the state stays `MONITORING` (`MIGRATION_RANGE_INFORMATIONAL`), never `REALIZED` or `UNDER_REALIZED` against it.
+
+The component compared is the measurement's cost basis (DBU only, or DBU and modeled AWS); a caller-supplied observation is compared with the total, and a package without a total is `UNAVAILABLE`, never the DBU range in its place. The expected savings per component (DBU, AWS, total) of the chosen figure are reported separately as `expected_components`.
+
 ## 17. Attribution
 
 Economic realization and recommendation attribution are separate. A valid observed economic improvement can exist when origin is `UNKNOWN` or `INFERRED`; strict recommendation-attributed KPIs require policy-qualified causal evidence.
@@ -296,6 +313,15 @@ Historical realized value before a valid drift boundary remains valid.
 Status:
 
 `NOT_REQUIRED | REQUESTED | RUNNING | COMPLETED | FAILED | REPLACED`
+
+A regeneration request (`RERUN-*`, recorded as `REGENERATION_REQUESTED` on the application episode and written as `realization/regeneration/RERUN-*.json`) carries the actual configuration and its hash, the reasons, the scenario and step, and:
+
+- `evidence_id`: the observed-configuration evidence (`REVID-*`) of the run that made the request; the ledger entry references it in `evidence_refs`;
+- `observation_window`: that observation's `start_utc` and `end_utc` (its window, else its observed time);
+- `changed_knobs`: the decision knobs (type, size, min and max clusters, auto-stop, channel; never Photon) whose actual value differs from the package's current configuration, in contract order;
+- `impacted_knobs`: the knobs the applied change invalidates downstream.
+
+The request id does not depend on the evidence. The same request on a later run (the configuration unchanged) is a duplicate: the ledger keeps the first entry, and the RERUN file keeps the evidence and window of the run that first asked.
 
 Re-evaluation always starts from the actual observed current state. Recommendation truth changes only through a new immutable PKG emitted by Publisher.
 

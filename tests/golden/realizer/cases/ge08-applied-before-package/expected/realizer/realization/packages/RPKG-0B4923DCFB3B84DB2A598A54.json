@@ -2,8 +2,10 @@
   "application": {
     "active_episode_id": null,
     "actor": null,
+    "annotations": [],
     "application_scope": null,
     "applied_step_refs": [],
+    "compatibility_status": null,
     "effective_from_utc": null,
     "effective_time_quality": null,
     "effective_to_utc": null,
@@ -23,7 +25,8 @@
     "scenario_id": null,
     "source_value": null,
     "state": "NOT_APPLIED",
-    "step": null
+    "step": null,
+    "step_role": null
   },
   "as_of_utc": "2026-11-07T12:00:00Z",
   "attribution": {
@@ -33,7 +36,7 @@
     "recommendation_attributed_realized_savings": "0.00",
     "validated_observed_realization": null
   },
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "current_state": {
     "maturity_state": "NOT_APPLIED",
     "realization_state": "NOT_APPLIED",
@@ -56,11 +59,11 @@
     "application_episode_count": 0,
     "correction_count": 0,
     "entry_count": 2,
-    "first_entry_id": "RLE-F5C1D342279349E6B0EDCA82",
+    "first_entry_id": "RLE-D142350AA4E2551E75F9F81A",
     "latest_effective_at_utc": "2026-10-01T12:00:00Z",
-    "latest_entry_id": "RLE-889E243AFD966BA02E57A1B3",
+    "latest_entry_id": "RLE-C0C8B866A4C3B88D5256C1DD",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:A8E727F168EF2064598A0B88BB3BC651C7D6CF0DA95A583E85AAEAFE0C391F74",
+    "ledger_checkpoint_hash": "SHA256:B7C8FCA19EDE9FC2A76F3AB3EC391A92068681DD60E16A0CDECC95898ED87395",
     "measurement_count": 0,
     "validation_episode_count": 0
   },
@@ -68,16 +71,16 @@
     "state": "NOT_APPLIED"
   },
   "provenance": {
-    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.1.0",
-    "attribution_version": "realizer-attribution-v1.1.0",
-    "estimator_gateway_version": "realized-estimator-adapter-v1.1.0",
+    "analyzer_gateway_version": "post-change-analyzer-adapter-v1.2.0",
+    "attribution_version": "realizer-attribution-v1.2.0",
+    "estimator_gateway_version": "realized-estimator-adapter-v1.2.0",
     "exclusivity_version": "realizer-exclusivity-v1.0.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.1.0",
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "product_version": "2.14.0",
-    "projector_version": "realizer-projector-v1.0.0",
-    "realizer_contract_version": "1.0.0",
-    "realizer_version": "1.1.0"
+    "projector_version": "realizer-projector-v1.1.0",
+    "realizer_contract_version": "1.1.0",
+    "realizer_version": "1.2.0"
   },
   "realization_package_id": "RPKG-0B4923DCFB3B84DB2A598A54",
   "regeneration": {
@@ -85,15 +88,28 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-9B7B0735036FDF5DE7A56661",
+  "snapshot_id": "RSNAP-34E1226DB96268A5D1A2C498",
   "source_recommendation": {
+    "cost_profile": "balanced",
     "disposition": "ACTIVE",
     "epoch_id": "EPOCH-59944D57147DAB7648497130",
     "generated_at_utc": "2026-10-01T12:00:00Z",
+    "observed_change": null,
     "package_hash_full_sha256": "EC32080303308213C4F62D82C22D92767B4579864A7F015D4E3F771111D0F4A2",
     "publisher_contract_version": "3.1.0",
     "recommendation_package_id": "PKG-EC32080303308213C4F62D82",
     "recommended_scenario_id": "SCN-2EF40DCCFAEBEA6F419C3CAA",
+    "run_scope": {
+      "safety_inclusions": [],
+      "scenarios": [
+        {
+          "knobs": [
+            "auto_stop_minutes"
+          ],
+          "scenario_type": "IN_PLACE_OPTIMIZATION"
+        }
+      ]
+    },
     "superseded_by_package_id": null
   },
   "validation": {

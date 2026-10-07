@@ -83,10 +83,26 @@ class ObservationSchemaTests(unittest.TestCase):
             self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
         self.assertEqual(sorted(built["properties"]["config"]["properties"]),
                          ["auto_stop_minutes", "enable_photon", "max_clusters", "min_clusters", "warehouse_channel", "warehouse_size", "warehouse_type"])
-        self.assertEqual(built["properties"]["observation_format_version"], {"const": "2.1.0"})
+        self.assertEqual(built["properties"]["observation_format_version"], {"const": "2.2.0"})
         for section in ("measurement",):
             self.assertIs(built["properties"][section]["additionalProperties"], False, section)
             self.assertEqual(built["properties"][section]["required"], sorted(built["properties"][section]["properties"]), section)
+        billed_change = built["properties"]["measurement"]["properties"]["billed_change"]
+        self.assertEqual(billed_change["type"], ["object", "null"])
+        self.assertEqual(billed_change["required"], ["annualized_dbu", "annualized_total", "aws_modeled", "basis", "currency", "days", "dbu", "total"])
+
+    def test_the_billed_change_block_is_strict(self):
+        validator = jsonschema.Draft202012Validator(observation_module.observation_schema()["properties"]["measurement"]["properties"]["billed_change"])
+        good = {"basis": "BILLED_PRE_POST_AT_PRE_MIX", "days": 28, "currency": "USD", "dbu": "631.95", "aws_modeled": "-12.40",
+                "total": "619.55", "annualized_dbu": "8237.92", "annualized_total": "8076.28"}
+        self.assertTrue(validator.is_valid(good))
+        self.assertTrue(validator.is_valid(None))
+        self.assertTrue(validator.is_valid({**good, "aws_modeled": None, "total": None, "annualized_total": None}))
+        self.assertFalse(validator.is_valid({**good, "dbu": None}))  # the DBU change is known whenever the block is
+        self.assertFalse(validator.is_valid({**good, "basis": "REPLAY"}))
+        self.assertFalse(validator.is_valid({**good, "days": 0}))
+        self.assertFalse(validator.is_valid({k: v for k, v in good.items() if k != "annualized_total"}))
+        self.assertFalse(validator.is_valid({**good, "claimed": True}))
 
     def test_every_stored_scenario_observation_and_the_examples_validate(self):
         validator = jsonschema.Draft202012Validator(observation_module.observation_schema())

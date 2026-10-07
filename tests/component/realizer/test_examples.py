@@ -26,9 +26,9 @@ EXPECTED = {
     "exact": {
         "ids": {
             "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-A64F3EAB64DE9F38D87F0286",
+            "RSNAP": "RSNAP-D1DAE83274E74C73B9C8E933",
             "REVID": "REVID-37F7F275591908182339F44B",
-            "RERUN": "RERUN-46E927B89BA067DACFE23007",
+            "RERUN": "RERUN-68E4662D9F72180E23BED83E",
         },
         "outcome": {
             "implementation_conformance": "EXACT",
@@ -41,9 +41,9 @@ EXPECTED = {
     "modified": {
         "ids": {
             "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-7C60B0F40D19E981310B4AE3",
+            "RSNAP": "RSNAP-284C0B56B45198ADAB73A3BE",
             "REVID": "REVID-0054A9DB9BEB251DB6B705DA",
-            "RERUN": "RERUN-421CD2BEF5C476EECF5E45FA",
+            "RERUN": "RERUN-3739398A8FAE3833CDB30975",
         },
         "outcome": {
             "implementation_conformance": "MODIFIED",

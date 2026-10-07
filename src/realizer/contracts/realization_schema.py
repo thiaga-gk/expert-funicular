@@ -28,7 +28,16 @@ def realization_package_schema() -> Dict[str, Any]:
             "contract_version": {"const": rc.CONTRACT_VERSION},
             "realization_package_id": {"type": "string", "pattern": r"^RPKG-[0-9A-F]{24}$"},
             "snapshot_id": {"type": "string", "pattern": r"^RSNAP-[0-9A-F]{24}$"},
-            "source_recommendation": {"type": "object"},
+            "source_recommendation": {
+                "type": "object",
+                "required": ["recommendation_package_id", "run_scope", "cost_profile", "observed_change"],
+                "properties": {
+                    "recommendation_package_id": {"type": "string", "pattern": r"^PKG-[0-9A-F]+$"},
+                    "run_scope": {"type": ["object", "null"]},
+                    "cost_profile": {"type": ["string", "null"]},
+                    "observed_change": {"type": ["object", "null"]},
+                },
+            },
             "warehouse": {"type": "object"},
             "as_of_utc": {"type": "string", "format": "date-time"},
             "current_state": {

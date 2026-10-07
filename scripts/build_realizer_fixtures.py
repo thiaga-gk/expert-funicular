@@ -17,6 +17,9 @@ writes it to ``tests/fixtures/realizer/packages/<fixture>.json``.
 | ``autostop-scoped-pro`` | demo ``wh-demo-013`` with ``--scope current:auto-stop`` | a Pro warehouse, one READY auto-stop step 30 to 10 with a DBU and modeled AWS range |
 | ``autostop-scoped-serverless`` | demo ``wh-demo-002`` with ``--scope current:auto-stop`` | a Serverless warehouse, one READY auto-stop step 30 to 5 (no customer AWS cost) |
 | ``autostop-scoped-never-stop`` | demo ``wh-demo-001`` with ``--scope current:auto-stop`` | a Pro warehouse that never stops (auto-stop 0), one READY auto-stop step to 35 |
+| ``canary-rollback`` | demo ``wh-demo-040`` | a canary rollback: the size cut LARGE to MEDIUM breached its p95 guard, one READY step back to LARGE (candidate blocker ``CANARY_GUARDRAIL_BREACHED``, no economics) and ``observed_change`` naming the cut |
+| ``capacity-add-scoped`` | demo ``wh-demo-008`` with ``--scope current:max-clusters`` | a capacity add: one READY max-clusters step 2 to 5, objective PERFORMANCE, priced as a cost increase |
+| ``capacity-cut-scoped`` | demo ``wh-demo-006`` with ``--scope current:max-clusters`` | a zero-priced cut: one READY max-clusters step 4 to 2, objective COST_GUARDRAIL, savings 0 |
 
 The scoped fixtures are the packages the live measurement and the end-to-end goldens realize: their warehouses are
 simulated after the change by ``publisher.analyzer.collector.demo.simulate_demo_world``.
@@ -49,10 +52,13 @@ from realizer.config.loader import validate_package  # noqa: E402
 
 PACKAGES = ROOT / "tests" / "fixtures" / "realizer" / "packages"
 GOLDEN_CASES = ROOT / "tests" / "golden" / "cases"
-DEMO_SOURCES = {"inplace-size-canary": "wh-demo-006", "two-ready-steps": "wh-demo-009", "unpriced-candidate": "wh-demo-003"}
+DEMO_SOURCES = {"inplace-size-canary": "wh-demo-006", "two-ready-steps": "wh-demo-009", "unpriced-candidate": "wh-demo-003",
+                "canary-rollback": "wh-demo-040"}
 CASE_SOURCES = {"scope-migration-only": ("s02-scope-migration-only", "wh-demo-001")}
 SCOPED_SOURCES = {"autostop-scoped-pro": "wh-demo-013", "autostop-scoped-serverless": "wh-demo-002", "autostop-scoped-never-stop": "wh-demo-001"}
 AUTO_STOP_SCOPE = "current:auto-stop"
+MAX_CLUSTER_SOURCES = {"capacity-add-scoped": "wh-demo-008", "capacity-cut-scoped": "wh-demo-006"}
+MAX_CLUSTER_SCOPE = "current:max-clusters"
 
 
 def _recommended_plan(package: Mapping[str, Any]) -> List[Mapping[str, Any]]:
@@ -108,7 +114,38 @@ def _check_unpriced(p: Mapping[str, Any]) -> None:
     assert _candidate(p, step["candidate_id"])["independent_economics"]["estimation_status"] == "UNAVAILABLE"
 
 
+def _only_step(p: Mapping[str, Any]) -> Mapping[str, Any]:
+    steps = [s for s in _recommended_plan(p) if s["step_type"] == "CANDIDATE"]
+    assert len(steps) == 1, _roles(p)
+    return steps[0]
+
+
+def _check_canary_rollback(p: Mapping[str, Any]) -> None:
+    step = _only_step(p)
+    candidate = _candidate(p, step["candidate_id"])
+    assert "CANARY_GUARDRAIL_BREACHED" in candidate["blockers"], candidate["blockers"]
+    change = next(c for c in p["observed_change"]["changes"] if c["knob"] == step["knob"])
+    assert step["recommended_value"] == change["previous_value"] and step["execution_state"] == "READY"
+
+
+def _check_capacity_add(p: Mapping[str, Any]) -> None:
+    step = _only_step(p)
+    candidate = _candidate(p, step["candidate_id"])
+    assert (step["knob"], step["execution_state"], candidate["objectives"]) == ("max_clusters", "READY", ["PERFORMANCE"])
+    assert candidate["independent_economics"]["savings_365d"]["total"]["base"] < 0, "priced as a cost increase"
+
+
+def _check_capacity_cut(p: Mapping[str, Any]) -> None:
+    step = _only_step(p)
+    candidate = _candidate(p, step["candidate_id"])
+    assert (step["knob"], step["execution_state"], candidate["objectives"]) == ("max_clusters", "READY", ["COST_GUARDRAIL"])
+    assert candidate["independent_economics"]["savings_365d"]["total"]["base"] == 0, "a zero-priced cut"
+
+
 CHECKS: Dict[str, Callable[[Mapping[str, Any]], None]] = {
+    "canary-rollback": _check_canary_rollback,
+    "capacity-add-scoped": _check_capacity_add,
+    "capacity-cut-scoped": _check_capacity_cut,
     "inplace-size-canary": _check_inplace,
     "two-ready-steps": _check_two_ready,
     "scope-migration-only": _check_migration_only,
@@ -144,6 +181,9 @@ def build() -> Dict[str, Dict[str, Any]]:
         built[name] = plain[warehouse]
     for name, warehouse in SCOPED_SOURCES.items():
         built[name] = scoped[warehouse]
+    max_scoped = _demo_packages(MAX_CLUSTER_SOURCES.values(), ["--scope", MAX_CLUSTER_SCOPE])
+    for name, warehouse in MAX_CLUSTER_SOURCES.items():
+        built[name] = max_scoped[warehouse]
     for name, (case, warehouse) in CASE_SOURCES.items():
         packages = json.loads((GOLDEN_CASES / case / "expected" / "recommendation.json").read_text(encoding="utf-8"))
         built[name] = next(p for p in packages if p["warehouse"]["warehouse_id"] == warehouse)

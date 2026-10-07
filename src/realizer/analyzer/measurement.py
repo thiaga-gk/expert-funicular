@@ -3,7 +3,8 @@
 Pure: it reads the package and the warehouse's configuration epochs and settled billing day (the bridge's first pass)
 and decides, for the step the observed configuration applies, the post-change window, the matched pre-change window and
 the auto-stop values to replay. The bridge's second pass collects exactly these windows, and the projector reads them
-back through the same plan.
+back through the same plan. A step whose knob has no replay (``REPLAY_KNOBS``) gets the same windows without replay
+values: its guards and billed cost before and after the change are observed, its saving is not measured.
 
 * The step is the first authority-eligible CANDIDATE step of the recommended plan whose knob differs, at the as-of
   time, from the package's value; the change epoch is the first epoch of the latest run of epochs that hold the
@@ -19,7 +20,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from realizer.analyzer.analysis import candidate_steps, normalize_value
+from realizer.analyzer.analysis import normalize_value, plan_steps
 from realizer.contracts.measurement import EPOCH_KNOBS
 from realizer.governor.policy import authority_eligible
 
@@ -33,11 +34,12 @@ NEVER_STOP_TARGET_MINUTES = 366 * 1440
 
 @dataclass(frozen=True)
 class MeasurementPlan:
-    """What one measurement reads. ``reason`` is set when there is nothing to measure yet (``post`` is then None):
-    ``NOT_APPLIED`` (no step's knob changed), ``NOT_SETTLED`` (no whole settled week after the change),
-    ``KNOB_NOT_REPLAYED`` (the changed knob has no replay counterfactual yet). ``pre`` is None when no pre-change epoch
-    holds a whole week. ``other_knob_changes`` are decision knobs other than the step's that differ between the
-    pre-change and the observed epoch."""
+    """What one measurement reads. ``reason`` is set when there is nothing to measure: ``NOT_APPLIED`` (no step's knob
+    changed; ``post`` is None), ``NOT_SETTLED`` (no whole settled week after the change; ``post`` is None),
+    ``KNOB_NOT_REPLAYED`` (the changed knob has no replay counterfactual yet: the windows are planned as for a replayed
+    knob, without replay targets, so the change is observed but not measured; ``post`` is None until a whole week has
+    settled). ``pre`` is None when no pre-change epoch holds a whole week. ``other_knob_changes`` are decision knobs
+    other than the step's that differ between the pre-change and the observed epoch."""
     observed_epoch: Mapping[str, Any]
     step: Optional[Mapping[str, Any]] = None
     change_epoch: Optional[Mapping[str, Any]] = None
@@ -95,7 +97,8 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
     ordered = sorted(epochs, key=lambda e: dt.datetime.fromisoformat(str(e["epoch_start"]).replace("Z", "+00:00")))
     observed = ordered[-1]
     observed_cfg = epoch_config(observed)
-    step = next((s for s in candidate_steps(package) if authority_eligible(s)
+    # The recommended plan's steps first, then every other scenario's (an owner may apply an alternative such as a migration).
+    step = next((s for s in plan_steps(package) if authority_eligible(s)
                  and observed_cfg.get(str(s.get("knob"))) is not None
                  and observed_cfg.get(str(s.get("knob"))) != normalize_value(str(s.get("knob")), s.get("current_value"))), None)
     if step is None:
@@ -114,12 +117,13 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
     if observed.get("epoch_end") is not None and last is not None:
         last = min(last, _day(observed["epoch_end"]) - dt.timedelta(days=1))
     since_change = 0 if settled is None else max(0, (settled - first_full_day(change["epoch_start"])).days + 1)
-    if knob not in REPLAY_KNOBS:
-        return MeasurementPlan(**base, settled_days_since_change=since_change, reason="KNOB_NOT_REPLAYED")
+    # A knob without a replay counterfactual is observed over the same windows (guards, billed cost before and after),
+    # never measured: its reason stays KNOB_NOT_REPLAYED whether or not a whole week has settled.
+    unreplayed = None if knob in REPLAY_KNOBS else "KNOB_NOT_REPLAYED"
     days = 0 if last is None else (last - first).days + 1
     weeks = min(MAX_WINDOW_WEEKS, days // WEEK_DAYS)
     if weeks < 1:
-        return MeasurementPlan(**base, settled_days_since_change=since_change, reason="NOT_SETTLED")
+        return MeasurementPlan(**base, settled_days_since_change=since_change, reason=unreplayed or "NOT_SETTLED")
     assert last is not None
     post = {"label": "post", "epoch_start": observed["epoch_start"], "first_day": (last - dt.timedelta(days=weeks * WEEK_DAYS - 1)).isoformat(),
             "last_day": last.isoformat()}
@@ -131,7 +135,7 @@ def plan_measurement(package: Mapping[str, Any], epochs: Sequence[Mapping[str, A
         if pre_weeks >= 1:
             pre = {"label": "pre", "epoch_start": previous["epoch_start"], "first_day": (pre_last - dt.timedelta(days=pre_weeks * WEEK_DAYS - 1)).isoformat(),
                    "last_day": pre_last.isoformat()}
-    return MeasurementPlan(**base, post=post, pre=pre, settled_days_since_change=since_change)
+    return MeasurementPlan(**base, post=post, pre=pre, settled_days_since_change=since_change, reason=unreplayed)
 
 
 def window_bounds(window: Mapping[str, Any]) -> Tuple[str, str]:

@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8798,
-  "sha256": "0159ac9c91386d02a7764a74f75db62562988c298ee06a71c3ae2e327df313fa",
+  "length": 9070,
+  "sha256": "4cadaba4f7254d506a8c7cee1d6e6f7b116ecc8fb9f7b2e2aab7a839e6cd6637",
   "spot": {
    "logging": [
     [
@@ -9,15 +9,15 @@
     ],
     {}
    ],
-   "stdout_characters": 7852
+   "stdout_characters": 8094
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
   "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
-  "length": 4024,
-  "sha256": "eece5c71f9b6fe76886327f219e0e78225364205f31d2d2d2c1e13420439765c",
+  "length": 4208,
+  "sha256": "7b8c708e84deb14b81144cf60fc5b1c2aaf0f4e715728ea75ce949538b222bf2",
   "spot": {
    "logging": [
     [
@@ -25,12 +25,12 @@
     ],
     {}
    ],
-   "stdout_characters": 3613
+   "stdout_characters": 3777
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 8935,
-  "sha256": "ed2eb7458afd7b8dd3b6a35d48b019c35b4fcc17c299e15756f2a409eea378ff",
+  "length": 9302,
+  "sha256": "756cdc806fc267cf1899e62552787921122ad3397bc8b101b7610faa241bab3b",
   "spot": {
    "logging": [
     [
@@ -38,7 +38,7 @@
     ],
     {}
    ],
-   "stdout_characters": 7970
+   "stdout_characters": 8291
   }
  },
  "PolicyTests.test_defaults/policy": {
@@ -50,7 +50,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -58,7 +58,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD"
+   "snapshot_id": "PSNAP-082E3EEFE93D3C72BB4E4644"
   }
  },
  "PolicyTests.test_from_mapping/mapping 0": {
@@ -70,7 +70,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -78,7 +78,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD"
+   "snapshot_id": "PSNAP-082E3EEFE93D3C72BB4E4644"
   }
  },
  "PolicyTests.test_from_mapping/mapping 1": {
@@ -90,7 +90,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -98,7 +98,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-33BCD2A30BD83B8D321F7CCD"
+   "snapshot_id": "PSNAP-082E3EEFE93D3C72BB4E4644"
   }
  },
  "PolicyTests.test_from_mapping/mapping 2": {
@@ -110,7 +110,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -118,7 +118,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-62A6EB1017E16D11A0522F51"
+   "snapshot_id": "PSNAP-A0624BA40A46D51DC20FF3D1"
   }
  },
  "PolicyTests.test_from_mapping/mapping 3": {
@@ -130,7 +130,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.9",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -138,7 +138,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.4"
    },
-   "snapshot_id": "PSNAP-B5848D33967242D964FA4561"
+   "snapshot_id": "PSNAP-F2200FECC28D7DB28E8D3480"
   }
  },
  "PolicyTests.test_from_mapping/mapping 4": {
@@ -150,7 +150,7 @@
     "minimum_material_savings_delta_pct": "5",
     "minimum_price_coverage_pct": "100",
     "minimum_queries": 100,
-    "policy_version": "realizer-policy-v1.1.0",
+    "policy_version": "realizer-policy-v1.2.0",
     "realized_ratio_min": "0.8",
     "remeasure_days_after_invalidating_change": 7,
     "require_confirmed_origin_for_hard_kpi": true,
@@ -158,7 +158,7 @@
     "required_currency_consistency_pct": "100",
     "under_realized_ratio_min": "0.5"
    },
-   "snapshot_id": "PSNAP-41511DD78227F720A0CC233E"
+   "snapshot_id": "PSNAP-1AD28C450A938290FCA6BA74"
   }
  },
  "PolicyTests.test_from_mapping/mapping 5": {
@@ -211,15 +211,15 @@
  },
  "SettingsTests.test_version_identifiers/versions": {
   "value": {
-   "ANALYZER_GATEWAY_VERSION": "post-change-analyzer-adapter-v1.1.0",
-   "ATTRIBUTION_VERSION": "realizer-attribution-v1.1.0",
-   "ESTIMATOR_GATEWAY_VERSION": "realized-estimator-adapter-v1.1.0",
+   "ANALYZER_GATEWAY_VERSION": "post-change-analyzer-adapter-v1.2.0",
+   "ATTRIBUTION_VERSION": "realizer-attribution-v1.2.0",
+   "ESTIMATOR_GATEWAY_VERSION": "realized-estimator-adapter-v1.2.0",
    "EXCLUSIVITY_VERSION": "realizer-exclusivity-v1.0.0",
    "MODELER_GATEWAY_VERSION": "m08-realization-adapter-v1.1.0",
-   "POLICY_VERSION": "realizer-policy-v1.1.0",
+   "POLICY_VERSION": "realizer-policy-v1.2.0",
    "PRODUCT_VERSION": "2.14.0",
-   "PROJECTOR_VERSION": "realizer-projector-v1.0.0",
-   "REALIZER_VERSION": "1.1.0"
+   "PROJECTOR_VERSION": "realizer-projector-v1.1.0",
+   "REALIZER_VERSION": "1.2.0"
   }
  }
 }

@@ -24,7 +24,7 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import authority_eligible
-from realizer.packager.ledger import latest_event, ledger_checkpoint
+from realizer.packager.ledger import latest_event, ledger_checkpoint, source_scope
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
@@ -92,6 +92,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         realization_state = rc.RealizationState.INVALIDATED.value  # the opposite of the recommendation: regenerate
     elif validation and not validation.payload.get("hard_guardrails_pass"):
         realization_state = rc.RealizationState.VALIDATION_FAILED.value
+    elif app and app.payload.get("step_role") == rc.StepRole.SAFETY_ROLLBACK.value:
+        realization_state = rc.RealizationState.SAFETY_ACTION_APPLIED.value  # recorded, never measured or claimed
     elif measurement:
         realization_state = str(measurement.payload.get("realization_state") or rc.RealizationState.MONITORING.value)
     elif app:
@@ -130,6 +132,7 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "generated_at_utc": (package.get("provenance") or {}).get("generated_at"),
         "disposition": rc.SourcePackageDisposition.SUPERSEDED.value if superseded else rc.SourcePackageDisposition.ACTIVE.value,
         "superseded_by_package_id": (replacement.payload.get("replacement_package_id") if replacement else None),
+        **source_scope(package),
     }
     app_section = {
         "state": app_state,
@@ -147,6 +150,9 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "scenario_id": app.payload.get("scenario_id") if app else None,
         "step": app.payload.get("step") if app else None,
         "knob": app.payload.get("knob") if app else None,
+        "step_role": app.payload.get("step_role") if app else None,
+        "compatibility_status": app.payload.get("compatibility_status") if app else None,
+        "annotations": list(app.payload.get("annotations") or []) if app else [],
         "source_value": app.payload.get("source_value") if app else None,
         "recommended_value": app.payload.get("recommended_value") if app else None,
         "observed_applied_value": app.payload.get("observed_value") if app else None,

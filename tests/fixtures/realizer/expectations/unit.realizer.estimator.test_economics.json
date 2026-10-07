@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 5774305,
-  "sha256": "91386d6c52f74e157dffad779b95ffe93b1c25c4a79be8051b6b92abc0a45dd4",
+  "length": 6134718,
+  "sha256": "683b39cb65f5146d3653fede20add4f8e9a98470a32b6950a09e85cb766f0b50",
   "spot": {
    "classes": [
     [
@@ -23,6 +23,16 @@
      "BLOCKED",
      "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE",
      "UNAVAILABLE"
+    ],
+    [
+     "MONITORING",
+     "CAPACITY_UNVERIFIED",
+     "NOT_APPLICABLE"
+    ],
+    [
+     "MONITORING",
+     "MIGRATION_RANGE_INFORMATIONAL",
+     "PUBLISHER_SCENARIO"
     ],
     [
      "MONITORING",
@@ -101,7 +111,7 @@
     ]
    ],
    "count": 11088,
-   "failures": 3696
+   "failures": 3680
   }
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {
@@ -167,8 +177,14 @@
     "counterfactual_old_cost": "10000.00",
     "currency": "USD",
     "dbu_realized": null,
+    "denominator_method": null,
     "denominator_source": "PUBLISHER_CANDIDATE",
     "economic_basis": "ECONOMIC_COST",
+    "expected_components": {
+     "aws": "11553.41",
+     "dbu": "20239.52",
+     "total": "31792.93"
+    },
     "expected_range": {
      "base": "31792.93",
      "component": "total",
@@ -252,19 +268,19 @@
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 7021,
-  "sha256": "85616c5dddc93606ec09000d7cea5bc1b39d6b3f492ddcc893ff36312bede3e5",
+  "sha256": "e440e6942b10307589788c4fc80b3b463b0d4b1b4e1e6cb0af04488659738cdf",
   "spot": {
    "count": 234,
    "distinct": 42,
-   "first": "CF-A2924991BCDBE6866CCA80A4"
+   "first": "CF-8DC64C4840A22E56CCEB6AFE"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {
   "value": [
    "ok",
    [
-    "7",
-    "PUBLISHER_CANDIDATE"
+    null,
+    "UNAVAILABLE"
    ]
   ]
  },
@@ -332,91 +348,7 @@
   ]
  },
  "ExpectedAnnualTests.test_every_plan_step_of_every_fixture_package/steps": {
-  "value": {
-   "autostop-scoped-never-stop/SCN-C58EE28009AB0DE5788EC3A7/1": [
-    "93006.44",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "autostop-scoped-pro/SCN-2EF40DCCFAEBEA6F419C3CAA/1": [
-    "9363.51",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "autostop-scoped-serverless/SCN-1AD6B193A8236A31A6C0D21B/1": [
-    "2054.22",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/1": [
-    "31792.93",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/2": [
-    "559.91",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/3": [
-    "0.0",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "inplace-size-canary/SCN-2939C3996D4BBAC63D4F9484/4": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/1": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/2": [
-    "18901.04",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "inplace-size-canary/SCN-CE064B6547075F0DC6A2809C/3": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/1": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/2": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "scope-migration-only/SCN-F393D36F6D249AC99DE68CB7/3": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/1": [
-    "38527.17",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/2": [
-    "672.84",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/3": [
-    "0.0",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "two-ready-steps/SCN-37BB3A2EB5D10AD17D2BAF1B/4": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/1": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/2": [
-    "21908.97",
-    "PUBLISHER_CANDIDATE"
-   ],
-   "two-ready-steps/SCN-75BF14C1DF325DE6F007E446/3": [
-    null,
-    "UNAVAILABLE"
-   ],
-   "unpriced-candidate/SCN-619EAD0E16C25AFAFDBE597A/1": [
-    null,
-    "UNAVAILABLE"
-   ]
-  }
+  "length": 2067,
+  "sha256": "24f713db76f8c88240c090150043b9ff673d1252a55d75da00f6315aacf4f4ad"
  }
 }

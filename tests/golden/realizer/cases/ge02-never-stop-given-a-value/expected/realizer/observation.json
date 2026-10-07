@@ -42,6 +42,7 @@
   "intent_state": "UNKNOWN",
   "measurement": {
     "applied_value": 35,
+    "billed_change": null,
     "change_epoch_start": "2026-10-08T14:32:00Z",
     "cost_basis": "DBU_AND_MODELED_AWS",
     "cross_check": {
@@ -98,7 +99,7 @@
     "source_value": 0,
     "volume_ratio": "1"
   },
-  "observation_format_version": "2.1.0",
+  "observation_format_version": "2.2.0",
   "observed_at_utc": "2026-11-07T12:00:00Z",
   "origin_attribution": "INFERRED",
   "overlap_count": 0,

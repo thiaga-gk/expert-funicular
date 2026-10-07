@@ -17,13 +17,13 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.1.0"
-PROJECTOR_VERSION = "realizer-projector-v1.0.0"
-POLICY_VERSION = "realizer-policy-v1.1.0"
-ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.1.0"
+REALIZER_VERSION = "1.2.0"
+PROJECTOR_VERSION = "realizer-projector-v1.1.0"
+POLICY_VERSION = "realizer-policy-v1.2.0"
+ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.2.0"
 MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.1.0"
-ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.1.0"
-ATTRIBUTION_VERSION = "realizer-attribution-v1.1.0"
+ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.2.0"
+ATTRIBUTION_VERSION = "realizer-attribution-v1.2.0"
 EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.0.0"
 
 CONFIG_KNOBS = (
@@ -35,6 +35,12 @@ CONFIG_KNOBS = (
     "warehouse_channel",
     "enable_photon",
 )
+
+# The configuration a decision is made on, which the configuration hash covers (and so application identity and drift):
+# the observed configuration also records the channel (no priced effect) and Photon (a billing-mix fact, never a change).
+HASHED_CONFIG_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes")
+# Decision knobs whose change has no priced effect: recorded as an independent change, never drift, never against a claim.
+UNPRICED_DECISION_KNOBS = ("warehouse_channel",)
 
 # Reuse Publisher's canonical size registry; Realizer must not maintain a competing order.
 SIZE_ORDER = {name: idx for idx, name in enumerate(PUBLISHER_SIZE_ORDER)}

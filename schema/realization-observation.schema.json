@@ -410,6 +410,105 @@
             "null"
           ]
         },
+        "billed_change": {
+          "additionalProperties": false,
+          "properties": {
+            "annualized_dbu": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "annualized_total": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aws_modeled": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "basis": {
+              "enum": [
+                "BILLED_PRE_POST_AT_PRE_MIX"
+              ]
+            },
+            "currency": {
+              "pattern": "^[A-Z]{3}$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "days": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "dbu": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "total": {
+              "anyOf": [
+                {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "annualized_dbu",
+            "annualized_total",
+            "aws_modeled",
+            "basis",
+            "currency",
+            "days",
+            "dbu",
+            "total"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "change_epoch_start": {
           "format": "date-time",
           "type": [
@@ -849,6 +948,7 @@
       },
       "required": [
         "applied_value",
+        "billed_change",
         "change_epoch_start",
         "cost_basis",
         "cross_check",
@@ -871,7 +971,7 @@
       ]
     },
     "observation_format_version": {
-      "const": "2.1.0"
+      "const": "2.2.0"
     },
     "observed_at_utc": {
       "format": "date-time",

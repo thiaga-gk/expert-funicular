@@ -254,89 +254,89 @@
  },
  "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 0": {
   "value": {
-   "PSNAP-33BCD2A30BD83B8D321F7CCD": {
+   "PSNAP-082E3EEFE93D3C72BB4E4644": {
     "app": "APP-9B8B5AACFFC4CBB07CD25189",
-    "cf": "CF-303E43CB8B06F4CC62589747",
+    "cf": "CF-F66516A74735604A2C627F6A",
     "measurements": [
-     "MEAS-0385B0AC753D2B826B02BFF0",
-     "MEAS-682B43FA8EDBC6A424DCD426"
+     "MEAS-7C9A20BA5C7EA7DE04FEDB8D",
+     "MEAS-3E5911C21ACBC6C57A745711"
     ],
-    "val": "VAL-DFD2CC597F9C5E66EA4FE9BB"
+    "val": "VAL-F805EA6F65B36BFD4A884004"
    },
-   "PSNAP-62A6EB1017E16D11A0522F51": {
+   "PSNAP-A0624BA40A46D51DC20FF3D1": {
     "app": "APP-9B8B5AACFFC4CBB07CD25189",
-    "cf": "CF-70889ACB4F8F70CEC3F14E40",
+    "cf": "CF-F24CB38D01DD093453C04F0B",
     "measurements": [
-     "MEAS-C8C92E2B8DA5B4EF886D52EC",
-     "MEAS-D135B05993C77CBF4505DDB8"
+     "MEAS-3CD67D71F2F61D51686DF242",
+     "MEAS-7CEF11830A1641810724480F"
     ],
-    "val": "VAL-A1F845D1B54CC2730B322E97"
+    "val": "VAL-DEE06E0D864C45D659ABAF11"
    }
   }
  },
  "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 1": {
   "value": {
-   "PSNAP-33BCD2A30BD83B8D321F7CCD": {
+   "PSNAP-082E3EEFE93D3C72BB4E4644": {
     "app": "APP-C23206721212D79FE22E71B9",
-    "cf": "CF-4391BD2BAD760CD9E6DAC0E7",
+    "cf": "CF-3480F29917511024CE38AB5F",
     "measurements": [
-     "MEAS-2CBAC8917BF027579E4E36C9",
-     "MEAS-58C2AA2313E28C5E085D0190"
+     "MEAS-BBF50D3BD2774093F2276C5A",
+     "MEAS-33DD21FFF216D89D4707C4CA"
     ],
-    "val": "VAL-7506787D6F04C539216089B6"
+    "val": "VAL-B0D766E58653CE69F7B3EE7B"
    },
-   "PSNAP-62A6EB1017E16D11A0522F51": {
+   "PSNAP-A0624BA40A46D51DC20FF3D1": {
     "app": "APP-C23206721212D79FE22E71B9",
-    "cf": "CF-81EC29E8FC3EC4F746955BDF",
+    "cf": "CF-D2DD7D68081116F10615A232",
     "measurements": [
-     "MEAS-DE20AAC0FEB47C4B01B9632F",
-     "MEAS-E6E02867FD8F74AFB2D19595"
+     "MEAS-038FA333237200ADB0FFB7A5",
+     "MEAS-AD8EB0A091B192A0517269A7"
     ],
-    "val": "VAL-9DF8E1B96BBB272C4811415A"
+    "val": "VAL-CCB6191546C804109024D0E2"
    }
   }
  },
  "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 2": {
   "value": {
-   "PSNAP-33BCD2A30BD83B8D321F7CCD": {
+   "PSNAP-082E3EEFE93D3C72BB4E4644": {
     "app": "APP-249A3158AC7FD6DB56292E4B",
-    "cf": "CF-77B905818C8CD04E853A4DCC",
+    "cf": "CF-257A001E24E96813BD8892EC",
     "measurements": [
-     "MEAS-D14E5EAF2250A31A6C6E2D1D",
-     "MEAS-14330175C6E33D9FFAC27F93"
+     "MEAS-848E81CD6219BFDDADED8594",
+     "MEAS-5D3407BEE1B98CAD4E2BAB67"
     ],
-    "val": "VAL-DE29F50A09CB06EE688BBF83"
+    "val": "VAL-F33F3077763F660FB52BCF30"
    },
-   "PSNAP-62A6EB1017E16D11A0522F51": {
+   "PSNAP-A0624BA40A46D51DC20FF3D1": {
     "app": "APP-249A3158AC7FD6DB56292E4B",
-    "cf": "CF-1BEDBE64074193C5B107E6F2",
+    "cf": "CF-692093EC35EFC9EBAAD9F987",
     "measurements": [
-     "MEAS-35F9792116BBEC4D67FA1822",
-     "MEAS-00E69D7B75F28E79901B3025"
+     "MEAS-85540B903E2DCFEAA5B6F6E4",
+     "MEAS-12FED0FAA9C80E5F78694A79"
     ],
-    "val": "VAL-90CE1C189D863744CF9F71D7"
+    "val": "VAL-000A83CE2E0E3055FB7909A2"
    }
   }
  },
  "IdBuilderTests.test_episode_counterfactual_and_measurement_ids/observation 3": {
   "value": {
-   "PSNAP-33BCD2A30BD83B8D321F7CCD": {
+   "PSNAP-082E3EEFE93D3C72BB4E4644": {
     "app": "APP-8CD510D20AA3249D5183C7CD",
-    "cf": "CF-F96401592F9AD57E9D3D4927",
+    "cf": "CF-85DDBF711894907C190C585F",
     "measurements": [
-     "MEAS-E2FB7E67086C72E9F2D5FD2E",
-     "MEAS-69A524BCE156A394DCDB8CF3"
+     "MEAS-4620343CF4B5D94B6CC70B4A",
+     "MEAS-01680813DB2161451712232C"
     ],
-    "val": "VAL-B33C505F955A5233A887C100"
+    "val": "VAL-EA6D21AC0F823E89082CEB77"
    },
-   "PSNAP-62A6EB1017E16D11A0522F51": {
+   "PSNAP-A0624BA40A46D51DC20FF3D1": {
     "app": "APP-8CD510D20AA3249D5183C7CD",
-    "cf": "CF-7E93A08EC992D6DBED30D225",
+    "cf": "CF-E182543AF01965A1A35166E8",
     "measurements": [
-     "MEAS-9873EF0E438411A054DF3CC4",
-     "MEAS-C61A2BCE4B5A014033E6EF3D"
+     "MEAS-BCE8155E505168D931996EBF",
+     "MEAS-C7E54E93F002150FB43A0181"
     ],
-    "val": "VAL-360DFA0AB24EF00E2113ABEA"
+    "val": "VAL-A0BBE83262DB9935F0FD30C5"
    }
   }
  },
@@ -350,14 +350,14 @@
  },
  "PublicSurfaceTests.test_constants_are_identical/constants": {
   "value": {
-   "CONTRACT_VERSION": "1.0.0",
+   "CONTRACT_VERSION": "1.1.0",
    "HASH_HEX_LENGTH": 24,
    "LEDGER_CONTRACT_VERSION": "1.0.0"
   }
  },
  "PublicSurfaceTests.test_enums_have_identical_members_and_values/members": {
-  "length": 3437,
-  "sha256": "0e87b1b5e44a1889f61fce02c77d1e0c42c5621d998f697df1bdc5442fd742af",
+  "length": 3708,
+  "sha256": "9393f5e02d87010b9480844ecdd88d9f6e1a3d940077797f2870707dc8378f7e",
   "spot": {
    "enums": [
     "IntentState",
@@ -373,11 +373,12 @@
     "AttributionClaimStatus",
     "EvidenceQuality",
     "RegenerationStatus",
+    "StepRole",
     "RecognitionStatus",
     "CompatibilityStatus",
     "EventType"
    ],
-   "members": 94
+   "members": 101
   }
  },
  "PublicSurfaceTests.test_every_public_name_survives/names": {
@@ -389,7 +390,7 @@
     "make_rpkg_id",
     "make_val_id"
    ],
-   "count": 30
+   "count": 31
   },
   "value": [
    "ApplicationState",
@@ -412,6 +413,7 @@
    "RecognitionStatus",
    "RegenerationStatus",
    "SourcePackageDisposition",
+   "StepRole",
    "ValidationState",
    "canonical_decimal",
    "canonical_json",
@@ -511,7 +513,7 @@
    "invalid as_of_utc"
   ]
  },
- "ValidationTests.test_package_validation_messages/{\"contract_version\": \"1.1.0\"}": {
+ "ValidationTests.test_package_validation_messages/{\"contract_version\": \"1.0.0\"}": {
   "value": [
    "ValueError",
    "realizer contract version mismatch"

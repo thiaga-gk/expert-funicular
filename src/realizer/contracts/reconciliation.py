@@ -46,6 +46,16 @@ class PlanProgressState(str, Enum):
     STOPPED = "STOPPED"
 
 
+class StepRole(str, Enum):
+    """What a plan step is for, which decides how its application is judged: a saving (realized against its published
+    range), a performance fix or a capacity guardrail (judged on queueing and p95, its cost never a saving), or a safety
+    rollback (recorded, never measured or claimed)."""
+    SAVINGS = "SAVINGS"
+    PERFORMANCE = "PERFORMANCE"
+    CAPACITY = "CAPACITY"
+    SAFETY_ROLLBACK = "SAFETY_ROLLBACK"
+
+
 class RegenerationStatus(str, Enum):
     NOT_REQUIRED = "NOT_REQUIRED"
     REQUESTED = "REQUESTED"
@@ -145,5 +155,5 @@ class ReconciliationResult:
 # dataclasses above are internal values and are imported by name.
 __all__ = [
     "SourcePackageDisposition", "ImplementationConformance", "ApplicationState", "PlanProgressState",
-    "RegenerationStatus",
+    "RegenerationStatus", "StepRole",
 ]

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from realizer.common.utils import utc_iso
-from realizer.config.settings import CONFIG_KNOBS
+from realizer.common.utils import decimal, utc_iso
+from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
 from realizer.contracts.realization import make_evidence_id
@@ -19,7 +19,9 @@ from realizer.packager.ledger import latest_event
 
 
 def config_hash(config: Mapping[str, Any]) -> str:
-    return "SHA256:" + rc.sha256_hex({k: normalize_value(k, config.get(k)) for k in CONFIG_KNOBS})
+    """The hash of the configuration a decision is made on (``HASHED_CONFIG_KNOBS``): the channel and Photon are recorded
+    in the observed configuration but never change it."""
+    return "SHA256:" + rc.sha256_hex({k: normalize_value(k, config.get(k)) for k in HASHED_CONFIG_KNOBS})
 
 
 def normalize_value(knob: str, value: Any) -> Any:
@@ -75,6 +77,46 @@ def candidate_steps(package: Mapping[str, Any], scenario_id: Optional[str] = Non
     if scenario is None:
         return []
     return [x for x in scenario.get("execution_plan", []) if x.get("step_type") == "CANDIDATE"]
+
+
+# The Publisher's blocker on a candidate that rolls back a canary whose guard tripped.
+CANARY_ROLLBACK_BLOCKER = "CANARY_GUARDRAIL_BREACHED"
+
+
+def step_role(package: Mapping[str, Any], step: Mapping[str, Any]) -> str:
+    """What a CANDIDATE step is for (``StepRole``), from its candidate: ``SAFETY_ROLLBACK`` when the candidate carries
+    the canary-rollback blocker; ``PERFORMANCE`` when its objectives are a performance fix and it is priced as a cost
+    increase (or not priced); ``CAPACITY`` when it is priced at exactly zero (a cost-guardrail cut); ``SAVINGS``
+    otherwise."""
+    candidate = candidate_by_id(package, step.get("candidate_id")) or {}
+    if CANARY_ROLLBACK_BLOCKER in (candidate.get("blockers") or []):
+        return rc.StepRole.SAFETY_ROLLBACK.value
+    savings = ((candidate.get("independent_economics") or {}).get("savings_365d") or {})
+    # The role is the step's intent, its sign: the DBU range gives it when the package has no total (the denominator
+    # never falls back that way).
+    block = savings.get("total") or savings.get("dbu") or {}
+    base = decimal(block.get("base")) if isinstance(block, Mapping) else None
+    objectives = set(candidate.get("objectives") or [])
+    if "PERFORMANCE" in objectives and "COST" not in objectives and (base is None or base < 0):
+        return rc.StepRole.PERFORMANCE.value
+    if base is not None and base == 0:
+        return rc.StepRole.CAPACITY.value
+    return rc.StepRole.SAVINGS.value
+
+
+def plan_steps(package: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    """Every scenario's CANDIDATE steps, the recommended plan's first, then the other scenarios in package order."""
+    recommended = (package.get("recommended_plan") or {}).get("scenario_id")
+    others = [s.get("scenario_id") for s in package.get("scenarios") or [] if s.get("scenario_id") != recommended]
+    return [step for sid in [recommended] + others if sid is not None for step in candidate_steps(package, sid)]
+
+
+def scenario_remeasure_days(package: Mapping[str, Any], scenario_id: Optional[str] = None) -> Optional[Any]:
+    """The remeasurement window (days) of the scenario's REMEASURE step; ``None`` when the scenario has none."""
+    scenario = scenario_by_id(package, scenario_id) if scenario_id else recommended_scenario(package)
+    if scenario is None:
+        return None
+    return next((((x.get("validation") or {}).get("remeasure_days")) for x in scenario.get("execution_plan", []) if x.get("step_type") == "REMEASURE"), None)
 
 
 def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, Any]) -> ObservationAnalysis:

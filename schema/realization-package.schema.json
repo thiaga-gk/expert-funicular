@@ -13,7 +13,7 @@
       "type": "object"
     },
     "contract_version": {
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "current_state": {
       "additionalProperties": false,
@@ -40,7 +40,10 @@
             "DRIFTED",
             "INVALIDATED",
             "REGENERATING",
-            "BLOCKED"
+            "BLOCKED",
+            "SAFETY_ACTION_APPLIED",
+            "PERFORMANCE_VALIDATED",
+            "CAPACITY_VALIDATED"
           ]
         },
         "source_package_disposition": {
@@ -97,6 +100,36 @@
       "type": "string"
     },
     "source_recommendation": {
+      "properties": {
+        "cost_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_change": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "recommendation_package_id": {
+          "pattern": "^PKG-[0-9A-F]+$",
+          "type": "string"
+        },
+        "run_scope": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "recommendation_package_id",
+        "run_scope",
+        "cost_profile",
+        "observed_change"
+      ],
       "type": "object"
     },
     "validation": {

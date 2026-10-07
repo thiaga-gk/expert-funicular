@@ -9,7 +9,7 @@ written by the engine from the result, not here.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from realizer.common.utils import utc_iso
 from realizer.contracts.realization import PackagingResult, ReviewResult
@@ -44,7 +44,7 @@ def run(context: RunContext, reviewed: ReviewResult) -> PackagingResult:
 
 def request_regeneration(
     package: Mapping[str, Any], app_payload: Mapping[str, Any], observation: Mapping[str, Any], output_dir: Path,
-    policy: RealizerPolicy, recorded: str, effective: str, *, reason: str,
+    policy: RealizerPolicy, recorded: str, effective: str, *, reason: str, evidence_id: Optional[str] = None,
 ) -> None:
     """Request fresh Publisher analysis from the application's actual configuration: record it, then write its RERUN file."""
-    ledger.append_regeneration(package, output_dir, regeneration_request(package, app_payload, observation, policy, reason=reason), recorded, effective)
+    ledger.append_regeneration(package, output_dir, regeneration_request(package, app_payload, observation, policy, reason=reason, evidence_id=evidence_id), recorded, effective)

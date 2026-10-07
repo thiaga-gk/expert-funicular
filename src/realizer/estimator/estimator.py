@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from realizer.config.settings import UNPRICED_DECISION_KNOBS
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
 from realizer.contracts import realization as rc
@@ -17,6 +18,14 @@ from realizer.contracts.reconciliation import ReconciliationResult
 from realizer.contracts.request import RunContext
 from realizer.estimator.attribution import attribution_result
 from realizer.estimator.economics import calculate_economics, correction_facts, counterfactual_record, measurement_facts
+
+
+# The economics of a safety action: nothing is measured against a counterfactual and nothing is claimed.
+SAFETY_ACTION_ECONOMICS = {
+    "available": False, "currency": None, "observed_economic_delta": None, "successful_realized_savings": None,
+    "annualized_realized_savings": None, "expected_same_scope_annual_savings": None, "denominator_source": "NOT_APPLICABLE",
+    "realization_ratio": None, "classification_detail": "SAFETY_ACTION",
+}
 
 
 def run(
@@ -44,6 +53,9 @@ def run(
     try:
         validation_passed = governance.performance.get()["hard_guardrails_pass"]
         facts["validation_passed"] = validation_passed
+        if app_payload.get("step_role") == rc.StepRole.SAFETY_ROLLBACK.value:
+            # A safety rollback restores a value the Publisher's guard rejected: validated, never measured or claimed.
+            return RealizationEstimate(**facts, economics=SAFETY_ACTION_ECONOMICS)
         cf_claim_eligible, cf_method = governance.counterfactual.get()
         counterfactual = counterfactual_record(app_id, observation, package, policy, cf_claim_eligible, cf_method)
         facts["counterfactual"] = counterfactual
@@ -57,8 +69,10 @@ def run(
         # The gates join the economics (``quality_gates``, last key) before attribution reads them, as they always did.
         economic = {**economic, "quality_gates": governance.economic_quality.get()}
         facts["economics"] = economic
+        # A change with no priced effect (the channel) cannot be in the saving, so it never counts against the claim.
         independent = sorted({str(a.payload.get("knob")) for a in reconciliation.applications
-                              if a.event_type == rc.EventType.INDEPENDENT_CHANGE_OBSERVED and a.payload.get("knob") != app_payload.get("knob")})
+                              if a.event_type == rc.EventType.INDEPENDENT_CHANGE_OBSERVED and a.payload.get("knob") != app_payload.get("knob")
+                              and a.payload.get("knob") not in UNPRICED_DECISION_KNOBS})
         attr = attribution_result(app_payload, observation, validation_passed, cf_claim_eligible, economic, policy, independent)
         measurement = measurement_facts(
             app_id, observation, counterfactual, economic, attr,

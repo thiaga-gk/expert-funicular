@@ -1,9 +1,10 @@
-"""Realizer observation format 2.1.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 2.2.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
 economics and how they were measured (``measurement``: the replayed knob, the windows before and after the change and
-the replay's quantities, ``null`` for a caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
+the replay's quantities, or, for a changed knob without a replay, the billed change before and after it; ``null`` for a
+caller-supplied observation). Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
 input never passes its gate. The format is checked against ``schema/realization-observation.schema.json`` (built by
 ``observation_schema``) before a run writes anything (``realizer.config.loader.validate_observation``).
 """
@@ -13,7 +14,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "2.1.0"
+OBSERVATION_FORMAT_VERSION = "2.2.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -27,6 +28,7 @@ DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clust
 MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY",)
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED")
+BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
 CROSS_CHECK_OUTCOMES = ("AGREES", "DISAGREES", "INCONCLUSIVE")
 CROSS_CHECK_REASONS = ("NO_PRE_WINDOW", "NOISE_UNKNOWN", "OTHER_KNOB_CHANGED", "VOLUME_SHIFT", "BILLING_INCOMPLETE", "BELOW_NOISE")
 GUARD_METRICS = ("queries", "failure_cancel_pct", "queued_queries", "queued_query_pct", "decision_queries", "spill_queries",
@@ -53,7 +55,7 @@ PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": 
 
 
 def observation_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of observation format 2.0.0."""
+    """The Draft 2020-12 JSON Schema of observation format 2.2.0."""
     config = _obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
@@ -132,6 +134,12 @@ def observation_schema() -> Dict[str, Any]:
             "outcome": {"enum": list(CROSS_CHECK_OUTCOMES)}, "reason": {"enum": [None, *CROSS_CHECK_REASONS]},
             "replay_dbu_saving": _decimal(nullable=False), "billed_dbu_reduction": _decimal(), "difference_pct": _decimal(),
             "noise": _decimal(), "pre_weekly_costs": {"type": "array", "items": _decimal(nullable=False)},
+        }, nullable=True),
+        "billed_change": _obj({
+            "basis": {"enum": list(BILLED_CHANGE_BASES)}, "days": {"type": "integer", "minimum": 1},
+            "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+            "dbu": _decimal(nullable=False), "aws_modeled": _decimal(), "total": _decimal(),
+            "annualized_dbu": _decimal(nullable=False), "annualized_total": _decimal(),
         }, nullable=True),
     }, nullable=True)
     properties = {

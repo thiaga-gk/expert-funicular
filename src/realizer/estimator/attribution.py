@@ -57,6 +57,9 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         hard.append("BILLED_CROSS_CHECK_DISAGREES")
     if origin in {rc.OriginAttribution.INDEPENDENT, rc.OriginAttribution.NOT_ATTRIBUTABLE}:
         hard.append("ORIGIN_NOT_ATTRIBUTABLE")
+    if app.get("step_role") in (rc.StepRole.PERFORMANCE.value, rc.StepRole.CAPACITY.value):
+        # A performance fix or a capacity guardrail is not a saving: its outcome is observable, never claimed.
+        hard.append("NOT_A_SAVINGS_STEP")
     # The strict KPI needs a qualified origin: confirmed by an approval, or inferred from a change applied after the
     # package to the knob it recommended (a live measurement's origin).
     confirmed_ok = origin in {rc.OriginAttribution.CONFIRMED, rc.OriginAttribution.INFERRED} or not policy.require_confirmed_origin_for_hard_kpi

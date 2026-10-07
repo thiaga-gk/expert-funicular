@@ -66,7 +66,7 @@ def regeneration_entry(context, analysis, request):
     return make_ledger_entry(package=context.request.package, rpkg_id=context.realization_package_id,
                                     event_type=rc.EventType.REGENERATION_REQUESTED, effective_at_utc=observed.effective_at_utc,
                                     recorded_at_utc=observed.recorded_at_utc, payload=request.payload,
-                                    application_episode_id=request.application_episode_id)
+                                    evidence_refs=[request.payload["evidence_id"]], application_episode_id=request.application_episode_id)
 
 
 class EveryScenarioRunTests(unittest.TestCase):
@@ -122,7 +122,7 @@ class EveryScenarioRunTests(unittest.TestCase):
                         self.assertEqual(regenerations, [] if regen.ledger_entry_id in {line["ledger_entry_id"] for line in before} else [as_line(regen)])
                         if regenerations:
                             self.assertEqual(rest[-1], regenerations[0])
-                        self.assert_rerun_file(run.tree, upstream)
+                        self.assert_rerun_file(run.tree, upstream, repeated=not regenerations)
                         seen["upstream"] += 1
                     seen["validation"] += 1
                 else:
@@ -141,9 +141,16 @@ class EveryScenarioRunTests(unittest.TestCase):
         self.assertGreater(seen["runs"], 40)
         self.assertTrue(all(seen.values()), seen)
 
-    def assert_rerun_file(self, run_tree, request):
+    def assert_rerun_file(self, run_tree, request, repeated=False):
+        """The RERUN file holds the request; a request already recorded by an earlier run keeps that run's file, which
+        differs from this run's only in the evidence and window it names."""
         text = run_tree[f"realization/regeneration/{request.regeneration_request_id}.json"]
-        self.assertEqual(json.loads(text), json.loads(json.dumps(request.payload)))
+        expected = json.loads(json.dumps(request.payload))
+        if repeated:
+            stored = json.loads(text)
+            for key in ("evidence_id", "observation_window"):
+                stored.pop(key), expected.pop(key)
+        self.assertEqual(json.loads(text) if not repeated else stored, expected)
 
 
 class RunTests(unittest.TestCase):

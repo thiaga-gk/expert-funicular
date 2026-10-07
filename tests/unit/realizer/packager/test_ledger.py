@@ -24,6 +24,28 @@ from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager import ledger, packager  # noqa: E402
 
 
+class RegenerationFileTests(unittest.TestCase):
+    """A request already in the ledger keeps the evidence and window of the run that first asked, in its entry and its
+    RERUN file, even when the file has to be written again."""
+
+    def request(self, evidence_id, start):
+        from realizer.contracts.reconciliation import RegenerationRequest
+        payload = {"regeneration_request_id": "RERUN-" + "A" * 24, "reasons": ["CONFIGURATION_DRIFT"], "evidence_id": evidence_id,
+                   "observation_window": {"start_utc": start, "end_utc": "2026-10-20T00:00:00Z"}, "status": "REQUESTED"}
+        return RegenerationRequest(regeneration_request_id=payload["regeneration_request_id"], application_episode_id=None, payload=payload)
+
+    def test_a_missing_file_is_restored_from_the_first_request(self):
+        package = fixture_package()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            ledger.append_regeneration(package, out, self.request("REVID-" + "1" * 24, "2026-10-01T00:00:00Z"), "2026-10-20T00:00:00Z", "2026-10-20T00:00:00Z")
+            path = ledger.regeneration_path(out, "RERUN-" + "A" * 24)
+            path.unlink()
+            ledger.append_regeneration(package, out, self.request("REVID-" + "2" * 24, "2026-10-08T00:00:00Z"), "2026-10-21T00:00:00Z", "2026-10-21T00:00:00Z")
+            written = json.loads(path.read_text())
+        self.assertEqual((written["evidence_id"], written["observation_window"]["start_utc"]), ("REVID-" + "1" * 24, "2026-10-01T00:00:00Z"))
+
+
 class LedgerReadTests(unittest.TestCase):
     def test_path_layout(self):
         out = Path("/tmp/out")

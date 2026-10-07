@@ -153,6 +153,98 @@ class UpstreamRegenerationTests(unittest.TestCase):
                                                       "ids": len({r[1][0] for r in results if r[0] == "ok" and r[1] is not None})})
 
 
+class RegenerationEvidenceTests(unittest.TestCase):
+    """A regeneration request names the observed-configuration evidence it was made from, the observation window and the
+    knobs whose actual value differs from the package's current configuration."""
+
+    def test_the_request_states_its_evidence_window_and_changed_knobs(self):
+        package = fixture_package()
+        observation = {**demo_observation(package), "window_start_utc": "2026-10-02T12:00:00Z", "window_end_utc": "2026-10-09T12:00:00Z"}
+        actual = {**package_config(package), "warehouse_size": "MEDIUM", "auto_stop_minutes": 5, "enable_photon": False}
+        app_payload = {"observed_config": actual, "invalidates": ["max_clusters"], "application_episode_id": APP}
+        payload = lifecycle.regeneration_request(package, app_payload, observation, RealizerPolicy(), reason="R", evidence_id="REVID-" + "AB" * 12).payload
+        self.assertEqual(payload["evidence_id"], "REVID-" + "AB" * 12)
+        self.assertEqual(payload["observation_window"], {"start_utc": "2026-10-02T12:00:00Z", "end_utc": "2026-10-09T12:00:00Z"})
+        self.assertEqual(payload["changed_knobs"], ["warehouse_size", "auto_stop_minutes"])   # decision knobs only, never Photon
+        self.assertEqual(payload["impacted_knobs"], ["max_clusters"])                          # what the change invalidates
+
+    def test_the_window_falls_back_to_the_observed_time_and_a_missing_reference_is_null(self):
+        package = fixture_package()
+        observation = {k: v for k, v in demo_observation(package).items() if k not in {"window_start_utc", "window_end_utc"}}
+        request = lifecycle.regeneration_request(package, {"observed_config": package_config(package)}, observation, RealizerPolicy(), reason="R")
+        self.assertIsNone(request.payload["evidence_id"])
+        self.assertEqual(request.payload["observation_window"], {"start_utc": observation["observed_at_utc"], "end_utc": observation["observed_at_utc"]})
+        self.assertEqual(request.payload["changed_knobs"], [])
+
+    def test_the_evidence_does_not_change_the_request_id(self):
+        package = fixture_package()
+        observation = demo_observation(package)
+        app_payload = {"observed_config": {**package_config(package), "warehouse_size": "MEDIUM"}}
+        ids = {lifecycle.regeneration_request(package, app_payload, observation, RealizerPolicy(), reason="R", **kwargs).regeneration_request_id
+               for kwargs in ({}, {"evidence_id": "REVID-" + "01" * 12})}
+        self.assertEqual(len(ids), 1)
+
+    def test_asking_again_on_a_later_run_is_the_same_request(self):
+        package = fixture_package()
+        base = demo_observation(package)
+        later = {**copy.deepcopy(base), "observed_at_utc": "2026-10-12T12:00:00Z", "recorded_at_utc": "2026-10-12T12:00:00Z",
+                 "window_start_utc": "2026-10-05T12:00:00Z", "window_end_utc": "2026-10-12T12:00:00Z"}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            first_evidence = None
+            for observation in (base, later):
+                realize(copy.deepcopy(package), copy.deepcopy(observation), out)
+                files_ = sorted((out / "realization" / "regeneration").glob("RERUN-*.json"))
+                self.assertEqual(len(files_), 1)
+                evidence = json.loads(files_[0].read_text(encoding="utf-8"))["evidence_id"]
+                first_evidence = first_evidence or evidence
+                self.assertEqual(evidence, first_evidence)   # the first request's file stays
+            lines = [json.loads(line) for p in (out / "realization" / "ledger").glob("*.jsonl") for line in p.read_text(encoding="utf-8").splitlines()]
+        (entry,) = [e for e in lines if e["event_type"] == "REGENERATION_REQUESTED"]
+        self.assertEqual(entry["evidence_refs"], [first_evidence])
+        self.assertEqual(entry["payload"]["evidence_id"], first_evidence)
+
+    def realize_all(self, package, observations):
+        """Run *observations*; returns each run's reconciliation, the RERUN payloads written and the evidence ids written."""
+        captured = []
+        original = reconciler.run
+
+        def capturing(context, analysis, governance):
+            result = original(context, analysis, governance)
+            captured.append((analysis, result))
+            return result
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(reconciler, "run", capturing):
+            out = Path(tmp)
+            for observation in observations:
+                realize(copy.deepcopy(package), copy.deepcopy(observation), out)
+            reruns = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((out / "realization" / "regeneration").glob("RERUN-*.json"))]
+            evidence = sorted(p.stem for p in (out / "realization" / "evidence").glob("REVID-*.json"))
+        return captured, reruns, evidence
+
+    def test_every_regeneration_reason_names_the_runs_evidence(self):
+        base_package = fixture_package()
+        base = demo_observation(base_package)
+        drift_package, drift_runs = (lambda sc: (sc["package_doc"], [r["observation"] for r in sc["runs"]]))(canonical.load_scenario("GR-024"))
+        contrary_package, contrary_runs = (lambda sc: (sc["package_doc"], [r["observation"] for r in sc["runs"]]))(canonical.load_scenario("GR-006"))
+        cases = {"UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM": (base_package, [base]), "CONFIGURATION_DRIFT": (drift_package, drift_runs),
+                 "CONTRARY_IMPLEMENTATION": (contrary_package, contrary_runs)}
+        for reason, (package, observations) in cases.items():
+            with self.subTest(reason):
+                captured, reruns, evidence = self.realize_all(package, observations)
+                (rerun,) = [r for r in reruns if r["reasons"] == [reason]]
+                analysis = captured[-1][0].observation
+                self.assertEqual(rerun["evidence_id"], analysis.evidence_id)
+                self.assertIn(rerun["evidence_id"], evidence)
+                raw = analysis.raw
+                self.assertEqual(rerun["observation_window"], {"start_utc": raw.get("window_start_utc") or analysis.observed_at_utc,
+                                                               "end_utc": raw.get("window_end_utc") or analysis.observed_at_utc})
+                source = package_config(package)
+                self.assertEqual(rerun["changed_knobs"], [k for k in lifecycle.DECISION_KNOBS if rerun["actual_config"][k] != source[k]])
+                # the drift scenario reverts to the package's own configuration: nothing differs from it
+                self.assertEqual(bool(rerun["changed_knobs"]), reason != "CONFIGURATION_DRIFT")
+
+
 class LifecycleScenarioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

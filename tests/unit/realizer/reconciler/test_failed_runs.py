@@ -33,6 +33,11 @@ def recommended_plan(package):
     return next(s for s in package["scenarios"] if s["scenario_id"] == sid)["execution_plan"]
 
 
+def remeasure_step(package):
+    """The recommended scenario's REMEASURE step: it holds the remeasurement window."""
+    return next(step for step in recommended_plan(package) if step["step_type"] == "REMEASURE")
+
+
 def stable_message(text):
     """"'<' not supported between instances of 'int' and 'str'" names the two types in set-iteration order, which varies
     with the string hash seed: the pair, sorted."""
@@ -185,18 +190,21 @@ class ReconcilerFailedRunTests(unittest.TestCase):
     # --- the downstream regeneration: fails after the measurement ---------------------------------------------------
 
     def test_downstream_regeneration_failure_leaves_the_measurement(self):
-        outcomes, tree = self.compare([self.base], {"remeasure_days_after_invalidating_change": "abc"}, label="policy remeasure days")
+        # The policy window is read only when the plan states none (the REMEASURE step's window comes first).
+        no_window = copy.deepcopy(self.pkg)
+        remeasure_step(no_window)["validation"]["remeasure_days"] = None
+        outcomes, tree = self.compare([self.base], {"remeasure_days_after_invalidating_change": "abc"}, package=no_window, label="policy remeasure days")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
         self.assertEqual(files(tree, "regeneration"), [])
 
         corrected = {**self.base, "correction": correction(version=1)}
-        outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"}, label="correction")
+        outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"}, package=no_window, label="correction")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "BILLING_CORRECTION_RECORDED")
 
         package = copy.deepcopy(self.pkg)
-        recommended_plan(package)[0]["validation"] = {"remeasure_days": "soon"}
+        remeasure_step(package)["validation"] = {"remeasure_days": "soon"}
         outcomes, tree = self.compare([self.base], package=package, label="step remeasure days", gate=False)
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")

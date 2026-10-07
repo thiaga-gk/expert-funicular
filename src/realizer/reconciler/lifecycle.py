@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
-from realizer.analyzer.analysis import config_hash, observed_config
+from realizer.analyzer.analysis import config_hash, normalize_value, observed_config, scenario_by_id
 from realizer.common.utils import Deferred
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import RealizationAnalysis
@@ -29,6 +29,7 @@ from realizer.contracts.reconciliation import (
     RegenerationRequest,
 )
 from realizer.contracts.request import RunContext
+from realizer.reconciler.matching import DECISION_KNOBS, compatibility
 
 
 @dataclass
@@ -132,6 +133,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         )
         app_id = make_app_id(rpkg, str(selected_scenario_id), 0, source_hash, observed_hash, revid)
         invalidates = sorted({k for i in authority_changes for k in (i.get("invalidates") or [])})
+        status, annotations = compatibility(scenario_by_id(package, selected_scenario_id))
         payload = {
             "application_scope": "SCENARIO",
             "scenario_id": selected_scenario_id,
@@ -139,6 +141,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "candidate_id": None,
             "technique_id": None,
             "knob": None,
+            "step_role": None,
             "execution_state": "SCENARIO_APPLIED",
             "authority_eligible": True,
             "source_value": None,
@@ -148,6 +151,8 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "modification_relation": None,
             "invalidates": invalidates,
             "dependencies": [],
+            "compatibility_status": status,
+            "annotations": annotations,
             "applied_step_refs": [{"scenario_id": i["scenario_id"], "step": i["step"], "conformance": i["implementation_conformance"]} for i in authority_changes],
             "application_episode_id": app_id,
             "source_config_hash": source_hash,
@@ -236,7 +241,7 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
         drift_app_payload = dict(previous_app.payload)
         drift_app_payload["observed_config"] = obs_cfg
         drift_app_payload["observed_config_hash"] = observed_hash
-        state.terminal_regeneration = regeneration_request(package, drift_app_payload, observation, policy, reason="CONFIGURATION_DRIFT")
+        state.terminal_regeneration = regeneration_request(package, drift_app_payload, observation, policy, reason="CONFIGURATION_DRIFT", evidence_id=revid)
         return
 
     if not active:
@@ -246,14 +251,14 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
     # Contrary application is evidence but not a realization of the original
     # recommendation. Request regeneration from actual state instead.
     if app_payload.get("implementation_conformance") == rc.ImplementationConformance.CONTRARY.value:
-        state.terminal_regeneration = regeneration_request(package, app_payload, observation, policy, reason="CONTRARY_IMPLEMENTATION")
+        state.terminal_regeneration = regeneration_request(package, app_payload, observation, policy, reason="CONTRARY_IMPLEMENTATION", evidence_id=revid)
         return
 
     state.validation_due = bool(governance.readiness.get()["ready"])
     if state.validation_due:
         # Invalidating or modified authoritative changes request fresh Publisher analysis after the measurement; the
         # run reaches that point only after validation and measurement, so it is held (and raises) until then.
-        state.upstream_regeneration = Deferred.of(upstream_regeneration_request, package, app_payload, observation, policy)
+        state.upstream_regeneration = Deferred.of(upstream_regeneration_request, package, app_payload, observation, policy, evidence_id=revid)
 
 
 def _previous(previous_app: rc.RealizationLedgerEntry) -> ActiveApplication:
@@ -263,9 +268,15 @@ def _previous(previous_app: rc.RealizationLedgerEntry) -> ActiveApplication:
 
 def regeneration_request(
     package: Mapping[str, Any], app_payload: Mapping[str, Any], observation: Mapping[str, Any], policy: Any, *, reason: str,
+    evidence_id: Optional[str] = None,
 ) -> RegenerationRequest:
     """The regeneration request (RERUN-*) for *app_payload*'s actual configuration: its id and payload, which the engine
-    records as REGENERATION_REQUESTED on the application's episode and writes as the RERUN file."""
+    records as REGENERATION_REQUESTED on the application's episode and writes as the RERUN file.
+
+    The payload names the observed-configuration evidence the request was made from (*evidence_id*, ``None`` when the
+    caller has none), the observation window (the observation's, else its observed time), the decision knobs whose actual
+    value differs from the package's current configuration (``changed_knobs``) and the knobs the applied change
+    invalidates (``impacted_knobs``). None of them is part of the request id."""
     rpkg = make_rpkg_id(package["recommendation_package_id"])
     actual_cfg = app_payload.get("observed_config") or observed_config(observation, package)
     rerun_id = rc.content_id("RERUN", {
@@ -284,15 +295,28 @@ def regeneration_request(
         "actual_config": actual_cfg,
         "actual_config_hash": config_hash(actual_cfg),
         "reasons": [reason],
+        "changed_knobs": changed_knobs(package, actual_cfg),
         "impacted_knobs": list(app_payload.get("invalidates") or []),
+        "evidence_id": evidence_id,
+        "observation_window": {
+            "start_utc": observation.get("window_start_utc") or observation.get("observed_at_utc"),
+            "end_utc": observation.get("window_end_utc") or observation.get("observed_at_utc"),
+        },
         "policy_snapshot_id": policy.snapshot_id,
         "status": rc.RegenerationStatus.REQUESTED.value,
     }
     return RegenerationRequest(regeneration_request_id=rerun_id, application_episode_id=app_payload.get("application_episode_id"), payload=payload)
 
 
+def changed_knobs(package: Mapping[str, Any], actual_cfg: Mapping[str, Any]) -> List[str]:
+    """The decision knobs whose actual value differs from the package's current configuration (Photon is an observed
+    fact, never a change); a knob the configuration does not state is not changed."""
+    source = package["current_config"]
+    return [knob for knob in DECISION_KNOBS if actual_cfg.get(knob) is not None and actual_cfg.get(knob) != normalize_value(knob, source.get(knob))]
+
+
 def upstream_regeneration_request(
-    package: Mapping[str, Any], app_payload: Mapping[str, Any], observation: Mapping[str, Any], policy: Any,
+    package: Mapping[str, Any], app_payload: Mapping[str, Any], observation: Mapping[str, Any], policy: Any, *, evidence_id: Optional[str] = None,
 ) -> Optional[RegenerationRequest]:
     """The regeneration an invalidating or modified authoritative application requests once the governed
     remeasurement window (the step's ``remeasure_days``, else the policy's) has elapsed; ``None`` otherwise."""
@@ -300,5 +324,5 @@ def upstream_regeneration_request(
         days = int(observation.get("elapsed_days", 0) or 0)
         required_days = int(app_payload.get("remeasure_days") or policy.remeasure_days_after_invalidating_change)
         if days >= required_days:
-            return regeneration_request(package, app_payload, observation, policy, reason="UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM")
+            return regeneration_request(package, app_payload, observation, policy, reason="UPSTREAM_CHANGE_INVALIDATES_DOWNSTREAM", evidence_id=evidence_id)
     return None

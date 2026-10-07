@@ -154,7 +154,8 @@ def malformed_packages():
         recommended(p)["execution_plan"][0]["invalidates"] = 5
 
     def validation_not_a_mapping(p):
-        recommended(p)["execution_plan"][0]["validation"] = 5
+        # the REMEASURE step's validation holds the remeasurement window
+        next(st for st in recommended(p)["execution_plan"] if st["step_type"] == "REMEASURE")["validation"] = 5
 
     def execution_plan_not_a_list(p):
         recommended(p)["execution_plan"] = 5
@@ -167,6 +168,40 @@ def malformed_packages():
 
     return {f.__name__: f for f in (step_not_a_number, step_not_a_mapping, invalidates_not_iterable, validation_not_a_mapping,
                                     execution_plan_not_a_list, scenario_not_a_mapping, scenarios_missing_and_plan_not_a_mapping)}
+
+
+class RemeasureDaysTests(unittest.TestCase):
+    """The remeasurement window is the selected scenario's REMEASURE step's, not the candidate step's (always null)."""
+
+    def test_every_candidate_step_carries_the_scenarios_remeasure_days(self):
+        package = fixture_package()
+        step_results, _ = matching.choose_application(package, package_config(package))
+        self.assertTrue(step_results)
+        self.assertEqual({item["remeasure_days"] for item in step_results}, {7})
+        migration, _ = matching.choose_application(package, package_config(package), scenario_id=MIGRATION)
+        self.assertEqual({item["remeasure_days"] for item in migration}, {7})
+
+    def test_a_scenario_with_a_different_window_uses_it(self):
+        package = copy.deepcopy(fixture_package())
+        for step in package["scenarios"][0]["execution_plan"]:
+            if step["step_type"] == "REMEASURE":
+                step["validation"]["remeasure_days"] = 14
+        step_results, _ = matching.choose_application(package, package_config(package))
+        self.assertEqual({item["remeasure_days"] for item in step_results}, {14})
+
+    def test_a_scenario_without_a_remeasure_step_has_none(self):
+        package = copy.deepcopy(fixture_package("autostop-scoped-pro"))
+        self.assertFalse([s for s in package["scenarios"][0]["execution_plan"] if s["step_type"] == "REMEASURE"])
+        step_results, _ = matching.choose_application(package, package_config(package))
+        self.assertEqual({item["remeasure_days"] for item in step_results}, {None})
+
+    def test_the_candidate_steps_own_value_is_ignored(self):
+        package = copy.deepcopy(fixture_package())
+        for step in package["scenarios"][0]["execution_plan"]:
+            if step["step_type"] == "CANDIDATE":
+                step["validation"]["remeasure_days"] = 30
+        step_results, _ = matching.choose_application(package, package_config(package))
+        self.assertEqual({item["remeasure_days"] for item in step_results}, {7})
 
 
 class MatchTests(unittest.TestCase):

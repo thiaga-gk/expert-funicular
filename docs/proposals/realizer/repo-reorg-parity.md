@@ -544,3 +544,21 @@ Batch 1.5 of the gap review ([`gap-review.md`](gap-review.md)) added the live pa
 | Realizer component versions 1.1.0 | none | ids only |
 
 The end-to-end cases (GE-01..GE-12) and the backtest run on simulated worlds, where the replay equals the oracle (consistency, not accuracy). Two restart-heavy cases disagree with the simulated bill by design: the simulator bills no restart time while the replay charges the package's restart assumption, which is the case the billed cross-check exists to expose.
+
+## Gap review batch 2: plan semantics and its decision changes
+
+Batch 2 of the gap review ([`gap-review.md`](gap-review.md)) made the Realizer read the 3.x plan: step roles, the applied scenario, the denominator for the scope applied, the run scope, cost profile and observed change of the source package, and regeneration evidence. Decisions RD06, RD07, RD10, RD11 and RD12 were taken as recommended (RD06 part (b) moves to batch 4). Each change was checked with the decision-equivalence check over the 41 stored scenarios against the previous commit's stored outputs, and over the end-to-end cases:
+
+| Change | Stored scenarios whose decision changed | End-to-end cases whose decision changed | How |
+|---|---|---|---|
+| Photon and the channel out of the configuration hash (RD07) | none | none | ids only |
+| Step roles; a canary rollback is a safety action (RD06) | none | none | application payloads gain `step_role`; new fixtures `canary-rollback`, `capacity-add-scoped`, `capacity-cut-scoped` |
+| Remeasure days from the REMEASURE step; source scope, profile and observed change; regeneration evidence | none | none | fields added; a repeated regeneration request is still suppressed as a duplicate |
+| Live windows and billed change for a step without a replay; observation format 2.2.0 | none | GE-13 added | the observation gains `billed_change` |
+| Applied scenario inferred; compatibility recorded (RD11) | none | none | applications gain `compatibility_status`, `annotations` |
+| Denominator for the scope applied; migration range informational (RD11) | GR-021 | none | the Plan B migration REALIZED -> MONITORING (`MIGRATION_RANGE_INFORMATIONAL`), its ratio still reported |
+| Modified auto-stop against the package's option grid (RD12) | none | GE-05, GE-06 | MONITORING -> REALIZED: GE-05 (15 applied where 10 recommended) 9,376.46/yr against 4,681.50 / 7,022.25 / 9,363.00; GE-06 (210 applied where 15 recommended, aggressive) 13,944.69/yr against base 10,448.98 (the balanced package's exact step for 210: 10,476.47) |
+| Performance and capacity verdicts (RD10) | none | GE-13; GE-14 added | GE-13 (max clusters 2 -> 5) APPLIED -> PERFORMANCE_VALIDATED: queueing 9.72 -> 0.76 percent, p95 2,500 ms both, billed +12,887.78/yr within 1.25 x the modeled 15,628.48; GE-14 (zero-priced max cut 4 -> 2) CAPACITY_VALIDATED |
+| Realizer 1.2.0, contract 1.1.0, component versions | none | none | ids only |
+
+A canary-rollback end-to-end case was not added: the demo simulator ties the C55 p95 regression to the newest configuration epoch, so a world where the rollback is applied still shows it (the unit tests cover the role).
