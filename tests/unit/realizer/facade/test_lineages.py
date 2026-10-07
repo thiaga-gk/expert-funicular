@@ -18,7 +18,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 from tests.unit.realizer.helpers import canonical, fixture_package  # noqa: F401  (canonical: src/realizer, never a shadowing copy)
 from tests import realizer_world

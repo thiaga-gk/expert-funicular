@@ -118,9 +118,11 @@ class StoredBaselineTests(unittest.TestCase):
 
     def test_every_scenario_names_one_of_the_fixture_packages(self):
         fixtures = sorted(p.name for p in canonical.PACKAGES.glob("*.json"))
-        self.assertEqual(fixtures, ["autostop-scoped-never-stop.json", "autostop-scoped-pro.json", "autostop-scoped-serverless.json",
+        self.assertEqual(fixtures, ["autostop-daily-oct02.json", "autostop-daily-oct03.json", "autostop-scoped-never-stop.json",
+                                    "autostop-scoped-pro.json", "autostop-scoped-serverless.json", "canary-before-cut.json",
                                     "canary-rollback.json", "capacity-add-scoped.json", "capacity-cut-scoped.json",
-                                    "inplace-size-canary.json", "scope-migration-only.json", "two-ready-steps.json", "unpriced-candidate.json"])
+                                    "inplace-size-canary.json", "scope-migration-only.json", "successor-after-autostop.json",
+                                    "two-ready-steps.json", "unpriced-candidate.json"])
         for name in self.names:
             with self.subTest(scenario=name):
                 self.assertIn(canonical.load_scenario(name)["package"], fixtures)
