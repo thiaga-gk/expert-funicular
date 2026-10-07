@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Dict, Mapping, Optional
 
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
+from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES as PUBLISHER_SUPPORTED_WAREHOUSE_TYPES
 from publisher.governor.thresholds import Thresholds as _PublisherThresholds
 from publisher.config.settings import REPO_ROOT
 from publisher.config.versions import PUBLISHER_VERSION
@@ -37,6 +38,9 @@ CONFIG_KNOBS = (
 
 # Reuse Publisher's canonical size registry; Realizer must not maintain a competing order.
 SIZE_ORDER = {name: idx for idx, name in enumerate(PUBLISHER_SIZE_ORDER)}
+
+# The warehouse types the Publisher supports (fail-closed): a measurement never routes another type into its algorithms.
+SUPPORTED_WAREHOUSE_TYPES = PUBLISHER_SUPPORTED_WAREHOUSE_TYPES
 
 # Execution states of a plan step that cannot carry realization authority (its change is only recorded as independent).
 NON_AUTHORITATIVE_EXECUTION_STATES = frozenset({"PENDING_REEVALUATION", "BLOCKED", "INVALIDATED"})

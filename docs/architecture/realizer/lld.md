@@ -76,6 +76,8 @@ Corrections append. Drift closes affected intervals only. Rollback is observed, 
 <output>/realization/evidence/REVID-*.json
 <output>/realization/regeneration/RERUN-*.json
 <output>/realization/measurements/<workspace>__<warehouse>__<as-of>.json   # live measurement evidence
+<output>/realization/backtest/evidence-<as-of>.json                       # backtest evidence
+<output>/realization/backtest/backtest-<as-of>.json                       # backtest report
 ```
 
 ## 14. Phase-2 boundary
