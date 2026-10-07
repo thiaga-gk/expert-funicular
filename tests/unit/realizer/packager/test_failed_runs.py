@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, outcome, run_sequence, tree  # noqa: E402
+from tests.unit.realizer.helpers import Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, outcome, run_sequence, tree, without_remeasure_window  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.packager import ledger  # noqa: E402
@@ -111,9 +111,10 @@ class CommitPositionTests(unittest.TestCase):
                 self.assertEqual(files(tree_, "regeneration"), [])
 
     def test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction(self):
-        bad_window = {"remeasure_days_after_invalidating_change": "abc"}
-        self.assert_halts_after("measurement", [self.base], "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", policy=bad_window)
-        tree_ = self.assert_halts_after("correction", [{**self.base, "correction": correction()}], "BILLING_CORRECTION_RECORDED", "ValueError", policy=bad_window)
+        # the policy window is read only when the plan's REMEASURE step states none
+        bad_window, plan = {"remeasure_days_after_invalidating_change": "abc"}, without_remeasure_window(self.pkg)
+        self.assert_halts_after("measurement", [self.base], "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", policy=bad_window, package=plan)
+        tree_ = self.assert_halts_after("correction", [{**self.base, "correction": correction()}], "BILLING_CORRECTION_RECORDED", "ValueError", policy=bad_window, package=plan)
         self.assertEqual(files(tree_, "regeneration"), [])
 
     def test_replay_cut_is_refused_before_anything_is_written(self):
@@ -179,11 +180,12 @@ class PackagerMutationTests(unittest.TestCase):
 
         observations = [{**self.base}]
         policy = {"remeasure_days_after_invalidating_change": "abc"}
-        expected = run_sequence(self.pkg, observations, policy, observation_gate=False)
+        plan = without_remeasure_window(self.pkg)   # the policy window is read only when the plan states none
+        expected = run_sequence(plan, observations, policy, observation_gate=False)
         with mock.patch.object(ledger, "commit_events", early):
-            mutant = run_sequence(self.pkg, observations, policy, observation_gate=False)
+            mutant = run_sequence(plan, observations, policy, observation_gate=False)
         self.assertNotEqual(mutant[1], expected[1])
-        self.assertEqual(run_sequence(self.pkg, observations, policy, observation_gate=False), expected)
+        self.assertEqual(run_sequence(plan, observations, policy, observation_gate=False), expected)
 
 
 if __name__ == "__main__":

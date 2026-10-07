@@ -17,7 +17,7 @@ from unittest import mock
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import (  # noqa: E402
-    Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, run_sequence, with_quality,
+    Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, run_sequence, with_quality, without_remeasure_window,
 )
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -110,11 +110,12 @@ class EstimatorFailedRunTests(unittest.TestCase):
     # --- W6: the downstream regeneration fails after the measurement and the correction -----------------------------
 
     def test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction(self):
-        bad_window = {"remeasure_days_after_invalidating_change": "abc"}
-        self.assert_fails_after("measurement", self.base, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", bad_window)
-        self.assert_fails_after("correction", {**self.base, "correction": correction()}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window)
+        # the policy window is read only when the plan's REMEASURE step states none
+        bad_window, plan = {"remeasure_days_after_invalidating_change": "abc"}, without_remeasure_window(self.pkg)
+        self.assert_fails_after("measurement", self.base, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", bad_window, plan)
+        self.assert_fails_after("correction", {**self.base, "correction": correction()}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window, plan)
         # without available economics, after the completed validation
-        self.assert_fails_after("no economics", self.econ(counterfactual_old_cost=None), "VALIDATION_COMPLETED", "ValueError", bad_window)
+        self.assert_fails_after("no economics", self.econ(counterfactual_old_cost=None), "VALIDATION_COMPLETED", "ValueError", bad_window, plan)
 
     # --- unreached input does not fail ------------------------------------------------------------------------------
 
