@@ -7,8 +7,11 @@ Usage:
 
 The SQL has one home, docs/proposals/publisher/real-data-run.md: every section whose heading names a tracker item, e.g.
 "## SQL SKU names, tiers and prices (tracker G5)", contributes its ```sql block (several statements split on `;`).
-The output is {"source": <doc path>, "answers": {<item>: [{"statement": <sql>, "columns": [...], "rows": [...]}]}}.
---list prints the items and statements without running anything. Exit 0 on success, 1 on a failed statement.
+The output is {"source": <doc path>, "answers": {<item>: [{"statement": <sql>, "columns": [...], "rows": [...]}]},
+"errors": {<item>: [{"statement_number": <1-based>, "error_class": <exception class>, "message": <first line>}]}}.
+A failed statement is recorded under `errors` (class and first message line only, never the SQL text), the remaining
+statements still run, and the answers file is written with what succeeded. --list prints the items and statements
+without running anything. Exit 0 when every statement succeeded, 1 when any failed (after writing the file).
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cli_sql import CliError, execute  # noqa: E402
@@ -41,7 +44,7 @@ def statements(text: str) -> Dict[str, List[str]]:
     return out
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: Optional[List[str]] = None, runner: Callable[..., Dict[str, Any]] = execute) -> int:
     ap = argparse.ArgumentParser(description="Run the real-data-run aggregate queries (read-only)")
     ap.add_argument("--profile")
     ap.add_argument("--warehouse-id")
@@ -56,21 +59,25 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if not (a.profile and a.warehouse_id and a.out):
         ap.error("--profile, --warehouse-id and --out are required unless --list")
-    answers = {}
+    answers: Dict[str, List[Dict[str, Any]]] = {}
+    errors: Dict[str, List[Dict[str, Any]]] = {}
     for item, sqls in items.items():
         answers[item] = []
-        for sql in sqls:
+        for number, sql in enumerate(sqls, 1):
             try:
-                res = execute(sql, a.warehouse_id, a.profile, a.config_file)
-            except CliError as exc:
-                print(f"FAIL {item}: {exc}")
-                return 1
+                res = runner(sql, a.warehouse_id, a.profile, a.config_file)
+            except Exception as exc:  # noqa: BLE001 - any failure is recorded; the other answers must survive
+                lines = str(exc).strip().splitlines()
+                errors.setdefault(item, []).append({"statement_number": number, "error_class": type(exc).__name__,
+                                                    "message": lines[0] if lines else ""})
+                print(f"FAIL {item} (statement {number}): {type(exc).__name__}: {lines[0] if lines else ''}")
+                continue
             answers[item].append({"statement": sql, **res})
             print(f"PASS {item}: {len(res['rows'])} row(s)")
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps({"source": str(DOC.relative_to(REPO)), "answers": answers}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"real-data answers: {a.out}")
-    return 0
+    a.out.write_text(json.dumps({"source": str(DOC.relative_to(REPO)), "answers": answers, "errors": errors}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"real-data answers: {a.out}" + (f" | {sum(len(v) for v in errors.values())} statement(s) failed, see `errors`" if errors else ""))
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

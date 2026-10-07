@@ -299,5 +299,60 @@ class RealDataQueryTests(unittest.TestCase):
                 self.assertRegex(sql.lstrip().upper(), r"^(SELECT|WITH)\b")
 
 
+class RealDataRunnerTests(unittest.TestCase):
+    """A failed statement is recorded and the run goes on: one bad query must not lose the other answers."""
+
+    def run_main(self, runner):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "nested" / "answers.json"
+            code, printed = _quiet(lambda: real_data_queries.main(
+                ["--profile", "p", "--warehouse-id", "w", "--out", str(out)], runner=runner))
+            return code, printed, json.loads(out.read_text()) if out.exists() else None
+
+    def test_all_statements_pass_exit_zero_with_an_empty_errors_section(self):
+        calls = []
+
+        def runner(sql, warehouse_id, profile, config_file=None):
+            calls.append(sql)
+            return {"columns": ["n"], "rows": [["1"]]}
+
+        code, _, doc = self.run_main(runner)
+        self.assertEqual(code, 0)
+        self.assertEqual(doc["errors"], {})
+        self.assertEqual(sorted(doc["answers"]), ["G4b", "G5", "S4"])
+        self.assertEqual(sum(len(v) for v in doc["answers"].values()), len(calls))
+
+    def test_a_failing_statement_is_recorded_and_the_rest_still_run(self):
+        calls = []
+        secret = "SELECT secret_column FROM hidden.table"
+
+        def runner(sql, warehouse_id, profile, config_file=None):
+            calls.append(sql)
+            if len(calls) == 2:
+                raise real_data_queries.CliError(f"statement FAILED: PARSE_ERROR near {secret}\nsecond line")
+            return {"columns": ["n"], "rows": [["1"]]}
+
+        total = sum(len(v) for v in real_data_queries.statements(real_data_queries.DOC.read_text(encoding="utf-8")).values())
+        code, printed, doc = self.run_main(runner)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(calls), total, "later statements must still run")
+        self.assertEqual(sum(len(v) for v in doc["answers"].values()), total - 1)
+        (item, errors), = doc["errors"].items()
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0]["error_class"], "CliError")
+        self.assertNotIn("second line", errors[0]["message"])
+        self.assertNotIn("statement", errors[0])
+        self.assertIn(item, printed)
+
+    def test_an_unexpected_exception_class_is_recorded_too(self):
+        def runner(sql, warehouse_id, profile, config_file=None):
+            raise ValueError("bad json")
+
+        code, _, doc = self.run_main(runner)
+        self.assertEqual(code, 1)
+        self.assertEqual(doc["answers"], {item: [] for item in ("G4b", "G5", "S4")})
+        self.assertEqual({e["error_class"] for errs in doc["errors"].values() for e in errs}, {"ValueError"})
+
+
 if __name__ == "__main__":
     unittest.main()
