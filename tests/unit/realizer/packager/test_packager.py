@@ -44,7 +44,7 @@ class EveryScenarioRunTests(unittest.TestCase):
                 self.assertIs(result.realization.__class__, rc.RealizationPackage)
                 # the ledger the run left, as the file lines (file order before and after the run), cut at the replay time
                 lines = run.before + run.appended
-                ordered = sorted(lines, key=lambda x: (parse_utc(x["recorded_at_utc"]), x["ledger_entry_id"]))
+                ordered = sorted(lines, key=lambda x: parse_utc(x["recorded_at_utc"]))  # time, then file order
                 if run.replay_through:
                     cut = parse_utc(run.replay_through)
                     ordered = [x for x in ordered if parse_utc(x["recorded_at_utc"]) <= cut]

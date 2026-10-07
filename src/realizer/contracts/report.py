@@ -113,7 +113,7 @@ def project_timeline(entries: Sequence[rrc.RealizationLedgerEntry]) -> List[Dict
             "evidence_refs": _json(e.evidence_refs),
             "payload_json": _json(e.payload),
         }
-        for e in sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
+        for e in sorted(entries, key=lambda x: parse_utc(x.recorded_at_utc))  # ledger order: time, then append order
     ]
 
 

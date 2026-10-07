@@ -53,8 +53,14 @@ def load_ledger(path: Path) -> List[rc.RealizationLedgerEntry]:
         except (ValueError, TypeError, KeyError) as exc:  # json.JSONDecodeError is a ValueError
             raise LedgerError(f"ledger {path.name} line {line_no} is not a valid ledger entry ({type(exc).__name__})") from exc
         entries.append(entry)
-    # recorded time (parsed, never compared as text) governs projection order; RLE id is deterministic tie-break.
-    return sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
+    return in_ledger_order(entries)
+
+
+def in_ledger_order(entries: Sequence[rc.RealizationLedgerEntry]) -> List[rc.RealizationLedgerEntry]:
+    """*entries* in projection order: recorded time (parsed, never compared as text), then the order given, which for a
+    loaded ledger is its append order (the file sequence). The entry id never breaks a tie: at equal recorded time the
+    entry appended last is the latest, so a window measured again keeps its newer value."""
+    return sorted(entries, key=lambda x: parse_utc(x.recorded_at_utc))
 
 
 def latest_event(entries: Sequence[rc.RealizationLedgerEntry], *types: rc.EventType) -> Optional[rc.RealizationLedgerEntry]:
@@ -145,7 +151,7 @@ def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
 
 
 def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str, Any]:
-    ordered = sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
+    ordered = in_ledger_order(entries)
     ids = [e.ledger_entry_id for e in ordered]
     digest = "SHA256:" + rc.sha256_hex({"ordered_entry_ids": ids})
     return {

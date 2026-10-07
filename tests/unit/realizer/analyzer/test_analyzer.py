@@ -25,9 +25,9 @@ APPLICATIONS = ("APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED")
 
 
 def reference(package, observation, out):
-    """The history and drift a run starts from, computed from the raw ledger lines on disk (recorded time, then entry id,
-    governs the order), independently of the ledger loader, ``summarize_history`` and ``config_drift``."""
-    lines = sorted(ledger_lines(out), key=lambda line: (parse_utc(line["recorded_at_utc"]), line["ledger_entry_id"]))
+    """The history and drift a run starts from, computed from the raw ledger lines on disk (recorded time, then the file
+    order, governs the order), independently of the ledger loader, ``summarize_history`` and ``config_drift``."""
+    lines = sorted(ledger_lines(out), key=lambda line: parse_utc(line["recorded_at_utc"]))
     previous = next((line for line in reversed(lines) if line["event_type"] in APPLICATIONS), None)
     prior = next((line for line in reversed(lines) if line["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"), None)
     obs_time = utc_iso(observation.get("observed_at_utc") or observation.get("recorded_at_utc"))

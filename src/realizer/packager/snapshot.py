@@ -25,11 +25,11 @@ from realizer.config.settings import (
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.governor.policy import authority_eligible
-from realizer.packager.ledger import latest_event, ledger_checkpoint, source_scope
+from realizer.packager.ledger import in_ledger_order, latest_event, ledger_checkpoint, source_scope
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
-    ordered = sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
+    ordered = in_ledger_order(entries)
     cp = ledger_checkpoint(ordered)
     if not ordered:
         raise ValueError("cannot project empty ledger")

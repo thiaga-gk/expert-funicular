@@ -225,6 +225,8 @@ Ledger is bitemporal:
 
 Application/economic ownership intervals use half-open `[start, end)` semantics.
 
+The ledger file is append-only, one entry per line. Its projection order is the recorded time, then the append order (the line sequence of the file): at equal recorded time the entry appended last is the latest, so a window measured again shows its newer value. The entry id never breaks a tie, and the checkpoint hash covers the entry ids in this order.
+
 Times are compared and ordered as instants, never as text: a time written with fractional seconds (`...T12:00:00.500000Z`) is later than the whole second before it (`...T12:00:00Z`), although its text sorts first. This holds for the ledger order, the replay cut, the checkpoint's latest times, the configuration-drift check and the snapshot's rollback and drift precedence.
 
 `RSNAP.as_of_utc` is deterministic and derived from the ledger checkpoint, not projection wall clock.

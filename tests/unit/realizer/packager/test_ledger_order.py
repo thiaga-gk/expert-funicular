@@ -1,8 +1,10 @@
-"""Ledger times are compared as times, never as text (src/realizer/common/utils.py ``parse_utc``).
+"""Ledger order: recorded time, compared as a time (src/realizer/common/utils.py ``parse_utc``), then the ledger's
+append order, never the entry id.
 
 ``utc_iso`` writes ``...T12:00:00Z`` without and ``...T12:00:00.500000Z`` with microseconds; ``.`` sorts before ``Z``, so
 as text the later of the two sorts first. The ledger order, the checkpoint, the replay cut, the configuration-drift check
-and the snapshot's rollback and drift precedence each read the parsed time.
+and the snapshot's rollback and drift precedence each read the parsed time. Entries recorded at the same time keep the
+order they were appended in, so the latest of them is the one appended last, whatever its id.
 """
 import copy
 import dataclasses
@@ -95,6 +97,45 @@ class TimeOrderTests(unittest.TestCase):
             cut = realize(copy.deepcopy(package), None, out, replay_through=LATER)
         self.assertEqual(cut.history["entry_count"], len(full))
         self.assertIn(WHOLE, {e.recorded_at_utc for e in full})
+
+
+
+class AppendOrderTests(unittest.TestCase):
+    """At equal recorded time the entry appended last is the latest; its id never decides."""
+
+    def measurements(self):
+        package = fixture_package()
+        first, second = (entry(package, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED, WHOLE,
+                               payload={"economics": {"successful_realized_savings": value}}) for value in ("1001", "1002"))
+        self.assertGreater(first.ledger_entry_id, second.ledger_entry_id)  # the later measurement has the lower id
+        return package, first, second
+
+    def test_the_measurement_appended_last_is_the_latest(self):
+        package, first, second = self.measurements()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "l.jsonl"
+            for e in (first, second):
+                ledger.append_if_absent(path, e)
+            loaded = ledger.load_ledger(path)
+        self.assertEqual([e.ledger_entry_id for e in loaded], [first.ledger_entry_id, second.ledger_entry_id])
+        latest = ledger.latest_event(loaded, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
+        self.assertEqual(latest.payload["economics"]["successful_realized_savings"], "1002")
+        self.assertEqual(ledger.ledger_checkpoint(loaded)["latest_entry_id"], second.ledger_entry_id)
+
+    def test_checkpoint_and_snapshot_keep_the_given_order_at_equal_time(self):
+        package, first, second = self.measurements()
+        _, entries = stored("GR-003")
+        head = [e for e in entries if e.event_type != rc.EventType.ECONOMIC_MEASUREMENT_RECORDED]
+        head = [dataclasses.replace(e, recorded_at_utc="2026-10-01T00:00:00Z") for e in head]
+        package = canonical.load_scenario("GR-003")["package_doc"]
+        forward = snapshot.project_snapshot(package, head + [first, second])
+        self.assertEqual(forward.economics, {"successful_realized_savings": "1002"})
+        self.assertEqual(forward.history["latest_entry_id"], second.ledger_entry_id)
+        backward = snapshot.project_snapshot(package, head + [second, first])
+        self.assertEqual(backward.economics, {"successful_realized_savings": "1001"})
+        self.assertNotEqual(forward.snapshot_id, backward.snapshot_id)
+        # entries recorded at different times are ordered by time, whatever order they are given in
+        self.assertEqual(snapshot.project_snapshot(package, [first, second] + head).snapshot_id, forward.snapshot_id)
 
 
 if __name__ == "__main__":

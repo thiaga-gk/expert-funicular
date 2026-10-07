@@ -134,9 +134,13 @@ class ProjectionTests(unittest.TestCase):
         for name, package, path, _ in stored_ledgers():
             entries = ledger.load_ledger(path)
             expected = normalized(snapshot.project_snapshot(package, entries))
-            order = list(range(len(entries)))
-            rng.shuffle(order)
-            shuffled = [entries[i] for i in order]
+            # entries recorded at different times may come in any order; at equal time the given (file) order is kept
+            groups = {}
+            for e in entries:
+                groups.setdefault(e.recorded_at_utc, []).append(e)
+            keys = list(groups)
+            rng.shuffle(keys)
+            shuffled = [e for k in keys for e in groups[k]]
             self.assertEqual(normalized(snapshot.project_snapshot(package, shuffled)), expected, name)
             doubled_digests[f"{name}/{path.stem}"] = expect.digest(normalized(snapshot.project_snapshot(package, entries + entries)))
         expect.check(self, "doubled ledgers", doubled_digests, spot={"count": len(doubled_digests), "first": next(iter(doubled_digests.items()))})
