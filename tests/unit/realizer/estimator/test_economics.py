@@ -332,6 +332,15 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual(self.econ(expected_annual_savings_actual_scope=flagged)["classification_detail"], "REALIZED_ABOVE_RANGE_REVIEW")
         self.assertEqual(self.econ(expected_annual_savings_actual_scope=flagged, policy=stage_policy({"review_above_realized_ratio": "4"}))["classification_detail"], "REALIZED")
 
+    def test_a_measurement_in_another_currency_is_never_classified_against_the_package(self):
+        # The package's range is priced in its currency; a measurement billed in another is reported, never compared
+        # with it (no exchange rate is guessed): no ratio, no run-rate class, MONITORING.
+        result = self.econ(currency="EUR")
+        self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"], result["review_required"]),
+                         ("MONITORING", "CURRENCY_MISMATCH_UNCLASSIFIED", None, False))
+        self.assertEqual((result["currency"], result["realized_savings_period"], result["classification_basis"]), ("EUR", str(self.realized), "INFORMATIONAL"))
+        self.assertEqual(self.econ()["classification_detail"], "REALIZED")
+
     def test_denominators(self):
         self.assertEqual(self.econ()["denominator_source"], "PUBLISHER_CANDIDATE")
         self.assertEqual(self.econ()["expected_same_scope_annual_savings"], str(self.published))
