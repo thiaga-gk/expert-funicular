@@ -29,8 +29,9 @@ WEEK_DAYS = 7
 MAX_WINDOW_WEEKS = 12  # the Publisher's long forecast window (84 days)
 # Knobs whose counterfactual is an auto-stop replay.
 REPLAY_KNOBS = ("auto_stop_minutes",)
-# Knobs a counterfactual exists for; a change to another knob is observed, not measured.
-COUNTERFACTUAL_KNOBS = REPLAY_KNOBS + ("warehouse_size",)
+# Knobs a counterfactual exists for (a size change: the size runtime, ``size_counterfactual``; a min-cluster change: the
+# floor cut's levels, ``cluster_counterfactual``); a change to another knob is observed, not measured.
+COUNTERFACTUAL_KNOBS = REPLAY_KNOBS + ("warehouse_size", "min_clusters")
 # Knobs whose windows also read the running minutes by cluster count, and the knob whose measurement reads the size
 # runtime (execution times on matched statement sources and busy minutes before and after the change).
 LEVEL_KNOBS = ("min_clusters", "max_clusters")

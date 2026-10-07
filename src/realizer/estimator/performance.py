@@ -2,7 +2,9 @@
 
 A step whose role is ``PERFORMANCE`` (a capacity add priced as a cost increase) or ``CAPACITY`` (a cut the Publisher
 prices at zero) is judged on queueing and p95 before and after the change, not against a savings range. Its cost change
-is reported signed (``cost_change``) and never counted as realized savings; attribution claims nothing for it.
+is reported signed (``cost_change``: a capacity add's cluster-minutes above the old cap when the running minutes by
+cluster count were read, else the billed change) and never counted as realized savings; attribution claims nothing for
+it. A cap cut's verdict also states what the old cap could have added at most (``old_cap_upper_bound``).
 
 - ``PERFORMANCE_VALIDATED``: the queued share fell to at most half its pre-change value or to the safe level, and p95
   on the shared sources did not rise past the canary rule (previous x (1 + the regression percentage)); the detail is
@@ -20,6 +22,7 @@ from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
 from realizer.analyzer.analysis import candidate_by_id
+from realizer.analyzer.cluster_counterfactual import capacity_cost, old_cap_upper_bound
 from realizer.common.utils import decimal, money
 from realizer.config.settings import guard_thresholds
 from realizer.contracts import realization as rc
@@ -44,15 +47,22 @@ def _modeled_increase(package: Mapping[str, Any], step_candidate_id: Any, compon
 
 
 def cost_change(package: Mapping[str, Any], app: Mapping[str, Any], observation: Mapping[str, Any]) -> Dict[str, Any]:
-    """The step's observed cost change, annualized and signed (positive = cost went up): the billed pre/post change at
-    the pre-change query mix of a live measurement (total, else DBU), else the caller's counterfactual minus observed
-    cost; and the modeled increase it is compared with."""
+    """The step's observed cost change, annualized and signed (positive = cost went up): for a capacity add measured
+    with the running minutes by cluster count, the cluster-minutes above the old cap (``CLUSTER_LEVELS_ABOVE_OLD_CAP``,
+    total with a modeled AWS price, else DBU); else the billed pre/post change at the pre-change query mix of a live
+    measurement (total, else DBU); else the caller's counterfactual minus observed cost. The billed change of the same
+    component is reported next to it (``billed_annualized_cost_increase``), and the modeled increase it is compared
+    with."""
     increase: Optional[Decimal] = None
     basis: Optional[str] = None
     component = "total"
-    billed = (observation.get("measurement") or {}).get("billed_change")
+    measurement = observation.get("measurement") or {}
+    billed = measurement.get("billed_change")
     econ = observation.get("economics") or {}
-    if isinstance(billed, Mapping) and (billed.get("annualized_total") is not None or billed.get("annualized_dbu") is not None):
+    measured = capacity_cost(measurement.get("levels"))
+    if measured is not None:
+        component, increase, basis = measured["component"], decimal(measured["annualized"]), str(measurement["levels"]["basis"])
+    elif isinstance(billed, Mapping) and (billed.get("annualized_total") is not None or billed.get("annualized_dbu") is not None):
         component = "total" if billed.get("annualized_total") is not None else "dbu"
         increase, basis = decimal(billed.get(f"annualized_{component}")), str(billed.get("basis"))
     elif econ.get("counterfactual_old_cost") is not None and econ.get("observed_new_cost") is not None and int(econ.get("period_days") or 0) > 0:
@@ -60,7 +70,9 @@ def cost_change(package: Mapping[str, Any], app: Mapping[str, Any], observation:
         increase, basis = -realized * Decimal("365") / Decimal(int(econ["period_days"])), "COUNTERFACTUAL"
     modeled = _modeled_increase(package, app.get("candidate_id"), component)
     review_above = modeled * COST_REVIEW_FACTOR if modeled is not None and modeled > 0 else None
+    billed_increase = billed.get(f"annualized_{component}") if isinstance(billed, Mapping) else None
     return {"annualized_cost_increase": money(increase), "basis": basis, "component": component,
+            "billed_annualized_cost_increase": money(billed_increase),
             "modeled_annual_cost_increase": money(modeled), "review_above": money(review_above)}
 
 
@@ -93,6 +105,8 @@ def verdict(package: Mapping[str, Any], app: Mapping[str, Any], observation: Map
             else:
                 state, detail, reoptimize = rc.RealizationState.MONITORING.value, "PERFORMANCE_NOT_IMPROVED", True
     else:
+        # What the old cap could have added at most (the minutes at the new cap x the clusters removed): evidence only.
+        evidence["old_cap_upper_bound"] = old_cap_upper_bound((observation.get("measurement") or {}).get("levels"))
         if post_q is None:
             state, detail = rc.RealizationState.MONITORING.value, "CAPACITY_UNVERIFIED"
         elif post_q <= safe or (pre_q is not None and post_q <= pre_q):

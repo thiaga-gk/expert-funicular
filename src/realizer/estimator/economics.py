@@ -322,7 +322,8 @@ def calculate_economics(
     measured = observation.get("measurement")
     measured_detail = {} if not measured else {"measurement": {
         k: measured.get(k) for k in ("method", "knob", "source_value", "applied_value", "cost_basis", "replay", "size", "cross_check",
-                                     "post_window", "pre_window", "volume_ratio", "other_knob_changes", "holds_other_knobs")}}
+                                     "post_window", "pre_window", "volume_ratio", "other_knob_changes", "holds_other_knobs",
+                                     "levels")}}
     return {**measured_detail,
         "available": True,
         "currency": str(econ["currency"]),

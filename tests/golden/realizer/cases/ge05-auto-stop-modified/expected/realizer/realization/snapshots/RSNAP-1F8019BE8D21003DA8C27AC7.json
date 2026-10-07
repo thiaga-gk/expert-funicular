@@ -140,6 +140,7 @@
       },
       "holds_other_knobs": true,
       "knob": "auto_stop_minutes",
+      "levels": null,
       "method": "AUTO_STOP_REPLAY",
       "other_knob_changes": [],
       "post_window": {
@@ -229,7 +230,11 @@
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
     "latest_entry_id": "RLE-686B5A4791E1D64FC2045CFE",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
+<<<<<<<< HEAD:tests/golden/realizer/cases/ge05-auto-stop-modified/expected/realizer/realization/snapshots/RSNAP-1F8019BE8D21003DA8C27AC7.json
     "ledger_checkpoint_hash": "SHA256:2A51DE0E070B37A3EF7D88E0CF9F43DAC023BF6141560E93EC804E2C3E9C5284",
+========
+    "ledger_checkpoint_hash": "SHA256:EA2807291BE077097E88AF4C239A2031FA5A5C6E94F895D7D05BAA00F03059A4",
+>>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge05-auto-stop-modified/expected/realizer/realization/snapshots/RSNAP-B44CA6A881F417A010473C92.json
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -254,7 +259,11 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
+<<<<<<<< HEAD:tests/golden/realizer/cases/ge05-auto-stop-modified/expected/realizer/realization/snapshots/RSNAP-1F8019BE8D21003DA8C27AC7.json
   "snapshot_id": "RSNAP-1F8019BE8D21003DA8C27AC7",
+========
+  "snapshot_id": "RSNAP-B44CA6A881F417A010473C92",
+>>>>>>>> rz-b6-clusters:tests/golden/realizer/cases/ge05-auto-stop-modified/expected/realizer/realization/snapshots/RSNAP-B44CA6A881F417A010473C92.json
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",

@@ -21,6 +21,7 @@ writes it to ``tests/fixtures/realizer/packages/<fixture>.json``.
 | ``canary-rollback`` | demo ``wh-demo-040`` | a canary rollback: the size cut LARGE to MEDIUM breached its p95 guard, one READY step back to LARGE (candidate blocker ``CANARY_GUARDRAIL_BREACHED``, no economics) and ``observed_change`` naming the cut |
 | ``capacity-add-scoped`` | demo ``wh-demo-008`` with ``--scope current:max-clusters`` | a capacity add: one READY max-clusters step 2 to 5, objective PERFORMANCE, priced as a cost increase |
 | ``capacity-cut-scoped`` | demo ``wh-demo-006`` with ``--scope current:max-clusters`` | a zero-priced cut: one READY max-clusters step 4 to 2, objective COST_GUARDRAIL, savings 0 |
+| ``min-cut-scoped`` | demo ``wh-demo-011`` with ``--scope current:min-clusters`` | a floor cut: one authority-eligible min-clusters step 3 to 1, priced as a saving with a DBU and modeled AWS range |
 | ``autostop-daily-oct02`` | demo ``wh-demo-039`` with ``--scope current:auto-stop --cost-profile balanced``, analysis time 2026-10-02 | the next day's run of the end-to-end golden ``ge07-profile-balanced-exact`` package: same epoch, one READY auto-stop step 365 to 210 |
 | ``autostop-daily-oct03`` | the same, analysis time 2026-10-03 | the run of the day after: same epoch and step |
 | ``successor-after-autostop`` | demo ``wh-demo-039`` with ``--cost-profile balanced``, analysis time 2026-10-15, its auto-stop set to 210 on 2026-10-08 14:32 | the package after the auto-stop change: ``observed_change`` from the daily packages' epoch, a size step |
@@ -69,6 +70,8 @@ SCOPED_SOURCES = {"autostop-scoped-pro": "wh-demo-013", "autostop-scoped-serverl
 AUTO_STOP_SCOPE = "current:auto-stop"
 MAX_CLUSTER_SOURCES = {"capacity-add-scoped": "wh-demo-008", "capacity-cut-scoped": "wh-demo-006"}
 MAX_CLUSTER_SCOPE = "current:max-clusters"
+MIN_CLUSTER_SOURCES = {"min-cut-scoped": "wh-demo-011"}
+MIN_CLUSTER_SCOPE = "current:min-clusters"
 # Dated runs: fixture -> (analysis time, fleet index, fleet entry patch (None removes a key), warehouse, extra arguments).
 DAILY_ARGS = ("--scope", AUTO_STOP_SCOPE, "--cost-profile", "balanced")
 DATED_SOURCES = {
@@ -207,10 +210,20 @@ def _check_capacity_cut(p: Mapping[str, Any]) -> None:
     assert candidate["independent_economics"]["savings_365d"]["total"]["base"] == 0, "a zero-priced cut"
 
 
+def _check_min_cut(p: Mapping[str, Any]) -> None:
+    from realizer.governor.policy import authority_eligible
+    step = _only_step(p)
+    assert (step["knob"], step["current_value"], step["recommended_value"]) == ("min_clusters", 3, 1), step
+    assert authority_eligible(step), step["execution_state"]
+    savings = _candidate(p, step["candidate_id"])["independent_economics"]["savings_365d"]
+    assert savings["dbu"] is not None and savings["total"] is not None and savings["total"]["low"] > 0, "a priced floor cut"
+
+
 CHECKS: Dict[str, Callable[[Mapping[str, Any]], None]] = {
     "canary-rollback": _check_canary_rollback,
     "capacity-add-scoped": _check_capacity_add,
     "capacity-cut-scoped": _check_capacity_cut,
+    "min-cut-scoped": _check_min_cut,
     "inplace-size-canary": _check_inplace,
     "two-ready-steps": _check_two_ready,
     "scope-migration-only": _check_migration_only,
@@ -276,6 +289,9 @@ def build() -> Dict[str, Dict[str, Any]]:
     max_scoped = _demo_packages(MAX_CLUSTER_SOURCES.values(), ["--scope", MAX_CLUSTER_SCOPE])
     for name, warehouse in MAX_CLUSTER_SOURCES.items():
         built[name] = max_scoped[warehouse]
+    min_scoped = _demo_packages(MIN_CLUSTER_SOURCES.values(), ["--scope", MIN_CLUSTER_SCOPE])
+    for name, warehouse in MIN_CLUSTER_SOURCES.items():
+        built[name] = min_scoped[warehouse]
     for name, (case, warehouse) in CASE_SOURCES.items():
         packages = json.loads((GOLDEN_CASES / case / "expected" / "recommendation.json").read_text(encoding="utf-8"))
         built[name] = next(p for p in packages if p["warehouse"]["warehouse_id"] == warehouse)

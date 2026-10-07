@@ -105,7 +105,8 @@ class StoredBaselineTests(unittest.TestCase):
         self.assertEqual(fixtures, ["autostop-daily-oct02.json", "autostop-daily-oct03.json", "autostop-scoped-never-stop.json",
                                     "autostop-scoped-pro.json", "autostop-scoped-serverless.json", "canary-before-cut.json",
                                     "canary-rollback.json", "capacity-add-scoped.json", "capacity-cut-scoped.json",
-                                    "inplace-size-canary.json", "migration-priced.json", "scope-migration-only.json", "successor-after-autostop.json",
+                                    "inplace-size-canary.json", "migration-priced.json", "min-cut-scoped.json", "scope-migration-only.json",
+                                    "successor-after-autostop.json",
                                     "two-ready-steps.json", "unpriced-candidate.json"])
         for name in self.names:
             with self.subTest(scenario=name):

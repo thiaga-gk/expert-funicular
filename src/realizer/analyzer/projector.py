@@ -14,6 +14,9 @@ windows it reads are exactly the ones the bridge collected, and states what they
 * the size counterfactual of a size change (``realizer.analyzer.size_counterfactual``, method ``SIZE_RUNTIME``): the
   post-change days priced at the old size from the measured runtime ratio and the pre-change window's billed rate,
   written to ``measurement.size`` and, when measured, as the economics, cross-checked against billing as the replay is;
+* for a min- or max-cluster change, what the running minutes by cluster count show (``cluster_counterfactual``,
+  ``measurement.levels``): a floor cut's counterfactual (priced like the replay, same shape), a capacity add's cluster-
+  minutes above the old cap, a cap cut's upper bound of what the old cap could have added;
 * for a changed knob without a replay (``KNOB_NOT_REPLAYED``): no counterfactual and no economics, but the guards before
   and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
   the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
@@ -22,8 +25,8 @@ windows it reads are exactly the ones the bridge collected, and states what they
   given economics, its observed delta (``realizer.analyzer.migration_observation``), observe-only;
 * readiness inputs: settled days since the change, the window's queries, the representative regime and the evidence
   quality. The windows are whole weeks; the regime is representative when the query volume per day is within
-  ``VOLUME_RATIO_BAND`` of the pre-change window's, and for an auto-stop replay whenever the volume ratio is known: the
-  replay prices the actual post-change days, so a shifted workload is measured and reported, never classified (the
+  ``VOLUME_RATIO_BAND`` of the pre-change window's, and for a counterfactual (replay or floor cut) whenever the volume
+  ratio is known: it prices the actual post-change days, so a shifted workload is measured and reported, never classified (the
   Estimator's ``WORKLOAD_SHIFT``), while a change judged on queueing and p95 waits for a comparable workload;
 * the financial-quality inputs of the window's billed rows.
 
@@ -35,6 +38,7 @@ from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer.analysis import normalize_value, photon_bool_from_package
+from realizer.analyzer.cluster_counterfactual import FLOOR_METHOD, cluster_levels
 from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.migration_observation import MIGRATION_METHOD, migration_delta, window_aws_hourly
 from realizer.analyzer.measurement import (
@@ -320,11 +324,14 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     pre = window_summary(windows.get("pre") if plan.pre else None, evidence["daily_cost"])
     replay = replay_economics(plan, evidence)
     size = size_counterfactual(package, plan, evidence)
-    counterfactual = replay or (size.economics if size else None)  # what the economics, cross-check and cost basis state
+    levels = cluster_levels(plan, evidence, billed(daily_in(evidence["daily_cost"], plan.post)))
+    # The auto-stop replay, the size counterfactual or a floor cut's levels (one shape): what the economics, cross-check
+    # and cost basis state.
+    counterfactual = replay or (size.economics if size else None) or levels.counterfactual
     ratio = volume_ratio(pre, post)
     representative: Optional[bool] = None
     if post is not None and ratio is not None:
-        representative = replay is not None or not volume_shifted(ratio)
+        representative = counterfactual is not None or not volume_shifted(ratio)
     window = window_bounds(plan.post) if plan.post else (None, None)
     economics = None
     migration = None if counterfactual is not None else migration_delta(plan, evidence, ratio, package_currency(package))
@@ -352,18 +359,18 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     if plan.step is not None:
         detail = None if replay is None else {k: (_fmt(v, "0.000001") if isinstance(v, Decimal) else v) for k, v in replay["detail"].items()}
         measurement = {
-            "method": (REPLAY_METHOD if replay is not None else SIZE_METHOD if counterfactual is not None
-                       else MIGRATION_METHOD if migration is not None else None),
+            "method": (REPLAY_METHOD if replay is not None else SIZE_METHOD if size is not None and size.economics is not None
+                       else FLOOR_METHOD if levels.counterfactual is not None else MIGRATION_METHOD if migration is not None else None),
             "knob": plan.step["knob"], "source_value": plan.step["current_value"], "applied_value": plan.observed_epoch.get(plan.step["knob"]),
             "change_epoch_start": utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch else None,
             "observed_epoch_start": utc_iso(plan.observed_epoch["epoch_start"]),
             "previous_epoch_start": utc_iso(plan.previous_epoch["epoch_start"]) if plan.previous_epoch else None,
-            "not_measured_reason": None if migration is not None else plan.reason or (size.reason if size else None),
+            "not_measured_reason": None if migration is not None else plan.reason or (size.reason if size else None) or levels.reason,
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": counterfactual is not None,
             "cost_basis": None if counterfactual is None and migration is None else (counterfactual or migration)["cost_basis"], "replay": detail,
             "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
-            "size": size.block if size else None, "levels": None,
+            "size": size.block if size else None, "levels": levels.block,
             "cross_check": None if cross_check is None else {
                 "outcome": cross_check["outcome"], "reason": cross_check["reason"],
                 "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),
