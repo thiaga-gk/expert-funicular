@@ -143,6 +143,17 @@ class GoldenMinerDemoTests(unittest.TestCase):
         self.assertIn("origin: live", (folder / "case.yaml").read_text())
         self.assertEqual(_quiet(make_case.main, args)[0], 2)
 
+    def test_make_case_accepts_every_case_id_format_and_refuses_others(self):
+        # Registry rows are C## and A##; the scope cases under tests/golden/cases are S## (test_golden_publisher takes [cas]##-).
+        cases = Path(self.tmp.name) / "cases_ids"
+        ref = next(iter(self.tag))
+        base = ["--run-dir", str(self.run_dir), "--warehouse", ref, "--description", "probe", "--cases-dir", str(cases)]
+        for row in ("C59", "A13", "S04"):
+            self.assertEqual(_quiet(make_case.main, base + ["--row", row, "--slug", "probe"])[0], 0, row)
+            self.assertTrue((cases / f"{row.lower()}-probe" / "case.yaml").is_file(), row)
+        for row in ("X01", "C5", "c04", "S004", "C04x"):
+            self.assertEqual(_quiet(make_case.main, base + ["--row", row, "--slug", "probe"])[0], 2, row)
+
 
 class FindRunTests(unittest.TestCase):
     """find_run resolves a flat publisher output, a Hive run folder or a parent holding exactly one run."""
