@@ -102,9 +102,11 @@ For auto-stop the re-estimate is the Publisher's own option grid in the package 
 
 Strict product-attributed KPIs require a qualified causal origin: `CONFIRMED` (an approvals file names the package, the knob and the applied value) or `INFERRED` (a measured change applied after the package was generated, to the knob its step recommends). `UNKNOWN`, `INDEPENDENT` and `NOT_ATTRIBUTABLE` origins may still support validated observed-value reporting. The policy setting `require_confirmed_origin_for_hard_kpi` set to false lifts the origin requirement.
 
+A warehouse-type migration is never claimable, whatever its origin: its measurement carries the hard disqualifier `NO_REVERSE_MIGRATION_MODEL` (no model prices the query mix on the type the warehouse left), so it is reported as an observed delta, `OBSERVABLE_ONLY`, with nothing attributed ([`ledger-contract.md`](ledger-contract.md) section 17).
+
 ## 10. Counterfactual
 
-Allowed claim-eligible methods: paired canary, calibrated prior state, matched historical, controlled pre/post. `CORRELATED_ONLY` is diagnostic, not strict claimable attribution.
+Allowed claim-eligible methods: paired canary, calibrated prior state, matched historical, controlled pre/post. `CORRELATED_ONLY` is diagnostic, not strict claimable attribution; it is the method of a warehouse-type migration's observed delta, which is reported and never claimed.
 
 ## 11. Financial quality
 

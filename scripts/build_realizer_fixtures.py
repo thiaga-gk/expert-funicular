@@ -13,6 +13,7 @@ writes it to ``tests/fixtures/realizer/packages/<fixture>.json``.
 | ``inplace-size-canary`` | demo ``wh-demo-006`` | step 1 a READY_FOR_CANARY size cut that invalidates the cluster knobs; a READY step; a PENDING_REEVALUATION step; a REMEASURE step; a priced warehouse-type migration alternative with a compatibility step |
 | ``two-ready-steps`` | demo ``wh-demo-009`` | two authority-eligible steps (READY_FOR_CANARY, then READY) followed by a PENDING_REEVALUATION step |
 | ``scope-migration-only`` | golden case ``s02-scope-migration-only`` | ``run_scope`` = migration only: step-less NO_CHANGE_BASELINE recommended, migration an alternative |
+| ``migration-priced`` | demo ``wh-demo-001`` | a Pro warehouse (auto-stop 0, MEDIUM) whose recommended plan is in place (auto-stop 0 to 35, size to SMALL) and whose warehouse-type migration alternative to Serverless is priced (a range with a negative low) with a READY_FOR_CANARY ``warehouse_type`` step |
 | ``unpriced-candidate`` | demo ``wh-demo-003`` | a READY step whose candidate estimate is unavailable |
 | ``autostop-scoped-pro`` | demo ``wh-demo-013`` with ``--scope current:auto-stop`` | a Pro warehouse, one READY auto-stop step 30 to 10 with a DBU and modeled AWS range |
 | ``autostop-scoped-serverless`` | demo ``wh-demo-002`` with ``--scope current:auto-stop`` | a Serverless warehouse, one READY auto-stop step 30 to 5 (no customer AWS cost) |
@@ -62,7 +63,7 @@ from realizer.config.loader import validate_package  # noqa: E402
 PACKAGES = ROOT / "tests" / "fixtures" / "realizer" / "packages"
 GOLDEN_CASES = ROOT / "tests" / "golden" / "cases"
 DEMO_SOURCES = {"inplace-size-canary": "wh-demo-006", "two-ready-steps": "wh-demo-009", "unpriced-candidate": "wh-demo-003",
-                "canary-rollback": "wh-demo-040"}
+                "canary-rollback": "wh-demo-040", "migration-priced": "wh-demo-001"}
 CASE_SOURCES = {"scope-migration-only": ("s02-scope-migration-only", "wh-demo-001")}
 SCOPED_SOURCES = {"autostop-scoped-pro": "wh-demo-013", "autostop-scoped-serverless": "wh-demo-002", "autostop-scoped-never-stop": "wh-demo-001"}
 AUTO_STOP_SCOPE = "current:auto-stop"
@@ -129,6 +130,15 @@ def _check_migration_only(p: Mapping[str, Any]) -> None:
     assert p["run_scope"] is not None and _recommended_plan(p) == []
     recommended = next(s for s in p["scenarios"] if s["scenario_id"] == p["recommended_plan"]["scenario_id"])
     assert recommended["scenario_type"] == "NO_CHANGE_BASELINE"
+
+
+def _check_migration_priced(p: Mapping[str, Any]) -> None:
+    migration = next(s for s in p["scenarios"] if s["scenario_type"] == "WAREHOUSE_TYPE_MIGRATION")
+    assert migration["status"] == "ALTERNATIVE" and migration["portfolio_economics"]["savings_365d"]["total"] is not None
+    steps = [(s.get("knob"), s.get("current_value"), s.get("recommended_value"), s.get("execution_state")) for s in migration["execution_plan"]]
+    assert ("warehouse_type", "PRO", "SERVERLESS", "READY_FOR_CANARY") in steps, steps
+    assert p["warehouse"]["warehouse_id"] == "wh-demo-001" and p["run_scope"] is None
+    assert [r[1] for r in _roles(p) if r[0] == "CANDIDATE"][:2] == ["auto_stop_minutes", "warehouse_size"], _roles(p)
 
 
 def _check_scoped_auto_stop(p: Mapping[str, Any]) -> None:
@@ -205,6 +215,7 @@ CHECKS: Dict[str, Callable[[Mapping[str, Any]], None]] = {
     "two-ready-steps": _check_two_ready,
     "scope-migration-only": _check_migration_only,
     "unpriced-candidate": _check_unpriced,
+    "migration-priced": _check_migration_priced,
     **{name: _check_scoped_auto_stop for name in SCOPED_SOURCES},
     "autostop-daily-oct02": _check_daily,
     "autostop-daily-oct03": _check_daily,

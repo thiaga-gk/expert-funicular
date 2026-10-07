@@ -160,6 +160,7 @@ One fixed label per state (`NEXT_ACTIONS`). The state is the lineage's realizati
 | `NOT_APPLIED` | the plan has no authority-eligible step | None: no step to apply |
 | `APPLIED`, `VALIDATING` | | Wait for validation |
 | `APPLIED` | validation passed, economics unavailable (the knob has no counterfactual yet) | Keep monitoring: savings not measured for this change yet |
+| `MONITORING` | a warehouse-type migration's observed delta (measurement method `MIGRATION_BILLED_OBSERVED`) | Keep monitoring: migration observed, savings not modeled |
 | `REALIZED`, `MONITORING`, `PERFORMANCE_VALIDATED`, `CAPACITY_VALIDATED` | | Keep monitoring |
 | `SAFETY_ACTION_APPLIED` | | Keep monitoring: safety rollback in force |
 | `UNDER_REALIZED` | | Review: re-optimization recommended |
