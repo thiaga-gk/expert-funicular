@@ -6,6 +6,7 @@ whose recommended scenario does not exist or whose warehouse type is not support
 output directory untouched. A lineage-only run (no observation) skips the observation gate.
 """
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,8 @@ from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config import loader  # noqa: E402
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
+
+FIXTURE_PACKAGES = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "realizer" / "packages"
 
 
 def rehashed(package):
@@ -215,6 +218,31 @@ class PackageGateTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         realize(package, None, out)
                     self.assertEqual(tree(out), {})
+
+
+    def test_a_plan_step_that_recommends_its_current_value_is_refused(self):
+        # Matching would read such a step as EXACT whatever was applied; no Publisher package has one (the fixtures
+        # below and the Publisher demo's), so a package with one is refused rather than guessed at.
+        for scenario_index in range(len(self.pkg["scenarios"])):
+            steps = [s for s in self.pkg["scenarios"][scenario_index]["execution_plan"] if s["step_type"] == "CANDIDATE"]
+            if not steps:
+                continue
+            with self.subTest(scenario=scenario_index):
+                package = copy.deepcopy(self.pkg)
+                step = next(s for s in package["scenarios"][scenario_index]["execution_plan"] if s["step_type"] == "CANDIDATE")
+                step["recommended_value"] = step["current_value"]
+                rehashed(package)
+                with self.assertRaisesRegex(ValueError, rf"plan step {step['step']} of scenario {package['scenarios'][scenario_index]['scenario_id']} "
+                                                        r"recommends its current value"):
+                    loader.validate_package(package)
+                with tempfile.TemporaryDirectory() as tmp:
+                    out = Path(tmp)
+                    with self.assertRaises(ValueError):
+                        realize(package, None, out)
+                    self.assertEqual(tree(out), {})
+        for path in sorted(FIXTURE_PACKAGES.glob("*.json")):
+            with self.subTest(fixture=path.name):
+                self.assertIsNone(loader.validate_package(json.loads(path.read_text(encoding="utf-8"))))
 
 
 if __name__ == "__main__":

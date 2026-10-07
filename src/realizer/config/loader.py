@@ -74,7 +74,9 @@ def validate_package(package: Any) -> None:
     Checks, in order: a mapping; ``contract_version`` equal to ``SUPPORTED_PUBLISHER_CONTRACT``; the Publisher's committed
     Draft 2020-12 schema; the ``PKG-`` id and ``provenance.package_hash_full_sha256`` recomputed from the hashed fields;
     the ``realization`` block is the Publisher's empty placeholder (status NOT_APPLIED, no records; the Realizer's own
-    lineage is the RPKG, never this block); and no carried-forward plan (reserved, never published yet).
+    lineage is the RPKG, never this block); no carried-forward plan (reserved, never published yet); the recommended
+    scenario exists; a supported warehouse type; and no plan step recommending its current value (matching would read it
+    as applied whatever the warehouse runs; the Publisher never writes one).
     """
     if not isinstance(package, Mapping):
         raise InputError("a RecommendationPackage must be a JSON object")
@@ -102,6 +104,10 @@ def validate_package(package: Any) -> None:
     warehouse_type = str(package["current_config"].get("warehouse_type") or "").upper()
     if warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
         raise InputError(f"unsupported warehouse type in the package: {warehouse_type or None}")
+    for scenario in package["scenarios"]:
+        for step in scenario["execution_plan"]:
+            if step.get("step_type") == "CANDIDATE" and step.get("recommended_value") == step.get("current_value"):
+                raise InputError(f"plan step {step.get('step')} of scenario {scenario['scenario_id']} recommends its current value")
 
 
 TIME_FIELDS = ("observed_at_utc", "recorded_at_utc", "applied_at_utc", "window_start_utc", "window_end_utc")
