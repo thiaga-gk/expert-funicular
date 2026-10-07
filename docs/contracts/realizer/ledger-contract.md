@@ -70,6 +70,8 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 Unknown material facts are `null`, never synthetic zero.
 
+`source_recommendation` identifies the immutable PKG (id, contract version, full hash, epoch, recommended scenario, generation time, disposition and the superseding PKG) and states the conditions it was produced under, copied from it: `run_scope` (the restricted scope of a scoped run), `cost_profile` (the name of the profile the warehouse was evaluated under) and `observed_change` (the configuration change that started the current epoch). Each is `null` when the package has none. The `REALIZATION_CREATED` entry carries the same three values with the PKG id. Plan progress is derived from the package's own plan, which a run scope has already cut to the in-scope steps (and a canary rollback kept outside it); a pending-reevaluation step of that plan still keeps the plan partially completed.
+
 ## 5. Orthogonal state dimensions
 
 ### Intent

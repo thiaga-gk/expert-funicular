@@ -196,6 +196,17 @@ def regeneration_path(output_dir: Path, regeneration_request_id: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def source_scope(package: Mapping[str, Any]) -> Dict[str, Any]:
+    """What the source package says about the conditions it was produced under: the run scope, the name of the cost
+    profile and the configuration change observed before it. Each is ``None`` when the package has none."""
+    profile = package.get("cost_profile")
+    return {
+        "run_scope": copy.deepcopy(package.get("run_scope")),
+        "cost_profile": profile.get("name") if isinstance(profile, Mapping) else None,
+        "observed_change": copy.deepcopy(package.get("observed_change")),
+    }
+
+
 def record_creation(context: RunContext) -> None:
     """Record the lineage (REALIZATION_CREATED) before the run reads anything else; the inputs were checked before it, and
     a corrupt ledger raises here, before anything is written."""
@@ -211,7 +222,7 @@ def record_creation(context: RunContext) -> None:
     created = make_ledger_entry(
         package=package, rpkg_id=rpkg, event_type=rc.EventType.REALIZATION_CREATED,
         effective_at_utc=generated, recorded_at_utc=generated,
-        payload={"recommendation_package_id": package["recommendation_package_id"]},
+        payload={"recommendation_package_id": package["recommendation_package_id"], **source_scope(package)},
     )
     append_if_absent(lpath, created)
 
