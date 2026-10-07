@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic Databricks SQL Warehouse Realizer v1.0.0: the facade (the CLI is ``realizer.cli``).
+"""Deterministic Databricks SQL Warehouse Realizer v1.1.0: the facade (the CLI is ``realizer.cli``).
 
     Analyzer -> Governor -> Reconciler -> Estimator -> Reviewer -> Packager -> Reporter
 

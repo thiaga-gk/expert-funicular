@@ -17,13 +17,13 @@ from publisher.config.versions import PUBLISHER_VERSION
 # The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
 # realization-package provenance.
 PRODUCT_VERSION = PUBLISHER_VERSION
-REALIZER_VERSION = "1.0.0"
+REALIZER_VERSION = "1.1.0"
 PROJECTOR_VERSION = "realizer-projector-v1.0.0"
-POLICY_VERSION = "realizer-policy-v1.0.0"
-ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.0.0"
-MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.0.0"
-ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.0.0"
-ATTRIBUTION_VERSION = "realizer-attribution-v1.0.0"
+POLICY_VERSION = "realizer-policy-v1.1.0"
+ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.1.0"
+MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.1.0"
+ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.1.0"
+ATTRIBUTION_VERSION = "realizer-attribution-v1.1.0"
 EXCLUSIVITY_VERSION = "realizer-exclusivity-v1.0.0"
 
 CONFIG_KNOBS = (

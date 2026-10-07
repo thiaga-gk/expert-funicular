@@ -528,3 +528,19 @@ Decision-equivalence check. Every scenario was run on the branch and compared wi
 | NOT_APPLIED | GR-001, 007, 020, replay-through-generation |
 
 The single-file oracle (git tag `realizer-reorg-oracle-1.0.0`) reads only 1.0.0 packages, so `scripts/compare_realizer_with_ref.py --ref realizer-reorg-oracle-1.0.0` no longer applies to the stored scenarios; this check is the equivalence record for the move to 3.1.0.
+
+## Gap review batch 1.5: the auto-stop slice and its decision changes
+
+Batch 1.5 of the gap review ([`gap-review.md`](gap-review.md)) added the live path (bridge to the Publisher's collector SQL, measurement evidence, projector, auto-stop replay, billed cross-check), the backtest and the end-to-end golden layer, and changed four rules by decision (RD08, RD09, RD15, RD17). Each rule change was checked with the decision-equivalence check above over the 41 stored scenarios, against the previous commit's stored outputs:
+
+| Change | Scenarios whose decision changed | How |
+|---|---|---|
+| Observation format 2.1.0, measurement evidence, live path | none | ids only |
+| Billed cross-check | none | outputs unchanged |
+| Package guardrails (RD09) | 32 | the size canary measured at 8 days is inside its 30-day guard window: CLAIMABLE -> OBSERVABLE_ONLY with `CANARY_GUARD_WINDOW_OPEN`, recognition PROVISIONAL (where already not claimable, the disqualifier is added); GR-013's +7 percent p95 is within the balanced profile's 25 percent (its row now uses +30 to keep testing a p95 failure); GR-003 uses 30 elapsed days to keep testing a claimable exact application |
+| Classification against the published range (RD15) | none | every stored ratio class falls on the same side of the published low |
+| Qualified origin, approvals (RD17) | none | no stored scenario uses an inferred origin |
+| Independent changes with reasons (RD08) | none | non-authority steps now carry their reason in the payload |
+| Realizer component versions 1.1.0 | none | ids only |
+
+The end-to-end cases (GE-01..GE-12) and the backtest run on simulated worlds, where the replay equals the oracle (consistency, not accuracy). Two restart-heavy cases disagree with the simulated bill by design: the simulator bills no restart time while the replay charges the package's restart assumption, which is the case the billed cross-check exists to expose.
