@@ -70,7 +70,7 @@ When the denominator is a Publisher range (the applied step's candidate range, o
 - below the low -> `UNDER_REALIZED`; below half the low -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass;
 - the ratio against the base is reported in every case.
 
-The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
+The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement (or a caller-supplied observation that gives a DBU component and no AWS component) with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
 
 - `ratio >= 0.80` -> `REALIZED`.
 - `0.50 <= ratio < 0.80` -> `UNDER_REALIZED`.

@@ -5,7 +5,9 @@
   plan (its first authority-eligible steps): the running savings of the last applied step (``PUBLISHER_SCENARIO``),
   never the whole scenario's total; of steps that are not a prefix: no denominator (``UNAVAILABLE``).
 - The component compared is the measurement's cost basis (DBU only, or DBU and modeled AWS); a caller-supplied
-  observation is compared with the total, and a missing total is ``UNAVAILABLE``, never the DBU range in its place.
+  observation is compared with the total (with the DBU range when it gives a DBU component and no AWS component,
+  ``tests/unit/realizer/config/test_observation_components.py``), and a missing total is ``UNAVAILABLE``, never the DBU
+  range in its place.
 - The expected savings per component (DBU, AWS, total) are reported separately.
 - A warehouse-type migration's range is informational: the realization is reported, never classified against it.
 """

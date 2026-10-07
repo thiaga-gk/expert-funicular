@@ -216,10 +216,12 @@ def calculate_economics(
     denom_source = "UNAVAILABLE"
     denom_method: Optional[str] = None
     informational = False
-    # A live measurement compares like with like: DBU only when it has no AWS price, else the total; a caller-supplied
-    # observation is compared with the total.
+    # A live measurement compares like with like: DBU only when it has no AWS price, else the total. A caller-supplied
+    # observation that gives a DBU component and no AWS component states DBU costs, so it is compared with the DBU
+    # range; any other is compared with the total.
     measured = observation.get("measurement") or {}
-    component = {"DBU_ONLY": "dbu", "DBU_AND_MODELED_AWS": "total"}.get(str(measured.get("cost_basis")), "total")
+    dbu_only = econ.get("dbu_realized") is not None and econ.get("aws_economic_realized") is None
+    component = {"DBU_ONLY": "dbu", "DBU_AND_MODELED_AWS": "total"}.get(str(measured.get("cost_basis")), "dbu" if dbu_only else "total")
     supplied = decimal(econ.get("expected_annual_savings_actual_scope"))
     # A caller's re-estimate for the applied scope stands for a scenario-scope application and an applied step, never for
     # a contrary one.

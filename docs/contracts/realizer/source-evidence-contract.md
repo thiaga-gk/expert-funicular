@@ -53,7 +53,7 @@ Signed usage semantics are preserved. Retractions/restatements are not discarded
 
 ## 8. AWS
 
-Until CUR/Data Export is authoritative, modeled AWS economics are explicitly labeled `MODELED` and must not be represented as actual hard-cash realized value.
+Until CUR/Data Export is authoritative, modeled AWS economics are explicitly labeled `MODELED` and must not be represented as actual hard-cash realized value. An observation that states an AWS cash amount (`aws_cash_realized`) or freed commitment (`aws_commitment_freed`) without `aws_evidence_type` `CUR_ACTUAL` is refused (section 16).
 
 ## 9. Counterfactual evidence
 
@@ -97,6 +97,7 @@ A realize run consumes one normalized observation in observation format 2.2.0 (`
 - The observation names its workspace and warehouse, which must be the package's; its times are ordered (applied at or before observed, window start at or before window end at or before observed); economics come with a window; `applied_scenario_id`, when present, names a scenario of the package; the observed warehouse type is a supported type.
 - The configuration holds exactly the six decision knobs and the observed Photon state. Values are compared in the Publisher's spelling (a size `X-Large` is `X_LARGE`).
 - The financial-quality inputs (attributable spend, price coverage, currency consistency, correction chain, material cost components) are one block; the currency gate also requires the economics to be stated in the package's currency.
+- The cost components agree with the costs. When the economics state both `counterfactual_old_cost` and `observed_new_cost`, the realized total is their difference, and the components given add up to it within 0.03 (the Reporter JSON Contract's reconciliation tolerance): `dbu_realized` alone is the total, `dbu_realized + aws_economic_realized` is the total; no component given is not checked. An AWS component (`aws_economic_realized`) needs a DBU component and an `aws_evidence_type`; an AWS cash amount or freed commitment needs `CUR_ACTUAL` evidence, so modeled AWS is never cash. An amount that is not a finite number is refused naming the field. An observation without a measurement cost basis that gives a DBU component and no AWS component states DBU costs, so it is compared with the published DBU range ([ledger contract](ledger-contract.md) section 16).
 - The counterfactual method is one of the policy's four claim-eligible methods (`PAIRED_CANARY`, `CALIBRATED_PRIOR_STATE`, `MATCHED_HISTORICAL`, `CONTROLLED_PRE_POST`) or a diagnostic one (`CORRELATED_ONLY`, `NO_DEFENSIBLE_COUNTERFACTUAL`).
 - `measurement` states how a live measurement measured the change (section 18): the step's knob, its source and applied values, the change, observed and previous epochs, the post- and pre-change windows, the query volume ratio, other knobs that changed, the cost basis and the replay's quantities, and for a knob without a replay the billed change (`billed_change`); `null` for an observation a caller supplies. `performance.guards` holds the guard metrics before and after the change, `null` without a post-change window.
 - A change applied before the package was generated is recorded as an independent change (`APPLIED_BEFORE_PACKAGE`), never as an application of the package.

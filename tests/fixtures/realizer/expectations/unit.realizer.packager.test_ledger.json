@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 63864,
-  "sha256": "4d1ba9f4ae99d7f6977d68bb6e703a322f85f1051ebf0404f0500f86ba817488",
+  "sha256": "f0701d1e37eae8df10bcec1fd387e6813f0736985bfc8f6a3cdcc08ad5a8c83e",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -49,8 +49,8 @@
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 533737,
-  "sha256": "fea6cb29b032118b6155ebd6371758f7a377139a0ddf2566e44889ad8358ea26",
+  "length": 533742,
+  "sha256": "644a7bfe29ee4a9d334159e11e0e90be92f5a7a2a082693498f288d3d838ec37",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -216,7 +216,7 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 290711,
-  "sha256": "2408a820a37a259a93e680ec1d4afac637d79924b8ead0ec5ed821bcc7b76237",
+  "sha256": "2fbc161933e336611d5c948f1e958aee1cf995ed8141eb9c86bad2748c3368ac",
   "spot": {
    "count": 808,
    "first": [
