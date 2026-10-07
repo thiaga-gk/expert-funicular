@@ -38,7 +38,8 @@ from realizer.realizer import (
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse Realizer v{REALIZER_VERSION}")
+    p = argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse Realizer v{REALIZER_VERSION}",
+                                epilog="Past auto-stop changes, no package: realizer --backtest --help")
     p.add_argument("--version", action="version", version=version_text())
     p.add_argument("--package", required=True, help="Path to immutable RecommendationPackage JSON")
     p.add_argument("--observation", help="Path to normalized post-change observation JSON")
