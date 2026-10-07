@@ -1,4 +1,4 @@
-"""Projector: measurement evidence -> one normalized observation (format 2.1.0).
+"""Projector: measurement evidence -> one normalized observation (format 2.2.0).
 
 Pure and Realizer-owned. It plans the measurement again from the evidence (``realizer.analyzer.measurement``), so the
 windows it reads are exactly the ones the bridge collected, and states what they show:
@@ -11,6 +11,10 @@ windows it reads are exactly the ones the bridge collected, and states what they
   value would have avoided at the package's restart assumption (the Publisher's cost of one restart per floor cluster);
   priced at the window's billed DBU cost per running cluster-minute and, for Pro and Classic, at the modeled AWS price
   of a cluster-hour. Realized = counterfactual - observed, holding every other knob at its observed value;
+* for a changed knob without a replay (``KNOB_NOT_REPLAYED``): no counterfactual and no economics, but the guards before
+  and after the change and the billed change (``billed_pre_post_change``): the post-change window's billed cost minus
+  the pre-change window's billed cost per day at the post-change query volume and length, per component, signed so
+  that a positive amount is a cost increase. It includes whatever else moved the bill, so it is reported, never claimed;
 * readiness inputs: settled days since the change, the window's queries, the representative regime (whole weeks,
   query volume per day within ``VOLUME_RATIO_BAND`` of the pre-change window's) and the evidence quality;
 * the financial-quality inputs of the window's billed rows.
@@ -40,6 +44,8 @@ from realizer.governor.policy import package_currency
 
 VOLUME_RATIO_BAND = (Decimal("0.75"), Decimal("1.25"))
 REPLAY_METHOD = "AUTO_STOP_REPLAY"
+BILLED_CHANGE_BASIS = "BILLED_PRE_POST_AT_PRE_MIX"
+ANNUAL_DAYS = Decimal("365")
 
 
 def _d(value: Any) -> Optional[Decimal]:
@@ -136,6 +142,54 @@ def replay_economics(plan: MeasurementPlan, evidence: Mapping[str, Any]) -> Opti
     }
 
 
+def billed_pre_post_change(*, pre_days: int, pre_cost: Decimal, pre_running: Decimal, post_days: int, post_cost: Decimal,
+                           post_running: Decimal, volume_ratio: Decimal, pre_aws_hourly: Optional[Decimal],
+                           post_aws_hourly: Optional[Decimal]) -> Dict[str, Optional[Decimal]]:
+    """The observed cost change of a change at the pre-change query mix, per component, signed post minus expected
+    without the change (positive = the cost went up). Expected without the change: the pre-change window's cost per
+    day x *volume_ratio* x the post-change days. DBU from billed cost; AWS from running cluster-minutes at each window's
+    modeled cluster-hour price (``None`` without both prices); the total only with both components; annualized x 365 /
+    post days."""
+    scale = volume_ratio * post_days / pre_days
+    dbu = post_cost - pre_cost * scale
+    aws = None
+    if pre_aws_hourly is not None and post_aws_hourly is not None:
+        aws = post_running / 60 * post_aws_hourly - pre_running / 60 * pre_aws_hourly * scale
+    total = None if aws is None else dbu + aws
+    return {"dbu": dbu, "aws_modeled": aws, "total": total, "annualized_dbu": dbu * ANNUAL_DAYS / post_days,
+            "annualized_total": None if total is None else total * ANNUAL_DAYS / post_days}
+
+
+def _modeled_hourly(price: Optional[Mapping[str, Any]]) -> Optional[Decimal]:
+    """A window's modeled customer AWS cluster-hour price; ``None`` unless MODELED (unknown, or Serverless)."""
+    return _d(price.get("cluster_hourly_price")) if price and price.get("status") == "MODELED" else None
+
+
+def billed_change(plan: MeasurementPlan, evidence: Mapping[str, Any], ratio: Optional[Decimal],
+                  fallback_currency: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """The billed change of a changed knob without a replay (``billed_pre_post_change``), formatted for the observation;
+    its currency is the billed rows' (*fallback_currency*, the package's, when they carry none). ``None`` for a replayed knob, or without both windows' running time, a volume ratio, or billing priced in one
+    currency."""
+    if plan.replayed_value is not None or plan.post is None or plan.pre is None or ratio is None:
+        return None
+    windows = evidence.get("windows") or {}
+    pre, post = windows.get("pre"), windows.get("post")
+    if not pre or not post or pre.get("running") is None or post.get("running") is None:
+        return None
+    pre_bill, post_bill = billed(daily_in(evidence["daily_cost"], plan.pre)), billed(daily_in(evidence["daily_cost"], plan.post))
+    currencies = sorted(set(pre_bill["currencies"]) | set(post_bill["currencies"]))
+    if pre_bill["cost"] is None or post_bill["cost"] is None or len(currencies) > 1:
+        return None
+    aws = evidence.get("aws") or {}
+    days = window_days(plan.post)
+    change = billed_pre_post_change(
+        pre_days=window_days(plan.pre), pre_cost=pre_bill["cost"], pre_running=Decimal(str(pre["running"]["observed_running_cluster_minutes"])),
+        post_days=days, post_cost=post_bill["cost"], post_running=Decimal(str(post["running"]["observed_running_cluster_minutes"])),
+        volume_ratio=ratio, pre_aws_hourly=_modeled_hourly(aws.get("pre")), post_aws_hourly=_modeled_hourly(aws.get("post")))
+    return {"basis": BILLED_CHANGE_BASIS, "days": days, "currency": currencies[0] if currencies else fallback_currency,
+            **{k: money(v) for k, v in change.items()}}
+
+
 def window_summary(window: Optional[Mapping[str, Any]], daily: Sequence[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
     """What one collected window shows: days, queries, running cluster-minutes, restarts and its billed cost."""
     if not window or window.get("running") is None:
@@ -224,7 +278,7 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
 
 
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The observation (format 2.1.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    """The observation (format 2.2.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
@@ -276,6 +330,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": replay is not None,
             "cost_basis": None if replay is None else replay["cost_basis"], "replay": detail,
+            "billed_change": billed_change(plan, evidence, ratio, package_currency(package)),
             "cross_check": None if cross_check is None else {
                 "outcome": cross_check["outcome"], "reason": cross_check["reason"],
                 "replay_dbu_saving": money(cross_check["replay_dbu_saving"]), "billed_dbu_reduction": money(cross_check["billed_dbu_reduction"]),
