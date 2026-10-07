@@ -41,7 +41,7 @@ from realizer.analyzer.measurement import (
     window_days,
 )
 from realizer.common.errors import InputError
-from realizer.common.utils import money, ratio_string, utc_iso
+from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.config.settings import volume_shifted
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import package_currency
@@ -275,7 +275,7 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
                 and normalize_value(knob, approval["value"]) == observed):
             return "CONFIRMED", "ACCEPTED", str(approval["reference"])
     generated = (package.get("provenance") or {}).get("generated_at")
-    if generated and utc_iso(plan.change_epoch["epoch_start"]) > utc_iso(generated):
+    if generated and parse_utc(plan.change_epoch["epoch_start"]) > parse_utc(generated):
         return "INFERRED", "UNKNOWN", None
     return "UNKNOWN", "UNKNOWN", None
 

@@ -225,6 +225,8 @@ Ledger is bitemporal:
 
 Application/economic ownership intervals use half-open `[start, end)` semantics.
 
+Times are compared and ordered as instants, never as text: a time written with fractional seconds (`...T12:00:00.500000Z`) is later than the whole second before it (`...T12:00:00Z`), although its text sorts first. This holds for the ledger order, the replay cut, the checkpoint's latest times, the configuration-drift check and the snapshot's rollback and drift precedence.
+
 `RSNAP.as_of_utc` is deterministic and derived from the ledger checkpoint, not projection wall clock.
 
 ## 13. Validation

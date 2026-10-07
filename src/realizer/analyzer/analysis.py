@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from realizer.common.utils import decimal, utc_iso
+from realizer.common.utils import decimal, parse_utc, utc_iso
 from realizer.config.settings import CONFIG_KNOBS, HASHED_CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
@@ -173,4 +173,4 @@ def summarize_history(entries: Sequence[rc.RealizationLedgerEntry]) -> Realizati
 def config_drift(history: RealizationHistory, observed_hash: str, observed_at_utc: str) -> bool:
     """Whether the observed configuration differs from the previous application's and is newer than its record."""
     previous = history.previous_application
-    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and observed_at_utc > previous.recorded_at_utc)
+    return bool(previous and previous.payload.get("observed_config_hash") != observed_hash and parse_utc(observed_at_utc) > parse_utc(previous.recorded_at_utc))

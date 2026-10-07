@@ -1,4 +1,4 @@
-"""Deterministic helpers: UTC timestamps, decimals and money strings, and JSON file I/O.
+"""Deterministic helpers: UTC timestamps (written and compared), decimals and money strings, and JSON file I/O.
 
 Moved unchanged from the single-file Realizer, plus ``Deferred``. No domain logic: configuration normalization and
 hashing belong to the analyzer.
@@ -16,7 +16,13 @@ from typing import Any, Callable, Generic, Optional, TypeVar
 from realizer.contracts.realization import canonical_decimal
 
 
-def utc_iso(value: Any) -> str:
+def parse_utc(value: Any) -> dt.datetime:
+    """The aware UTC time of *value* (a ``datetime`` or an ISO-8601 text; a naive one is read as UTC).
+
+    Times are compared and ordered through this, never as text: ``utc_iso`` writes ``...T12:00:00Z`` without and
+    ``...T12:00:00.500000Z`` with microseconds, and ``.`` sorts before ``Z``, so the text of a later time can sort first.
+    A missing value raises ``ValueError``, as does a text that is not a time.
+    """
     if isinstance(value, dt.datetime):
         d = value
     else:
@@ -25,7 +31,11 @@ def utc_iso(value: Any) -> str:
         d = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if d.tzinfo is None:
         d = d.replace(tzinfo=dt.timezone.utc)
-    return d.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    return d.astimezone(dt.timezone.utc)
+
+
+def utc_iso(value: Any) -> str:
+    return parse_utc(value).isoformat().replace("+00:00", "Z")
 
 
 def decimal(value: Any) -> Optional[Decimal]:

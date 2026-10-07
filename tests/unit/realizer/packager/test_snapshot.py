@@ -18,6 +18,7 @@ from tests.unit.realizer.helpers import canonical, fixture_package, outcome, run
 from tests.unit.realizer.packager.test_ledger import stored_ledgers  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.common.utils import parse_utc  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.packager import ledger, snapshot  # noqa: E402
@@ -109,9 +110,9 @@ class ProjectionTests(unittest.TestCase):
             ids = {entry["ledger_entry_id"]: i for i, entry in enumerate(by_file_order)}
             by_file = sorted(entries, key=lambda e: ids[e.ledger_entry_id])
             reproduced = {}
-            cuts = sorted({e.recorded_at_utc for e in entries})
+            cuts = sorted({e.recorded_at_utc for e in entries}, key=parse_utc)
             prefixes = [("file prefix", k, by_file[:k]) for k in range(1, len(entries) + 1)]
-            prefixes += [("recorded through", cut, [e for e in entries if e.recorded_at_utc <= cut]) for cut in cuts]
+            prefixes += [("recorded through", cut, [e for e in entries if parse_utc(e.recorded_at_utc) <= parse_utc(cut)]) for cut in cuts]
             for kind, cut, prefix in prefixes:
                 result = snapshot.project_snapshot(package, prefix)
                 reproduced[result.snapshot_id] = normalized(result)

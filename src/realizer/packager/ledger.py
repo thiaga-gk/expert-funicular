@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.common.errors import LedgerError
 from realizer.common.logging import LOGGER
-from realizer.common.utils import utc_iso, write_json
+from realizer.common.utils import parse_utc, utc_iso, write_json
 from realizer.config.settings import POLICY_VERSION, PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import MeasurementFacts, ReviewResult
@@ -53,8 +53,8 @@ def load_ledger(path: Path) -> List[rc.RealizationLedgerEntry]:
         except (ValueError, TypeError, KeyError) as exc:  # json.JSONDecodeError is a ValueError
             raise LedgerError(f"ledger {path.name} line {line_no} is not a valid ledger entry ({type(exc).__name__})") from exc
         entries.append(entry)
-    # recorded time governs projection order; RLE id is deterministic tie-break.
-    return sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    # recorded time (parsed, never compared as text) governs projection order; RLE id is deterministic tie-break.
+    return sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
 
 
 def latest_event(entries: Sequence[rc.RealizationLedgerEntry], *types: rc.EventType) -> Optional[rc.RealizationLedgerEntry]:
@@ -145,7 +145,7 @@ def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
 
 
 def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str, Any]:
-    ordered = sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    ordered = sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
     ids = [e.ledger_entry_id for e in ordered]
     digest = "SHA256:" + rc.sha256_hex({"ordered_entry_ids": ids})
     return {
@@ -153,7 +153,7 @@ def ledger_checkpoint(entries: Sequence[rc.RealizationLedgerEntry]) -> Dict[str,
         "first_entry_id": ids[0] if ids else None,
         "latest_entry_id": ids[-1] if ids else None,
         "latest_recorded_at_utc": ordered[-1].recorded_at_utc if ordered else None,
-        "latest_effective_at_utc": max((e.effective_at_utc for e in ordered), default=None),
+        "latest_effective_at_utc": max((e.effective_at_utc for e in ordered), key=parse_utc, default=None),
         "ledger_checkpoint_hash": digest,
     }
 

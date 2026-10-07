@@ -15,7 +15,7 @@ from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import stage_policy, as_line, canonical, fixture_package, ledger_lines, observation_gate_open, outcome, tree  # noqa: E402
 from realizer.analyzer import analysis, analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
-from realizer.common.utils import utc_iso  # noqa: E402
+from realizer.common.utils import parse_utc, utc_iso  # noqa: E402
 from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis, RealizationHistory  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.packager.ledger import ledger_path  # noqa: E402
@@ -27,12 +27,12 @@ APPLICATIONS = ("APPLICATION_OBSERVED", "MODIFIED_APPLICATION_OBSERVED")
 def reference(package, observation, out):
     """The history and drift a run starts from, computed from the raw ledger lines on disk (recorded time, then entry id,
     governs the order), independently of the ledger loader, ``summarize_history`` and ``config_drift``."""
-    lines = sorted(ledger_lines(out), key=lambda line: (line["recorded_at_utc"], line["ledger_entry_id"]))
+    lines = sorted(ledger_lines(out), key=lambda line: (parse_utc(line["recorded_at_utc"]), line["ledger_entry_id"]))
     previous = next((line for line in reversed(lines) if line["event_type"] in APPLICATIONS), None)
     prior = next((line for line in reversed(lines) if line["event_type"] == "ECONOMIC_MEASUREMENT_RECORDED"), None)
     obs_time = utc_iso(observation.get("observed_at_utc") or observation.get("recorded_at_utc"))
     observed_hash = analysis.config_hash(analysis.observed_config(observation, package))
-    drift = bool(previous and previous["payload"].get("observed_config_hash") != observed_hash and obs_time > previous["recorded_at_utc"])
+    drift = bool(previous and previous["payload"].get("observed_config_hash") != observed_hash and parse_utc(obs_time) > parse_utc(previous["recorded_at_utc"]))
     return lines, previous, prior, drift
 
 

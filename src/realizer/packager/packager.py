@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-from realizer.common.utils import utc_iso
+from realizer.common.utils import parse_utc
 from realizer.contracts.realization import PackagingResult, ReviewResult
 from realizer.contracts.request import RunContext
 from realizer.governor.policy import RealizerPolicy
@@ -36,8 +36,8 @@ def run(context: RunContext, reviewed: ReviewResult) -> PackagingResult:
     written = ledger.commit_events(context, reviewed)
     entries = ledger.load_ledger(ledger.ledger_path(request.output_dir, context.realization_package_id))
     if request.replay_through:
-        cut = utc_iso(request.replay_through)
-        entries = [e for e in entries if e.recorded_at_utc <= cut]
+        cut = parse_utc(request.replay_through)
+        entries = [e for e in entries if parse_utc(e.recorded_at_utc) <= cut]
     snapshot = project_snapshot(request.package, entries)
     return PackagingResult(realization=snapshot, entries=tuple(entries), written=written)
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from realizer.analyzer.analysis import candidate_steps
+from realizer.common.utils import parse_utc
 from realizer.config.settings import (
     ANALYZER_GATEWAY_VERSION,
     ATTRIBUTION_VERSION,
@@ -28,7 +29,7 @@ from realizer.packager.ledger import latest_event, ledger_checkpoint, source_sco
 
 
 def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.RealizationLedgerEntry]) -> rc.RealizationPackage:
-    ordered = sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
+    ordered = sorted(entries, key=lambda x: (parse_utc(x.recorded_at_utc), x.ledger_entry_id))
     cp = ledger_checkpoint(ordered)
     if not ordered:
         raise ValueError("cannot project empty ledger")
@@ -50,9 +51,9 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
     regen = latest_event(ordered, rc.EventType.REGENERATION_REQUESTED, rc.EventType.REPLACEMENT_PACKAGE_LINKED)
     superseded = latest_event(ordered, rc.EventType.SOURCE_PACKAGE_SUPERSEDED)
 
-    if rollback and (not app or rollback.recorded_at_utc >= app.recorded_at_utc):
+    if rollback and (not app or parse_utc(rollback.recorded_at_utc) >= parse_utc(app.recorded_at_utc)):
         app_state = rc.ApplicationState.ROLLED_BACK.value
-    elif drift and app and drift.recorded_at_utc >= app.recorded_at_utc:
+    elif drift and app and parse_utc(drift.recorded_at_utc) >= parse_utc(app.recorded_at_utc):
         app_state = rc.ApplicationState.DRIFTED.value
     elif app:
         app_state = rc.ApplicationState.APPLIED.value
