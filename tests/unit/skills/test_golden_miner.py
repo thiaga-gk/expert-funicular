@@ -135,6 +135,54 @@ class GoldenMinerDemoTests(unittest.TestCase):
         self.assertEqual(_quiet(make_case.main, args)[0], 2)
 
 
+class FindRunTests(unittest.TestCase):
+    """find_run resolves a flat publisher output, a Hive run folder or a parent holding exactly one run."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def touch(self, *parts):
+        folder = self.base.joinpath(*parts)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "evidence.json").write_text("{}")
+        return folder
+
+    def test_a_flat_output_folder_is_the_run(self):
+        flat = self.touch("mining_out", "2026-10-07", "pub_full")
+        self.assertEqual(mine_patterns.find_run(flat), flat)
+
+    def test_a_single_hive_run_below_the_output_dir_is_found(self):
+        run = self.touch("out", "run_date=2026-10-07", "run_ts=20261007T120000Z")
+        self.assertEqual(mine_patterns.find_run(self.base / "out"), run)
+
+    def test_sibling_runs_are_refused_and_listed_so_the_user_can_pick(self):
+        for name in ("pub_full", "pub_autostop", "rz"):
+            self.touch("mining_out", "2026-10-07", name)
+        with self.assertRaises(SystemExit) as raised:
+            mine_patterns.find_run(self.base / "mining_out" / "2026-10-07")
+        message = str(raised.exception)
+        for name in ("pub_full", "pub_autostop", "rz"):
+            self.assertIn(name, message)
+        self.assertIn("--run-dir", message)
+
+    def test_two_hive_runs_are_refused_with_both_listed(self):
+        self.touch("out", "run_date=2026-10-07", "run_ts=20261007T120000Z")
+        self.touch("out", "run_date=2026-10-08", "run_ts=20261008T120000Z")
+        with self.assertRaises(SystemExit) as raised:
+            mine_patterns.find_run(self.base / "out")
+        self.assertIn("run_ts=20261007T120000Z", str(raised.exception))
+        self.assertIn("run_ts=20261008T120000Z", str(raised.exception))
+
+    def test_no_run_is_an_error(self):
+        (self.base / "empty").mkdir()
+        with self.assertRaises(SystemExit):
+            mine_patterns.find_run(self.base / "empty")
+
+
 class PreflightTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

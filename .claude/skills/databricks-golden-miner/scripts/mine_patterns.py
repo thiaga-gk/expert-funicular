@@ -53,13 +53,17 @@ OPS = ("eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "is_null", "not_nul
 
 # --- Inputs ------------------------------------------------------------------------------------------------------
 def find_run(run_dir: Path) -> Path:
-    """The folder holding evidence.json: run_dir itself, or the single run folder below it (Hive-style partitions)."""
+    """The folder holding evidence.json: run_dir itself (a flat publisher output, or one Hive run_date=/run_ts= folder),
+    or the single run folder below it. Several runs below it are ambiguous: the error lists them so the user can pick."""
     if (run_dir / "evidence.json").is_file():
         return run_dir
     found = sorted(p.parent for p in run_dir.rglob("evidence.json"))
-    if len(found) != 1:
-        raise SystemExit(f"error: expected one evidence.json under {run_dir}, found {len(found)}; pass the run folder")
-    return found[0]
+    if len(found) == 1:
+        return found[0]
+    if not found:
+        raise SystemExit(f"error: no evidence.json under {run_dir}; pass the run folder (the publisher --output-dir, or a run_date=/run_ts= folder)")
+    listing = "\n".join(f"  --run-dir {p}" for p in found)
+    raise SystemExit(f"error: {len(found)} runs under {run_dir}; pass exactly one of the run folders:\n{listing}")
 
 
 def load_run(run: Path) -> Tuple[List[Dict[str, Any]], Dict[Tuple[str, str], Dict[str, Any]]]:
