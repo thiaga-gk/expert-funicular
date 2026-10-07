@@ -14,7 +14,7 @@ of a scenario is a map of relative path -> text:
   state index), except the source package copies under ``realization/sources/``: each is the scenario's frozen package
   itself (``SOURCE_COPIES``), so the baseline does not store it twice;
 - ``runs.json``: per run, the returned snapshot's RPKG/RSNAP IDs and its legacy Reporter compatibility projection;
-- ``report.json``: the Realizer Workbook Extension projection (summary and timeline rows) of the final snapshot.
+- ``report.json``: the lineage projection (summary and timeline rows, ``project_realizer_workbook``) of the final snapshot.
 
 Variable fields: the engine reads no wall clock (ledger times, ``as_of_utc`` and lineage come from the package and
 the observation) and writes no paths into its files, so the only run-dependent value is the output directory itself.
