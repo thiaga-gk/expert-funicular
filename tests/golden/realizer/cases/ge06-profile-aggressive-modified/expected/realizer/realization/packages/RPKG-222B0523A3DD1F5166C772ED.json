@@ -140,6 +140,7 @@
       },
       "holds_other_knobs": true,
       "knob": "auto_stop_minutes",
+      "levels": null,
       "method": "AUTO_STOP_REPLAY",
       "other_knob_changes": [],
       "post_window": {
@@ -228,7 +229,7 @@
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
     "latest_entry_id": "RLE-83B9707541A1E7C26CE8769A",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:5EF5AA1D72DDD49CF6276390B5BB33C3B57BA707075B94EC1276A39D8D3B2E4D",
+    "ledger_checkpoint_hash": "SHA256:FC5590A1C02967BEA18FF7236D59CB08505EA4B8647A99371832A35620F8A777",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -253,7 +254,7 @@
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-B5DA84330DDAF1C050748EC7",
+  "snapshot_id": "RSNAP-78276917E2ED35658A60E2DF",
   "source_recommendation": {
     "cost_profile": "aggressive",
     "disposition": "ACTIVE",

@@ -42,7 +42,35 @@
     "cross_check": null,
     "holds_other_knobs": false,
     "knob": "max_clusters",
-    "levels": null,
+    "levels": {
+      "annualized_dbu_cost": "0.00",
+      "annualized_total_cost": "0.00",
+      "aws_cluster_hourly_price": "12.48",
+      "aws_cost": "0.00",
+      "aws_status": "MODELED",
+      "basis": "OLD_CAP_UPPER_BOUND",
+      "cluster_minutes": "0",
+      "counterfactual_cluster_minutes": null,
+      "currency": "USD",
+      "days": 28,
+      "dbu_cost": "0.00",
+      "dbu_cost_per_cluster_minute": "0.365155",
+      "minutes_at_new_cap": "0",
+      "observed_cluster_minutes": "12286",
+      "post_levels": [
+        {
+          "cluster_count": 1,
+          "running_minutes": "12286"
+        }
+      ],
+      "pre_levels": [
+        {
+          "cluster_count": 1,
+          "running_minutes": "12286"
+        }
+      ],
+      "total_cost": "0.00"
+    },
     "method": null,
     "not_measured_reason": "KNOB_NOT_REPLAYED",
     "observed_epoch_start": "2026-10-08T14:32:00Z",

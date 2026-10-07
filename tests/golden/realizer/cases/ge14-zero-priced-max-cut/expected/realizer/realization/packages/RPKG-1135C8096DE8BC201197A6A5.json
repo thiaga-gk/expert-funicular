@@ -106,6 +106,7 @@
     "cost_change": {
       "annualized_cost_increase": "-67.32",
       "basis": "BILLED_PRE_POST_AT_PRE_MIX",
+      "billed_annualized_cost_increase": "-67.32",
       "component": "total",
       "modeled_annual_cost_increase": "0.00",
       "review_above": null
@@ -121,6 +122,12 @@
     "observed_economic_delta": null,
     "performance": {
       "canary_p95_regression_pct": "25",
+      "old_cap_upper_bound": {
+        "annualized_cost": "0.00",
+        "cluster_minutes": "0",
+        "component": "total",
+        "minutes_at_new_cap": "0"
+      },
       "p95_execution_ms_shared_sources": {
         "post": "2500",
         "pre": "2500"
@@ -173,9 +180,9 @@
     "entry_count": 6,
     "first_entry_id": "RLE-A26E6CDFEB490DB7EC3AFE12",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-8ADE2E9FE2E78654C2F61B31",
+    "latest_entry_id": "RLE-A6CD8BE0A1182B10DFF68D19",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:9AB68B89EE7D8EB791577A6130D9511E9A74730543CBA8B01597C1BFC89C77D5",
+    "ledger_checkpoint_hash": "SHA256:20C78CDD629DB8BE9036952C8F1CD1CEA64340EC3615B2707375619F0BD3AFCB",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -200,7 +207,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-D69E982E65111119B64BAECA",
+  "snapshot_id": "RSNAP-E778B80C920CDE1359C5D28A",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
