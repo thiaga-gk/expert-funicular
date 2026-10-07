@@ -2,22 +2,19 @@
 
 A snapshot of the live tracker so the open, needs-input and deferred items can be read without the claude.ai artifact. The live tracker is the source of truth while a remediation session runs (https://claude.ai/artifact/DeXxtwUBaiEhFTM1o1t6MQ, collection `findings`); this file is regenerated from it at each batch merge. Findings, worked examples and decisions: [`gap-review.md`](gap-review.md).
 
-Snapshot: 2026-10-07. Rows: 65 (Open: 8, Done: 57).
+Snapshot: 2026-10-07. Rows: 65 (Open: 5, Done: 60).
 
-## Open (8)
+## Open (5)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
-| R55 | Size | P1 | 6 |  | Fix: Measure the runtime ratio on matched sources and use it; old size's DBU per cluster-hour from the previous epoch of the same warehouse; publish the measured multiplier. Detail: reusing the Publisher's runtime multiplier makes the counterfactual circular | 2026-10-06 |
-| R56 | Max and min clusters need minutes by cluster level, which are not collected | P1 | 6 |  | Fix: Level-histogram SQL; cut realized against the old cap or floor; performance criteria per R20. | 2026-10-06 |
-| R57 | Migration has no reverse (new to old) model | P2 | 6 | RD26 pending | Fix: Observe-only first (RD26), reverse model with the billing reconciliation band later. | 2026-10-06 |
 | R58 | Weak non-waivable goldens | P1 | 7 |  | Fix: Rebuild them as end-to-end cases with real second packages. Detail: GR-004 and 039 never call `realize()`; GR-022/023/030 use a literal id or a flag instead of a second package; GR-023 repeats one comparison | 2026-10-06 |
 | R59 | Spec section 4 ledger invariants (append-only prefix across runs, non-overlapping intervals, lineage, replay) are not... | P2 | 7 |  | Fix: One invariant checker run over every case; registry gains kind and non-waivable flags. Detail: ecked generically; the registry checks only that a test method exists | 2026-10-06 |
 | R60 | Realizer docs (PRD, HLD, LLD, contracts, known limitations, README, examples) describe the 1.0.0 shell | P2 | 7 |  | Fix: Update with each batch; a real-data runbook section for the Realizer next to the Publisher's. | 2026-10-06 |
 | R61 | Small hygiene | P3 | 7 |  | Fix: Plausibility flag above the package's high; default `./realizer_out`; retention note. Covers known limitations 12, 13, 16. Detail: over-realization (ratio 30) shows REALIZED with no plausibility flag; `recommended == current` steps are always EXACT; snapshots never pruned; default output dir is the Publisher's | 2026-10-06 |
 | R65 | No end-to-end golden case for a currency mismatch (the simulator has no currency switch) | P3 | 7 |  | Found in batch 1.5 (R37): add a currency switch to the demo world and a GE case whose billing currency differs from the package's (currency gate fails, not claimable). | 2026-10-07 |
 
-## Done (57)
+## Done (60)
 
 | ID | Title | Band | Batch | Decision | Note | Updated |
 |---|---|---|---|---|---|---|
@@ -78,3 +75,6 @@ Snapshot: 2026-10-07. Rows: 65 (Open: 8, Done: 57).
 | R52 | Ledger lives under `--output-dir` | P1 | 5 | RD24 decided 2026-10-07: all recommended (a-d) | Done 9f29343e: long-lived --state-dir (default <output-dir>/state) holds ledgers, evidence, regeneration, measurements, sources, policies, index; Hive run folders for projections, manifest, workbook, log; --flat-output keeps one folder. wh-demo-013 Mar 13: 2,900.14/84 d (dated folders) -> 5,316.49/154 d. | 2026-10-07 |
 | R53 | No realization view for a person | P1 | 5 | RD25 decided 2026-10-07: as recommended | Done 9f29343e: realization_workbook.xlsx per fleet run (Warehouses, Lineages, Timeline; contract 2.0.0), own openpyxl renderer, fixed next-action table (names the first plan step; validated-but-unmeasured keeps monitoring). Limitation 4 resolved; Publisher workbook unchanged. | 2026-10-07 |
 | R54 | `realizer --demo` is one package with constants | P2 | 5 |  | Done 9f29343e: --demo applies the package's first plan step in its demo-fleet warehouse's simulated world, measured through the live path (replayable evidence); non-fleet refused; world construction moved into src (demo_world.py), e2e goldens byte-identical. wh-demo-013: 959.05/28 d (= GE-01). | 2026-10-07 |
+| R55 | Size | P1 | 6 | RD28-RD30 decided 2026-10-07 as recommended | Done (70d18544, merged 6eec3e52): size counterfactual from the runtime ratio on matched sources (>=300 queries, half coverage), the pre-change billed rate within the Publisher's 25% size-rate band, busy share, elastic/inelastic bounds (smaller saving claimed). GE-16 36,866/yr REALIZED (oracle within 1%); GE-17 ratio 1.2; GE-18 SIZE_RUNTIME_UNMEASURED. | 2026-10-07 |
+| R56 | Max and min clusters need minutes by cluster level, which are not collected | P1 | 6 | RD31-RD33 decided 2026-10-07 as recommended | Done (b3b47b2d, 1ba6515f, merged 6eec3e52): minutes by cluster level collected; floor cut counterfactual (GE-19 113,511/yr = oracle, REALIZED); capacity add cost from clusters above the old cap (GE-13 17,030/yr); cap cut upper bound as evidence (GE-14 0). | 2026-10-07 |
+| R57 | Migration has no reverse (new to old) model | P2 | 6 | RD26 decided 2026-10-07 as recommended (observe-only; Serverless AWS a true zero) | Done (87662f9c, merged 6eec3e52): migration observe-only, billed delta at the pre-change mix, informational range, OBSERVABLE_ONLY with NO_REVERSE_MIGRATION_MODEL; Serverless AWS a true zero. GE-20 33,193/yr observed. Reverse model later. | 2026-10-07 |
