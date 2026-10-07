@@ -1,0 +1,22 @@
+id: GE-06
+description: >-
+  The aggressive profile's package for a warehouse with two short morning batches (auto-stop 365 to 15); the owner
+  applies 210, the balanced profile's value: a modified application against this package. Same world as GE-07.
+publisher:
+  warehouse: wh-demo-039
+  scope: [current:auto-stop]
+  cost_profile: aggressive
+world:
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 210}}
+expect:
+  conformance: MODIFIED
+  relation: LESS_AGGRESSIVE
+  applied_at: "2026-10-08T14:32:00Z"
+  window: {first: 2026-10-09, last: 2026-11-05, pre_first: 2026-09-10, pre_last: 2026-10-07}
+  measured: true
+  sign: positive
+  near_oracle: {pct: 1}
+  cross_check: AGREES
+  independent_changes: []
+  same_evidence_as: ge07-profile-balanced-exact

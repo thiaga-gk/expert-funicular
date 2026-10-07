@@ -1,6 +1,8 @@
 # Golden Realization Scenario Specification v1.0.0
 
 > The scenarios run as `tests/golden/realizer/test_golden_realization.py`; the registry is `tests/fixtures/realizer/golden-registry.json`, and each scenario that calls `realize()` has its canonical output under `tests/fixtures/realizer/expected/`.
+>
+> These scenarios are the contract layer: each runs a frozen package and a hand-built observation. The end-to-end layer, cases `GE-NN` under `tests/golden/realizer/cases/` (`tests/golden/realizer/test_golden_e2e.py`), runs the whole path on demo-fleet warehouses: a real Publisher package under a given run scope and cost profile, a simulated owner change after it, the live measurement on that world and `realize()`, checked against an oracle from the same simulator with the old value; `tests/golden/README.md` describes it.
 
 **Status:** LOCKED
 

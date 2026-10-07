@@ -1,0 +1,13 @@
+id: GE-09
+description: >-
+  The system tables hold another warehouse (wh-demo-014, changed the same way) and none of the package's: the
+  measurement is refused, nothing is realized.
+publisher:
+  warehouse: wh-demo-013
+  scope: [current:auto-stop]
+world:
+  warehouse: wh-demo-014
+  changes:
+  - {at: "2026-10-08T14:32:00Z", set: {auto_stop: 10}}
+expect:
+  refused: "has no configuration snapshot in system.compute.warehouses"
