@@ -2,8 +2,8 @@
 
 The CLI only parses its own arguments, loads the package, the observation and the policy (in that order), configures
 logging, calls ``realizer.realizer.realize`` and prints the written package path (or the snapshot with ``--print-json``).
-It reaches the demo observation, the observation loader and the policy type through the facade and never imports a
-capability package.
+It reaches the observation sources (the demo's simulated world, a live measurement, an evidence replay, an observation
+file) and the policy type through the facade and never imports a capability package.
 
 ``--backtest`` is a separate mode with its own options (``parse_backtest_args``; ``realizer --backtest --help``): no
 package, one source (``--profile`` with ``--sql-warehouse-id``, ``--from-evidence`` or ``--demo``), the facade's backtest
@@ -19,7 +19,7 @@ from typing import Any, Mapping, Optional, Sequence
 
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER, setup_logging
-from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping
+from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping, validate_replay_through
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
@@ -29,8 +29,8 @@ from realizer.realizer import (
     backtest_from_evidence,
     backtest_live,
     backtest_summary,
-    demo_observation,
     load_observation,
+    measure_demo,
     measure_live,
     observe_from_evidence,
     realize,
@@ -45,16 +45,17 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--observation", help="Path to normalized post-change observation JSON")
     p.add_argument("--output-dir", default="./warehouse_optimizer_out")
     p.add_argument("--policy", help="Optional Realizer policy override JSON")
-    p.add_argument("--demo", action="store_true", help="Use deterministic synthetic post-change observation")
-    p.add_argument("--demo-modified", action="store_true", help="Demo a modified size target when possible")
+    p.add_argument("--demo", action="store_true", help="Measure the package's Publisher demo-fleet warehouse in a simulated world "
+                   "where its first eligible step was applied (demo-fleet packages only)")
+    p.add_argument("--demo-modified", action="store_true", help="As --demo, with a size step to MEDIUM applied as SMALL")
     p.add_argument("--profile", help="Databricks CLI profile (OAuth U2M): measure the package's warehouse from system tables")
     p.add_argument("--sql-warehouse-id", help="Live: the SQL warehouse the read-only collector statements run on (never the measured one)")
     p.add_argument("--databricks-config-file", help="Live: Databricks CLI config file (default ~/.databrickscfg)")
     p.add_argument("--source-region", help="Live: AWS region of the modeled AWS cost (default: the package's source region)")
     p.add_argument("--aws-price-registry", help="Live: regional EC2 price registry JSON (default: the one committed with the Publisher)")
-    p.add_argument("--as-of", help="Live: measurement time, UTC ISO-8601 (default: now)")
+    p.add_argument("--as-of", help="Live or demo: measurement time, UTC ISO-8601 (default: now; demo: 28 settled days after the change)")
     p.add_argument("--billing-ingested-through", help="Live: only billing records ingested on or before this YYYY-MM-DD date")
-    p.add_argument("--from-evidence", help="Replay the measurement evidence file a live run wrote (realization/measurements/)")
+    p.add_argument("--from-evidence", help="Replay the measurement evidence file a live or demo run wrote (realization/measurements/)")
     p.add_argument("--approvals", help="Live or replay: approvals file naming approved changes (their origin is then CONFIRMED)")
     p.add_argument("--replay-through", help="Project only ledger entries recorded through this UTC time")
     p.add_argument("--print-json", action="store_true")
@@ -121,6 +122,15 @@ def run_backtest(argv: Sequence[str]) -> int:
     return 0
 
 
+def demo_measurement(args: argparse.Namespace, package: Mapping[str, Any]) -> Mapping[str, Any]:
+    """``--demo``/``--demo-modified``: the package's demo-fleet warehouse measured in its simulated world at ``--as-of``,
+    the measurement evidence written under the output directory like a live run's. The replay cut and the policy are
+    checked first, so a refused input writes nothing."""
+    validate_replay_through(args.replay_through, package)
+    RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
+    return measure_demo(package, Path(args.output_dir), as_of=args.as_of, modified=args.demo_modified)
+
+
 def run(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--backtest" in argv:
@@ -138,7 +148,7 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     approvals = load_approvals(args.approvals)
     observation: Optional[Mapping[str, Any]] = None
     if args.demo or args.demo_modified:
-        observation = demo_observation(package, modified=args.demo_modified)
+        observation = demo_measurement(args, package)
     elif args.observation:
         observation = load_observation(args.observation)
     elif args.profile:

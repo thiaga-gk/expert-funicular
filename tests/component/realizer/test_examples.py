@@ -1,7 +1,9 @@
 """The Publisher to Realizer examples under examples/realizer/ keep the identities and outcomes their README documents.
 
-Each example is the Publisher package fixture (Reporter JSON Contract 3.1.0) plus one normalized observation. The test realizes it into a temporary
-directory and compares the written files and the snapshot with the README, so the README and the example cannot drift.
+Each example is the Publisher package fixture (Reporter JSON Contract 3.1.0) plus one normalized observation, a fixed
+synthetic fixture (``demo_observation``; ``realizer --demo`` measures a simulated world instead). The test realizes it
+into a temporary directory and compares the written files and the snapshot with the README, so the README and the
+example cannot drift.
 """
 import json
 import re
@@ -84,7 +86,8 @@ class RealizerExampleTests(unittest.TestCase):
                 self.assertEqual(snap["current_state"]["realization_state"], outcome["realization_state"])
                 self.assertEqual(snap["economics"]["denominator_source"], outcome["denominator_source"])
 
-    def test_example_observations_are_the_demo_observations_of_the_fixture_package(self):
+    def test_example_observations_are_the_synthetic_fixture_observations_of_the_package(self):
+        """The examples are fixed synthetic observations (``demo_observation``), never what ``--demo`` measures."""
         package = json.loads(PACKAGE.read_text(encoding="utf-8"))
         for variant, modified in (("exact", False), ("modified", True)):
             with self.subTest(example=variant):

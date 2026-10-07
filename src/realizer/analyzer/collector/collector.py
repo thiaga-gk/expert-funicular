@@ -3,9 +3,10 @@
 Three sources. A live measurement (``collect_measurement``) reads system tables through the bridge to the Publisher's
 collector (``realizer.analyzer.collector.bridge``) in two passes, the warehouse's history, then the windows the plan
 asks for, and returns measurement evidence (``realizer.contracts.measurement``), which the projector turns into an
-observation; the same function runs on a simulated world for the demo and the end-to-end goldens. A replayed
-observation file is the normalized observation itself. The deterministic demo observation has synthetic economics
-sized to the applied step's published savings and is never a measurement.
+observation; the same function runs on a simulated world for ``realizer --demo`` and the end-to-end goldens
+(``realizer.analyzer.collector.demo_world``). A replayed observation file is the normalized observation itself. The
+synthetic observation (``demo_observation``) has economics sized to the applied step's published savings; it is a test
+fixture source, never a measurement.
 """
 from __future__ import annotations
 
@@ -126,7 +127,9 @@ def _demo_period_savings(package: Mapping[str, Any], step: Optional[Mapping[str,
 def demo_observation(package: Mapping[str, Any], *, modified: bool = False) -> Dict[str, Any]:
     """A deterministic synthetic post-change observation: the first authority-eligible step of the recommended plan
     applied (``modified``: a size cut to MEDIUM applied as SMALL), eight days after the package was generated, with
-    synthetic economics sized to the step's published savings. Never a measurement of a real warehouse."""
+    synthetic economics sized to the step's published savings. A test fixture source (the stored scenarios, the
+    examples and the unit tests); no run path uses it, ``realizer --demo`` measures a simulated world instead
+    (``demo_world.measure_demo``). Never a measurement of a real warehouse."""
     cfg = package_config(package)
     step = next((s for s in candidate_steps(package) if authority_eligible(s)), None)
     if step:

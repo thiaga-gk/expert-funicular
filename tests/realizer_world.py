@@ -4,12 +4,13 @@ The package fixtures ``autostop-scoped-*`` are the Publisher's packages for demo
 time (2026-10-01). A world here is the same simulated warehouse with its configuration changed later (the epochs before
 the change are the fleet's own, so the package and the world agree up to the change), run through
 ``publisher.analyzer.collector.demo.simulate_demo_world`` and read with the bridge's ``DemoWorldClient``, exactly as a
-live run reads system tables. Worlds are cached per process.
+live run reads system tables. Worlds are cached per process. The simulation, the measurement and the demo's change and
+measurement times are the source's (``realizer.analyzer.collector.demo_world``, what ``realizer --demo`` runs); this
+module adds the package fixtures and a world built from a scenario's spec with one change.
 """
 from __future__ import annotations
 
 import copy
-import functools
 import json
 import sys
 from pathlib import Path
@@ -21,16 +22,17 @@ for _p in (ROOT, ROOT / "src"):
         sys.path.insert(0, str(_p))
 
 from publisher.analyzer.collector import demo  # noqa: E402
-from realizer.analyzer.collector import bridge  # noqa: E402
-from realizer.analyzer.collector.collector import collect_measurement  # noqa: E402
-from realizer.config.settings import DEFAULT_AWS_PRICE_REGISTRY  # noqa: E402
+from realizer.analyzer.collector import demo_world  # noqa: E402
 
 PACKAGES = ROOT / "tests" / "fixtures" / "realizer" / "packages"
 # The scoped fixtures: package name -> (demo scenario, fleet index).
 SCOPED = {"autostop-scoped-pro": ("C13", 13), "autostop-scoped-serverless": ("C02", 2), "autostop-scoped-never-stop": ("C01", 1)}
-CHANGE_DAY = "2026-10-08"
-CHANGE_MINUTE = 14 * 60 + 32  # 14:32 UTC: the change day is a partial day
-AS_OF = "2026-11-07T12:00:00+00:00"  # 28 whole days after the change are settled
+# The demo's change and measurement times for a package generated at the demo analysis time (2026-10-01): the change on
+# 2026-10-08 at 14:32 UTC (a partial day), measured at 2026-11-07T12:00:00+00:00 (28 whole days after it settled).
+_CHANGE = demo_world.change_at({"provenance": {"generated_at": demo_world.FALLBACK_GENERATED_AT}})
+CHANGE_DAY = _CHANGE.date().isoformat()
+CHANGE_MINUTE = demo_world.CHANGE_MINUTE
+AS_OF = demo_world.settled_as_of(_CHANGE)
 
 
 def package(name: str) -> Dict[str, Any]:
@@ -54,30 +56,19 @@ def world_spec(scenario: str, after: Mapping[str, Any], *, change_day: str = CHA
 
 
 def shifted_work(work: Any, factor: float, day: str = CHANGE_DAY) -> List[Dict[str, Any]]:
-    """The workload components *work* until *day*, then scaled by *factor* from *day* on: periodic queries come 1/factor
-    as often, steady load runs factor x as concurrent (the demo simulator's ``from``/``until`` bounds)."""
-    before = [dict(w, until=day) for w in work]
-    after = [dict(w, **({"every": w["every"] / factor} if w.get("every") else {"conc": w["conc"] * factor}), **{"from": day}) for w in work]
-    return before + after
-
-
-@functools.lru_cache(maxsize=None)
-def _rows(spec_json: str, index: int, analysis_time: str) -> Dict[str, Any]:
-    return demo.simulate_demo_world(json.loads(spec_json), index, analysis_time)
+    """The workload *work* scaled by *factor* from *day* on (``demo_world.shifted_work``; default: the change day)."""
+    return demo_world.shifted_work(work, factor, day)
 
 
 def world_rows(spec: Mapping[str, Any], index: int, analysis_time: str = AS_OF) -> Dict[str, Any]:
-    return _rows(json.dumps(spec, sort_keys=True), index, analysis_time)
+    return demo_world.world_rows(spec, index, analysis_time)
 
 
-@functools.lru_cache(maxsize=1)
 def registry() -> Dict[str, Any]:
-    return bridge.load_registry(str(DEFAULT_AWS_PRICE_REGISTRY))
+    return demo_world.registry()
 
 
 def measure(pkg: Mapping[str, Any], spec: Mapping[str, Any], index: int, *, as_of: str = AS_OF, source_region: Optional[str] = None,
             aws_registry: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """Measurement evidence of *pkg*'s warehouse in the simulated world *spec* at *as_of* (the live path, simulated)."""
-    rows = world_rows(spec, index, as_of)
-    return collect_measurement(bridge.DemoWorldClient(rows, as_of), pkg, as_of=as_of, source="DEMO_SIMULATION",
-                               source_region=source_region, aws_registry=registry() if aws_registry is None else aws_registry)
+    return demo_world.measure_world(pkg, spec, index, as_of=as_of, source_region=source_region, aws_registry=aws_registry)
