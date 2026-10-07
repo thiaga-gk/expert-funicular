@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, observation_gate_open, outcome, tree, with_quality  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, Opaque, canonical, fixture_package, observation_gate_open, outcome, tree, with_quality  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import Deferred  # noqa: E402
@@ -28,7 +28,7 @@ CHECKS = ("readiness", "performance", "counterfactual", "economic_quality")
 def govern(observation, policy_mapping=None, out=Path("/nonexistent-out"), gate=True):
     """The context and the Governor's result; ``gate=False`` opens the loader's observation gate for an observation it refuses."""
     package = fixture_package()
-    policy = None if policy_mapping is None else RealizerPolicy.from_mapping(policy_mapping)
+    policy = None if policy_mapping is None else stage_policy(policy_mapping)
     with contextlib.nullcontext() if gate else observation_gate_open():
         context = build_context(RealizationRequest(package, observation, out, policy=policy))
     analysis = analyzer.run(context) if observation else analyzer.run(build_context(RealizationRequest(package, None, out)))
@@ -57,7 +57,7 @@ class RunTests(unittest.TestCase):
                 if not observation:
                     continue
                 with self.subTest(scenario=name):
-                    policy = RealizerPolicy.from_mapping(step.get("policy"))
+                    policy = stage_policy(step.get("policy"))
                     analysis = analyzer.run(build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)))
                     result = governor.run(build_context(RealizationRequest(scenario["package_doc"], observation, Path("/nonexistent-out"), policy=policy)), analysis)
                     entry = {"policy_snapshot_id": result.policy_snapshot_id.get()}

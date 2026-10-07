@@ -80,6 +80,7 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     from publisher.contracts import workbook_contract as wc
     fleet_size=demo_fleet_size()
     p=argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse optimizer v{PUBLISHER_VERSION} (Reporter Contract v{rc.CONTRACT_VERSION} + Workbook Contract v{wc.WORKBOOK_CONTRACT_VERSION})")
+    p.add_argument("--version",action="version",version=f"publisher {PUBLISHER_VERSION} (writes Reporter JSON Contract {rc.CONTRACT_VERSION} packages and Workbook Contract {wc.WORKBOOK_CONTRACT_VERSION} workbooks)")
     p.add_argument("--output-dir",default="./warehouse_optimizer_out")
     p.add_argument("--demo",action="store_true")
     p.add_argument("--from-evidence",action="append",default=[])

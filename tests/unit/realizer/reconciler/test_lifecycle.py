@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import canonical, compact_tree, fixture_package, ledger_lines, migration_scenario_id, outcome, tree  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, canonical, compact_tree, fixture_package, ledger_lines, migration_scenario_id, outcome, tree  # noqa: E402
 from realizer.analyzer.analysis import candidate_steps, package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import ActiveApplication, PlannedApplication, ReconciliationResult, RegenerationRequest  # noqa: E402
@@ -70,7 +70,7 @@ def reconcile_runs(test, package, observations, policy=None):
         outcomes = []
         with mock.patch.object(reconciler, "run", capturing):
             for observation in observations:
-                kwargs = {} if policy is None else {"policy": RealizerPolicy.from_mapping(policy)}
+                kwargs = {} if policy is None else {"policy": stage_policy(policy)}
                 result = outcome(realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
                 outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
         run_tree = tree(out)
@@ -100,7 +100,7 @@ class RegenerationRequestTests(unittest.TestCase):
         results = []
         for app_payload, mapping in itertools.product(variants, (None, {"minimum_days": 1}, {"realized_ratio_min": "0.9"})):
             results.append([app_payload, mapping, rerun_summary(lifecycle.regeneration_request, package, app_payload, observation,
-                                                                RealizerPolicy.from_mapping(mapping), reason="R")])
+                                                                stage_policy(mapping), reason="R")])
         self.assertEqual(len(results), 12)
         expect.check(self, "requests", results, spot={"count": len(results), "ids": sorted({r[2][1][0] for r in results})})
 
@@ -117,7 +117,7 @@ class RegenerationRequestTests(unittest.TestCase):
         }
         for label, (pkg, app_payload, obs, mapping) in cases.items():
             with self.subTest(case=label):
-                new = rerun_summary(lifecycle.regeneration_request, pkg, app_payload, obs, RealizerPolicy.from_mapping(mapping), reason="R")
+                new = rerun_summary(lifecycle.regeneration_request, pkg, app_payload, obs, stage_policy(mapping), reason="R")
                 self.assertNotEqual(new[0], "ok")
                 expect.check(self, label, new)
 
@@ -129,7 +129,7 @@ class RegenerationRequestTests(unittest.TestCase):
             with self.subTest(app_payload=app_payload, policy=mapping), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp)
                 result = outcome(request_regeneration, copy.deepcopy(package), dict(app_payload), observation, out,
-                                 RealizerPolicy.from_mapping(mapping), RECORDED, RECORDED, reason="R")
+                                 stage_policy(mapping), RECORDED, RECORDED, reason="R")
                 expect.check(self, f"case{index}", (result, compact_tree(tree(out))))
 
 
@@ -145,7 +145,7 @@ class UpstreamRegenerationTests(unittest.TestCase):
             app_payload = {"invalidates": invalidates, "implementation_conformance": conformance, "remeasure_days": remeasure,
                            "observed_config": {"warehouse_size": "MEDIUM"}, "application_episode_id": APP, "scenario_id": "S", "step": 1}
             obs = {**observation, "elapsed_days": elapsed}
-            results.append(rerun_summary(lifecycle.upstream_regeneration_request, package, app_payload, obs, RealizerPolicy.from_mapping(mapping)))
+            results.append(rerun_summary(lifecycle.upstream_regeneration_request, package, app_payload, obs, stage_policy(mapping)))
         self.assertGreater(len(results), 1000)
         kinds = sorted({r[0] for r in results})
         self.assertGreater(len(kinds), 1)

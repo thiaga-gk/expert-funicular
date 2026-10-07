@@ -49,10 +49,10 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c0e79128411047eb",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "8d13b6c11a5fa35a",
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fd112f8463297164",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "c3d564be683c973b",
     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
-    "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "8d13b6c11a5fa35a"
+    "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "c3d564be683c973b"
    }
   }
  },
@@ -80,104 +80,66 @@
     "REALIZATION_CREATED"
    ],
    "files": {
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "8e9bb48b042fcc88",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7e31a21666e0730e",
-    "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "7e31a21666e0730e"
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1fe311e26cf0800b",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "9a57e61b64f79e9e",
+    "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "9a57e61b64f79e9e"
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18752,
-  "sha256": "61aa9316c2799afff05eb79fefba5692a93eb63709f6d01c19cb4e501f8f29d5",
+  "sha256": "a5653f8f64e1c130e9fa09d89383962000b58daa5062a73f6ec34c4b477f6fc8",
   "spot": {
    "count": 171,
    "first": [
     "GR-001",
     "2026-10-01T12:00:00Z",
     "ok",
-    "df50cc09ba29df339bb75e804d369f848f0a064ab8de4b0f2ed86ff793b75447"
+    "103ca974f9a05983fb8c7acaf846305bc1424ed576f1c8f725a7e499fa16c430"
    ],
    "last": [
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "9ba67511d449261f3daa8d8600d47ca64353a46556fa6dea06dae4b2a05fae01"
+    "64ffb1ae5a072ed867af6f4126b80de287cd6460b2beb8dab7f4bcdf2c87215a"
    ],
    "outcomes": {
-    "ValueError": 41,
+    "InputError": 41,
     "ok": 130
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
   "length": 36077,
-  "sha256": "8058e94397a73db79f7db33f2a4642c636fa45c23838510dffe35ba6d743d01a",
+  "sha256": "cf87cc3af4381c4d3f557b6ae493974e36282fb3bd859cf55020a7d7b0fa305f",
   "spot": {
    "files": 259,
    "scenarios": 41
   }
  },
- "ReplayTests.test_replay_is_cut_after_the_commit/empty": {
+ "ReplayTests.test_replay_cut_is_refused_before_the_commit/empty": {
   "value": [
    [
-    "ValueError",
-    "cannot project empty ledger"
+    "InputError",
+    "replay cut 1999-01-01T00:00:00Z is before the package was generated (2026-10-01T12:00:00Z): nothing to project"
    ],
    {
-    "directories": [
-     "realization",
-     "realization/evidence",
-     "realization/ledger",
-     "realization/regeneration"
-    ],
-    "events": [
-     "REALIZATION_CREATED",
-     "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED"
-    ],
-    "files": {
-     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c0e79128411047eb",
-     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  },
- "ReplayTests.test_replay_is_cut_after_the_commit/garbage": {
+ "ReplayTests.test_replay_cut_is_refused_before_the_commit/garbage": {
   "value": [
    [
-    "ValueError",
-    "Invalid isoformat string: 'garbage'"
+    "InputError",
+    "replay cut (--replay-through) is not an ISO-8601 time"
    ],
    {
-    "directories": [
-     "realization",
-     "realization/evidence",
-     "realization/ledger",
-     "realization/regeneration"
-    ],
-    "events": [
-     "REALIZATION_CREATED",
-     "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED"
-    ],
-    "files": {
-     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c0e79128411047eb",
-     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  }

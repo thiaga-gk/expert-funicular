@@ -103,7 +103,7 @@ class ReconcilerFailedRunTests(unittest.TestCase):
                 package = copy.deepcopy(self.pkg)
                 corrupt(package)
                 outcomes, tree = run_sequence(package, [self.base])
-                self.assert_failed(outcomes, kind="ValueError")
+                self.assert_failed(outcomes, kind="InputError")
                 self.assertEqual(tree, {})
 
     def test_matching_failure_for_an_applied_scenario_other_than_the_recommended_one(self):

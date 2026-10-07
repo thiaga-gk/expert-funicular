@@ -16,7 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
 from realizer.analyzer.analysis import candidate_steps  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config.settings import MODELER_GATEWAY_VERSION  # noqa: E402
@@ -36,7 +36,7 @@ POLICIES = [None, {"realized_ratio_min": "0.95", "under_realized_ratio_min": "0.
 
 
 def policy(mapping):
-    return RealizerPolicy.from_mapping(mapping)
+    return stage_policy(mapping)
 
 
 def stored_applications():
@@ -252,7 +252,7 @@ class EconomicsCaseTests(unittest.TestCase):
                 self.assertEqual(Decimal(result["realization_ratio"]), self.realized * 365 / 30 / Decimal(expected))
         near = str((self.annualized * Decimal("1.0277")).quantize(Decimal("0.01")))   # ratio 0.973: realized by default, under at a 0.99 minimum
         self.assertEqual(self.econ(expected_annual_savings_actual_scope=near)["realization_state"], "REALIZED")
-        self.assertEqual(self.econ(expected_annual_savings_actual_scope=near, policy=RealizerPolicy.from_mapping({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope=near, policy=stage_policy({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
         for expected in ("0", "-5"):
             result = self.econ(expected_annual_savings_actual_scope=expected)
             self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"]), ("MONITORING", "VALIDATED_VALUE_UNCLASSIFIED", None))

@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.unit.realizer.helpers import Untestable, canonical, fixture_package, observation_gate_open, tree  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, Untestable, canonical, fixture_package, observation_gate_open, tree  # noqa: E402
 from realizer import realizer as facade  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
@@ -136,10 +136,10 @@ class EntryPointTests(unittest.TestCase):
                     policy = step.get("policy")
                     old = facade.realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(a),
                                          replay_through=step.get("replay_through"),
-                                         policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                                         policy=None if policy is None else stage_policy(policy))
                     new = facade.realize_request(RealizationRequest(
                         copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(b),
-                        policy=None if policy is None else RealizerPolicy.from_mapping(policy), replay_through=step.get("replay_through")))
+                        policy=None if policy is None else stage_policy(policy), replay_through=step.get("replay_through")))
                     self.assertEqual(new.realization.snapshot_id, old.snapshot_id, name)
                 self.assertEqual(tree(Path(b)), tree(Path(a)), name)
 
@@ -225,7 +225,7 @@ class NoDomainLogicTests(unittest.TestCase):
                 self.assertNotIsInstance(node, forbidden, f"{name}: {ast.dump(node)[:80]}")
 
     def test_the_facade_calls_only_capability_entry_points_and_request_plumbing(self):
-        allowed = {"build_context", "validate_package", "validate_observation", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
+        allowed = {"build_context", "validate_package", "validate_observation", "validate_replay_through", "RealizerPolicy", "RunContext", "make_rpkg_id", "RealizationRequest",
                    "realize_request", "analyzer.run", "governor.run", "reconciler.run", "estimator.run", "reviewer.run", "packager.run",
                    "packager.begin", "reporter.run"}
         seen = set()
@@ -251,7 +251,7 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(names, {
             "Any", "Mapping", "Optional", "Path", "RealizationReport", "RealizationRequest", "RealizerPolicy", "RunContext",
             "annotations", "build_context", "demo_observation", "load_observation", "make_rpkg_id", "realize", "realize_request",
-            "validate_observation", "validate_package",
+            "validate_observation", "validate_package", "validate_replay_through",
         })
 
     def test_the_cli_pass_throughs_are_the_capability_functions(self):

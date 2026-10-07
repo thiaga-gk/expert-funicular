@@ -14,20 +14,52 @@ from typing import Any, Mapping, Optional
 from publisher.config.defaults import SUPPORTED_WAREHOUSE_TYPES
 from publisher.contracts import reporter_contract as publisher_contract
 from publisher.reviewer.package import validate_locked_package_schema
-from realizer.common.utils import load_json
+import json
+
+from realizer.common.errors import InputError
+from realizer.common.utils import load_json, utc_iso
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
 
 SUPPORTED_PUBLISHER_CONTRACT = "3.1.0"
 
 
+def read_json_input(path: str | Path, label: str) -> Any:
+    """The JSON document at *path*; an unreadable file raises ``InputError`` naming the *label*, the path and why."""
+    try:
+        return load_json(path)
+    except FileNotFoundError:
+        raise InputError(f"{label} file not found: {path}") from None
+    except IsADirectoryError:
+        raise InputError(f"{label} path is a directory, not a JSON file: {path}") from None
+    except json.JSONDecodeError as exc:
+        raise InputError(f"{label} file is not valid JSON: {path} (line {exc.lineno})") from None
+    except UnicodeDecodeError:
+        raise InputError(f"{label} file is not UTF-8 text: {path}") from None
+
+
 def load_package(path: str | Path) -> Any:
     """The RecommendationPackage JSON at *path*, parsed (it is checked by ``validate_package``)."""
-    return load_json(path)
+    return read_json_input(path, "package")
 
 
 def load_policy_mapping(path: Optional[str | Path]) -> Optional[Any]:
     """The policy override mapping at *path*, or ``None`` when no file is given (``RealizerPolicy.from_mapping`` input)."""
-    return load_json(path) if path else None
+    return read_json_input(path, "policy") if path else None
+
+
+def validate_replay_through(value: Optional[str], package: Mapping[str, Any]) -> Optional[str]:
+    """The replay cut as a UTC time (``None`` when no cut is asked for). A cut that is not a time, or that is before the
+    package was generated (when the lineage starts, so the cut would leave nothing to project), raises ``InputError``."""
+    if value is None:
+        return None
+    try:
+        cut = utc_iso(value)
+    except (TypeError, ValueError):
+        raise InputError("replay cut (--replay-through) is not an ISO-8601 time") from None
+    generated = (package.get("provenance") or {}).get("generated_at")
+    if generated and dt.datetime.fromisoformat(cut.replace("Z", "+00:00")) < dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00")):
+        raise InputError(f"replay cut {cut} is before the package was generated ({generated}): nothing to project")
+    return cut
 
 
 def validate_package(package: Any) -> None:
@@ -39,31 +71,31 @@ def validate_package(package: Any) -> None:
     lineage is the RPKG, never this block); and no carried-forward plan (reserved, never published yet).
     """
     if not isinstance(package, Mapping):
-        raise ValueError("a RecommendationPackage must be a JSON object")
+        raise InputError("a RecommendationPackage must be a JSON object")
     version = package.get("contract_version")
     if version != SUPPORTED_PUBLISHER_CONTRACT:
-        raise ValueError(f"unsupported Publisher contract: {version} (this Realizer reads {SUPPORTED_PUBLISHER_CONTRACT})")
+        raise InputError(f"unsupported Publisher contract: {version} (this Realizer reads {SUPPORTED_PUBLISHER_CONTRACT})")
     try:
         validate_locked_package_schema(package)
     except Exception as exc:  # jsonschema.ValidationError: report the location, never the package values
         location = "/".join(str(p) for p in getattr(exc, "absolute_path", ())) or "<root>"
-        raise ValueError(f"package fails the Reporter JSON Contract {SUPPORTED_PUBLISHER_CONTRACT} schema at {location}") from exc
+        raise InputError(f"package fails the Reporter JSON Contract {SUPPORTED_PUBLISHER_CONTRACT} schema at {location}") from exc
     payload = publisher_contract.package_hash_payload_from_document(package)
     if publisher_contract.content_id("PKG", payload) != package["recommendation_package_id"]:
-        raise ValueError(f"package id {package['recommendation_package_id']} does not match the package content")
+        raise InputError(f"package id {package['recommendation_package_id']} does not match the package content")
     if publisher_contract.sha256_hex(payload) != package["provenance"]["package_hash_full_sha256"]:
-        raise ValueError("provenance.package_hash_full_sha256 does not match the package content")
+        raise InputError("provenance.package_hash_full_sha256 does not match the package content")
     realization = package["realization"]
     if realization.get("status") != "NOT_APPLIED" or realization.get("realization_records"):
-        raise ValueError("package realization block must be the Publisher's empty NOT_APPLIED placeholder")
+        raise InputError("package realization block must be the Publisher's empty NOT_APPLIED placeholder")
     if package["carried_forward_plan"] is not None:
-        raise ValueError("packages with a carried-forward plan are not supported yet")
+        raise InputError("packages with a carried-forward plan are not supported yet")
     recommended = package["recommended_plan"].get("scenario_id")
     if recommended is not None and recommended not in {s["scenario_id"] for s in package["scenarios"]}:
-        raise ValueError(f"recommended_plan.scenario_id {recommended} names no scenario of the package")
+        raise InputError(f"recommended_plan.scenario_id {recommended} names no scenario of the package")
     warehouse_type = str(package["current_config"].get("warehouse_type") or "").upper()
     if warehouse_type not in SUPPORTED_WAREHOUSE_TYPES:
-        raise ValueError(f"unsupported warehouse type in the package: {warehouse_type or None}")
+        raise InputError(f"unsupported warehouse type in the package: {warehouse_type or None}")
 
 
 TIME_FIELDS = ("observed_at_utc", "recorded_at_utc", "applied_at_utc", "window_start_utc", "window_end_utc")
@@ -80,7 +112,7 @@ def _time(observation: Mapping[str, Any], field: str) -> Optional[dt.datetime]:
     except ValueError:
         parsed = None
     if parsed is None or parsed.tzinfo is None:
-        raise ValueError(f"observation {field} is not an ISO-8601 time with a UTC offset")
+        raise InputError(f"observation {field} is not an ISO-8601 time with a UTC offset")
     return parsed
 
 
@@ -96,32 +128,32 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
     import jsonschema  # a gate that cannot run must not pass; jsonschema is a declared dependency
 
     if not isinstance(observation, Mapping):
-        raise ValueError("an observation must be a JSON object")
+        raise InputError("an observation must be a JSON object")
     if observation.get("observation_format_version") != OBSERVATION_FORMAT_VERSION:
-        raise ValueError(f"unsupported observation format: {observation.get('observation_format_version')} (this Realizer reads {OBSERVATION_FORMAT_VERSION})")
+        raise InputError(f"unsupported observation format: {observation.get('observation_format_version')} (this Realizer reads {OBSERVATION_FORMAT_VERSION})")
     validator = jsonschema.Draft202012Validator(observation_schema(), format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
     error = next(iter(sorted(validator.iter_errors(dict(observation)), key=lambda e: list(e.absolute_path))), None)
     if error is not None:
         location = "/".join(str(p) for p in error.absolute_path) or "<root>"
-        raise ValueError(f"observation fails format {OBSERVATION_FORMAT_VERSION} at {location} ({error.validator})")
+        raise InputError(f"observation fails format {OBSERVATION_FORMAT_VERSION} at {location} ({error.validator})")
     warehouse = package["warehouse"]
     if (observation["workspace_id"], observation["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
-        raise ValueError(f"observation is for {observation['workspace_id']}/{observation['warehouse_id']}, "
+        raise InputError(f"observation is for {observation['workspace_id']}/{observation['warehouse_id']}, "
                          f"the package for {warehouse['workspace_id']}/{warehouse['warehouse_id']}")
     times = {field: _time(observation, field) for field in TIME_FIELDS}
     observed, applied = times["observed_at_utc"], times["applied_at_utc"]
     start, end = times["window_start_utc"], times["window_end_utc"]
     if applied is not None and applied > observed:
-        raise ValueError("observation applied_at_utc is after observed_at_utc")
+        raise InputError("observation applied_at_utc is after observed_at_utc")
     if start is not None and end is not None and start > end:
-        raise ValueError("observation window_start_utc is after window_end_utc")
+        raise InputError("observation window_start_utc is after window_end_utc")
     if end is not None and end > observed:
-        raise ValueError("observation window_end_utc is after observed_at_utc")
+        raise InputError("observation window_end_utc is after observed_at_utc")
     if observation["economics"] is not None and (start is None or end is None):
-        raise ValueError("observation economics need window_start_utc and window_end_utc")
+        raise InputError("observation economics need window_start_utc and window_end_utc")
     scenario = observation["applied_scenario_id"]
     if scenario is not None and scenario not in {s["scenario_id"] for s in package["scenarios"]}:
-        raise ValueError(f"applied_scenario_id {scenario} names no scenario of the package")
+        raise InputError(f"applied_scenario_id {scenario} names no scenario of the package")
     observed_type = observation["config"]["warehouse_type"].strip().upper()
     if observed_type not in SUPPORTED_WAREHOUSE_TYPES:
-        raise ValueError(f"unsupported warehouse type observed: {observed_type}")
+        raise InputError(f"unsupported warehouse type observed: {observed_type}")

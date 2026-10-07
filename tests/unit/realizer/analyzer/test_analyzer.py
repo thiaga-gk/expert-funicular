@@ -12,13 +12,12 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import as_line, canonical, fixture_package, ledger_lines, observation_gate_open, outcome, tree  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, as_line, canonical, fixture_package, ledger_lines, observation_gate_open, outcome, tree  # noqa: E402
 from realizer.analyzer import analysis, analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import utc_iso  # noqa: E402
 from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis, RealizationHistory  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
-from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager.ledger import ledger_path  # noqa: E402
 from realizer.realizer import build_context, realize  # noqa: E402
 
@@ -69,7 +68,7 @@ class RunTests(unittest.TestCase):
 
                     with mock.patch.object(analyzer, "run", checking_run):
                         realize(copy.deepcopy(package), copy.deepcopy(observation), out,
-                                policy=None if step.get("policy") is None else RealizerPolicy.from_mapping(step["policy"]),
+                                policy=None if step.get("policy") is None else stage_policy(step["policy"]),
                                 replay_through=step.get("replay_through"))
                     context, result = checked[0]
                     self.assertIsInstance(result, RealizationAnalysis)

@@ -434,38 +434,37 @@
   ]
  },
  "PolicyClassTests.test_from_mapping_and_snapshot_ids_for_overrides/policies": {
-  "length": 4652,
-  "sha256": "99ebabb7c30849616cbf673dd6439d8e0bb5c3717b730f90cad5fe30236de596",
+  "length": 4082,
+  "sha256": "60fea928cb0f3f9fde449a85ec947eb7c7c92c9fe12bca4e048104b11835f722",
   "spot": {
-   "count": 8,
+   "count": 7,
    "snapshot_ids": {
     "0 {}": "PSNAP-FEF164129C29BEC36EE4002F",
     "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-7030358386B4DA924F816EBC",
     "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-7B4F27B45C189186A953D381",
     "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-A3FE8B1B44DFE84A4551EC2C",
     "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-C0E0FB400DA29A433A756BB6",
-    "5 {'unknown': 1}": "PSNAP-FEF164129C29BEC36EE4002F",
-    "6 None": "PSNAP-FEF164129C29BEC36EE4002F",
-    "7 {'minimum_days': '9'}": "PSNAP-A4EFDB4C395213678C61E555"
+    "5 None": "PSNAP-FEF164129C29BEC36EE4002F",
+    "6 {}": "PSNAP-FEF164129C29BEC36EE4002F"
    }
   }
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 0": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting realized_ratio_min must be a number"
   ]
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 1": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting minimum_attributable_spend_pct must be a number"
   ]
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 2": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting realized_ratio_min must be a number"
   ]
  },
  "PolicyClassTests.test_snapshot_id_and_dict_errors_for_malformed_field_values/minimum_days": {

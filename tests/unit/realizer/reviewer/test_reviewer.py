@@ -17,7 +17,7 @@ from pathlib import Path
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import (  # noqa: E402
-    Opaque, compare_measurement_section, fixture_package, observation_gate_open, outcome, run_sequence, staged_scenario_runs, tree,
+    stage_policy,    Opaque, compare_measurement_section, fixture_package, observation_gate_open, outcome, run_sequence, staged_scenario_runs, tree,
 )
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
@@ -134,7 +134,7 @@ class RunTests(unittest.TestCase):
         for label, (patch, mapping, last) in cases.items():
             observation = {**self.base, **patch}
             with self.subTest(case=label):
-                policy = None if mapping is None else RealizerPolicy.from_mapping(mapping)
+                policy = None if mapping is None else stage_policy(mapping)
                 review = self.review(observation, policy=policy, gate=False)
                 (raised,), _ = run_sequence(self.pkg, [observation], mapping, observation_gate=False)
                 self.assertEqual((type(review.halt).__name__, str(review.halt)), raised)

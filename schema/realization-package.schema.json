@@ -16,6 +16,58 @@
       "const": "1.0.0"
     },
     "current_state": {
+      "additionalProperties": false,
+      "properties": {
+        "maturity_state": {
+          "enum": [
+            "NOT_APPLIED",
+            "COLLECTING",
+            "PROVISIONAL",
+            "REPRESENTATIVE",
+            "MATURE"
+          ]
+        },
+        "realization_state": {
+          "enum": [
+            "NOT_APPLIED",
+            "APPLIED",
+            "VALIDATING",
+            "REALIZED",
+            "UNDER_REALIZED",
+            "VALIDATION_FAILED",
+            "MONITORING",
+            "ROLLED_BACK",
+            "DRIFTED",
+            "INVALIDATED",
+            "REGENERATING",
+            "BLOCKED"
+          ]
+        },
+        "source_package_disposition": {
+          "enum": [
+            "ACTIVE",
+            "SUPERSEDED",
+            "EXPIRED",
+            "BLOCKED"
+          ]
+        },
+        "validation_state": {
+          "enum": [
+            "NOT_READY",
+            "READY",
+            "RUNNING",
+            "PASSED",
+            "FAILED",
+            "INCONCLUSIVE"
+          ]
+        }
+      },
+      "required": [
+        "realization_state",
+        "validation_state",
+        "maturity_state",
+        "source_package_disposition"
+      ],
       "type": "object"
     },
     "drift": {

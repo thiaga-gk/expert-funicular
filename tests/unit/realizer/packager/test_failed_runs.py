@@ -61,7 +61,7 @@ class CommitPositionTests(unittest.TestCase):
             path.parent.mkdir(parents=True)
             path.write_text("not json\n", encoding="utf-8")
             result, tree_ = outcome(realize, copy.deepcopy(self.pkg), copy.deepcopy(self.base), out), tree(out)
-        self.assertEqual(result[0], "JSONDecodeError")
+        self.assertEqual(result[0], "LedgerError")
         self.assertEqual(files(tree_, "evidence"), [])
         expect.check(self, "result", (result, tree_))  # the ledger holds the corrupt text, which compact_tree cannot parse
 
@@ -116,18 +116,17 @@ class CommitPositionTests(unittest.TestCase):
         tree_ = self.assert_halts_after("correction", [{**self.base, "correction": correction()}], "BILLING_CORRECTION_RECORDED", "ValueError", policy=bad_window)
         self.assertEqual(files(tree_, "regeneration"), [])
 
-    def test_replay_cut_fails_after_the_whole_commit(self):
-        for cut, kind in (("garbage", None), ("1999-01-01T00:00:00Z", "ValueError")):
+    def test_replay_cut_is_refused_before_anything_is_written(self):
+        """A cut that is not a time, or is before the package was generated, is an input refusal (``InputError``): the run
+        stops in ``build_context``, so no ledger entry, regeneration request, package or snapshot is written."""
+        for cut, message in (("garbage", "not an ISO-8601 time"), ("1999-01-01T00:00:00Z", "before the package was generated")):
             with self.subTest(cut=cut):
                 with tempfile.TemporaryDirectory() as tmp:
                     out = Path(tmp)
                     result, tree_ = outcome(realize, copy.deepcopy(self.pkg), copy.deepcopy(self.base), out, replay_through=cut), tree(out)
-                self.assertNotEqual(result[0], "ok")
-                if kind:
-                    self.assertEqual(result[0], kind)
-                self.assertEqual(events(tree_)[-1], "REGENERATION_REQUESTED", "the downstream regeneration was recorded too")
-                self.assertEqual(len(files(tree_, "regeneration")), 1)
-                self.assertEqual(files(tree_, "packages") + files(tree_, "snapshots"), [])
+                self.assertEqual(result[0], "InputError")
+                self.assertIn(message, result[1])
+                self.assertEqual(tree_, {}, "nothing is written")
                 expect.check(self, cut, (result, compact_tree(tree_)))
 
     def test_a_failed_run_is_followed_by_the_same_recovery(self):

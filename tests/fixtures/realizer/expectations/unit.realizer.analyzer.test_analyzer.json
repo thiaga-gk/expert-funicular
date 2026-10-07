@@ -1,20 +1,20 @@
 {
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/not json": {
   "value": [
-   "JSONDecodeError",
-   "Expecting value: line 1 column 1 (char 0)"
+   "LedgerError",
+   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
   ]
  },
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/{\"event_type\": \"NOPE\"}": {
   "value": [
-   "ValueError",
-   "'NOPE' is not a valid EventType"
+   "LedgerError",
+   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/{\"event_type\": \"REALIZATION_CREATED\"}": {
   "value": [
-   "TypeError",
-   "RealizationLedgerEntry.__init__() missing 13 required positional arguments: 'ledger_entry_id', 'ledger_contract_version', 'realization_package_id', 'recommendation_package_id', 'effective_at_utc', 'recorded_at_utc', 'workspace_id', 'warehouse_id', 'application_episode_id', 'validation_episode_id', 'measurement_id', 'payload', and 'evidence_refs'"
+   "LedgerError",
+   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  }
 }

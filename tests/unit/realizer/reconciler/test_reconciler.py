@@ -18,7 +18,7 @@ from pathlib import Path
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import (  # noqa: E402
-    Unprintable, Untestable, as_line, fixture_package, ledger_lines, observation_gate_open, outcome, package_gate_open, staged_scenario_runs, tree,
+    stage_policy,    Unprintable, Untestable, as_line, fixture_package, ledger_lines, observation_gate_open, outcome, package_gate_open, staged_scenario_runs, tree,
 )
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
@@ -27,7 +27,6 @@ from realizer.contracts import realization as rc  # noqa: E402
 from realizer.contracts.reconciliation import ReconciliationResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.governor import governor  # noqa: E402
-from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager.ledger import make_ledger_entry  # noqa: E402
 from realizer.realizer import build_context, realize  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
@@ -186,7 +185,7 @@ class RunTests(unittest.TestCase):
                 setattr(value, field, None)
 
     def test_run_never_raises_and_halts_with_the_stored_exception(self):
-        policy_nan = RealizerPolicy.from_mapping({"realized_ratio_min": "NaN"})
+        policy_nan = stage_policy({"realized_ratio_min": "NaN"})
         bad_plan = copy.deepcopy(self.pkg)
         bad_plan["scenarios"][0]["execution_plan"][0]["step"] = "abc"
         cases = {

@@ -12,15 +12,16 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
 from realizer.analyzer.analysis import candidate_steps, package_config
-from realizer.common.utils import load_json, money, utc_iso
+from realizer.common.utils import money, utc_iso
+from realizer.config.loader import read_json_input
 from realizer.estimator.economics import expected_annual_for_exact_step
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import authority_eligible, package_currency
 
 
 def load_observation(path: str | Path) -> Any:
-    """The normalized observation JSON at *path*, parsed (replay)."""
-    return load_json(path)
+    """The normalized observation JSON at *path*, parsed (replay); an unreadable file raises ``InputError``."""
+    return read_json_input(path, "observation")
 
 
 DEMO_COUNTERFACTUAL_COST = Decimal("10000")

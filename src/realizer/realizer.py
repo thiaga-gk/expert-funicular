@@ -5,8 +5,8 @@
 
 ``realize_request`` orchestrates the capabilities and nothing else: normalization, policy, matching and lifecycle,
 realized-savings estimation, review, the ledger and the snapshot, and the files written live in their packages
-(docs/architecture/realizer/repo-reorg-design.md). The lineage entry is recorded first (``packager.begin``): a malformed
-observation fails in the Analyzer after it. The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
+(docs/architecture/realizer/repo-reorg-design.md). The inputs (package, observation, replay cut) are checked before
+anything is written (``build_context``); the lineage entry is then recorded first (``packager.begin``). The Governor, the Reconciler, the Estimator, the Reviewer and the Packager
 never lose a failure: each keeps it as a ``halt`` with the facts decided before it, and the Packager records those and
 raises it, so a failed run leaves its half-written ledger. The Estimator and the Reviewer return an empty result when no
 validation is due.
@@ -27,7 +27,7 @@ from typing import Any, Mapping, Optional
 
 from realizer.analyzer import analyzer
 from realizer.analyzer.collector.collector import demo_observation, load_observation
-from realizer.config.loader import validate_observation, validate_package
+from realizer.config.loader import validate_observation, validate_package, validate_replay_through
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import make_rpkg_id
 from realizer.contracts.report import RealizationReport
@@ -50,6 +50,7 @@ def build_context(request: RealizationRequest) -> RunContext:
     validate_package(request.package)
     if request.observation:
         validate_observation(request.observation, request.package)
+    validate_replay_through(request.replay_through, request.package)
     policy = request.policy or RealizerPolicy()
     return RunContext(request=request, policy=policy, realization_package_id=make_rpkg_id(request.package["recommendation_package_id"]))
 

@@ -13,6 +13,7 @@ from decimal import Decimal
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import Opaque, canonical, fixture_package, outcome, with_quality  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.common.errors import InputError  # noqa: E402
 from realizer.config import settings  # noqa: E402
 from realizer.governor import policy  # noqa: E402
 
@@ -74,7 +75,7 @@ class PolicyClassTests(unittest.TestCase):
 
     def test_from_mapping_and_snapshot_ids_for_overrides(self):
         results = {}
-        for index, mapping in enumerate(POLICIES + [{"unknown": 1}, None, {"minimum_days": "9"}]):
+        for index, mapping in enumerate(POLICIES + [None, {}]):
             new = make_policy(mapping)
             results[f"{index} {mapping}"] = {"dict": policy.policy_to_dict(new), "snapshot_id": new.snapshot_id}
         ids = {entry["snapshot_id"] for entry in results.values()}
@@ -85,8 +86,79 @@ class PolicyClassTests(unittest.TestCase):
         for index, mapping in enumerate([{"realized_ratio_min": "abc"}, {"minimum_attributable_spend_pct": Opaque()}, {"minimum_days": 1, "realized_ratio_min": [1]}]):
             with self.subTest(mapping=mapping):
                 new = outcome(policy.RealizerPolicy.from_mapping, mapping)
-                self.assertNotEqual(new[0], "ok")
+                self.assertEqual(new[0], "InputError")
                 expect.check(self, f"mapping {index}", plain_outcome(new))
+
+    def test_from_mapping_refuses_each_kind_of_bad_policy(self):
+        """One case per rule: the refusal is an ``InputError`` (a ``ValueError``) naming the setting, never its value."""
+        cases = {
+            "not a mapping": ([1, 2], "a policy file must be a JSON object"),
+            "a string": ("minimum_days", "a policy file must be a JSON object"),
+            "unknown key": ({"minimum_validation_days": 3}, "unknown policy setting.s.: minimum_validation_days"),
+            "several unknown keys, sorted": ({"zzz": 1, "aaa": 2}, "unknown policy setting.s.: aaa, zzz"),
+            "int given as a string": ({"minimum_days": "9"}, "minimum_days must be a non-negative integer"),
+            "int given as a float": ({"minimum_queries": 10.5}, "minimum_queries must be a non-negative integer"),
+            "int given as a bool": ({"minimum_days": True}, "minimum_days must be a non-negative integer"),
+            "negative int": ({"remeasure_days_after_invalidating_change": -1}, "remeasure_days_after_invalidating_change must be a non-negative integer"),
+            "decimal given as a bool": ({"realized_ratio_min": True}, "realized_ratio_min must be a number"),
+            "decimal given as a list": ({"realized_ratio_min": [1]}, "realized_ratio_min must be a number"),
+            "decimal given as null": ({"realized_ratio_min": None}, "realized_ratio_min must be a number"),
+            "decimal given as text": ({"realized_ratio_min": "abc"}, "realized_ratio_min must be a number"),
+            "decimal given as empty text": ({"minimum_material_savings_delta_pct": ""}, "minimum_material_savings_delta_pct must be a number"),
+            "non-finite decimal": ({"realized_ratio_min": "NaN"}, "realized_ratio_min is out of range"),
+            "infinite decimal": ({"max_normalized_p95_runtime_regression_pct": "Infinity"}, "max_normalized_p95_runtime_regression_pct is out of range"),
+            "negative decimal": ({"minimum_material_savings_delta_pct": -1}, "minimum_material_savings_delta_pct is out of range"),
+            "attributable spend above 100": ({"minimum_attributable_spend_pct": 100.5}, "minimum_attributable_spend_pct is out of range"),
+            "price coverage above 100": ({"minimum_price_coverage_pct": "101"}, "minimum_price_coverage_pct is out of range"),
+            "currency consistency above 100": ({"required_currency_consistency_pct": 1000}, "required_currency_consistency_pct is out of range"),
+            "bool given as a string": ({"require_representative_regime": "false"}, "require_representative_regime must be true or false"),
+            "bool given as an int": ({"require_confirmed_origin_for_hard_kpi": 1}, "require_confirmed_origin_for_hard_kpi must be true or false"),
+            "string given as a number": ({"policy_version": 2}, "policy_version must be a non-empty string"),
+            "empty string": ({"policy_version": ""}, "policy_version must be a non-empty string"),
+            "under-realized minimum above the realized minimum": ({"under_realized_ratio_min": "0.9"}, "under_realized_ratio_min must not exceed realized_ratio_min"),
+            "ratios reversed by overriding the realized minimum": ({"realized_ratio_min": "0.3"}, "under_realized_ratio_min must not exceed realized_ratio_min"),
+        }
+        for label, (mapping, message) in cases.items():
+            with self.subTest(case=label):
+                with self.assertRaisesRegex(InputError, message) as caught:
+                    policy.RealizerPolicy.from_mapping(mapping)
+                self.assertIsInstance(caught.exception, ValueError)
+                self.assertNotIn("hunter2", str(caught.exception))
+
+    def test_a_refusal_never_echoes_the_value(self):
+        for mapping in ({"realized_ratio_min": "hunter2"}, {"minimum_days": "hunter2"}, {"policy_version": 12345}, {"hunter2": 1}):
+            with self.subTest(mapping=mapping), self.assertRaises(InputError) as caught:
+                policy.RealizerPolicy.from_mapping(mapping)
+            if "hunter2" not in mapping:
+                self.assertNotIn("hunter2", str(caught.exception))
+                self.assertNotIn("12345", str(caught.exception))
+
+    def test_from_mapping_accepts_valid_overrides_and_their_boundaries(self):
+        accepted = {
+            "ints, including zero": ({"minimum_days": 0, "minimum_queries": 10, "remeasure_days_after_invalidating_change": 14}, {}),
+            "decimals as numbers": ({"realized_ratio_min": 0.9, "max_normalized_p95_runtime_regression_pct": 4}, {"realized_ratio_min": "0.9", "max_normalized_p95_runtime_regression_pct": "4"}),
+            "decimals as numeric strings": ({"realized_ratio_min": "0.95", "minimum_material_savings_delta_pct": "2.50"}, {"realized_ratio_min": "0.95", "minimum_material_savings_delta_pct": "2.5"}),
+            "percentages at 0 and 100": ({"minimum_attributable_spend_pct": 100, "minimum_price_coverage_pct": 0, "required_currency_consistency_pct": "100"}, {"minimum_attributable_spend_pct": "100", "minimum_price_coverage_pct": "0", "required_currency_consistency_pct": "100"}),
+            "a ratio above 1 (a ratio is not a percentage)": ({"realized_ratio_min": 1.5}, {"realized_ratio_min": "1.5"}),
+            "equal ratio thresholds": ({"realized_ratio_min": "0.6", "under_realized_ratio_min": "0.6"}, {"realized_ratio_min": "0.6", "under_realized_ratio_min": "0.6"}),
+            "booleans": ({"require_representative_regime": False, "require_confirmed_origin_for_hard_kpi": False}, {}),
+            "a custom policy version": ({"policy_version": "custom"}, {}),
+        }
+        defaults = policy.policy_to_dict(policy.RealizerPolicy())
+        for label, (mapping, expected_decimals) in accepted.items():
+            with self.subTest(case=label):
+                new = policy.RealizerPolicy.from_mapping(mapping)
+                got = policy.policy_to_dict(new)
+                for key, value in mapping.items():
+                    want = expected_decimals.get(key, value)
+                    self.assertEqual(got[key], want, key)
+                for key in set(defaults) - set(mapping):
+                    self.assertEqual(got[key], defaults[key], f"{key} keeps its default")
+                self.assertNotEqual(new.snapshot_id, policy.RealizerPolicy().snapshot_id)
+
+    def test_empty_mapping_and_none_are_the_defaults(self):
+        for value in (None, {}):
+            self.assertEqual(policy.RealizerPolicy.from_mapping(value), policy.RealizerPolicy())
 
     def test_snapshot_id_and_dict_errors_for_malformed_field_values(self):
         for field, value in [("minimum_days", Opaque()), ("policy_version", {1, 2}), ("minimum_queries", float("nan")), ("realized_ratio_min", Decimal("NaN"))]:

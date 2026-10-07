@@ -143,7 +143,7 @@ class LoaderTests(unittest.TestCase):
 class PolicyTests(unittest.TestCase):
     MAPPINGS = [
         None, {}, {"minimum_days": 3}, {"realized_ratio_min": 0.9, "under_realized_ratio_min": "0.4"},
-        {"max_normalized_p95_runtime_regression_pct": 4, "require_representative_regime": False, "unknown_key": 1},
+        {"max_normalized_p95_runtime_regression_pct": 4, "require_representative_regime": False},
         {"minimum_attributable_spend_pct": "90.00", "minimum_price_coverage_pct": 99.5,
          "required_currency_consistency_pct": "100", "minimum_material_savings_delta_pct": 2,
          "remeasure_days_after_invalidating_change": 14, "require_confirmed_origin_for_hard_kpi": False,
@@ -177,9 +177,9 @@ class CliLoadingTests(unittest.TestCase):
 
     def _run(self, args, base):
         out = io.StringIO()
-        with mock.patch("logging.basicConfig") as basic, redirect_stdout(out):
+        with mock.patch("realizer.cli.realize.setup_logging") as setup, redirect_stdout(out):
             self.assertEqual(main(args), 0)
-        return out.getvalue().replace(str(base), "<tmp>"), basic.call_args
+        return out.getvalue().replace(str(base), "<tmp>"), setup.call_args
 
     def test_cli_output_and_logging_setup(self):
         scenario = canonical.load_scenario("example-exact")

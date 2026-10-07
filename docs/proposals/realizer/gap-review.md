@@ -36,7 +36,7 @@ The package figures are the demo fleet's `wh-demo-001` auto-stop step (low and h
 
 ## 2. Findings by batch
 
-Band: P0 blocks a real-data run; P1 wrong results; P2 completeness; P3 hygiene. Batches are in execution order.
+Band: P0 blocks a real-data run; P1 wrong results; P2 completeness; P3 hygiene. Batches are in execution order. "Known limitation N" refers to the numbering of `docs/reference/realizer/known-limitations.md` at master 5bcae87, before this review; resolved items leave that file.
 
 ### Batch 1 · Package input and fail-closed observation
 

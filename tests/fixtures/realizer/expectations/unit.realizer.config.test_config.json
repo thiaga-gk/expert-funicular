@@ -1,47 +1,44 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
-  "length": 8584,
-  "sha256": "e5d6d9fb4ccab4e05757743a8923e2fcc773748b82b49292ed0dbdd6a1bf6573",
+  "length": 8532,
+  "sha256": "07ce4bd41318abc2acd0d86f16b4ea26179625ada9e103f677b2e0b0c5baf843",
   "spot": {
    "logging": [
-    [],
-    {
-     "format": "%(asctime)sZ %(levelname)s %(message)s",
-     "level": 10
-    }
+    [
+     "DEBUG"
+    ],
+    {}
    ],
-   "stdout_characters": 7610
+   "stdout_characters": 7611
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
   "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
-  "length": 4076,
-  "sha256": "8a79fc93521565261e0a44b0d70e449b82d2165910438b7c7b3f8ff286b937e9",
+  "length": 4024,
+  "sha256": "81fdde2aefc5d3690765073853f8bf0257ff8e090dcd461a9f8f3e3d3ae6d69d",
   "spot": {
    "logging": [
-    [],
-    {
-     "format": "%(asctime)sZ %(levelname)s %(message)s",
-     "level": 10
-    }
+    [
+     "DEBUG"
+    ],
+    {}
    ],
-   "stdout_characters": 3612
+   "stdout_characters": 3613
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
-  "length": 8590,
-  "sha256": "cd27b636213a8f7792e4534698b8af8e063406cd1d52e1b0bc613c4d39fc33a4",
+  "length": 8538,
+  "sha256": "f5cbf4d0ff976b02df2f5fe1d60727cdec35ee8f1c8c22e31a4ac35b8738ee06",
   "spot": {
    "logging": [
-    [],
-    {
-     "format": "%(asctime)sZ %(levelname)s %(message)s",
-     "level": 10
-    }
+    [
+     "DEBUG"
+    ],
+    {}
    ],
-   "stdout_characters": 7618
+   "stdout_characters": 7619
   }
  },
  "PolicyTests.test_defaults/policy": {
@@ -220,7 +217,7 @@
    "EXCLUSIVITY_VERSION": "realizer-exclusivity-v1.0.0",
    "MODELER_GATEWAY_VERSION": "m08-realization-adapter-v1.0.0",
    "POLICY_VERSION": "realizer-policy-v1.0.0",
-   "PRODUCT_VERSION": "2.8.0",
+   "PRODUCT_VERSION": "2.14.0",
    "PROJECTOR_VERSION": "realizer-projector-v1.0.0",
    "REALIZER_VERSION": "1.0.0"
   }

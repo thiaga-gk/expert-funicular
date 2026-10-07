@@ -14,6 +14,7 @@ from dataclasses import dataclass, asdict
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional, Tuple
 
+from realizer.common.errors import InputError
 from realizer.common.utils import decimal
 from realizer.config.settings import NON_AUTHORITATIVE_EXECUTION_STATES, POLICY_VERSION
 from realizer.contracts.observation import CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS
@@ -38,29 +39,55 @@ class RealizerPolicy:
 
     @classmethod
     def from_mapping(cls, value: Optional[Mapping[str, Any]]) -> "RealizerPolicy":
+        """The policy with *value*'s overrides (``None`` or empty: the defaults). Raises ``InputError`` for a value that
+        is not a mapping, an unknown key, a value of the wrong type, a negative number, a percentage above 100, or ratio
+        thresholds out of order (0 <= under-realized minimum <= realized minimum)."""
         if not value:
             return cls()
+        if not isinstance(value, Mapping):
+            raise InputError("a policy file must be a JSON object")
+        fields = cls.__dataclass_fields__
+        unknown = sorted(set(value) - set(fields))
+        if unknown:
+            raise InputError(f"unknown policy setting(s): {', '.join(map(str, unknown))}")
         kwargs: Dict[str, Any] = {}
-        for f in cls.__dataclass_fields__.values():
-            if f.name not in value:
-                continue
-            v = value[f.name]
-            if f.type is Decimal or f.name in {
-                "max_normalized_p95_runtime_regression_pct",
-                "realized_ratio_min",
-                "under_realized_ratio_min",
-                "minimum_attributable_spend_pct",
-                "minimum_price_coverage_pct",
-                "required_currency_consistency_pct",
-                "minimum_material_savings_delta_pct",
-            }:
-                v = Decimal(str(v))
-            kwargs[f.name] = v
-        return cls(**kwargs)
+        for name, v in value.items():
+            if name in _DECIMAL_SETTINGS:
+                if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+                    raise InputError(f"policy setting {name} must be a number")
+                try:
+                    v = Decimal(str(v))
+                except ArithmeticError:
+                    raise InputError(f"policy setting {name} must be a number") from None
+                if not v.is_finite() or v < 0 or (name in _PERCENT_SETTINGS and v > 100):
+                    raise InputError(f"policy setting {name} is out of range")
+            elif name in _INT_SETTINGS:
+                if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                    raise InputError(f"policy setting {name} must be a non-negative integer")
+            elif name in _BOOL_SETTINGS:
+                if not isinstance(v, bool):
+                    raise InputError(f"policy setting {name} must be true or false")
+            elif not isinstance(v, str) or not v:
+                raise InputError(f"policy setting {name} must be a non-empty string")
+            kwargs[name] = v
+        policy = cls(**kwargs)
+        if not policy.under_realized_ratio_min <= policy.realized_ratio_min:
+            raise InputError("policy under_realized_ratio_min must not exceed realized_ratio_min")
+        return policy
 
     @property
     def snapshot_id(self) -> str:
         return rc.content_id("PSNAP", {"contract": "1.0.0", "policy": policy_to_dict(self)})
+
+
+_DECIMAL_SETTINGS = frozenset({
+    "max_normalized_p95_runtime_regression_pct", "realized_ratio_min", "under_realized_ratio_min",
+    "minimum_attributable_spend_pct", "minimum_price_coverage_pct", "required_currency_consistency_pct",
+    "minimum_material_savings_delta_pct",
+})
+_PERCENT_SETTINGS = frozenset({"minimum_attributable_spend_pct", "minimum_price_coverage_pct", "required_currency_consistency_pct"})
+_INT_SETTINGS = frozenset({"minimum_days", "minimum_queries", "remeasure_days_after_invalidating_change"})
+_BOOL_SETTINGS = frozenset({"require_representative_regime", "require_confirmed_origin_for_hard_kpi"})
 
 
 def policy_to_dict(policy: RealizerPolicy) -> Dict[str, Any]:

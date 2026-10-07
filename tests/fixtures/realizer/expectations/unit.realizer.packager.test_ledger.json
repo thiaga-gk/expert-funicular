@@ -2,8 +2,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/a list": {
   "value": [
    [
-    "TypeError",
-    "list indices must be integers or slices, not str"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
    ],
    [],
    "[1]\n"
@@ -12,8 +12,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/not json": {
   "value": [
    [
-    "JSONDecodeError",
-    "Expecting value: line 1 column 1 (char 0)"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
    ],
    [],
    "not json\n"
@@ -22,8 +22,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/unknown event type": {
   "value": [
    [
-    "ValueError",
-    "'NOPE' is not a valid EventType"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
    ],
    [],
    "{\"event_type\": \"NOPE\"}\n"
@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 63864,
-  "sha256": "c2c6c8ef1032a51bcc85cf8560f7c39363b4a5153e332bf8ff70994ddd525188",
+  "sha256": "85ac05bef8880fb8ce9b1a9c8c801a4d3f1b5cae98a42a26c621a097a47eef87",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -49,8 +49,8 @@
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 505266,
-  "sha256": "736ab187d91de24e0c4306957bbb77772dd1e8810a7c73b69b75ca46fe46807e",
+  "length": 505629,
+  "sha256": "db39cef57f67fa15650c1f968ebe99e9e257c011689df25625db85a5bde966f4",
   "spot": {
    "entries": 363,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -64,12 +64,12 @@
   }
  },
  "LedgerReadTests.test_malformed_ledger_raises/a directory": {
-  "value": "IsADirectoryError"
+  "value": "LedgerError"
  },
  "LedgerReadTests.test_malformed_ledger_raises/bad second line": {
   "value": [
-   "TypeError",
-   "list indices must be integers or slices, not str"
+   "LedgerError",
+   "ledger l.jsonl line 2 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/blank lines only": {
@@ -80,38 +80,38 @@
  },
  "LedgerReadTests.test_malformed_ledger_raises/invalid id": {
   "value": [
-   "ValueError",
-   "'BAD' must start with RLE-"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/missing event type": {
   "value": [
-   "KeyError",
-   "'event_type'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (KeyError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/missing field": {
   "value": [
-   "TypeError",
-   "RealizationLedgerEntry.__init__() missing 1 required positional argument: 'payload'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/not json": {
   "value": [
-   "JSONDecodeError",
-   "Expecting value: line 1 column 1 (char 0)"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/unexpected field": {
   "value": [
-   "TypeError",
-   "RealizationLedgerEntry.__init__() got an unexpected keyword argument 'extra'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/unknown event type": {
   "value": [
-   "ValueError",
-   "'NOPE' is not a valid EventType"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "RegenerationRecordTests.test_records_the_entry_and_file/full application payload": {
@@ -133,7 +133,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "d39c7a505e6525f6",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0a2310d48ed44714",
      "realization/regeneration/RERUN-CA5C72F3528F42807DD085AA.json": "8c970074210c425e"
     }
    }
@@ -158,7 +158,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "a55a9c63e7e93bc8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "51a19dd3e160b802",
      "realization/regeneration/RERUN-0DDEF54DA6B97DA3A68C060B.json": "1125e2a9ed752ea6"
     }
    }

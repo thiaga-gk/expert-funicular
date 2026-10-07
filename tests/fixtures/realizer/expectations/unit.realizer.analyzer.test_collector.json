@@ -1477,15 +1477,15 @@
   "value": "TypeError"
  },
  "LoadObservationTests.test_errors/a directory": {
-  "value": "IsADirectoryError"
+  "value": "InputError"
  },
  "LoadObservationTests.test_errors/empty file": {
-  "value": "JSONDecodeError"
+  "value": "InputError"
  },
  "LoadObservationTests.test_errors/invalid JSON": {
-  "value": "JSONDecodeError"
+  "value": "InputError"
  },
  "LoadObservationTests.test_errors/missing file": {
-  "value": "FileNotFoundError"
+  "value": "InputError"
  }
 }

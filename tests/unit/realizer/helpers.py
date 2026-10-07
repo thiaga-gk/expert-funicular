@@ -81,6 +81,21 @@ def outcome(fn: Callable[..., Any], *args: Any, **kwargs: Any):
         return type(exc).__name__, str(exc)
 
 
+def stage_policy(mapping: Optional[Mapping[str, Any]]) -> Any:
+    """A ``RealizerPolicy`` from *mapping* WITHOUT the input gate (``RealizerPolicy.from_mapping`` refuses malformed
+    values: a NaN ratio, a text day count, an unknown key).
+
+    The stage-level failure-ordering tests still feed such policies to the stages, to pin what each stage leaves behind when
+    it raises; this builds them as ``from_mapping`` did before the gate (decimal settings through ``Decimal(str(v))``,
+    everything else as given), and only for them. A valid mapping gives the same policy as ``from_mapping``.
+    """
+    if not mapping:
+        return policy_module.RealizerPolicy()
+    from decimal import Decimal
+    kwargs = {k: (Decimal(str(v)) if k in policy_module._DECIMAL_SETTINGS else v) for k, v in mapping.items()}
+    return policy_module.RealizerPolicy(**kwargs)
+
+
 def fixture_package(name: str = "inplace-size-canary") -> Dict[str, Any]:
     """A Reporter JSON Contract 3.1.0 fixture package (``tests/fixtures/realizer/packages/<name>.json``), parsed."""
     return json.loads((canonical.PACKAGES / f"{name}.json").read_text(encoding="utf-8"))
@@ -165,7 +180,7 @@ def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Map
         outcomes: List[Any] = []
         with contextlib.nullcontext() if gate else package_gate_open(), contextlib.nullcontext() if observation_gate else observation_gate_open():
             for observation in observations:
-                kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
+                kwargs = {} if policy is None else {"policy": stage_policy(policy)}
                 result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
                 outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
         return outcomes, tree(out)
@@ -220,7 +235,7 @@ def staged_scenario_runs() -> Iterator[StagedRun]:
                     for stage, module in STAGES.items():
                         stack.enter_context(mock.patch.object(module, "run", _capturing(module.run, calls[stage])))
                     _facade.realize(copy.deepcopy(package), copy.deepcopy(observation), out, replay_through=step.get("replay_through"),
-                                   policy=None if policy is None else policy_module.RealizerPolicy.from_mapping(policy))
+                                   policy=None if policy is None else stage_policy(policy))
                 after = ledger_lines(out)
                 text_lines = [line for path in sorted((out / "realization" / "ledger").glob("*.jsonl")) for line in path.read_text(encoding="utf-8").splitlines()]
                 assert text_lines == stored[:len(text_lines)], f"{name} run {index}: the ledger is not a prefix of the stored baseline's"

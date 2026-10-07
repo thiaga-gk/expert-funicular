@@ -14,6 +14,7 @@ from tests.regression.realizer import canonical  # noqa: E402
 from tests.unit.realizer.helpers import fixture_package  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
+from realizer.common.errors import InputError  # noqa: E402
 from realizer.contracts.realization import make_rpkg_id  # noqa: E402
 from realizer.contracts.request import RealizationRequest, RunContext  # noqa: E402
 from realizer.governor.policy import RealizerPolicy  # noqa: E402
@@ -74,7 +75,8 @@ class RunContextTests(unittest.TestCase):
                 else:
                     new = None
                 self.assertIsNotNone(new)
-                self.assertEqual(new[0], "ValueError")
+                self.assertEqual(new[0], "InputError")  # a ValueError that the CLI maps to exit status 2
+                self.assertTrue(issubclass(InputError, ValueError))
                 expect.check(self, label, new)
 
 if __name__ == "__main__":

@@ -1,14 +1,17 @@
 """Realizer settings: version identifiers and the configuration knobs it reconciles.
 
-Values are moved unchanged from the single-file Realizer. ``PRODUCT_VERSION`` and the component versions are written
+``PRODUCT_VERSION`` is the repository release (the Publisher's version module). It and the component versions are written
 into RLE and RPKG provenance; the RSNAP id hashes ``PROJECTOR_VERSION`` and counterfactual ids hash
 ``MODELER_GATEWAY_VERSION``, so changing those changes output IDs.
 """
 from __future__ import annotations
 
 from publisher.config.defaults import SIZE_ORDER as PUBLISHER_SIZE_ORDER
+from publisher.config.versions import PUBLISHER_VERSION
 
-PRODUCT_VERSION = "2.8.0"
+# The release of this repository (one version for the Publisher and the Realizer), written into ledger-entry and
+# realization-package provenance.
+PRODUCT_VERSION = PUBLISHER_VERSION
 REALIZER_VERSION = "1.0.0"
 PROJECTOR_VERSION = "realizer-projector-v1.0.0"
 POLICY_VERSION = "realizer-policy-v1.0.0"
