@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 6315274,
-  "sha256": "4566c1299a33d02eeabbf1b99793fbc22326a2c50010ceec8cd20fed78bcf1b7",
+  "length": 5949929,
+  "sha256": "9c0731ba4f4b9fb64a290e94ae761fea9af5578fb30883b1c08fc1a417eb3e06",
   "spot": {
    "classes": [
     [
@@ -110,8 +110,8 @@
      "UNAVAILABLE"
     ]
    ],
-   "count": 11424,
-   "failures": 3792
+   "count": 11760,
+   "failures": 3960
   }
  },
  "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/application step": {
@@ -192,14 +192,12 @@
      "low": "20493.89"
     },
     "expected_same_scope_annual_savings": "31792.93",
-    "mature_ttm_realized_savings": null,
     "observed_economic_delta": "2613.12",
     "observed_new_cost": "7386.88",
     "period_days": "-30",
     "realization_ratio": null,
     "realization_state": "MONITORING",
     "realized_savings_period": "2613.12",
-    "realized_savings_since_application": "2613.12",
     "reoptimization_recommended": false,
     "review_required": false,
     "successful_realized_savings": "2613.12"
@@ -228,12 +226,6 @@
   "value": [
    "TypeError",
    "'>=' not supported between instances of 'str' and 'int'"
-  ]
- },
- "CalculateEconomicsGridTests.test_malformed_input_raises_the_stored_exception/ttm not a number": {
-  "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
   ]
  },
  "CounterfactualIdTests.test_cf_id_failures/evidence": {
@@ -267,12 +259,12 @@
   ]
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
-  "length": 7801,
-  "sha256": "2b1acb31af6ec2bae428a29c6f523cb0ded394d3a4d99df6ec64eaa296afb08d",
+  "length": 8581,
+  "sha256": "cb372a0b784595b26360b8ebe9b058c17ec0750204b43724b3c71ed943a80f32",
   "spot": {
-   "count": 260,
+   "count": 286,
    "distinct": 144,
-   "first": "CF-A3A9A3C03AE76A14FF54C810"
+   "first": "CF-FDC7AFFA34D8D89608F3C050"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {

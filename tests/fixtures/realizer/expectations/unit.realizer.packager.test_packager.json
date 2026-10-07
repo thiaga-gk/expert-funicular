@@ -1,14 +1,14 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
-  "length": 32964,
-  "sha256": "7e63d48cc1fdbcbfe115d3d8d48a2bc0deb745daa7fa3bb96db4f661e8e75802",
+  "length": 33579,
+  "sha256": "c448d3eb1d81e704b9e394315be80a27d8a2f049be47c21a9cebad810114f527",
   "spot": {
    "kinds": {
     "INFO ledger.append event=APPLICATION_OBSERVED": 34,
     "INFO ledger.append event=BILLING_CORRECTION_RECORDED": 2,
-    "INFO ledger.append event=COUNTERFACTUAL_RECORDED": 39,
+    "INFO ledger.append event=COUNTERFACTUAL_RECORDED": 40,
     "INFO ledger.append event=DRIFT_DETECTED": 2,
-    "INFO ledger.append event=ECONOMIC_MEASUREMENT_RECORDED": 39,
+    "INFO ledger.append event=ECONOMIC_MEASUREMENT_RECORDED": 40,
     "INFO ledger.append event=INDEPENDENT_CHANGE_OBSERVED": 3,
     "INFO ledger.append event=INTENT_RECORDED": 39,
     "INFO ledger.append event=MODIFIED_APPLICATION_OBSERVED": 4,
@@ -17,12 +17,12 @@
     "INFO ledger.append event=REPLACEMENT_PACKAGE_LINKED": 1,
     "INFO ledger.append event=ROLLBACK_OBSERVED": 1,
     "INFO ledger.append event=SOURCE_PACKAGE_SUPERSEDED": 1,
-    "INFO ledger.append event=VALIDATION_COMPLETED": 39,
-    "INFO ledger.append event=VALIDATION_READY": 39,
-    "INFO ledger.append event=VALIDATION_STARTED": 39,
-    "INFO ledger.duplicate_suppressed": 45
+    "INFO ledger.append event=VALIDATION_COMPLETED": 40,
+    "INFO ledger.append event=VALIDATION_READY": 40,
+    "INFO ledger.append event=VALIDATION_STARTED": 40,
+    "INFO ledger.duplicate_suppressed": 48
    },
-   "lines": 406,
+   "lines": 414,
    "scenarios": 41
   }
  },
@@ -49,10 +49,10 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "579748ab5ea3c45b",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "cc6fcdd424500bdd",
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "3e3a1ffed8ac110f",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "96f66c166c540d56",
     "realization/regeneration/RERUN-FD16E8E513742D642187719F.json": "158b01017c78e949",
-    "realization/snapshots/RSNAP-397C56B7F922EFDFAA2C6C13.json": "cc6fcdd424500bdd"
+    "realization/snapshots/RSNAP-9DAB90DD4F76D63C9BACADFE.json": "96f66c166c540d56"
    }
   }
  },
@@ -63,8 +63,8 @@
    "INFO ledger.duplicate_suppressed rle=RLE-883E41DA93F7C289F13D182D",
    "INFO ledger.duplicate_suppressed rle=RLE-969BE049C46BFA9B13137827",
    "INFO ledger.duplicate_suppressed rle=RLE-5CA40F965159562FFE133E19",
-   "INFO ledger.duplicate_suppressed rle=RLE-9E5FD6D2D4521FB1B0456A9A",
-   "INFO ledger.duplicate_suppressed rle=RLE-C7630F85848E65006D73949B",
+   "INFO ledger.duplicate_suppressed rle=RLE-32729FDED7FC74C4ADF237CE",
+   "INFO ledger.duplicate_suppressed rle=RLE-4F2D41E3AEB7F7967C35B5AC",
    "INFO ledger.duplicate_suppressed rle=RLE-E921B42E56484376E1D134AE"
   ]
  },
@@ -81,39 +81,39 @@
    ],
    "files": {
     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1e7b26a37bc8cc61",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "7f0d3461393f9969",
-    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "7f0d3461393f9969"
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "44ca4f0c8097e967",
+    "realization/snapshots/RSNAP-56B7DE8EDA71D78947BC761E.json": "44ca4f0c8097e967"
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
-  "length": 18752,
-  "sha256": "ceafba148bb3ca7617b88e6cad94625743475ffe4991fd2eb90debf039ada91c",
+  "length": 18858,
+  "sha256": "d26de31b75763f88116d69057cbad34ca2da42b3c4bcc536fb7db312b0d861ea",
   "spot": {
-   "count": 171,
+   "count": 172,
    "first": [
     "GR-001",
     "2026-10-01T12:00:00Z",
     "ok",
-    "f8378dcafbb01f9b84a51965ae63543d7e41c3701ec34e0ecdf6ee6e4056479f"
+    "90206b581e936ffd285c963d89566cb240abc14fbdb3ec78e1f6cc489a5a1175"
    ],
    "last": [
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "0ca8e92de93ba7d773c58b39c574e247b9de845ce697beab37f88f393b6133e8"
+    "2b18791acc9eb127534b5397b42452cbd4917ecdf79dda84c8a079548a9c9fd1"
    ],
    "outcomes": {
     "InputError": 41,
-    "ok": 130
+    "ok": 131
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
-  "length": 35874,
-  "sha256": "d002b81f7ba8597686250e0e7a13cf49ff1cb5f46e7d06633e1f4d78f49a3ffa",
+  "length": 36152,
+  "sha256": "a8669c85daa9b8b3ce2664878f9529679c0398eaa91010af3b6d5a0a9f5da047",
   "spot": {
-   "files": 257,
+   "files": 259,
    "scenarios": 41
   }
  },
