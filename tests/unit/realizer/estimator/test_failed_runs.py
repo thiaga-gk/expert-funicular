@@ -17,7 +17,7 @@ from unittest import mock
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import (  # noqa: E402
-    Opaque, Unprintable, Untestable, compact_tree, events, files, fixture_package, run_sequence,
+    Opaque, Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, run_sequence, with_quality,
 )
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -39,7 +39,9 @@ class EstimatorFailedRunTests(unittest.TestCase):
     def compare(self, label, observations, policy=None, package=None):
         """Run *observations* and check the outcomes and the output tree against the stored expectation."""
         package = self.pkg if package is None else package
-        outcomes, tree = run_sequence(package, observations, policy)
+        # The observation gate is open: the loader refuses these observations before anything is written (see
+        # ``tests/unit/realizer/config``); here they pin where the Estimator's facts raise.
+        outcomes, tree = run_sequence(package, observations, policy, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree)))
         return outcomes, tree
 
@@ -73,7 +75,7 @@ class EstimatorFailedRunTests(unittest.TestCase):
             "period not finite": (self.econ(period_days="NaN"), "ValueError"),
             "expected not a number": (self.econ(expected_annual_savings_actual_scope="abc"), "InvalidOperation"),
             "aws component not a number": (self.econ(aws_cash_realized="abc"), "InvalidOperation"),
-            "quality gate not finite": ({**self.base, "price_coverage_pct": "NaN"}, "ValueError"),
+            "quality gate not finite": (with_quality(self.base, price_coverage_pct="NaN"), "ValueError"),
             "overlap not a number": ({**self.base, "overlap_count": "abc"}, "ValueError"),
             "correction not a mapping": ({**self.base, "correction": 5}, "AttributeError"),
             "correction type not serializable": ({**self.base, "correction": {"type": Opaque()}}, "TypeError"),
@@ -87,10 +89,10 @@ class EstimatorFailedRunTests(unittest.TestCase):
 
     def test_economics_fail_before_the_quality_gates(self):
         # both malformed: the economics are computed first, so their exception is the one raised
-        observation = {**self.econ(observed_new_cost="abc"), "attributable_spend_pct": "NaN"}
+        observation = with_quality(self.econ(observed_new_cost="abc"), attributable_spend_pct="NaN")
         self.assert_fails_after("economics first", observation, "COUNTERFACTUAL_RECORDED", "InvalidOperation")
         # and the gates before the attribution
-        self.assert_fails_after("gates before attribution", {**self.base, "attributable_spend_pct": "NaN", "overlap_count": "abc"}, "COUNTERFACTUAL_RECORDED", "ValueError")
+        self.assert_fails_after("gates before attribution", {**with_quality(self.base, attributable_spend_pct="NaN"), "overlap_count": "abc"}, "COUNTERFACTUAL_RECORDED", "ValueError")
 
     # --- W5: the billing correction fails after the measurement -----------------------------------------------------
 
@@ -110,14 +112,14 @@ class EstimatorFailedRunTests(unittest.TestCase):
     def test_downstream_regeneration_failure_leaves_the_measurement_and_the_correction(self):
         bad_window = {"remeasure_days_after_invalidating_change": "abc"}
         self.assert_fails_after("measurement", self.base, "ECONOMIC_MEASUREMENT_RECORDED", "ValueError", bad_window)
-        self.assert_fails_after("correction", {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1"}}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window)
+        self.assert_fails_after("correction", {**self.base, "correction": correction()}, "BILLING_CORRECTION_RECORDED", "ValueError", bad_window)
         # without available economics, after the completed validation
         self.assert_fails_after("no economics", self.econ(counterfactual_old_cost=None), "VALIDATION_COMPLETED", "ValueError", bad_window)
 
     # --- unreached input does not fail ------------------------------------------------------------------------------
 
     def test_unavailable_economics_never_read_the_measurement_inputs(self):
-        observation = {**self.econ(counterfactual_old_cost=None), "attributable_spend_pct": "NaN", "overlap_count": "abc",
+        observation = {**with_quality(self.econ(counterfactual_old_cost=None), attributable_spend_pct="NaN"), "overlap_count": "abc",
                        "correction": {"corrects_entry_id": Untestable()}}
         outcomes, tree = self.compare("unavailable", [observation])
         self.assertEqual(outcomes[0][0], "ok")
@@ -135,7 +137,7 @@ class EstimatorFailedRunTests(unittest.TestCase):
 
     def test_failure_is_followed_by_the_same_recovery(self):
         later = {**self.base, "observed_at_utc": "2026-10-10T12:00:00Z", "recorded_at_utc": "2026-10-10T12:00:00Z"}
-        outcomes, _ = self.compare("recovery", [self.econ(observed_new_cost="abc"), self.base, later, {**later, "correction": {"version": 2}}])
+        outcomes, _ = self.compare("recovery", [self.econ(observed_new_cost="abc"), self.base, later, {**later, "correction": correction()}])
         self.assertNotEqual(outcomes[0][0], "ok")
         self.assertEqual([o[0] for o in outcomes[1:]], ["ok", "ok", "ok"])
 
@@ -160,10 +162,10 @@ class EstimatorMutationTests(unittest.TestCase):
         cases = [[{**self.base, "economics": 5}], [{**self.base, "overlap_count": "abc"}], [{**self.base, "correction": {"corrects_entry_id": Untestable()}}]]
         for index, observations in enumerate(cases):
             with self.subTest(observations=observations):
-                normal = run_sequence(self.pkg, observations)
+                normal = run_sequence(self.pkg, observations, observation_gate=False)
                 expect.check(self, str(index), (normal[0], compact_tree(normal[1])))
                 with mock.patch.object(estimator, "run", eager):
-                    mutated = run_sequence(self.pkg, observations)
+                    mutated = run_sequence(self.pkg, observations, observation_gate=False)
                 self.assertEqual(mutated[0], normal[0], "the exception itself is the same")
                 self.assertNotEqual(mutated[1], normal[1], "but the ledger it leaves is not")
 
@@ -181,16 +183,16 @@ class EstimatorMutationTests(unittest.TestCase):
         econ = self.base["economics"]
         cases = [
             # unavailable economics: the engine never reads the gates and succeeds
-            [{**self.base, "economics": {**econ, "counterfactual_old_cost": None}, "attributable_spend_pct": "NaN"}],
+            [with_quality({**self.base, "economics": {**econ, "counterfactual_old_cost": None}}, attributable_spend_pct="NaN")],
             # both malformed: the engine raises the economics' exception
-            [{**self.base, "economics": {**econ, "observed_new_cost": "abc"}, "attributable_spend_pct": "NaN"}],
+            [with_quality({**self.base, "economics": {**econ, "observed_new_cost": "abc"}}, attributable_spend_pct="NaN")],
         ]
         for index, observations in enumerate(cases):
             with self.subTest(observations=observations):
-                normal = run_sequence(self.pkg, observations)
+                normal = run_sequence(self.pkg, observations, observation_gate=False)
                 expect.check(self, str(index), (normal[0], compact_tree(normal[1])))
                 with mock.patch.object(estimator, "run", eager_gates):
-                    mutated = run_sequence(self.pkg, observations)
+                    mutated = run_sequence(self.pkg, observations, observation_gate=False)
                 self.assertNotEqual(mutated, normal)
 
 

@@ -1,0 +1,562 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "applied_at_utc": {
+      "format": "date-time",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "applied_scenario_id": {
+      "pattern": "^SCN-[0-9A-F]{24}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_stop_minutes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enable_photon": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_clusters": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_clusters": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "warehouse_channel": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_size": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "warehouse_type": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "auto_stop_minutes",
+        "enable_photon",
+        "max_clusters",
+        "min_clusters",
+        "warehouse_channel",
+        "warehouse_size",
+        "warehouse_type"
+      ],
+      "type": "object"
+    },
+    "correction": {
+      "additionalProperties": false,
+      "properties": {
+        "corrects_entry_id": {
+          "pattern": "^RLE-[0-9A-F]{24}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "enum": [
+            "RESTATEMENT",
+            "RETRACTION"
+          ]
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "corrects_entry_id",
+        "key",
+        "reason",
+        "type",
+        "version"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "economics": {
+      "additionalProperties": false,
+      "properties": {
+        "aws_cash_realized": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aws_commitment_freed": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aws_economic_realized": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aws_evidence_type": {
+          "enum": [
+            null,
+            "MODELED",
+            "CUR_ACTUAL"
+          ]
+        },
+        "counterfactual_method": {
+          "enum": [
+            "PAIRED_CANARY",
+            "CALIBRATED_PRIOR_STATE",
+            "MATCHED_HISTORICAL",
+            "CONTROLLED_PRE_POST",
+            "CORRELATED_ONLY",
+            "NO_DEFENSIBLE_COUNTERFACTUAL"
+          ]
+        },
+        "counterfactual_old_cost": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "dbu_realized": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "economic_basis": {
+          "enum": [
+            "ECONOMIC_COST",
+            "POSTED_DOLLAR",
+            "CONSTANT_PRICE"
+          ]
+        },
+        "expected_annual_savings_actual_scope": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mature_ttm_realized_savings": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_new_cost": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "period_days": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "realized_savings_since_application": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "aws_cash_realized",
+        "aws_commitment_freed",
+        "aws_economic_realized",
+        "aws_evidence_type",
+        "counterfactual_method",
+        "counterfactual_old_cost",
+        "currency",
+        "dbu_realized",
+        "economic_basis",
+        "expected_annual_savings_actual_scope",
+        "mature_ttm_realized_savings",
+        "observed_new_cost",
+        "period_days",
+        "realized_savings_since_application"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "effective_time_quality": {
+      "enum": [
+        "EXACT",
+        "BOUNDED",
+        "OBSERVED_AT_ONLY"
+      ]
+    },
+    "elapsed_days": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "evidence_quality": {
+      "enum": [
+        "SUFFICIENT",
+        "PARTIAL",
+        "INSUFFICIENT",
+        "CONFLICTING",
+        "STALE"
+      ]
+    },
+    "financial_quality": {
+      "additionalProperties": false,
+      "properties": {
+        "attributable_spend_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "correction_chain_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "currency_consistency_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material_cost_component_available": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "price_coverage_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "attributable_spend_pct",
+        "correction_chain_complete",
+        "currency_consistency_pct",
+        "material_cost_component_available",
+        "price_coverage_pct"
+      ],
+      "type": "object"
+    },
+    "intent_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "intent_state": {
+      "enum": [
+        "UNKNOWN",
+        "ACCEPTED",
+        "REJECTED",
+        "DEFERRED"
+      ]
+    },
+    "observation_format_version": {
+      "const": "2.0.0"
+    },
+    "observed_at_utc": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": "string"
+    },
+    "origin_attribution": {
+      "enum": [
+        "CONFIRMED",
+        "INFERRED",
+        "UNKNOWN",
+        "INDEPENDENT",
+        "NOT_ATTRIBUTABLE"
+      ]
+    },
+    "overlap_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "performance": {
+      "additionalProperties": false,
+      "properties": {
+        "correctness_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "normalized_p95_runtime_regression_pct": {
+          "anyOf": [
+            {
+              "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reliability_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "correctness_pass",
+        "normalized_p95_runtime_regression_pct",
+        "reliability_pass"
+      ],
+      "type": "object"
+    },
+    "query_count": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "recorded_at_utc": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": "string"
+    },
+    "replacement_package_id": {
+      "pattern": "^PKG-[0-9A-F]{24}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "representative_regime": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "rollback_observed": {
+      "type": "boolean"
+    },
+    "rollback_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rollback_requested": {
+      "type": "boolean"
+    },
+    "source": {
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "type": "string"
+    },
+    "warehouse_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "window_end_utc": {
+      "format": "date-time",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "window_start_utc": {
+      "format": "date-time",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workload": {
+      "type": "object"
+    },
+    "workspace_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "actor",
+    "applied_at_utc",
+    "applied_scenario_id",
+    "config",
+    "correction",
+    "economics",
+    "effective_time_quality",
+    "elapsed_days",
+    "evidence_quality",
+    "financial_quality",
+    "intent_reference",
+    "intent_state",
+    "observation_format_version",
+    "observed_at_utc",
+    "origin_attribution",
+    "overlap_count",
+    "performance",
+    "query_count",
+    "recorded_at_utc",
+    "replacement_package_id",
+    "representative_regime",
+    "rollback_observed",
+    "rollback_reason",
+    "rollback_requested",
+    "source",
+    "warehouse_id",
+    "window_end_utc",
+    "window_start_utc",
+    "workload",
+    "workspace_id"
+  ],
+  "title": "RealizationObservation",
+  "type": "object"
+}

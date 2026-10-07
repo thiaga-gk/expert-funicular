@@ -11,8 +11,10 @@ for _path in (ROOT, ROOT / "src"):
         sys.path.insert(0, str(_path))
 from tests import realizer_expect as expect  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
+from tests.unit.realizer.helpers import fixture_package  # noqa: E402
 
 canonical.modular()  # src/realizer, never a shadowing copy
+from realizer.common.errors import InputError  # noqa: E402
 from realizer.contracts.realization import make_rpkg_id  # noqa: E402
 from realizer.contracts.request import RealizationRequest, RunContext  # noqa: E402
 from realizer.governor.policy import RealizerPolicy  # noqa: E402
@@ -39,11 +41,10 @@ class RealizationRequestTests(unittest.TestCase):
 
 
 class RunContextTests(unittest.TestCase):
-    """``build_context`` is the first three statements of ``realize``: shape gate, policy default, RPKG id."""
+    """``build_context`` is the first three statements of ``realize``: package gate, policy default, RPKG id."""
 
     def setUp(self):
-        import json
-        self.pkg = json.loads(next(canonical.PACKAGES.glob("PKG-*.json")).read_text(encoding="utf-8"))
+        self.pkg = fixture_package()
 
     def test_context_carries_the_request_the_default_policy_and_the_rpkg_id(self):
         request = RealizationRequest(self.pkg, None, Path("out"))
@@ -74,7 +75,8 @@ class RunContextTests(unittest.TestCase):
                 else:
                     new = None
                 self.assertIsNotNone(new)
-                self.assertEqual(new[0], "ValueError")
+                self.assertEqual(new[0], "InputError")  # a ValueError that the CLI maps to exit status 2
+                self.assertTrue(issubclass(InputError, ValueError))
                 expect.check(self, label, new)
 
 if __name__ == "__main__":

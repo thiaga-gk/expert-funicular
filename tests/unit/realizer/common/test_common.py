@@ -4,10 +4,13 @@ Each helper returns, writes and raises what the single-file release's copy did (
 ``tests/fixtures/realizer/expectations/``).
 """
 import datetime as dt
+import io
 import json
 import logging
+import os
 import sys
 import tempfile
+import time
 import unittest
 from decimal import Decimal
 from pathlib import Path
@@ -113,11 +116,55 @@ class LoggingTests(unittest.TestCase):
         self.assertEqual(rlogging.LOGGER.name, "realizer")
         self.assertIs(rlogging.LOGGER, logging.getLogger("realizer"))
 
-    def test_setup_logging_configures_root_logging_as_the_single_file_main(self):
+    def setUp(self):
+        self.root_handlers, self.root_level = list(logging.getLogger().handlers), logging.getLogger().level
+        self.saved = (list(rlogging.LOGGER.handlers), rlogging.LOGGER.level, rlogging.LOGGER.propagate)
+        rlogging.LOGGER.handlers = []
+        self.addCleanup(self.restore)
+
+    def restore(self):
+        for handler in rlogging.LOGGER.handlers:
+            handler.close()
+        rlogging.LOGGER.handlers, rlogging.LOGGER.level, rlogging.LOGGER.propagate = self.saved
+
+    def test_setup_logging_configures_the_realizer_logger_only(self):
         for level in ("DEBUG", "INFO", "WARNING", "ERROR"):
-            with self.subTest(level=level), mock.patch("logging.basicConfig") as basic:
+            with self.subTest(level=level):
                 rlogging.setup_logging(level)
-                basic.assert_called_once_with(level=getattr(logging, level), format="%(asctime)sZ %(levelname)s %(message)s")
+                self.assertEqual(rlogging.LOGGER.level, getattr(logging, level))
+                self.assertFalse(rlogging.LOGGER.propagate)
+                self.assertEqual(len(rlogging.LOGGER.handlers), 1)
+        self.assertEqual(logging.getLogger().handlers, self.root_handlers)
+        self.assertEqual(logging.getLogger().level, self.root_level)
+
+    def test_repeated_setup_replaces_the_handler_so_a_line_is_written_once(self):
+        stream = io.StringIO()
+        with mock.patch.object(sys, "stderr", stream):
+            for _ in range(3):
+                rlogging.setup_logging("INFO")
+            rlogging.LOGGER.info("realizer.test once")
+        self.assertEqual(len(rlogging.LOGGER.handlers), 1)
+        self.assertEqual(stream.getvalue().count("realizer.test once"), 1)
+
+    def test_lines_go_to_stderr_at_the_chosen_level(self):
+        stream = io.StringIO()
+        with mock.patch.object(sys, "stderr", stream):
+            rlogging.setup_logging("WARNING")
+            rlogging.LOGGER.info("realizer.test hidden")
+            rlogging.LOGGER.warning("realizer.test shown")
+        self.assertNotIn("hidden", stream.getvalue())
+        self.assertRegex(stream.getvalue(), r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ WARNING realizer\.test shown\n$")
+
+    def test_the_timestamp_is_utc_so_the_z_is_true(self):
+        rlogging.setup_logging("INFO")
+        formatter = rlogging.LOGGER.handlers[0].formatter
+        record = logging.LogRecord("realizer", logging.INFO, __file__, 1, "realizer.test %s", ("x",), None)
+        record.created, record.msecs = 0, 0
+        for zone in ("UTC", "America/Los_Angeles", "Asia/Kolkata"):
+            with self.subTest(tz=zone), mock.patch.dict(os.environ, {"TZ": zone}):
+                time.tzset()
+                self.assertEqual(formatter.format(record), "1970-01-01T00:00:00Z INFO realizer.test x")
+        time.tzset()
 
 
 if __name__ == "__main__":

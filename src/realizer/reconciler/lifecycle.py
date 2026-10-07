@@ -181,28 +181,32 @@ def plan(state: LifecyclePlan, context: RunContext, analysis: RealizationAnalysi
             "origin_attribution": str(observation.get("origin_attribution") or "UNKNOWN").upper(),
             "actor": observation.get("actor"),
         }
-        if material_config_drift and item["authority_eligible"]:
+        # A value the plan cannot relate to its step (an unknown size, a third type) is never an application.
+        authority = bool(item["authority_eligible"]) and conf != rc.ImplementationConformance.UNRELATED.value
+        if conf == rc.ImplementationConformance.UNRELATED.value and "independent_reason" not in payload:
+            payload["independent_reason"] = "UNRELATED_VALUE"
+        if material_config_drift and authority:
             continue
-        if scenario_scope and item["authority_eligible"]:
+        if scenario_scope and authority:
             continue
         if (
             previous_app is not None
             and active is not None and active.is_previous
-            and item["authority_eligible"]
+            and authority
             and primary
             and item.get("step") == primary.get("step")
         ):
             # Stable state observation: reuse the active APP. Measurement and
             # validation events below still record the new observation window.
             continue
-        if not item["authority_eligible"]:
+        if not authority:
             et = rc.EventType.INDEPENDENT_CHANGE_OBSERVED
         elif conf == rc.ImplementationConformance.MODIFIED.value:
             et = rc.EventType.MODIFIED_APPLICATION_OBSERVED
         else:
             et = rc.EventType.APPLICATION_OBSERVED
         state.applications.append(PlannedApplication(event_type=et, application_episode_id=app_id, payload=payload))
-        if item["authority_eligible"] and primary and item.get("step") == primary.get("step"):
+        if authority and primary and item.get("step") == primary.get("step"):
             active = ActiveApplication(application_episode_id=app_id, payload=payload, is_previous=False)
             state.active = active
 

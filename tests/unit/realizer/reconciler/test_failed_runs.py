@@ -15,17 +15,17 @@ import unittest
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Unprintable, Untestable, compact_tree, events, files, fixture_package, run_sequence  # noqa: E402
+from tests.unit.realizer.helpers import Unprintable, Untestable, compact_tree, correction, events, files, fixture_package, migration_scenario_id, run_sequence  # noqa: E402
 from tests.regression.realizer import canonical  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
 
-MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
+MIGRATION = migration_scenario_id(fixture_package())
 
 
 def two_step_package():
-    return json.loads((canonical.PACKAGES / "GR-019-two-ready-steps.json").read_text(encoding="utf-8"))
+    return fixture_package("two-ready-steps")
 
 
 def recommended_plan(package):
@@ -50,11 +50,13 @@ class ReconcilerFailedRunTests(unittest.TestCase):
         stamp = f"2026-10-{day:02d}T12:00:00Z"
         return {**copy.deepcopy(self.base), "observed_at_utc": stamp, "recorded_at_utc": stamp, **patch}
 
-    def compare(self, observations, policy=None, package=None, label=None):
+    def compare(self, observations, policy=None, package=None, label=None, gate=True):
         """Run *observations* and check the outcomes and the compact output tree against the stored expectation; returns
-        ``(outcomes, tree)``."""
+        ``(outcomes, tree)``. ``gate=False`` opens the loader's package gate for a package the Publisher's schema refuses;
+        the observation gate is always open here (the loader refuses a flag with no truth value or an unprintable value
+        before anything is written, see ``tests/unit/realizer/config``; these cases pin what the Reconciler leaves behind)."""
         package = self.pkg if package is None else package
-        outcomes, run_tree = run_sequence(package, observations, policy)
+        outcomes, run_tree = run_sequence(package, observations, policy, gate=gate, observation_gate=False)
         outcomes = [(kind, stable_message(text)) for kind, text in outcomes]
         self.checks = getattr(self, "checks", 0) + 1
         expect.check(self, label or f"run{self.checks}", (outcomes, compact_tree(run_tree)))
@@ -90,16 +92,25 @@ class ReconcilerFailedRunTests(unittest.TestCase):
             with self.subTest(case=label):
                 package = copy.deepcopy(self.pkg)
                 corrupt(package)
-                outcomes, tree = self.compare([self.base], package=package, label=label)
+                outcomes, tree = self.compare([self.base], package=package, label=label, gate=False)
                 self.assert_failed(outcomes)
                 self.assertEqual(events(tree), ["REALIZATION_CREATED"])
                 self.assertEqual(len(files(tree, "evidence")), 1)
+
+    def test_the_package_gate_refuses_those_malformed_plans_before_anything_is_written(self):
+        for label, corrupt in self.malformed_plans().items():
+            with self.subTest(case=label):
+                package = copy.deepcopy(self.pkg)
+                corrupt(package)
+                outcomes, tree = run_sequence(package, [self.base])
+                self.assert_failed(outcomes, kind="InputError")
+                self.assertEqual(tree, {})
 
     def test_matching_failure_for_an_applied_scenario_other_than_the_recommended_one(self):
         package = copy.deepcopy(self.pkg)
         next(s for s in package["scenarios"] if s["scenario_id"] == MIGRATION)["execution_plan"][1]["step"] = "x"
         migrated = {**self.base, "applied_scenario_id": MIGRATION, "config": {**self.source_config, "warehouse_type": "SERVERLESS"}}
-        outcomes, tree = self.compare([migrated], package=package, label="migration step")
+        outcomes, tree = self.compare([migrated], package=package, label="migration step", gate=False)
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree), ["REALIZATION_CREATED"])
 
@@ -107,11 +118,13 @@ class ReconcilerFailedRunTests(unittest.TestCase):
 
     def test_scenario_scope_failure_records_nothing_after_the_evidence(self):
         observation = canonical.load_scenario("GR-019")["runs"][0]["observation"]
-        for label, invalidates in (("mixed types", [1]), ("unhashable", [{"knob": "max_clusters"}])):
+        # the applied steps' invalidated knobs are merged into one set and sorted: an int among the names cannot be sorted
+        for label, corrupt in (("mixed types", lambda invalidates: [*invalidates, 1]), ("unhashable", lambda invalidates: [{"knob": "max_clusters"}])):
             with self.subTest(case=label):
                 package = two_step_package()
-                recommended_plan(package)[0]["invalidates"] = invalidates
-                outcomes, tree = self.compare([observation], package=package, label=label)
+                step = recommended_plan(package)[0]
+                step["invalidates"] = corrupt(step["invalidates"])
+                outcomes, tree = self.compare([observation], package=package, label=label, gate=False)
                 self.assert_failed(outcomes, kind="TypeError")
                 self.assertEqual(events(tree), ["REALIZATION_CREATED"])
 
@@ -177,14 +190,14 @@ class ReconcilerFailedRunTests(unittest.TestCase):
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
         self.assertEqual(files(tree, "regeneration"), [])
 
-        corrected = {**self.base, "correction": {"type": "RESTATEMENT", "key": "c1", "version": 1}}
+        corrected = {**self.base, "correction": correction(version=1)}
         outcomes, tree = self.compare([corrected], {"remeasure_days_after_invalidating_change": "abc"}, label="correction")
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "BILLING_CORRECTION_RECORDED")
 
         package = copy.deepcopy(self.pkg)
         recommended_plan(package)[0]["validation"] = {"remeasure_days": "soon"}
-        outcomes, tree = self.compare([self.base], package=package, label="step remeasure days")
+        outcomes, tree = self.compare([self.base], package=package, label="step remeasure days", gate=False)
         self.assert_failed(outcomes, kind="ValueError")
         self.assertEqual(events(tree)[-1], "ECONOMIC_MEASUREMENT_RECORDED")
 
@@ -234,13 +247,13 @@ class EagerRaisingIsDetectedTests(unittest.TestCase):
         ]
         for index, observations in enumerate(cases):
             with self.subTest(observations=len(observations)):
-                normal = run_sequence(package, observations)
+                normal = run_sequence(package, observations, observation_gate=False)
                 expect.check(self, f"case{index}", (normal[0], compact_tree(normal[1])))
                 with mock.patch.object(reconciler, "run", eager):
-                    mutated = run_sequence(package, observations)
+                    mutated = run_sequence(package, observations, observation_gate=False)
                 self.assertEqual(mutated[0], normal[0], "the exception itself is the same")
                 self.assertNotEqual(mutated[1], normal[1], "but the ledger it leaves is not")
-                self.assertEqual(run_sequence(package, observations), normal)
+                self.assertEqual(run_sequence(package, observations, observation_gate=False), normal)
 
 
 if __name__ == "__main__":

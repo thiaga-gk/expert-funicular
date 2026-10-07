@@ -63,6 +63,16 @@ class Untestable:
         return 2
 
 
+def with_quality(observation: Mapping[str, Any], **inputs: Any) -> Dict[str, Any]:
+    """*observation* with some of its ``financial_quality`` inputs replaced (the quality inputs are nested in 2.0.0)."""
+    return {**observation, "financial_quality": {**observation["financial_quality"], **inputs}}
+
+
+def correction(**patch: Any) -> Dict[str, Any]:
+    """A complete billing correction (format 2.0.0: every key present)."""
+    return {"key": "c1", "type": "RESTATEMENT", "version": 2, "reason": None, "corrects_entry_id": None, **patch}
+
+
 def outcome(fn: Callable[..., Any], *args: Any, **kwargs: Any):
     """``("ok", value)``, or ``(exception type name, message)`` when *fn* raises."""
     try:
@@ -71,8 +81,29 @@ def outcome(fn: Callable[..., Any], *args: Any, **kwargs: Any):
         return type(exc).__name__, str(exc)
 
 
-def fixture_package() -> Dict[str, Any]:
-    return json.loads(next(canonical.PACKAGES.glob("PKG-*.json")).read_text(encoding="utf-8"))
+def stage_policy(mapping: Optional[Mapping[str, Any]]) -> Any:
+    """A ``RealizerPolicy`` from *mapping* WITHOUT the input gate (``RealizerPolicy.from_mapping`` refuses malformed
+    values: a NaN ratio, a text day count, an unknown key).
+
+    The stage-level failure-ordering tests still feed such policies to the stages, to pin what each stage leaves behind when
+    it raises; this builds them as ``from_mapping`` did before the gate (decimal settings through ``Decimal(str(v))``,
+    everything else as given), and only for them. A valid mapping gives the same policy as ``from_mapping``.
+    """
+    if not mapping:
+        return policy_module.RealizerPolicy()
+    from decimal import Decimal
+    kwargs = {k: (Decimal(str(v)) if k in policy_module._DECIMAL_SETTINGS else v) for k, v in mapping.items()}
+    return policy_module.RealizerPolicy(**kwargs)
+
+
+def fixture_package(name: str = "inplace-size-canary") -> Dict[str, Any]:
+    """A Reporter JSON Contract 3.1.0 fixture package (``tests/fixtures/realizer/packages/<name>.json``), parsed."""
+    return json.loads((canonical.PACKAGES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def migration_scenario_id(package: Mapping[str, Any]) -> str:
+    """The id of the package's standalone warehouse-type migration alternative."""
+    return next(s["scenario_id"] for s in package["scenarios"] if s["scenario_type"] == "WAREHOUSE_TYPE_MIGRATION")
 
 
 def tree(out: Path) -> Dict[str, Optional[str]]:
@@ -108,19 +139,50 @@ def compact_tree(run_tree: Mapping[str, Optional[str]]) -> Dict[str, Any]:
     }
 
 
-def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None):
+@contextlib.contextmanager
+def package_gate_open() -> Iterator[None]:
+    """Run the engine without the loader's package gate (``validate_package``).
+
+    The gate refuses every package that does not pass the Publisher's schema and hash checks, so a package a stage
+    must survive (a step number that is not a number, a plan step that is not a mapping) never reaches the stages in
+    production. The stage-level failure-ordering tests still feed such packages to the engine, to pin what each stage
+    leaves behind when it raises; this opens the gate for them, and only for them.
+    """
+    with mock.patch.object(_facade, "validate_package", lambda package: None):
+        yield
+
+
+@contextlib.contextmanager
+def observation_gate_open() -> Iterator[None]:
+    """Run the engine without the loader's observation gate (``validate_observation``).
+
+    The gate refuses every observation that is not a complete, consistent format 2.0.0 observation of the package's
+    warehouse before anything is written, so a malformed observation (a configuration that is not a mapping, an
+    unreadable time, a flag with no truth value) never reaches the stages in production. The stage-level failure-ordering
+    tests still feed such observations to the engine, to pin what each stage leaves behind when it raises; this opens the
+    gate for them, and only for them.
+    """
+    with mock.patch.object(_facade, "validate_observation", lambda observation, package: None):
+        yield
+
+
+def run_sequence(package: Mapping[str, Any], observations: Sequence[Optional[Mapping[str, Any]]], policy: Any = None, *, gate: bool = True,
+                 observation_gate: bool = True):
     """Run each observation through ``realize`` into one fresh directory, continuing past a failure.
 
     Returns ``(outcomes, tree)``: per observation ``("ok", snapshot id)`` or ``(exception type, message)``, and the
-    files and directories left behind (so a crash is compared together with the ledger it left half written).
+    files and directories left behind (so a crash is compared together with the ledger it left half written). With
+    ``gate=False`` the package is not checked by the loader's gate (``package_gate_open``); with ``observation_gate=False``
+    the observation is not (``observation_gate_open``).
     """
     with tempfile.TemporaryDirectory(prefix="realizer-run-") as tmp:
         out = Path(tmp)
         outcomes: List[Any] = []
-        for observation in observations:
-            kwargs = {} if policy is None else {"policy": policy_module.RealizerPolicy.from_mapping(policy)}
-            result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
-            outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
+        with contextlib.nullcontext() if gate else package_gate_open(), contextlib.nullcontext() if observation_gate else observation_gate_open():
+            for observation in observations:
+                kwargs = {} if policy is None else {"policy": stage_policy(policy)}
+                result = outcome(_facade.realize, copy.deepcopy(package), copy.deepcopy(observation), out, **kwargs)
+                outcomes.append(("ok", result[1].snapshot_id) if result[0] == "ok" else result)
         return outcomes, tree(out)
 
 
@@ -173,7 +235,7 @@ def staged_scenario_runs() -> Iterator[StagedRun]:
                     for stage, module in STAGES.items():
                         stack.enter_context(mock.patch.object(module, "run", _capturing(module.run, calls[stage])))
                     _facade.realize(copy.deepcopy(package), copy.deepcopy(observation), out, replay_through=step.get("replay_through"),
-                                   policy=None if policy is None else policy_module.RealizerPolicy.from_mapping(policy))
+                                   policy=None if policy is None else stage_policy(policy))
                 after = ledger_lines(out)
                 text_lines = [line for path in sorted((out / "realization" / "ledger").glob("*.jsonl")) for line in path.read_text(encoding="utf-8").splitlines()]
                 assert text_lines == stored[:len(text_lines)], f"{name} run {index}: the ledger is not a prefix of the stored baseline's"

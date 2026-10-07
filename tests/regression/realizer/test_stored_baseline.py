@@ -103,10 +103,10 @@ class StoredBaselineTests(unittest.TestCase):
         self.assertEqual(len(golden), 36, "every GR scenario that runs realize() (all but GR-004/035/036/039)")
 
     def test_example_scenarios_keep_the_documented_identities(self):
-        """The two committed examples of the v1.0.0 release (exact and modified), frozen as scenarios."""
+        """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-9BCA3C3DFB12CC37AA7CA775", "RSNAP-B4E0622B53B53930421A90E3", "REVID-C82136407213010727CEAB98", "RERUN-5EAFEBC878ED2364E53E171A"),
-            "example-modified": ("RPKG-9BCA3C3DFB12CC37AA7CA775", "RSNAP-709E1EC13A10E423918D76AB", "REVID-783EE1BC18D972E51EBFC4AE", "RERUN-BE6D14C9D53D954C51BE6C47"),
+            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-840FC98FC57CB50F460B1916", "REVID-37F7F275591908182339F44B", "RERUN-E859EB99CB326CE38DB20043"),
+            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-418E7F3D714E52CFF2192E40", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-3908769AAF62FB3768C5C200"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
@@ -114,12 +114,25 @@ class StoredBaselineTests(unittest.TestCase):
                 files = canonical.stored_expected(name)
                 for identity in ids:
                     self.assertIn(f"realization/{folders[identity.split('-')[0]]}/{identity}.json", files)
-                self.assertEqual(canonical.load_scenario(name)["package"], "PKG-C1928BFAD6E14C166A0F518D.json")
+                self.assertEqual(canonical.load_scenario(name)["package"], "inplace-size-canary.json")
 
-    def test_frozen_package_fixture_is_publisher_output_on_contract_1_0_0(self):
-        pkg = json.loads((canonical.PACKAGES / "PKG-C1928BFAD6E14C166A0F518D.json").read_text(encoding="utf-8"))
-        self.assertEqual(pkg["recommendation_package_id"], "PKG-C1928BFAD6E14C166A0F518D")
-        self.assertEqual(pkg["contract_version"], "1.0.0", "the Realizer accepts only Reporter JSON Contract 1.0.0 packages")
+    def test_every_scenario_names_one_of_the_four_fixture_packages(self):
+        fixtures = sorted(p.name for p in canonical.PACKAGES.glob("*.json"))
+        self.assertEqual(fixtures, ["inplace-size-canary.json", "scope-migration-only.json", "two-ready-steps.json", "unpriced-candidate.json"])
+        for name in self.names:
+            with self.subTest(scenario=name):
+                self.assertIn(canonical.load_scenario(name)["package"], fixtures)
+
+    def test_every_fixture_package_is_a_valid_publisher_package_on_contract_3_1_0(self):
+        """Built by scripts/build_realizer_fixtures.py from real Publisher runs; the Realizer's loader gate (schema, id and
+        hash recomputed) accepts each, and refuses any other contract version."""
+        from realizer.config import loader
+        for path in sorted(canonical.PACKAGES.glob("*.json")):
+            with self.subTest(package=path.name):
+                pkg = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(pkg["contract_version"], "3.1.0", "the Realizer accepts only Reporter JSON Contract 3.1.0 packages")
+                self.assertTrue(pkg["recommendation_package_id"].startswith("PKG-"))
+                self.assertIsNone(loader.validate_package(pkg))
 
 if __name__ == "__main__":
     unittest.main()

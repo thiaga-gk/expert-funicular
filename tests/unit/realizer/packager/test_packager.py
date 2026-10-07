@@ -18,7 +18,7 @@ from unittest import mock
 
 from tests import realizer_expect as expect
 from tests.unit.realizer.packager.test_ledger import capture_logs  # noqa: E402
-from tests.unit.realizer.helpers import as_line, canonical, compact_tree, events, files, fixture_package, ledger_lines, outcome, staged_scenario_runs, tree  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, as_line, canonical, compact_tree, events, files, fixture_package, ledger_lines, outcome, staged_scenario_runs, tree  # noqa: E402
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import utc_iso  # noqa: E402
@@ -27,7 +27,6 @@ from realizer.contracts.realization import PackagingResult  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 from realizer.estimator import estimator  # noqa: E402
 from realizer.governor import governor  # noqa: E402
-from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager import ledger, packager  # noqa: E402
 from realizer.reconciler import reconciler  # noqa: E402
 from realizer.realizer import build_context, realize  # noqa: E402
@@ -84,7 +83,7 @@ class EveryScenarioRunTests(unittest.TestCase):
                 for step in scenario["runs"]:
                     policy = step.get("policy")
                     realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
-                            replay_through=step.get("replay_through"), policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                            replay_through=step.get("replay_through"), policy=None if policy is None else stage_policy(policy))
             logs[name] = [line for line in lines if "ledger." in line]
             self.assertTrue(any("ledger.append" in line for line in logs[name]), name)
         kinds = collections.Counter(line.split(" rle=")[0] for lines in logs.values() for line in lines)
@@ -98,7 +97,7 @@ def run_scenario(name):
         for step in scenario["runs"]:
             policy = step.get("policy")
             realize(copy.deepcopy(scenario["package_doc"]), copy.deepcopy(step.get("observation")), Path(tmp),
-                    replay_through=step.get("replay_through"), policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                    replay_through=step.get("replay_through"), policy=None if policy is None else stage_policy(policy))
         return tree(Path(tmp))
 
 
@@ -126,7 +125,7 @@ class LineageTests(unittest.TestCase):
             path = ledger.ledger_path(Path(tmp), context.realization_package_id)
             path.parent.mkdir(parents=True)
             path.write_text("not json\n", encoding="utf-8")
-            self.assertEqual(outcome(packager.begin, context)[0], "JSONDecodeError")
+            self.assertEqual(outcome(packager.begin, context), ("LedgerError", f"ledger {path.name} line 1 is not a valid ledger entry (JSONDecodeError)"))
             self.assertEqual(path.read_text(encoding="utf-8"), "not json\n")
 
     def test_lineage_only_run_records_nothing_more(self):
@@ -167,7 +166,7 @@ class ReplayTests(unittest.TestCase):
                 for step in scenario["runs"]:
                     policy = step.get("policy")
                     realize(copy.deepcopy(package), copy.deepcopy(step.get("observation")), Path(out),
-                            policy=None if policy is None else RealizerPolicy.from_mapping(policy))
+                            policy=None if policy is None else stage_policy(policy))
                 cuts = sorted({line["recorded_at_utc"] for line in ledger_lines(Path(out))})
                 for cut in cuts + ["1999-01-01T00:00:00Z", "2999-01-01T00:00:00Z"]:
                     result = outcome(lambda: realize(copy.deepcopy(package), None, Path(out), replay_through=cut).to_dict())
@@ -178,23 +177,21 @@ class ReplayTests(unittest.TestCase):
                                                      "first": replays[0], "last": replays[-1]})
         expect.check(self, "trees", trees, spot={"scenarios": len(trees), "files": sum(len(t["files"]) for t in trees.values())})
 
-    def test_replay_is_cut_after_the_commit(self):
-        # a cut that is not a time raises only after the run's events were recorded; a cut before every entry leaves nothing to project
+    def test_replay_cut_is_refused_before_the_commit(self):
+        # a cut that is not a time, or is before the package was generated (nothing to project), is an input refusal:
+        # the run stops in build_context, before the lineage entry or any event is recorded
         pkg = fixture_package()
         base = demo_observation(pkg)
         results = {}
         for label, cut in (("garbage", "garbage"), ("empty", "1999-01-01T00:00:00Z")):
             with tempfile.TemporaryDirectory() as tmp:
                 results[label] = (outcome(realize, copy.deepcopy(pkg), copy.deepcopy(base), Path(tmp), replay_through=cut), tree(Path(tmp)))
-        (garbage, garbage_tree), (empty, empty_tree) = results["garbage"], results["empty"]
-        self.assertNotEqual(garbage[0], "ok")
-        self.assertEqual(empty[:2], ("ValueError", "cannot project empty ledger"))
-        for failed in (garbage_tree, empty_tree):
-            self.assertIn("ECONOMIC_MEASUREMENT_RECORDED", events(failed))
-            self.assertEqual(files(failed, "packages"), [])
-            self.assertEqual(files(failed, "snapshots"), [])
-        for label, (result, failed_tree) in results.items():
-            expect.check(self, label, (result, compact_tree(failed_tree)))
+        for label, (result, refused_tree) in results.items():
+            self.assertEqual(result[0], "InputError")
+            self.assertEqual(refused_tree, {}, "nothing was recorded or written")
+            expect.check(self, label, (result, compact_tree(refused_tree)))
+        self.assertIn("not an ISO-8601 time", results["garbage"][0][1])
+        self.assertIn("before the package was generated", results["empty"][0][1])
 
 
 class IdempotencyTests(unittest.TestCase):

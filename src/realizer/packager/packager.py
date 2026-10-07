@@ -30,7 +30,7 @@ def run(context: RunContext, reviewed: ReviewResult) -> PackagingResult:
 
     A failure the capabilities kept (``halt``) is raised after the events decided before it, so the ledger a failed run
     leaves is the one it always left. The ledger is then reloaded and, for a replay (``replay_through``), cut to the
-    entries recorded through that time; the cut is applied, and an invalid cut raises, after the events were recorded.
+    entries recorded through that time (the cut was checked before the run wrote anything).
     """
     request = context.request
     written = ledger.commit_events(context, reviewed)

@@ -1,0 +1,26 @@
+{
+  "actual_config": {
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
+    "max_clusters": 4,
+    "min_clusters": 1,
+    "warehouse_channel": "CURRENT",
+    "warehouse_size": "X_LARGE",
+    "warehouse_type": "PRO"
+  },
+  "actual_config_hash": "SHA256:6785F12D215219A0C69D0914C902DC4DE2F07447E16197CF44F37047CF3EA414",
+  "impacted_knobs": [
+    "max_clusters",
+    "min_clusters"
+  ],
+  "policy_snapshot_id": "PSNAP-FEF164129C29BEC36EE4002F",
+  "reasons": [
+    "CONTRARY_IMPLEMENTATION"
+  ],
+  "regeneration_request_id": "RERUN-34B83AC2D99269A0958CAD43",
+  "scenario_id": "SCN-2939C3996D4BBAC63D4F9484",
+  "source_realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
+  "source_recommendation_package_id": "PKG-EDCCB34F2D2EE33248087825",
+  "status": "REQUESTED",
+  "step": 1
+}

@@ -3,8 +3,8 @@
 The CLI parses its own arguments, loads the package, the observation and the policy (in that order), configures logging,
 calls the facade and prints the written package path (or the snapshot with ``--print-json``). It never imports a
 capability package. The option table (defaults, values, help text, argparse errors) and, for the demo, replay,
-observation-file and policy modes, the exit status, stdout and output tree are those of the single-file CLI, stored in
-tests/fixtures/realizer/expectations/.
+observation-file and policy modes, the exit status, stdout and output tree are stored in tests/fixtures/realizer/expectations/. A refused input exits
+with status 2 (tests/unit/realizer/cli/test_refusals.py); a defect is not mapped to a status.
 """
 import ast
 import contextlib
@@ -23,12 +23,13 @@ from tests.unit.realizer.helpers import ROOT, canonical, compact_tree, fixture_p
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.cli import realize as cli_realize  # noqa: E402
 from realizer.cli.main import main  # noqa: E402
+from realizer.common import logging as rlogging  # noqa: E402
 from realizer.contracts import realization as rc  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
 
 CAPABILITIES = ("analyzer", "governor", "reconciler", "estimator", "reviewer", "packager", "reporter")
 CLI_DIR = ROOT / "src" / "realizer" / "cli"
-PACKAGE = next(canonical.PACKAGES.glob("PKG-*.json"))
+PACKAGE = canonical.PACKAGES / "inplace-size-canary.json"
 
 
 def imported_modules(path):
@@ -102,11 +103,20 @@ class BehaviourTests(unittest.TestCase):
         cls.observation = Path(cls.root.name) / "observation.json"
         cls.observation.write_text(json.dumps(demo_observation(cls.pkg, modified=True)), encoding="utf-8")
         cls.policy = Path(cls.root.name) / "policy.json"
-        cls.policy.write_text(json.dumps({"minimum_validation_days": 3}), encoding="utf-8")
+        cls.policy.write_text(json.dumps({"minimum_days": 3}), encoding="utf-8")
 
     @classmethod
     def tearDownClass(cls):
         cls.root.cleanup()
+
+    def setUp(self):
+        saved = (list(rlogging.LOGGER.handlers), rlogging.LOGGER.level, rlogging.LOGGER.propagate)  # main() configures the logger
+
+        def restore():
+            for handler in rlogging.LOGGER.handlers:
+                handler.close()
+            rlogging.LOGGER.handlers, rlogging.LOGGER.level, rlogging.LOGGER.propagate = saved
+        self.addCleanup(restore)
 
     def run_cli(self, entry, argv, out):
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -156,15 +166,25 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(any(k.startswith("realization/evidence/") and v for k, v in files_.items()))
 
-    def test_failures_are_not_mapped_to_an_exit_status(self):
+    def test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback(self):
         bad = Path(self.root.name) / "bad.json"
         bad.write_text(json.dumps({"recommendation_package_id": "PKG-1"}), encoding="utf-8")
         for index, argv in enumerate((["--package", str(bad)], ["--package", str(Path(self.root.name) / "missing.json")],
                                       ["--package", str(PACKAGE), "--observation", str(bad), "--demo-modified", "--policy", str(Path(self.root.name) / "nope.json")])):
             with self.subTest(argv=argv[1:]):
-                new = self.run_cli(main, argv, Path(self.root.name) / "o1")
-                self.assertIsInstance(new[0], str)
-                expect.check(self, f"case {index}", new[0].replace(self.root.name, "<tmp>"))
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = main(argv + ["--output-dir", str(Path(self.root.name) / "o1")])
+                self.assertEqual((code, out.getvalue()), (2, ""))
+                message = err.getvalue().splitlines()[-1]
+                self.assertTrue(message.startswith("realizer: "), message)
+                expect.check(self, f"case {index}", message.replace(self.root.name, "<tmp>"))
+        self.assertFalse((Path(self.root.name) / "o1").exists(), "an input refusal writes nothing")
+
+    def test_a_defect_is_not_mapped_to_an_exit_status(self):
+        with mock.patch.object(cli_realize, "realize", side_effect=RuntimeError("boom")), tempfile.TemporaryDirectory() as tmp, \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError):
+            main(["--package", str(PACKAGE), "--demo", "--output-dir", tmp])
 
     def test_load_order_is_package_then_observation_then_policy(self):
         order = []

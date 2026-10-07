@@ -1,11 +1,13 @@
 """JSON Schema builders for Realizer Contract v1.0.0.
 
-The committed schema files are these builders' output serialized as ``json.dumps(schema, indent=2, sort_keys=True)``
+``validate_realization_package`` and ``validate_ledger_entry`` check every document the Realizer writes, before it is
+written. The committed schema files are these builders' output serialized as ``json.dumps(schema, indent=2, sort_keys=True)``
 plus a trailing newline (``schema/realization-package.schema.json`` and ``schema/realization-ledger-entry.schema.json``).
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from functools import lru_cache
+from typing import Any, Dict, Mapping
 
 from realizer.contracts import realization as rc
 
@@ -29,7 +31,17 @@ def realization_package_schema() -> Dict[str, Any]:
             "source_recommendation": {"type": "object"},
             "warehouse": {"type": "object"},
             "as_of_utc": {"type": "string", "format": "date-time"},
-            "current_state": {"type": "object"},
+            "current_state": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["realization_state", "validation_state", "maturity_state", "source_package_disposition"],
+                "properties": {
+                    "realization_state": {"enum": [x.value for x in rc.RealizationState]},
+                    "validation_state": {"enum": [x.value for x in rc.ValidationState]},
+                    "maturity_state": {"enum": [x.value for x in rc.MaturityState]},
+                    "source_package_disposition": {"enum": [x.value for x in rc.SourcePackageDisposition]},
+                },
+            },
             "application": {"type": "object"},
             "validation": {"type": "object"},
             "economics": {"type": "object"},
@@ -76,3 +88,21 @@ def ledger_entry_schema() -> Dict[str, Any]:
             "provenance": {"type": "object"},
         },
     }
+
+
+@lru_cache(maxsize=None)
+def _validator(builder: str) -> Any:
+    import jsonschema  # a declared dependency; a gate that cannot run must not pass
+
+    return jsonschema.Draft202012Validator(globals()[builder]())
+
+
+def validate_realization_package(document: Mapping[str, Any]) -> None:
+    """Check a realization package or snapshot document against its schema before it is written (raises
+    ``jsonschema.ValidationError``: an invalid output is a defect, never written)."""
+    _validator("realization_package_schema").validate(dict(document))
+
+
+def validate_ledger_entry(document: Mapping[str, Any]) -> None:
+    """Check a ledger entry document against its schema before it is appended (raises ``jsonschema.ValidationError``)."""
+    _validator("ledger_entry_schema").validate(dict(document))

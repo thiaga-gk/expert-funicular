@@ -16,7 +16,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, Opaque, Unprintable, canonical, fixture_package, outcome  # noqa: E402
+from realizer.analyzer.analysis import candidate_steps  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.config.settings import MODELER_GATEWAY_VERSION  # noqa: E402
 from realizer.contracts.realization import make_measurement_id, make_rpkg_id  # noqa: E402
@@ -35,7 +36,7 @@ POLICIES = [None, {"realized_ratio_min": "0.95", "under_realized_ratio_min": "0.
 
 
 def policy(mapping):
-    return RealizerPolicy.from_mapping(mapping)
+    return stage_policy(mapping)
 
 
 def stored_applications():
@@ -90,7 +91,7 @@ class CounterfactualIdTests(unittest.TestCase):
 
 
 class ExpectedAnnualTests(unittest.TestCase):
-    def test_every_plan_step_of_both_packages(self):
+    def test_every_plan_step_of_every_fixture_package(self):
         results = {}
         for path in sorted(canonical.PACKAGES.glob("*.json")):
             package = json.loads(path.read_text(encoding="utf-8"))
@@ -196,7 +197,8 @@ class CalculateEconomicsGridTests(unittest.TestCase):
             "cost not a number": ({"economics": {**econ, "observed_new_cost": "abc"}}, self.app, self.pkg),
             "cost not finite": ({"economics": {**econ, "counterfactual_old_cost": "NaN"}}, self.app, self.pkg),
             "period not a number": ({"economics": {**econ, "period_days": "abc"}}, self.app, self.pkg),
-            "elapsed days not a number": ({"economics": {**econ, "period_days": None}, "elapsed_days": "abc"}, self.app, self.pkg),
+            "period absent": ({"economics": {k: v for k, v in econ.items() if k != "period_days"}}, self.app, self.pkg),
+            "currency absent": ({"economics": {k: v for k, v in econ.items() if k != "currency"}}, self.app, self.pkg),
             "expected not a number": ({"economics": {**econ, "expected_annual_savings_actual_scope": "abc"}}, self.app, self.pkg),
             "ttm not a number": ({"economics": {**econ, "mature_ttm_realized_savings": "abc"}}, self.app, self.pkg),
             "aws not finite": ({"economics": {**econ, "aws_cash_realized": "Infinity"}}, self.app, self.pkg),
@@ -224,6 +226,12 @@ class EconomicsCaseTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.base = demo_observation(cls.pkg)
         cls.app = demo_application(cls.pkg, cls.base)
+        # The demo observation realizes, over its 30 days, the applied step's published savings pro rata.
+        econ = cls.base["economics"]
+        cls.realized = Decimal(econ["counterfactual_old_cost"]) - Decimal(econ["observed_new_cost"])
+        cls.annualized = (cls.realized * 365 / 30).quantize(Decimal("0.01"))
+        step = next(s for s in candidate_steps(cls.pkg) if s.get("step") == cls.app["step"])
+        cls.published = economics.expected_annual_for_exact_step(cls.pkg, step)[0]
 
     def econ(self, app=None, passed=True, eligible=True, policy=None, observation=None, **economics_patch):
         observation = {**(observation or self.base)}
@@ -231,24 +239,27 @@ class EconomicsCaseTests(unittest.TestCase):
         return economics.calculate_economics(self.pkg, app or self.app, observation, policy or RealizerPolicy(), passed, eligible)
 
     def test_ratio_classes(self):
-        # realized 1000 over 30 days -> 12166.67 a year
-        cases = {"12000": ("REALIZED", "REALIZED", False), "20000": ("UNDER_REALIZED", "UNDER_REALIZED", False),
-                 "30000": ("UNDER_REALIZED", "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED", True)}
-        for expected, (state, detail, reoptimize) in cases.items():
+        # The annualized realized savings against a re-estimate that is 0.99x (realized), 1.64x (under) and 2.47x (far under) as large.
+        cases = {"0.99": ("REALIZED", "REALIZED", False), "1.64": ("UNDER_REALIZED", "UNDER_REALIZED", False),
+                 "2.47": ("UNDER_REALIZED", "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED", True)}
+        for factor, (state, detail, reoptimize) in cases.items():
+            expected = str((self.annualized * Decimal(factor)).quantize(Decimal("0.01")))
             with self.subTest(expected=expected):
                 result = self.econ(expected_annual_savings_actual_scope=expected)
                 self.assertEqual((result["realization_state"], result["classification_detail"], result["reoptimization_recommended"]), (state, detail, reoptimize))
-                self.assertEqual(result["annualized_realized_savings"], "12166.67")
-                self.assertEqual(result["successful_realized_savings"], "1000.00")
-                self.assertEqual(Decimal(result["realization_ratio"]), Decimal(1000) * 365 / 30 / Decimal(expected))
-        self.assertEqual(self.econ(expected_annual_savings_actual_scope="12500", policy=RealizerPolicy.from_mapping({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
+                self.assertEqual(result["annualized_realized_savings"], str(self.annualized))
+                self.assertEqual(result["successful_realized_savings"], str(self.realized))
+                self.assertEqual(Decimal(result["realization_ratio"]), self.realized * 365 / 30 / Decimal(expected))
+        near = str((self.annualized * Decimal("1.0277")).quantize(Decimal("0.01")))   # ratio 0.973: realized by default, under at a 0.99 minimum
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope=near)["realization_state"], "REALIZED")
+        self.assertEqual(self.econ(expected_annual_savings_actual_scope=near, policy=stage_policy({"realized_ratio_min": "0.99"}))["realization_state"], "UNDER_REALIZED")
         for expected in ("0", "-5"):
             result = self.econ(expected_annual_savings_actual_scope=expected)
             self.assertEqual((result["realization_state"], result["classification_detail"], result["realization_ratio"]), ("MONITORING", "VALIDATED_VALUE_UNCLASSIFIED", None))
 
     def test_denominators(self):
         self.assertEqual(self.econ()["denominator_source"], "PUBLISHER_CANDIDATE")
-        self.assertEqual(self.econ()["expected_same_scope_annual_savings"], "12029.52")
+        self.assertEqual(self.econ()["expected_same_scope_annual_savings"], str(self.published))
         self.assertEqual(self.econ(expected_annual_savings_actual_scope="15000")["denominator_source"], "REESTIMATED_APPLIED_SCOPE")
         modified = {**self.app, "implementation_conformance": "MODIFIED"}
         self.assertEqual(self.econ(app=modified)["denominator_source"], "UNAVAILABLE")
@@ -263,9 +274,17 @@ class EconomicsCaseTests(unittest.TestCase):
         self.assertEqual(self.econ()["period_days"], "30")
         year = self.econ(counterfactual_old_cost="150000", observed_new_cost="120000", period_days=365, expected_annual_savings_actual_scope="30000")
         self.assertEqual((year["annualized_realized_savings"], year["realization_ratio"], year["realization_state"]), ("30000.00", "1", "REALIZED"))
-        by_elapsed = self.econ(period_days=None)   # falls back to the observation's elapsed days (8)
-        self.assertEqual((by_elapsed["period_days"], by_elapsed["annualized_realized_savings"]), ("8", "45625.00"))
-        self.assertEqual(self.econ(period_days=0)["period_days"], "8")
+        # The measurement period is required; it is never replaced by the observation's elapsed days.
+        with self.assertRaises(TypeError):
+            self.econ(period_days=None)
+        econ = {k: v for k, v in self.base["economics"].items() if k != "period_days"}
+        with self.assertRaises(KeyError):
+            economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": econ}, RealizerPolicy(), True, True)
+        zero = self.econ(period_days=0)
+        self.assertEqual((zero["period_days"], zero["annualized_realized_savings"], zero["realization_state"]), ("0", None, "MONITORING"))
+        missing_currency = {k: v for k, v in self.base["economics"].items() if k != "currency"}
+        with self.assertRaises(KeyError):
+            economics.calculate_economics(self.pkg, self.app, {**self.base, "economics": missing_currency}, RealizerPolicy(), True, True)
         unrepresentative = self.econ(observation={**self.base, "representative_regime": False})
         self.assertIsNone(unrepresentative["annualized_realized_savings"])
         self.assertEqual((unrepresentative["realization_state"], unrepresentative["realization_ratio"]), ("MONITORING", None))
@@ -281,7 +300,7 @@ class EconomicsCaseTests(unittest.TestCase):
     def test_trailing_twelve_months_and_since_application(self):
         result = self.econ(mature_ttm_realized_savings="4321.005", realized_savings_since_application="2500")
         self.assertEqual((result["mature_ttm_realized_savings"], result["realized_savings_since_application"]), ("4321.01", "2500.00"))
-        self.assertEqual(self.econ()["realized_savings_since_application"], "1000.00")
+        self.assertEqual(self.econ()["realized_savings_since_application"], str(self.realized))
 
     def test_cost_increase(self):
         result = self.econ(counterfactual_old_cost="9000", observed_new_cost="10000")
@@ -302,11 +321,21 @@ class EconomicsCaseTests(unittest.TestCase):
     def test_guardrail_failure_and_counterfactual_without_claim(self):
         failed = self.econ(passed=False)
         self.assertEqual((failed["realization_state"], failed["classification_detail"], failed["successful_realized_savings"], failed["observed_economic_delta"]),
-                         ("VALIDATION_FAILED", "HARD_GUARDRAIL_FAILED", "0.00", "1000.00"))
+                         ("VALIDATION_FAILED", "HARD_GUARDRAIL_FAILED", "0.00", str(self.realized)))
         blocked = self.econ(eligible=False)
         self.assertEqual((blocked["realization_state"], blocked["classification_detail"], blocked["successful_realized_savings"], blocked["observed_economic_delta"]),
-                         ("BLOCKED", "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE", "0.00", "1000.00"))
+                         ("BLOCKED", "COUNTERFACTUAL_NOT_CLAIM_ELIGIBLE", "0.00", str(self.realized)))
         self.assertEqual(self.econ(passed=False, eligible=False)["realization_state"], "VALIDATION_FAILED")
+        # A failed or blocked measurement keeps its observed delta but publishes no run-rate and no ratio.
+        for result in (failed, blocked):
+            self.assertIsNone(result["annualized_realized_savings"])
+            self.assertIsNone(result["realization_ratio"])
+        for result in (self.econ(), self.econ(expected_annual_savings_actual_scope="1000000")):
+            self.assertIsNotNone(result["annualized_realized_savings"])
+            self.assertIsNotNone(result["realization_ratio"])
+        monitoring = self.econ(expected_annual_savings_actual_scope="0")
+        self.assertEqual(monitoring["realization_state"], "MONITORING")
+        self.assertIsNotNone(monitoring["annualized_realized_savings"])
 
 
 class MeasurementFactsTests(unittest.TestCase):

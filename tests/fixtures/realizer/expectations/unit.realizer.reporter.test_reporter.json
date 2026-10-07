@@ -24,10 +24,10 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fd112f8463297164",
      "realization/packages": "aacd1cd8cc810c3e",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea"
     }
    }
   ]
@@ -58,18 +58,18 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fd112f8463297164",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "c3d564be683c973b",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
      "realization/snapshots": "aacd1cd8cc810c3e"
     }
    }
   ]
  },
  "LegacyCompatibilityTests.test_every_snapshot_of_every_scenario_projects_as_stored/projections": {
-  "length": 5210,
-  "sha256": "8f86a06137aa2839d19b7762d46e66b4699cc5b93e1bcbfd35f966fa728b280e",
+  "length": 5248,
+  "sha256": "53e2cf30fe6ab1d9f8530549999769df2c8c532f65dca1a70f8f07ddd6e5f809",
   "spot": {
    "distinct": [
     [
@@ -89,6 +89,13 @@
      "UNREPRESENTABLE",
      [
       "REALIZER_STATE_DRIFTED_HAS_NO_LEGACY_MAPPING"
+     ]
+    ],
+    [
+     "INVALIDATED",
+     "LOSSY",
+     [
+      "INVALIDATED_COLLAPSES_TO_LEGACY_APPLIED"
      ]
     ],
     [
@@ -145,10 +152,10 @@
   }
  },
  "LegacyCompatibilityTests.test_every_state_actor_and_conformance/projections": {
-  "length": 14637,
-  "sha256": "5afea504f64f80bb346d6073bb4e8f4f49951def21c738280e9965878571aaec",
+  "length": 16167,
+  "sha256": "ee8fe4c142e6987c9a923f47da26bfe1fc92254632dd7423760e8d87b1e091b1",
   "spot": {
-   "cases": 77,
+   "cases": 84,
    "statuses": [
     "LOSSLESS",
     "LOSSY",
@@ -192,9 +199,9 @@
     "REALIZATION_CREATED"
    ],
    "files": {
-    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
-    "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
-    "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1fe311e26cf0800b",
+    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "9a57e61b64f79e9e",
+    "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "9a57e61b64f79e9e"
    }
   }
  }

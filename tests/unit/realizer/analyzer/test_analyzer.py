@@ -12,13 +12,12 @@ from pathlib import Path
 from unittest import mock
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import as_line, canonical, fixture_package, ledger_lines, outcome, tree  # noqa: E402
+from tests.unit.realizer.helpers import stage_policy, as_line, canonical, fixture_package, ledger_lines, observation_gate_open, outcome, tree  # noqa: E402
 from realizer.analyzer import analysis, analyzer  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import utc_iso  # noqa: E402
 from realizer.contracts.analysis import ObservationAnalysis, RealizationAnalysis, RealizationHistory  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
-from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from realizer.packager.ledger import ledger_path  # noqa: E402
 from realizer.realizer import build_context, realize  # noqa: E402
 
@@ -69,7 +68,7 @@ class RunTests(unittest.TestCase):
 
                     with mock.patch.object(analyzer, "run", checking_run):
                         realize(copy.deepcopy(package), copy.deepcopy(observation), out,
-                                policy=None if step.get("policy") is None else RealizerPolicy.from_mapping(step["policy"]),
+                                policy=None if step.get("policy") is None else stage_policy(step["policy"]),
                                 replay_through=step.get("replay_through"))
                     context, result = checked[0]
                     self.assertIsInstance(result, RealizationAnalysis)
@@ -132,12 +131,15 @@ class RunTests(unittest.TestCase):
             self.assertFalse(empty.exists())
 
     def test_malformed_observation_raises_before_any_write(self):
+        """The Analyzer's own handling: the loader's observation gate refuses these first (see ``tests/unit/realizer/config``)."""
         package = fixture_package()
         for patch in ({"observed_at_utc": None, "recorded_at_utc": None}, {"config": 5}, {"observed_at_utc": "nope"}):
             observation = {**demo_observation(package), **patch}
             with self.subTest(patch=patch), tempfile.TemporaryDirectory() as tmp:
                 out = Path(tmp)
-                new = outcome(analyzer.run, build_context(RealizationRequest(package, observation, out)))
+                with observation_gate_open():
+                    context = build_context(RealizationRequest(package, observation, out))
+                new = outcome(analyzer.run, context)
                 self.assertNotEqual(new[0], "ok")
                 self.assertEqual(tree(out), {})
 

@@ -27,6 +27,7 @@ from realizer.estimator.economics import calculate_economics  # noqa: E402
 from realizer.governor.policy import RealizerPolicy, savings_improvement_material  # noqa: E402
 from realizer.packager.ledger import ledger_path, load_ledger  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
+from realizer.reporter.reporter import legacy_compatibility  # noqa: E402
 from realizer.reconciler.matching import _directional_relation  # noqa: E402
 
 
@@ -124,12 +125,19 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.application['implementation_conformance'], 'CONTRARY')
         self.assertEqual(s.regeneration['status'], 'REQUESTED')
         self.assertFalse(s.economics.get('available', False))
+        # The opposite of the recommendation invalidates the plan (R08); the legacy projection can only say APPLIED.
+        self.assertEqual(s.current_state['realization_state'], 'INVALIDATED')
+        legacy = legacy_compatibility(s)
+        self.assertEqual((legacy['status'], legacy['legacy_realization_status']), ('LOSSY', 'APPLIED'))
+        self.assertIn('INVALIDATED_COLLAPSES_TO_LEGACY_APPLIED', legacy['reasons'])
 
     # GR-007
     def test_gr_007_unrelated_change(self):
-        o = self.obs(); o['config'] = package_config(self.pkg); o['config']['tag_only'] = 'x'
+        # Nothing the plan recommends changed (a knob the plan does not cover cannot be told apart from no change).
+        o = self.obs(); o['config'] = package_config(self.pkg)
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'NOT_APPLIED')
+        self.assertEqual(s.application['state'], 'NOT_APPLIED')
 
     # GR-008
     def test_gr_008_applied_but_immature(self):
@@ -172,12 +180,16 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.current_state['realization_state'], 'VALIDATION_FAILED')
         self.assertEqual(Decimal(s.economics['successful_realized_savings']), 0)
         self.assertGreater(Decimal(s.economics['observed_economic_delta']), 0)
+        self.assertIsNone(s.economics['annualized_realized_savings'])   # a failed measurement publishes no run-rate (R13)
+        self.assertIsNone(s.economics['realization_ratio'])
 
     # GR-014
     def test_gr_014_reliability_failure(self):
         o = self.obs(); o['performance']['reliability_pass'] = False
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'VALIDATION_FAILED')
+        self.assertIsNone(s.economics['annualized_realized_savings'])
+        self.assertIsNone(s.economics['realization_ratio'])
 
     # GR-015
     def test_gr_015_no_defensible_counterfactual(self):
@@ -186,10 +198,12 @@ class RealizerGoldenTests(unittest.TestCase):
         self.assertEqual(s.current_state['realization_state'], 'BLOCKED')
         self.assertEqual(Decimal(s.economics['successful_realized_savings']), 0)
         self.assertIn('NO_DEFENSIBLE_COUNTERFACTUAL', s.attribution['hard_disqualifiers'])
+        self.assertIsNone(s.economics['annualized_realized_savings'])   # a blocked measurement publishes no run-rate (R13)
+        self.assertIsNone(s.economics['realization_ratio'])
 
     # GR-016
     def test_gr_016_modified_missing_same_scope_denominator(self):
-        o = self.obs(modified=True); o['economics'].pop('expected_annual_savings_actual_scope', None)
+        o = self.obs(modified=True); o['economics']['expected_annual_savings_actual_scope'] = None
         s = self.realize_case(o)
         self.assertIsNone(s.economics['realization_ratio'])
         self.assertEqual(s.economics['classification_detail'], 'VALIDATED_VALUE_UNCLASSIFIED')
@@ -198,7 +212,10 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_017_first_plan_a_step_realized_downstream_pending(self):
         s = self.realize_case(self.obs())
         self.assertEqual(s.application['plan_progress']['state'], 'PARTIALLY_COMPLETED')
-        self.assertEqual(s.application['plan_progress']['pending_reevaluation_steps'], 3)
+        plan = next(x for x in self.pkg['scenarios'] if x['scenario_id'] == self.pkg['recommended_plan']['scenario_id'])['execution_plan']
+        pending = [x for x in plan if x['execution_state'] == 'PENDING_REEVALUATION']
+        self.assertGreater(len(pending), 0)
+        self.assertEqual(s.application['plan_progress']['pending_reevaluation_steps'], len(pending))
         self.assertEqual(s.regeneration['status'], 'REQUESTED')
 
     # GR-018
@@ -211,14 +228,14 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-019
     def test_gr_019_multiple_compatible_changes_scenario_scope(self):
-        p = copy.deepcopy(self.pkg)
+        # the fixture whose plan has two authority-eligible steps (size READY_FOR_CANARY, auto-stop READY); both are applied
+        p = canonical.load_scenario('GR-019')['package_doc']
         scn = next(x for x in p['scenarios'] if x['scenario_id'] == p['recommended_plan']['scenario_id'])
-        candidate_steps = [x for x in scn['execution_plan'] if x['step_type'] == 'CANDIDATE']
-        candidate_steps[0]['invalidates'] = []
-        candidate_steps[1]['execution_state'] = 'READY_FOR_CANARY'
+        eligible = [x for x in scn['execution_plan'] if x['step_type'] == 'CANDIDATE' and x['execution_state'] in ('READY', 'READY_FOR_CANARY')]
+        self.assertEqual([x['knob'] for x in eligible], ['warehouse_size', 'auto_stop_minutes'])
         o = demo_observation(p)
-        o['config']['warehouse_size'] = candidate_steps[0]['recommended_value']
-        o['config']['max_clusters'] = candidate_steps[1]['recommended_value']
+        for step in eligible:
+            o['config'][step['knob']] = step['recommended_value']
         o['economics']['expected_annual_savings_actual_scope'] = '15000'
         s = self.realize_case(o, package=p)
         self.assertEqual(s.application['application_scope'], 'SCENARIO')
@@ -227,7 +244,10 @@ class RealizerGoldenTests(unittest.TestCase):
 
     # GR-020
     def test_gr_020_pending_downstream_change_not_credited(self):
-        o = self.obs(); o['config'] = package_config(self.pkg); o['config']['max_clusters'] = 3
+        o = self.obs(); o['config'] = package_config(self.pkg)
+        plan = next(x for x in self.pkg['scenarios'] if x['scenario_id'] == self.pkg['recommended_plan']['scenario_id'])['execution_plan']
+        pending = next(x for x in plan if x['knob'] == 'max_clusters' and x['execution_state'] == 'PENDING_REEVALUATION')
+        o['config']['max_clusters'] = pending['recommended_value']
         s = self.realize_case(o)
         self.assertEqual(s.current_state['realization_state'], 'NOT_APPLIED')
         self.assertFalse(s.economics.get('available', False))
@@ -257,7 +277,7 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_023_economic_handoff_uses_same_boundary_without_overlap(self):
         o = self.obs(); old = self.realize_case(o)
         boundary = _iso_add(o['observed_at_utc'], days=1)
-        drift = self.later(o, days=1, new_application=True); drift['config']['max_clusters'] = 3; drift['economics'] = {}
+        drift = self.later(o, days=1, new_application=True); drift['config']['max_clusters'] = 3; drift['economics'] = None
         old2 = self.realize_case(drift)
         self.assertEqual(old2.application['effective_to_utc'], boundary)
         # A replacement package starts its own interval at the same boundary.
@@ -267,7 +287,7 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-024
     def test_gr_024_config_drift_closes_interval(self):
         o = self.obs(); self.realize_case(o)
-        d = self.later(o, days=2, new_application=True); d['config']['warehouse_size'] = 'LARGE'; d['economics'] = {}
+        d = self.later(o, days=2, new_application=True); d['config']['warehouse_size'] = 'LARGE'; d['economics'] = None
         s = self.realize_case(d)
         self.assertEqual(s.current_state['realization_state'], 'DRIFTED')
         self.assertEqual(s.application['state'], 'DRIFTED')
@@ -276,7 +296,7 @@ class RealizerGoldenTests(unittest.TestCase):
     # GR-025
     def test_gr_025_rollback_preserves_history(self):
         o = self.obs(); self.realize_case(o)
-        rb = self.later(o, days=2, new_application=True); rb['config'] = package_config(self.pkg); rb['rollback_observed'] = True; rb['economics'] = {}
+        rb = self.later(o, days=2, new_application=True); rb['config'] = package_config(self.pkg); rb['rollback_observed'] = True; rb['economics'] = None
         s = self.realize_case(rb)
         self.assertEqual(s.current_state['realization_state'], 'ROLLED_BACK')
         self.assertGreater(s.history['entry_count'], 1)
@@ -285,7 +305,7 @@ class RealizerGoldenTests(unittest.TestCase):
     def test_gr_026_billing_restatement_appends_and_recomputes(self):
         o = self.obs(); first = self.realize_case(o)
         first_value = Decimal(first.economics['realized_savings_period'])
-        o2 = self.later(o); o2['economics']['observed_new_cost'] = '9200'; o2['correction'] = {'type':'RESTATEMENT','key':'oct','version':2,'reason':'late billing'}
+        o2 = self.later(o); o2['economics']['observed_new_cost'] = '9200'; o2['correction'] = {'type':'RESTATEMENT','key':'oct','version':2,'reason':'late billing','corrects_entry_id':None}
         s = self.realize_case(o2)
         self.assertEqual(s.history['correction_count'], 1)
         correction = next(e for e in self.ledger() if e.event_type == rc.EventType.BILLING_CORRECTION_RECORDED)

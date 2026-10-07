@@ -3,7 +3,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -26,33 +26,24 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
-     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fd112f8463297164",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "c3d564be683c973b",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
+     "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "c3d564be683c973b"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
-  "length": 9181,
-  "sha256": "f56b0aaf5a854c736a732d8f8d13adf35aa41252f4dbb22a11bb1ef07e8e0105"
- },
- "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 0": {
-  "value": "ValueError: PKG missing required fields: ['contract_version', 'warehouse', 'current_config', 'candidates', 'scenarios', 'recommended_plan', 'provenance']"
- },
- "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 1": {
-  "value": "FileNotFoundError: [Errno 2] No such file or directory: '<tmp>/missing.json'"
- },
- "BehaviourTests.test_failures_are_not_mapped_to_an_exit_status/case 2": {
-  "value": "FileNotFoundError: [Errno 2] No such file or directory: '<tmp>/nope.json'"
+  "length": 9302,
+  "sha256": "980a1984157cb8bb0b06247cab77ed14586378587b78af411a920d0ff85c51ca"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -65,9 +56,9 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "0ecc71eeb7c88de8",
-     "realization/snapshots/RSNAP-FF710CE066DA00D4BEED88E4.json": "0ecc71eeb7c88de8"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1fe311e26cf0800b",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "9a57e61b64f79e9e",
+     "realization/snapshots/RSNAP-721D4229152775581D5978CF.json": "9a57e61b64f79e9e"
     }
    }
   ]
@@ -76,7 +67,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json\n"
+    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
    ],
    {
     "directories": [
@@ -99,23 +90,32 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-783EE1BC18D972E51EBFC4AE.json": "d53613a7b9c447de",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "85aaff62336f9816",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "52c0f2098aeed218",
-     "realization/regeneration/RERUN-BE6D14C9D53D954C51BE6C47.json": "301e97ff8857ce79",
-     "realization/snapshots/RSNAP-709E1EC13A10E423918D76AB.json": "52c0f2098aeed218"
+     "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1c2ff7f3bc52d30d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f7916614e5ebd1d9",
+     "realization/regeneration/RERUN-F41E8B7E486355A018F858A4.json": "3d67cee53d5a73e4",
+     "realization/snapshots/RSNAP-3C25E3A8EDB16BAAFCE997A2.json": "f7916614e5ebd1d9"
     }
    }
   ]
  },
+ "BehaviourTests.test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback/case 0": {
+  "value": "realizer: unsupported Publisher contract: None (this Realizer reads 3.1.0)"
+ },
+ "BehaviourTests.test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback/case 1": {
+  "value": "realizer: package file not found: <tmp>/missing.json"
+ },
+ "BehaviourTests.test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback/case 2": {
+  "value": "realizer: policy file not found: <tmp>/nope.json"
+ },
  "BehaviourTests.test_replay_modes/sequence": {
-  "length": 4370,
-  "sha256": "0c5d60415308d7ee53c609aa37936b0fb79d01805f507c8dcbe208839c84cd0a"
+  "length": 4330,
+  "sha256": "ba701e9d660b5101504aec4a530de263368264a1883da32637d0564865bf97f0"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "value": [
    0,
-   "usage: realizer [-h] --package PACKAGE [--observation OBSERVATION] [--output-dir OUTPUT_DIR]\n                [--policy POLICY] [--demo] [--demo-modified] [--replay-through REPLAY_THROUGH]\n                [--print-json] [--log-level {DEBUG,INFO,WARNING,ERROR}]\n\nDeterministic Databricks SQL Warehouse Realizer v1.0.0\n\noptions:\n  -h, --help            show this help message and exit\n  --package PACKAGE     Path to immutable RecommendationPackage JSON\n  --observation OBSERVATION\n                        Path to normalized post-change observation JSON\n  --output-dir OUTPUT_DIR\n  --policy POLICY       Optional Realizer policy override JSON\n  --demo                Use deterministic synthetic post-change observation\n  --demo-modified       Demo a modified size target when possible\n  --replay-through REPLAY_THROUGH\n                        Project only ledger entries recorded through this UTC time\n  --print-json\n  --log-level {DEBUG,INFO,WARNING,ERROR}\n",
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\n\nDeterministic Databricks SQL Warehouse Realizer v1.0.0\n\noptions:\n  -h, --help            show this help message and exit\n  --version             show program's version number and exit\n  --package PACKAGE     Path to immutable RecommendationPackage JSON\n  --observation OBSERVATION\n                        Path to normalized post-change observation JSON\n  --output-dir OUTPUT_DIR\n  --policy POLICY       Optional Realizer policy override JSON\n  --demo                Use deterministic synthetic post-change observation\n  --demo-modified       Demo a modified size target when possible\n  --replay-through REPLAY_THROUGH\n                        Project only ledger entries recorded through this UTC time\n  --print-json\n  --log-level {DEBUG,INFO,WARNING,ERROR}\n",
    ""
   ]
  },
@@ -123,21 +123,21 @@
   "value": [
    2,
    "",
-   "usage: realizer [-h] --package PACKAGE [--observation OBSERVATION] [--output-dir OUTPUT_DIR]\n                [--policy POLICY] [--demo] [--demo-modified] [--replay-through REPLAY_THROUGH]\n                [--print-json] [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: the following arguments are required: --package\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: the following arguments are required: --package\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 2": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] --package PACKAGE [--observation OBSERVATION] [--output-dir OUTPUT_DIR]\n                [--policy POLICY] [--demo] [--demo-modified] [--replay-through REPLAY_THROUGH]\n                [--print-json] [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: argument --log-level: invalid choice: 'LOUD' (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR')\n"
   ]
  },
  "OptionParityTests.test_help_text_and_errors/argv 3": {
   "value": [
    2,
    "",
-   "usage: realizer [-h] --package PACKAGE [--observation OBSERVATION] [--output-dir OUTPUT_DIR]\n                [--policy POLICY] [--demo] [--demo-modified] [--replay-through REPLAY_THROUGH]\n                [--print-json] [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
+   "usage: realizer [-h] [--version] --package PACKAGE [--observation OBSERVATION]\n                [--output-dir OUTPUT_DIR] [--policy POLICY] [--demo] [--demo-modified]\n                [--replay-through REPLAY_THROUGH] [--print-json]\n                [--log-level {DEBUG,INFO,WARNING,ERROR}]\nrealizer: error: unrecognized arguments: --no-such-flag\n"
   ]
  },
  "OptionParityTests.test_parse_args_defaults_and_values/argv 0": {

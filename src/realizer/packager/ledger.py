@@ -19,11 +19,13 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from realizer.common.errors import LedgerError
 from realizer.common.logging import LOGGER
 from realizer.common.utils import utc_iso, write_json
 from realizer.config.settings import POLICY_VERSION, PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts import realization as rc
 from realizer.contracts.realization import MeasurementFacts, ReviewResult
+from realizer.contracts.realization_schema import validate_ledger_entry
 from realizer.contracts.reconciliation import RegenerationRequest
 from realizer.contracts.request import RunContext
 
@@ -36,13 +38,20 @@ def load_ledger(path: Path) -> List[rc.RealizationLedgerEntry]:
     if not path.exists():
         return []
     entries: List[rc.RealizationLedgerEntry] = []
-    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise LedgerError(f"ledger {path.name} cannot be read ({type(exc).__name__})") from exc
+    for line_no, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
-        raw = json.loads(line)
-        raw["event_type"] = rc.EventType(raw["event_type"])
-        entry = rc.RealizationLedgerEntry(**raw)
-        entry.validate()
+        try:
+            raw = json.loads(line)
+            raw["event_type"] = rc.EventType(raw["event_type"])
+            entry = rc.RealizationLedgerEntry(**raw)
+            entry.validate()
+        except (ValueError, TypeError, KeyError) as exc:  # json.JSONDecodeError is a ValueError
+            raise LedgerError(f"ledger {path.name} line {line_no} is not a valid ledger entry ({type(exc).__name__})") from exc
         entries.append(entry)
     # recorded time governs projection order; RLE id is deterministic tie-break.
     return sorted(entries, key=lambda x: (x.recorded_at_utc, x.ledger_entry_id))
@@ -111,6 +120,7 @@ def make_ledger_entry(
         provenance={"product_version": PRODUCT_VERSION, "realizer_version": REALIZER_VERSION, "policy_version": POLICY_VERSION},
     )
     entry.validate()
+    validate_ledger_entry(entry.to_dict())
     return entry
 
 
@@ -187,8 +197,8 @@ def regeneration_path(output_dir: Path, regeneration_request_id: str) -> Path:
 
 
 def record_creation(context: RunContext) -> None:
-    """Record the lineage (REALIZATION_CREATED) before the run reads anything else: a malformed observation fails in the
-    Analyzer after it, as it always did."""
+    """Record the lineage (REALIZATION_CREATED) before the run reads anything else; the inputs were checked before it, and
+    a corrupt ledger raises here, before anything is written."""
     package, rpkg = context.request.package, context.realization_package_id
     lpath = ledger_path(context.request.output_dir, rpkg)
     load_ledger(lpath)  # a corrupt ledger fails here, before anything is built or written

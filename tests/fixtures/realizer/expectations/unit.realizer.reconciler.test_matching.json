@@ -1,7 +1,7 @@
 {
  "ChooseApplicationTests.test_every_scenario_observation_and_scenario_choice/results": {
-  "length": 593232,
-  "sha256": "be194aa9d57a0156c84e91bf79d8833e857ebbbf40d86775718b5e382445d3df",
+  "length": 395390,
+  "sha256": "40bc980c0a83805b63a0c2f1ac569a0fc0928682383c84d100312d858cb0945d",
   "spot": {
    "count": 255,
    "kinds": [
@@ -52,8 +52,8 @@
   ]
  },
  "CompareStepTests.test_every_knob_and_value_combination/results": {
-  "length": 147253,
-  "sha256": "593e8443eca3c2d0f1e5340ca46f4d45adf1f2f6d145326a2e81477c9bf9bde8",
+  "length": 147511,
+  "sha256": "5a1579d0398bfc14c0a495aae22d4c6685f347bc7875ab4e3d1ede9f9d21706d",
   "spot": {
    "count": 5670,
    "distinct": [
@@ -71,13 +71,14 @@
   }
  },
  "CompareStepTests.test_every_plan_step_against_every_observed_configuration/results": {
-  "length": 3343,
-  "sha256": "14b3ba4331f4411094a549bfc10e40eb38b8cd4dead63f18cbfbe78a5268eb5c",
+  "length": 3363,
+  "sha256": "4889c2f19e4773bb4cfe1269f8aa9755fbfef5fed5e84bc4cb07352bb5c4febd",
   "spot": {
    "count": 112,
    "distinct": [
     "[\"ok\", [[\"enum\", \"CONTRARY\"], null]]",
     "[\"ok\", [[\"enum\", \"EXACT\"], null]]",
+    "[\"ok\", [[\"enum\", \"MODIFIED\"], \"LESS_AGGRESSIVE\"]]",
     "[\"ok\", [[\"enum\", \"MODIFIED\"], \"MORE_AGGRESSIVE\"]]",
     "[\"ok\", [[\"enum\", \"NOT_APPLIED\"], null]]",
     "[\"ok\", [null, null]]"
@@ -180,8 +181,8 @@
   ]
  },
  "MatchTests.test_match_for_every_scenario_observation/results": {
-  "length": 171951,
-  "sha256": "54d3f6e27e1cf54afb6dc760d595e1202d3660de32bb22f95a92c7838c8111dc",
+  "length": 115251,
+  "sha256": "53a4fcc3b1565e1d667626d8643c0902a6beaf5e96d0c6fe6367772d1a1075ef",
   "spot": {
    "changes": 47,
    "count": 51,

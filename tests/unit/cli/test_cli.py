@@ -51,7 +51,10 @@ def option_table():
 class OptionParityTests(unittest.TestCase):
     def test_every_single_file_option_is_unchanged_and_only_new_options_follow(self):
         before = json.loads((ROOT / "tests" / "fixtures" / "expected" / "cli" / "options.json").read_text())["options"]
-        after = option_table()
+        table = option_table()
+        versions = [o for o in table if o["flags"] == ["--version"]]
+        self.assertEqual([(o["action"], o["dest"], o["default"]) for o in versions], [("_VersionAction", "version", "==SUPPRESS==")])
+        after = [o for o in table if o["flags"] != ["--version"]]  # argparse's version action: not one of the single-file options
         self.assertEqual(after[:len(before)], before)
         added = after[len(before):]
         self.assertEqual([o["flags"] for o in added], [["--mode"], ["--cost-profile"], ["--flat-output"], ["--scope"], ["--scope-file"], ["--warehouse"]])

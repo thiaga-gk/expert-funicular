@@ -1,0 +1,130 @@
+"""Realizer observation format 2.0.0: the normalized post-change observation one realize run consumes.
+
+An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
+the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
+economics. Every key is required; a value the source could not establish is ``null``, never omitted, and a ``null`` gate
+input never passes its gate. The format is checked against ``schema/realization-observation.schema.json`` (built by
+``observation_schema``) before a run writes anything (``realizer.config.loader.validate_observation``).
+"""
+from __future__ import annotations
+
+from typing import Any, Dict
+
+from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
+
+OBSERVATION_FORMAT_VERSION = "2.0.0"
+
+# Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
+# the two that are recorded for diagnosis only.
+CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS = ("PAIRED_CANARY", "CALIBRATED_PRIOR_STATE", "MATCHED_HISTORICAL", "CONTROLLED_PRE_POST")
+DIAGNOSTIC_COUNTERFACTUAL_METHODS = ("CORRELATED_ONLY", "NO_DEFENSIBLE_COUNTERFACTUAL")
+ECONOMIC_BASES = ("ECONOMIC_COST", "POSTED_DOLLAR", "CONSTANT_PRICE")
+AWS_EVIDENCE_TYPES = ("MODELED", "CUR_ACTUAL")
+EFFECTIVE_TIME_QUALITIES = ("EXACT", "BOUNDED", "OBSERVED_AT_ONLY")
+CORRECTION_TYPES = ("RESTATEMENT", "RETRACTION")
+DECISION_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
+
+_DECIMAL_PATTERN = r"^-?[0-9]+(\.[0-9]+)?$"
+
+
+def _decimal(nullable: bool = True) -> Dict[str, Any]:
+    """A money or percentage amount: a decimal string or a JSON number."""
+    return {"anyOf": [{"type": "string", "pattern": _DECIMAL_PATTERN}, {"type": "number"}] + ([{"type": "null"}] if nullable else [])}
+
+
+def _obj(properties: Dict[str, Any], *, nullable: bool = False) -> Dict[str, Any]:
+    return {"type": ["object", "null"] if nullable else "object", "additionalProperties": False,
+            "required": sorted(properties), "properties": properties}
+
+
+TIMESTAMP = {"type": "string", "format": "date-time", "minLength": 1}
+NULLABLE_TIMESTAMP = {"type": ["string", "null"], "format": "date-time"}
+PERCENT = {"anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "string", "pattern": _DECIMAL_PATTERN}, {"type": "null"}]}
+
+
+def observation_schema() -> Dict[str, Any]:
+    """The Draft 2020-12 JSON Schema of observation format 2.0.0."""
+    config = _obj({
+        "warehouse_type": {"type": "string", "minLength": 1},
+        "warehouse_size": {"type": "string", "minLength": 1},
+        "min_clusters": {"type": "integer", "minimum": 0},
+        "max_clusters": {"type": "integer", "minimum": 1},
+        "auto_stop_minutes": {"type": "integer", "minimum": 0},
+        "warehouse_channel": {"type": "string", "minLength": 1},
+        "enable_photon": {"type": ["boolean", "null"]},
+    })
+    performance = _obj({
+        "normalized_p95_runtime_regression_pct": _decimal(),
+        "reliability_pass": {"type": ["boolean", "null"]},
+        "correctness_pass": {"type": ["boolean", "null"]},
+    })
+    financial_quality = _obj({
+        "attributable_spend_pct": PERCENT,
+        "price_coverage_pct": PERCENT,
+        "currency_consistency_pct": PERCENT,
+        "correction_chain_complete": {"type": ["boolean", "null"]},
+        "material_cost_component_available": {"type": ["boolean", "null"]},
+    })
+    economics = _obj({
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "counterfactual_old_cost": _decimal(),
+        "observed_new_cost": _decimal(),
+        "period_days": {"type": "integer", "minimum": 1},
+        "counterfactual_method": {"enum": list(CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS + DIAGNOSTIC_COUNTERFACTUAL_METHODS)},
+        "economic_basis": {"enum": list(ECONOMIC_BASES)},
+        "expected_annual_savings_actual_scope": _decimal(),
+        "dbu_realized": _decimal(),
+        "aws_economic_realized": _decimal(),
+        "aws_cash_realized": _decimal(),
+        "aws_commitment_freed": _decimal(),
+        "aws_evidence_type": {"enum": [None, *AWS_EVIDENCE_TYPES]},
+        "mature_ttm_realized_savings": _decimal(),
+        "realized_savings_since_application": _decimal(),
+    }, nullable=True)
+    correction = _obj({
+        "key": {"type": "string", "minLength": 1},
+        "type": {"enum": list(CORRECTION_TYPES)},
+        "version": {"type": "integer", "minimum": 1},
+        "reason": {"type": ["string", "null"]},
+        "corrects_entry_id": {"type": ["string", "null"], "pattern": r"^RLE-[0-9A-F]{24}$"},
+    }, nullable=True)
+    properties = {
+        "observation_format_version": {"const": OBSERVATION_FORMAT_VERSION},
+        "workspace_id": {"type": "string", "minLength": 1},
+        "warehouse_id": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "observed_at_utc": TIMESTAMP,
+        "recorded_at_utc": TIMESTAMP,
+        "applied_at_utc": NULLABLE_TIMESTAMP,
+        "effective_time_quality": {"enum": list(EFFECTIVE_TIME_QUALITIES)},
+        "window_start_utc": NULLABLE_TIMESTAMP,
+        "window_end_utc": NULLABLE_TIMESTAMP,
+        "config": config,
+        "elapsed_days": {"type": "integer", "minimum": 0},
+        "query_count": {"type": ["integer", "null"], "minimum": 0},
+        "representative_regime": {"type": ["boolean", "null"]},
+        "evidence_quality": {"enum": [x.value for x in EvidenceQuality]},
+        "workload": {"type": "object"},
+        "performance": performance,
+        "financial_quality": financial_quality,
+        "economics": economics,
+        "overlap_count": {"type": "integer", "minimum": 0},
+        "origin_attribution": {"enum": [x.value for x in OriginAttribution]},
+        "intent_state": {"enum": [x.value for x in IntentState]},
+        "intent_reference": {"type": ["string", "null"]},
+        "actor": {"type": ["string", "null"]},
+        "applied_scenario_id": {"type": ["string", "null"], "pattern": r"^SCN-[0-9A-F]{24}$"},
+        "rollback_requested": {"type": "boolean"},
+        "rollback_observed": {"type": "boolean"},
+        "rollback_reason": {"type": ["string", "null"]},
+        "replacement_package_id": {"type": ["string", "null"], "pattern": r"^PKG-[0-9A-F]{24}$"},
+        "correction": correction,
+    }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "RealizationObservation",
+        "type": "object",
+        "additionalProperties": False,
+        "required": sorted(properties),
+        "properties": properties,
+    }

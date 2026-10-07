@@ -8,6 +8,7 @@ passes the estimate through untouched, adds no check, never raises, writes and l
 episode as ``halt`` with the payloads decided before it.
 """
 import collections
+import contextlib
 import dataclasses
 import logging
 import tempfile
@@ -15,7 +16,9 @@ import unittest
 from pathlib import Path
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import Opaque, compare_measurement_section, fixture_package, outcome, run_sequence, staged_scenario_runs, tree  # noqa: E402
+from tests.unit.realizer.helpers import (  # noqa: E402
+    stage_policy,    Opaque, compare_measurement_section, fixture_package, observation_gate_open, outcome, run_sequence, staged_scenario_runs, tree,
+)
 from realizer.analyzer import analyzer  # noqa: E402
 from realizer.analyzer.analysis import package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
@@ -69,8 +72,10 @@ class RunTests(unittest.TestCase):
         cls.pkg = fixture_package()
         cls.base = demo_observation(cls.pkg)
 
-    def stages(self, observation, out=Path("/nonexistent-out"), policy=None):
-        context = build_context(RealizationRequest(self.pkg, observation, out, policy=policy))
+    def stages(self, observation, out=Path("/nonexistent-out"), policy=None, gate=True):
+        """The stages up to the Reconciler; ``gate=False`` opens the loader's observation gate for a malformed observation."""
+        with contextlib.nullcontext() if gate else observation_gate_open():
+            context = build_context(RealizationRequest(self.pkg, observation, out, policy=policy))
         analysis = analyzer.run(context)
         governance = governor.run(context, analysis)
         return context, analysis, governance, reconciler.run(context, analysis, governance)
@@ -98,8 +103,8 @@ class RunTests(unittest.TestCase):
                                                    "window_start_utc": self.base["window_start_utc"], "window_end_utc": self.base["window_end_utc"]})
         self.assertEqual(episode.completed_payload["state"], "PASSED")
         self.assertEqual(review.recognition_status, "CONFIRMED")
-        # the window falls back to the effective and observed times
-        bare = {k: v for k, v in self.base.items() if k not in ("window_start_utc", "window_end_utc")}
+        # the window falls back to the effective and observed times (no window, so no economics either)
+        bare = {**self.base, "window_start_utc": None, "window_end_utc": None, "economics": None}
         started = self.review(bare).validation.started_payload
         self.assertEqual((started["window_start_utc"], started["window_end_utc"]), (bare["applied_at_utc"], bare["observed_at_utc"]))
 
@@ -129,9 +134,9 @@ class RunTests(unittest.TestCase):
         for label, (patch, mapping, last) in cases.items():
             observation = {**self.base, **patch}
             with self.subTest(case=label):
-                policy = None if mapping is None else RealizerPolicy.from_mapping(mapping)
-                review = self.review(observation, policy=policy)
-                (raised,), _ = run_sequence(self.pkg, [observation], mapping)
+                policy = None if mapping is None else stage_policy(mapping)
+                review = self.review(observation, policy=policy, gate=False)
+                (raised,), _ = run_sequence(self.pkg, [observation], mapping, observation_gate=False)
                 self.assertEqual((type(review.halt).__name__, str(review.halt)), raised)
                 expect.check(self, label, (type(review.halt).__name__, str(review.halt)))
                 self.assertIsNone(review.recognition_status)
@@ -143,7 +148,7 @@ class RunTests(unittest.TestCase):
                     self.assertIsNone(review.validation.completed_payload)
 
     def test_plan_episode_fills_in_recording_order(self):
-        context, analysis, governance, reconciliation = self.stages({**self.base, "performance": 5})
+        context, analysis, governance, reconciliation = self.stages({**self.base, "performance": 5}, gate=False)
         fields = {}
         result = outcome(validation.plan_episode, fields, reconciliation.active.application_episode_id, analysis.observation, governance)
         self.assertEqual(result, ("AttributeError", "'int' object has no attribute 'get'"))

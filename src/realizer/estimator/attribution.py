@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from realizer.common.utils import decimal, money
 from realizer.contracts import realization as rc
-from realizer.governor.policy import RealizerPolicy, economic_quality_result
+from realizer.governor.policy import RealizerPolicy
 
 
 def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], validation_passed: bool, cf_claim_eligible: bool, economic: Mapping[str, Any], policy: RealizerPolicy) -> Dict[str, Any]:
@@ -23,10 +23,10 @@ def attribution_result(app: Mapping[str, Any], observation: Mapping[str, Any], v
         origin = rc.OriginAttribution(str(observation.get("origin_attribution") or "UNKNOWN").upper())
     except ValueError:
         origin = rc.OriginAttribution.UNKNOWN
-    overlap = int(observation.get("overlap_count", 0) or 0)
+    overlap = int(observation["overlap_count"])
     eligible_conf = app.get("implementation_conformance") in {rc.ImplementationConformance.EXACT.value, rc.ImplementationConformance.MODIFIED.value}
     hard: List[str] = []
-    quality = economic.get("quality_gates") or economic_quality_result(observation, policy)
+    quality = economic["quality_gates"]
     if not quality.get("attributable_spend", {}).get("pass"):
         hard.append("MATERIAL_SPEND_UNRECONCILED")
     if not quality.get("price_coverage", {}).get("pass"):

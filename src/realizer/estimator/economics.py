@@ -25,6 +25,9 @@ from realizer.contracts.realization import CorrectionFacts, CounterfactualRecord
 from realizer.governor.policy import RealizerPolicy, authority_eligible, readiness
 
 
+RUN_RATE_STATES = frozenset({rc.RealizationState.REALIZED.value, rc.RealizationState.UNDER_REALIZED.value, rc.RealizationState.MONITORING.value})
+
+
 def make_cf_id(app_id: str, observation: Mapping[str, Any], package: Mapping[str, Any], policy: RealizerPolicy) -> str:
     return rc.content_id("CF", {
         "app": app_id,
@@ -68,7 +71,7 @@ def calculate_economics(
             "classification_detail": "ECONOMICS_UNAVAILABLE",
         }
     realized = cf - actual
-    period_days = decimal(econ.get("period_days")) or Decimal(str(max(1, int(observation.get("elapsed_days", 1) or 1))))
+    period_days = Decimal(int(econ["period_days"]))
     representative = readiness(observation, policy)["ready"]
     annualized = realized * Decimal("365") / period_days if representative and period_days > 0 else None
 
@@ -120,9 +123,12 @@ def calculate_economics(
         detail = "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED" if ratio < policy.under_realized_ratio_min else "UNDER_REALIZED"
         successful = realized
 
+    if state not in RUN_RATE_STATES:
+        # A failed or blocked measurement keeps its observed delta but publishes no run-rate and no ratio.
+        annualized, ratio = None, None
     return {
         "available": True,
-        "currency": str(econ.get("currency") or "USD"),
+        "currency": str(econ["currency"]),
         "economic_basis": str(econ.get("economic_basis") or "ECONOMIC_COST"),
         "counterfactual_old_cost": money(cf),
         "observed_new_cost": money(actual),

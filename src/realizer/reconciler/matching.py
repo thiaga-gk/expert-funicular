@@ -8,10 +8,11 @@ the observation is one scenario-scope application). Moved unchanged from the sin
 from __future__ import annotations
 
 import copy
+import datetime as dt
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from realizer.analyzer.analysis import candidate_steps, recommended_scenario, scenario_by_id
+from realizer.analyzer.analysis import candidate_steps, normalize_value, recommended_scenario, scenario_by_id
 from realizer.config.settings import SIZE_ORDER
 from realizer.contracts import realization as rc
 from realizer.contracts.reconciliation import PlanMatch
@@ -36,10 +37,21 @@ def _directional_relation(source: Any, recommended: Any, observed: Any) -> Tuple
     return rc.ImplementationConformance.CONTRARY, None
 
 
+# Auto-stop 0 means the warehouse never stops: for the direction of a change it is longer than any auto-stop value.
+NEVER_STOP_MINUTES = 10 ** 9
+
+
+def _auto_stop_minutes(value: Any) -> Any:
+    return NEVER_STOP_MINUTES if value == 0 else value
+
+
 def compare_step(step: Mapping[str, Any], obs_config: Mapping[str, Any]) -> Tuple[Optional[rc.ImplementationConformance], Optional[str]]:
+    """How the observed value of the step's knob relates to the step: EXACT, NOT_APPLIED, MODIFIED (same direction,
+    with its relation), CONTRARY or UNRELATED; ``None`` when the knob was not observed. Package and observed values are
+    compared in the Publisher's spelling (``normalize_value``)."""
     knob = str(step.get("knob"))
-    source = step.get("current_value")
-    recommended = step.get("recommended_value")
+    source = normalize_value(knob, step.get("current_value"))
+    recommended = normalize_value(knob, step.get("recommended_value"))
     observed = obs_config.get(knob)
     if observed is None:
         return None, None
@@ -47,7 +59,9 @@ def compare_step(step: Mapping[str, Any], obs_config: Mapping[str, Any]) -> Tupl
         return rc.ImplementationConformance.EXACT, None
     if observed == source:
         return rc.ImplementationConformance.NOT_APPLIED, None
-    if knob in {"min_clusters", "max_clusters", "auto_stop_minutes"}:
+    if knob == "auto_stop_minutes":
+        return _directional_relation(*(_auto_stop_minutes(x) for x in (source, recommended, observed)))
+    if knob in {"min_clusters", "max_clusters"}:
         return _directional_relation(source, recommended, observed)
     if knob == "warehouse_size":
         s, r, o = (SIZE_ORDER.get(str(x).upper()) for x in (source, recommended, observed))
@@ -104,13 +118,27 @@ def choose_application(
     return results, primary
 
 
+def applied_before_package(package: Mapping[str, Any], observation: Mapping[str, Any]) -> bool:
+    """Whether the observation's change was applied before the package was generated: the Publisher already saw that
+    state, so the package cannot have caused it."""
+    applied, generated = observation.get("applied_at_utc"), (package.get("provenance") or {}).get("generated_at")
+    if not applied or not generated:
+        return False
+    return dt.datetime.fromisoformat(str(applied).replace("Z", "+00:00")) < dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00"))
+
+
 def match(package: Mapping[str, Any], observation: Mapping[str, Any], obs_config: Mapping[str, Any]) -> PlanMatch:
     """Match the observed configuration (*obs_config*, the normalized configuration of *observation*) to the plan of
-    the selected scenario, in the single-file engine's order: the selected scenario, the step matches, the authority
-    changes, then the scenario-scope decision."""
+    the selected scenario: the selected scenario, the step matches, the authority changes, then the scenario-scope
+    decision. A change applied before the package was generated is never an application of it: every changed step is
+    an independent change (reason ``APPLIED_BEFORE_PACKAGE``) and nothing carries authority."""
     selected_scenario_id = observation.get("applied_scenario_id") or (package.get("recommended_plan") or {}).get("scenario_id")
     selected_scenario = scenario_by_id(package, selected_scenario_id)
     step_results, primary = choose_application(package, obs_config, scenario_id=selected_scenario_id)
+    if applied_before_package(package, observation):
+        step_results = [{**item, "authority_eligible": False, "independent_reason": "APPLIED_BEFORE_PACKAGE"} for item in step_results]
+        return PlanMatch(selected_scenario_id=selected_scenario_id, step_matches=tuple(step_results), primary=None,
+                         authority_changes=(), scenario_scope=False)
     authority_changes = [
         item for item in step_results
         if item.get("authority_eligible") and item.get("implementation_conformance") in {

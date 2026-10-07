@@ -40,7 +40,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         "projector_version": PROJECTOR_VERSION,
     })
     app_events = [e for e in ordered if e.event_type in {rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED, rc.EventType.INDEPENDENT_CHANGE_OBSERVED}]
-    auth_apps = [e for e in app_events if e.payload.get("authority_eligible")]
+    # Only an application of a plan step is an application; an independent change never is, whatever its step.
+    auth_apps = [e for e in app_events if e.event_type != rc.EventType.INDEPENDENT_CHANGE_OBSERVED and e.payload.get("authority_eligible")]
     app = auth_apps[-1] if auth_apps else None
     validation = latest_event(ordered, rc.EventType.VALIDATION_COMPLETED)
     measurement = latest_event(ordered, rc.EventType.ECONOMIC_MEASUREMENT_RECORDED)
@@ -87,6 +88,8 @@ def project_snapshot(package: Mapping[str, Any], entries: Sequence[rc.Realizatio
         realization_state = rc.RealizationState.ROLLED_BACK.value
     elif app_state == rc.ApplicationState.DRIFTED.value:
         realization_state = rc.RealizationState.DRIFTED.value
+    elif app and app.payload.get("implementation_conformance") == rc.ImplementationConformance.CONTRARY.value:
+        realization_state = rc.RealizationState.INVALIDATED.value  # the opposite of the recommendation: regenerate
     elif validation and not validation.payload.get("hard_guardrails_pass"):
         realization_state = rc.RealizationState.VALIDATION_FAILED.value
     elif measurement:

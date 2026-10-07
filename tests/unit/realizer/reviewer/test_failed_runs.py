@@ -27,8 +27,9 @@ class ReviewerFailedRunTests(unittest.TestCase):
         cls.base = demo_observation(cls.pkg)
 
     def compare(self, label, observations, policy=None):
-        """Run *observations*, check the outcomes and the output tree against the stored expectation *label*, and return them."""
-        outcomes, tree = run_sequence(self.pkg, observations, policy)
+        """The observation gate is open: the loader refuses these observations before anything is written (see
+        ``tests/unit/realizer/config``). Run *observations*, check the outcomes and the output tree against the stored expectation *label*, and return them."""
+        outcomes, tree = run_sequence(self.pkg, observations, policy, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree)))
         return outcomes, tree
 
@@ -76,12 +77,12 @@ class ReviewerMutationTests(unittest.TestCase):
             return result
 
         observations = [{**base, "performance": {"normalized_p95_runtime_regression_pct": "abc"}}]
-        expected = run_sequence(package, observations)
+        expected = run_sequence(package, observations, observation_gate=False)
         with mock.patch.object(reviewer, "run", eager):
-            mutated = run_sequence(package, observations)
+            mutated = run_sequence(package, observations, observation_gate=False)
         self.assertEqual(mutated[0], expected[0], "the exception itself is the same")
         self.assertNotEqual(mutated[1], expected[1], "but the ledger it leaves is not")
-        self.assertEqual(run_sequence(package, observations), expected)
+        self.assertEqual(run_sequence(package, observations, observation_gate=False), expected)
 
 
 if __name__ == "__main__":

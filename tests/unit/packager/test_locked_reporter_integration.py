@@ -90,6 +90,19 @@ class LockedReporterIntegrationTests(unittest.TestCase):
         self.assertTrue(all(s.scenario_id.startswith("SCN-") for s in package.scenarios))
         self.assertTrue(all(k.startswith("EVID-") for k in package.evidence))
 
+    def test_package_id_and_full_hash_are_recomputable_from_the_serialized_package(self):
+        """A consumer (the Realizer) recomputes the id and full hash from the JSON it reads, with the dataclass's payload."""
+        evidence = demo_evidence() + synthetic_demo_evidence()
+        packages = publisher.build_recommendation_packages(evidence, Thresholds())
+        self.assertTrue(any(p.observed_change is not None for p in packages))
+        for package in packages:
+            with self.subTest(warehouse=package.warehouse.warehouse_id):
+                document = json.loads(json.dumps(package.to_dict(), sort_keys=True))
+                payload = rc.package_hash_payload_from_document(document)
+                self.assertEqual(rc.sha256_hex(payload), rc.sha256_hex(package.package_hash_payload()))
+                self.assertEqual(rc.content_id("PKG", payload), package.recommendation_package_id)
+                self.assertEqual(rc.sha256_hex(payload), package.provenance.package_hash_full_sha256)
+
     def test_same_evidence_produces_identical_locked_package(self):
         evidence = demo_evidence()
         thresholds = Thresholds()

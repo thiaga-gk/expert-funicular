@@ -15,6 +15,7 @@ from pathlib import Path
 from tests import realizer_expect as expect
 from tests.unit.realizer.helpers import Opaque, compact_tree, events, fixture_package, run_sequence  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
+from realizer.common.errors import LedgerError  # noqa: E402
 from realizer.realizer import realize  # noqa: E402
 
 
@@ -25,8 +26,10 @@ class AnalyzerFailureTests(unittest.TestCase):
         cls.base = demo_observation(cls.pkg)
 
     def compare(self, label, observations, package=None):
+        """The observation gate is open: these cases pin what the Analyzer leaves behind for an observation it cannot read
+        (the loader's gate refuses all of them before anything is written, see ``tests/unit/realizer/config``)."""
         package = self.pkg if package is None else package
-        outcomes, tree = run_sequence(package, observations)
+        outcomes, tree = run_sequence(package, observations, observation_gate=False)
         expect.check(self, label, (outcomes, compact_tree(tree)))
         return outcomes, tree
 
@@ -74,8 +77,9 @@ class AnalyzerFailureTests(unittest.TestCase):
             ledger = next((out / "realization" / "ledger").glob("*.jsonl"))
             ledger.write_text("not json\n", encoding="utf-8")
             before = sorted(p.name for p in out.rglob("*"))
-            with self.assertRaises(json.JSONDecodeError):
+            with self.assertRaisesRegex(LedgerError, r"ledger .*\.jsonl line 1 is not a valid ledger entry \(JSONDecodeError\)") as caught:
                 realize(copy.deepcopy(self.pkg), copy.deepcopy(self.base), out)
+            self.assertIsInstance(caught.exception.__cause__, json.JSONDecodeError)
             self.assertEqual(sorted(p.name for p in out.rglob("*")), before)
 
 

@@ -13,13 +13,13 @@ from decimal import Decimal
 from enum import Enum
 
 from tests import realizer_expect as expect
-from tests.unit.realizer.helpers import canonical, fixture_package, outcome  # noqa: E402
-from realizer.analyzer.analysis import observed_config, package_config  # noqa: E402
+from tests.unit.realizer.helpers import canonical, fixture_package, migration_scenario_id, outcome  # noqa: E402
+from realizer.analyzer.analysis import candidate_steps, observed_config, package_config  # noqa: E402
 from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.contracts.reconciliation import PlanMatch  # noqa: E402
 from realizer.reconciler import matching  # noqa: E402
 
-MIGRATION = "SCN-1DFDCB17E0622D63C6758AB4"
+MIGRATION = migration_scenario_id(fixture_package())
 VALUES = [None, 0, 1, 2, 3, 4, -1, 30, 120, "1", "2.5", " 3 ", "abc", "", True, False, 1.5, float("nan"), "NaN", "Infinity",
           Decimal("2"), [1], {"a": 1}, "MEDIUM", "LARGE", "SMALL", "X_LARGE", "medium", "PRO", "SERVERLESS"]
 KNOBS = ["warehouse_size", "max_clusters", "min_clusters", "auto_stop_minutes", "enable_photon", "warehouse_type",
@@ -51,8 +51,7 @@ def scenario_observations():
 
 def packages():
     fixture = fixture_package()
-    two_step = json.loads((canonical.PACKAGES / "GR-019-two-ready-steps.json").read_text(encoding="utf-8"))
-    return [fixture, two_step]
+    return [fixture, fixture_package("two-ready-steps")]
 
 
 def plan_steps(package):
@@ -122,10 +121,11 @@ class ChooseApplicationTests(unittest.TestCase):
 
     def test_primary_is_the_first_authoritative_change_and_one_of_the_matches(self):
         package = packages()[1]
-        obs_cfg = observed_config({"config": {"warehouse_size": "MEDIUM", "max_clusters": 3}}, package)
+        size, auto_stop = (s for s in candidate_steps(package) if s["step"] in (1, 2))
+        obs_cfg = observed_config({"config": {size["knob"]: size["recommended_value"], auto_stop["knob"]: auto_stop["recommended_value"]}}, package)
         results, primary = matching.choose_application(package, obs_cfg)
         self.assertIs(primary, results[0])
-        self.assertEqual([r["implementation_conformance"] for r in results], ["EXACT", "EXACT", "NOT_APPLIED", "NOT_APPLIED"])
+        self.assertEqual([r["implementation_conformance"] for r in results], ["EXACT", "EXACT", "NOT_APPLIED"])   # size and auto-stop applied, max clusters not
         self.assertEqual(primary["step"], 1)
 
     def test_malformed_packages_raise(self):
@@ -229,6 +229,120 @@ class MatchTests(unittest.TestCase):
         result = matching.match(package, observation, observed_config(observation, package))
         with self.assertRaises(Exception):
             result.scenario_scope = True
+
+
+class NormalizedComparisonTests(unittest.TestCase):
+    """R05: package values and observed values are compared in one spelling, and auto-stop 0 means never."""
+
+    def conformance(self, knob, source, recommended, observed):
+        step = {"knob": knob, "current_value": source, "recommended_value": recommended}
+        conf, relation = matching.compare_step(step, {knob: observed})
+        return None if conf is None else conf.value, relation
+
+    def test_sizes_match_in_the_publishers_spelling(self):
+        for observed in ("MEDIUM", "medium", " medium ", "Medium"):
+            with self.subTest(observed=observed):
+                config = observed_config({"config": {"warehouse_size": observed}}, fixture_package())
+                self.assertEqual(config["warehouse_size"], "MEDIUM")
+                self.assertEqual(self.conformance("warehouse_size", "LARGE", "medium", config["warehouse_size"]), ("EXACT", None))
+        # a recommended value written "medium" and a source written "large" are still the MEDIUM and LARGE steps
+        self.assertEqual(self.conformance("warehouse_size", "large", "medium", "MEDIUM"), ("EXACT", None))
+        self.assertEqual(self.conformance("warehouse_size", " large ", "medium", "LARGE"), ("NOT_APPLIED", None))
+
+    def test_hyphenated_sizes_are_the_underscored_ones(self):
+        package = fixture_package()
+        for observed, expected in (("X-Large", "X_LARGE"), ("x-large", "X_LARGE"), ("2X-Small", "2X_SMALL"), (" 2x-large ", "2X_LARGE")):
+            with self.subTest(observed=observed):
+                self.assertEqual(observed_config({"config": {"warehouse_size": observed}}, package)["warehouse_size"], expected)
+        self.assertEqual(self.conformance("warehouse_size", "LARGE", "X-Large", "X_LARGE"), ("EXACT", None))
+        self.assertEqual(self.conformance("warehouse_size", "Large", "MEDIUM", "X_LARGE"), ("CONTRARY", None))
+        self.assertEqual(self.conformance("warehouse_size", "X-Large", "SMALL", "MEDIUM"), ("MODIFIED", "LESS_AGGRESSIVE"))
+
+    def test_observed_x_large_is_contrary_to_a_recommended_cut_end_to_end(self):
+        package = fixture_package()
+        observation = demo_observation(package)
+        observation["config"]["warehouse_size"] = "X-Large"
+        results, primary = matching.choose_application(package, observed_config(observation, package), scenario_id=package["recommended_plan"]["scenario_id"])
+        size = next(r for r in results if r["knob"] == "warehouse_size")
+        self.assertEqual((size["implementation_conformance"], size["observed_value"]), ("CONTRARY", "X_LARGE"))
+
+    def test_type_and_channel_are_upper_cased(self):
+        config = observed_config({"config": {"warehouse_type": " serverless ", "warehouse_channel": "preview"}}, fixture_package())
+        self.assertEqual((config["warehouse_type"], config["warehouse_channel"]), ("SERVERLESS", "PREVIEW"))
+        self.assertEqual(self.conformance("warehouse_type", "pro", "serverless", "SERVERLESS"), ("EXACT", None))
+        self.assertEqual(self.conformance("warehouse_channel", "current", "preview", "PREVIEW"), ("EXACT", None))
+        self.assertEqual(self.conformance("warehouse_type", "classic", "serverless", "PRO"), ("UNRELATED", None))
+
+    def test_auto_stop_zero_is_never_stop_and_longer_than_any_value(self):
+        self.assertEqual(matching.NEVER_STOP_MINUTES, 10 ** 9)
+        # an observed 0 against a recommended cut is the opposite direction
+        self.assertEqual(self.conformance("auto_stop_minutes", 60, 15, 0), ("CONTRARY", None))
+        self.assertEqual(self.conformance("auto_stop_minutes", 35, 10, 0), ("CONTRARY", None))
+        # a source of 0 (never stops): any finite recommendation is a cut, and a finite observation in between is the same direction
+        self.assertEqual(self.conformance("auto_stop_minutes", 0, 35, 60), ("MODIFIED", "LESS_AGGRESSIVE"))
+        self.assertEqual(self.conformance("auto_stop_minutes", 0, 35, 10), ("MODIFIED", "MORE_AGGRESSIVE"))
+        self.assertEqual(self.conformance("auto_stop_minutes", 0, 35, 35), ("EXACT", None))
+        self.assertEqual(self.conformance("auto_stop_minutes", 0, 35, 0), ("NOT_APPLIED", None))
+        # a recommendation of 0 (stop never) is a lengthening: a shorter observation is the opposite direction
+        self.assertEqual(self.conformance("auto_stop_minutes", 15, 0, 10), ("CONTRARY", None))
+        self.assertEqual(self.conformance("auto_stop_minutes", 15, 0, 30), ("MODIFIED", "LESS_AGGRESSIVE"))
+        # nonzero values are unchanged
+        self.assertEqual(self.conformance("auto_stop_minutes", 120, 30, 60), ("MODIFIED", "LESS_AGGRESSIVE"))
+        self.assertEqual(self.conformance("auto_stop_minutes", 120, 30, 10), ("MODIFIED", "MORE_AGGRESSIVE"))
+        self.assertEqual(self.conformance("auto_stop_minutes", 120, 30, 200), ("CONTRARY", None))
+
+    def test_auto_stop_zero_observed_end_to_end_is_contrary(self):
+        package = fixture_package()
+        observation = demo_observation(package)
+        observation["config"] = {**package_config(package), "auto_stop_minutes": 0}
+        results, _ = matching.choose_application(package, observed_config(observation, package), scenario_id=package["recommended_plan"]["scenario_id"])
+        step = next(r for r in results if r["knob"] == "auto_stop_minutes")
+        self.assertEqual(step["implementation_conformance"], "CONTRARY")
+
+    def test_a_size_outside_the_registry_is_unrelated(self):
+        self.assertEqual(self.conformance("warehouse_size", "LARGE", "MEDIUM", "GIGANTIC"), ("UNRELATED", None))
+        self.assertEqual(self.conformance("warehouse_size", "LARGE", "MEDIUM", "SMALL"), ("MODIFIED", "MORE_AGGRESSIVE"))
+
+
+class AppliedBeforePackageTests(unittest.TestCase):
+    """R03: a change applied before the package was generated is never an application of it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pkg = fixture_package()
+        cls.generated = cls.pkg["provenance"]["generated_at"]
+        cls.base = demo_observation(cls.pkg)
+
+    def test_the_predicate(self):
+        self.assertEqual(self.generated, self.base["applied_at_utc"], "the demo applies the change at the generation instant")
+        self.assertFalse(matching.applied_before_package(self.pkg, self.base))
+        before = {**self.base, "applied_at_utc": "2026-09-29T12:00:00Z"}
+        self.assertTrue(matching.applied_before_package(self.pkg, before))
+        self.assertTrue(matching.applied_before_package(self.pkg, {**self.base, "applied_at_utc": "2026-10-01T11:59:59Z"}))
+        self.assertTrue(matching.applied_before_package(self.pkg, {**self.base, "applied_at_utc": "2026-10-01T13:59:59+02:00"}))
+        self.assertFalse(matching.applied_before_package(self.pkg, {**self.base, "applied_at_utc": "2026-10-01T12:00:01Z"}))
+        # no applied time, or no generation time: nothing to compare
+        self.assertFalse(matching.applied_before_package(self.pkg, {**self.base, "applied_at_utc": None}))
+        self.assertFalse(matching.applied_before_package({**self.pkg, "provenance": {}}, before))
+
+    def test_every_changed_step_is_an_independent_change_and_nothing_carries_authority(self):
+        observation = {**self.base, "applied_at_utc": "2026-09-29T12:00:00Z"}   # two days before generated_at
+        result = matching.match(self.pkg, observation, observed_config(observation, self.pkg))
+        self.assertIsNone(result.primary)
+        self.assertEqual(result.authority_changes, ())
+        self.assertFalse(result.scenario_scope)
+        self.assertTrue(result.step_matches)
+        for item in result.step_matches:
+            self.assertFalse(item["authority_eligible"])
+            self.assertEqual(item["independent_reason"], "APPLIED_BEFORE_PACKAGE")
+        size = next(item for item in result.step_matches if item["knob"] == "warehouse_size")
+        self.assertEqual(size["implementation_conformance"], "EXACT", "the match itself is still described")
+
+    def test_an_application_at_or_after_generation_keeps_its_authority(self):
+        result = matching.match(self.pkg, self.base, observed_config(self.base, self.pkg))
+        self.assertIsNotNone(result.primary)
+        self.assertTrue(result.authority_changes)
+        self.assertFalse(any("independent_reason" in item for item in result.step_matches))
 
 
 if __name__ == "__main__":

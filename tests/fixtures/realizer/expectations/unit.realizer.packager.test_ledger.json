@@ -2,8 +2,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/a list": {
   "value": [
    [
-    "TypeError",
-    "list indices must be integers or slices, not str"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
    ],
    [],
    "[1]\n"
@@ -12,8 +12,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/not json": {
   "value": [
    [
-    "JSONDecodeError",
-    "Expecting value: line 1 column 1 (char 0)"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
    ],
    [],
    "not json\n"
@@ -22,8 +22,8 @@
  "AppendTests.test_a_corrupt_ledger_fails_before_anything_is_appended/unknown event type": {
   "value": [
    [
-    "ValueError",
-    "'NOPE' is not a valid EventType"
+    "LedgerError",
+    "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
    ],
    [],
    "{\"event_type\": \"NOPE\"}\n"
@@ -41,19 +41,19 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 63864,
-  "sha256": "c10f1cff689d177ba14a817c7ffa93d73d91bbdd79d326d72f43ad447532f1ee",
+  "sha256": "85ac05bef8880fb8ce9b1a9c8c801a4d3f1b5cae98a42a26c621a097a47eef87",
   "spot": {
    "entries": 363,
-   "first": "GR-001/RPKG-9BCA3C3DFB12CC37AA7CA775",
+   "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "ledgers": 41
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
-  "length": 509063,
-  "sha256": "4152b8356546a6f6ef4dd7343687e3659cb6389852301a8af3977aa8c67b466d",
+  "length": 505629,
+  "sha256": "db39cef57f67fa15650c1f968ebe99e9e257c011689df25625db85a5bde966f4",
   "spot": {
    "entries": 363,
-   "first": "GR-001/RPKG-9BCA3C3DFB12CC37AA7CA775",
+   "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
    "latest_of_first": [
     null,
     null,
@@ -64,12 +64,12 @@
   }
  },
  "LedgerReadTests.test_malformed_ledger_raises/a directory": {
-  "value": "IsADirectoryError"
+  "value": "LedgerError"
  },
  "LedgerReadTests.test_malformed_ledger_raises/bad second line": {
   "value": [
-   "TypeError",
-   "list indices must be integers or slices, not str"
+   "LedgerError",
+   "ledger l.jsonl line 2 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/blank lines only": {
@@ -80,38 +80,38 @@
  },
  "LedgerReadTests.test_malformed_ledger_raises/invalid id": {
   "value": [
-   "ValueError",
-   "'BAD' must start with RLE-"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/missing event type": {
   "value": [
-   "KeyError",
-   "'event_type'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (KeyError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/missing field": {
   "value": [
-   "TypeError",
-   "RealizationLedgerEntry.__init__() missing 1 required positional argument: 'payload'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/not json": {
   "value": [
-   "JSONDecodeError",
-   "Expecting value: line 1 column 1 (char 0)"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/unexpected field": {
   "value": [
-   "TypeError",
-   "RealizationLedgerEntry.__init__() got an unexpected keyword argument 'extra'"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  },
  "LedgerReadTests.test_malformed_ledger_raises/unknown event type": {
   "value": [
-   "ValueError",
-   "'NOPE' is not a valid EventType"
+   "LedgerError",
+   "ledger l.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "RegenerationRecordTests.test_records_the_entry_and_file/full application payload": {
@@ -121,7 +121,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-166F844946ED7292610870E9"
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-270B23F88CDB72A04DC622E1"
    ],
    {
     "directories": [
@@ -133,8 +133,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "78be476aeff66058",
-     "realization/regeneration/RERUN-341CBCF60F499475281588FE.json": "348eaa9df87e0c89"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0a2310d48ed44714",
+     "realization/regeneration/RERUN-CA5C72F3528F42807DD085AA.json": "8c970074210c425e"
     }
    }
   ]
@@ -146,7 +146,7 @@
     null
    ],
    [
-    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-67BA1E0D27BF05F0B348D421"
+    "INFO ledger.append event=REGENERATION_REQUESTED rle=RLE-8044966AF2B3730BA651B286"
    ],
    {
     "directories": [
@@ -158,8 +158,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "50f6f60a94e0b91e",
-     "realization/regeneration/RERUN-518A1ADCF1DEB3E248A35FCC.json": "f289e2720a57654b"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "51a19dd3e160b802",
+     "realization/regeneration/RERUN-0DDEF54DA6B97DA3A68C060B.json": "1125e2a9ed752ea6"
     }
    }
   ]
@@ -184,15 +184,15 @@
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
   "length": 53492,
-  "sha256": "1acca9f9c290faf78d4779b856cbfafb5714dff5bb6bc45d4dbc05a60c951f1e",
+  "sha256": "30560e389a66ed1cdd377d69417fdced99d1f0acceaf45d8d48769f3afd38b9b",
   "spot": {
    "count": 363,
    "first": {},
    "last": {
-    "application_episode_id": "APP-2F8AD6BFA5DBAF88C3D14FE3",
+    "application_episode_id": "APP-F24ECA46F03D8CB20E8ADB8C",
     "correction_key": "oct",
-    "measurement_id": "MEAS-9DBB70BA1745E60A823CB14A",
-    "validation_episode_id": "VAL-8B4C25FCE4EC5B613DA2C525"
+    "measurement_id": "MEAS-8C55E48459F15A9E67D2A189",
+    "validation_episode_id": "VAL-111F711D5F9405199EE87AD5"
    }
   }
  },
@@ -216,12 +216,12 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 290711,
-  "sha256": "cc5253da1b3cf57050b15eb12132bd7658ded5e0fc1bc47662afe71a22a69e08",
+  "sha256": "988aa1cd23e5c28581da0ebd47e4a8f2df4068f023e78fdfd0f253fe4f1a4754",
   "spot": {
    "count": 808,
    "first": [
     "GR-001",
-    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    "RPKG-976E6C1C6E88CE76321758ED",
     0,
     "forward",
     {
@@ -235,16 +235,16 @@
    ],
    "last": [
     "restatement-reprocessed",
-    "RPKG-9BCA3C3DFB12CC37AA7CA775",
+    "RPKG-976E6C1C6E88CE76321758ED",
     16,
     "reversed",
     {
      "entry_count": 16,
-     "first_entry_id": "RLE-6B7C42D2B96436035A636C5A",
+     "first_entry_id": "RLE-43CE3E553F852E732746AC84",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-E8AF15BCE761866E3D6FE19A",
+     "latest_entry_id": "RLE-F22E7D6EE0FDDFCA6D5F1233",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:7EDC3860E910BDD1F6ED3393985302B1093132A69666CE55312DAF85CB6B83EC"
+     "ledger_checkpoint_hash": "SHA256:DF3F0A09E93A703E254829065286CE617759AEE9684C516AE370B5A0A6E36219"
     }
    ]
   }

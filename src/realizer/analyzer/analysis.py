@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from realizer.common.utils import utc_iso
-from realizer.config.settings import CONFIG_KNOBS, SIZE_ORDER
+from realizer.config.settings import CONFIG_KNOBS
 from realizer.contracts import realization as rc
 from realizer.contracts.analysis import ObservationAnalysis, RealizationHistory
 from realizer.contracts.realization import make_evidence_id
@@ -19,13 +19,16 @@ from realizer.packager.ledger import latest_event
 
 
 def config_hash(config: Mapping[str, Any]) -> str:
-    return "SHA256:" + rc.sha256_hex({k: normalize_scalar(config.get(k)) for k in CONFIG_KNOBS})
+    return "SHA256:" + rc.sha256_hex({k: normalize_value(k, config.get(k)) for k in CONFIG_KNOBS})
 
 
-def normalize_scalar(value: Any) -> Any:
-    if isinstance(value, str):
-        return value.strip().upper() if value.upper() in SIZE_ORDER or value.upper() in {"PRO", "CLASSIC", "SERVERLESS", "CURRENT", "PREVIEW"} else value
-    return value
+def normalize_value(knob: str, value: Any) -> Any:
+    """One spelling per configuration value, the Publisher's: a size upper-cased with ``-`` as ``_`` (``X-Large`` is
+    ``X_LARGE``), a warehouse type or channel upper-cased, surrounding spaces dropped. Numbers and booleans pass."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip().upper()
+    return text.replace("-", "_") if knob == "warehouse_size" else text if knob in {"warehouse_type", "warehouse_channel"} else value
 
 
 def photon_bool_from_package(package: Mapping[str, Any]) -> Optional[bool]:
@@ -39,15 +42,9 @@ def photon_bool_from_package(package: Mapping[str, Any]) -> Optional[bool]:
 
 def package_config(package: Mapping[str, Any]) -> Dict[str, Any]:
     c = package["current_config"]
-    return {
-        "warehouse_type": c.get("warehouse_type"),
-        "warehouse_size": c.get("warehouse_size"),
-        "min_clusters": c.get("min_clusters"),
-        "max_clusters": c.get("max_clusters"),
-        "auto_stop_minutes": c.get("auto_stop_minutes"),
-        "warehouse_channel": c.get("warehouse_channel"),
-        "enable_photon": photon_bool_from_package(package),
-    }
+    config = {k: normalize_value(k, c.get(k)) for k in CONFIG_KNOBS if k != "enable_photon"}
+    config["enable_photon"] = photon_bool_from_package(package)
+    return config
 
 
 def observed_config(observation: Mapping[str, Any], package: Mapping[str, Any]) -> Dict[str, Any]:
@@ -55,7 +52,7 @@ def observed_config(observation: Mapping[str, Any], package: Mapping[str, Any]) 
     base = package_config(package)
     # Observation is a full current snapshot semantically; for test/replay
     # convenience omitted fields inherit source state, not recommended state.
-    return {k: normalize_scalar(raw[k]) if k in raw else base.get(k) for k in CONFIG_KNOBS}
+    return {k: normalize_value(k, raw[k]) if k in raw else base.get(k) for k in CONFIG_KNOBS}
 
 
 def scenario_by_id(package: Mapping[str, Any], scenario_id: Optional[str]) -> Optional[Mapping[str, Any]]:

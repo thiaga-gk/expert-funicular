@@ -1,15 +1,14 @@
 {
  "CheckTests.test_a_malformed_field_only_breaks_the_check_that_reads_it/results": {
-  "length": 2413,
-  "sha256": "9a2df20d10777f1c499a9059f60d130cf0ab56f021a074005853e7c4bb791cf8"
+  "length": 2096,
+  "sha256": "23e5043f467cdf668638c43e38b8b4f1e93dec1093a621bb2bbf809f3b16de5d"
  },
  "CheckTests.test_authority_eligible/results": {
   "value": {
    "plan step 0": true,
-   "plan step 1": false,
+   "plan step 1": true,
    "plan step 2": false,
-   "plan step 3": false,
-   "plan step 4": true,
+   "plan step 3": true,
    "state ''": true,
    "state 'BLOCKED'": false,
    "state 'INVALIDATED'": false,
@@ -43,8 +42,8 @@
   }
  },
  "CheckTests.test_checks_on_every_scenario_observation_and_policy/results": {
-  "length": 447960,
-  "sha256": "bb4b3687068c226e7d2a21554adb776e624d3ce0685b59cd6fcacea0e0b751d3",
+  "length": 460830,
+  "sha256": "404e0c0f7199b41ced656d9667699af03ac38367d62925c858029df6889d2f9e",
   "spot": {
    "count": 1224,
    "exceptions": [],
@@ -58,7 +57,7 @@
  },
  "CheckTests.test_malformed_observations_raise/counterfactual_eligible": {
   "spot": {
-   "count": 20,
+   "count": 21,
    "exceptions": {
     "12 ['economics']": "AttributeError",
     "13 ['economics']": "AttributeError"
@@ -68,29 +67,29 @@
    "0 ['elapsed_days']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "1 ['elapsed_days']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "10 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "11 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "12 ['economics']": [
@@ -108,129 +107,139 @@
      "NO_DEFENSIBLE_COUNTERFACTUAL"
     ]
    ],
-   "15 ['attributable_spend_pct']": [
+   "15 ['financial_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
-   "16 ['attributable_spend_pct']": [
+   "16 ['financial_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
-   "17 ['price_coverage_pct']": [
+   "17 ['financial_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
-   "18 ['currency_consistency_pct']": [
+   "18 ['financial_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
-   "19 ['correction_chain_complete']": [
+   "19 ['financial_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "2 ['query_count']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
+    ]
+   ],
+   "20 ['financial_quality']": [
+    "ok",
+    [
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "3 ['query_count']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "4 ['representative_regime']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "5 ['evidence_quality']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "6 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "7 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "8 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ],
    "9 ['performance']": [
     "ok",
     [
-     false,
-     "NO_DEFENSIBLE_COUNTERFACTUAL"
+     true,
+     "MATCHED_HISTORICAL"
     ]
    ]
   }
  },
  "CheckTests.test_malformed_observations_raise/economic_quality_result": {
-  "length": 6518,
-  "sha256": "7f47366c32a08f97ff7dd8d4795f02cb620e4d89eb56075cf50059504030f56f",
+  "length": 6894,
+  "sha256": "cd508338927f277ba59744fbb43b3bbf4041c22bfc26dc2d8796eeea698b0f5c",
   "spot": {
-   "count": 20,
+   "count": 21,
    "exceptions": {
-    "15 ['attributable_spend_pct']": "InvalidOperation",
-    "16 ['attributable_spend_pct']": "InvalidOperation",
-    "17 ['price_coverage_pct']": "ValueError",
-    "18 ['currency_consistency_pct']": "InvalidOperation"
+    "12 ['economics']": "AttributeError",
+    "13 ['economics']": "AttributeError",
+    "15 ['financial_quality']": "InvalidOperation",
+    "17 ['financial_quality']": "ValueError",
+    "18 ['financial_quality']": "InvalidOperation",
+    "20 ['financial_quality']": "TypeError"
    }
   }
  },
  "CheckTests.test_malformed_observations_raise/readiness": {
-  "length": 5851,
-  "sha256": "99120121c288ed68e7fbac5a385b6639d021c86bd829d4cba2d5ae9d1e545c72",
+  "length": 5944,
+  "sha256": "37bd6aca636bcb13f3d5dd3f9a27ee6a246969e6b600f04621ab3138fb108b7a",
   "spot": {
-   "count": 20,
+   "count": 21,
    "exceptions": {
     "0 ['elapsed_days']": "ValueError",
     "1 ['elapsed_days']": "TypeError",
-    "2 ['query_count']": "ValueError"
+    "2 ['query_count']": "TypeError",
+    "3 ['query_count']": "TypeError"
    }
   }
  },
  "CheckTests.test_malformed_observations_raise/validate_performance": {
-  "length": 9990,
-  "sha256": "991e50d102a4779ba24acc18c5aa42fc457cdb27132764800505cc0d03be99c5",
+  "length": 10607,
+  "sha256": "d3d517a644ac9208f8eacee7de2ed78e2743bdc045bf72a78064f0df2612ca26",
   "spot": {
-   "count": 20,
+   "count": 21,
    "exceptions": {
     "10 ['performance']": "ValueError",
     "11 ['performance']": "InvalidOperation",
@@ -425,38 +434,37 @@
   ]
  },
  "PolicyClassTests.test_from_mapping_and_snapshot_ids_for_overrides/policies": {
-  "length": 4652,
-  "sha256": "99ebabb7c30849616cbf673dd6439d8e0bb5c3717b730f90cad5fe30236de596",
+  "length": 4082,
+  "sha256": "60fea928cb0f3f9fde449a85ec947eb7c7c92c9fe12bca4e048104b11835f722",
   "spot": {
-   "count": 8,
+   "count": 7,
    "snapshot_ids": {
     "0 {}": "PSNAP-FEF164129C29BEC36EE4002F",
     "1 {'minimum_days': 3, 'minimum_queries': 10}": "PSNAP-7030358386B4DA924F816EBC",
     "2 {'max_normalized_p95_runtime_regression_pct': '4', 'realized_ratio_min': '0.9'}": "PSNAP-7B4F27B45C189186A953D381",
     "3 {'require_representative_regime': False, 'minimum_attributable_spend_pct': 80, 'minimum_price_coverage_pct': '90.5'}": "PSNAP-A3FE8B1B44DFE84A4551EC2C",
     "4 {'require_confirmed_origin_for_hard_kpi': False, 'minimum_material_savings_delta_pct': 1}": "PSNAP-C0E0FB400DA29A433A756BB6",
-    "5 {'unknown': 1}": "PSNAP-FEF164129C29BEC36EE4002F",
-    "6 None": "PSNAP-FEF164129C29BEC36EE4002F",
-    "7 {'minimum_days': '9'}": "PSNAP-A4EFDB4C395213678C61E555"
+    "5 None": "PSNAP-FEF164129C29BEC36EE4002F",
+    "6 {}": "PSNAP-FEF164129C29BEC36EE4002F"
    }
   }
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 0": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting realized_ratio_min must be a number"
   ]
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 1": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting minimum_attributable_spend_pct must be a number"
   ]
  },
  "PolicyClassTests.test_from_mapping_errors/mapping 2": {
   "value": [
-   "InvalidOperation",
-   "[<class 'decimal.ConversionSyntax'>]"
+   "InputError",
+   "policy setting realized_ratio_min must be a number"
   ]
  },
  "PolicyClassTests.test_snapshot_id_and_dict_errors_for_malformed_field_values/minimum_days": {

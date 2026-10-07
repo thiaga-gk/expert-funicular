@@ -35,13 +35,32 @@ class FunctionTests(unittest.TestCase):
         expect.check(self, f"{name}({label if label is not None else label_of(*args)})", new)
         return new
 
-    def test_normalize_scalar(self):
-        for value in ["medium", " large ", "LARGE", "pro", "Classic", "serverless", "current", "PREVIEW", "xx", "", None, 4, True, 2.5]:
-            with self.subTest(value=value):
-                self.check("normalize_scalar", value)
-        # Pinned quirk, kept: the membership test is on the unstripped value, so a padded size stays padded.
-        self.assertEqual(analysis.normalize_scalar(" large "), " large ")
-        self.assertEqual(analysis.normalize_scalar("large"), "LARGE")
+    def test_normalize_value(self):
+        for knob in ["warehouse_size", "warehouse_type", "warehouse_channel", "auto_stop_minutes", "enable_photon"]:
+            for value in ["medium", " large ", "LARGE", "X-Large", "2X-Large", "pro", "Classic", "serverless", "current", "PREVIEW", "xx", "", None, 4, True, 2.5]:
+                with self.subTest(knob=knob, value=value):
+                    self.check("normalize_value", knob, value)
+        # One spelling per value, the Publisher's: sizes upper-cased with "-" as "_", type and channel upper-cased, spaces dropped.
+        self.assertEqual(analysis.normalize_value("warehouse_size", "X-Large"), "X_LARGE")
+        self.assertEqual(analysis.normalize_value("warehouse_size", " medium "), "MEDIUM")
+        self.assertEqual(analysis.normalize_value("warehouse_size", "2x-large"), "2X_LARGE")
+        self.assertEqual(analysis.normalize_value("warehouse_type", " pro "), "PRO")
+        self.assertEqual(analysis.normalize_value("warehouse_channel", "preview"), "PREVIEW")
+        # Other knobs and non-strings pass through unchanged.
+        self.assertEqual(analysis.normalize_value("enable_photon", True), True)
+        self.assertEqual(analysis.normalize_value("auto_stop_minutes", 0), 0)
+        self.assertIsNone(analysis.normalize_value("warehouse_size", None))
+        self.assertEqual(analysis.normalize_value("auto_stop_minutes", " 60 "), " 60 ")
+
+    def test_package_and_observed_config_share_one_spelling(self):
+        package = copy.deepcopy(self.pkg)
+        package["current_config"]["warehouse_size"] = "X-Large"
+        package["current_config"]["warehouse_type"] = "pro"
+        self.assertEqual(analysis.package_config(package)["warehouse_size"], "X_LARGE")
+        self.assertEqual(analysis.package_config(package)["warehouse_type"], "PRO")
+        observed = analysis.observed_config({"config": {"warehouse_size": " X-Large ", "warehouse_type": "Pro"}}, package)
+        self.assertEqual((observed["warehouse_size"], observed["warehouse_type"]), ("X_LARGE", "PRO"))
+        self.assertEqual(analysis.config_hash({"warehouse_size": "X-Large"}), analysis.config_hash({"warehouse_size": " x_large "}))
 
     def test_config_hash_on_valid_and_malformed_input(self):
         configs = [{}, {"warehouse_size": "small"}, {"warehouse_size": "SMALL", "enable_photon": None}, analysis.package_config(self.pkg),

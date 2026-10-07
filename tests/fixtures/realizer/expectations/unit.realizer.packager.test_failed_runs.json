@@ -8,15 +8,15 @@
     ],
     [
      "ok",
-     "RSNAP-B4E0622B53B53930421A90E3"
+     "RSNAP-840FC98FC57CB50F460B1916"
     ],
     [
      "ok",
-     "RSNAP-B4E0622B53B53930421A90E3"
+     "RSNAP-840FC98FC57CB50F460B1916"
     ],
     [
      "ok",
-     "RSNAP-0E263B07EA90F7B31439B184"
+     "RSNAP-E01E677580EE790A7F793CA6"
     ]
    ],
    {
@@ -42,13 +42,13 @@
      "BILLING_CORRECTION_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-6415CF8C9500BD6559DCAB9A.json": "3a61233a2d37936e",
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "856cdb2a3b9cca57",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "494ea4d784a797df",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
-     "realization/snapshots/RSNAP-0E263B07EA90F7B31439B184.json": "494ea4d784a797df",
-     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/evidence/REVID-B7C397E7C40C15DC81B974B5.json": "6a6514a4a68e8751",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c0662fe385d3405f",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "76df3dcdcb2d4a36",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
+     "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "c3d564be683c973b",
+     "realization/snapshots/RSNAP-E01E677580EE790A7F793CA6.json": "76df3dcdcb2d4a36"
     }
    }
   ]
@@ -70,7 +70,7 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1fe311e26cf0800b"
     }
    }
   ]
@@ -78,13 +78,13 @@
  "CommitPositionTests.test_corrupt_ledger_fails_before_anything_is_written/result": {
   "value": [
    [
-    "JSONDecodeError",
-    "Expecting value: line 1 column 1 (char 0)"
+    "LedgerError",
+    "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
    ],
    {
     "realization": null,
     "realization/ledger": null,
-    "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "not json\n"
+    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "not json\n"
    }
   ]
  },
@@ -114,8 +114,8 @@
      "BILLING_CORRECTION_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "4fbdf08501877af9"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "54b86ed2c9429ba9"
     }
    }
   ]
@@ -145,8 +145,8 @@
      "ECONOMIC_MEASUREMENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3a19c0ea9d5ebd9c"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "68dc8734691e7c45"
     }
    }
   ]
@@ -175,8 +175,8 @@
      "COUNTERFACTUAL_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "729d1e740e337fc9"
     }
    }
   ]
@@ -206,8 +206,8 @@
      "ECONOMIC_MEASUREMENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3d7099495e3bde84"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fe0464dee0c0071f"
     }
    }
   ]
@@ -237,8 +237,8 @@
      "ECONOMIC_MEASUREMENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "3d7099495e3bde84"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fe0464dee0c0071f"
     }
    }
   ]
@@ -266,8 +266,8 @@
      "VALIDATION_COMPLETED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "d96ab52e325539b6"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ecd1d6d5aae6119d"
     }
    }
   ]
@@ -296,8 +296,8 @@
      "COUNTERFACTUAL_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "e18e4f6264c683c7"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "729d1e740e337fc9"
     }
    }
   ]
@@ -307,7 +307,7 @@
    [
     [
      "ok",
-     "RSNAP-B4E0622B53B53930421A90E3"
+     "RSNAP-840FC98FC57CB50F460B1916"
     ],
     [
      "ValueError",
@@ -336,12 +336,12 @@
      "DRIFT_DETECTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/evidence/REVID-E5EFB08875509A6EF01A662D.json": "32c7936dc6e58733",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "1e262b30a35e046d",
-     "realization/packages/RPKG-9BCA3C3DFB12CC37AA7CA775.json": "abaa74cfa6462eee",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb",
-     "realization/snapshots/RSNAP-B4E0622B53B53930421A90E3.json": "abaa74cfa6462eee"
+     "realization/evidence/REVID-2910FFCD737864CC6FCE4AF1.json": "fefc1f1e1aa5ec1b",
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "fde9ba0754462f2d",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "c3d564be683c973b",
+     "realization/regeneration/RERUN-E859EB99CB326CE38DB20043.json": "183451884bc2dcea",
+     "realization/snapshots/RSNAP-840FC98FC57CB50F460B1916.json": "c3d564be683c973b"
     }
    }
   ]
@@ -366,8 +366,8 @@
      "INTENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "2aac812dc1242612"
     }
    }
   ]
@@ -393,8 +393,8 @@
      "ROLLBACK_OBSERVED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "f37f026e92a2d22d"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "377368167ed57f80"
     }
    }
   ]
@@ -420,8 +420,8 @@
      "ROLLBACK_REQUESTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "90cfefc20c22441a"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "cdf2f64e820f973e"
     }
    }
   ]
@@ -444,8 +444,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "9546760e7f963014"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "1fe311e26cf0800b"
     }
    }
   ]
@@ -470,73 +470,35 @@
      "INTENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "22dc80342c9a8b8b"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "2aac812dc1242612"
     }
    }
   ]
  },
- "CommitPositionTests.test_replay_cut_fails_after_the_whole_commit/1999-01-01T00:00:00Z": {
+ "CommitPositionTests.test_replay_cut_is_refused_before_anything_is_written/1999-01-01T00:00:00Z": {
   "value": [
    [
-    "ValueError",
-    "cannot project empty ledger"
+    "InputError",
+    "replay cut 1999-01-01T00:00:00Z is before the package was generated (2026-10-01T12:00:00Z): nothing to project"
    ],
    {
-    "directories": [
-     "realization",
-     "realization/evidence",
-     "realization/ledger",
-     "realization/regeneration"
-    ],
-    "events": [
-     "REALIZATION_CREATED",
-     "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED"
-    ],
-    "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  },
- "CommitPositionTests.test_replay_cut_fails_after_the_whole_commit/garbage": {
+ "CommitPositionTests.test_replay_cut_is_refused_before_anything_is_written/garbage": {
   "value": [
    [
-    "ValueError",
-    "Invalid isoformat string: 'garbage'"
+    "InputError",
+    "replay cut (--replay-through) is not an ISO-8601 time"
    ],
    {
-    "directories": [
-     "realization",
-     "realization/evidence",
-     "realization/ledger",
-     "realization/regeneration"
-    ],
-    "events": [
-     "REALIZATION_CREATED",
-     "APPLICATION_OBSERVED",
-     "INTENT_RECORDED",
-     "VALIDATION_READY",
-     "VALIDATION_STARTED",
-     "VALIDATION_COMPLETED",
-     "COUNTERFACTUAL_RECORDED",
-     "ECONOMIC_MEASUREMENT_RECORDED",
-     "REGENERATION_REQUESTED"
-    ],
-    "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "5013a907f097384c",
-     "realization/regeneration/RERUN-5EAFEBC878ED2364E53E171A.json": "153ff9eff0ad59fb"
-    }
+    "directories": [],
+    "events": [],
+    "files": {}
    }
   ]
  },
@@ -562,8 +524,8 @@
      "VALIDATION_STARTED"
     ],
     "files": {
-     "realization/evidence/REVID-C82136407213010727CEAB98.json": "16faf7f9454e8a9a",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "86008d258a22230d"
+     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "3238181f4b347173"
     }
    }
   ]
@@ -588,8 +550,8 @@
      "INTENT_RECORDED"
     ],
     "files": {
-     "realization/evidence/REVID-CC8A331176ECCC62A3E1E4F3.json": "03dd87e441e2d1e7",
-     "realization/ledger/RPKG-9BCA3C3DFB12CC37AA7CA775.jsonl": "fd9064a3b0f86884"
+     "realization/evidence/REVID-B2F0634DE611B1644F9116EC.json": "7917a40e54aaafb8",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ad8a5a19535f7128"
     }
    }
   ]

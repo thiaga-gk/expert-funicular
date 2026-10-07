@@ -66,7 +66,11 @@ class LedgerReadTests(unittest.TestCase):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "l.jsonl"
                 path.write_text(text, encoding="utf-8")
-                expect.check(self, label, outcome(lambda: [e.to_dict() for e in ledger.load_ledger(path)]))
+                result = outcome(lambda: [e.to_dict() for e in ledger.load_ledger(path)])
+                if label != "blank lines only":
+                    self.assertEqual(result[0], "LedgerError")  # an unreadable line is a refusal that names the file and line
+                    self.assertRegex(result[1], r"^ledger l\.jsonl line [12] is not a valid ledger entry \(\w+\)$")
+                expect.check(self, label, result)
         with tempfile.TemporaryDirectory() as tmp:
             expect.check(self, "a directory", outcome(ledger.load_ledger, Path(tmp))[0])
 
@@ -173,6 +177,49 @@ class WriteSideTests(unittest.TestCase):
                 self.assertNotEqual(result[0], "ok", label)
                 expect.check(self, label, result)
 
+    def test_an_entry_the_schema_refuses_is_a_defect_and_is_never_built(self):
+        """``make_ledger_entry`` checks the entry against ``ledger_entry_schema`` after the dataclass validation; an entry that
+        passes the id and time checks but not the schema (a non-text evidence reference, a payload that is not a mapping
+        once serialized, an empty workspace id) raises ``jsonschema.ValidationError``, not a ``RealizerError``."""
+        import jsonschema
+        from realizer.common.errors import RealizerError
+        package = fixture_package()
+        _, _, _, lines = next(stored_ledgers())
+        cases = {
+            "evidence reference not text": dict(evidence_refs=[1]),
+            "evidence reference null": dict(evidence_refs=[None]),
+            "empty workspace id": dict(package={**package, "warehouse": {**package["warehouse"], "workspace_id": ""}}),
+        }
+        for label, patch in cases.items():
+            with self.subTest(case=label):
+                args = entry_args(package, lines[0])
+                args.update(copy.deepcopy(patch))
+                with self.assertRaises(jsonschema.ValidationError) as caught:
+                    ledger.make_ledger_entry(**args)
+                self.assertNotIsInstance(caught.exception, RealizerError)
+
+    def test_an_entry_with_an_invalid_event_payload_type_is_refused_by_the_schema_check(self):
+        import jsonschema
+        from realizer.contracts.realization_schema import validate_ledger_entry
+        package = fixture_package()
+        _, _, _, lines = next(stored_ledgers())
+        good = ledger.make_ledger_entry(**entry_args(package, lines[0])).to_dict()
+        self.assertIsNone(validate_ledger_entry(good))
+        for key, value in (("payload", [1]), ("payload", "text"), ("event_type", "NOPE"), ("evidence_refs", "RLE-X"), ("provenance", None)):
+            with self.subTest(key=key, value=value), self.assertRaises(jsonschema.ValidationError):
+                validate_ledger_entry({**good, key: value})
+
+    def test_every_stored_ledger_entry_validates_against_the_schema_and_carries_the_publisher_release(self):
+        from publisher.config.versions import PUBLISHER_VERSION
+        from realizer.contracts.realization_schema import validate_ledger_entry
+        count = 0
+        for _, _, _, lines in stored_ledgers():
+            for line in lines:
+                validate_ledger_entry(line)
+                self.assertEqual(line["provenance"]["product_version"], PUBLISHER_VERSION)
+                count += 1
+        self.assertGreater(count, 100)
+
     def test_checkpoint_for_every_ledger_prefix_and_order(self):
         checkpoints = []
         for name, _, path, _ in stored_ledgers():
@@ -222,7 +269,7 @@ class AppendTests(unittest.TestCase):
                 path.write_text(text, encoding="utf-8")
                 with capture_logs() as logs:
                     result = (outcome(ledger.append_if_absent, path, entry), logs, path.read_text(encoding="utf-8"))
-                self.assertNotEqual(result[0][0], "ok")
+                self.assertEqual(result[0][0], "LedgerError")
                 self.assertEqual(result[2], text)
                 expect.check(self, label, result)
 

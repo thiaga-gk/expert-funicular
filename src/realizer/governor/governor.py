@@ -9,7 +9,7 @@ from realizer.common.utils import Deferred
 from realizer.contracts.analysis import RealizationAnalysis
 from realizer.contracts.governance import GovernanceResult
 from realizer.contracts.request import RunContext
-from realizer.governor.policy import counterfactual_eligible, economic_quality_result, readiness, validate_performance
+from realizer.governor.policy import counterfactual_eligible, economic_quality_result, package_currency, readiness, validate_performance
 
 
 def run(context: RunContext, analysis: RealizationAnalysis) -> GovernanceResult:
@@ -30,5 +30,5 @@ def run(context: RunContext, analysis: RealizationAnalysis) -> GovernanceResult:
         readiness=Deferred.of(readiness, raw, policy),
         performance=Deferred.of(validate_performance, raw, policy),
         counterfactual=Deferred.of(counterfactual_eligible, raw),
-        economic_quality=Deferred.of(economic_quality_result, raw, policy),
+        economic_quality=Deferred.of(economic_quality_result, raw, policy, package_currency(context.request.package)),
     )

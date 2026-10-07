@@ -22,31 +22,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -54,18 +54,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "OPAQUE()",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -143,31 +143,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -175,18 +175,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -204,31 +204,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:3B9059D88F80FAC631B633B7B93A3A756EBD89699D9E14EE52830CD1166ED59B"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:16417A7440FAD38039D4208C4D6331833F017D107E02E66F6C184684F980361B"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "SMALL",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-783EE1BC18D972E51EBFC4AE",
+     "evidence_id": "REVID-0054A9DB9BEB251DB6B705DA",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "SMALL",
        "warehouse_type": "PRO"
@@ -236,18 +236,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:A965ED787BCB6B5B769A7885E33E6D6BEDECFB27C080591B73CEDD011B6F31B5",
+     "payload_hash": "SHA256:52F291924F9B1BB052BC444C9E0229646D72E9433CD96134E6AFECFAF118FB88",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-783EE1BC18D972E51EBFC4AE",
+    "revid": "REVID-0054A9DB9BEB251DB6B705DA",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -265,31 +265,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-8A2F2BD128ABEEA1B753DC1B",
+     "evidence_id": "REVID-EDCDD0576010DF361996749F",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "LARGE",
        "warehouse_type": "PRO"
@@ -297,18 +297,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:6F458C8072560C32F5C28B297B89AFB818E8FC738E6A8ED7339D2A3196372563",
+     "payload_hash": "SHA256:AD92F6A37A047167CF8A78A66BD9A65F59A91A12A8FAAEE7AC4AB41714C805C9",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-8A2F2BD128ABEEA1B753DC1B",
+    "revid": "REVID-EDCDD0576010DF361996749F",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -326,31 +326,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -358,18 +358,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "PARTIAL",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -387,31 +387,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -419,18 +419,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "NONE",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -448,31 +448,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -480,18 +480,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -509,31 +509,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -541,18 +541,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -570,31 +570,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T19:30:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -602,18 +602,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -631,31 +631,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-ACFE5D25AD3B8661227EA2B3",
+     "evidence_id": "REVID-79E689D7C3453EE293676737",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -663,18 +663,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "LIVE"
      },
-     "payload_hash": "SHA256:71DEF1C5F6B773137DF39C658AFD118AD957BF685E285193B16319502E9F1B80",
+     "payload_hash": "SHA256:7C7ED6DDC152F1668527017C46E2D6EC0C8805FA39C85B42A96698B83852295E",
      "quality": "SUFFICIENT",
      "source": "LIVE",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-ACFE5D25AD3B8661227EA2B3",
+    "revid": "REVID-79E689D7C3453EE293676737",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -692,21 +692,21 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-BBA036FC7F821A70BF677295",
+     "evidence_id": "REVID-DEC3B15DC987571F90CF131C",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "b",
@@ -714,10 +714,10 @@
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -725,18 +725,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-BBA036FC7F821A70BF677295",
+    "revid": "REVID-DEC3B15DC987571F90CF131C",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -754,31 +754,31 @@
    "ok",
    {
     "hashes": [
-     "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719",
-     "SHA256:6BA7939C80FAF293F5E268EFEDB2BEC482329BDB3FEAB8CEA63EE38A37608813"
+     "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1",
+     "SHA256:7A74F3706C59DF5643A4269EE4DC96DAD509947D6ADFD95D941D791C62C2DAB3"
     ],
     "obs_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "MEDIUM",
      "warehouse_type": "PRO"
     },
     "record": {
      "captured_at_utc": "2026-10-09T12:00:00Z",
-     "evidence_id": "REVID-C82136407213010727CEAB98",
+     "evidence_id": "REVID-37F7F275591908182339F44B",
      "evidence_type": "OBSERVED_CONFIGURATION",
      "observation_window": {
       "end_utc": "2026-10-09T12:00:00Z"
      },
      "payload": {
       "config": {
-       "auto_stop_minutes": 120,
-       "enable_photon": true,
+       "auto_stop_minutes": 15,
+       "enable_photon": false,
        "max_clusters": 4,
-       "min_clusters": 2,
+       "min_clusters": 1,
        "warehouse_channel": "CURRENT",
        "warehouse_size": "MEDIUM",
        "warehouse_type": "PRO"
@@ -786,18 +786,18 @@
       "observed_at_utc": "2026-10-09T12:00:00Z",
       "source": "DEMO_NORMALIZED_OBSERVATION"
      },
-     "payload_hash": "SHA256:DD0EF65EED8701ACD36D4443FBBD3D7756BF83EEEF71C3E3196EFC4506C60801",
+     "payload_hash": "SHA256:DC68561F33C0B42FA310407B7E98F000BF39F0901E3765B30CD95D9F01F91927",
      "quality": "SUFFICIENT",
      "source": "DEMO_NORMALIZED_OBSERVATION",
-     "warehouse_id": "wh-synth-001",
+     "warehouse_id": "wh-demo-006",
      "workspace_id": "1234567890123456"
     },
-    "revid": "REVID-C82136407213010727CEAB98",
+    "revid": "REVID-37F7F275591908182339F44B",
     "source_cfg": {
-     "auto_stop_minutes": 120,
-     "enable_photon": true,
+     "auto_stop_minutes": 15,
+     "enable_photon": false,
      "max_clusters": 4,
-     "min_clusters": 2,
+     "min_clusters": 1,
      "warehouse_channel": "CURRENT",
      "warehouse_size": "LARGE",
      "warehouse_type": "PRO"
@@ -864,10 +864,10 @@
    "Object of type set is not JSON serializable"
   ]
  },
- "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_type': 'PRO', 'warehouse_size': 'LARGE', 'min_clusters': 2, 'max_clusters': 4, 'auto_stop_minutes': 120, 'warehouse_channel': 'CURRENT', 'enable_photon': True})": {
+ "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({'warehouse_type': 'PRO', 'warehouse_size': 'LARGE', 'min_clusters': 1, 'max_clusters': 4, 'auto_stop_minutes': 15, 'warehouse_channel': 'CURRENT', 'enable_photon': False})": {
   "value": [
    "ok",
-   "SHA256:26020F757A764847B54419DA7C9C26D96B80D64A6D04B38C96E0C7CE75AAE719"
+   "SHA256:87659F766D750CA4114EA15E02EF88291241B97719878AE09488DA9D712244A1"
   ]
  },
  "FunctionTests.test_config_hash_on_valid_and_malformed_input/config_hash({})": {
@@ -876,85 +876,481 @@
    "SHA256:9172DFC8BE8BD36E098B9879FCE7AC5750814A946CD22B1F25808538AF1E2E8E"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(' large ')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', ' large '))": {
   "value": [
    "ok",
    " large "
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', ''))": {
   "value": [
    "ok",
    ""
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('Classic')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', '2X-Large'))": {
   "value": [
    "ok",
-   "CLASSIC"
+   "2X-Large"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('LARGE')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'Classic'))": {
+  "value": [
+   "ok",
+   "Classic"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'LARGE'))": {
   "value": [
    "ok",
    "LARGE"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('PREVIEW')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'PREVIEW'))": {
   "value": [
    "ok",
    "PREVIEW"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('current')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'X-Large'))": {
   "value": [
    "ok",
-   "CURRENT"
+   "X-Large"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('medium')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'current'))": {
   "value": [
    "ok",
-   "MEDIUM"
+   "current"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('pro')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'medium'))": {
   "value": [
    "ok",
-   "PRO"
+   "medium"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('serverless')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'pro'))": {
   "value": [
    "ok",
-   "SERVERLESS"
+   "pro"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar('xx')": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'serverless'))": {
+  "value": [
+   "ok",
+   "serverless"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 'xx'))": {
   "value": [
    "ok",
    "xx"
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(2.5)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 2.5))": {
   "value": [
    "ok",
    2.5
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(4)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', 4))": {
   "value": [
    "ok",
    4
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(None)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', None))": {
   "value": [
    "ok",
    null
   ]
  },
- "FunctionTests.test_normalize_scalar/normalize_scalar(True)": {
+ "FunctionTests.test_normalize_value/normalize_value(('auto_stop_minutes', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', ' large '))": {
+  "value": [
+   "ok",
+   " large "
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-Large"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'Classic'))": {
+  "value": [
+   "ok",
+   "Classic"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-Large"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'current'))": {
+  "value": [
+   "ok",
+   "current"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'medium'))": {
+  "value": [
+   "ok",
+   "medium"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'pro'))": {
+  "value": [
+   "ok",
+   "pro"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'serverless'))": {
+  "value": [
+   "ok",
+   "serverless"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 'xx'))": {
+  "value": [
+   "ok",
+   "xx"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('enable_photon', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_channel', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X_LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X_LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_size', True))": {
+  "value": [
+   "ok",
+   true
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', ' large '))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', ''))": {
+  "value": [
+   "ok",
+   ""
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', '2X-Large'))": {
+  "value": [
+   "ok",
+   "2X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'Classic'))": {
+  "value": [
+   "ok",
+   "CLASSIC"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'LARGE'))": {
+  "value": [
+   "ok",
+   "LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'PREVIEW'))": {
+  "value": [
+   "ok",
+   "PREVIEW"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'X-Large'))": {
+  "value": [
+   "ok",
+   "X-LARGE"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'current'))": {
+  "value": [
+   "ok",
+   "CURRENT"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'medium'))": {
+  "value": [
+   "ok",
+   "MEDIUM"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'pro'))": {
+  "value": [
+   "ok",
+   "PRO"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'serverless'))": {
+  "value": [
+   "ok",
+   "SERVERLESS"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 'xx'))": {
+  "value": [
+   "ok",
+   "XX"
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 2.5))": {
+  "value": [
+   "ok",
+   2.5
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', 4))": {
+  "value": [
+   "ok",
+   4
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', None))": {
+  "value": [
+   "ok",
+   null
+  ]
+ },
+ "FunctionTests.test_normalize_value/normalize_value(('warehouse_type', True))": {
   "value": [
    "ok",
    true
@@ -1000,10 +1396,10 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "PRO"
@@ -1026,12 +1422,12 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
-    "warehouse_size": "x",
+    "warehouse_size": "X",
     "warehouse_type": "PRO"
    }
   ]
@@ -1040,10 +1436,10 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "PRO"
@@ -1057,7 +1453,7 @@
     "auto_stop_minutes": null,
     "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "SERVERLESS"
@@ -1068,8 +1464,8 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
     "min_clusters": 3,
     "warehouse_channel": "CURRENT",
@@ -1082,10 +1478,10 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "PRO"
@@ -1096,10 +1492,10 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "PRO"
@@ -1110,10 +1506,10 @@
   "value": [
    "ok",
    {
-    "auto_stop_minutes": 120,
-    "enable_photon": true,
+    "auto_stop_minutes": 15,
+    "enable_photon": false,
     "max_clusters": 4,
-    "min_clusters": 2,
+    "min_clusters": 1,
     "warehouse_channel": "CURRENT",
     "warehouse_size": "LARGE",
     "warehouse_type": "PRO"
@@ -1386,90 +1782,9 @@
    null
   ]
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-ED593F8D45EFA6CAB149B2FF')": {
-  "value": [
-   "ok",
-   {
-    "blockers": [],
-    "candidate_id": "CAND-ED593F8D45EFA6CAB149B2FF",
-    "confidence": {
-     "components": {
-      "coverage": 1.0,
-      "epoch_maturity": 1.0,
-      "sample": 1.0,
-      "signal": 0.7,
-      "stability": 0.91
-     },
-     "level": "HIGH",
-     "method": "deterministic_evidence_score",
-     "score": 0.8
-    },
-    "current_value": "CURRENT",
-    "dependencies": [],
-    "evidence_refs": [
-     "EVID-9F57601D7601AD949053633C",
-     "EVID-65ADAC65D01DAEC470E7B3E4",
-     "EVID-941BE40F20A14CA11A130748",
-     "EVID-6C45A23DC840A92F3BFC102C",
-     "EVID-C0A8B86FC6694C973270EFA1"
-    ],
-    "independent_economics": {
-     "baseline_365d": {
-      "availability": "COMPLETE",
-      "aws_basis": "MODELED_AWS_LIST_PRICE",
-      "aws_cost": 11725.1,
-      "dbu_basis": "FORECAST",
-      "dbu_cost": 27000.0,
-      "total_cost": 38725.1
-     },
-     "estimated_cost_365d": {
-      "aws": {
-       "base": 11725.1,
-       "high": 11725.1,
-       "low": 11725.1
-      },
-      "dbu": {
-       "base": 27000.0,
-       "high": 27000.0,
-       "low": 27000.0
-      },
-      "total": {
-       "base": 38725.1,
-       "high": 38725.1,
-       "low": 38725.1
-      }
-     },
-     "estimation_status": "NO_DELTA_MODELED",
-     "is_additive": false,
-     "savings_365d": {
-      "aws": {
-       "base": 0.0,
-       "high": 0.0,
-       "low": 0.0
-      },
-      "dbu": {
-       "base": 0.0,
-       "high": 0.0,
-       "low": 0.0
-      },
-      "total": {
-       "base": 0.0,
-       "high": 0.0,
-       "low": 0.0
-      }
-     }
-    },
-    "invalidates": [],
-    "knob": "warehouse_channel",
-    "objectives": [
-     "STABILITY"
-    ],
-    "rationale": "No channel change indicated.",
-    "recommended_value": "CURRENT",
-    "status": "NO_CHANGE",
-    "technique_id": "WH-CHANNEL-CURRENT-001"
-   }
-  ]
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-84279AAA047951CCF02D5900')": {
+  "length": 2043,
+  "sha256": "58a04a4a3156614278356e4111f95d4d0438e69306448e8007edfdf2061d525b"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-MISSING')": {
   "value": [
@@ -1572,16 +1887,16 @@
   ]
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package)": {
-  "length": 3117,
-  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+  "length": 3220,
+  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, '')": {
-  "length": 3117,
-  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+  "length": 3220,
+  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-669E0ED750DDE520F0F03317')": {
-  "length": 3117,
-  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-2939C3996D4BBAC63D4F9484')": {
+  "length": 3220,
+  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-MISSING')": {
   "value": [
@@ -1596,8 +1911,8 @@
   ]
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, None)": {
-  "length": 3117,
-  "sha256": "6a282ca3873669dad20e728a8a3e231c650673ea860bd8c3ff55c0d1bbaa5811"
+  "length": 3220,
+  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'candidates': None})": {
   "value": [
@@ -1688,8 +2003,8 @@
   ]
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario(fixture package)": {
-  "length": 5953,
-  "sha256": "386ade2431d5fc1d322d7c78f2c5e8b3ca7e6fa4143c4e64a678ce59fd9e3c7a"
+  "length": 7288,
+  "sha256": "37a78d08e4e69d9c274a6225f66fcdc6171cc6613b4164fb25d6d80285ac09c7"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'candidates': None})": {
   "value": [
@@ -1899,9 +2214,9 @@
    null
   ]
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-669E0ED750DDE520F0F03317')": {
-  "length": 5953,
-  "sha256": "386ade2431d5fc1d322d7c78f2c5e8b3ca7e6fa4143c4e64a678ce59fd9e3c7a"
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-2939C3996D4BBAC63D4F9484')": {
+  "length": 7288,
+  "sha256": "37a78d08e4e69d9c274a6225f66fcdc6171cc6613b4164fb25d6d80285ac09c7"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-MISSING')": {
   "value": [

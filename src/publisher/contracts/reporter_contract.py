@@ -2432,6 +2432,48 @@ class RecommendationPackage:
         return sha256_hex(self.package_hash_payload())
 
 
+def package_hash_payload_from_document(document: Mapping[str, Any]) -> Dict[str, Any]:
+    """``RecommendationPackage.package_hash_payload`` rebuilt from a serialized package (the JSON a consumer reads).
+
+    The same fields as the dataclass method; the observed-change and carried-forward fingerprints hash their serialized
+    blocks, which is what the dataclass fingerprints hash. A consumer recomputes the package id and full hash with it
+    (``content_id("PKG", ...)``, ``sha256_hex(...)``) without rebuilding the frozen package. Raises KeyError on a missing
+    hashed field.
+    """
+    provenance, warehouse, plan = document["provenance"], document["warehouse"], document["recommended_plan"]
+    reevaluation = plan.get("reevaluation")
+    observed, carried = document["observed_change"], document["carried_forward_plan"]
+    profile = document["cost_profile"]
+    return {
+        "contract_version": document["contract_version"],
+        "workspace_id": warehouse["workspace_id"],
+        "warehouse_id": warehouse["warehouse_id"],
+        "current_epoch_id": warehouse["current_epoch"]["epoch_id"],
+        "current_config": document["current_config"],
+        "evidence_fingerprint": provenance["evidence_fingerprint"],
+        "policy_version": provenance["policy_version"],
+        "analyzer_version": provenance["analyzer_version"],
+        "optimizer_version": provenance["optimizer_version"],
+        "modeler_version": provenance["modeler_version"],
+        "estimator_version": provenance["estimator_version"],
+        "bundle_estimator_version": provenance["bundle_estimator_version"],
+        "reviewer_version": provenance["reviewer_version"],
+        "decision_graph_version": provenance["decision_graph_version"],
+        "technique_catalog_version": provenance["technique_catalog_version"],
+        "ordered_candidate_ids": [x["candidate_id"] for x in document["candidates"]],
+        "ordered_scenario_ids": [x["scenario_id"] for x in document["scenarios"]],
+        "reevaluation": None if reevaluation is None else {
+            "status": reevaluation["status"],
+            "earliest_reevaluation_time": reevaluation["earliest_reevaluation_time"],
+            "blocking_codes": list(reevaluation["blocking_codes"]),
+        },
+        "observed_change_fingerprint": None if observed is None else f"SHA256:{sha256_hex(observed).upper()}",
+        "carried_forward_fingerprint": None if carried is None else f"SHA256:{sha256_hex(carried).upper()}",
+        "cost_profile": {"name": profile["name"], "applied_thresholds": profile["applied_thresholds"]},
+        "run_scope": document["run_scope"],
+    }
+
+
 def make_recommendation_package_id_from_parts(
     *,
     contract_version: str,

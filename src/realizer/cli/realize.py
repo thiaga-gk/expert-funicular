@@ -12,13 +12,17 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
-from realizer.common.logging import setup_logging
-from realizer.config.loader import load_package, load_policy_mapping
+from realizer.common.logging import LOGGER, setup_logging
+from realizer.config.loader import SUPPORTED_PUBLISHER_CONTRACT, load_package, load_policy_mapping
+from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
+from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
+from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
 from realizer.realizer import RealizerPolicy, demo_observation, load_observation, realize
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Deterministic Databricks SQL Warehouse Realizer v1.0.0")
+    p = argparse.ArgumentParser(description=f"Deterministic Databricks SQL Warehouse Realizer v{REALIZER_VERSION}")
+    p.add_argument("--version", action="version", version=version_text())
     p.add_argument("--package", required=True, help="Path to immutable RecommendationPackage JSON")
     p.add_argument("--observation", help="Path to normalized post-change observation JSON")
     p.add_argument("--output-dir", default="./warehouse_optimizer_out")
@@ -31,9 +35,17 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def version_text() -> str:
+    """What ``--version`` prints: the Realizer, the release, and the contracts it reads and writes."""
+    return (f"realizer {REALIZER_VERSION} (release {PRODUCT_VERSION}; reads Reporter JSON Contract {SUPPORTED_PUBLISHER_CONTRACT} "
+            f"packages and observation format {OBSERVATION_FORMAT_VERSION}; writes Realizer Contract {CONTRACT_VERSION}, "
+            f"ledger {LEDGER_CONTRACT_VERSION})")
+
+
 def run(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     setup_logging(args.log_level)
+    LOGGER.info("realizer.start version=%s release=%s", REALIZER_VERSION, PRODUCT_VERSION)
     package = load_package(args.package)
     observation: Optional[Mapping[str, Any]] = None
     if args.demo or args.demo_modified:
@@ -42,6 +54,8 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
         observation = load_observation(args.observation)
     policy = RealizerPolicy.from_mapping(load_policy_mapping(args.policy))
     snapshot = realize(package, observation, Path(args.output_dir), policy=policy, replay_through=args.replay_through)
+    LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s", snapshot.realization_package_id, snapshot.snapshot_id,
+                snapshot.current_state["realization_state"])
     if args.print_json:
         print(json.dumps(snapshot.to_dict(), indent=2, sort_keys=True))
     else:
