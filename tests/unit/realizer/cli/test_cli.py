@@ -202,7 +202,12 @@ class BehaviourTests(unittest.TestCase):
     def test_logging_is_configured_from_the_flag(self):
         with mock.patch.object(cli_realize, "setup_logging") as setup, tempfile.TemporaryDirectory() as tmp:
             self.run_cli(main, ["--package", str(PACKAGE), "--log-level", "WARNING"], Path(tmp))
-        setup.assert_called_once_with("WARNING")
+        # The single-folder layout writes no log file, so no line is kept for one.
+        setup.assert_called_once_with("WARNING", keep_for_log_file=False)
+        with mock.patch.object(cli_realize, "setup_logging") as setup, tempfile.TemporaryDirectory() as tmp:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                main(["--package", str(PACKAGE), "--log-level", "WARNING", "--output-dir", tmp])
+        setup.assert_called_once_with("WARNING", keep_for_log_file=True)
 
 
 class EntryPointTests(unittest.TestCase):
