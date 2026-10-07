@@ -4,7 +4,7 @@
 
 **Status:** LOCKED  
 **Product:** Databricks SQL Warehouse Optimizer — Realizer  
-**Publisher release:** v2.8.0
+**Input:** Reporter JSON Contract 3.1.0 (`PKG-*`)
 
 ## 1. Purpose
 
@@ -50,7 +50,7 @@ A new recommendation always creates a new PKG and therefore a new RPKG. Ledger a
 
 ```json
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.2.0",
   "realization_package_id": "RPKG-...",
   "snapshot_id": "RSNAP-...",
   "source_recommendation": {},
@@ -146,7 +146,7 @@ A drift or an observed rollback closes the episodes it applies to. A closed epis
 
 The snapshot shows one episode: the open episode of the plan's earliest applied step (the one a live run measures; a scenario-scope application counts as the earliest), else the latest application. Its application state is `ROLLED_BACK` or `DRIFTED` when a rollback or a drift closed it, else `APPLIED`; its validation, measurements, realization state and `drift` section are that episode's own (an earlier episode's are history); `application.open_episodes` lists every open episode (id, step, knob, effective time).
 
-`PARTIALLY_APPLIED` is not a normal v2.8.0 step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
+`PARTIALLY_APPLIED` is not a normal step state. Plan progress may be partial while a completed individual step is fully `EXACT` or `MODIFIED`.
 
 ## 7. Modified implementation
 
@@ -176,7 +176,7 @@ A partially completed Plan may contain fully realized completed steps. `PENDING_
 ```json
 {
   "ledger_entry_id": "RLE-...",
-  "ledger_contract_version": "1.0.0",
+  "ledger_contract_version": "1.1.0",
   "realization_package_id": "RPKG-...",
   "recommendation_package_id": "PKG-...",
   "event_type": "APPLICATION_OBSERVED",
