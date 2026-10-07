@@ -53,6 +53,7 @@ Every topic is stated in one place. Other documents point to it instead of resta
 | AWS cost formulas | [`reference/publisher/aws-cost-model.md`](reference/publisher/aws-cost-model.md) |
 | Known limitations | [`reference/publisher/known-limitations.md`](reference/publisher/known-limitations.md); Realizer: [`reference/realizer/known-limitations.md`](reference/realizer/known-limitations.md) |
 | Realizer: scope and requirements, domain language, architecture, ledger/policy/observation/workbook-compatibility contracts, golden scenarios, the reorganization and its parity record (open limitations: the row above; runnable example: [`../examples/realizer/README.md`](../examples/realizer/README.md)) | [`product/realizer/prd.md`](product/realizer/prd.md), [`architecture/realizer/`](architecture/realizer/context.md), [`contracts/realizer/`](contracts/realizer/ledger-contract.md), [`proposals/realizer/`](proposals/realizer/golden-scenarios.md); code in `src/realizer/`, schemas `schema/realization-package.schema.json` and `schema/realization-ledger-entry.schema.json` |
+| Neutral read-only Databricks access (OAuth, REST GET, the SQL client) and Databricks vocabulary shared by both products | `src/workflow_shared/` (it imports neither product); module table in [`architecture/publisher/lld.md`](architecture/publisher/lld.md) section 3.1 |
 | Quickstart, install, output tree (run folders), run-scope examples | [`../README.md`](../README.md) |
 | Precedence and documentation rules | this file |
 

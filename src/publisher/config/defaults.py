@@ -1,14 +1,13 @@
 """Product defaults: warehouse sizes, published DBU and AWS topology tables, the active recommendation knobs, the supported (fail-closed) warehouse types and the Databricks product constants."""
 from __future__ import annotations
 
+from workflow_shared.databricks import vocabulary
+
 
 GIB = 1024 ** 3
 
 
-SIZE_ORDER = [
-    "2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",
-    "2X_LARGE", "3X_LARGE", "4X_LARGE", "5X_LARGE",
-]
+SIZE_ORDER = vocabulary.SIZE_ORDER  # the Databricks size names smallest first, shared with the realizer
 
 
 # Published SQL Serverless DBU/hour schedule by nominal warehouse size. The
