@@ -211,7 +211,10 @@ Full semantic hash uses SHA-256. Display IDs use the first 96 bits / 24 uppercas
 RPKG = SHA256("REALIZATION_PACKAGE", contract_major, PKG)
 RSNAP = SHA256(RPKG, ledger_checkpoint_hash, projector_version)
 RLE = SHA256(RPKG, event_type, domain_business_key, canonical_payload)
+CF = SHA256(APP, old_config_hash, method, window, replay_target, assumptions, evidence_fingerprint, modeler_version, policy_snapshot_id)
 ```
+
+The counterfactual's inputs are defined in the [source and evidence contract](source-evidence-contract.md) section 9.
 
 ## 12. Time semantics
 
@@ -279,7 +282,7 @@ Which Publisher figure is the denominator:
 - a warehouse-type migration: the scenario's range, which is pre-canary, so it is informational (`classification_basis` `INFORMATIONAL`): the realization and its ratio are reported, the state stays `MONITORING` (`MIGRATION_RANGE_INFORMATIONAL`), never `REALIZED` or `UNDER_REALIZED` against it;
 - any denominator when the measured query volume moved outside the comparable band after the change: reported, informational (`WORKLOAD_SHIFT`, [`policy-contract.md`](policy-contract.md) section 7).
 
-The component compared is the measurement's cost basis (DBU only, or DBU and modeled AWS); a caller-supplied observation is compared with the total, and a package without a total is `UNAVAILABLE`, never the DBU range in its place. The expected savings per component (DBU, AWS, total) of the chosen figure are reported separately as `expected_components`.
+The component compared is the measurement's cost basis (DBU only, or DBU and modeled AWS); a caller-supplied observation that gives a DBU component and no AWS component is compared with the DBU range (its costs are DBU only), any other caller-supplied observation with the total, and a package without a total is `UNAVAILABLE`, never the DBU range in its place. The expected savings per component (DBU, AWS, total) of the chosen figure are reported separately as `expected_components`.
 
 ## 17. Attribution
 

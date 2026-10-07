@@ -236,6 +236,12 @@
    "[<class 'decimal.ConversionSyntax'>]"
   ]
  },
+ "CounterfactualIdTests.test_cf_id_failures/evidence": {
+  "value": [
+   "TypeError",
+   "Object of type Opaque is not JSON serializable"
+  ]
+ },
  "CounterfactualIdTests.test_cf_id_failures/observation": {
   "value": [
    "AttributeError",
@@ -260,19 +266,13 @@
    "Object of type Opaque is not JSON serializable"
   ]
  },
- "CounterfactualIdTests.test_cf_id_failures/workload": {
-  "value": [
-   "TypeError",
-   "Object of type Opaque is not JSON serializable"
-  ]
- },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 7021,
-  "sha256": "e440e6942b10307589788c4fc80b3b463b0d4b1b4e1e6cb0af04488659738cdf",
+  "sha256": "339b404d370bc8d5b2542f7521dbd33cadab542fc20d71f3151b158a0378c864",
   "spot": {
    "count": 234,
-   "distinct": 42,
-   "first": "CF-8DC64C4840A22E56CCEB6AFE"
+   "distinct": 126,
+   "first": "CF-B55B23C08D103D51B4C48DB3"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {

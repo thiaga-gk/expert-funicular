@@ -27,6 +27,7 @@ from realizer.analyzer.collector.collector import demo_observation  # noqa: E402
 from realizer.common.utils import utc_iso  # noqa: E402
 from realizer.contracts import analysis, reconciliation, realization as rc  # noqa: E402
 from realizer.estimator.economics import make_cf_id  # noqa: E402
+from realizer.governor.policy import counterfactual_eligible  # noqa: E402
 from realizer.governor.policy import RealizerPolicy  # noqa: E402
 
 
@@ -237,7 +238,7 @@ class IdBuilderTests(unittest.TestCase):
             ids = {}
             for policy in self.policies:
                 app = rc.make_app_id(rpkg, "SCN-X", i, "SHA256:A", "SHA256:B", "REVID-" + "C" * 24)
-                cf = make_cf_id(app, obs, self.pkg, policy)
+                cf = make_cf_id(app, obs, self.pkg, policy, counterfactual_eligible(obs)[1])
                 ids[policy.snapshot_id] = {"app": app, "val": rc.make_val_id(app, obs, policy), "cf": cf,
                                            "measurements": [rc.make_measurement_id(app, obs, cf, basis) for basis in ("ECONOMIC_COST", "LIST_PRICE")]}
             expect.check(self, f"observation {i}", ids)
@@ -253,7 +254,9 @@ class IdBuilderTests(unittest.TestCase):
         app = app_ids.pop()
         policy = RealizerPolicy()
         self.assertEqual(val_ids, {rc.make_val_id(app, obs, policy)})
-        cf = make_cf_id(app, obs, self.pkg, policy)
+        method = next(e["payload"]["method"] for e in lines if e["event_type"] == "COUNTERFACTUAL_RECORDED")
+        cf = make_cf_id(app, obs, self.pkg, policy, method)
+        self.assertEqual({e["payload"]["counterfactual_id"] for e in lines if e["event_type"] == "COUNTERFACTUAL_RECORDED"}, {cf})
         self.assertEqual([e["measurement_id"] for e in meas],
                          [rc.make_measurement_id(app, obs, cf, e["payload"]["economics"]["economic_basis"]) for e in meas])
 

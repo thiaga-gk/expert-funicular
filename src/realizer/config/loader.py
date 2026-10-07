@@ -8,6 +8,7 @@ package edited after publishing, or written by another contract version, never r
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -124,8 +125,9 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
     Checks, in order: observation format ``OBSERVATION_FORMAT_VERSION`` against its JSON Schema (every key present,
     strict types, enumerated vocabularies); the observation names the package's workspace and warehouse; its times are
     ISO-8601 with a UTC offset and ordered (applied at or before observed, window start at or before window end, window end at or before observed);
-    measured economics come with a window; ``applied_scenario_id`` names a scenario of the package; the observed warehouse
-    type is a supported one. The messages name the failing field, never its value, except ids and the type.
+    measured economics come with a window; their cost components agree with their costs (``_check_components``);
+    ``applied_scenario_id`` names a scenario of the package; the observed warehouse type is a supported one. The messages
+    name the failing field, never its value, except ids and the type.
     """
     import jsonschema  # a gate that cannot run must not pass; jsonschema is a declared dependency
 
@@ -153,12 +155,64 @@ def validate_observation(observation: Any, package: Mapping[str, Any]) -> None:
         raise InputError("observation window_end_utc is after observed_at_utc")
     if observation["economics"] is not None and (start is None or end is None):
         raise InputError("observation economics need window_start_utc and window_end_utc")
+    if observation["economics"] is not None:
+        _check_components(observation["economics"])
     scenario = observation["applied_scenario_id"]
     if scenario is not None and scenario not in {s["scenario_id"] for s in package["scenarios"]}:
         raise InputError(f"applied_scenario_id {scenario} names no scenario of the package")
     observed_type = observation["config"]["warehouse_type"].strip().upper()
     if observed_type not in SUPPORTED_WAREHOUSE_TYPES:
         raise InputError(f"unsupported warehouse type observed: {observed_type}")
+
+
+# How far the cost components may differ from the realized total (the Reporter JSON Contract's reconciliation
+# tolerance: amounts rounded to cents, added).
+RECONCILIATION_TOLERANCE = Decimal("0.03")
+COMPONENT_FIELDS = ("dbu_realized", "aws_economic_realized", "aws_cash_realized", "aws_commitment_freed")
+
+
+def _amount(economics: Mapping[str, Any], field: str) -> Optional[Decimal]:
+    """The economics' *field* as a finite ``Decimal`` (``None`` when null); a value that is not a finite number raises
+    ``InputError`` naming the field, never the value."""
+    value = economics[field]
+    if value is None:
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        amount = None
+    if amount is None or not amount.is_finite():
+        raise InputError(f"observation economics {field} is not a finite number")
+    return amount
+
+
+def _check_components(economics: Mapping[str, Any]) -> None:
+    """Accept the cost components of *economics* only if they agree with its costs; raise ``InputError``.
+
+    With both costs stated, the realized total is ``counterfactual_old_cost - observed_new_cost``: ``dbu_realized``
+    alone is that total, and ``dbu_realized + aws_economic_realized`` is that total, each within
+    ``RECONCILIATION_TOLERANCE``; an AWS component needs a DBU component and an evidence type; an AWS cash or freed
+    commitment amount needs ``CUR_ACTUAL`` evidence (modeled AWS is never cash). Without both costs the economics are
+    unavailable and nothing is checked.
+    """
+    old, new = _amount(economics, "counterfactual_old_cost"), _amount(economics, "observed_new_cost")
+    if old is None or new is None:
+        return
+    dbu, aws, cash, freed = (_amount(economics, field) for field in COMPONENT_FIELDS)
+    evidence_type = economics["aws_evidence_type"]
+    if aws is not None and dbu is None:
+        raise InputError("observation economics: AWS component without a DBU component (aws_economic_realized needs dbu_realized)")
+    if aws is not None and evidence_type is None:
+        raise InputError("observation economics: AWS component without an evidence type (aws_economic_realized needs aws_evidence_type)")
+    if dbu is not None:
+        given = dbu + (aws or Decimal("0"))
+        if abs(given - (old - new)) > RECONCILIATION_TOLERANCE:
+            fields = "dbu_realized + aws_economic_realized" if aws is not None else "dbu_realized"
+            raise InputError(f"observation economics {fields} does not equal counterfactual_old_cost - observed_new_cost "
+                             f"(tolerance {RECONCILIATION_TOLERANCE})")
+    for field, amount in (("aws_cash_realized", cash), ("aws_commitment_freed", freed)):
+        if amount is not None and evidence_type != "CUR_ACTUAL":
+            raise InputError(f"observation economics {field} needs aws_evidence_type CUR_ACTUAL (modeled AWS is never cash)")
 
 
 def validate_measurement_evidence(evidence: Any) -> None:
