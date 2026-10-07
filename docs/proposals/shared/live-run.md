@@ -81,7 +81,29 @@ The miner grounds the Publisher's scenarios. The Realizer has no miner yet: its 
 
 ## Starter prompts
 
-Paste one into a fresh Claude Code session started at the root of a checkout of master on the machine that can reach the account (`claude --model claude-opus-5-5 --effort high`). The first drives phases 0 to 4.3; the second resumes the weekly measurement.
+Run them on the machine that can reach the account, from the root of a checkout of master after steps 0.1 and 0.2. The first prompt drives phases 0 to 4.3; the second resumes the weekly measurement.
+
+**How to invoke.** Each command reads the prompt from this page, so the session always gets the committed text. The values shown (`prod-sso`, the warehouse ids, the dates) are examples to replace.
+
+```bash
+# The run (phases 0 to 4.3). The session first asks for the profile, collector warehouse and region.
+claude --model claude-opus-5-5 --effort high \
+  "$(awk '/^\*\*Mine, fix, Publisher flows, Realizer flows:\*\*/{f=1;next} f&&/^```text/{p=1;next} p&&/^```/{exit} p' docs/proposals/shared/live-run.md)"
+
+# The same, with the inputs given up front.
+claude --model claude-opus-5-5 --effort high \
+  "$(awk '/^\*\*Mine, fix, Publisher flows, Realizer flows:\*\*/{f=1;next} f&&/^```text/{p=1;next} p&&/^```/{exit} p' docs/proposals/shared/live-run.md)
+
+Inputs: profile prod-sso, collector SQL warehouse 4f2a9c1b7e3d5a60, AWS region us-east-1."
+
+# Each week after step 4.4 (N = 1 to 4, on the same weekday): the run's date, the test warehouse, the change time.
+claude --model claude-opus-5-5 --effort high \
+  "$(awk '/^\*\*Each week/{f=1;next} f&&/^```text/{p=1;next} p&&/^```/{exit} p' docs/proposals/shared/live-run.md | \
+     sed -e 's|<date>|2026-10-12|g' -e 's|<test warehouse>|8c1d2e3f4a5b6c7d|g' \
+         -e 's|<UTC time>|2026-10-14T15:05Z|g' -e 's|<N>|1|g')"
+```
+
+Or start `claude --model claude-opus-5-5 --effort high` and paste the prompt. The session stops for you at checkpoint A (then the miner's proposals one at a time), after each fix's summary, at step 3.4 and at checkpoint B; answer in chat ("approve", "all recommended" or per number). When it hands off at 70 to 80 percent context, continue in the session it names. Send back only what each checkpoint lists.
 
 **Mine, fix, Publisher flows, Realizer flows:**
 
