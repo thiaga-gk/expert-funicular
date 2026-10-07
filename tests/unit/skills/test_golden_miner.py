@@ -123,6 +123,14 @@ class GoldenMinerDemoTests(unittest.TestCase):
         self.assertEqual(sorted(rows - catalog), [], "registry rows missing from signature-catalog.yaml")
         self.assertEqual(sorted(catalog - rows), [], "catalog rows that are not registry rows")
 
+    def test_catalog_statuses_equal_the_registry_statuses(self):
+        # Mismatch priority (high for a registry `fail` row) rests on the status copied into the catalog.
+        registry = dict(re.findall(r"^\| ([CA]\d{2}) \|.*\| (pass|fail) \| [^|]* \|$", REGISTRY.read_text(encoding="utf-8"), re.M))
+        catalog = {r["id"]: r.get("status") for r in mine_patterns.load_catalog(mine_patterns.DEFAULT_CATALOG)["rows"]}
+        self.assertEqual(sorted(registry), sorted(catalog), "every registry row must expose a pass/fail Status")
+        self.assertEqual({k: (catalog[k], v) for k, v in registry.items() if catalog[k] != v}, {},
+                         "catalog row status differs from the registry Status (catalog, registry)")
+
     def test_make_case_writes_raw_evidence_and_never_overwrites(self):
         cases = Path(self.tmp.name) / "cases"
         ref = next(r for r, t in self.tag.items() if t == "C04")
