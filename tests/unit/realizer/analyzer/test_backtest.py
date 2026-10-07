@@ -157,6 +157,17 @@ class SimulatedBacktestTests(unittest.TestCase):
         self.assertAlmostEqual(float(c["realization"]["annual_saving"]), float(c["realization"]["window_saving"]) * 365 / 56, delta=0.05)  # x 365 / days
         self.assertEqual((out["skipped"], out["warehouses_read"], out["report_format_version"]), ([], 1, "1.0.0"))
 
+    def test_a_change_without_a_whole_week_before_it_is_reported_without_a_prediction(self):
+        ev = evidence(C13_LOWERED)
+        held = ev["warehouses"][0]
+        held["epochs"][0]["epoch_start"] = "2026-07-29T00:00:00+00:00"  # three days before the change: no whole pre-change week
+        held["changes"][0]["windows"]["pre"], held["changes"][0]["guard"] = None, None
+        (c,) = bt.backtest_report(ev, supported_types=SUPPORTED_WAREHOUSE_TYPES)["changes"]
+        self.assertIsNone(c["pre_window"])
+        self.assertIsNone(c["prediction"])
+        self.assertEqual(c["realization"]["net_cluster_minutes"], "11200")
+        self.assertEqual((c["cross_check"]["outcome"], c["cross_check"]["reason"]), ("INCONCLUSIVE", "NO_PRE_WINDOW"))
+
     def test_a_raised_auto_stop_realizes_a_cost_increase(self):
         (c,) = report({**C13_LOWERED, "after": {"auto_stop": 45}})["changes"]
         self.assertEqual(c["direction"], "RAISED")
