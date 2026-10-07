@@ -85,6 +85,15 @@ class FleetDemoTests(unittest.TestCase):
             self.assertEqual(len(runs["wh-demo-013"].realizations), 1)
             self.assertIsNotNone(runs["wh-demo-013"].state_index)
 
+    def test_in_the_single_folder_layout_the_manifest_lists_only_the_projections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "flat")
+            report = realize_fleet(request(self.root, out, out))
+            manifest = json.loads(report.manifest_path.read_text(encoding="utf-8"))
+            for row in manifest["warehouses"]:
+                self.assertEqual([f.split("/")[1] for f in row["files"]], ["packages", "snapshots"])
+            self.assertTrue((out / "realization" / "ledger").is_dir(), "the history shares the folder")
+
     def test_a_second_daily_run_continues_the_state_and_writes_the_same_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             state = Path(tmp, "state")

@@ -72,14 +72,20 @@ def realize_warehouse(request: FleetRequest, entry: PublisherRunEntry) -> List[P
         return written
 
 
+PROJECTION_DIRS = ("realization/packages/", "realization/snapshots/")
+
+
 def _in_run(run_dir: Path, paths: List[Path]) -> List[str]:
-    """The paths under the run folder, relative to it, once each."""
+    """The projections this run wrote (realization packages and snapshots), relative to the run folder, once each. In
+    the single-folder layout the state shares the run folder; its history files are never listed."""
     relative = set()
     for path in paths:
         try:
-            relative.add(Path(path).relative_to(run_dir).as_posix())
+            name = Path(path).relative_to(run_dir).as_posix()
         except ValueError:
             continue
+        if name.startswith(PROJECTION_DIRS):
+            relative.add(name)
     return sorted(relative)
 
 

@@ -449,7 +449,7 @@ def select_lineage(run: WarehouseRun) -> Tuple[Optional[rrc.RealizationPackage],
     active = [r for r in run.realizations
               if (r.source_recommendation or {}).get("disposition") != rrc.SourcePackageDisposition.SUPERSEDED.value]
     if active:
-        return max(active, key=lambda r: (parse_utc(r.source_recommendation["generated_at_utc"]), str(_pkg(r)))), LINEAGE_BASIS_NEWEST_ACTIVE_PACKAGE
+        return max(active, key=_lineage_order), LINEAGE_BASIS_NEWEST_ACTIVE_PACKAGE
     return None, None
 
 

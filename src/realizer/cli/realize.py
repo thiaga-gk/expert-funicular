@@ -164,7 +164,7 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     if "--backtest" in argv:
         return run_backtest(argv)
     args = parse_args(argv)
-    setup_logging(args.log_level)
+    setup_logging(args.log_level, keep_for_log_file=not args.flat_output)
     LOGGER.info("realizer.start version=%s release=%s", REALIZER_VERSION, PRODUCT_VERSION)
     if args.publisher_run:
         return run_fleet(args)

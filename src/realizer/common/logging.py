@@ -16,17 +16,18 @@ from typing import List, Optional
 LOGGER = logging.getLogger("realizer")
 
 
-def setup_logging(level: str) -> None:
+def setup_logging(level: str, *, keep_for_log_file: bool = False) -> None:
     """Configure the ``realizer`` logger for one CLI run: stderr, ``<UTC time>Z LEVEL message``.
 
     *level* is one of DEBUG, INFO, WARNING, ERROR. Existing handlers are replaced, so repeated calls in one process never
-    duplicate lines; the logger does not propagate to the root logger.
+    duplicate lines; the logger does not propagate to the root logger. *keep_for_log_file*: the run will attach a log
+    file (``attach_log_file``), so the lines logged until then are kept for it; a run that writes no log file keeps none.
     """
     LOGGER.setLevel(getattr(logging, level))
     for handler in list(LOGGER.handlers):
         LOGGER.removeHandler(handler)
         handler.close()
-    handler = _Stderr()
+    handler = _Stderr(keep_for_log_file)
     handler.setFormatter(_formatter())
     LOGGER.addHandler(handler)
     LOGGER.propagate = False
@@ -36,9 +37,9 @@ class _Stderr(logging.StreamHandler):
     """The stderr handler; it also keeps the run's lines until a log file is attached (``attach_log_file`` writes them
     there first), then stops keeping them."""
 
-    def __init__(self) -> None:
+    def __init__(self, keep: bool) -> None:
         super().__init__(sys.stderr)
-        self.early: Optional[List[logging.LogRecord]] = []
+        self.early: Optional[List[logging.LogRecord]] = [] if keep else None
 
     def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
