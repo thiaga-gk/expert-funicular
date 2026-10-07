@@ -1,7 +1,7 @@
 {
  "CalculateEconomicsGridTests.test_grid/results": {
-  "length": 5961017,
-  "sha256": "aa3b03f4cb61b0201fa3bef3365640e46a7d4965a3a3ae65d969ef5106a08255",
+  "length": 5962367,
+  "sha256": "6a81f56a5d42b9641a44f6299260de82db4df29aedbdee9ae134290e86ab56e6",
   "spot": {
    "classes": [
     [
@@ -78,6 +78,11 @@
      "REALIZED",
      "REALIZED_ABOVE_RANGE_REVIEW",
      "PUBLISHER_CANDIDATE"
+    ],
+    [
+     "REALIZED",
+     "REALIZED_ABOVE_RANGE_REVIEW",
+     "REESTIMATED_APPLIED_SCOPE"
     ],
     [
      "UNDER_REALIZED",
@@ -260,11 +265,11 @@
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 8581,
-  "sha256": "91da495c18d00a45f72a7f2c6126698b89af1062c77ba3537632d5bec089367f",
+  "sha256": "933abe64148930824f475d404299f1a25aacff2828a99844412cc364869a2283",
   "spot": {
    "count": 286,
    "distinct": 144,
-   "first": "CF-A720FF347488F5C43023E600"
+   "first": "CF-D210750F7DAB63B151B0373B"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {

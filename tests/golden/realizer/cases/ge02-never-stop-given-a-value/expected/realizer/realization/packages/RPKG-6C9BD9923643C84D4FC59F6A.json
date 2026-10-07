@@ -228,9 +228,9 @@
     "entry_count": 7,
     "first_entry_id": "RLE-4559B0B02451400779D4DFC3",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-F4D939549356072337649A27",
+    "latest_entry_id": "RLE-202415D924C27FD855DE15D6",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:E71D64C50FF4B0F75AAF5AE96821A13B90C8016E8CB4386E9B180FD8B0E022B4",
+    "ledger_checkpoint_hash": "SHA256:38324FD030A0B7FB17FC6C20FAE3CCCFA1110F0D87A6A60AB588BB562D15BD33",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -243,7 +243,7 @@
     "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
     "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "product_version": "2.14.0",
     "projector_version": "realizer-projector-v1.3.0",
     "realizer_contract_version": "1.2.0",
@@ -255,7 +255,7 @@
     "replacement_package_id": null,
     "status": "NOT_REQUIRED"
   },
-  "snapshot_id": "RSNAP-E0C2F6292497C9A97995929E",
+  "snapshot_id": "RSNAP-0DFB9FC66CD10FE6E245B37B",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -282,7 +282,7 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+    "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -319,7 +319,7 @@
         "min_sample": "100",
         "observed": "0.3",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
@@ -330,14 +330,14 @@
         "metric": "added_cold_start_share_pct",
         "observed": "1",
         "operator": "LTE",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "result": "PASS",
         "rule_id": "REAL-COLD-001",
         "threshold": "2"
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-FCCD6F5ABAC557108AB390E9",
+    "validation_episode_id": "VAL-31D27FB2C7F2BF4A5FA2D062",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

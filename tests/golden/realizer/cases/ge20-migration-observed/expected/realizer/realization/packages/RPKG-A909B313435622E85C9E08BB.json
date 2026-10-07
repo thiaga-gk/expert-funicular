@@ -216,9 +216,9 @@
     "entry_count": 8,
     "first_entry_id": "RLE-C8B7114C8F9A2B76B72A7772",
     "latest_effective_at_utc": "2026-11-07T12:00:00Z",
-    "latest_entry_id": "RLE-3ED39EF67C5D370BFC30D84C",
+    "latest_entry_id": "RLE-BD594F6970EED0C3317FB081",
     "latest_recorded_at_utc": "2026-11-07T12:00:00Z",
-    "ledger_checkpoint_hash": "SHA256:BF546EB4FDEC3FE9BA202A3DFBA78902EDE525F2FE6DD4A0244B679EE8B82668",
+    "ledger_checkpoint_hash": "SHA256:95643EEF28BE9231B134390EF6A07611EBA381F5E14EC6BFCDD99E10BC11D316",
     "measurement_count": 1,
     "validation_episode_count": 1
   },
@@ -231,7 +231,7 @@
     "estimator_gateway_version": "realized-estimator-adapter-v1.5.0",
     "exclusivity_version": "realizer-exclusivity-v1.1.0",
     "modeler_gateway_version": "m08-realization-adapter-v1.3.0",
-    "policy_version": "realizer-policy-v1.4.0",
+    "policy_version": "realizer-policy-v1.5.0",
     "product_version": "2.14.0",
     "projector_version": "realizer-projector-v1.3.0",
     "realizer_contract_version": "1.2.0",
@@ -239,11 +239,11 @@
   },
   "realization_package_id": "RPKG-A909B313435622E85C9E08BB",
   "regeneration": {
-    "regeneration_request_id": "RERUN-889E0D04F76CA266E5CA0F9F",
+    "regeneration_request_id": "RERUN-D8446FFE457EC51D5F1E4F9C",
     "replacement_package_id": null,
     "status": "REQUESTED"
   },
-  "snapshot_id": "RSNAP-5B92A87E9EEF16BAD1A1283E",
+  "snapshot_id": "RSNAP-EA3B1D4B1B08E7D31300DC21",
   "source_recommendation": {
     "cost_profile": "balanced",
     "disposition": "ACTIVE",
@@ -260,7 +260,7 @@
   },
   "validation": {
     "hard_guardrails_pass": true,
-    "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+    "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
     "readiness": {
       "checks": {
         "evidence_quality": {
@@ -297,7 +297,7 @@
         "min_sample": "100",
         "observed": "0.3",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "0.3",
         "result": "PASS",
         "rule_id": "REAL-FAIL-001",
@@ -310,7 +310,7 @@
         "min_sample": "20",
         "observed": "0",
         "operator": "NOT(GT_SAFE_AND_GT_PREVIOUS_X_MARGIN)",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "0",
         "result": "PASS",
         "rule_id": "REAL-QUEUE-001",
@@ -322,7 +322,7 @@
         "min_sample": "300",
         "observed": "2500",
         "operator": "LTE_PREVIOUS_X_MARGIN",
-        "policy_snapshot_id": "PSNAP-167AEEC26827AAB347759037",
+        "policy_snapshot_id": "PSNAP-097ED33EBEB7E9FCEE56AEBB",
         "previous": "2500",
         "result": "PASS",
         "rule_id": "REAL-P95-001",
@@ -331,7 +331,7 @@
       }
     ],
     "state": "PASSED",
-    "validation_episode_id": "VAL-85C62B23BC0DEEDBB6C975A9",
+    "validation_episode_id": "VAL-3145172FBF4AA3617ADBA615",
     "window_end_utc": "2026-11-06T00:00:00Z",
     "window_start_utc": "2026-10-09T00:00:00Z"
   },

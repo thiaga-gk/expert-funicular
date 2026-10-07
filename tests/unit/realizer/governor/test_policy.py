@@ -117,6 +117,7 @@ class PolicyClassTests(unittest.TestCase):
             "empty string": ({"policy_version": ""}, "policy_version must be a non-empty string"),
             "under-realized minimum above the realized minimum": ({"under_realized_ratio_min": "0.9"}, "under_realized_ratio_min must not exceed realized_ratio_min"),
             "ratios reversed by overriding the realized minimum": ({"realized_ratio_min": "0.3"}, "under_realized_ratio_min must not exceed realized_ratio_min"),
+            "review ratio below the realized minimum": ({"review_above_realized_ratio": "0.7"}, "review_above_realized_ratio must not be below realized_ratio_min"),
         }
         for label, (mapping, message) in cases.items():
             with self.subTest(case=label):

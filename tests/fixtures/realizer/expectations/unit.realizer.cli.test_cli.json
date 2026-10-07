@@ -31,21 +31,21 @@
     ],
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e183435a5acf2d94",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "ab525d9c07ca2278",
      "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "aad035176f30eb03",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "d95d381911d01b51",
-     "realization/policies/PSNAP-167AEEC26827AAB347759037.json": "1a27bc98b9269dc8",
-     "realization/regeneration/RERUN-0FCAA3465636EE32333525D0.json": "2ac77760498bb740",
-     "realization/snapshots/RSNAP-12471364CC112B7C0FA44DF4.json": "d95d381911d01b51",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "845d788f0dce5055",
+     "realization/policies/PSNAP-097ED33EBEB7E9FCEE56AEBB.json": "bd4377ec2d7bd546",
+     "realization/regeneration/RERUN-B1F60D50B9002716EC15E4DE.json": "44804f19c3482d4a",
+     "realization/snapshots/RSNAP-74A08E82A1E3FA17DC236A3E.json": "845d788f0dce5055",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "9640d08afa95fb9a"
+     "realization/state/1234567890123456__wh-demo-006.json": "e2145368abbde041"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 14752,
-  "sha256": "cd81de138a48fd4caf13ed6abee937b3e7a70545b1aee39292d9f1d950d530b4"
+  "sha256": "d807bb352cdb865edac4c05c04f98df813a87c877d9fce3d530ccf1fb21d418a"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -67,9 +67,9 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "bd14a10d7ef1b010",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "549eaa1def6ca18c",
-     "realization/snapshots/RSNAP-3459CAB7227EA56EC15FE563.json": "549eaa1def6ca18c",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "9f156bc58cea2db9",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "d2d973e9559344d5",
+     "realization/snapshots/RSNAP-3459CAB7227EA56EC15FE563.json": "d2d973e9559344d5",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
      "realization/state/1234567890123456__wh-demo-006.json": "57d55835667fc0ed"
     }
@@ -108,13 +108,13 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "808dd5a8b7cc31ce",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "f47fb3bb98a60137",
-     "realization/policies/PSNAP-253E4865EB2EA331FF7C1FBA.json": "8e52e4fecd7b3ff0",
-     "realization/regeneration/RERUN-D08201ED1024BB50A2D341AF.json": "0c5e3bf6f0790976",
-     "realization/snapshots/RSNAP-9B05E73D29623E0A8F2B7D64.json": "f47fb3bb98a60137",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "72fcc205efcf9164",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "909bd97121c61729",
+     "realization/policies/PSNAP-68A493221CA08A19A577615C.json": "e09eadd7593be244",
+     "realization/regeneration/RERUN-4CD10E94279E8107CFC58E19.json": "14bee3788b74f4e6",
+     "realization/snapshots/RSNAP-AB3FEE01A689A419B4C99801.json": "909bd97121c61729",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "ec1c43fb54c79085"
+     "realization/state/1234567890123456__wh-demo-006.json": "00fbb42b15262224"
     }
    }
   ]
@@ -130,7 +130,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 6890,
-  "sha256": "f704709e77646f9d42fcaa12c8feb8766442ff387d5b4eb393c851f081bff8b0"
+  "sha256": "4c37faa03c98d3d1a72eee105725b388a84d4f68df11e42eb9bdf4a8834f65a6"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4387,

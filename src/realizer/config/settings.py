@@ -23,7 +23,7 @@ from publisher.config.versions import PUBLISHER_VERSION
 PRODUCT_VERSION = PUBLISHER_VERSION
 REALIZER_VERSION = "1.6.0"
 PROJECTOR_VERSION = "realizer-projector-v1.3.0"
-POLICY_VERSION = "realizer-policy-v1.4.0"
+POLICY_VERSION = "realizer-policy-v1.5.0"
 ANALYZER_GATEWAY_VERSION = "post-change-analyzer-adapter-v1.5.0"
 MODELER_GATEWAY_VERSION = "m08-realization-adapter-v1.3.0"
 ESTIMATOR_GATEWAY_VERSION = "realized-estimator-adapter-v1.5.0"

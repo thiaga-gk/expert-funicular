@@ -1,6 +1,6 @@
-# Realizer Policy Contract v1.0.0
+# Realizer Policy Contract
 
-> The Realizer v1.0.0 specification. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
+> Policy version `realizer-policy-v1.5.0` (`POLICY_VERSION` in `src/realizer/config/settings.py`). The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED
 
@@ -20,6 +20,7 @@ validation:
 realization:
   realized_ratio_min: 0.80
   under_realized_ratio_min: 0.50
+  review_above_realized_ratio: 2.0   # without a published range: realized and flagged for review above this ratio
 
 maturity:
   annualization_requires: REPRESENTATIVE
@@ -74,6 +75,7 @@ When the denominator is a Publisher range (the applied step's candidate range, o
 
 The comparison is like for like: a live measurement with a modeled AWS price is compared with the total range, a DBU-only measurement (or a caller-supplied observation that gives a DBU component and no AWS component) with the DBU range. A denominator without a range (a re-estimate for the applied scope) keeps the ratio policy:
 
+- `ratio > 2.0` (`review_above_realized_ratio`) -> `REALIZED`, detail `REALIZED_ABOVE_RANGE_REVIEW`, review required: a realization more than twice the expectation is implausible enough for a person to look at, as one far above a published range is. A policy file may set it, never below `realized_ratio_min`.
 - `ratio >= 0.80` -> `REALIZED`.
 - `0.50 <= ratio < 0.80` -> `UNDER_REALIZED`.
 - `< 0.50` -> `UNDER_REALIZED + REOPTIMIZATION_RECOMMENDED` when guardrails still pass.

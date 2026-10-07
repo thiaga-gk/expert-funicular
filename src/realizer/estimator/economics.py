@@ -309,7 +309,9 @@ def calculate_economics(
             state = rc.RealizationState.UNDER_REALIZED.value
             detail = "UNDER_REALIZED_REOPTIMIZATION_RECOMMENDED" if annualized < low * REOPTIMIZE_BELOW_LOW else "UNDER_REALIZED"
     elif ratio >= policy.realized_ratio_min:
-        state, detail = rc.RealizationState.REALIZED.value, "REALIZED"
+        # No published range to judge against: a ratio far above the expectation is realized and flagged for review.
+        state = rc.RealizationState.REALIZED.value
+        detail = "REALIZED_ABOVE_RANGE_REVIEW" if ratio > policy.review_above_realized_ratio else "REALIZED"
         successful = realized
     else:
         state = rc.RealizationState.UNDER_REALIZED.value
