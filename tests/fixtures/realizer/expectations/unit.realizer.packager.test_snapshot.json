@@ -1,18 +1,18 @@
 {
  "ProjectionTests.test_entry_order_and_duplicates/doubled ledgers": {
   "length": 4417,
-  "sha256": "32fe256910a088f2d550abb1b1a7b02943fc675785cef4ff923c2e8ca8816d1e",
+  "sha256": "404a525eeb5c7140860f380b17841c18ceb0b62ce42028ecd710a296a5ba8bdd",
   "spot": {
    "count": 41,
    "first": [
     "GR-001/RPKG-976E6C1C6E88CE76321758ED",
-    "2278fb7cd83ec66bfe5087b7061bc199c1f36bbaac554fa09699f5e344746e9f"
+    "bb68880948a3b25bcf8e6df05870e9336989ea89b1941b15ee649e924a0b33ba"
    ]
   }
  },
  "ProjectionTests.test_every_ledger_prefix_projects_and_every_stored_snapshot_is_reproduced/projections": {
   "length": 75936,
-  "sha256": "019960f41f8f34af9e5c100e6968e488dc67c6567452892e3c8a9a1d5206bb9b",
+  "sha256": "ef37f3a422ecb919a13d30c5ed6c0ee5bc9c51645263a39311d662b0e8da686e",
   "spot": {
    "count": 457,
    "distinct snapshots": 152,
@@ -22,7 +22,7 @@
     "file prefix",
     1,
     "RSNAP-3459CAB7227EA56EC15FE563",
-    "90eaf0ff00ed209ccc8228fc1f3ea9871cbbfc7f5dd0310efae0b4a23d39b35b"
+    "0e7cc82cffafa45aba6a3ecc621c848e41716247bfd594743d27436aa5e74380"
    ],
    "last": [
     "restatement-reprocessed",
@@ -30,7 +30,7 @@
     "recorded through",
     "2026-10-10T12:00:00Z",
     "RSNAP-3A1CCC7FA86D72E290D4641E",
-    "c92044990ea2a3c50164dd587738256dcca1088f04370fa91222674b08d35b6c"
+    "aa174e39ced2d82fcc4694b71da2f52116459f68a99d925e7ea888a869ddf23d"
    ]
   }
  },
@@ -84,7 +84,7 @@
  },
  "ProjectionTests.test_malformed_input_raises/package without scenarios": {
   "length": 3206,
-  "sha256": "686b3d2500ce88308ab8e4d73a38704d2efe6e7fdcdcf1d06c2b89c4606c898f"
+  "sha256": "d94fd6293022885a322bab173d3e9963138ebb3a83c436859d62f8867862309f"
  },
  "ProjectionTests.test_malformed_input_raises/package without warehouse": {
   "value": [
