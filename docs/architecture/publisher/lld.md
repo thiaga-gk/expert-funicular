@@ -183,9 +183,9 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--scope` | repeatable; `scenario` or `scenario:technique[,technique...]` with scenarios `current` (`size`, `max-clusters`, `min-clusters`, `auto-stop`) and `migration` (`warehouse-type`); restricts what the run recommends (5.4); default: every scenario and technique |
 | `--scope-file` | JSON run-scope file validated against `schema/run-scope.schema.json` (scenario and technique toggles, warehouses); not combined with `--scope` or `--warehouse` |
 | `--warehouse` | repeatable; `all` (default), `<warehouse_id>` or `<workspace_id>/<warehouse_id>`; reports only these warehouses. A selector that matches no warehouse in the evidence, or a bare ID found in several workspaces, stops the run (exit status 2) |
-| `--demo` | synthetic collector mode; takes precedence over `--from-evidence` and live collection |
+| `--demo` | synthetic collector mode; takes precedence over live collection; combined with `--from-evidence` it is an argument error (exit 2) |
 | `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
-| `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3) |
+| `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3); a file that is missing, a directory or unreadable is a refusal (exit 2, one line), like an invalid one |
 | `--profile` | Databricks CLI profile; default `DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`. OAuth profiles only: a profile that holds a static PAT is rejected |
 | `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE` |
 | `--serverless-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SERVERLESS_WAREHOUSE_ID`) |

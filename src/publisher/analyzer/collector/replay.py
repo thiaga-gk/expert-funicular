@@ -125,6 +125,8 @@ def load_evidence_files(paths: Sequence[str]) -> List[WarehouseEvidence]:
         try:
             payload = json.loads(Path(filename).read_text(encoding="utf-8"))
             validate_evidence_payload(payload)
+        except OSError as exc:  # missing, a directory, unreadable: a refusal, not a traceback (the OS message may carry the path again)
+            raise PublisherError(f"{filename}: cannot read evidence file ({type(exc).__name__})") from exc
         except ValueError as exc:
             raise PublisherError(f"{filename}: {exc}") from exc
         for item in payload["warehouses"]:

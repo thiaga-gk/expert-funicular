@@ -114,7 +114,10 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--scope",action="append",default=[],metavar="SCENARIO[:TECHNIQUE,...]",help="Recommend only these scenarios/techniques (repeatable): current[:size,max-clusters,min-clusters,auto-stop], migration[:warehouse-type]. Default: everything")
     p.add_argument("--scope-file",default=None,help="JSON run-scope file (schema/run-scope.schema.json) with scenario/technique toggles and warehouses; not combined with --scope/--warehouse")
     p.add_argument("--warehouse",action="append",default=[],metavar="all|WAREHOUSE_ID|WORKSPACE_ID/WAREHOUSE_ID",help="Report only these warehouses (repeatable). Default: all")
-    return p.parse_args(argv)
+    args=p.parse_args(argv)
+    if args.demo and args.from_evidence:
+        p.error("--demo and --from-evidence cannot be combined: a run is either simulated or replayed")
+    return args
 
 
 def print_summary(report: ReportContract, log_path: Path, *, print_json: bool = False) -> None:

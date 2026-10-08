@@ -154,6 +154,23 @@ class BehaviourTests(unittest.TestCase):
             code, _, _ = self.run_cli(["--demo", "--demo-count", "1", "--no-workbook", "--log-level", "ERROR", "--output-dir", tmp])
             self.assertEqual(code, 0)
 
+    def test_unreadable_evidence_paths_are_refusals_not_tracebacks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, path in (("missing", f"{tmp}/nonexistent.json"), ("directory", tmp)):
+                with self.subTest(name):
+                    code, _, err = self.run_cli(["--from-evidence", path, "--no-workbook", "--log-level", "ERROR", "--output-dir", f"{tmp}/out-{name}"])
+                    self.assertEqual(code, 2)
+                    self.assertNotIn("Traceback", err)
+                    message = err.strip().splitlines()[-1]  # the log lines come first; the refusal message is the last line
+                    self.assertTrue(message.startswith(f"{path}: cannot read evidence file"), message)
+
+    def test_demo_and_from_evidence_are_mutually_exclusive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli(["--demo", "--from-evidence", f"{tmp}/e.json", "--output-dir", f"{tmp}/out"])
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse((Path(tmp) / "out").exists())
+
     def test_unknown_execution_mode_is_rejected(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
