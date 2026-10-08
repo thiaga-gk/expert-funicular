@@ -43,6 +43,29 @@ class GoldenScenarioTests(unittest.TestCase):
         self.assertEqual(by["min_clusters"].status,"TEST_REQUIRED"); self.assertEqual(by["auto_stop_minutes"].status,"ACTIONABLE")
         self.assertGreater(w.aws_365d_baseline_cost,0)
 
+    def test_classic_warehouse_is_optimized_like_its_pro_twin(self):
+        # No demo or other golden warehouse is Classic. This case is the c06 evidence with the type and the billed SQL SKU class
+        # switched to Classic: the same size, cluster and auto-stop rules apply, AWS cost stays modeled, and Serverless is
+        # the migration experiment (docs/architecture/publisher/context.md, PRD acceptance criterion 1).
+        _, classic_report = self.load("classic-warehouse")
+        _, pro_report = self.load("c06-oversized-warehouse")
+        classic, pro = self.warehouse(classic_report, "wh-demo-001"), self.warehouse(pro_report, "wh-demo-001")
+        self.assertEqual(classic.evidence.current_epoch.config.warehouse_type, "CLASSIC")
+        by = {c.knob: c for c in classic.candidates}
+        self.assertEqual(by["warehouse_size"].status, "TEST_REQUIRED")
+        self.assertEqual((by["warehouse_size"].current_config["warehouse_size"], by["warehouse_size"].recommended_config["warehouse_size"]), ("LARGE", "MEDIUM"))
+        self.assertEqual(by["warehouse_type"].status, "TEST_REQUIRED")
+        self.assertEqual((by["warehouse_type"].current_config["warehouse_type"], by["warehouse_type"].recommended_config["warehouse_type"]), ("CLASSIC", "SERVERLESS"))
+        self.assertIn("A_B_COST_PERFORMANCE_VALIDATION_REQUIRED", by["warehouse_type"].blockers)
+        self.assertGreater(classic.aws_365d_baseline_cost, 0)  # Classic has the AWS component, like Pro
+        decisions = lambda w: {c.knob: (c.status, c.recommended_config, c.blockers) for c in w.candidates}  # noqa: E731
+        self.assertEqual(decisions(classic), decisions(pro))  # type-independent rules decide identically
+        packages = {name: p.build_recommendation_packages([evidence_from_dict(x) for x in load_case(name)["evidence"]], self.t)[0].to_dict()
+                    for name in ("classic-warehouse", "c06-oversized-warehouse")}
+        self.assertEqual(packages["classic-warehouse"]["current_config"]["warehouse_type"], "CLASSIC")
+        self.assertEqual([s["scenario_type"] for s in packages["classic-warehouse"]["scenarios"]],
+                         [s["scenario_type"] for s in packages["c06-oversized-warehouse"]["scenarios"]])
+
     def test_spill_constrained(self):
         _,r=self.load("spill-constrained"); c=next(c for c in r[0].candidates if c.knob=="warehouse_size")
         self.assertEqual(c.status,"TEST_REQUIRED"); self.assertEqual(c.recommended_config["warehouse_size"],"X_LARGE")
