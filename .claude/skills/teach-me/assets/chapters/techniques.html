@@ -175,7 +175,7 @@ target    = min( <var>MAX_CLUSTERS_SUPPORTED_LIMIT</var>, max( min_clusters, req
   <div class="worked">percentile = {{fact:thresholds.max_cluster_target_percentile}}   queries per cluster = {{fact:product_constants.QUERIES_PER_CLUSTER_PRO_CLASSIC}}   limit = {{fact:product_constants.MAX_CLUSTERS_SUPPORTED_LIMIT}}   headroom = {{fact:thresholds.max_cluster_target_headroom_clusters}}</div>
   <div class="why">Serverless scales differently, so its increase is one cluster at a time, and its confidence is capped by <code>confidence_cap_serverless_ceiling_increase</code> ({{fact:thresholds.confidence_cap_serverless_ceiling_increase}}).</div>
 </div>
-<p>A decrease needs an unused ceiling: time at the ceiling at or below <code>time_at_max_pct_safe_reduce</code>, low queueing, a mature epoch and no evidence blockers. The new ceiling never drops below the recent window's observed peak, and the whole current epoch's peak holds the cut when it is higher than what the recent window shows (<code>PEAK_OUTSIDE_RECENT_WINDOW</code>), so a quarter-end peak is not cut away. The cut is <code>ACTIONABLE</code> with objective <code>COST_GUARDRAIL</code>: a lower ceiling caps runaway cost, but on a warehouse that never reaches it, it saves nothing directly.</p>
+<p>A decrease needs an unused ceiling: time at the ceiling at or below <code>time_at_max_pct_safe_reduce</code>, low queueing, a mature epoch and no evidence blockers. The new ceiling never drops below the recent window's observed peak, and the whole current epoch's peak holds the cut when it is higher than what the recent window shows (<code>PEAK_OUTSIDE_RECENT_WINDOW</code>), so a quarter-end peak is not cut away. On Serverless the new ceiling is that peak plus headroom: at least <code>max_cluster_headroom_clusters</code> ({{fact:thresholds.max_cluster_headroom_clusters}}) or <code>max_cluster_cut_headroom_pct</code> ({{fact:thresholds.max_cluster_cut_headroom_pct}}% of the peak), whichever is larger. The percentage is a cost-profile field, so a looser profile cuts to a lower ceiling and a stricter one keeps more room. The cut is <code>ACTIONABLE</code> with objective <code>COST_GUARDRAIL</code>: a lower ceiling caps runaway cost, but on a warehouse that never reaches it, it saves nothing directly.</p>
 
 <h3 id="techniques-min">Min clusters</h3>
 <figure class="diagram">
@@ -291,7 +291,7 @@ target    = min( <var>MAX_CLUSTERS_SUPPORTED_LIMIT</var>, max( min_clusters, req
 higher value:  net = avoided starts × restart_cost − added idle cluster-minutes
 restart_cost = <var>restart_cost_cluster_minutes_pro_classic</var> (or <var>_serverless</var>) × floor clusters</div>
   <div class="worked">restart cost per start: Pro/Classic {{fact:thresholds.restart_cost_cluster_minutes_pro_classic}} cluster-minutes, Serverless {{fact:thresholds.restart_cost_cluster_minutes_serverless}}
-cold-start budget: added starts ≤ {{fact:thresholds.cold_start_added_share_max_pct}}% of queries (none for Serverless)
+cold-start budget: added starts ≤ {{fact:thresholds.cold_start_added_share_max_pct}}% of queries (the balanced value; the cost profile sets it, none for Serverless)
 near-best band: within {{fact:thresholds.auto_stop_near_best_pct}}% of the best net saving, then the smallest change from today</div>
   <div class="why">A gap counts as removable only inside RUNNING time, so idle that the warehouse never paid for is never "saved". Choosing the smallest change inside the near-best band keeps the move conservative when several values save about the same.</div>
 </div>

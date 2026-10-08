@@ -38,6 +38,7 @@
   </svg>
   <figcaption>The state directory defaults to <code>&lt;output-dir&gt;/state</code> and can be moved with <code>--state-dir</code>. The RPKG and the snapshot hold the same content; the snapshot's id also pins the ledger checkpoint it was projected from.</figcaption>
 </figure>
+<p>A fleet run also writes a run manifest (format {{fact:versions.realizer_formats.run_manifest}}) that lists, per warehouse, the status of its run and the files it wrote. The status is <code>OK</code>, <code>REFUSED</code> (an input the Realizer does not accept, with the reason), <code>CRASHED</code> (a defect, recorded by exception type only) or <code>SKIPPED</code> (not measured by design: the live run's collector warehouse). Its <code>as_of_utc</code> is the one measurement time the run used; a live run without <code>--as-of</code> fixes it when it starts.</p>
 
 <h3 id="realizer-json-ids">ID families</h3>
 <p>Every Realizer ID is a content hash, built the same way as the Publisher's: a prefix plus the first {{fact:hash_hex_length}} uppercase hex characters of a SHA-256 over canonical JSON ({{cite:src/realizer/contracts/realization.py::content_id}}). Identical inputs give identical IDs, which is how a re-run recognises an event it already recorded and suppresses the duplicate.</p>
@@ -99,7 +100,7 @@
 <ul>
   <li><code>epochs</code>: the configuration timeline; the change is the boundary between the last two.</li>
   <li><code>windows.pre</code> and <code>windows.post</code>: settled whole-day windows either side of the change, with running time, restarts and the replay rows per candidate auto-stop value (the size runtime or cluster levels for other knobs).</li>
-  <li><code>daily_cost</code>: billed DBU and list cost per day, including restated and unpriced quantities; the financial-quality gates are computed from it.</li>
+  <li><code>daily_cost</code>: billed DBU and list cost per day, including restated and unpriced quantities; the financial-quality gates are computed from it. A window in which the warehouse ran but that has no billed day has an unknown billed cost (<code>null</code>, never zero), and the step is not measured, reason <code>BILLING_INCOMPLETE</code>.</li>
   <li><code>guard</code>: guard metrics for the previous and current epoch; <code>assumptions</code>: the package's thresholds and restart costs the measurement used; <code>aws</code>: the modeled cluster-hour price per window.</li>
 </ul>
 

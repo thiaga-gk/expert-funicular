@@ -1,7 +1,7 @@
 <p class="lede">This chapter is the operator's view: the commands that run each product in each mode, the folders a run writes, the workbook, the first live run on a real account, and the checks that keep a change honest. Both products only read the account; the one change in any workflow is the one an owner makes by hand.</p>
 
 <h3 id="operations-commands">Command recipes</h3>
-<p>Each product has one console script in front of a facade: the CLI parses and validates its own arguments, builds a request and calls the facade once. A refused input (an unknown scope name, a package that fails its hash check, a static token) exits with status {{cite:src/publisher/cli/main.py::EXIT_REFUSED|2}} and a one-line message. A Realizer fleet run returns 1 if any warehouse crashed, else 2 if any was refused, else 0 ({{cite:src/realizer/cli/realize.py::run_fleet}}).</p>
+<p>Each product has one console script in front of a facade: the CLI parses and validates its own arguments, builds a request and calls the facade once. A refused input (an unknown scope name, a package that fails its hash check, a static token) exits with status {{cite:src/publisher/cli/main.py::EXIT_REFUSED|2}} and a one-line message. A Realizer fleet run returns 1 if any warehouse crashed, else 2 if any was refused, else 0 ({{cite:src/realizer/cli/realize.py::run_fleet}}); a warehouse that was skipped by design (below) changes neither. Mistakes the Publisher CLI can see on its own are refused before anything is collected: <code>--demo</code> with <code>--from-evidence</code>, an evidence path that is missing or a directory, and <code>--flat-output</code> into a folder that already holds <code>packages/</code> or <code>manifest.json</code>.</p>
 
 
 <h4><span class="chip pub">Publisher</span> Demo and replay</h4>
@@ -25,20 +25,22 @@ publisher \
   --output-dir ./out
 # reproduce an earlier collection despite later billing corrections
 publisher ... --billing-ingested-through 2026-10-01</code></pre>
-  <p>The collector warehouse runs the read-only SQL. Pro and Classic AWS cost needs <code>--source-region</code> in the price registry; <code>--allow-missing-aws-price</code> publishes with that cost unavailable.</p>
+  <p>The collector warehouse runs the read-only SQL, and a long collection re-mints the OAuth token when it nears expiry. Pro and Classic AWS cost needs <code>--source-region</code> in the price registry: a region outside it is warned about before collection, and a fleet with Pro or Classic warehouses then stops after collection with only <code>evidence.json</code> and the log written (replay it with <code>--from-evidence</code>); <code>--allow-missing-aws-price</code> publishes with that cost unavailable. A live run saves <code>evidence.json</code> right after extraction, so any later refusal or crash names a replayable file.</p>
 <h4><span class="chip real">Realizer</span> One package</h4>
 <pre class="code"><code>realizer --package &lt;PKG.json&gt; --demo --output-dir ./realizer_out
 realizer --package &lt;PKG.json&gt; --profile &lt;oauth-profile&gt; \
   --sql-warehouse-id &lt;collector-warehouse&gt; --output-dir ./realizer_out   # live
 realizer --package &lt;PKG.json&gt; \
   --from-evidence ./realizer_out/state/realization/measurements/&lt;file&gt;.json  # replay
-realizer --package &lt;PKG.json&gt; --observation &lt;observation.json&gt;</code></pre>
-  <p>The collector warehouse is never the warehouse being measured; the live access check refuses that pairing.</p>
+realizer --package &lt;PKG.json&gt; --observation &lt;observation.json&gt;
+# confirm the change's origin with an approvals file (examples/realizer/approvals.json)
+realizer --package &lt;PKG.json&gt; --from-evidence &lt;file&gt;.json --approvals &lt;approvals.json&gt;</code></pre>
+  <p>The collector warehouse is never the warehouse being measured; the live access check refuses that pairing for one package. An approval that matches no package, knob and value of the run is logged as a warning, never ignored.</p>
 <h4><span class="chip real">Realizer</span> Fleet and backtest</h4>
 <pre class="code"><code># every warehouse of the newest Publisher run under ./demo_out
 realizer --publisher-run ./demo_out --demo --output-dir ./realizer_out
 realizer --publisher-run &lt;run folder or root&gt; --profile &lt;oauth-profile&gt; \
-  --sql-warehouse-id &lt;collector-warehouse&gt; [--warehouse &lt;id&gt;]
+  --sql-warehouse-id &lt;collector-warehouse&gt; [--warehouse &lt;id&gt;]   # the collector warehouse is SKIPPED
 # past auto-stop changes from system tables: no package, no ledger
 realizer --backtest --demo
 realizer --backtest --profile &lt;oauth-profile&gt; --sql-warehouse-id &lt;collector-warehouse&gt; --source-region &lt;region&gt;</code></pre>
@@ -137,7 +139,8 @@ realizer --backtest --profile &lt;oauth-profile&gt; --sql-warehouse-id &lt;colle
   </svg>
   <figcaption>Every command is read-only. The only change to the account is the auto-stop value an owner sets on an agreed test warehouse in step 4.4. Auto-stop goes first because its counterfactual is a replay with no guard window.</figcaption>
 </figure>
-<p>The sequence, its commands and its starter prompts live in {{doc:docs/proposals/shared/live-run.md|the live run sequence}}. Phase 1 uses the golden miner skill to compare real warehouses with the golden scenarios; phase 4 measures one applied change weekly for four weeks with the Realizer.</p>
+<p>The sequence, its commands and its starter prompts live in {{doc:docs/proposals/shared/live-run.md|the live run sequence}}. Phase 1 uses the golden miner skill to compare real warehouses with the golden scenarios; phase 4 measures one applied change weekly for four weeks with the Realizer. In the fleet runs of phase 4 the collector warehouse shows as <code>SKIPPED</code> in the manifest, because it cannot measure itself.</p>
+<p>Phase 3 replays one saved <code>evidence.json</code> under all three cost profiles. The comparison is of decisions, not of package IDs or estimates: the same change has the same estimate under every profile, so what differs is which cuts ship, how deep a target a looser profile picks, and which small savings pass the materiality floor. Checkpoint B also carries the nonprod tag check: the tag keys and values across the fleet against the lists that select the aggressive default, with any change proposed as a decision ({{doc:docs/proposals/publisher/real-data-run.md#cost-profile-calibration|cost profile calibration}}).</p>
 
 <h3 id="operations-quality">Change loop, goldens and versions</h3>
 <p>A change is small and layer-local, then checked from the bottom up:</p>
@@ -162,7 +165,7 @@ python scripts/validate_skill_suite.py</code></pre>
 <h3 id="operations-skills">Skills that work on this repo</h3>
 <div class="grid c3">
   <div class="card"><h4>Publisher skill suite</h4><p>An orchestrator and specialist skills (discovery, source contract, technique catalog, economics, contract design, builder, validator, release sealer) for building a publisher for another Databricks service, gated by approved artifacts. The member list is <code>.claude/skills/suite.yaml</code>.</p></div>
-  <div class="card"><h4>Golden miner</h4><p>Runs the Publisher read-only against a live workspace, mines warehouse patterns and proposes golden-scenario changes through an approval gate. It drives phase 1 of the live run.</p></div>
+  <div class="card"><h4>Golden miner</h4><p>Runs the Publisher read-only against a live workspace, mines warehouse patterns and proposes golden-scenario changes through an approval gate. It drives phase 1 of the live run. Its SQL goes through a guard that allows one SELECT or WITH statement and refuses write keywords; a failed statement is recorded in an <code>errors</code> section while the other answers are still written. It mines one full-scope run (a scoped run lacks the other knobs' candidates, so mismatches are not evaluated for it), so <code>--run-dir</code> must hold exactly one run. A new case can be a registry row or a run-scope case. It stays in this repository: it imports the SQL Warehouse publisher.</p></div>
   <div class="card"><h4>teach-me</h4><p>Builds and refreshes this guide. It sits outside the suite because it teaches the repo rather than building a publisher.</p></div>
 </div>
 <p>Details: {{doc:docs/reference/shared/skills.md|skills.md}}.</p>

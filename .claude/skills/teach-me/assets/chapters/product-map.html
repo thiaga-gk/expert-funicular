@@ -80,7 +80,7 @@
   <thead><tr><th>Capability</th><th>Product</th><th>What it gives you</th><th>Chapter</th></tr></thead>
   <tbody>
     <tr><td>Demo mode</td><td><span class="chip pub">Publisher</span> <span class="chip real">Realizer</span></td><td><code>--demo</code> simulates one warehouse per golden scenario (Publisher) or a world after the change (Realizer), with no Databricks access.</td><td><a href="#operations">Operations</a></td></tr>
-    <tr><td>Live mode</td><td>both</td><td>Reads system tables through an OAuth profile and a collector warehouse; the Realizer refuses to use the warehouse it is measuring as the collector.</td><td><a href="#evidence-epochs">Evidence</a></td></tr>
+    <tr><td>Live mode</td><td>both</td><td>Reads system tables through an OAuth profile and a collector warehouse. A single-package Realizer run refuses the warehouse it is measuring as the collector; a Realizer fleet run skips that one warehouse instead, because its own statements would keep it running.</td><td><a href="#evidence-epochs">Evidence</a></td></tr>
     <tr><td>Replay</td><td>both</td><td><code>--from-evidence</code> re-runs from saved evidence and reproduces the same outputs offline ({{term:replay-evidence}}).</td><td><a href="#evidence-epochs">Evidence</a></td></tr>
     <tr><td>Five techniques</td><td>Publisher</td><td>Size, max clusters, min clusters, auto-stop and warehouse-type migration, each with a stable {{term:technique|technique}} ID.</td><td><a href="#techniques">Techniques</a></td></tr>
     <tr><td>Canary rollback</td><td>Publisher</td><td>After a canary-type change, a tripped fail-fast guard turns into a recommendation to restore the previous value ({{term:canary-rollback}}).</td><td><a href="#techniques">Techniques</a></td></tr>
@@ -95,7 +95,7 @@
     <tr><td>Skills suite</td><td>repo</td><td>Claude Code skills that design and build publishers for other Databricks services, mine golden scenarios from live data, and build this guide.</td><td><a href="#operations">Operations</a></td></tr>
   </tbody>
 </table></div>
-<p>Both products reach Databricks through {{cite:src/workflow_shared/__init__.py|src/workflow_shared/}}: the OAuth token resolution, the GET-only REST call and the UTC-pinned SQL client ({{cite:src/workflow_shared/databricks/access.py::SqlClient}}). It imports neither product; each product injects its own logger, user agent and error type through {{cite:src/workflow_shared/databricks/access.py::AccessConfig}}.</p>
+<p>Both products reach Databricks through {{cite:src/workflow_shared/__init__.py|src/workflow_shared/}}: the OAuth token resolution, the GET-only REST call and the UTC-pinned SQL client ({{cite:src/workflow_shared/databricks/access.py::SqlClient}}). A long collection outlives one token: given a way to mint a new one, the client reconnects before any statement that would start within {{cite:src/workflow_shared/databricks/access.py::TOKEN_REFRESH_MARGIN|five minutes}} of the expiry. It imports neither product; each product injects its own logger, user agent and error type through {{cite:src/workflow_shared/databricks/access.py::AccessConfig}}.</p>
 
 <h3 id="product-map-reading-order">How to read this guide</h3>
 <ol>

@@ -60,7 +60,7 @@ value-gate:
   home: docs/architecture/publisher/lld.md
 cost-profile:
   term: Cost profile
-  definition: Aggressive, balanced or conservative. It changes only the risk-appetite thresholds of cuts, never evidence floors, product constants, estimator or confidence parameters, or the rules that add capacity.
+  definition: Aggressive, balanced or conservative. It changes only the risk-appetite thresholds of cuts (which cuts ship, how deep a few targets go, the materiality floor), never evidence floors, product constants, estimator or confidence parameters, or the rules that add capacity. The same change has the same estimate under every profile (the one exception is the Pro target of a Serverless-to-Pro migration, priced within the profile's cold-start budget).
   home: docs/reference/publisher/thresholds.md
 run-scope:
   term: Run scope
