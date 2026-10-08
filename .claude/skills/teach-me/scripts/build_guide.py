@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import fnmatch
 import hashlib
 import html
 import json
@@ -969,22 +970,42 @@ def load_yaml(path: Path) -> Any:
     return yaml.safe_load(read(path)) or {}
 
 
-def fingerprints(chapters: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+COVERAGE_ROOTS = ("src", "schema")
+
+
+def load_map() -> Dict[str, Any]:
+    return load_yaml(SKILL / "references/chapter-map.yaml")
+
+
+def fingerprints(chapters: Sequence[Dict[str, Any]], key: str = "sources") -> Dict[str, Dict[str, str]]:
+    """chapter id -> {repo path: content hash} over the chapter's ``sources`` (or ``docs``); a folder covers every file under it."""
     out = {}
     for ch in chapters:
         files: Dict[str, str] = {}
-        for src in ch["sources"]:
+        for src in ch[key]:
             found = files_under(src)
             if not found:
-                raise BuildError(f"chapter {ch['id']}: source {src} does not exist")
+                raise BuildError(f"chapter {ch['id']}: {key[:-1]} {src} does not exist")
             for p in found:
                 files[rel(p)] = file_hash(p)
         out[ch["id"]] = dict(sorted(files.items()))
     return out
 
 
+def coverage(cmap: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    """(files under src/ and schema/ that no chapter covers and no ignore entry matches, ignore entries that are malformed or match nothing)."""
+    covered = {p for ch in cmap["chapters"] for src in ch["sources"] for p in (rel(x) for x in files_under(src))}
+    ignores = cmap.get("ignore") or []
+    files = sorted(rel(p) for root in COVERAGE_ROOTS for p in files_under(root))
+    problems = [f"ignore entry {i.get('path')!r} needs a path and a reason" for i in ignores if not i.get("path") or not str(i.get("reason", "")).strip()]
+    problems += [f"ignore entry {i['path']!r} matches no file" for i in ignores if i.get("path") and not any(fnmatch.fnmatch(f, i["path"]) for f in files)]
+    uncovered = [f for f in files if f not in covered and not any(fnmatch.fnmatch(f, i.get("path", "")) for i in ignores)]
+    return uncovered, problems
+
+
 def build() -> Tuple[str, Dict[str, Any]]:
-    cmap = load_yaml(SKILL / "references/chapter-map.yaml")["chapters"]
+    cmap_doc = load_map()
+    cmap = cmap_doc["chapters"]
     glossary = load_yaml(SKILL / "references/glossary.yaml")
     notes = load_yaml(SKILL / "assets/notes.yaml")
     for name in ("pkg", "rpkg", "ledger", "measurement", "hash_payload"):
@@ -1068,6 +1089,7 @@ def build() -> Tuple[str, Dict[str, Any]]:
                      "workbook_contract": v["workbook_contract"], "realizer": v["realizer"]["realizer_version"]},
         "chapters": [c["id"] for c in cmap],
         "fingerprints": fingerprints(cmap),
+        "doc_fingerprints": fingerprints(cmap, "docs"),
         "citations": [{"path": p, "symbol": s} for p, s in sorted(renderer.citations)],
     }
 
@@ -1080,7 +1102,8 @@ def build() -> Tuple[str, Dict[str, Any]]:
         if marker not in page:
             raise BuildError(f"template lost marker {marker}")
         page = page.replace(marker, value)
-    state = {"meta": meta, "errors": renderer.errors, "checks": checks.items, "citations": renderer.citations, "glossary": glossary, "page": page}
+    uncovered, ignore_problems = coverage(cmap_doc)
+    state = {"meta": meta, "uncovered": uncovered, "ignore_problems": ignore_problems, "errors": renderer.errors, "checks": checks.items, "citations": renderer.citations, "glossary": glossary, "page": page}
     return page, state
 
 
@@ -1094,7 +1117,8 @@ def committed_meta() -> Optional[Dict[str, Any]]:
 
 
 def verify(state: Dict[str, Any]) -> List[str]:
-    problems = list(state["errors"])
+    problems = list(state["errors"]) + list(state["ignore_problems"])
+    problems += [f"not covered by any chapter (add it to a chapter's sources or to ignore): {f}" for f in state["uncovered"]]
     for name, ok, detail in state["checks"]:
         if not ok:
             problems.append(f"worked example drifted: {name} ({detail})")
@@ -1129,32 +1153,50 @@ def verify(state: Dict[str, Any]) -> List[str]:
     return problems
 
 
+def _diff(before: Dict[str, str], after: Dict[str, str]) -> List[Tuple[str, str]]:
+    return ([("changed", p) for p in sorted(after) if p in before and before[p] != after[p]]
+            + [("added", p) for p in sorted(after) if p not in before] + [("removed", p) for p in sorted(before) if p not in after])
+
+
 def stale() -> int:
+    """The refresh worklist: STALE chapters (cited code changed), REVIEW chapters (an owning document changed) and
+    UNCOVERED files (no chapter explains them)."""
     old = committed_meta()
+    cmap_doc = load_map()
+    cmap = cmap_doc["chapters"]
     if old is None:
         print("No committed guide yet: build every chapter.")
         return 0
-    cmap = load_yaml(SKILL / "references/chapter-map.yaml")["chapters"]
-    now = fingerprints(cmap)
+    now, docs_now = fingerprints(cmap), fingerprints(cmap, "docs")
     listed = 0
     for ch in cmap:
-        before = old.get("fingerprints", {}).get(ch["id"])
-        after = now[ch["id"]]
-        if before == after:
-            continue
-        listed += 1
-        before = before or {}
-        changed = sorted(p for p in after if p in before and before[p] != after[p])
-        added = sorted(p for p in after if p not in before)
-        removed = sorted(p for p in before if p not in after)
-        print(f"STALE {ch['id']} ({ch['title']}) -> assets/chapters/{ch['id']}.html")
-        for label, items in (("changed", changed), ("added", added), ("removed", removed)):
-            for p in items:
+        changes = _diff(old.get("fingerprints", {}).get(ch["id"]) or {}, now[ch["id"]])
+        if changes:
+            listed += 1
+            print(f"STALE {ch['id']} ({ch['title']}) -> assets/chapters/{ch['id']}.html")
+            for label, p in changes:
                 print(f"    {label}: {p}")
+    if "doc_fingerprints" in old:
+        for ch in cmap:
+            changes = _diff(old["doc_fingerprints"].get(ch["id"]) or {}, docs_now[ch["id"]])
+            if changes:
+                listed += 1
+                print(f"REVIEW {ch['id']} ({ch['title']}): an owning document changed; rewrite only if the meaning moved")
+                for label, p in changes:
+                    print(f"    {label}: {p}")
+    else:
+        print("The committed guide has no document fingerprints yet; the next build records them.")
+    uncovered, problems = coverage(cmap_doc)
+    for f in uncovered:
+        listed += 1
+        print(f"UNCOVERED {f}: add it to the sources of the chapter that should explain it, or to ignore with a reason")
+    for p in problems:
+        listed += 1
+        print(f"MAP {p}")
     if old.get("chapters") != [c["id"] for c in cmap]:
         print("Chapter list changed since the last build.")
     if not listed:
-        print("No chapter is stale: every cited source matches the committed guide.")
+        print("Nothing to refresh: every cited source and owning document matches the committed guide, and every file is covered.")
     return 0
 
 

@@ -5,7 +5,13 @@
 # sources   repo paths (files or folders) the chapter explains. build_guide.py fingerprints their contents; when a
 #           fingerprint changes, `--stale` lists the chapter for a rewrite. A folder covers every file under it.
 # docs      the documents that own the chapter's topics (shown in the "Where this lives" panel). The guide teaches
-#           and points; these documents stay the single home of each topic (docs/README.md).
+#           and points; these documents stay the single home of each topic (docs/README.md). They are fingerprinted
+#           too: a changed document lists the chapter for REVIEW (read the doc diff; rewrite only if the meaning moved).
+#
+# Coverage: every file under src/ and schema/ belongs to at least one chapter's sources or matches an `ignore` entry
+# below (a path or a glob, with the reason it has nothing to teach). `--stale` reports anything else as UNCOVERED,
+# `--verify` and tests/test_docs.py fail on it. A new module therefore costs one line here: the chapter that should
+# explain it, or an ignore entry.
 chapters:
   - id: product-map
     title: The product in one picture
@@ -33,6 +39,16 @@ chapters:
       - src/publisher/reporter/reporter.py
       - src/publisher/cli/
       - src/publisher/config/loader.py
+      - src/publisher/contracts/request.py
+      - src/publisher/contracts/analysis.py
+      - src/publisher/contracts/governance.py
+      - src/publisher/contracts/candidate.py
+      - src/publisher/contracts/review.py
+      - src/publisher/contracts/scenario.py
+      - src/publisher/contracts/package.py
+      - src/publisher/contracts/report.py
+      - src/publisher/common/errors.py
+      - src/publisher/common/logging.py
     docs:
       - docs/architecture/publisher/hld.md
       - docs/architecture/publisher/lld.md
@@ -45,6 +61,7 @@ chapters:
       - src/publisher/analyzer/epochs.py
       - src/publisher/analyzer/normalizer.py
       - src/publisher/contracts/source.py
+      - schema/evidence.schema.json
     docs:
       - docs/reference/publisher/source-mapping.md
       - docs/contracts/publisher/evidence-format.md
@@ -59,6 +76,8 @@ chapters:
       - src/publisher/optimizer/optimizer.py
       - src/publisher/analyzer/findings.py
       - src/publisher/packager/adapter.py
+      - src/publisher/analyzer/blockers.py
+      - src/publisher/governor/compatibility.py
     docs:
       - docs/reference/publisher/technique-catalog.md
       - docs/architecture/publisher/lld.md
@@ -74,6 +93,7 @@ chapters:
       - src/publisher/packager/estimator/
       - src/publisher/packager/scenarios.py
       - src/publisher/packager/sequencing.py
+      - src/publisher/analyzer/calibration.py
       - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
     docs:
       - docs/architecture/publisher/lld.md
@@ -88,6 +108,9 @@ chapters:
       - src/publisher/governor/eligibility.py
       - src/publisher/config/defaults.py
       - src/publisher/contracts/scope.py
+      - src/publisher/config/cost_profiles.py
+      - src/publisher/governor/constraints.py
+      - schema/run-scope.schema.json
     docs:
       - docs/reference/publisher/thresholds.md
       - docs/reference/publisher/product-constants.md
@@ -99,6 +122,13 @@ chapters:
     sources:
       - src/publisher/contracts/reporter_contract.py
       - src/publisher/reporter/json_reporter.py
+      - src/publisher/contracts/reporter_schema.py
+      - src/publisher/config/versions.py
+      - src/publisher/common/hashing.py
+      - src/publisher/common/ids.py
+      - src/publisher/packager/evidence.py
+      - src/publisher/packager/execution_plan.py
+      - src/publisher/packager/selection.py
       - schema/recommendation-package.schema.json
       - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
     docs:
@@ -115,6 +145,9 @@ chapters:
       - src/realizer/reconciler/
       - src/realizer/estimator/
       - src/realizer/reviewer/
+      - src/realizer/config/settings.py
+      - src/realizer/common/errors.py
+      - src/realizer/common/logging.py
     docs:
       - docs/architecture/realizer/hld.md
       - docs/contracts/realizer/source-evidence-contract.md
@@ -124,11 +157,15 @@ chapters:
     title: Realizer outputs, explained
     group: Realizer
     sources:
-      - src/realizer/contracts/realization.py
-      - src/realizer/contracts/measurement.py
+      - src/realizer/contracts/
       - src/realizer/packager/
+      - src/realizer/reporter/
       - schema/realization-package.schema.json
       - schema/realization-ledger-entry.schema.json
+      - schema/realization-measurement-evidence.schema.json
+      - schema/realization-observation.schema.json
+      - schema/realization-backtest-evidence.schema.json
+      - schema/realization-approvals.schema.json
       - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
     docs:
       - docs/contracts/realizer/ledger-contract.md
@@ -153,6 +190,10 @@ chapters:
       - src/realizer/config/output_layout.py
       - src/publisher/contracts/workbook_contract.py
       - src/publisher/packager/manifest.py
+      - src/publisher/reporter/workbook_reporter.py
+      - src/publisher/__main__.py
+      - src/realizer/__main__.py
+      - src/realizer/fleet.py
       - docs/proposals/shared/live-run.md
       - .claude/skills/suite.yaml
     docs:
@@ -171,3 +212,15 @@ chapters:
     docs:
       - docs/reference/publisher/blocker-codes.md
       - docs/README.md
+
+ignore:
+  - path: "src/**/__init__.py"
+    reason: Package docstrings only; each package's content is covered through its modules.
+  - path: src/publisher/common/time.py
+    reason: Timestamp parsing and UTC formatting helpers; no business rules.
+  - path: src/publisher/common/utils.py
+    reason: Generic value coercion and serialization helpers; its docstring forbids business rules there.
+  - path: src/realizer/common/utils.py
+    reason: Deterministic timestamp, decimal, money-string and JSON file helpers; no domain logic.
+  - path: src/publisher/config/settings.py
+    reason: Repository-relative locations of the committed schema and pricing files.

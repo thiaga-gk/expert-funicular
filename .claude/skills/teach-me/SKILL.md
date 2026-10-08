@@ -16,8 +16,9 @@ narrative is re-checked against the files it cites.
   (techniques, blocker codes, docs map, contract field tables), loads golden case `ge12-full-scope-auto-stop`,
   recomputes every worked-example number and fails when one no longer matches, then renders the chapter fragments into
   `assets/template.html`.
-- `references/chapter-map.yaml` - the chapters in order, the source files each one explains (their contents are
-  fingerprinted) and the documents that own each topic.
+- `references/chapter-map.yaml` - the chapters in order, the source files each one explains and the documents that
+  own each topic (both fingerprinted), plus the `ignore:` list for files with nothing to teach. Every file under
+  `src/` and `schema/` is covered by a chapter or ignored with a reason.
 - `assets/chapters/<id>.html` - the narrative fragments, with placeholders instead of literal numbers.
 - `assets/notes.yaml` - teaching notes and ID-family text for the JSON explorers.
 - `references/glossary.yaml` - glossary terms for hover tips and the reference chapter.
@@ -47,15 +48,23 @@ offer a refresh if it is stale.
 
 The point of a refresh is that only what changed is rewritten, and what is rewritten is re-read from the code.
 
-1. Run `build_guide.py --stale`. It compares each chapter's source fingerprints with those stored in the committed
-   guide and prints the stale chapters with the files that changed, were added or were removed.
+1. Run `build_guide.py --stale`. It hashes the files each chapter cites and the documents that own its topics, and
+   compares them with the hashes stored in the committed guide (contents, not commit IDs, so uncommitted edits count
+   and a rebase alone changes nothing). It prints three kinds of lines:
+   - `STALE <chapter>` with the files that changed, were added or were removed: cited code moved.
+   - `REVIEW <chapter>` with the owning documents that changed: read the document diff and rewrite only if the
+     meaning moved (code wins over documents; a rewording needs no change).
+   - `UNCOVERED <file>`: a file under `src/` or `schema/` that no chapter explains. Add it to the sources of the
+     chapter that should explain it (prefer a folder entry), or to `ignore:` in `chapter-map.yaml` with a reason.
+     `--verify` and `tests/test_docs.py` fail until every file is placed.
 2. For each stale chapter, read the changed files (use `git diff` against the last commit that touched the guide,
    `git log -1 --format=%H -- docs/guide/shared/inframate-guide.html`, when the change is large) and the fragment.
    Update every claim, diagram, formula card and quiz answer the change affects. Leave unaffected prose alone so the
-   diff stays reviewable.
+   diff stays reviewable. A file newly added to a chapter's sources needs at least a citation where the chapter
+   explains what it does.
 3. When a change adds a concept with no home in the guide (a new knob, layer, ID family, output file), add it to the
-   right chapter, and to `chapter-map.yaml` sources if it lives in a new file. A new public ID family also needs a line
-   in `assets/notes.yaml` `id_families`; a new domain term, a glossary entry.
+   right chapter. A new public ID family also needs a line in `assets/notes.yaml` `id_families`; a new domain term, a
+   glossary entry.
 4. Run `build_guide.py --verify`. Facts, tables, versions and examples refresh on their own; a worked-example
    mismatch means the estimator or the golden case changed, so re-read the formula in code and fix the card or
    `worked_examples()` together.
@@ -92,5 +101,6 @@ and the owning document. If the code and the guide disagree, say so and offer a 
 - Products are read-only. Commands in the guide never mutate a workspace; a live command always names an OAuth
   profile, never a token.
 - Keep the page offline: no CDN, no web fonts, no external images. `--verify` checks this.
-- `tests/test_docs.py` checks that every path and symbol the committed guide cites still exists, so a rename that
-  breaks a citation fails the test suite until the guide is refreshed.
+- `tests/test_docs.py` checks that every path and symbol the committed guide cites still exists, and that the chapter
+  map covers every file under `src/` and `schema/`, so a rename or a new module fails the suite until the guide or
+  the map is updated.
