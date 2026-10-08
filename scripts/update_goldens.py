@@ -24,8 +24,8 @@ for _path in (ROOT, ROOT / "src"):
         sys.path.insert(0, str(_path))
 
 from publisher import publisher as p  # noqa: E402
-from tests.golden import case_dir, case_names  # noqa: E402
-from tests.regression import canonical  # noqa: E402
+from tests.golden.publisher import case_dir, case_names  # noqa: E402
+from tests.regression.publisher import canonical  # noqa: E402
 
 
 def write_files(target: Path, files: dict) -> None:

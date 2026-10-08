@@ -9,6 +9,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import time
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -165,6 +166,7 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     anything else can fail. Raises PublisherError for a refused run (``cli.main.main`` maps it to exit status 2).
     """
     args = parse_args(argv)
+    started = time.monotonic()
     output_dir = run_output_dir(args)
     log_path = setup_logging(output_dir, args.log_level)
     LOGGER.info("policy.versions policy=%s analyzer=%s optimizer=%s estimator=%s bundle=%s",
@@ -172,7 +174,8 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     request = request_from_args(args, output_dir)
     _log_settings(args, request)
     report = publish(request)
-    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d log=%s",
-                report.analyzed_count, report.excluded_count, len(report.packages), report.candidate_count, report.scenario_count, log_path)
+    LOGGER.info("publisher.done warehouses=%d excluded=%d packages=%d candidates=%d scenarios=%d elapsed_ms=%d log=%s",
+                report.analyzed_count, report.excluded_count, len(report.packages), report.candidate_count, report.scenario_count,
+                int((time.monotonic() - started) * 1000), log_path)
     print_summary(report, log_path, print_json=args.print_json)
     return 0

@@ -99,7 +99,7 @@ def optimize_eligible(eligible: Sequence[WarehouseAnalysis], thresholds: Thresho
         LOGGER.info("pipeline.batch.start batch_index=%d start=%d size=%d", offset // batch + 1, offset, len(chunk))
         for w in chunk:
             e = w.evidence
-            LOGGER.info(
+            LOGGER.debug(
                 "warehouse.start workspace_id=%s warehouse_id=%s epoch_id=%s",
                 e.workspace_id, e.warehouse_id, e.current_epoch_id,
             )

@@ -1,0 +1,38 @@
+# Teaching notes for the package hash payload explorer (explorer "hash_payload"): the canonical payload behind the
+# PKG- id and provenance.package_hash_full_sha256. Values: short inline HTML.
+
+contract_version: >-
+  The contract version is hashed, so the same decisions under a new contract get a new ID.
+workspace_id: >-
+  Identity is always the pair (workspace_id, warehouse_id); a warehouse ID alone is not unique across workspaces.
+current_epoch_id: >-
+  Ties the package to one configuration regime. A configuration change starts a new epoch and therefore a new package.
+current_config: >-
+  The whole canonical configuration, including the billing-observed Photon block. Numbers appear as decimal strings:
+  that is the canonical form used only for hashing.
+evidence_fingerprint: >-
+  Stands in for the evidence registry: a SHA-256 over every record's ID and measured content, sorted by ID. Prose
+  interpretations are excluded.
+ordered_candidate_ids: >-
+  Kept in decision order, not sorted: the order is semantic. Each CAND- ID already hashes its own evidence, versions
+  and cost profile.
+ordered_scenario_ids: >-
+  The scenarios in package order. Each SCN- ID hashes its ordered candidates and compatibility status.
+policy_version: >-
+  One of the component versions. A decision-affecting change bumps the matching version, so the ID changes even if the
+  evidence did not.
+technique_catalog_version: >-
+  The version of the stable technique IDs. Retiring or adding a technique moves it.
+reevaluation: >-
+  Only the status, earliest re-evaluation time and blocking codes are hashed; the prose method is not. Null here.
+observed_change_fingerprint: >-
+  A SHA-256 of the canonical <code>observed_change</code> block, or null when there is none.
+carried_forward_fingerprint: >-
+  A SHA-256 of the reserved <code>carried_forward_plan</code> block; null because the block is always null today.
+cost_profile: >-
+  Name and applied thresholds only. Where the profile came from (source, source_detail) is deliberately excluded, so a
+  CLI flag and a tag that pick the same profile give the same ID.
+cost_profile.applied_thresholds: >-
+  The effective profiled values. Two profiles always differ here, which is why their packages never share an ID.
+run_scope: >-
+  The canonical scope block, or null for a full assessment. A restricted run therefore never collides with a full one.

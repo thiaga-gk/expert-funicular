@@ -9,6 +9,7 @@ import json
 import re
 import sys
 import unittest
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,8 +20,9 @@ from publisher import publisher  # noqa: E402
 from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evidence  # noqa: E402
 from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from publisher.config import versions as versions_mod  # noqa: E402
-from tests.golden import case_names, load_case  # noqa: E402
+from tests.golden.publisher import case_names, load_case  # noqa: E402
 
 CORE = {
     "prd": ROOT / "docs/product/publisher/prd.md",
@@ -153,6 +155,19 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(sorted(set(documented) - set(fields)), [], "thresholds.md lists parameters the code no longer has")
         self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
 
+    def test_realizer_policy_contract_lists_every_setting_with_its_default(self):
+        text = read(ROOT / "docs/contracts/realizer/policy-contract.md")
+        rows = re.findall(r"^\| `(\w+)` \| `([^`]+)` \|", text, re.M)
+        documented = {}
+        for name, default in rows:
+            self.assertNotIn(name, documented, f"{name} is listed twice")
+            documented[name] = ast.literal_eval(default)
+        fields = {f.name: f.default for f in dataclasses.fields(RealizerPolicy) if f.name != "policy_version"}
+        self.assertEqual(sorted(set(fields) - set(documented)), [], "settings missing from policy-contract.md")
+        self.assertEqual(sorted(set(documented) - set(fields)), [], "policy-contract.md lists settings the code no longer has")
+        differing = {k: v for k, v in documented.items() if (Decimal(str(v)) if isinstance(fields[k], Decimal) else v) != fields[k]}
+        self.assertEqual(differing, {}, "documented default differs from the code")
+
     def test_thresholds_reference_lists_every_derived_value(self):
         text = read(ROOT / "docs/reference/publisher/thresholds.md")
         rows = re.findall(r"^\| `(\w+)` \| `\w+` − 0\.01 \(([\d.]+)\) \|", text, re.M)
@@ -236,6 +251,24 @@ class DocsGuardTests(unittest.TestCase):
         drawn |= {w for w in re.findall(r"^\s+(\w+)\s*$", block, re.M) if w not in {"RecommendationPackage"}}
         schema = json.loads(read(ROOT / "schema" / "recommendation-package.schema.json"))
         self.assertEqual(sorted(drawn), sorted(schema["required"]))
+
+    def test_field_guide_citations_exist(self):
+        # The generated field guide records every code path and symbol it cites in its guide-meta block; a rename or
+        # move breaks the guide's links, so refresh it (/teach-me refresh) in the same change.
+        guide = ROOT / "docs/guide/shared/inframate-guide.html"
+        self.assertTrue(guide.is_file(), "build the guide: python .claude/skills/teach-me/scripts/build_guide.py")
+        block = re.search(r'<script type="application/json" id="guide-meta">(.*?)</script>', read(guide), re.S)
+        meta = json.loads(block.group(1).replace("<\\/", "</"))
+        missing = []
+        for cite in meta["citations"]:
+            path, symbol = ROOT / cite["path"], cite["symbol"]
+            if not path.exists():
+                missing.append(cite["path"])
+            elif symbol and path.is_file():
+                defined = rf"(def|class)\s+{re.escape(symbol)}\b|^\s*{re.escape(symbol)}\s*[:=]|\b{re.escape(symbol)}\s*=\s*"
+                if not re.search(defined, read(path), re.M):
+                    missing.append(f"{cite['path']} :: {symbol}")
+        self.assertEqual(missing, [], "the field guide cites code that moved; run /teach-me refresh")
 
 
 if __name__ == "__main__":

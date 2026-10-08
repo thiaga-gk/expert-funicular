@@ -291,7 +291,7 @@ def append_if_absent(path: Path, entry: rc.RealizationLedgerEntry) -> bool:
         fh.write(rc.canonical_json(entry.to_dict()) + "\n")
         fh.flush()
         os.fsync(fh.fileno())
-    LOGGER.info("ledger.append event=%s rle=%s", entry.event_type.value, entry.ledger_entry_id)
+    LOGGER.debug("ledger.append event=%s rle=%s", entry.event_type.value, entry.ledger_entry_id)
     return True
 
 

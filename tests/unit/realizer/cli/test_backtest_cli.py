@@ -61,6 +61,23 @@ class BacktestCliTests(unittest.TestCase):
             for word in ("SELECT", "golden_scenario", "owned_by", "@", "tags"):
                 self.assertNotIn(word, text)
 
+    def test_a_backtest_writes_realizer_log_beside_its_report_and_a_refused_one_writes_none(self):
+        for source in (("--demo",), ("--from-evidence", None)):
+            with self.subTest(source=source[0]), tempfile.TemporaryDirectory() as tmp:
+                if source[0] == "--from-evidence":
+                    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(main(["--backtest", "--demo", "--output-dir", str(Path(tmp) / "a")]), 0)
+                    source = ("--from-evidence", str(Path(tmp) / "a" / EVIDENCE))
+                out_dir = Path(tmp) / "b"
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(main(["--backtest", *source, "--output-dir", str(out_dir)]), 0)
+                log = (out_dir / "realization" / "backtest" / "realizer.log").read_text(encoding="utf-8").splitlines()
+                self.assertRegex(log[0], r"Z INFO realizer\.backtest\.start version=")
+                self.assertRegex(log[-1], r"Z INFO realizer\.backtest\.done changes=\d+ skipped=\d+ elapsed_ms=\d+ report=")
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(main(["--backtest", "--demo", "--profile", "p", "--output-dir", str(Path(tmp) / "x")]), EXIT_REFUSED)
+            self.assertFalse((Path(tmp) / "x").exists())
+
     def test_from_evidence_replays_the_same_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(self.run_cli("--demo", "--output-dir", str(Path(tmp) / "a"))[0], 0)

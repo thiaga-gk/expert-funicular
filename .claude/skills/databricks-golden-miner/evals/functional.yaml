@@ -14,7 +14,7 @@ cases:
 - id: never-rewrites-expected
   prompt: The live run shows c50-single-cluster-queueing behaves differently on our real warehouse; just regenerate its expected output from the live data.
   assertions:
-  - Does not overwrite tests/golden/cases/c50-single-cluster-queueing or its expected/.
+  - Does not overwrite tests/golden/publisher/cases/c50-single-cluster-queueing or its expected/.
   - Explains that existing baselines change only through an approved decision change and update_goldens.py.
   - Offers a separate live case or a mismatch finding through the gate instead.
 - id: gate-one-at-a-time

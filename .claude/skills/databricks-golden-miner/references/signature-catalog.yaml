@@ -8,7 +8,7 @@
 #                            {feature, <op>: value} with op eq|ne|in|not_in|gt|gte|lt|lte|is_null|not_null, or
 #                            {any: [conditions]}. Rows without a signature are checked by hand (listed as manual).
 #   expect                -- the row's expected behaviour as assertions on the warehouse's package, in the golden
-#                            assertion DSL (tests/golden/test_golden_publisher.py docstring) plus `in` / `not_in` per
+#                            assertion DSL (tests/golden/publisher/test_golden_publisher.py docstring) plus `in` / `not_in` per
 #                            value and `any: [assertions]`. Candidates carry `direction` (up/down/same/change).
 #                            A failed assertion is a behaviour mismatch.
 #   drift                 -- features whose live range is compared with the demo-fleet warehouse of the row.

@@ -123,7 +123,11 @@ def assign_cost_profiles(evidence: Sequence[WarehouseEvidence], selection: CostP
 
 
 def log_assignments(choices: Mapping[Tuple[str, str], CostProfileChoice]) -> None:
-    """One INFO line per warehouse with its profile and source (identity and policy labels only)."""
+    """One INFO line with the warehouse count per profile, and one DEBUG line per warehouse with its profile and source
+    (identity and policy labels only)."""
+    counts: Dict[str, int] = {}
     for (workspace_id, warehouse_id), choice in sorted(choices.items()):
-        LOGGER.info("governor.cost_profile workspace_id=%s warehouse_id=%s profile=%s source=%s",
-                    workspace_id, warehouse_id, choice.name, choice.source)
+        counts[choice.name] = counts.get(choice.name, 0) + 1
+        LOGGER.debug("governor.cost_profile workspace_id=%s warehouse_id=%s profile=%s source=%s",
+                     workspace_id, warehouse_id, choice.name, choice.source)
+    LOGGER.info("governor.cost_profiles warehouses=%d %s", len(choices), " ".join(f"{name}={counts[name]}" for name in sorted(counts)))

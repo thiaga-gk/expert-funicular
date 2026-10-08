@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import datetime as dt
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -124,6 +125,7 @@ def realize_all(request: FleetRequest) -> Tuple[List[WarehouseRun], Dict[Tuple[s
     runs: List[WarehouseRun] = []
     files: Dict[Tuple[str, str], List[str]] = {}
     for entry in request.publisher_run.entries:
+        started = time.monotonic()
         written: List[Path] = []
         status, reason = RUN_STATUS_OK, None
         try:
@@ -142,8 +144,8 @@ def realize_all(request: FleetRequest) -> Tuple[List[WarehouseRun], Dict[Tuple[s
         files[(entry.workspace_id, entry.warehouse_id)] = in_run
         run = _warehouse_run(request, entry, status, reason, in_run)
         runs.append(run)
-        LOGGER.info("fleet.warehouse workspace=%s warehouse=%s status=%s realizations=%d", entry.workspace_id, entry.warehouse_id,
-                    status, len(run.realizations))
+        LOGGER.info("fleet.warehouse workspace=%s warehouse=%s status=%s realizations=%d elapsed_ms=%d", entry.workspace_id, entry.warehouse_id,
+                    status, len(run.realizations), int((time.monotonic() - started) * 1000))
     return runs, files
 
 
@@ -153,6 +155,7 @@ def run_fleet(request: FleetRequest) -> FleetReport:
     for all of its warehouses and reads the account-wide statements once (``LiveSession``)."""
     LOGGER.info("fleet.start source=%s warehouses=%d manifest_packages=%d", request.source, len(request.publisher_run.entries),
                 request.publisher_run.package_count)
+    fleet_started = time.monotonic()
     if request.source == SOURCE_LIVE and request.as_of is None:
         request = dataclasses.replace(request, as_of=utc_iso(dt.datetime.now(dt.timezone.utc).replace(microsecond=0)))  # one measurement time for the run
     with contextlib.ExitStack() as stack:
@@ -165,6 +168,6 @@ def run_fleet(request: FleetRequest) -> FleetReport:
     workbook = write_realization_workbook(request.run_dir / WORKBOOK_NAME, runs)
     LOGGER.info("workbook.written path=%s", workbook)
     manifest = write_run_manifest(request.run_dir / RUN_MANIFEST_NAME, build_run_manifest(request, runs, files, WORKBOOK_NAME))
-    LOGGER.info("fleet.done ok=%d refused=%d crashed=%d skipped=%d manifest=%s", *(sum(1 for r in runs if r.status == s)
-                for s in (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED, RUN_STATUS_SKIPPED)), manifest)
+    LOGGER.info("fleet.done ok=%d refused=%d crashed=%d skipped=%d elapsed_ms=%d manifest=%s", *(sum(1 for r in runs if r.status == s)
+                for s in (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED, RUN_STATUS_SKIPPED)), int((time.monotonic() - fleet_started) * 1000), manifest)
     return FleetReport(warehouse_runs=tuple(runs), manifest_path=manifest, workbook_path=workbook)

@@ -1,0 +1,115 @@
+<p class="lede">The Realizer writes three kinds of JSON: an append-only ledger that is the history of one package's realization, a realization package (RPKG) that projects that history into a current view, and the measurement evidence a live or demo run collected, so the same measurement can be replayed offline. This chapter walks each one with the real files of the worked example.</p>
+
+<h3 id="realizer-json-layout">Where the files live</h3>
+<p>Two roots. The <em>state directory</em> outlives runs and holds every warehouse's history. Each run also writes a fresh <em>run folder</em> with that run's projections. Reading the ledger again always reproduces the projections, so the history in the state directory is what you back up. {{cite:src/realizer/config/output_layout.py::resolve_layout}}</p>
+<figure class="diagram">
+  <svg viewBox="0 0 960 420" role="img" aria-label="Realizer output tree: the long-lived state directory holds ledger, evidence, measurements, regeneration requests, policies, source package copies and the state index; each run folder holds the realization package, the snapshot, the run manifest, the workbook and the log.">
+    <rect class="box real" x="20" y="20" width="260" height="44" rx="8"/>
+    <text class="lbl" x="36" y="47">realizer_out/</text>
+    <text class="sub" x="150" y="47">--output-dir</text>
+
+    <text class="cap" x="60" y="98">Long-lived state</text>
+    <rect class="box muted" x="60" y="108" width="380" height="36" rx="6"/>
+    <text class="mono" x="74" y="131">state/realization/</text>
+    <path class="edge plain" d="M40 64 V 126 H 56"/>
+    <path class="edge plain" d="M80 144 V 396"/>
+    <path class="edge plain" d="M80 168 H 100"/><text class="mono" x="106" y="172">ledger/&lt;RPKG&gt;.jsonl</text><text class="sub" x="300" y="172">the history, append-only</text>
+    <path class="edge plain" d="M80 200 H 100"/><text class="mono" x="106" y="204">measurements/&lt;ws&gt;__&lt;wh&gt;__&lt;PKG&gt;__&lt;asof&gt;.json</text>
+    <text class="sub" x="106" y="220">live or demo evidence, replayable</text>
+    <path class="edge plain" d="M80 244 H 100"/><text class="mono" x="106" y="248">evidence/REVID-*.json</text><text class="sub" x="300" y="248">evidence a run stored</text>
+    <path class="edge plain" d="M80 276 H 100"/><text class="mono" x="106" y="280">policies/PSNAP-*.json</text><text class="sub" x="300" y="280">policy used</text>
+    <path class="edge plain" d="M80 308 H 100"/><text class="mono" x="106" y="312">regeneration/RERUN-*.json</text>
+    <path class="edge plain" d="M80 340 H 100"/><text class="mono" x="106" y="344">sources/&lt;ws&gt;__&lt;wh&gt;/&lt;PKG&gt;.json</text><text class="sub" x="106" y="360">copy of the source package</text>
+    <path class="edge plain" d="M80 392 H 100"/><text class="mono" x="106" y="396">state/&lt;ws&gt;__&lt;wh&gt;.json</text><text class="sub" x="300" y="396">state index</text>
+
+    <text class="cap" x="520" y="98">One folder per run</text>
+    <rect class="box muted" x="520" y="108" width="420" height="36" rx="6"/>
+    <text class="mono" x="534" y="131">run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/</text>
+    <path class="edge plain" d="M40 64 V 80 H 500 V 126 H 516"/>
+    <path class="edge plain" d="M540 144 V 300"/>
+    <path class="edge plain" d="M540 168 H 560"/><text class="mono" x="566" y="172">realization/packages/&lt;RPKG&gt;.json</text>
+    <path class="edge plain" d="M540 200 H 560"/><text class="mono" x="566" y="204">realization/snapshots/&lt;RSNAP&gt;.json</text>
+    <path class="edge plain" d="M540 232 H 560"/><text class="mono" x="566" y="236">manifest.json</text><text class="sub" x="700" y="236">run manifest</text>
+    <path class="edge plain" d="M540 264 H 560"/><text class="mono" x="566" y="268">realization_workbook.xlsx</text>
+    <path class="edge plain" d="M540 296 H 560"/><text class="mono" x="566" y="300">realizer.log</text>
+    <rect class="box ghost" x="520" y="330" width="420" height="66" rx="8"/>
+    <text class="sub" x="536" y="354">--flat-output puts state and projections in one folder;</text>
+    <text class="sub" x="536" y="372">the paths under each root stay the same.</text>
+  </svg>
+  <figcaption>The state directory defaults to <code>&lt;output-dir&gt;/state</code> and can be moved with <code>--state-dir</code>. The RPKG and the snapshot hold the same content; the snapshot's id also pins the ledger checkpoint it was projected from.</figcaption>
+</figure>
+
+<h3 id="realizer-json-ids">ID families</h3>
+<p>Every Realizer ID is a content hash, built the same way as the Publisher's: a prefix plus the first {{fact:hash_hex_length}} uppercase hex characters of a SHA-256 over canonical JSON ({{cite:src/realizer/contracts/realization.py::content_id}}). Identical inputs give identical IDs, which is how a re-run recognises an event it already recorded and suppresses the duplicate.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Prefix</th><th>Names</th><th>Hashes</th><th>Minted in</th></tr></thead>
+  <tbody>
+    <tr><td><code>RPKG-</code></td><td>The realization of one PKG</td><td>the literal <code>REALIZATION_PACKAGE</code>, the contract major version, the PKG id</td><td>{{cite:src/realizer/contracts/realization.py::make_rpkg_id}}</td></tr>
+    <tr><td><code>RLE-</code></td><td>One ledger entry</td><td>ledger contract major, RPKG, event type, the event's business key (episode, window, step and similar ids), the payload</td><td>{{cite:src/realizer/packager/ledger.py::make_ledger_entry}}</td></tr>
+    <tr><td><code>RSNAP-</code></td><td>One projection of the ledger</td><td>RPKG, the ledger checkpoint hash, the projector version</td><td>{{cite:src/realizer/packager/snapshot.py::project_snapshot}}</td></tr>
+    <tr><td><code>APP-</code></td><td>An application episode</td><td>RPKG, scenario, step, source and observed configuration hashes, the anchoring evidence</td><td>{{cite:src/realizer/contracts/realization.py::make_app_id}}</td></tr>
+    <tr><td><code>VAL-</code></td><td>A validation episode</td><td>the application, the window, the policy snapshot, the guard evidence</td><td>{{cite:src/realizer/contracts/realization.py::make_val_id}}</td></tr>
+    <tr><td><code>MEAS-</code></td><td>One economic measurement</td><td>the application, the window, the economic basis, the counterfactual, the correction version</td><td>{{cite:src/realizer/contracts/realization.py::make_measurement_id}}</td></tr>
+    <tr><td><code>CF-</code></td><td>One counterfactual</td><td>the application, the old configuration hash, the method, the counterfactual basis, the modeler version, the policy snapshot</td><td>{{cite:src/realizer/estimator/economics.py::make_cf_id}}</td></tr>
+    <tr><td><code>REVID-</code></td><td>A stored evidence file</td><td>evidence type, warehouse, source, window, payload</td><td>{{cite:src/realizer/contracts/realization.py::make_evidence_id}}</td></tr>
+    <tr><td><code>RERUN-</code></td><td>A regeneration request</td><td>the request for a new Publisher run (drift, invalidation)</td><td>{{cite:src/realizer/reconciler/lifecycle.py|lifecycle.py}}</td></tr>
+    <tr><td><code>PSNAP-</code></td><td>A policy snapshot</td><td>the Realizer policy values</td><td>{{cite:src/realizer/governor/policy.py::RealizerPolicy}}</td></tr>
+  </tbody>
+</table></div>
+<p>The RPKG id depends only on the PKG id, so one package has exactly one realization, whoever runs it and however often. The example's package {{pkg:recommendation_package_id|id}} always maps to {{ex:realizer.rpkg_id|id}}. The <code>REAL-</code> family belongs to the Publisher's contract; the Realizer only checks that the package's <code>realization_records</code> is empty and never writes there.</p>
+
+<h3 id="realizer-json-ledger">The ledger</h3>
+<p>One file per RPKG, one canonical JSON object per line, appended with an fsync and never rewritten ({{cite:src/realizer/packager/ledger.py::append_if_absent}}). An entry whose id is already present is suppressed, so re-running a day changes nothing. A run holds an exclusive lock on the ledger, and a write cut short is repaired by the next lock holder before anything else. These are the example's seven entries, in ledger order:</p>
+{{table:ledger}}
+<div class="grid c2">
+  <div class="card"><h4>REALIZATION_CREATED</h4><p>Recorded first by every run: the lineage exists. Its payload copies the package's cost profile, run scope and observed change, so the history is self-describing.</p></div>
+  <div class="card"><h4>APPLICATION_OBSERVED</h4><p>The warehouse configuration changed to the recommended value. Effective at the epoch start of the change, not when the Realizer noticed it. It opens the application episode {{rpkg:application.active_episode_id|id}}.</p></div>
+  <div class="card"><h4>VALIDATION_READY → STARTED → COMPLETED</h4><p>Readiness passed, the validation window was set and the guard rules were judged. The three entries share one validation episode and the policy snapshot that judged it.</p></div>
+  <div class="card"><h4>COUNTERFACTUAL_RECORDED → ECONOMIC_MEASUREMENT_RECORDED</h4><p>The counterfactual's method, cost and assumptions, then the measurement that uses it: economics, attribution, realization and recognition status. The measurement points at its counterfactual id.</p></div>
+</div>
+<p>Two times on every entry: <code>effective_at_utc</code> is when the fact became true in the world, <code>recorded_at_utc</code> when the Realizer wrote it. A replay cut (<code>--replay-through</code>) projects the ledger as it stood at an earlier time. The full envelope:</p>
+{{explorer:ledger||1|[1].event_type}}
+<p>Every event type the contract defines:</p>
+<p>{{table:ledger_events}}</p>
+<p>Corrections never edit an entry. A restated bill produces a new measurement entry whose <code>corrects_entry_id</code> names the one it replaces; a consequence of another entry names it in <code>caused_by_entry_id</code>.</p>
+
+<h3 id="realizer-json-rpkg">The realization package</h3>
+<p>The RPKG is the ledger folded into one current view ({{cite:src/realizer/packager/snapshot.py::project_snapshot}}). Its <code>history</code> block records the checkpoint it was projected from: the entry count, the first and latest entry, and <code>ledger_checkpoint_hash</code>, a SHA-256 over the ordered entry ids ({{cite:src/realizer/packager/ledger.py::ledger_checkpoint}}). That hash, with the projector version, is what the snapshot id hashes, so a snapshot names exactly the history behind it.</p>
+{{explorer:rpkg||1|economics.annualized_realized_savings}}
+<p>Unknown material facts are <code>null</code>, never zero: in the example <code>aws_cash_realized</code> is null because no cash AWS bill was observed, while <code>aws_economic_realized</code> carries the modeled value.</p>
+
+<h3 id="realizer-json-states">State dimensions are independent</h3>
+<p>The RPKG never collapses its status into one field. Each axis answers a different question and changes for different reasons, so a package can be superseded while its applied change is still being monitored.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Axis</th><th>Answers</th><th>Values</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>implementation_conformance</code></td><td>Did the warehouse get what the step recommended?</td><td><code>EXACT · MODIFIED · NOT_APPLIED · CONTRARY · UNRELATED</code></td><td><code>{{rpkg:application.implementation_conformance}}</code></td></tr>
+    <tr><td><code>validation_state</code></td><td>Did performance hold?</td><td><code>NOT_READY · READY · RUNNING · PASSED · FAILED · INCONCLUSIVE</code></td><td>{{rpkg:current_state.validation_state|status}}</td></tr>
+    <tr><td><code>realization_state</code></td><td>How do the savings compare with the expectation?</td><td><code>REALIZED · UNDER_REALIZED · MONITORING · VALIDATION_FAILED · BLOCKED · ROLLED_BACK · DRIFTED</code> and more</td><td>{{rpkg:current_state.realization_state|status}}</td></tr>
+    <tr><td><code>maturity_state</code></td><td>How much history backs it?</td><td><code>NOT_APPLIED · COLLECTING · PROVISIONAL · REPRESENTATIVE · MATURE</code></td><td>{{rpkg:current_state.maturity_state|status}}</td></tr>
+    <tr><td><code>source_package_disposition</code></td><td>Is the source package still the live recommendation?</td><td><code>ACTIVE · SUPERSEDED · EXPIRED · BLOCKED</code></td><td><code>{{rpkg:current_state.source_package_disposition}}</code></td></tr>
+    <tr><td><code>attribution_claim_status</code></td><td>May the saving be claimed for the recommendation?</td><td><code>CLAIMABLE · OBSERVABLE_ONLY · NOT_ATTRIBUTABLE</code></td><td>{{rpkg:attribution.attribution_claim_status|status}}</td></tr>
+  </tbody>
+</table></div>
+<p>The full value lists are in {{doc:docs/contracts/realizer/ledger-contract.md#5-orthogonal-state-dimensions|ledger contract section 5}}.</p>
+
+<h3 id="realizer-json-measurement">Measurement evidence</h3>
+<p>A live or demo run first writes what it read from the system tables to <code>state/realization/measurements/</code> (format {{fact:versions.realizer_formats.measurement_evidence_format}}), then projects the normalized observation from it ({{cite:src/realizer/analyzer/projector.py::project_observation}}). <code>--from-evidence</code> replays that file and gets the identical result offline, which is how a measurement is audited or re-run under a new Realizer version. The guide trims the 365 daily billing rows to three.</p>
+{{explorer:measurement||1|windows.post.replay}}
+<ul>
+  <li><code>epochs</code>: the configuration timeline; the change is the boundary between the last two.</li>
+  <li><code>windows.pre</code> and <code>windows.post</code>: settled whole-day windows either side of the change, with running time, restarts and the replay rows per candidate auto-stop value (the size runtime or cluster levels for other knobs).</li>
+  <li><code>daily_cost</code>: billed DBU and list cost per day, including restated and unpriced quantities; the financial-quality gates are computed from it.</li>
+  <li><code>guard</code>: guard metrics for the previous and current epoch; <code>assumptions</code>: the package's thresholds and restart costs the measurement used; <code>aws</code>: the modeled cluster-hour price per window.</li>
+</ul>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>You re-run the Realizer on the same day with the same evidence. What changes in the ledger?</summary>
+    <div><p>Nothing. Every entry's id is a hash of its content, and an entry whose id is already in the ledger is suppressed. The run folder gets fresh copies of the same RPKG and snapshot.</p></div></details>
+  <details><summary>Billing for an already-measured week is restated. How does the ledger show it?</summary>
+    <div><p>A new measurement entry with the corrected economics and a <code>corrects_entry_id</code> pointing at the original. The original stays. Realized-to-date uses the latest measurement for each covered day.</p></div></details>
+  <details><summary>Why does the snapshot id include the ledger checkpoint hash?</summary>
+    <div><p>So a snapshot names exactly the history it was projected from. Two snapshots with the same id are guaranteed to rest on the same ordered entries and the same projector version.</p></div></details>
+  <details><summary>Where would you look to audit the example's counterfactual cost?</summary>
+    <div><p>The <code>COUNTERFACTUAL_RECORDED</code> entry gives the method, the cost and its assumptions. The measurement evidence holds the replay rows and the billed days it was computed from. <code>--from-evidence</code> on that file reproduces it.</p></div></details>
+</div>

@@ -62,7 +62,7 @@ for _path in (ROOT, ROOT / "src"):
 from realizer.config.loader import validate_package  # noqa: E402
 
 PACKAGES = ROOT / "tests" / "fixtures" / "realizer" / "packages"
-GOLDEN_CASES = ROOT / "tests" / "golden" / "cases"
+GOLDEN_CASES = ROOT / "tests" / "golden" / "publisher" / "cases"
 DEMO_SOURCES = {"inplace-size-canary": "wh-demo-006", "two-ready-steps": "wh-demo-009", "unpriced-candidate": "wh-demo-003",
                 "canary-rollback": "wh-demo-040", "migration-priced": "wh-demo-001"}
 CASE_SOURCES = {"scope-migration-only": ("s02-scope-migration-only", "wh-demo-001")}

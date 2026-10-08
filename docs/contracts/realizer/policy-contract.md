@@ -42,6 +42,28 @@ supersession:
   minimum_material_savings_delta_pct: 5.0
 ```
 
+### Policy file settings
+
+`realizer --policy <file>` takes a JSON object whose keys are the settings below (the names of `RealizerPolicy` in `src/realizer/governor/policy.py`); a key not listed is refused, and any setting left out keeps its default. The YAML above groups the same values under contract names; the last column says where each setting sits there. `tests/test_docs.py` fails when a setting or a default here differs from the code.
+
+| Setting | Default | Valid values | Contract name above |
+|---|---|---|---|
+| `minimum_days` | `7` | integer >= 0 | `validation.minimum_days` |
+| `minimum_queries` | `100` | integer >= 0 | `validation.minimum_queries` |
+| `require_representative_regime` | `True` | true or false | `validation.require_representative_regime` |
+| `max_normalized_p95_runtime_regression_pct` | `None` | number >= 0; left out, the package's cost-profile limit governs, and a value only tightens it | `validation.max_normalized_p95_runtime_regression_pct` |
+| `realized_ratio_min` | `0.80` | number >= 0 and >= `under_realized_ratio_min` | `realization.realized_ratio_min` |
+| `under_realized_ratio_min` | `0.50` | number >= 0 and <= `realized_ratio_min` | `realization.under_realized_ratio_min` |
+| `review_above_realized_ratio` | `2.0` | number >= `realized_ratio_min` | `realization.review_above_realized_ratio` |
+| `remeasure_days_after_invalidating_change` | `7` | integer >= 0 | `regeneration.remeasure_days_after_invalidating_change` |
+| `minimum_attributable_spend_pct` | `95` | number from 0 to 100 | `economics.attributable_spend_pct_min` |
+| `minimum_price_coverage_pct` | `100` | number from 0 to 100 | `economics.mandatory_price_coverage_pct` |
+| `required_currency_consistency_pct` | `100` | number from 0 to 100 | `economics.currency_consistency_pct` |
+| `minimum_material_savings_delta_pct` | `5` | number >= 0 | `supersession.minimum_material_savings_delta_pct` |
+| `require_confirmed_origin_for_hard_kpi` | `True` | true or false | `attribution.confirmed_origin_required_for_hard_kpi` |
+
+`policy_version` is the label of the policy in force (`POLICY_VERSION`), not a threshold; it is not listed.
+
 ## 3. Namespace separation
 
 Publisher pre-change realization assumptions such as conservative/base/optimistic factors are not Realizer outcome thresholds. They must never be conflated.

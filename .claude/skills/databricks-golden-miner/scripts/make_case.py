@@ -5,7 +5,7 @@ Usage:
   python .claude/skills/databricks-golden-miner/scripts/make_case.py --run-dir mining_out --warehouse <ws>/<wh>
       --row C59 --slug serverless-churn --description "<one sentence: the pattern and the expected behavior>"
 
-Writes tests/golden/cases/<row>-<slug>/ with:
+Writes tests/golden/publisher/cases/<row>-<slug>/ with:
   case.yaml            name, description, origin: live, collected: <analysis date>, the run's cost-profile flag when
                        the package's profile came from the CLI, and a DRAFT expect block that pins today's decision per
                        knob (status, recommended value, leading blockers). Edit it down to the assertions that state the
@@ -37,7 +37,7 @@ from mine_patterns import find_run, load_run  # noqa: E402
 from publisher.analyzer.collector.replay import validate_evidence_payload  # noqa: E402
 from publisher.config.versions import EVIDENCE_FORMAT_VERSION, PUBLISHER_VERSION  # noqa: E402
 
-CASES = REPO / "tests" / "golden" / "cases"
+CASES = REPO / "tests" / "golden" / "publisher" / "cases"
 
 
 def draft_assertions(pkg: Dict[str, Any]) -> List[Dict[str, Any]]:

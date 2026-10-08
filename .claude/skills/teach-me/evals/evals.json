@@ -1,0 +1,23 @@
+{
+  "skill_name": "teach-me",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just joined the team and I'm lost in this repo. Build me the field guide so I can understand how the publisher and realizer work end to end.",
+      "expected_output": "Writes any missing chapter fragments, builds docs/guide/shared/inframate-guide.html with build_guide.py --verify passing (all citations resolve, worked-example checks match, no external resources), looks at the page once, and reports the chapters, size and verify result.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I changed how auto-stop restart cost is counted in src/publisher/analyzer/findings.py. Refresh the teach-me guide so it still matches the code.",
+      "expected_output": "Runs build_guide.py --stale, rewrites only the chapters whose fingerprinted sources include findings.py (techniques), re-reads the changed code, rebuilds with --verify passing, and summarises per chapter what changed; unaffected chapters are left untouched.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "teach me how the realizer decides whether an applied change counts as REALIZED, using the example warehouse",
+      "expected_output": "Answers in chat without rebuilding: the counterfactual replay, realized = counterfactual old cost - observed new cost, annualization, the classification order against the published range, with ge12's numbers, linking the #realizer chapter and the ledger contract.",
+      "files": []
+    }
+  ]
+}

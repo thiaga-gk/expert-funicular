@@ -144,7 +144,7 @@ class GoldenMinerDemoTests(unittest.TestCase):
         self.assertEqual(_quiet(make_case.main, args)[0], 2)
 
     def test_make_case_accepts_every_case_id_format_and_refuses_others(self):
-        # Registry rows are C## and A##; the scope cases under tests/golden/cases are S## (test_golden_publisher takes [cas]##-).
+        # Registry rows are C## and A##; the scope cases under tests/golden/publisher/cases are S## (test_golden_publisher takes [cas]##-).
         cases = Path(self.tmp.name) / "cases_ids"
         ref = next(iter(self.tag))
         base = ["--run-dir", str(self.run_dir), "--warehouse", ref, "--description", "probe", "--cases-dir", str(cases)]

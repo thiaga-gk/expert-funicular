@@ -1,9 +1,10 @@
 """The Realizer logger and its CLI setup.
 
 Every module logs through ``LOGGER`` (the ``realizer`` logger) as ``<component>.<event> key=value ...`` with lazy
-%-style arguments. Log lines are never canonical output and never carry credentials, SQL text or data values. The
-Realizer logs to stderr; a CLI run in a run folder also writes its log to ``<run folder>/realizer.log``
-(``attach_log_file``).
+%-style arguments. INFO marks lifecycle milestones and one line per warehouse or run, DEBUG per-item detail (a ledger
+entry), WARNING a degraded or refused path, ERROR a crash. Log lines are never canonical output and
+never carry credentials, SQL text or data values. The Realizer logs to stderr; every CLI run also writes its log to
+``realizer.log`` (``attach_log_file``): in the run folder, or beside the report of a backtest.
 """
 from __future__ import annotations
 

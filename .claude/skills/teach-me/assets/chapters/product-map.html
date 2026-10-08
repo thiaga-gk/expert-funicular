@@ -1,0 +1,121 @@
+<p class="lede">inframate-v1 is two read-only products around one hand-off file. The Publisher reads Databricks system tables and writes one locked {{term:package}} per SQL warehouse, saying which configuration change would save money and how sure it is. A person reviews the package and applies a change by hand. The Realizer then takes that package, watches the warehouse after the change and records in an append-only ledger what was actually saved.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 330" role="img" aria-label="The Publisher reads system tables and writes a RecommendationPackage; an owner applies a change by hand; the Realizer reads the package and the tables again and records the realized savings in an RPKG and a ledger; the next Publisher run sees the new configuration epoch.">
+    <rect class="box muted" x="20" y="40" width="180" height="64" rx="8"/>
+    <text class="lbl" x="110" y="66" text-anchor="middle">System tables</text>
+    <text class="sub" x="110" y="84" text-anchor="middle">billing · queries · events</text>
+
+    <rect class="box pub" x="260" y="40" width="170" height="64" rx="8"/>
+    <text class="lbl t-pub" x="345" y="66" text-anchor="middle">Publisher</text>
+    <text class="sub" x="345" y="84" text-anchor="middle">observe · decide · price</text>
+
+    <rect class="box pub" x="490" y="40" width="200" height="64" rx="8"/>
+    <text class="lbl" x="590" y="66" text-anchor="middle">RecommendationPackage</text>
+    <text class="mono" x="590" y="84" text-anchor="middle">PKG-… JSON + workbook</text>
+
+    <rect class="box gate" x="750" y="40" width="190" height="64" rx="8"/>
+    <text class="lbl" x="845" y="66" text-anchor="middle">Warehouse owner</text>
+    <text class="sub" x="845" y="84" text-anchor="middle">reviews · applies by hand</text>
+
+    <rect class="box muted" x="750" y="200" width="190" height="64" rx="8"/>
+    <text class="lbl" x="845" y="226" text-anchor="middle">SQL warehouse</text>
+    <text class="sub" x="845" y="244" text-anchor="middle">new configuration epoch</text>
+
+    <rect class="box real" x="490" y="200" width="200" height="64" rx="8"/>
+    <text class="lbl t-real" x="590" y="226" text-anchor="middle">Realizer</text>
+    <text class="sub" x="590" y="244" text-anchor="middle">measure · validate · attribute</text>
+
+    <rect class="box real" x="260" y="200" width="170" height="64" rx="8"/>
+    <text class="lbl" x="345" y="226" text-anchor="middle">RPKG + ledger</text>
+    <text class="mono" x="345" y="244" text-anchor="middle">RPKG-… · RLE-… JSONL</text>
+
+    <path class="edge pub" d="M200 72 H 256"/>
+    <text class="elbl" x="228" y="30" text-anchor="middle">read-only SQL</text>
+    <path class="edge pub" d="M430 72 H 486"/>
+    <text class="elbl" x="458" y="62" text-anchor="middle">writes</text>
+    <path class="edge" d="M690 72 H 746"/>
+    <text class="elbl" x="718" y="62" text-anchor="middle">proposes</text>
+    <path class="edge warn" d="M845 104 V 196"/>
+    <text class="elbl" x="853" y="156">applies a change</text>
+    <path class="edge real dash" d="M590 104 V 196"/>
+    <text class="elbl" x="598" y="156">one PKG in</text>
+    <path class="edge real" d="M750 232 H 694"/>
+    <text class="elbl" x="722" y="222" text-anchor="middle">observed</text>
+    <path class="edge real" d="M490 232 H 434"/>
+    <text class="elbl" x="462" y="222" text-anchor="middle">appends</text>
+    <path class="edge dash" d="M845 264 V 300 H 110 V 108"/>
+    <text class="elbl" x="478" y="316" text-anchor="middle">the next Publisher run sees the new epoch and starts a new package</text>
+  </svg>
+  <figcaption>The loop. Both products only read; the one write to the warehouse is a person's manual change. The package is the contract between them: the Realizer accepts it only after recomputing its ID and hash.</figcaption>
+</figure>
+
+<h3 id="product-map-two-products">Two products, one contract</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4><span class="chip pub">Publisher</span> {{fact:versions.publisher.publisher_version}}</h4>
+    <p>Answers "what should change on this warehouse, why, and what is it worth?" Entry point {{cite:src/publisher/publisher.py::publish}}. Writes one package per warehouse under <code>packages/</code>, plus <code>evidence.json</code>, <code>workbook.xlsx</code> and <code>manifest.json</code>.</p>
+  </div>
+  <div class="card">
+    <h4><span class="chip real">Realizer</span> {{fact:versions.realizer.realizer_version}}</h4>
+    <p>Answers "the owner applied it; what did it actually save, and can we claim it?" Entry point {{cite:src/realizer/realizer.py::realize_request}}. One PKG in, one {{term:rpkg|RPKG}} and one {{term:ledger|ledger}} out.</p>
+  </div>
+</div>
+<p>The hand-off is the Reporter JSON Contract {{fact:versions.reporter_contract}}. The Realizer accepts exactly the contract version it was built for ({{fact:versions.realizer_formats.supported_publisher_contract}}), checks the package against the Publisher's schema and recomputes its <code>PKG-</code> ID before it reads anything else. Chapter <a href="#package-json">The RecommendationPackage</a> explains the file field by field.</p>
+
+<h3 id="product-map-invariants">Invariants that shape every layer</h3>
+<p>These rules come from the product requirements and the domain model. When a design question comes up, they usually settle it.</p>
+<div class="grid c2">
+  <div class="card"><h4>Deterministic</h4><p>Identical normalized evidence, cost profile and versions produce identical decisions, IDs, confidence and economics, byte for byte. Nothing reads the wall clock or randomness during a decision; the analysis time is an input. See {{term:determinism}}.</p></div>
+  <div class="card"><h4>Read-only</h4><p>OAuth profiles only; a static personal access token is rejected. There is no mutation API and no apply step. The only HTTP verb in the shared access layer is GET ({{cite:src/workflow_shared/databricks/access.py::api_get}}). See {{term:hitl}}.</p></div>
+  <div class="card"><h4>Fail closed on warehouse types</h4><p>Only {{fact:supported_warehouse_types|list}} are analyzed. An unknown or future type is excluded with a reason code, never routed into an existing algorithm ({{cite:src/publisher/analyzer/analyzer.py::_is_supported_warehouse}}). See {{term:fail-closed}}.</p></div>
+  <div class="card"><h4>Unknown is null, never zero</h4><p>Unpriced usage, missing AWS prices or thin history leave a cost <code>null</code> with a status code. A zero would read as "free" and inflate savings. {{term:dbu|DBU}} and {{term:aws-cost|AWS}} costs always stay separate components.</p></div>
+  <div class="card"><h4>One candidate per knob</h4><p>Every package decides each active {{term:knob|knob}} exactly once: {{fact:active_knobs|list}}. Photon and the warehouse channel are observed and reported, never recommended, because neither has a priced effect.</p></div>
+  <div class="card"><h4>The JSON is the truth</h4><p>The package is the machine source of truth. The workbook ({{fact:workbook.sheet_names|list}}) only projects it: no formula, estimate, ID or selection logic lives in Excel.</p></div>
+</div>
+
+<h3 id="product-map-capabilities">What the products can do</h3>
+<p>The capability inventory, with the chapter that explains each one.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Capability</th><th>Product</th><th>What it gives you</th><th>Chapter</th></tr></thead>
+  <tbody>
+    <tr><td>Demo mode</td><td><span class="chip pub">Publisher</span> <span class="chip real">Realizer</span></td><td><code>--demo</code> simulates one warehouse per golden scenario (Publisher) or a world after the change (Realizer), with no Databricks access.</td><td><a href="#operations">Operations</a></td></tr>
+    <tr><td>Live mode</td><td>both</td><td>Reads system tables through an OAuth profile and a collector warehouse; the Realizer refuses to use the warehouse it is measuring as the collector.</td><td><a href="#evidence-epochs">Evidence</a></td></tr>
+    <tr><td>Replay</td><td>both</td><td><code>--from-evidence</code> re-runs from saved evidence and reproduces the same outputs offline ({{term:replay-evidence}}).</td><td><a href="#evidence-epochs">Evidence</a></td></tr>
+    <tr><td>Five techniques</td><td>Publisher</td><td>Size, max clusters, min clusters, auto-stop and warehouse-type migration, each with a stable {{term:technique|technique}} ID.</td><td><a href="#techniques">Techniques</a></td></tr>
+    <tr><td>Canary rollback</td><td>Publisher</td><td>After a canary-type change, a tripped fail-fast guard turns into a recommendation to restore the previous value ({{term:canary-rollback}}).</td><td><a href="#techniques">Techniques</a></td></tr>
+    <tr><td>Stateful scenarios</td><td>Publisher</td><td>Candidates combine into ordered plans priced step by step, plus a migration alternative, inside a {{term:envelope|package envelope}}.</td><td><a href="#estimation">Estimation</a></td></tr>
+    <tr><td>Cost profiles</td><td>Publisher</td><td>Aggressive, balanced or conservative risk appetite per warehouse, by flag or by nonprod tags ({{term:cost-profile}}).</td><td><a href="#policy">Policy</a></td></tr>
+    <tr><td>Run scope</td><td>Publisher</td><td><code>--scope</code>, <code>--scope-file</code>, <code>--warehouse</code> restrict what is recommended, never what is observed ({{term:run-scope}}).</td><td><a href="#policy">Policy</a></td></tr>
+    <tr><td>Workbook and manifest</td><td>both</td><td>A presentation workbook and a run manifest listing packages, exclusions and billed warehouses that were never seen.</td><td><a href="#operations">Operations</a></td></tr>
+    <tr><td>Counterfactual measurement</td><td>Realizer</td><td>Auto-stop replay, size runtime ratio and minimum-cluster floor counterfactuals, checked against billing ({{term:counterfactual}}).</td><td><a href="#realizer">Realizer</a></td></tr>
+    <tr><td>Attribution and maturity</td><td>Realizer</td><td>Financial-quality gates, claimability, lineage ownership and maturity up to a trailing twelve months ({{term:attribution}}).</td><td><a href="#realizer">Realizer</a></td></tr>
+    <tr><td>Fleet run and backtest</td><td>Realizer</td><td><code>--publisher-run</code> realizes every package of a Publisher run; <code>--backtest</code> scores past auto-stop changes without a package.</td><td><a href="#operations">Operations</a></td></tr>
+    <tr><td>Golden suites</td><td>both</td><td>{{fact:golden.publisher_count}} Publisher {{term:golden-case|golden cases}} and {{fact:golden.realizer_e2e_count}} end-to-end Publisher-to-Realizer cases pin every behavior byte for byte.</td><td><a href="#operations">Operations</a></td></tr>
+    <tr><td>Skills suite</td><td>repo</td><td>Claude Code skills that design and build publishers for other Databricks services, mine golden scenarios from live data, and build this guide.</td><td><a href="#operations">Operations</a></td></tr>
+  </tbody>
+</table></div>
+<p>Both products reach Databricks through {{cite:src/workflow_shared/__init__.py|src/workflow_shared/}}: the OAuth token resolution, the GET-only REST call and the UTC-pinned SQL client ({{cite:src/workflow_shared/databricks/access.py::SqlClient}}). It imports neither product; each product injects its own logger, user agent and error type through {{cite:src/workflow_shared/databricks/access.py::AccessConfig}}.</p>
+
+<h3 id="product-map-reading-order">How to read this guide</h3>
+<ol>
+  <li><a href="#publisher-pipeline">Publisher pipeline</a>: the seven capabilities and what each hands to the next.</li>
+  <li><a href="#evidence-epochs">Evidence and configuration epochs</a>: where the facts come from and which period they describe.</li>
+  <li><a href="#techniques">Techniques</a> and <a href="#estimation">Estimation math</a>: how a decision is made and priced, with the running example's numbers.</li>
+  <li><a href="#policy">Policy</a>: the thresholds, cost profiles and run scope that tune those decisions.</li>
+  <li><a href="#package-json">The RecommendationPackage</a> and <a href="#realizer-json">Realizer outputs</a>: the JSON files, explorable field by field.</li>
+  <li><a href="#realizer">Realizer pipeline and math</a>: how realized savings are measured and when they can be claimed.</li>
+  <li><a href="#trace">Follow one warehouse</a>: the running example from evidence to ledger in one pass.</li>
+</ol>
+<div class="callout"><b>The running example</b><p>Every number in the worked examples comes from golden case <code>ge12-full-scope-auto-stop</code>: warehouse <code>{{pkg:warehouse.warehouse_id}}</code> ("{{pkg:warehouse.warehouse_name}}"), a {{pkg:current_config.warehouse_type}} {{pkg:current_config.warehouse_size}} warehouse with auto-stop at {{pkg:current_config.auto_stop_minutes}} minutes. Its package {{pkg:recommendation_package_id|id}} recommends auto-stop {{ex:autostop.current}} → {{ex:autostop.target}} first, then a canary size cut; the owner applied the auto-stop step and the Realizer measured four settled weeks. The build recomputes {{ex:checks_total}} of these numbers and fails if any drifts.</p></div>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>Who changes the warehouse configuration?</summary>
+    <div><p>A person. Both products are read-only: no mutation API, no apply step. The Publisher proposes, the owner applies by hand, the Realizer observes the result in system tables.</p></div></details>
+  <details><summary>A billing row has no list price. What cost does the package show?</summary>
+    <div><p><code>null</code> with an unavailability status, never <code>0</code>. A zero would make the usage look free and overstate savings; unknown stays visible as unknown.</p></div></details>
+  <details><summary>Why does the Realizer recompute the package ID before reading the package?</summary>
+    <div><p>The ID is a content hash. Recomputing it proves the file is exactly what the Publisher produced, so the Realizer measures against the real recommendation and not an edited copy.</p></div></details>
+  <details><summary>Photon is enabled on a warehouse. Will the Publisher recommend turning it off?</summary>
+    <div><p>No. Photon is inferred from billing and reported in <code>current_config.photon</code>, but Databricks publishes no Photon on/off price for SQL warehouses, so any savings figure would be a guess.</p></div></details>
+</div>

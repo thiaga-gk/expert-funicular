@@ -24,6 +24,7 @@ import argparse
 import dataclasses
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
@@ -31,7 +32,7 @@ from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER, attach_log_file, setup_logging
 from realizer.config.loader import (SUPPORTED_PUBLISHER_CONTRACT, load_approvals, load_package, load_policy_mapping, load_publisher_run,
                                     select_warehouses)
-from realizer.config.output_layout import DEFAULT_OUTPUT_DIR, RunLayout, resolve_layout, resolve_state_dir
+from realizer.config.output_layout import DEFAULT_OUTPUT_DIR, RunLayout, backtest_log_path, resolve_layout, resolve_state_dir
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
 from realizer.contracts.approvals import warn_unmatched
 from realizer.contracts.fleet import SOURCE_DEMO, SOURCE_EVIDENCE, SOURCE_LIVE, FleetRequest, LiveSource
@@ -68,7 +69,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--state-dir", help="Long-lived state: ledgers, evidence, regeneration requests, measurements, source "
                    "package copies, policies, state index (default <output-dir>/state)")
     p.add_argument("--flat-output", action="store_true", help="Write the state and the projections under --output-dir "
-                   "itself (single-folder layout, no run folder, no log file)")
+                   "itself (single-folder layout: no run folder; realizer.log sits beside the projections)")
     p.add_argument("--policy", help="Optional Realizer policy override JSON")
     p.add_argument("--demo", action="store_true", help="Measure the package's Publisher demo-fleet warehouse in a simulated world "
                    "where its first eligible step was applied (demo-fleet packages only)")
@@ -124,7 +125,8 @@ def parse_backtest_args(argv: Sequence[str]) -> argparse.Namespace:
 def run_backtest(argv: Sequence[str]) -> int:
     """One backtest: refusals (InputError, one line naming options, never values) before anything is read or written."""
     args = parse_backtest_args(argv)
-    setup_logging(args.log_level)
+    started = time.monotonic()
+    setup_logging(args.log_level, keep_for_log_file=True)
     LOGGER.info("realizer.backtest.start version=%s release=%s", REALIZER_VERSION, PRODUCT_VERSION)
     if args.package:
         raise InputError("--backtest reads no package: drop --package")
@@ -143,7 +145,9 @@ def run_backtest(argv: Sequence[str]) -> int:
         report, path = backtest_from_evidence(args.from_evidence, output_dir)
     else:
         report, path = backtest_demo(output_dir)
-    LOGGER.info("realizer.backtest.done changes=%d skipped=%d", len(report["changes"]), len(report["skipped"]))
+    LOGGER.info("realizer.backtest.done changes=%d skipped=%d elapsed_ms=%d report=%s", len(report["changes"]), len(report["skipped"]),
+                int((time.monotonic() - started) * 1000), path)
+    attach_log_file(backtest_log_path(output_dir))  # with the report: a refused backtest writes nothing
     for line in backtest_summary(report):
         print(line)
     print(path)
@@ -154,8 +158,7 @@ def run_layout(args: argparse.Namespace) -> RunLayout:
     """The layout of this run (``realizer.config.output_layout.resolve_layout``); the run folder is created and, outside
     the single-folder layout, the log is written to ``<run folder>/realizer.log`` from here on."""
     layout = resolve_layout(Path(args.output_dir), Path(args.state_dir) if args.state_dir else None, flat=args.flat_output)
-    if layout.log_path is not None:
-        attach_log_file(layout.log_path)
+    attach_log_file(layout.log_path)
     LOGGER.info("realizer.layout run_dir=%s state_dir=%s flat=%s", layout.run_dir, layout.state_dir, layout.flat)
     return layout
 
@@ -165,7 +168,8 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     if "--backtest" in argv:
         return run_backtest(argv)
     args = parse_args(argv)
-    setup_logging(args.log_level, keep_for_log_file=not args.flat_output)
+    started = time.monotonic()
+    setup_logging(args.log_level, keep_for_log_file=True)
     LOGGER.info("realizer.start version=%s release=%s", REALIZER_VERSION, PRODUCT_VERSION)
     if args.publisher_run:
         return run_fleet(args)
@@ -199,8 +203,8 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     warn_unmatched(approvals)
     layout = run_layout(args)
     snapshot = realize_package(dataclasses.replace(request, observation=observation, output_dir=layout.run_dir, state_dir=layout.state_dir)).realization
-    LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s", snapshot.realization_package_id, snapshot.snapshot_id,
-                snapshot.current_state["realization_state"])
+    LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s elapsed_ms=%d", snapshot.realization_package_id, snapshot.snapshot_id,
+                snapshot.current_state["realization_state"], int((time.monotonic() - started) * 1000))
     if args.print_json:
         print(json.dumps(snapshot.to_dict(), indent=2, sort_keys=True))
     else:

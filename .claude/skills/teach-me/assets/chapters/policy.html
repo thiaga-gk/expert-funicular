@@ -1,0 +1,155 @@
+<p class="lede">Policy is the set of numbers that decides how much evidence is enough and how much risk a cut may take. It lives in one frozen object, {{cite:src/publisher/governor/thresholds.py::Thresholds}}, owned by the Governor. Cost profiles adjust a small part of it per warehouse, and a run scope limits what gets recommended. Databricks platform facts sit beside the policy and are never adjusted.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 400" role="img" aria-label="Thresholds defaults are overlaid per warehouse with the cost profile chosen from CLI flags or a nonprod tag; the effective thresholds drive the techniques and are recorded in the package, while product constants reach the techniques unchanged.">
+    <rect class="box" x="24" y="40" width="184" height="56" rx="8"/>
+    <text class="lbl" x="116" y="64" text-anchor="middle">Thresholds()</text>
+    <text class="sub" x="116" y="82" text-anchor="middle">balanced defaults</text>
+
+    <rect class="box" x="24" y="136" width="184" height="56" rx="8"/>
+    <text class="lbl" x="116" y="160" text-anchor="middle">--cost-profile</text>
+    <text class="sub" x="116" y="178" text-anchor="middle">all or per warehouse</text>
+
+    <rect class="box" x="24" y="216" width="184" height="56" rx="8"/>
+    <text class="lbl" x="116" y="240" text-anchor="middle">Warehouse tags</text>
+    <text class="sub" x="116" y="258" text-anchor="middle">current epoch</text>
+
+    <rect class="box muted" x="24" y="312" width="184" height="56" rx="8"/>
+    <text class="lbl" x="116" y="336" text-anchor="middle">PRODUCT_CONSTANTS</text>
+    <text class="sub" x="116" y="354" text-anchor="middle">platform facts</text>
+
+    <rect class="box gate" x="272" y="176" width="200" height="56" rx="8"/>
+    <text class="lbl" x="372" y="200" text-anchor="middle">assign_cost_profiles</text>
+    <text class="sub" x="372" y="218" text-anchor="middle">one profile per warehouse</text>
+
+    <rect class="box pub" x="536" y="96" width="208" height="56" rx="8"/>
+    <text class="lbl" x="640" y="120" text-anchor="middle">thresholds_for_profile</text>
+    <text class="sub" x="640" y="138" text-anchor="middle">overlay profiled fields</text>
+
+    <rect class="box pub" x="800" y="40" width="144" height="56" rx="8"/>
+    <text class="lbl" x="872" y="64" text-anchor="middle">cost_profile</text>
+    <text class="sub" x="872" y="82" text-anchor="middle">in the package</text>
+
+    <rect class="box pub" x="800" y="176" width="144" height="56" rx="8"/>
+    <text class="lbl" x="872" y="200" text-anchor="middle">Techniques</text>
+    <text class="sub" x="872" y="218" text-anchor="middle">decide each knob</text>
+
+    <path class="edge" d="M208 68 H 640 V 92"/>
+    <text class="elbl" x="424" y="60" text-anchor="middle">every field</text>
+    <path class="edge" d="M208 164 H 240 V 192 H 268"/>
+    <text class="elbl" x="236" y="152" text-anchor="middle">override</text>
+    <path class="edge" d="M208 244 H 240 V 216 H 268"/>
+    <text class="elbl" x="236" y="264" text-anchor="middle">nonprod tag</text>
+    <path class="edge pub" d="M472 204 H 504 V 124 H 532"/>
+    <text class="elbl" x="504" y="222" text-anchor="middle">profile name</text>
+    <path class="edge pub" d="M744 112 H 772 V 68 H 796"/>
+    <text class="elbl" x="772" y="56" text-anchor="middle">recorded</text>
+    <path class="edge pub" d="M744 136 H 772 V 204 H 796"/>
+    <text class="elbl" x="772" y="224" text-anchor="middle">effective</text>
+    <path class="edge dash" d="M208 340 H 872 V 236"/>
+    <text class="elbl" x="540" y="332" text-anchor="middle">never overlaid</text>
+  </svg>
+  <figcaption>Where policy enters a run. The profile replaces only its own fields of the defaults; the result decides the knobs and is published in the package's <code>cost_profile</code>. Product constants bypass the overlay.</figcaption>
+</figure>
+
+<h3 id="policy-thresholds">Thresholds: one frozen policy object</h3>
+<p><code>Thresholds</code> is a frozen dataclass with {{fact:threshold_count}} fields: evidence floors (how many queries, how many settled billed days), pressure limits (queueing, spill, latency), estimator parameters (forecast weights, realization factors), confidence weights and caps, and planner risks. The Governor owns it; every technique and estimator receives the instance it should use instead of reading globals. Its <code>__post_init__</code> refuses confidence weights that do not sum to one, and derived caps such as <code>confidence_cap_default</code> are properties computed from the cut-offs, so a cap can never drift above the level it is meant to keep a candidate below.</p>
+<p>A change to any default changes decisions. The repo treats it like a code change to an algorithm: bump the affected component versions in {{cite:src/publisher/config/versions.py}}, regenerate the golden cases, and update the row in {{doc:docs/reference/publisher/thresholds.md#parameter-reference|thresholds.md}}. A test compares that document's defaults with the dataclass, so the two cannot drift.</p>
+<div class="callout rule"><b>Rule</b><p>Prose names a parameter; only the dataclass and its reference page hold the number. When you need a value in code, read it from the <code>Thresholds</code> instance you were given. A literal such as <code>500</code> in a technique would escape both the cost profile and the version bump.</p></div>
+
+<h3 id="policy-profiles">Cost profiles</h3>
+<p>Every warehouse is evaluated under exactly one {{term:cost-profile}}: <code>conservative</code>, <code>balanced</code> or <code>aggressive</code>. Balanced is the dataclass defaults. The other two replace only the fields named in {{cite:src/publisher/contracts/reporter_contract.py::COST_PROFILE_GROUPS}}, grouped by technique, with the values in {{cite:src/publisher/governor/cost_profiles.py::_OVERLAYS}}. {{cite:src/publisher/governor/cost_profiles.py::thresholds_for_profile}} returns the base instance for balanced and a <code>dataclasses.replace</code> copy otherwise, so every field outside the groups is identical under all three profiles.</p>
+<div class="grid c2">
+  <div class="card"><h4><span class="chip good">may change</span></h4><p>How much measured pressure a cut may tolerate (spill, p95 and p99 latency, queueing, time at the floor or ceiling), the added cold-start share a lower auto-stop may cause, the canary rollback margin, the growth hold, and the materiality floor of the value gate (<code>cost_change_min_annual_savings</code>).</p></div>
+  <div class="card"><h4><span class="chip bad">never changes</span></h4><p>Evidence minimums, product constants, forecast and estimator parameters, confidence, classification rules, the failure and cancel guard, and every rule that adds capacity (size up, max-cluster increase). A candidate's price is therefore the same under every profile; only whether a cut is allowed moves.</p></div>
+</div>
+{{table:profiles}}
+<p>How a warehouse gets its profile ({{cite:src/publisher/governor/cost_profiles.py::assign_cost_profiles}}), first match wins:</p>
+<ol>
+  <li>A per-warehouse flag, <code>--cost-profile aggressive=wh-demo-005</code> (a bare warehouse ID, or <code>workspace_id/warehouse_id</code> when the ID exists in several workspaces). A reference that names no collected warehouse stops the run instead of silently falling back.</li>
+  <li>An all-warehouse flag, <code>--cost-profile conservative</code>.</li>
+  <li>The tag default: a current-epoch tag whose key is in <code>nonprod_tag_keys</code> ({{fact:thresholds.nonprod_tag_keys|list}}) and whose value is in <code>nonprod_tag_values</code> selects aggressive ({{cite:src/publisher/governor/cost_profiles.py::nonprod_tag_match}}).</li>
+  <li>Otherwise balanced.</li>
+</ol>
+<p>Flags are parsed by the config layer ({{cite:src/publisher/config/cost_profiles.py::parse_cost_profile_flags}}), which rejects an unknown profile or one warehouse given two different profiles.</p>
+<p>The package records the choice in <code>cost_profile</code>: the name, the source (<code>CLI_WAREHOUSE</code>, <code>CLI_ALL</code>, <code>TAG_DEFAULT</code> or <code>DEFAULT</code>), the source detail and the effective <code>applied_thresholds</code> ({{cite:src/publisher/governor/cost_profiles.py::applied_thresholds}}). The example warehouse ran as <code>{{pkg:cost_profile.name}}</code> with source <code>{{pkg:cost_profile.source}}</code>, so its cold-start budget is {{pkg:cost_profile.applied_thresholds.auto_stop.cold_start_added_share_max_pct}}% and its materiality floor {{pkg:cost_profile.applied_thresholds.cross_technique.cost_change_min_annual_savings|money}}. Under conservative the same floor would be {{fact:profiles.conservative.cost_change_min_annual_savings|money}}, under aggressive {{fact:profiles.aggressive.cost_change_min_annual_savings|money}}.</p>
+<div class="callout"><b>Why the profile is hashed</b><p>The profile name and its applied thresholds are inputs to the candidate, scenario and package IDs. The same evidence evaluated under two profiles produces different IDs even when every decision happens to match, so a package always states which risk appetite produced it. The package gate re-derives <code>applied_thresholds</code> from the name and refuses a package whose values disagree ({{cite:src/publisher/reviewer/package.py::review_contract}}).</p></div>
+
+<h3 id="policy-constants">Product constants are not policy</h3>
+<p>Some numbers describe Databricks itself: how long a Pro or Classic warehouse waits before adding a cluster, the lowest auto-stop each type accepts, the cluster limits, how many concurrent queries one cluster serves. They live in {{cite:src/publisher/config/defaults.py::PRODUCT_CONSTANTS}} with a source link per row in {{doc:docs/reference/publisher/product-constants.md|product-constants.md}}. No profile or policy version changes them; when Databricks changes a limit, the constant and its documented source change together.</p>
+{{table:product_constants}}
+<p>Two examples of how they bound decisions: the auto-stop technique never evaluates a value below {{fact:product_constants.AUTO_STOP_FLOOR_PRO_CLASSIC}} minutes on Pro or Classic ({{fact:product_constants.AUTO_STOP_FLOOR_SERVERLESS}} on Serverless), and a max-cluster increase stops at {{fact:product_constants.MAX_CLUSTERS_SUPPORTED_LIMIT}}.</p>
+
+<h3 id="policy-scope">Run scope</h3>
+<p>A {{term:run-scope}} restricts what a run recommends. It never restricts what is observed or decided. The config layer ({{cite:src/publisher/config/loader.py::resolve_scope}}) turns <code>--scope</code>, <code>--scope-file</code> and <code>--warehouse</code> into a frozen {{cite:src/publisher/contracts/scope.py::RunScope}}: the knobs in scope and the selected warehouses. No input gives the full scope, which reproduces an unscoped run. The scenario and technique names come from {{cite:src/publisher/config/defaults.py::SCOPE_SCENARIOS}}:</p>
+{{table:scope}}
+<figure class="diagram">
+  <svg viewBox="0 0 984 176" role="img" aria-label="Scope does not touch the Analyzer; the Governor narrows warehouses, the Optimizer decides every knob and then drops out-of-scope decisions except canary rollbacks, the Reviewer and Packager work on what is left, and the package records the scope.">
+    <rect class="box muted" x="24" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="92" y="64" text-anchor="middle">Analyzer</text>
+    <text class="sub" x="92" y="82" text-anchor="middle">unaffected</text>
+    <rect class="box gate" x="184" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="252" y="64" text-anchor="middle">Governor</text>
+    <text class="sub" x="252" y="82" text-anchor="middle">select warehouses</text>
+    <rect class="box pub" x="344" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="412" y="64" text-anchor="middle">Optimizer</text>
+    <text class="sub" x="412" y="82" text-anchor="middle">decide all, filter</text>
+    <rect class="box gate" x="504" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="572" y="64" text-anchor="middle">Reviewer</text>
+    <text class="sub" x="572" y="82" text-anchor="middle">one per scoped knob</text>
+    <rect class="box pub" x="664" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="732" y="64" text-anchor="middle">Packager</text>
+    <text class="sub" x="732" y="82" text-anchor="middle">scoped scenarios</text>
+    <rect class="box pub" x="824" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="892" y="64" text-anchor="middle">Package</text>
+    <text class="sub" x="892" y="82" text-anchor="middle">run_scope, hashed</text>
+    <path class="edge" d="M160 68 H 180"/>
+    <path class="edge" d="M320 68 H 340"/>
+    <path class="edge" d="M480 68 H 500"/>
+    <path class="edge" d="M640 68 H 660"/>
+    <path class="edge" d="M800 68 H 820"/>
+    <text class="mono" x="92" y="124" text-anchor="middle">evidence.json</text>
+    <text class="mono" x="92" y="140" text-anchor="middle">is scope-free</text>
+    <text class="mono" x="412" y="124" text-anchor="middle">in_scope keeps</text>
+    <text class="mono" x="412" y="140" text-anchor="middle">canary rollbacks</text>
+    <text class="mono" x="732" y="124" text-anchor="middle">Plan A and/or</text>
+    <text class="mono" x="732" y="140" text-anchor="middle">Plan B</text>
+  </svg>
+  <figcaption>Scope is applied after the decisions. Every technique still decides, so cross-technique rules behave the same in every scope; out-of-scope decisions are dropped before pricing.</figcaption>
+</figure>
+<ul>
+  <li><b>Analyzer:</b> collects and normalizes every visible warehouse, so <code>evidence.json</code> can be replayed under any scope.</li>
+  <li><b>Governor:</b> the warehouse selection narrows the eligible fleet ({{cite:src/publisher/governor/eligibility.py::selected_warehouse_keys}}). A selector that matches nothing, or a bare ID found in two workspaces, stops the run.</li>
+  <li><b>Optimizer:</b> every knob is decided first; {{cite:src/publisher/optimizer/optimizer.py::in_scope}} then keeps the in-scope decisions plus any decision carrying <code>CANARY_GUARDRAIL_BREACHED</code>. A rollback is a safety action and survives every scope.</li>
+  <li><b>Packager:</b> builds the in-place plan when <code>current</code> is in scope or a rollback must run, and the migration plan when <code>migration</code> is in scope. Without an in-place plan the recommended scenario is a step-less <code>NO_CHANGE_BASELINE</code>, so a migration experiment is never the recommended path.</li>
+  <li><b>Package:</b> a restricted scope is written to <code>run_scope</code> with the scoped knobs per scenario type and the <code>safety_inclusions</code> (rollbacks published outside the scope) ({{cite:src/publisher/packager/packager.py::_run_scope_contract}}). It is null for a full assessment, as in the example (<code>run_scope</code> = {{pkg:run_scope|json}}).</li>
+</ul>
+<pre class="code"><code># only the auto-stop technique of the in-place scenario, every warehouse
+publisher --demo --output-dir ./demo_out --scope current:auto-stop
+
+# two in-place techniques, one warehouse
+publisher --demo --output-dir ./demo_out --scope current:auto-stop,min-clusters --warehouse wh-demo-005
+
+# the same choices from a file (it holds the warehouse list too, so it is not combined with --scope or --warehouse)
+publisher --demo --output-dir ./demo_out --scope-file examples/scopes/current-auto-stop.json</code></pre>
+<p>Scope files follow {{cite:schema/run-scope.schema.json}}, generated from <code>SCOPE_SCENARIOS</code> by {{cite:src/publisher/contracts/scope.py::build_scope_schema}}: every scenario and technique toggle is required and unknown keys are rejected. Ready-made examples live in {{cite:examples/scopes/}}. The full semantics per capability are in {{doc:docs/architecture/publisher/lld.md#54-run-scope|LLD section 5.4}}.</p>
+<div class="callout"><b>Same candidate in every scope</b><p>Scope is not a candidate hash input and candidates are priced alone against the current configuration. An in-scope candidate is therefore byte-identical to the same candidate in a full run of the same evidence; only the package ID changes, because <code>run_scope</code> is part of the package hash.</p></div>
+
+<h3 id="policy-eligibility">Eligibility and the supported-type gate</h3>
+<p>The Governor decides what the Optimizer may consider ({{cite:src/publisher/governor/governor.py::govern}}). Its one hard rule is {{term:fail-closed}}: only {{fact:supported_warehouse_types|list}} (standard Serverless) are analyzed ({{cite:src/publisher/config/defaults.py::SUPPORTED_WAREHOUSE_TYPES}}, checked by {{cite:src/publisher/analyzer/analyzer.py::_is_supported_warehouse}}). Any other or future type is never routed into the existing algorithms. It is listed once with reason <code>UNSUPPORTED_WAREHOUSE_TYPE</code> ({{cite:src/publisher/governor/eligibility.py::unsupported_warehouse_exclusions}}) and recorded in the run manifest, while the rest of the fleet is still evaluated.</p>
+<p>A live run also checks the AWS price registry before anything is decided ({{cite:src/publisher/governor/constraints.py::aws_region_price_guard}}). When the source region is missing from the registry, the run stops unless <code>--allow-missing-aws-price</code> is given, in which case Pro and Classic AWS cost is published as unavailable rather than guessed. Demo and replay runs skip this check.</p>
+
+<h3 id="policy-reference">Every threshold</h3>
+<p>The full parameter table, generated from the dataclass defaults and the meanings in {{doc:docs/reference/publisher/thresholds.md#parameter-reference|thresholds.md}}. Highlighted cells are the fields a cost profile replaces. Filter by name or pick a decision area.</p>
+{{table:thresholds}}
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>A warehouse is tagged <code>env=dev</code> and the run passes <code>--cost-profile conservative</code>. Which profile applies?</summary>
+    <div><p>Conservative. An all-warehouse flag beats the tag default; only a per-warehouse flag would beat that flag. The package's <code>cost_profile.source</code> reads <code>CLI_ALL</code>.</p></div></details>
+  <details><summary>Can switching to the aggressive profile raise a candidate's estimated savings?</summary>
+    <div><p>No. Profiles never touch estimator or forecast parameters, so a candidate's economics are the same under every profile. Aggressive can only let a cut through that a stricter profile holds, or let a smaller saving pass the materiality floor.</p></div></details>
+  <details><summary>A run is scoped to <code>migration</code>, but the size canary from last week tripped its p95 guard. What does the package contain?</summary>
+    <div><p>The migration candidate, plus the size rollback listed in <code>run_scope.safety_inclusions</code>. The rollback is kept because <code>in_scope</code> never drops a decision carrying <code>CANARY_GUARDRAIL_BREACHED</code>, and the recommended scenario becomes an in-place scenario holding only that rollback.</p></div></details>
+  <details><summary>Why is the auto-stop floor in <code>PRODUCT_CONSTANTS</code> and not in <code>Thresholds</code>?</summary>
+    <div><p>It is a documented Databricks limit, not a risk choice. Keeping it out of <code>Thresholds</code> means no cost profile and no policy version can push a recommendation below what the platform accepts.</p></div></details>
+</div>

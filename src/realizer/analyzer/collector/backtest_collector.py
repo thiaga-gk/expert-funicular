@@ -23,6 +23,7 @@ from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
 from realizer.common.utils import utc_iso, write_json
 from realizer.config.loader import read_json_input
+from realizer.config.output_layout import BACKTEST_DIR_PARTS
 from realizer.config.settings import DEFAULT_AWS_PRICE_REGISTRY, SUPPORTED_WAREHOUSE_TYPES
 from realizer.contracts.backtest import BACKTEST_EVIDENCE_FORMAT_VERSION, backtest_evidence_schema
 
@@ -128,7 +129,7 @@ def load_backtest_evidence(path: str | Path) -> Dict[str, Any]:
 def backtest_paths(output_dir: Path, as_of: str) -> Tuple[Path, Path]:
     """``(evidence, report)`` files of a backtest at *as_of* under ``<output-dir>/realization/backtest/``."""
     stamp = utc_iso(as_of).replace("-", "").replace(":", "")
-    base = Path(output_dir) / "realization" / "backtest"
+    base = Path(output_dir).joinpath(*BACKTEST_DIR_PARTS)
     return base / f"evidence-{stamp}.json", base / f"backtest-{stamp}.json"
 
 

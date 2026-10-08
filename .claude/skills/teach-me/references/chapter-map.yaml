@@ -1,0 +1,173 @@
+# Chapter map: the single list of chapters in the guide, in reading order.
+#
+# id        anchor in the page and the fragment file name: assets/chapters/<id>.html
+# group     sidebar group heading
+# sources   repo paths (files or folders) the chapter explains. build_guide.py fingerprints their contents; when a
+#           fingerprint changes, `--stale` lists the chapter for a rewrite. A folder covers every file under it.
+# docs      the documents that own the chapter's topics (shown in the "Where this lives" panel). The guide teaches
+#           and points; these documents stay the single home of each topic (docs/README.md).
+chapters:
+  - id: product-map
+    title: The product in one picture
+    group: Foundations
+    sources:
+      - src/publisher/publisher.py
+      - src/realizer/realizer.py
+      - src/workflow_shared/
+    docs:
+      - docs/architecture/publisher/context.md
+      - docs/architecture/realizer/context.md
+      - docs/product/publisher/prd.md
+      - docs/product/realizer/prd.md
+
+  - id: publisher-pipeline
+    title: Publisher pipeline
+    group: Publisher
+    sources:
+      - src/publisher/publisher.py
+      - src/publisher/analyzer/analyzer.py
+      - src/publisher/governor/governor.py
+      - src/publisher/optimizer/optimizer.py
+      - src/publisher/reviewer/
+      - src/publisher/packager/packager.py
+      - src/publisher/reporter/reporter.py
+      - src/publisher/cli/
+      - src/publisher/config/loader.py
+    docs:
+      - docs/architecture/publisher/hld.md
+      - docs/architecture/publisher/lld.md
+
+  - id: evidence-epochs
+    title: Evidence and configuration epochs
+    group: Publisher
+    sources:
+      - src/publisher/analyzer/collector/
+      - src/publisher/analyzer/epochs.py
+      - src/publisher/analyzer/normalizer.py
+      - src/publisher/contracts/source.py
+    docs:
+      - docs/reference/publisher/source-mapping.md
+      - docs/contracts/publisher/evidence-format.md
+      - docs/architecture/publisher/context.md
+
+  - id: techniques
+    title: Techniques and decision rules
+    group: Publisher
+    sources:
+      - src/publisher/optimizer/techniques/
+      - src/publisher/optimizer/conflicts.py
+      - src/publisher/optimizer/optimizer.py
+      - src/publisher/analyzer/findings.py
+      - src/publisher/packager/adapter.py
+    docs:
+      - docs/reference/publisher/technique-catalog.md
+      - docs/architecture/publisher/lld.md
+      - docs/reference/publisher/blocker-codes.md
+
+  - id: estimation
+    title: Estimation math
+    group: Publisher
+    sources:
+      - src/publisher/analyzer/forecast.py
+      - src/publisher/analyzer/metrics.py
+      - src/publisher/optimizer/estimator/
+      - src/publisher/packager/estimator/
+      - src/publisher/packager/scenarios.py
+      - src/publisher/packager/sequencing.py
+      - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
+    docs:
+      - docs/architecture/publisher/lld.md
+      - docs/reference/publisher/aws-cost-model.md
+
+  - id: policy
+    title: Policy, cost profiles and run scope
+    group: Publisher
+    sources:
+      - src/publisher/governor/thresholds.py
+      - src/publisher/governor/cost_profiles.py
+      - src/publisher/governor/eligibility.py
+      - src/publisher/config/defaults.py
+      - src/publisher/contracts/scope.py
+    docs:
+      - docs/reference/publisher/thresholds.md
+      - docs/reference/publisher/product-constants.md
+      - docs/architecture/publisher/lld.md
+
+  - id: package-json
+    title: The RecommendationPackage
+    group: Publisher
+    sources:
+      - src/publisher/contracts/reporter_contract.py
+      - src/publisher/reporter/json_reporter.py
+      - schema/recommendation-package.schema.json
+      - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
+    docs:
+      - docs/contracts/shared/reporter-json-contract.md
+
+  - id: realizer
+    title: Realizer pipeline and math
+    group: Realizer
+    sources:
+      - src/realizer/realizer.py
+      - src/realizer/config/loader.py
+      - src/realizer/analyzer/
+      - src/realizer/governor/
+      - src/realizer/reconciler/
+      - src/realizer/estimator/
+      - src/realizer/reviewer/
+    docs:
+      - docs/architecture/realizer/hld.md
+      - docs/contracts/realizer/source-evidence-contract.md
+      - docs/contracts/realizer/policy-contract.md
+
+  - id: realizer-json
+    title: Realizer outputs, explained
+    group: Realizer
+    sources:
+      - src/realizer/contracts/realization.py
+      - src/realizer/contracts/measurement.py
+      - src/realizer/packager/
+      - schema/realization-package.schema.json
+      - schema/realization-ledger-entry.schema.json
+      - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
+    docs:
+      - docs/contracts/realizer/ledger-contract.md
+      - docs/contracts/realizer/source-evidence-contract.md
+
+  - id: trace
+    title: Follow one warehouse
+    group: Practice
+    sources:
+      - tests/golden/realizer/cases/ge12-full-scope-auto-stop/
+    docs:
+      - docs/proposals/publisher/golden-scenarios.md
+      - docs/proposals/realizer/golden-scenarios.md
+
+  - id: operations
+    title: Outputs and operations
+    group: Practice
+    sources:
+      - src/publisher/cli/
+      - src/realizer/cli/
+      - src/publisher/config/output_layout.py
+      - src/realizer/config/output_layout.py
+      - src/publisher/contracts/workbook_contract.py
+      - src/publisher/packager/manifest.py
+      - docs/proposals/shared/live-run.md
+      - .claude/skills/suite.yaml
+    docs:
+      - README.md
+      - docs/contracts/publisher/workbook-contract.md
+      - docs/architecture/realizer/lld.md
+      - docs/proposals/shared/live-run.md
+      - docs/reference/shared/skills.md
+
+  - id: reference
+    title: Reference
+    group: Reference
+    sources:
+      - docs/reference/publisher/blocker-codes.md
+      - .claude/skills/teach-me/references/glossary.yaml
+    docs:
+      - docs/reference/publisher/blocker-codes.md
+      - docs/README.md

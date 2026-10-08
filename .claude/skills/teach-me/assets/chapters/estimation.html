@@ -1,0 +1,182 @@
+<p class="lede">The Publisher prices in three layers. The candidate estimator prices one change as if it were the only one. The {{term:stateful-bundle}} prices a scenario step by step, each step acting on what the previous steps left. The package reports an {{term:envelope}} over the scenarios. All three use the same {{term:low-base-high}} convention, keep {{term:dbu}} and {{term:aws-cost}} apart, and publish null, never zero, for a cost they cannot know.</p>
+
+<h3 id="estimation-tracks">Three tracks, and why they cross</h3>
+<p>Every modeled cost is computed on three tracks, conservative, base and optimistic. They differ in how much of a modeled effect actually shows up: the realization factors {{fact:thresholds.realization_conservative}}, {{fact:thresholds.realization_base}} and {{fact:thresholds.realization_optimistic}} (<code>realization_conservative</code>, <code>realization_base</code>, <code>realization_optimistic</code>). The optimistic track has the lowest cost and therefore the highest savings, so the ranges cross: savings low pairs with cost high.</p>
+<div class="formula">
+  <header><b>Signed savings from a cost range</b>{{cite:src/publisher/optimizer/estimator/savings.py::SavingsModel|SavingsModel._delta_range}}</header>
+  <div class="eq">savings.low  = baseline − cost.high      (conservative track)
+savings.base = baseline − cost.base
+savings.high = baseline − cost.low       (optimistic track)</div>
+  <div class="worked">auto-stop, DBU, ge12:
+low  = {{ex:autostop.baseline_dbu}} − {{ex:autostop.cost_high}} = {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.dbu.low|money}} <span class="ok">✓</span>
+base = {{ex:autostop.baseline_dbu}} − {{ex:autostop.cost_base}} = {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.dbu.base|money}} <span class="ok">✓</span>
+high = {{ex:autostop.baseline_dbu}} − {{ex:autostop.cost_low}} = {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.dbu.high|money}} <span class="ok">✓</span></div>
+  <div class="why">Savings are signed: a negative value is a cost increase, which happens on purpose for a capacity increase and by accident on a pessimistic track. The total is DBU plus AWS on each track, and becomes null when either side is unknown.</div>
+</div>
+{{range:pkg|candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total|Auto-stop 45 → 10, isolated total savings}}
+<div class="callout rule"><b>Not a probability interval</b><p>Low and high are what the model yields when the effect realizes at the conservative or the optimistic rate. They are scenario bounds, not percentiles of a distribution. Unknown is <code>null</code>, never <code>0</code>.</p></div>
+
+<h3 id="estimation-baseline">The forward baseline</h3>
+<p>Every saving is measured against the {{term:baseline}}: what the warehouse would cost over the next 365 days with no change. {{cite:src/publisher/analyzer/forecast.py::Modeler|Modeler.forecast_from_daily_cost}} builds it from the current epoch's settled, watermark-covered billing days only.</p>
+<div class="formula">
+  <header><b>Run-rate forecast</b>{{cite:src/publisher/analyzer/metrics.py::blended_daily_rate|metrics.py}}</header>
+  <div class="eq">rate   = the daily cost series cut to whole weeks (no weekday/weekend bias)
+daily  = w × mean(last <var>forecast_recent_days</var>) + (1 − w) × mean(last <var>forecast_long_days</var>)
+         w = <var>forecast_weight_28_long</var> with a full long window, <var>forecast_weight_28_mid</var> with at least the recent window
+ratio  = clamp( mean(last 28) / mean(previous 28), <var>trend_ratio_floor</var>, <var>trend_ratio_ceiling</var> )
+trend  = 1 + <var>trend_adjustment_weight</var> × (ratio − 1)
+forecast_365 = daily × trend × 365</div>
+  <div class="worked">windows {{fact:thresholds.forecast_recent_days}} and {{fact:thresholds.forecast_long_days}} days   w = {{fact:thresholds.forecast_weight_28_long}} or {{fact:thresholds.forecast_weight_28_mid}}   ratio clamped to [{{fact:thresholds.trend_ratio_floor}}, {{fact:thresholds.trend_ratio_ceiling}}]   trend weight {{fact:thresholds.trend_adjustment_weight}}
+ge12 forward cost: DBU {{pkg:cost_baseline.forward_365d.dbu_cost|money}} + AWS {{pkg:cost_baseline.forward_365d.aws_cost|money}} = {{pkg:cost_baseline.forward_365d.total_cost|money}} {{pkg:cost_baseline.currency}}</div>
+  <div class="why">The trend is damped twice: the ratio is clamped, then only <code>trend_adjustment_weight</code> of the change moves the forecast. A warehouse that doubled last month is not projected to double again.</div>
+</div>
+<p>Periodic workloads, such as a month-end close, would look like noise to a run rate. {{cite:src/publisher/analyzer/forecast.py::billing_cadence}} detects short runs (billed days at most {{fact:thresholds.forecast_run_bridge_days}} days apart belong to one run) resting longer than {{fact:thresholds.forecast_cadence_gap_days}} days, and then uses the cadence model: the cost of whole run-to-run cycles divided by their days, times 365, with no trend. It needs at least {{fact:thresholds.forecast_min_cycles}} whole cycles.</p>
+<p>When the forecast cannot be known it is null, and <code>dbu_forecast_status</code> says why: <code>UNPRICED_USAGE</code> (a DBU row with no list price), <code>INSUFFICIENT_ACTIVE_COST_DAYS</code> (fewer than {{fact:thresholds.min_economics_cost_history_days}} billed days), <code>NON_POSITIVE_RUN_RATE</code> or <code>INSUFFICIENT_BILLING_CYCLES</code>. Every candidate estimate scales this baseline, so a null baseline withholds them all. The AWS forward cost is modeled from running cluster time with the same blend, so DBU and AWS describe the same year.</p>
+
+<h3 id="estimation-candidate">Candidate estimator: one change at a time</h3>
+<p>{{cite:src/publisher/optimizer/estimator/candidate.py::Estimator}} turns each decision into cost factors on the forward DBU baseline, one per track, in {{cite:src/publisher/optimizer/estimator/cost.py::CostModel|CostModel._factors}}. A factor below 1 is a saving. Each candidate is priced against the same baseline as if it were alone, which is why candidate savings are {{term:non-additive}} and carry <code>candidate_savings_must_not_be_summed</code>.</p>
+<div class="grid c2">
+  <div class="card"><h4>Auto-stop</h4><p>The reclaimable running cluster-minutes per day at the target value, as a share of today's running cluster-minutes. Only the idle a lower value removes is scaled by realization; restarts count in full on every track.</p><p><code>share_r = min(1, realized × r + fixed)</code>, <code>factor_r = max(0, 1 − share_r)</code>. Lower: realized = gain, fixed = −loss. Raise: realized = 0, fixed = gain − loss.</p></div>
+  <div class="card"><h4>Min clusters</h4><p>Spare floor capacity from {{cite:src/publisher/analyzer/metrics.py::floor_spare_shares}}: each running minute at the floor whose demand needed <i>d</i> clusters holds <code>floor − max(k, d)</code> clusters a floor of <i>k</i> would remove, with <code>d = ceil((running + queued) / QUERIES_PER_CLUSTER_PRO_CLASSIC)</code>.</p><p><code>factor_r = max(0, 1 − spare_share × r)</code>. Spare and running minutes are annualized the same way, so the trend cancels.</p></div>
+  <div class="card"><h4>Size</h4><p><code>factor_r = capacity_ratio × (busy_share × multiplier_r + 1 − busy_share)</code>, clamped to [{{fact:thresholds.cost_factor_floor}}, {{fact:thresholds.cost_factor_ceiling}}]. A downsize slows busy time by {{fact:thresholds.downsize_runtime_multiplier_optimistic}}, {{fact:thresholds.downsize_runtime_multiplier_base}} or {{fact:thresholds.downsize_runtime_multiplier_conservative}}; idle time does not change.</p><p>The capacity ratio is the published Serverless DBU per hour, or for Pro/Classic the workspace's own billed rates, accepted only within {{fact:thresholds.size_rate_published_band}} of the published size ratio ({{cite:src/publisher/optimizer/estimator/cost.py::validated_size_rate_ratio}}). Otherwise the estimate is withheld (<code>PRO_CLASSIC_SIZE_RATE_UNVERIFIED</code>).</p></div>
+  <div class="card"><h4>Max-cluster increase</h4><p>Optimistic adds nothing: the same queries finish on more clusters at once. Worst case: every added cluster runs whenever the warehouse sat at its ceiling, <code>raw = minutes_at_max × Δclusters / cluster_minutes</code>. Base for Pro/Classic: only the clusters each busy minute's demand needs under the new ceiling, from the concurrency histogram.</p><p><code>factor = (1, 1 + base, 1 + raw)</code>. A ceiling cut is a guardrail with factor 1.</p></div>
+  <div class="card"><h4>Migration</h4><p>{{cite:src/publisher/optimizer/estimator/cost.py::CostModel|CostModel._migration_costs}} prices the target type at the current size, running at its own best auto-stop: <code>DBU = target cluster-minutes / 60 × DBU per hour × unit price ÷ reconciliation</code>.</p><p>The same formula must reproduce today's billed forecast within [{{fact:thresholds.migration_reconciliation_min}}, {{fact:thresholds.migration_reconciliation_max}}] (<code>MIGRATION_MODEL_NOT_RECONCILED</code> otherwise), so systematic model error cancels. Serverless AWS is a true zero: its infrastructure is inside the DBU line.</p></div>
+  <div class="card"><h4>No change, blocked, unknown</h4><p>NO_CHANGE and the max-cluster guardrail have factor 1, so their savings are a real 0. BLOCKED, INSUFFICIENT_EVIDENCE, a rollback, a missing baseline or an unvalidated rate have no factor: the economics are null and <code>estimate_blocker</code> names why.</p><p>AWS reuses the DBU factors for every knob except size, where it uses the EC2 cluster-hour ratio times the runtime multiplier ({{cite:src/publisher/optimizer/estimator/cost.py::CostModel|_aws_factor_range}}).</p></div>
+</div>
+<div class="formula">
+  <header><b>Auto-stop factor, recovered from the example</b>{{cite:src/publisher/optimizer/estimator/cost.py::CostModel|cost.py}}</header>
+  <div class="eq">share_r  = 1 − cost_r / baseline           on each track
+realized = (share_optimistic − share_conservative) / (<var>r_opt</var> − <var>r_cons</var>)
+fixed    = share_optimistic − realized × <var>r_opt</var>
+check    : share_base = realized × <var>r_base</var> + fixed</div>
+  <div class="worked">share  optimistic {{ex:autostop.share_optimistic}}   base {{ex:autostop.share_base}}   conservative {{ex:autostop.share_conservative}}
+realized = {{ex:autostop.realized}}   fixed = {{ex:autostop.fixed}}
+predicted base share = {{ex:autostop.realized}} × {{fact:thresholds.realization_base}} + ({{ex:autostop.fixed}}) = {{ex:autostop.predicted_base}} <span class="ok">✓</span>
+base factor = 1 − {{ex:autostop.share_base}} = {{ex:autostop.factor_base}}, so the base DBU cost is {{ex:autostop.cost_base}}</div>
+  <div class="why">In this example, going from {{ex:autostop.current}} to {{ex:autostop.target}} minutes removes a share of {{ex:autostop.share_optimistic}} of running time on the optimistic track, and the fixed part is close to zero: the restarts the lower value adds are cheap next to the idle it removes.</div>
+</div>
+<p>The other ge12 candidates show the per-knob rules at work. The size canary's isolated total savings run from {{pkg:candidates[knob=warehouse_size].independent_economics.savings_365d.total.low|money}} to {{pkg:candidates[knob=warehouse_size].independent_economics.savings_365d.total.high|money}}: in this example, the slowdown on busy time on the conservative track almost exactly cancels the cheaper rate. The migration to Serverless saves the entire AWS line ({{pkg:candidates[knob=warehouse_type].independent_economics.savings_365d.aws.base|money}}) because Serverless has no customer EC2, while its DBU savings range from {{pkg:candidates[knob=warehouse_type].independent_economics.savings_365d.dbu.low|money}} to {{pkg:candidates[knob=warehouse_type].independent_economics.savings_365d.dbu.high|money}}: Serverless DBUs are pricier and include that compute.</p>
+
+<h3 id="estimation-confidence">Confidence</h3>
+<p>Each candidate carries a deterministic {{term:confidence}} score from {{cite:src/publisher/optimizer/estimator/candidate.py::Estimator|Estimator._confidence}}. Unknown inputs earn no credit, and the score is capped by status, so a canary can never look as certain as an observed change.</p>
+<div class="formula">
+  <header><b>Candidate confidence</b>{{doc:docs/architecture/publisher/lld.md|LLD §16}}</header>
+  <div class="eq">score = clamp( w_base + w_cov × coverage + w_sample × sample + w_stab × stability
+                + w_epoch × epoch_maturity + w_signal × signal,  0,  cap(status) )
+coverage       = cost history days / <var>confidence_coverage_days</var>
+epoch_maturity = epoch age / <var>confidence_epoch_maturity_days</var>
+sample         = the knob's decision sample / its full-credit size
+stability      = 1 − cv84 / 2
+level          = HIGH ≥ <var>confidence_high_threshold</var>, MEDIUM ≥ <var>confidence_medium_threshold</var>, else LOW</div>
+  <div class="worked">weights: base {{ex:weights.base}}  coverage {{ex:weights.coverage}}  sample {{ex:weights.sample}}  stability {{ex:weights.stability}}  epoch {{ex:weights.epoch}}  signal {{ex:weights.signal}}
+auto-stop ({{ex:confidence_autostop.status}}): weighted sum {{ex:confidence_autostop.raw}} → cap {{ex:confidence_autostop.cap}} → {{ex:confidence_autostop.score}} {{ex:confidence_autostop.level}} <span class="ok">✓</span>
+size ({{ex:confidence_size.status}}):     weighted sum {{ex:confidence_size.raw}} → cap {{ex:confidence_size.cap}} → {{ex:confidence_size.score}} {{ex:confidence_size.level}} <span class="ok">✓</span></div>
+  <div class="why">Both candidates have near-perfect evidence (stability {{ex:confidence_autostop.stability}}, every other component 1.000), so the status cap alone separates them. The caps sit below the level cut-offs on purpose: a TEST_REQUIRED change stays MEDIUM until its canary is measured.</div>
+</div>
+<p>The decision sample differs per knob (executed queries for size and auto-stop, busy minutes for max clusters, busy periods for min clusters), set in <code>_DECISION_SAMPLE</code>. A decision that changes nothing earns a lower signal credit (<code>confidence_signal_no_change</code>). A scenario's confidence is the minimum of its steps' scores ({{cite:src/publisher/packager/scenarios.py::ScenarioPlanner|ScenarioPlanner._scenario_confidence}}): a plan is as trustworthy as its weakest step.</p>
+
+<h3 id="estimation-bundle">Scenarios: the stateful bundle estimator</h3>
+<p>Two changes to one warehouse overlap. Auto-stop and a lower floor both remove running cluster-minutes, and a minute cannot be saved twice. {{cite:src/publisher/packager/estimator/scenario.py::StatefulBundleEstimator}} therefore walks the plan in order, carrying a state of DBU, AWS and resource tracks ({{cite:src/publisher/packager/estimator/state_transition.py::_ChainState}}), and applies each candidate's <code>bundle_effect</code> to what the previous steps left.</p>
+<figure class="diagram">
+  <svg viewBox="0 0 960 284" role="img" aria-label="Two pricing chains walk the same plan. The authoritative chain skips steps pending re-evaluation and feeds the scenario economics; the contingent chain prices every step on pre-change evidence and only reports an upside.">
+    <rect class="lane" x="8" y="24" width="944" height="112" rx="10"/>
+    <text class="cap" x="24" y="44">authoritative chain · feeds portfolio_economics</text>
+    <rect class="box muted" x="24" y="56" width="144" height="64" rx="8"/>
+    <text class="lbl" x="96" y="80" text-anchor="middle">start state</text>
+    <text class="sub" x="96" y="97" text-anchor="middle">DBU, AWS × 3 tracks</text>
+    <text class="mono" x="96" y="112" text-anchor="middle">cluster-min, floor</text>
+    <path class="edge pub" d="M168 88 H 196"/>
+    <rect class="box pub" x="200" y="56" width="212" height="64" rx="8"/>
+    <text class="lbl" x="306" y="80" text-anchor="middle">step 1 · auto-stop</text>
+    <text class="mono" x="306" y="100" text-anchor="middle">idle_cluster_minute_reduction</text>
+    <path class="edge pub" d="M412 88 H 440"/>
+    <rect class="box pub" x="444" y="56" width="196" height="64" rx="8"/>
+    <text class="lbl" x="542" y="80" text-anchor="middle">step 2 · size canary</text>
+    <text class="mono" x="542" y="100" text-anchor="middle">multiplicative_cost_factor</text>
+    <rect class="box ghost" x="672" y="56" width="128" height="64" rx="8"/>
+    <text class="lbl" x="736" y="80" text-anchor="middle">pending step</text>
+    <text class="sub" x="736" y="100" text-anchor="middle">skipped</text>
+    <path class="edge pub" d="M640 76 C 700 34, 770 34, 830 70"/>
+    <text class="elbl" x="736" y="40" text-anchor="middle">skips pending steps</text>
+    <rect class="box muted" x="828" y="56" width="116" height="64" rx="8"/>
+    <text class="lbl" x="886" y="80" text-anchor="middle">scenario cost</text>
+    <text class="sub" x="886" y="100" text-anchor="middle">baseline − cost</text>
+    <rect class="lane" x="8" y="160" width="944" height="112" rx="10"/>
+    <text class="cap" x="24" y="180">contingent chain · upside only, never package economics</text>
+    <rect class="box muted" x="24" y="192" width="144" height="64" rx="8"/>
+    <text class="lbl" x="96" y="216" text-anchor="middle">start state</text>
+    <text class="sub" x="96" y="233" text-anchor="middle">DBU, AWS × 3 tracks</text>
+    <text class="mono" x="96" y="248" text-anchor="middle">cluster-min, floor</text>
+    <path class="edge dash" d="M168 224 H 196"/>
+    <rect class="box" x="200" y="192" width="212" height="64" rx="8"/>
+    <text class="lbl" x="306" y="216" text-anchor="middle">step 1 · auto-stop</text>
+    <text class="mono" x="306" y="236" text-anchor="middle">same effect</text>
+    <path class="edge dash" d="M412 224 H 440"/>
+    <rect class="box" x="444" y="192" width="196" height="64" rx="8"/>
+    <text class="lbl" x="542" y="216" text-anchor="middle">step 2 · size canary</text>
+    <text class="mono" x="542" y="236" text-anchor="middle">same effect</text>
+    <path class="edge dash" d="M640 224 H 668"/>
+    <rect class="box gate" x="672" y="192" width="128" height="64" rx="8"/>
+    <text class="lbl" x="736" y="216" text-anchor="middle">pending step</text>
+    <text class="sub" x="736" y="236" text-anchor="middle">old evidence</text>
+    <path class="edge dash" d="M800 224 H 824"/>
+    <rect class="box muted" x="828" y="192" width="116" height="64" rx="8"/>
+    <text class="lbl" x="886" y="216" text-anchor="middle">contingent</text>
+    <text class="sub" x="886" y="236" text-anchor="middle">upside only</text>
+  </svg>
+  <figcaption>A step that an earlier step invalidates is PENDING_REEVALUATION: its evidence was measured before that change. The authoritative chain leaves it out; the contingent chain prices it anyway as a labelled upside. In ge12 no step is pending, so the contingent figure is null.</figcaption>
+</figure>
+<div class="grid c3">
+  <div class="card"><h4><code>idle_cluster_minute_reduction</code></h4><p>Auto-stop. Removes <code>(realized × r + fixed) × today's running minutes</code> from the resource track, less any overlap with an earlier floor cut, and scales DBU and AWS by the share removed.</p></div>
+  <div class="card"><h4><code>min_cluster_reduction</code></h4><p>A lower floor. Claims the spare floor capacity minus the wall-clock minutes an earlier auto-stop already removed per floor cluster, realized per track. The floor track keeps the part of the cut it did not realize.</p></div>
+  <div class="card"><h4><code>multiplicative_cost_factor</code></h4><p>Size or a ceiling increase. The runtime part moves running time by a fixed amount, <code>after = before + acted × (rf − 1)</code>; the price part (<code>factor / rf</code>) applies as a ratio. This keeps the total independent of step order.</p></div>
+</div>
+<p>Three more effects complete the set: <code>migration_cost_override</code> replaces the state with the migration's pre-canary costs; <code>requires_canary</code> and <code>estimate_withheld</code> halt the chain, so every later figure is null; <code>no_cost_change</code> does nothing.</p>
+<p>The ge12 recommended plan has two priced steps and a re-measure step:</p>
+{{table:chain}}
+<p>The size step's low is negative inside the plan, although its isolated low was close to zero. After the auto-stop step has shrunk running time, the downsize still adds the same busy minutes on the conservative track, but its cheaper rate now applies to a smaller pool of running time. On that track the downsize costs more than it saves. This is exactly the overlap the bundle exists to catch: adding the two isolated candidates would overstate the plan.</p>
+<p>The scenario's status follows its riskiest priced step: <code>MODELED_RANGE</code>, <code>PROVISIONAL_MODELED_RANGE</code> once any TEST_REQUIRED step is priced, <code>PRE_CANARY_MODELED_RANGE</code> with a migration. The ge12 plan is {{pkg:scenarios[status=RECOMMENDED].portfolio_economics.estimation_status|status}}. A cost step whose own saving inside the plan drops below the materiality floor that its standalone saving cleared is held as <code>BLOCKED</code> with <code>HELD_MARGINAL_SAVINGS_BELOW_MATERIALITY</code> ({{cite:src/publisher/packager/scenarios.py::ScenarioPlanner|_estimate_with_marginal_hold}}); its candidate keeps its own status.</p>
+
+<h3 id="estimation-order">Plan order</h3>
+<p>{{cite:src/publisher/packager/sequencing.py::PlanOrdering|PlanOrdering._plan_order}} ranks steps by value per unit of risk, then moves each step behind every step that invalidates it.</p>
+<div class="formula">
+  <header><b>Step value</b>{{cite:src/publisher/packager/sequencing.py::PlanOrdering|sequencing.py}}</header>
+  <div class="eq">value = base savings × confidence / risk
+risk  = <var>plan_risk_canary_change</var> for TEST_REQUIRED, <var>plan_risk_hitl_change</var> otherwise
+order = canary rollbacks → priced positive steps by value → unpriced steps → zero or negative steps
+        ties by knob rank; steps an earlier step invalidates go last</div>
+  <div class="worked">ge12: auto-stop {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total.base|money}} × {{pkg:candidates[knob=auto_stop_minutes].confidence.score}} / {{fact:thresholds.plan_risk_hitl_change}}
+      size      {{pkg:candidates[knob=warehouse_size].independent_economics.savings_365d.total.base|money}} × {{pkg:candidates[knob=warehouse_size].confidence.score}} / {{fact:thresholds.plan_risk_canary_change}}   → auto-stop goes first</div>
+  <div class="why">A canary costs a measurement cycle and may roll back, so its value is divided by the larger risk. Execution order adds one more rule: approval-only steps go first and canaries start once those have run long enough, so a canary's cost reading is not mixed with another change's saving.</div>
+</div>
+<p>The ge12 plan says so in its decision summary: "{{pkg:recommended_plan.decision_summary}}"</p>
+
+<h3 id="estimation-envelope">Package economics: an envelope</h3>
+<p>Scenarios are alternatives, so their savings must not be added either. {{cite:src/publisher/packager/estimator/package.py::_package_economics}} reports the spread across the priced scenarios instead.</p>
+<div class="formula">
+  <header><b>Package savings envelope</b>{{doc:docs/contracts/shared/reporter-json-contract.md|Reporter contract §15}}</header>
+  <div class="eq">low  = min over priced scenarios of savings.total.low
+base = the recommended scenario's savings.total.base
+high = max over priced scenarios of savings.total.high
+cost = total baseline − savings          (same envelope, inverted)</div>
+  <div class="worked">low {{ex:envelope.low}}   base {{ex:envelope.base}}   high {{ex:envelope.high}} <span class="ok">✓</span></div>
+  <div class="why">Only scenarios with an authoritative total price are included, and only when the recommended scenario itself is priced; otherwise the package savings are null and each scenario is listed with an exclusion reason (<code>SCENARIO_ECONOMICS_UNAVAILABLE</code>, <code>RECOMMENDED_SCENARIO_ECONOMICS_UNAVAILABLE</code>, <code>NO_RECOMMENDED_SCENARIO</code>).</div>
+</div>
+{{table:envelope}}
+{{range:pkg|package_economics.estimated_savings_365d|ge12 package savings envelope}}
+<p>In ge12 both bounds come from the recommended in-place plan: the migration's low is higher and its high is lower, so it sits inside the envelope. The package states the semantics explicitly: <code>is_additive</code> {{pkg:package_economics.semantics.is_additive|json}}, <code>is_probability_interval</code> {{pkg:package_economics.semantics.is_probability_interval|json}}.</p>
+
+<h3 id="estimation-checks">Recomputed at build time</h3>
+<p>Every number in this chapter's worked examples is read from the ge12 package and recomputed by the guide's generator. A mismatch fails the build, so a change to an estimator formula cannot leave a stale explanation behind.</p>
+{{table:checks}}
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>The auto-stop candidate saves {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total.base|money}} and the size candidate {{pkg:candidates[knob=warehouse_size].independent_economics.savings_365d.total.base|money}} at base. Why is the plan's base not their sum?</summary>
+    <div><p>Each candidate is priced alone against the full baseline. In the plan, the size step acts on the running time the auto-stop step left, so its own saving is smaller, as the plan table above shows. Only the stateful bundle may combine steps.</p></div></details>
+  <details><summary>Why does savings low pair with cost high?</summary>
+    <div><p>Low savings is the conservative track, where the modeled effect realizes least, so the cost after the change is highest. <code>_delta_range</code> pairs them so that low ≤ base ≤ high always holds.</p></div></details>
+  <details><summary>Both ge12 canaries have near-perfect evidence. Why is the size canary MEDIUM?</summary>
+    <div><p>Its status caps the score at <code>confidence_cap_test_required</code>, below the HIGH cut-off. Confidence describes how far the evidence can be trusted for this kind of change, and a modeled resize has not been observed yet.</p></div></details>
+  <details><summary>The forecast is null. What happens to the candidates?</summary>
+    <div><p>Every candidate factor scales the forward DBU baseline, so all estimates are withheld with an <code>estimate_blocker</code> naming the baseline's reason. An ACTIONABLE cost change then waits for its price at the value gate.</p></div></details>
+</div>

@@ -5,7 +5,8 @@ the arguments go straight to ``realizer.cli.realize.run``. Exit status: 0 on suc
 ``RealizerError``: an input the Realizer does not accept, an unreadable file or ledger), whose message goes to stderr,
 and for bad arguments (argparse). A fleet run returns its own status once its warehouses have run: 1 when any warehouse
 crashed, else 2 when any was refused, else 0. Any other exception is a defect: it is logged by type only (its message
-may carry data values) and re-raised for the traceback (status 1). The run log file is closed when the run ends.
+may carry data values) and re-raised for the traceback (status 1). A refusal is logged by type (its message goes to stderr;
+a fleet run keeps a warehouse's in the manifest). The run log file is closed when the run ends.
 """
 from __future__ import annotations
 

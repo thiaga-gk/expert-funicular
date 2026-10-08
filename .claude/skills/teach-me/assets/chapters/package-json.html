@@ -1,0 +1,209 @@
+<p class="lede">The {{term:package}} is the Publisher's only public answer: one JSON document per warehouse and current epoch, schema-validated, content-addressed and frozen. Everything else, the workbook included, is a projection of it. Learn to read it and you can audit any recommendation without running the code.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 432" role="img" aria-label="Package blocks and the ID references between them: candidates reference evidence, scenario steps reference candidates, the recommended plan and package economics reference scenarios, and the PKG id is the first 24 hex characters of the full hash in provenance.">
+    <rect class="box pub" x="40" y="24" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="44" text-anchor="middle">recommendation_package_id</text>
+    <text class="mono" x="140" y="62" text-anchor="middle">PKG-…</text>
+    <rect class="box" x="40" y="96" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="116" text-anchor="middle">warehouse</text>
+    <text class="sub" x="140" y="134" text-anchor="middle">identity, epoch (EPOCH-)</text>
+    <rect class="box" x="40" y="160" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="180" text-anchor="middle">current_config</text>
+    <text class="sub" x="140" y="198" text-anchor="middle">the knobs as they are</text>
+    <rect class="box" x="40" y="224" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="244" text-anchor="middle">cost_baseline</text>
+    <text class="sub" x="140" y="262" text-anchor="middle">actual and no-change 365d</text>
+    <rect class="box" x="40" y="288" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="308" text-anchor="middle">assessment · cost_profile</text>
+    <text class="sub" x="140" y="326" text-anchor="middle">summary, risk appetite</text>
+    <rect class="box muted" x="40" y="352" width="200" height="48" rx="8"/>
+    <text class="lbl" x="140" y="372" text-anchor="middle">provenance</text>
+    <text class="sub" x="140" y="390" text-anchor="middle">versions, full SHA-256</text>
+    <path class="edge pub" d="M40 376 H 20 V 48 H 36"/>
+    <text class="elbl" x="24" y="212" text-anchor="middle" transform="rotate(-90 24 212)">first 24 hex</text>
+
+    <rect class="box" x="304" y="96" width="200" height="176" rx="8"/>
+    <text class="lbl" x="404" y="120" text-anchor="middle">evidence</text>
+    <text class="sub" x="404" y="138" text-anchor="middle">registry: EVID- → record</text>
+    <rect class="box muted" x="324" y="156" width="160" height="26" rx="5"/>
+    <text class="mono" x="404" y="173" text-anchor="middle">EVID-… metric, value</text>
+    <rect class="box muted" x="324" y="190" width="160" height="26" rx="5"/>
+    <text class="mono" x="404" y="207" text-anchor="middle">EVID-… threshold, window</text>
+    <rect class="box muted" x="324" y="224" width="160" height="26" rx="5"/>
+    <text class="mono" x="404" y="241" text-anchor="middle">EVID-… source, field</text>
+
+    <rect class="box pub" x="592" y="96" width="176" height="120" rx="8"/>
+    <text class="lbl" x="680" y="120" text-anchor="middle">candidates[]</text>
+    <text class="sub" x="680" y="138" text-anchor="middle">one per knob (CAND-)</text>
+    <text class="mono" x="680" y="164" text-anchor="middle">status, blockers</text>
+    <text class="mono" x="680" y="182" text-anchor="middle">independent_economics</text>
+    <text class="mono" x="680" y="200" text-anchor="middle">confidence</text>
+
+    <rect class="box pub" x="592" y="264" width="176" height="144" rx="8"/>
+    <text class="lbl" x="680" y="288" text-anchor="middle">scenarios[]</text>
+    <text class="sub" x="680" y="306" text-anchor="middle">ordered paths (SCN-)</text>
+    <rect class="box" x="608" y="320" width="144" height="72" rx="6"/>
+    <text class="lbl" x="680" y="342" text-anchor="middle">execution_plan[]</text>
+    <text class="mono" x="680" y="362" text-anchor="middle">step, step_type</text>
+    <text class="mono" x="680" y="378" text-anchor="middle">execution_state</text>
+
+    <rect class="box gate" x="816" y="264" width="128" height="56" rx="8"/>
+    <text class="lbl" x="880" y="288" text-anchor="middle">recommended_plan</text>
+    <text class="sub" x="880" y="306" text-anchor="middle">the chosen path</text>
+    <rect class="box" x="816" y="352" width="128" height="56" rx="8"/>
+    <text class="lbl" x="880" y="376" text-anchor="middle">package_economics</text>
+    <text class="sub" x="880" y="394" text-anchor="middle">envelope</text>
+
+    <path class="edge dash" d="M592 140 H 508"/>
+    <text class="elbl" x="548" y="132" text-anchor="middle">evidence_refs</text>
+    <path class="edge dash" d="M592 296 H 548 V 252 H 508"/>
+    <text class="elbl" x="548" y="316" text-anchor="middle">evidence_refs</text>
+    <path class="edge pub" d="M680 320 V 220"/>
+    <text class="elbl" x="724" y="244" text-anchor="middle">candidate_id</text>
+    <path class="edge pub" d="M816 292 H 772"/>
+    <text class="elbl" x="794" y="252" text-anchor="middle">scenario_id</text>
+    <path class="edge" d="M816 380 H 772"/>
+    <text class="elbl" x="794" y="424" text-anchor="middle">scenario ids</text>
+  </svg>
+  <figcaption>The package defines each record once and links by ID. Evidence is a registry that candidates and scenarios reference; a scenario's steps point at candidates; the recommended plan and the economics point at scenarios. The PKG- ID is the start of the full hash kept in provenance.</figcaption>
+</figure>
+
+<h3 id="package-json-blocks">The top-level blocks</h3>
+<p>The schema requires {{fact:schema.package_required|count}} top-level fields. Three of them may be null (<code>observed_change</code>, <code>carried_forward_plan</code>, <code>run_scope</code>); every other field is always present, so a consumer never has to guess whether an absent key means zero, unknown or not applicable. Grouped by the question they answer:</p>
+<div class="grid c3">
+  <div class="card"><span class="k">Which warehouse, which epoch</span><p><code>recommendation_package_id</code>, <code>contract_version</code>, <code>warehouse</code> (with <code>current_epoch</code>), <code>current_config</code>.</p></div>
+  <div class="card"><span class="k">What we know</span><p><code>workload_profile</code>, <code>cost_baseline</code>, <code>assessment</code>, <code>evidence</code>, <code>observed_change</code>.</p></div>
+  <div class="card"><span class="k">What we recommend</span><p><code>candidates</code>, <code>scenarios</code>, <code>recommended_plan</code>, <code>package_economics</code>.</p></div>
+  <div class="card"><span class="k">Under which policy</span><p><code>cost_profile</code>, <code>run_scope</code>, <code>provenance</code> (every component version and the hashes).</p></div>
+  <div class="card"><span class="k">After the change</span><p><code>realization</code>, always <code>NOT_APPLIED</code> with no records when published; the Realizer keeps its own records.</p></div>
+  <div class="card"><span class="k">Reserved</span><p><code>carried_forward_plan</code>, always null in current producers.</p></div>
+</div>
+<p>Explore the example package ({{pkg:recommendation_package_id|id}}, warehouse <code>{{pkg:warehouse.warehouse_id}}</code>, a {{pkg:current_config.warehouse_type}} {{pkg:current_config.warehouse_size}} warehouse). Select a field to see its contract row and a teaching note; click an underlined ID to jump to the record it names.</p>
+{{explorer:pkg||1|recommended_plan}}
+
+<h3 id="package-json-candidates">Candidates: one decision per knob</h3>
+<p>Each in-scope knob gets exactly one {{term:candidate}}, even when the decision is to change nothing. A <code>NO_CHANGE</code> candidate is a finding too: it records which evidence showed the knob is right where it is. The example has all {{pkg:candidates|count}}:</p>
+{{table:candidates}}
+<p>The fields to read first are <code>status</code> (what to do), <code>blockers</code> (why it is held or needs a test; codes in the {{doc:docs/reference/publisher/blocker-codes.md|blocker reference}}), <code>evidence_refs</code> (the measurements behind it), <code>dependencies</code> and <code>invalidates</code> (which other knobs must be re-measured after it), and <code>independent_economics</code>. The size candidate below invalidates both cluster knobs, because their evidence was measured at the old size.</p>
+{{explorer:pkg|candidates[knob=warehouse_size]|1|candidates[knob=warehouse_size].invalidates}}
+<div class="callout rule"><b>Never add candidate savings</b><p>Each candidate is priced alone against the same no-change baseline (<code>is_additive</code> is false). Auto-stop alone saves {{pkg:candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total.base|money}} and the size cut alone {{pkg:candidates[knob=warehouse_size].independent_economics.savings_365d.total.base|money}}, but applied in sequence they save {{pkg:scenarios[status=RECOMMENDED].portfolio_economics.savings_365d.total.base|money}}: once auto-stop has removed idle minutes, a smaller size has fewer minutes left to make cheaper. Only the scenario estimate combines steps.</p></div>
+
+<h3 id="package-json-scenarios">Scenarios, steps and the recommended plan</h3>
+<p>A {{term:scenario}} is an ordered, mutually exclusive path. Plan A optimizes the current warehouse type in place; Plan B migrates the type. They are alternatives, so the owner follows one. Each scenario holds an <code>execution_plan</code> of steps. A step has a <code>step_type</code> (<code>CANDIDATE</code>, <code>COMPATIBILITY_VALIDATION</code>, <code>REMEASURE</code>) and an {{term:execution-state}}:</p>
+<ul>
+  <li>{{status:READY}}: an ACTIONABLE change a person can apply now, like the auto-stop step.</li>
+  <li>{{status:READY_FOR_CANARY}}: a TEST_REQUIRED change applied as a {{term:canary}} and judged on the new epoch's own evidence, like the size step.</li>
+  <li>{{status:REQUIRED}}: a gate that is not a knob change: validate migration compatibility first, or re-measure and regenerate after a step that invalidates other knobs.</li>
+</ul>
+{{explorer:pkg|scenarios[status=RECOMMENDED]|2}}
+<p><code>recommended_plan</code> names the chosen scenario (<code>scenario_id</code>), why it was chosen (<code>selection_reason_code</code>: here <code>{{pkg:recommended_plan.selection_reason_code}}</code>), what to do next (<code>{{pkg:recommended_plan.next_action}}</code>) and whether a person must approve (<code>requires_hitl</code> = {{pkg:recommended_plan.requires_hitl|json}}; always true, because the products never apply anything). Its <code>decision_summary</code> is the one paragraph to read aloud in a review:</p>
+<div class="callout"><b>Decision summary of the example</b><p>{{pkg:recommended_plan.decision_summary}}</p></div>
+
+<h3 id="package-json-economics">Economics fields and their meaning</h3>
+<p>Every money figure in the package follows the same rules ({{doc:docs/contracts/shared/reporter-json-contract.md#15-package_economics|contract section 15}}):</p>
+<ul>
+  <li>DBU and AWS are separate components with a <code>total</code>; Serverless has no AWS component of its own. Unknown is <code>null</code> with an availability or estimation status, never zero.</li>
+  <li>Ranges have three tracks, {{term:low-base-high}}. They are scenario bounds from conservative to optimistic realization, not a confidence interval.</li>
+  <li>Savings are signed: positive saves money, negative costs money. A low track can be negative, as the size step's is in the example.</li>
+  <li>Candidate economics are isolated and non-additive; scenario economics are stateful (each step acts on the state the previous one left); package economics are an {{term:envelope}} over scenarios.</li>
+</ul>
+{{range:pkg|candidates[knob=auto_stop_minutes].independent_economics.savings_365d.total|Auto-stop candidate, isolated total savings}}
+{{range:pkg|candidates[knob=warehouse_size].independent_economics.savings_365d.total|Size candidate, isolated total savings}}
+{{range:pkg|package_economics.estimated_savings_365d|Package envelope, total savings}}
+<p>The envelope takes the lowest scenario low, the recommended scenario's base and the highest scenario high. In the example both bounds come from Plan A, because Plan B's range sits inside it:</p>
+{{table:envelope}}
+<p><code>package_economics.semantics</code> states this in the document itself: <code>method</code> = <code>{{pkg:package_economics.semantics.method}}</code>, <code>is_additive</code> = {{pkg:package_economics.semantics.is_additive|json}}, <code>is_probability_interval</code> = {{pkg:package_economics.semantics.is_probability_interval|json}}. A scenario whose economics are unavailable is listed in <code>excluded_scenarios</code> with a reason instead of being treated as zero.</p>
+
+<h3 id="package-json-identity">IDs and the package hash</h3>
+<p>Every public ID is content-addressed: a prefix plus the first {{fact:hash_hex_length}} uppercase hex characters of a SHA-256 over an explicit payload ({{cite:src/publisher/contracts/reporter_contract.py::content_id}}). Identical evidence, cost profile and versions therefore give identical IDs on every machine, and any change to an input gives a new ID.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>ID</th><th>Names</th><th>Built by</th><th>In the example</th></tr></thead>
+  <tbody>
+    <tr><td><code>EPOCH-</code></td><td>The configuration regime: type, size, clusters, auto-stop, channel and epoch start</td><td>{{cite:src/publisher/contracts/reporter_contract.py::make_epoch_id}}</td><td>{{pkg:warehouse.current_epoch.epoch_id|id}}</td></tr>
+    <tr><td><code>EVID-</code></td><td>One evidence record; its interpretation prose is excluded</td><td>{{cite:src/publisher/contracts/reporter_contract.py::make_evidence_id}}</td><td>{{pkg:candidates[knob=auto_stop_minutes].evidence_refs[0]|id}}</td></tr>
+    <tr><td><code>CAND-</code></td><td>One technique decision, including sorted evidence refs, versions and cost profile</td><td>{{cite:src/publisher/contracts/reporter_contract.py::make_candidate_id}}</td><td>{{pkg:candidates[knob=auto_stop_minutes].candidate_id|id}}</td></tr>
+    <tr><td><code>SCN-</code></td><td>One path, including the ordered candidate IDs and compatibility status</td><td>{{cite:src/publisher/contracts/reporter_contract.py::make_scenario_id}}</td><td>{{pkg:recommended_plan.scenario_id|id}}</td></tr>
+    <tr><td><code>PKG-</code></td><td>The whole package, from its hash payload</td><td>{{cite:src/publisher/contracts/reporter_contract.py::expected_package_id}}</td><td>{{pkg:recommendation_package_id|id}}</td></tr>
+    <tr><td><code>REAL-</code></td><td>A realization record; none at publication</td><td>{{cite:src/publisher/contracts/reporter_contract.py::make_realization_id}}</td><td><span class="muted">none</span></td></tr>
+  </tbody>
+</table></div>
+<p>The package hash covers the decision, not the presentation. Its payload holds the contract and component versions, the warehouse and epoch, the canonical configuration, an evidence fingerprint ({{cite:src/publisher/contracts/reporter_contract.py::make_evidence_fingerprint}}), the ordered candidate and scenario IDs, the re-evaluation, the observed-change and carried-forward fingerprints, the cost profile and the run scope. <code>generated_at</code>, prose and file names never enter it, so re-running the same evidence a day later yields the same ID.</p>
+<div class="formula">
+  <header><b>From package to PKG- ID</b>{{cite:src/publisher/contracts/reporter_contract.py::package_hash_payload_from_document|package_hash_payload_from_document}}</header>
+  <div class="eq">payload   = package_hash_payload(package)        # {{ex:identity.payload_keys|count}} keys
+canonical = canonical_json_for_hash(payload)     # sorted keys, no spaces, numbers as decimal strings
+full      = upper(SHA-256(canonical))            # provenance.package_hash_full_sha256
+<var>PKG id</var>    = "PKG-" + full[:{{fact:hash_hex_length}}]</div>
+  <div class="worked">canonical = {{ex:identity.canonical_prefix}}   ({{ex:identity.canonical_length}} characters)
+full      = {{ex:identity.full}}  <span class="ok">✓ matches provenance</span>
+PKG id    = {{ex:identity.id}}  <span class="ok">✓ matches recommendation_package_id</span></div>
+  <div class="why">Canonical rules ({{cite:src/publisher/contracts/reporter_contract.py::canonicalize_for_hash|canonicalize_for_hash}}): keys sorted, numbers turned into normalized decimal strings so <code>1</code> and <code>1.0</code> hash the same, list order kept because callers decide which lists are ordered (set-like lists are sorted before they enter the payload), null kept, NaN refused. The Realizer recomputes this hash before it accepts a package, so a hand-edited package is rejected.</div>
+</div>
+<p>The canonical payload of the example. Note the numbers inside <code>cost_profile</code> are strings here: that is the canonical form, not the published one.</p>
+{{explorer:hash_payload||1}}
+
+<h3 id="package-json-write">Write order</h3>
+<p>The order is fixed so the ID and hash always describe exactly the bytes that are validated and written.</p>
+<figure class="diagram">
+  <svg viewBox="0 0 984 168" role="img" aria-label="The package is assembled with a placeholder id, then gets its PKG id and full hash, passes semantic validation, the reviewer's schema gate, and is written as sorted-key JSON.">
+    <text class="cap" x="24" y="24">Packager</text>
+    <text class="cap" x="664" y="24">Reviewer</text>
+    <text class="cap" x="824" y="24">Reporter</text>
+    <rect class="box pub" x="24" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="92" y="64" text-anchor="middle">Assemble</text>
+    <text class="sub" x="92" y="82" text-anchor="middle">placeholder PKG-000…</text>
+    <rect class="box pub" x="184" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="252" y="64" text-anchor="middle">Set PKG- id</text>
+    <text class="sub" x="252" y="82" text-anchor="middle">expected_package_id</text>
+    <rect class="box pub" x="344" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="412" y="64" text-anchor="middle">Full hash</text>
+    <text class="sub" x="412" y="82" text-anchor="middle">into provenance</text>
+    <rect class="box gate" x="504" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="572" y="64" text-anchor="middle">validate()</text>
+    <text class="sub" x="572" y="82" text-anchor="middle">semantic invariants</text>
+    <rect class="box gate" x="664" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="732" y="64" text-anchor="middle">Schema gate</text>
+    <text class="sub" x="732" y="82" text-anchor="middle">Draft 2020-12</text>
+    <rect class="box pub" x="824" y="40" width="136" height="56" rx="8"/>
+    <text class="lbl" x="892" y="64" text-anchor="middle">Write JSON</text>
+    <text class="sub" x="892" y="82" text-anchor="middle">sort_keys=True</text>
+    <path class="edge" d="M160 68 H 180"/>
+    <path class="edge" d="M320 68 H 340"/>
+    <path class="edge" d="M480 68 H 500"/>
+    <path class="edge" d="M640 68 H 660"/>
+    <path class="edge" d="M800 68 H 820"/>
+    <text class="mono" x="892" y="124" text-anchor="middle">packages/</text>
+    <text class="mono" x="892" y="140" text-anchor="middle">&lt;workspace&gt;__&lt;warehouse&gt;.json</text>
+  </svg>
+  <figcaption>Write order. A failed validation stops the run before that package is written, so a package on disk has always passed both gates.</figcaption>
+</figure>
+<ol>
+  <li>{{cite:src/publisher/packager/packager.py::_build_locked_recommendation_package}} assembles the frozen dataclass with a placeholder ID, replaces it with {{cite:src/publisher/contracts/reporter_contract.py::expected_package_id|expected_package_id()}}, stores {{cite:src/publisher/contracts/reporter_contract.py::full_package_hash|full_package_hash()}} in provenance, and runs the semantic <code>validate()</code>.</li>
+  <li>The Reviewer's package gate ({{cite:src/publisher/reviewer/package.py::review_contract}}) runs <code>validate()</code> again, checks that <code>cost_profile.applied_thresholds</code> match the profile's name, and validates against the committed schema {{cite:schema/recommendation-package.schema.json}}.</li>
+  <li>The Reporter ({{cite:src/publisher/reporter/json_reporter.py::package_locked_contract}}) validates the serialized payload against the schema once more and writes <code>json.dumps(payload, indent=2, sort_keys=True)</code> to <code>packages/&lt;workspace_id&gt;__&lt;warehouse_id&gt;.json</code>, then <code>evidence.json</code>, the workbook and <code>manifest.json</code>.</li>
+</ol>
+
+<h3 id="package-json-read">Read a package in five minutes</h3>
+<ol>
+  <li><b><code>recommended_plan</code></b>: the chosen scenario, the next action and the decision summary.</li>
+  <li><b>That scenario's <code>execution_plan</code></b>, in step order: what changes, in which execution state, and where a canary or re-measure gate sits.</li>
+  <li><b>Each candidate's <code>status</code> and <code>blockers</code></b>, including the NO_CHANGE ones; open <code>evidence_refs</code> when a decision surprises you.</li>
+  <li><b><code>package_economics</code></b>: low, base and high, the currency, and the excluded scenarios. Do not sum candidate savings.</li>
+  <li><b><code>cost_baseline.forward_365d</code></b>: the no-change cost the savings are measured against, and which components are available.</li>
+  <li><b><code>assessment</code></b>: <code>overall_status</code> and <code>evidence_quality</code> tell you how much to trust the rest.</li>
+  <li><b><code>cost_profile</code>, <code>run_scope</code> and <code>observed_change</code></b>: the risk appetite, the scope, and whether the configuration just changed.</li>
+  <li><b><code>provenance</code></b>: when comparing two packages, check the component versions first; a version change explains a decision change.</li>
+</ol>
+<p>The full field reference is the {{doc:docs/contracts/shared/reporter-json-contract.md|Reporter JSON Contract}}; the semantic rules the schema cannot express are in its section 18.</p>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>Two runs over the same evidence, one with <code>--scope current</code> and one unscoped, produce different PKG- IDs. Is that a bug?</summary>
+    <div><p>No. <code>run_scope</code> is part of the package hash payload, so the restricted package gets its own ID. The in-scope candidates keep the same CAND- IDs, because scope is not a candidate hash input.</p></div></details>
+  <details><summary>Why is <code>generated_at</code> not part of the package hash?</summary>
+    <div><p>It is volatile presentation metadata. Excluding it lets a replay of the same evidence reproduce the same ID and the same bytes, which is what makes golden tests and the Realizer's hash check possible.</p></div></details>
+  <details><summary>A candidate's <code>savings_365d.total</code> is null. What does that mean, and what must a consumer not do?</summary>
+    <div><p>The saving could not be priced (for example a missing price or too little cost history); the estimation status and blockers say why. A consumer must not treat it as zero or drop it from a total as if it were zero.</p></div></details>
+  <details><summary>The package envelope's low and high both name Plan A. How can that be when Plan B has a higher base?</summary>
+    <div><p>The envelope takes the lowest low and highest high across scenarios and the base of the recommended one. Plan B's whole range sits inside Plan A's, so both bounds come from Plan A, and the base comes from Plan A because it is recommended.</p></div></details>
+</div>

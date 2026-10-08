@@ -14,7 +14,7 @@ Placeholders: `<P>` the OAuth CLI profile, `<C>` the collector SQL warehouse (it
 | 0.2 | Install the Databricks CLI and log in: `databricks auth login --host https://<workspace> --profile <P>` (OAuth U2M; static tokens are rejected) | `databricks --profile <P> current-user me` answers |
 | 0.3 | Choose `<C>` and `<R>`. `<R>` must be a region in `pricing/aws_ec2_on_demand.json` (today `us-east-1`): with Pro or Classic warehouses in any other region the Publisher stops after collection with only `evidence.json` and `publisher.log` written (replay with `--from-evidence`), unless every Publisher command adds `--allow-missing-aws-price` (their AWS cost is then unavailable). The Realizer falls back to DBU only | `<R>` is in the pricing registry |
 | 0.4 | Preflight: `python .claude/skills/databricks-golden-miner/scripts/preflight.py --profile <P> --warehouse-id <C>` (it starts `<C>` if stopped) | It passes; on a failure it prints the fix and nothing else runs |
-| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, `PUBLISHER_LIVE_SOURCE_REGION=<R>`, then `python -m unittest discover -s tests/integration -t .`) | OK or skipped with a reason |
+| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, `PUBLISHER_LIVE_SOURCE_REGION=<R>`, then `python -m unittest discover -s tests/integration/publisher -t .`) | OK or skipped with a reason |
 
 ## Phase 1 · Mine the golden scenarios
 

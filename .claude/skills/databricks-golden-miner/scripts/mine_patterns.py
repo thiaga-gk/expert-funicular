@@ -11,7 +11,7 @@ pattern_report.md with six parts:
   coverage    -- warehouses per catalog row, and rows with no live match
   gaps        -- warehouses no row matches, grouped by a coarse fingerprint
   mismatches  -- a row matches but the package contradicts that row's expected behavior (its `expect` assertions,
-                 the golden assertion DSL of tests/golden/harness.py). Packages produced under a run scope (non-null
+                 the golden assertion DSL of tests/golden/publisher/harness.py). Packages produced under a run scope (non-null
                  `run_scope`) lack the candidates of out-of-scope knobs, so their expectations cannot be judged: they
                  are skipped, and the report header and the `run_scope` object say so. Coverage, gaps, premises and
                  drift come from the evidence and are still reported.
@@ -47,7 +47,7 @@ from publisher.config import defaults  # noqa: E402
 from publisher.config.defaults import SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR  # noqa: E402
 from publisher.governor.cost_profiles import nonprod_tag_match  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
-from tests.golden.harness import check, resolve  # noqa: E402
+from tests.golden.publisher.harness import check, resolve  # noqa: E402
 
 DEFAULT_CATALOG = SKILL_DIR / "references" / "signature-catalog.yaml"
 REPORT_VERSION = "1.1.0"
@@ -403,7 +403,7 @@ def annotate(pkg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def evaluate(pkg: Dict[str, Any], assertion: Dict[str, Any]) -> Optional[str]:
-    """None when the assertion holds. The golden DSL (tests/golden/harness.py check) plus `in`/`not_in` per value and
+    """None when the assertion holds. The golden DSL (tests/golden/publisher/harness.py check) plus `in`/`not_in` per value and
     `any: [assertions]` (holds when one of them holds)."""
     try:
         if "any" in assertion:
