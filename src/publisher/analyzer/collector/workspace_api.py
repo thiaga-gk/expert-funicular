@@ -67,31 +67,24 @@ def resolve_cli_oauth(profile: str, execution_kind: str, execution_id: Optional[
 
     Read-only REST is used only when necessary to resolve/validate an all-purpose
     cluster execution target. It is never a source of recommendation configs.
-    Backward compatibility: resolve_cli_oauth(profile, warehouse_id, config_file) is still accepted (a first argument
-    that is not "warehouse"/"cluster" is read as the warehouse ID and the second as the config file).
     For a cluster the workspace ID comes from the argument, DATABRICKS_WORKSPACE_ID, then a read-only REST lookup;
     PublisherError when it cannot be resolved. A warehouse target needs no REST call.
     """
-    if execution_kind.lower().strip() not in {"warehouse","cluster"}:
-        legacy_warehouse_id=execution_kind
-        if config_file is None and execution_id:
-            config_file=str(execution_id)
-        execution_kind="warehouse"; execution_id=legacy_warehouse_id
+    kind = execution_kind.lower().strip()
+    if kind not in {"warehouse", "cluster"}:
+        raise PublisherError(f"Unsupported execution kind: {execution_kind}. Use warehouse or cluster.")
     if not execution_id:
         raise PublisherError("execution_id is required")
     host, token, expiry = _resolve_cli_token(profile, config_file)
-    kind = execution_kind.lower().strip()
     resolved_workspace_id = workspace_id or os.getenv("DATABRICKS_WORKSPACE_ID")
     if kind == "warehouse":
         http_path = f"/sql/1.0/warehouses/{execution_id}"
-    elif kind == "cluster":
+    else:  # cluster
         _validate_all_purpose_cluster(host, token, execution_id)
         resolved_workspace_id = resolved_workspace_id or _current_workspace_id(host, token)
         if not resolved_workspace_id:
             raise PublisherError("Unable to resolve workspace ID for all-purpose cluster HTTP path. Supply --workspace-id or DATABRICKS_WORKSPACE_ID.")
         http_path = f"sql/protocolv1/o/{resolved_workspace_id}/{execution_id}"
-    else:
-        raise PublisherError(f"Unsupported execution kind: {execution_kind}. Use warehouse or cluster.")
     LOGGER.info("execution.target kind=%s id=%s workspace_id=%s http_path=%s", kind, execution_id, resolved_workspace_id or "UNKNOWN", http_path)
     return AuthContext(profile=profile, host=host, http_path=http_path, access_token=token, token_expiry=expiry, execution_kind=kind, execution_id=execution_id, workspace_id=resolved_workspace_id)
 

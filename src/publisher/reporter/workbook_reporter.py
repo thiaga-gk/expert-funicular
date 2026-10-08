@@ -25,7 +25,6 @@ from publisher.contracts import workbook_contract as wc
 ESPRESSO = "#3B2F2F"
 ESPRESSO_2 = "#5A463B"
 CREAM = "#F7F1E8"
-CREAM_2 = "#EEE3D3"
 GOLD = "#B58A3A"
 GREEN = "#DDEBDD"
 AMBER = "#FFF0CC"
@@ -38,7 +37,6 @@ MUTED = "#6B625D"
 MONEY_FMT = wc.MONEY_FORMAT
 PCT_FMT = wc.PERCENT_FORMAT
 INT_FMT = '#,##0'
-DECIMAL_FMT = '0.00'
 
 # Excel rejects cells longer than this; verbose audit-JSON cells are cut with a visible marker rather than
 # producing a file Excel reports as corrupt. The full content always remains in the package JSON.

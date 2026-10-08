@@ -643,7 +643,7 @@ class AnalyzerCases(PublisherCase):
             class R:
                 stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
             with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()) as run:
-                auth = resolve_cli_oauth("WHOPT", "abc123", str(cfg))
+                auth = resolve_cli_oauth("WHOPT", "warehouse", "abc123", str(cfg))
                 self.assertEqual(auth.http_path, "/sql/1.0/warehouses/abc123")
                 self.assertEqual(auth.access_token, "short-lived")
                 run.assert_called_once()
@@ -662,12 +662,18 @@ class AnalyzerCases(PublisherCase):
                 self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/1234-567890-demo123")
                 self.assertEqual(auth.execution_kind, "cluster")
 
+    def test_the_legacy_positional_form_is_refused(self):
+        # (profile, warehouse_id, config_file) was a pre-1.0 form: the second argument is now always the execution kind.
+        with self.assertRaises(PublisherError) as raised:
+            resolve_cli_oauth("WHOPT", "abc123", "/nonexistent/.databrickscfg")
+        self.assertIn("Unsupported execution kind", str(raised.exception))
+
     def test_pat_profile_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / ".databrickscfg"
             cfg.write_text("[PAT]\nhost = https://dbc.example.cloud.databricks.com\ntoken = secret\n")
             with self.assertRaises(PublisherError):
-                resolve_cli_oauth("PAT", "abc123", str(cfg))
+                resolve_cli_oauth("PAT", "warehouse", "abc123", str(cfg))
 
     def test_photon_inference_uses_coverage_freshness_and_signed_dbu(self):
         row={"photon_true_dbu":950.0,"photon_false_dbu":50.0,"photon_null_dbu":0.0,"latest_usage_time":"2026-09-30T12:00:00+00:00"}
