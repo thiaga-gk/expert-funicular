@@ -64,7 +64,7 @@ Auto-stop comes first because its counterfactual is a replay with no guard windo
 | Checkpoint | When | Send back |
 |---|---|---|
 | A | After phase 1 | `real_data_answers.json`, `pattern_report.md` (aggregates and pattern names), the counts in 1.1's `manifest.json` and its `publisher.log` warnings |
-| B | Before step 4.4 | The fixes merged in phase 2 with their summaries; the three cost-profile outcomes; `realization/backtest/` and the run folder of 4.2 from `mining_out/<D>/rz`, and of 4.3 from `mining_out/<D>/rz_replay` (`manifest.json`, `realization_workbook.xlsx`, `realizer.log`, `realization/`); the stdout and exit status of each command |
+| B | Before step 4.4 | The fixes merged in phase 2 with their summaries; the cost-profile comparison and the nonprod tag check (the Publisher checklist, Cost profile calibration), with any proposed profile value or tag-list change as a decision; `realization/backtest/` and the run folder of 4.2 from `mining_out/<D>/rz`, and of 4.3 from `mining_out/<D>/rz_replay` (`manifest.json`, `realization_workbook.xlsx`, `realizer.log`, `realization/`); the stdout and exit status of each command |
 | C, D | After week 1 and week 4 of step 4.5 | `state/realization/measurements/*.json` (no SQL text, owner or tag), the week's run folder files, stdout and exit status. For `<T>`: predicted (the package's range), realized (the replay), billed (the cross-check outcome and its reason), state, classification and claim status |
 
 Packages, workbooks, manifests and the JSON pattern report name warehouses: send them as agreed (or with the identifiers removed), never `evidence.json`.
@@ -144,6 +144,7 @@ Rules:
 Stop and wait for me at checkpoint A (after phase 1), after each fix's summary, at step 3.4 (choosing
 the test warehouse) and at checkpoint B (before the owner applies the change). At checkpoint B report,
 per phase, what ran and what it showed in real-number tables, list the files to send back, and give the
+cost-profile comparison and nonprod tag check as the Publisher checklist's Cost profile calibration asks, and the
 first answers to the checklist questions the data settles so far (restart billing and the 0.75 factor
 from the Realizer's backtest).
 ```
