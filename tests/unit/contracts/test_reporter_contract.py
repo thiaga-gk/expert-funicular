@@ -40,6 +40,16 @@ class ReporterContractTests(unittest.TestCase):
         package.validate()
         self.assertEqual(package.contract_version, CONTRACT_VERSION)
 
+    def test_example_carries_the_component_versions_of_the_publisher(self) -> None:
+        from publisher.config import versions as v
+        provenance = build_package().provenance
+        self.assertEqual(
+            (provenance.policy_version, provenance.analyzer_version, provenance.optimizer_version, provenance.modeler_version,
+             provenance.estimator_version, provenance.bundle_estimator_version, provenance.reviewer_version,
+             provenance.decision_graph_version, provenance.technique_catalog_version),
+            (v.POLICY_VERSION, v.ANALYZER_VERSION, v.OPTIMIZER_VERSION, v.MODEL_VERSION, v.ESTIMATOR_VERSION,
+             v.BUNDLE_MODEL_VERSION, v.REVIEWER_VERSION, v.DECISION_VERSION, v.TECHNIQUE_CATALOG_VERSION))
+
     def test_example_json_validates_against_schema(self) -> None:
         schema = json.loads((ROOT / "schema/recommendation-package.schema.json").read_text())
         data = json.loads((ROOT / "examples/recommendation-package.example.json").read_text())

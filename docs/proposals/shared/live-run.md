@@ -42,8 +42,8 @@ With no approved fix, phase 3 reuses step 1.1's run instead of collecting again.
 | Step | Do | Check |
 |---|---|---|
 | 3.1 | Publisher, full scope, on master after the fixes (a new date `<D>`): step 1.1's command into `mining_out/<D>/pub_full` | Mine it (step 1.3): the fixed mismatches stay fixed and no new one appears |
-| 3.2 | Publisher, auto-stop scope: `publisher --profile <P> --sql-warehouse-id <C> --source-region <R> --warehouse all --scope current:auto-stop --flat-output --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a one-step package |
-| 3.3 | Cost-profile replays of 3.1's evidence: `publisher --from-evidence mining_out/<D>/pub_full/evidence.json --cost-profile <profile> --flat-output --output-dir mining_out/<D>/pub_<profile>` for `conservative`, `balanced`, `aggressive` | Per warehouse, which cuts each profile ships or holds, and on which limit |
+| 3.2 | Publisher, auto-stop scope: `publisher --profile <P> --sql-warehouse-id <C> --source-region <R> --warehouse all --scope current:auto-stop --flat-output --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a package whose plan holds the auto-stop step (plus a canary rollback when one is kept) |
+| 3.3 | Cost-profile replays of 3.1's evidence: `publisher --from-evidence mining_out/<D>/pub_full/evidence.json --cost-profile <profile> --flat-output --output-dir mining_out/<D>/pub_<profile>` for `conservative`, `balanced`, `aggressive` | Per warehouse, which cuts each profile ships or holds, and on which limit. Package IDs differ between profiles even where the decisions match (the profile source is part of the package), so compare decisions, not IDs |
 | 3.4 | Choose `<T>`: a Pro or Classic warehouse with steady weekday use, an auto-stop package from 3.2 and an owner who agrees to one auto-stop change for four weeks | Agreed with the owner of `<T>`; note the package's recommended value |
 
 ## Phase 4 · Realizer flows

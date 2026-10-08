@@ -18,6 +18,7 @@ for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
+from publisher.config import versions
 from publisher.contracts.reporter_contract import *
 
 WORKSPACE = "1234567890123456"
@@ -25,15 +26,16 @@ WAREHOUSE = "wh-demo-001"
 REGION = "us-east-1"
 CURRENCY = "USD"
 
-POLICY_VERSION = "policy-v2.11.0"
-ANALYZER_VERSION = "2.11.0"
-OPTIMIZER_VERSION = "2.12.0"
-MODELER_VERSION = "2.10.0"
-ESTIMATOR_VERSION = "2.11.0"
-BUNDLE_VERSION = "2.10.0"
-REVIEWER_VERSION = "2.12.0"
-DECISION_VERSION = "decision-graph-v2.12.0"
-CATALOG_VERSION = "technique-catalog-v2"
+# The component versions are the publisher's own, so the example never lags a version bump.
+POLICY_VERSION = versions.POLICY_VERSION
+ANALYZER_VERSION = versions.ANALYZER_VERSION
+OPTIMIZER_VERSION = versions.OPTIMIZER_VERSION
+MODELER_VERSION = versions.MODEL_VERSION
+ESTIMATOR_VERSION = versions.ESTIMATOR_VERSION
+BUNDLE_VERSION = versions.BUNDLE_MODEL_VERSION
+REVIEWER_VERSION = versions.REVIEWER_VERSION
+DECISION_VERSION = versions.DECISION_VERSION
+CATALOG_VERSION = versions.TECHNIQUE_CATALOG_VERSION
 
 
 def conf(score: float, method: str = "deterministic_weighted_evidence") -> Confidence:
