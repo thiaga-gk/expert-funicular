@@ -174,9 +174,6 @@ def analyze_observation(package: Mapping[str, Any], observation: Mapping[str, An
     )
 
 
-# The lifecycle events that end application episodes: a drift ends every episode open when it is recorded (the plan
-# stops), an observed rollback the episode it names and the episodes its payload lists (``rolled_back_episode_ids``).
-CLOSING_EVENTS = (rc.EventType.DRIFT_DETECTED, rc.EventType.ROLLBACK_OBSERVED)
 APPLICATION_EVENTS = (rc.EventType.APPLICATION_OBSERVED, rc.EventType.MODIFIED_APPLICATION_OBSERVED)
 
 
