@@ -330,7 +330,7 @@ footer p{max-width:110ch;margin:0}
       <div class="card"><h3>What stands out</h3><p class="sub">Rule-based call-outs computed from this run's figures</p><ul class="insights" id="insights"></ul></div>
     </div>
     <div class="grid g75" style="margin-top:16px">
-      <div class="card"><div class="card-h"><div><h3>Trend across runs</h3><p class="sub">Annual figures per run date; actual is the trailing 365 days, the rest are 365-day forward figures</p></div></div><div class="chart" id="ch-trend" role="img" aria-label="Trend across runs"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Trend across runs</h3><p class="sub">Annual figures per run date; actual is the trailing 365 days, the rest are 365-day forward figures<span class="fleet-note"></span></p></div></div><div class="chart" id="ch-trend" role="img" aria-label="Trend across runs"></div></div>
       <div class="card"><h3>Where the savings are</h3><p class="sub">Open recommended steps by technique, base annual savings</p><div class="chart" id="ch-technique" role="img" aria-label="Savings by technique"></div></div>
     </div>
     <div class="card" style="margin-top:16px">
@@ -395,7 +395,7 @@ footer p{max-width:110ch;margin:0}
         <h3 style="margin-top:24px">Claim status</h3><p class="sub">Only claimable changes count toward realized savings</p><div class="comp" id="rz-claim"></div>
         <h3 style="margin-top:24px">Against the expected range</h3><p class="sub">Claimable changes with a measured run-rate</p><div class="comp" id="rz-band"></div></div>
     </div>
-    <div class="card" style="margin-top:16px"><h3>Realization across runs</h3><p class="sub">Claimable annual run-rate and savings realized to date at each run date, beside the identified base</p><div class="chart" id="ch-rz-trend" role="img" aria-label="Realization trend"></div></div>
+    <div class="card" style="margin-top:16px"><h3>Realization across runs</h3><p class="sub">Claimable annual run-rate and savings realized to date at each run date, beside the identified base<span class="fleet-note"></span></p><div class="chart" id="ch-rz-trend" role="img" aria-label="Realization trend"></div></div>
     <div class="card" style="margin-top:16px"><h3>Configuration changes</h3><p class="sub" id="rz-changes-sub">Every configuration change in the trailing year across the visible warehouses, newest first, and whether a recommendation accounts for it</p>
       <div class="tbl-wrap" style="max-height:520px"><table class="t" id="rz-changes"></table></div></div>
     <div class="card" style="margin-top:16px"><div class="card-h"><div><h3>Applied changes</h3><p class="sub">Realization lineages as of this run; select a row for the warehouse</p></div>
@@ -551,7 +551,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     return FILTERS.every(function (f) { var k = f[0], sel = S.f[k]; if (!sel || !sel.length || k === "status") return true; return sel.indexOf(whFacet(w, k)) >= 0; });
   }
   function passRec(r, whByKey) {
-    var w = whByKey[r.warehouse]; if (w && !passWh(w)) return false;
+    var w = whByKey[r.warehouse]; if (!w || !passWh(w)) return false;  // a recommendation counts only when its warehouse is visible
     var sel = S.f.status; return !sel || !sel.length || sel.indexOf(r.status) >= 0;
   }
   function renderFilters() {
@@ -1262,6 +1262,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     renderRunSelect();
     if (!keepFilters || !$("#filters").children.length) renderFilters(); else renderFilters();
     renderBanner();
+    $$(".fleet-note").forEach(function (n) { n.textContent = filterActive() ? ". Whole fleet: filters do not apply to the trend." : ""; });
     $$("section[data-view]").forEach(function (s) { s.classList.toggle("hide", s.dataset.view !== S.view); });
     $$(".tab").forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === S.view)); });
     $$("#lens button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lens === S.lens)); });
