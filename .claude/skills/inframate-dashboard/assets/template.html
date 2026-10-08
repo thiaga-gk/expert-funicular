@@ -433,7 +433,7 @@ footer p{max-width:110ch;margin:0}
   };
   var FILTERS = [["workspace", "Workspace"], ["owner", "Owner"], ["type", "Type"], ["profile", "Cost profile"], ["status", "Status"], ["confidence", "Confidence"]];
   var S = { view: "executive", lens: "executive", run: null, wh: null, cur: null, f: {}, top: "spend", pf: "spend", rz: "claimable", sort: null };
-  var charts = {}, hashTheme = null;
+  var charts = {}, hashTheme = null, openChip = null;
 
   // ---------- formatting ----------
   function cur() { return S.cur || "USD"; }
@@ -511,19 +511,24 @@ footer p{max-width:110ch;margin:0}
       var k = f[0], opts = {};
       if (k === "status") recs.forEach(function (r) { opts[r.status] = 1; }); else ws.forEach(function (w) { opts[whFacet(w, k)] = 1; });
       var sel = S.f[k] || [], keys = Object.keys(opts).sort();
-      html += '<div class="chip' + (sel.length ? " on" : "") + '" data-f="' + k + '"><button aria-haspopup="true">' + esc(f[1]) + (sel.length ? ": " + esc(sel.length === 1 ? (k === "status" ? (STATUS[sel[0]] || [sel[0]])[0] : sel[0]) : sel.length + " selected") : "") + ' ▾</button><div class="menu">' +
+      html += '<div class="chip' + (sel.length ? " on" : "") + (openChip === k ? " open" : "") + '" data-f="' + k + '"><button aria-haspopup="true" aria-expanded="' + (openChip === k) + '">' + esc(f[1]) + (sel.length ? ": " + esc(sel.length === 1 ? (k === "status" ? (STATUS[sel[0]] || [sel[0]])[0] : sel[0]) : sel.length + " selected") : "") + ' ▾</button><div class="menu">' +
         keys.map(function (o) { return '<label><input type="checkbox" value="' + esc(o) + '"' + (sel.indexOf(o) >= 0 ? " checked" : "") + "> " + esc(k === "status" ? (STATUS[o] || [o])[0] : k === "confidence" ? title(o) : o) + "</label>"; }).join("") + "</div></div>";
     });
     if (filterActive()) html += '<button class="clear" id="clear-f">Clear filters</button>';
     host.innerHTML = html;
     $$(".chip", host).forEach(function (chip) {
-      $("button", chip).onclick = function (e) { e.stopPropagation(); var open = chip.classList.contains("open"); $$(".chip.open").forEach(function (c) { c.classList.remove("open"); }); if (!open) chip.classList.add("open"); };
-      $$("input", chip).forEach(function (cb) { cb.onchange = function () { var k = chip.dataset.f; S.f[k] = $$("input:checked", chip).map(function (x) { return x.value; }); renderAll(true); }; });
+      $("button", chip).onclick = function (e) { e.stopPropagation(); var open = chip.classList.contains("open"); closeMenus(); if (!open) { chip.classList.add("open"); openChip = chip.dataset.f; this.setAttribute("aria-expanded", "true"); } };
+      $$("input", chip).forEach(function (cb) { cb.onchange = function () {
+        var k = chip.dataset.f, value = cb.value; S.f[k] = $$("input:checked", chip).map(function (x) { return x.value; }); openChip = k; renderAll(true);
+        var again = $('#filters .chip[data-f="' + k + '"] input[value="' + value.replace(/"/g, '\\"') + '"]'); if (again) again.focus();  // keep the menu open and the focus where it was
+      }; });
       $(".menu", chip).onclick = function (e) { e.stopPropagation(); };
     });
     var c = $("#clear-f"); if (c) c.onclick = function () { S.f = {}; renderAll(); };
   }
-  document.addEventListener("click", function () { $$(".chip.open").forEach(function (c) { c.classList.remove("open"); }); });
+  function closeMenus() { openChip = null; $$(".chip.open").forEach(function (c) { c.classList.remove("open"); var b = $("button", c); if (b) b.setAttribute("aria-expanded", "false"); }); }
+  document.addEventListener("click", closeMenus);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && openChip) { var k = openChip; closeMenus(); var b = $('#filters .chip[data-f="' + k + '"] button'); if (b) b.focus(); } });
 
   // ---------- KPIs (unfiltered: the generator's figures; filtered: the same sums over the visible warehouses) ----------
   function sumAll(xs) { if (!xs.length) return 0; if (xs.some(function (x) { return x == null; })) return null; return xs.reduce(function (a, b) { return a + b; }, 0); }
@@ -1224,7 +1229,7 @@ footer p{max-width:110ch;margin:0}
 
   readHash();
   if (!S.view || !LENSES[S.lens]) S.lens = "executive";
-  $$(".tab").forEach(function (t) { t.onclick = function () { S.view = t.dataset.tab; renderAll(); }; });
+  $$(".tab").forEach(function (t) { t.onclick = function () { S.view = t.dataset.tab; openChip = null; renderAll(); }; });
   $$("#lens button").forEach(function (b) { b.onclick = function () { S.lens = b.dataset.lens; S.view = LENSES[S.lens].view; store.set("dash-lens", S.lens); renderAll(); }; });
   $("#run").onchange = function () { S.run = this.value; renderAll(); };
   $("#run-prev").onclick = function () { var i = D.runs.indexOf(runEntry()); if (i > 0) { S.run = D.runs[i - 1].key; renderAll(); } };
