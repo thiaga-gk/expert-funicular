@@ -1,0 +1,125 @@
+<p class="lede">This chapter follows one warehouse from the system tables to a claimed saving. Warehouse <code>{{pkg:warehouse.warehouse_id}}</code> ("{{pkg:warehouse.warehouse_name}}") is the running example of the whole guide: the Publisher builds its package, the owner applies one step, and the Realizer measures four settled weeks. Every value below is read from the committed {{term:golden-case|golden case}} <code>ge12-full-scope-auto-stop</code>, which a test re-runs end to end. Each stage links to the chapter that explains the mechanism.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 196" role="img" aria-label="Timeline of the example: the package is generated during the four-week pre window, the owner applies the change the day after that window ends, the Realizer measures the following four settled weeks and records the result two days later.">
+    <text class="cap" x="40" y="22">Example timeline (UTC)</text>
+    <rect class="box muted" x="40" y="84" width="414" height="30" rx="5"/>
+    <text class="lbl" x="247" y="104" text-anchor="middle">Pre window · baseline</text>
+    <rect class="box real" x="469" y="84" width="414" height="30" rx="5"/>
+    <text class="lbl" x="676" y="104" text-anchor="middle">Post window · measured</text>
+    <text class="mono" x="40" y="134">{{rpkg:economics.measurement.pre_window.first_day}}</text>
+    <text class="mono" x="454" y="134" text-anchor="end">{{rpkg:economics.measurement.pre_window.last_day}}</text>
+    <text class="mono" x="469" y="152">{{rpkg:economics.measurement.post_window.first_day}}</text>
+    <text class="mono" x="883" y="134" text-anchor="end">{{rpkg:economics.measurement.post_window.last_day}}</text>
+    <path class="edge pub plain" d="M351 50 V 122"/>
+    <circle class="dot pub" cx="351" cy="50" r="4"/>
+    <text class="lbl t-pub" x="343" y="44" text-anchor="end">Package generated</text>
+    <text class="mono" x="343" y="62" text-anchor="end">{{pkg:provenance.generated_at}}</text>
+    <path class="edge warn plain" d="M463 50 V 122"/>
+    <circle class="dot" cx="463" cy="50" r="4"/>
+    <text class="lbl t-warn" x="471" y="44">Owner applies auto-stop {{rpkg:application.source_value}} → {{rpkg:application.observed_applied_value}}</text>
+    <text class="mono" x="471" y="62">{{rpkg:application.effective_from_utc}}</text>
+    <path class="edge real plain" d="M906 50 V 122"/>
+    <circle class="dot real" cx="906" cy="50" r="4"/>
+    <text class="lbl t-real" x="920" y="176" text-anchor="end">Realizer run as of {{rpkg:as_of_utc}}</text>
+    <path class="edge real dash plain" d="M906 122 V 162"/>
+  </svg>
+  <figcaption>The measured window starts on the first whole day after the change, so the change day itself is in neither window. Both windows hold the same number of settled days, so their costs compare directly.</figcaption>
+</figure>
+
+<h3 id="trace-publisher">The Publisher builds the package</h3>
+<ol class="trace">
+  <li><div class="body">
+    <h4>Observe the warehouse and its current epoch</h4>
+    <p>The collector reads <code>system.compute.warehouses</code> and finds a {{pkg:current_config.warehouse_type}} warehouse, size {{pkg:current_config.warehouse_size}}, {{pkg:current_config.min_clusters}} to {{pkg:current_config.max_clusters}} clusters, auto-stop {{pkg:current_config.auto_stop_minutes}} minutes, channel {{pkg:current_config.warehouse_channel}}. That configuration has been unchanged since {{pkg:warehouse.current_epoch.start_time}}, so the {{term:current-epoch|current epoch}} {{pkg:warehouse.current_epoch.epoch_id|id}} is {{pkg:warehouse.current_epoch.age_days}} days old. Photon is {{pkg:current_config.photon.status}}, inferred from billing and never recommended.</p>
+    <p class="small muted">Explained in <a href="#evidence-epochs">Evidence and configuration epochs</a>. Code: {{cite:src/publisher/analyzer/analyzer.py}}.</p>
+  </div></li>
+  <li><div class="body">
+    <h4>Profile the workload and forecast the baseline</h4>
+    <p>All {{pkg:workload_profile.activity.queries_30d|int}} queries in the last 30 days come from jobs (primary source {{pkg:workload_profile.primary_query_source}}, latency class {{pkg:workload_profile.workload_characteristics.latency_class}}). The settled billing gives a no-change {{term:baseline|forward baseline}} for the next year of {{pkg:cost_baseline.forward_365d.dbu_cost|money}} DBU plus {{pkg:cost_baseline.forward_365d.aws_cost|money}} modeled AWS, {{pkg:cost_baseline.forward_365d.total_cost|money}} USD in total. The warehouse is evaluated under the {{pkg:cost_profile.name}} {{term:cost-profile|cost profile}} (source {{pkg:cost_profile.source}}).</p>
+    <p class="small muted">Explained in <a href="#estimation">Estimation math</a> and <a href="#policy">Policy</a>. Code: {{cite:src/publisher/analyzer/forecast.py}}.</p>
+  </div></li>
+  <li><div class="body">
+    <h4>Decide one candidate per knob</h4>
+    <p>Every technique emits exactly one {{term:candidate|candidate}}. Auto-stop is the clear cost win; the size cut is plausible but needs a canary because the warehouse runs batch jobs; the type migration is an experiment; the cluster knobs have nothing to change.</p>
+    {{table:candidates}}
+    <p>The size rationale reads: "{{pkg:candidates[knob=warehouse_size].rationale}}" Each figure in the economics column is priced alone against the same baseline, so the column is {{term:non-additive|non-additive}}.</p>
+    <p class="small muted">Explained in <a href="#techniques">Techniques and decision rules</a> and <a href="#estimation">Estimation math</a>. Code: {{cite:src/publisher/optimizer/optimizer.py}}.</p>
+  </div></li>
+  <li><div class="body">
+    <h4>Plan scenarios and pick one</h4>
+    <p>The packager builds two {{term:scenario|scenarios}}: optimize the current type in place, or migrate to Serverless. The in-place plan is {{pkg:scenarios[scenario_type=IN_PLACE_OPTIMIZATION].status|status}} with selection reason <code>{{pkg:recommended_plan.selection_reason_code}}</code>; its steps are priced by the {{term:stateful-bundle|stateful bundle estimator}}, each on the state the previous step leaves.</p>
+    {{table:chain}}
+    <div class="callout"><b>Decision summary in the package</b><p>{{pkg:recommended_plan.decision_summary}}</p></div>
+    <p class="small muted">Explained in <a href="#estimation">Estimation math</a>. Code: {{cite:src/publisher/packager/packager.py}}, {{cite:src/publisher/packager/sequencing.py::PlanOrdering}}.</p>
+  </div></li>
+  <li><div class="body">
+    <h4>Bound the opportunity</h4>
+    <p>The package economics are an {{term:envelope|envelope}} across both scenarios, not a sum. Here the in-place plan supplies both bounds: its low is lower than the migration's low, and its high is higher than the migration's high.</p>
+    {{table:envelope}}
+    {{range:pkg|package_economics.estimated_savings_365d|Package savings envelope}}
+  </div></li>
+  <li><div class="body">
+    <h4>Lock the package</h4>
+    <p>The package is assembled, hashed, validated semantically and against the committed schema, then written. Its ID {{pkg:recommendation_package_id|id}} is the first {{fact:hash_hex_length}} hex characters of the SHA-256 over its hash payload; the full hash is in <code>provenance.package_hash_full_sha256</code>.</p>
+    <p class="small muted">Explained in <a href="#package-json">The RecommendationPackage</a>. Code: {{cite:src/publisher/reporter/json_reporter.py::package_locked_contract}}.</p>
+  </div></li>
+</ol>
+
+<h3 id="trace-owner">The owner applies one step</h3>
+<ol class="trace">
+  <li><div class="body">
+    <h4>A person makes the change</h4>
+    <p>Neither product changes the warehouse. The owner reviews step 1 ({{pkg:scenarios[scenario_type=IN_PLACE_OPTIMIZATION].execution_plan[step=1].execution_state|status}}) and sets auto-stop from {{rpkg:application.source_value}} to {{rpkg:application.observed_applied_value}} minutes at {{rpkg:application.effective_from_utc}}, exactly the recommended value. They leave the size canary (step 2, {{pkg:scenarios[scenario_type=IN_PLACE_OPTIMIZATION].execution_plan[step=2].execution_state|status}}) for later, which is what the decision summary asks.</p>
+  </div></li>
+</ol>
+
+<h3 id="trace-realizer">The Realizer measures what happened</h3>
+<ol class="trace">
+  <li class="r"><div class="body">
+    <h4>Accept the package</h4>
+    <p>The Realizer accepts only a package of contract {{fact:versions.realizer_formats.supported_publisher_contract}} whose schema, ID and full hash all check out against its content. Its own package ID {{rpkg:realization_package_id|id}} is a hash of the PKG ID, so one package always maps to one realization package.</p>
+    <p class="small muted">Explained in <a href="#realizer">Realizer pipeline and math</a>. Code: {{cite:src/realizer/config/loader.py::validate_package}}.</p>
+  </div></li>
+  <li class="r"><div class="body">
+    <h4>Observe the application</h4>
+    <p>The new configuration epoch shows auto-stop {{rpkg:application.observed_applied_value}}: the application is {{rpkg:application.state|status}} with conformance <code>{{rpkg:application.implementation_conformance}}</code> (the applied value equals the recommended one) and effective-time quality <code>{{rpkg:application.effective_time_quality}}</code>. Plan progress is <code>{{rpkg:application.plan_progress.state}}</code>: one of the plan's actionable steps is applied.</p>
+  </div></li>
+  <li class="r"><div class="body">
+    <h4>Validate the guardrails</h4>
+    <p>Readiness passes ({{rpkg:validation.readiness.checks.minimum_days.observed}} settled days, {{rpkg:validation.readiness.checks.minimum_queries.observed|int}} queries) and both auto-stop {{term:guardrail|guardrails}} pass: <code>{{rpkg:validation.rules[0].rule_id}}</code> on failures and <code>{{rpkg:validation.rules[1].rule_id}}</code> on added cold starts. Validation is {{rpkg:validation.state|status}}.</p>
+  </div></li>
+  <li class="r"><div class="body">
+    <h4>Replay the counterfactual</h4>
+    <p>Method <code>{{rpkg:economics.measurement.method}}</code>: the post window's running and idle time is replayed under the old auto-stop of {{ex:realizer.replayed_target}} minutes. The old value would have kept clusters up for {{ex:realizer.net_minutes}} more cluster-minutes, worth {{ex:realizer.dbu_saving}} in DBU and {{ex:realizer.aws_saving}} in modeled AWS. Added to the observed cost of {{ex:realizer.observed_new}}, the {{term:counterfactual|counterfactual}} is {{ex:realizer.cf_old}}.</p>
+  </div></li>
+  <li class="r"><div class="body">
+    <h4>Compare with the published range</h4>
+    <p>Realized over {{ex:realizer.days}} days: {{ex:realizer.cf_old}} − {{ex:realizer.observed_new}} = {{ex:realizer.realized}}, annualized to {{ex:realizer.annual}} USD. That is above the published low of {{ex:realizer.low}} and below the review line of {{ex:realizer.review_line}}, so the state is {{rpkg:economics.realization_state|status}}. The billed {{term:cross-check|cross-check}} agrees: billed DBU fell by {{ex:realizer.billed_reduction}} against a replayed {{ex:realizer.replay_dbu}}, a {{ex:realizer.diff_pct}}% difference ({{rpkg:economics.measurement.cross_check.outcome|status}}).</p>
+    {{range:rpkg|economics.expected_range|Published annual range (total) and the realized annual saving|rpkg:economics.annualized_realized_savings}}
+  </div></li>
+  <li class="r"><div class="body">
+    <h4>Attribute, record and project</h4>
+    <p>Every financial-quality gate passes and no hard disqualifier applies, so the {{term:attribution|attribution}} claim is {{rpkg:attribution.attribution_claim_status|status}} ({{rpkg:attribution.attribution_state|status}}, origin <code>{{rpkg:attribution.origin_attribution}}</code>: the change came after the package was generated). {{term:maturity|Maturity}} is {{rpkg:current_state.maturity_state|status}}: four settled weeks are representative, and the realization becomes mature once measurements cover a year ({{cite:src/realizer/packager/to_date.py::MATURE_DAYS}}). The {{term:ledger|ledger}} holds {{rpkg:history.entry_count}} entries, from the lineage record to the economic measurement.</p>
+    {{table:ledger}}
+    <p class="small muted">Explained in <a href="#realizer-json">Realizer outputs, explained</a>. Code: {{cite:src/realizer/estimator/economics.py::calculate_economics}}, {{cite:src/realizer/estimator/attribution.py::attribution_result}}.</p>
+  </div></li>
+</ol>
+
+<h3 id="trace-golden">How this trace stays true</h3>
+<p>The end-to-end golden cases run the Publisher demo for the case's warehouse, store its package, then run the Realizer's live path against a simulated world in which the case's change happens at the stated time. The stored output is compared on every test run, and a deliberate change is regenerated with an approval message, so a behavior change in either product shows up as a reviewed diff here too.</p>
+<pre class="code"><code>python scripts/update_realizer_e2e_goldens.py --check                 # report drift, write nothing
+python scripts/update_realizer_e2e_goldens.py --approved-change "&lt;why&gt;" --stage all --case ge12-full-scope-auto-stop</code></pre>
+<p>Code: {{cite:tests/golden/realizer/e2e.py::realizer_stage}}, {{cite:scripts/update_realizer_e2e_goldens.py::main}}. The other end-to-end stories:</p>
+{{table:golden_realizer}}
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>The owner applied only step 1. Why is the realized saving compared with the auto-stop candidate's range rather than the scenario's total?</summary>
+    <div><p>The scenario total includes the size canary, which was not applied. An exactly applied single step is judged against its own candidate's isolated savings; the denominator source in this package is <code>{{rpkg:economics.denominator_source}}</code>.</p></div></details>
+  <details><summary>The annualized saving is above the published high. Why is it still REALIZED and not flagged for review?</summary>
+    <div><p>A result at or above the published low is realized. Review is flagged only above {{fact:realizer.review_above_high}} times the high ({{cite:src/realizer/estimator/economics.py::REVIEW_ABOVE_HIGH}}; {{ex:realizer.review_line}} here), which this saving does not reach. The replay is the optimistic track of the published range, so landing near the high end is expected.</p></div></details>
+  <details><summary>Why does the measured window start the day after the change instead of at the change time?</summary>
+    <div><p>Billing settles by whole UTC days. The change day mixes two configurations, so it belongs to neither window; the pre and post windows are whole settled days of one configuration each.</p></div></details>
+  <details><summary>What would make the claim OBSERVABLE_ONLY even though the saving is real?</summary>
+    <div><p>Any hard disqualifier: another knob changed in the window, a failed financial-quality gate, a cross-check that disagrees, an open canary window or another lineage owning the change. The saving is still recorded; it just cannot be claimed for this recommendation.</p></div></details>
+</div>

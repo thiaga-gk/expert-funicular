@@ -1,0 +1,96 @@
+<p class="lede">Every decision starts from evidence the collector reads out of Databricks system tables and normalizes into one {{cite:src/publisher/contracts/source.py::WarehouseEvidence}} per <code>(workspace_id, warehouse_id)</code>. The evidence is cut into {{term:epoch|configuration epochs}}, because a metric only describes the configuration it was measured under. Getting the epoch right is what keeps a recommendation from being judged on the wrong configuration.</p>
+
+<h3 id="evidence-epochs-sources">Where the facts come from</h3>
+<p>The collector ({{cite:src/publisher/analyzer/collector/collector.py::extract_evidence}}) runs each read-only query once over the whole fleet and assembles the rows. It is the only place raw rows become typed evidence, and it logs counts and IDs only: never SQL text, owner emails, tags or configuration values.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>System table</th><th>What the Publisher takes from it</th><th>Query module</th></tr></thead>
+  <tbody>
+    <tr><td><code>system.compute.warehouses</code></td><td>Configuration snapshots: type, size, min and max clusters, auto-stop, channel, name, tags. The authority for epochs.</td><td>{{cite:src/publisher/analyzer/collector/queries/config_epochs.py::CONFIG_EPOCHS_CTE|config_epochs.py}}</td></tr>
+    <tr><td><code>system.compute.warehouse_events</code></td><td>Starts, stops and scaling: running and idle time, cluster levels, restarts, running-idle gaps for every auto-stop value, the daily resource series.</td><td>{{cite:src/publisher/analyzer/collector/queries/events.py::build_running_idle_sql|events.py}}</td></tr>
+    <tr><td><code>system.query.history</code></td><td>Per-query latency, queueing, spill, failures, concurrency and the workload mix from <code>query_source</code> (dashboard, job, notebook, Genie, alert) and <code>client_application</code>. Statement text is never exported.</td><td>{{cite:src/publisher/analyzer/collector/queries/query_history.py::EPOCH_QUERY_METRICS_SQL|query_history.py}}</td></tr>
+    <tr><td><code>system.billing.usage</code></td><td>Daily DBU quantity per epoch, Photon from <code>product_features.is_photon</code>, the owner from <code>identity_metadata.owned_by</code>, the billing watermark.</td><td>{{cite:src/publisher/analyzer/collector/queries/billing.py::EPOCH_BILLING_ATTRIBUTION_SQL|billing.py}}</td></tr>
+    <tr><td><code>system.billing.list_prices</code></td><td>The list price of each SQL SKU. Usage with no price stays unpriced, so its cost is null.</td><td>{{cite:src/publisher/analyzer/collector/queries/billing.py::SQL_SKU_PRICE_SQL|billing.py}}</td></tr>
+  </tbody>
+</table></div>
+<p>REST is used read-only for two things: resolving and validating the SQL execution target, and optional workspace compatibility evidence for a type migration ({{cite:src/publisher/analyzer/collector/workspace_api.py::collect_workspace_compatibility_evidence}}). AWS cost for Pro and Classic comes from a committed EC2 on-demand price registry ({{cite:src/publisher/analyzer/collector/pricing.py::model_aws_baseline_cost}}).</p>
+<p>The normalizer cleans what the tables leave ambiguous: size names ({{cite:src/publisher/analyzer/normalizer.py::normalize_size}}), redacted owners ({{cite:src/publisher/analyzer/normalizer.py::clean_owner}}), the workload mix ({{cite:src/publisher/analyzer/normalizer.py::derive_query_source_profile}}) and Photon. Photon has no configuration field in the snapshot table; {{cite:src/publisher/analyzer/normalizer.py::infer_photon_observation}} infers ENABLED, DISABLED, MIXED or UNKNOWN from the current epoch's signed DBU split, and only when coverage, volume and freshness are good enough. The result is reported, never used as a recommendation input.</p>
+
+<h3 id="evidence-epochs-epochs">Configuration epochs</h3>
+<p><code>system.compute.warehouses</code> writes a snapshot whenever any property changes, including the name or tags. The epoch query folds cosmetic snapshots into the surrounding period and starts a new epoch only when a decision field changes: type, channel, size, min clusters, max clusters or auto-stop. Renaming a warehouse therefore never resets its history. The {{term:current-epoch|current epoch}} is the open one; its ID enters every candidate, scenario and package hash.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 360" role="img" aria-label="A warehouse with four epochs over the last year. Running time, idle time and billing come only from the current epoch. Demand evidence carries back across the max-cluster and auto-stop changes inside the 30-day window but not across the size change; capacity queueing carries only across the auto-stop change. An older epoch's higher peak holds capacity cuts. The canary guard compares the current epoch with the one just before it.">
+    <text class="cap" x="40" y="24">epochs (not to scale)</text>
+    <rect class="box muted" x="300" y="40" width="300" height="48" rx="6"/>
+    <text class="lbl" x="450" y="61" text-anchor="middle">older epoch</text>
+    <text class="mono" x="450" y="78" text-anchor="middle">MEDIUM · max 6</text>
+    <rect class="box muted" x="600" y="40" width="140" height="48" rx="6"/>
+    <text class="lbl" x="670" y="61" text-anchor="middle">size change</text>
+    <text class="mono" x="670" y="78" text-anchor="middle">LARGE · max 6</text>
+    <rect class="box muted" x="740" y="40" width="80" height="48" rx="6"/>
+    <text class="lbl" x="780" y="61" text-anchor="middle">max</text>
+    <text class="mono" x="780" y="78" text-anchor="middle">max 4</text>
+    <rect class="box pub" x="820" y="40" width="100" height="48" rx="6"/>
+    <text class="lbl t-pub" x="870" y="61" text-anchor="middle">current</text>
+    <text class="mono" x="870" y="78" text-anchor="middle">auto-stop</text>
+    <path class="edge plain" d="M300 100 H 920"/>
+    <text class="sub" x="300" y="116">−365 days</text>
+    <text class="sub" x="920" y="116" text-anchor="end">now</text>
+    <path class="edge plain dash" d="M700 92 V 280"/>
+    <text class="sub" x="704" y="132">30-day window</text>
+
+    <text class="lbl" x="40" y="164">Running, idle, cluster-minutes, billing</text>
+    <rect class="box pub" x="820" y="150" width="100" height="20" rx="4"/>
+    <text class="sub" x="40" y="180">current epoch only</text>
+
+    <text class="lbl" x="40" y="214">Demand and per-query evidence</text>
+    <rect class="box good" x="700" y="200" width="220" height="20" rx="4"/>
+    <text class="sub" x="40" y="230">carries across max, min, auto-stop</text>
+
+    <text class="lbl" x="40" y="264">Capacity queueing</text>
+    <rect class="box good" x="820" y="250" width="100" height="20" rx="4"/>
+    <text class="sub" x="40" y="280">carries across auto-stop only</text>
+
+    <text class="lbl" x="40" y="320">Older-epoch peak</text>
+    <rect class="box gate" x="300" y="306" width="300" height="20" rx="4"/>
+    <text class="sub" x="450" y="320" text-anchor="middle">higher peak holds capacity cuts</text>
+    <text class="sub" x="40" y="336">within 365 days; never picks a change</text>
+
+    <path class="edge plain" d="M780 30 H 870"/>
+    <text class="elbl" x="825" y="24" text-anchor="middle">canary guard compares</text>
+  </svg>
+  <figcaption>What each kind of evidence may cover. Bars show the period a metric is read over for the current decision: the current epoch alone, or reaching back across changes that cannot affect it, never past the 30-day query window.</figcaption>
+</figure>
+
+<h3 id="evidence-epochs-carry">The three exceptions to "current epoch only"</h3>
+<p>Older epochs are calibration and backtest material. They never choose a change, its target or its economics, with three narrow exceptions.</p>
+<div class="grid c3">
+  <div class="card"><h4>1 · Older peak holds a cut</h4>
+    <p>If an older epoch of the same warehouse within the last 365 days reached more clusters of peak demand than the recent window, capacity cuts wait (<code>OLDER_EPOCH_PEAK_DEMAND_HIGHER</code>). Each older epoch's sustained peak (the level held for {{fact:thresholds.peak_demand_min_minutes}} busy minutes) is compared with the recent peak in clusters at {{fact:product_constants.QUERIES_PER_CLUSTER_PRO_CLASSIC}} queries per cluster. Computed in {{cite:src/publisher/analyzer/findings.py::Analyzer}}.</p></div>
+  <div class="card"><h4>2 · Evidence a change cannot affect</h4>
+    <p>A change to auto-stop or cluster limits does not change how heavy each query is. So when the current epoch is younger than the 30-day query window, demand and per-query evidence is read back to the last size, type or channel change, and capacity queueing back to the last change of size, type, channel, min or max clusters ({{cite:src/publisher/analyzer/collector/queries/query_history.py::PERIODS_CTE}}). The fields that carry are listed in {{cite:src/publisher/analyzer/epochs.py::DEMAND_CARRY_FIELDS}} and {{cite:src/publisher/analyzer/epochs.py::QUEUE_CARRY_FIELDS}}; {{cite:src/publisher/analyzer/epochs.py::carried_query_view}} lays them over the current epoch's.</p></div>
+  <div class="card"><h4>3 · Canary rollback</h4>
+    <p>After a canary-type change (one size down or a lower minimum), {{cite:src/publisher/analyzer/findings.py::canary_observation}} compares the current epoch with the one immediately before it. A tripped fail-fast guard makes the Optimizer recommend restoring the previous epoch's value ({{term:canary-rollback}}).</p></div>
+</div>
+<div class="callout rule"><b>Never carried</b><p>Running time, idle time, cluster-minutes and billing always come from the current epoch alone. They are what a configuration change actually changes, so mixing in an older epoch would price the new configuration with the old one's behavior. Cold-start wait also never carries, because auto-stop changes it.</p></div>
+
+<h3 id="evidence-epochs-billing">Settled billing and readiness</h3>
+<p>Billing arrives late and is sometimes corrected. A UTC day counts only {{fact:thresholds.billing_settle_hours}} hours after it ends and once the account's billing watermark has passed it ({{cite:src/publisher/analyzer/collector/billing.py::billing_check_through}}). When a warehouse simply stopped running, its workspace watermark stalls at the last usage; {{cite:src/publisher/analyzer/collector/billing.py::effective_billing_watermark}} uses warehouse events to tell "no usage" from "usage not ingested yet", and keeps the workspace watermark when it cannot tell. <code>--billing-ingested-through</code> pins billing to what was ingested by a date, so a re-collection reproduces an earlier run.</p>
+<p>Before any size, cluster or auto-stop change is decided, the current configuration needs {{fact:thresholds.readiness_min_billed_days}} settled billed days ({{cite:src/publisher/analyzer/epochs.py::ready_billed_days}}). Readiness counts billed days rather than calendar age, so a warehouse that rarely runs is not judged on days it did nothing. Epoch age itself is computed from the analysis time, never the wall clock ({{cite:src/publisher/analyzer/epochs.py::epoch_age_days}}).</p>
+
+<h3 id="evidence-epochs-replay">evidence.json and replay</h3>
+<p>Every run writes the normalized evidence it decided on to <code>evidence.json</code>: a versioned envelope with <code>evidence_format_version</code> {{fact:versions.publisher.evidence_format_version}}, the Publisher version and the list of warehouses ({{cite:src/publisher/analyzer/collector/replay.py::save_evidence}}). It is validated against <code>schema/evidence.schema.json</code> before it is written and again when <code>--from-evidence</code> loads it ({{cite:src/publisher/analyzer/collector/replay.py::validate_evidence_payload}}). Any other version, or a bare list, is rejected; there are no legacy shims.</p>
+<pre class="code"><code>publisher --from-evidence ./demo_out/evidence.json --output-dir ./replay_out</code></pre>
+<p>Because decisions are deterministic, a replay of the same evidence under the same versions produces byte-identical packages. That makes the file the unit of reproduction for bug reports and the input of the golden cases.</p>
+<div class="callout warn"><b>Sensitive file</b><p><code>evidence.json</code> holds owner emails and warehouse tags. Validation errors name the failing path and rule, never the value, and the loader logs counts and IDs only. Treat the file like any other export containing personal data.</p></div>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>An owner renames a warehouse. Does it get a new epoch?</summary>
+    <div><p>No. Only decision fields (type, channel, size, min and max clusters, auto-stop) start an epoch; name and tag snapshots fold into the surrounding period, so history and readiness are kept.</p></div></details>
+  <details><summary>Auto-stop changed nine days ago. Which period does the p95 execution time come from?</summary>
+    <div><p>From the last size, type or channel change, clipped to the 30-day query window: auto-stop cannot change how long a query runs, so that evidence carries across the change. Idle time and billing still come from the nine-day current epoch only.</p></div></details>
+  <details><summary>Can an older, busier epoch make the Publisher recommend more clusters?</summary>
+    <div><p>No. An older peak can only hold a capacity cut. Older epochs never choose a change, its target or its economics.</p></div></details>
+  <details><summary>Why is readiness counted in billed days and not calendar days?</summary>
+    <div><p>A warehouse that runs twice a week would otherwise look "ready" after days of no activity. Settled billed days count only days the configuration actually ran and was billed.</p></div></details>
+</div>

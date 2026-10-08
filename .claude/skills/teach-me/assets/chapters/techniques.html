@@ -1,0 +1,385 @@
+<p class="lede">The Optimizer turns the Analyzer's facts into exactly one decision per {{term:knob}}. Each decision is a pure function of the current epoch's evidence and the {{term:thresholds}} of the warehouse's {{term:cost-profile}}: no wall clock, no randomness, no guesses. A missing fact never reads as "no pressure"; it becomes a {{term:blocker}} code and the change waits.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 232" role="img" aria-label="The Optimizer runs five techniques in a fixed order, lets a canary rollback rewrite their decisions, filters by run scope, then the Estimator prices each decision and the value gate holds changes that do not pay.">
+    <text class="cap" x="16" y="24">decide</text>
+    <rect class="box muted" x="16" y="40" width="150" height="56" rx="8"/>
+    <text class="lbl" x="91" y="64" text-anchor="middle">Analyzer facts</text>
+    <text class="mono" x="91" y="82" text-anchor="middle">AnalysisResult per knob</text>
+    <path class="edge pub" d="M166 68 H 192"/>
+    <rect class="box pub" x="196" y="40" width="104" height="56" rx="8"/>
+    <text class="lbl" x="248" y="64" text-anchor="middle">size</text>
+    <text class="mono" x="248" y="82" text-anchor="middle">size.py</text>
+    <path class="edge pub" d="M300 68 H 312"/>
+    <rect class="box pub" x="316" y="40" width="104" height="56" rx="8"/>
+    <text class="lbl" x="368" y="64" text-anchor="middle">max clusters</text>
+    <text class="mono" x="368" y="82" text-anchor="middle">scaling.py</text>
+    <path class="edge pub" d="M420 68 H 432"/>
+    <rect class="box pub" x="436" y="40" width="104" height="56" rx="8"/>
+    <text class="lbl" x="488" y="64" text-anchor="middle">min clusters</text>
+    <text class="mono" x="488" y="82" text-anchor="middle">scaling.py</text>
+    <path class="edge pub" d="M540 68 H 552"/>
+    <rect class="box pub" x="556" y="40" width="104" height="56" rx="8"/>
+    <text class="lbl" x="608" y="64" text-anchor="middle">auto-stop</text>
+    <text class="mono" x="608" y="82" text-anchor="middle">autostop.py</text>
+    <path class="edge pub" d="M660 68 H 672"/>
+    <rect class="box pub" x="676" y="40" width="104" height="56" rx="8"/>
+    <text class="lbl" x="728" y="64" text-anchor="middle">migration</text>
+    <text class="mono" x="728" y="82" text-anchor="middle">migration.py</text>
+    <path class="edge dash" d="M608 96 C 608 120, 728 120, 728 100"/>
+    <text class="elbl" x="668" y="126" text-anchor="middle">reads the auto-stop decision</text>
+    <path class="edge pub" d="M780 68 H 796"/>
+    <rect class="box gate" x="800" y="40" width="144" height="56" rx="8"/>
+    <text class="lbl" x="872" y="64" text-anchor="middle">canary rollback</text>
+    <text class="mono" x="872" y="82" text-anchor="middle">conflicts.py</text>
+    <text class="cap" x="16" y="152">price</text>
+    <path class="edge pub" d="M872 96 V 140 H 268 V 156"/>
+    <text class="elbl" x="560" y="134" text-anchor="middle">five decisions</text>
+    <rect class="box gate" x="196" y="160" width="144" height="56" rx="8"/>
+    <text class="lbl" x="268" y="184" text-anchor="middle">run scope</text>
+    <text class="mono" x="268" y="202" text-anchor="middle">in_scope()</text>
+    <path class="edge pub" d="M340 188 H 372"/>
+    <rect class="box pub" x="376" y="160" width="164" height="56" rx="8"/>
+    <text class="lbl" x="458" y="184" text-anchor="middle">candidate estimator</text>
+    <text class="mono" x="458" y="202" text-anchor="middle">Estimator.candidates</text>
+    <path class="edge pub" d="M540 188 H 572"/>
+    <rect class="box gate" x="576" y="160" width="144" height="56" rx="8"/>
+    <text class="lbl" x="648" y="184" text-anchor="middle">value gate</text>
+    <text class="mono" x="648" y="202" text-anchor="middle">_value_gate()</text>
+    <path class="edge pub" d="M720 188 H 752"/>
+    <rect class="box muted" x="756" y="160" width="188" height="56" rx="8"/>
+    <text class="lbl" x="850" y="184" text-anchor="middle">priced candidates</text>
+    <text class="sub" x="850" y="202" text-anchor="middle">to the candidate gate</text>
+  </svg>
+  <figcaption>Every knob is decided before the run scope removes anything, so cross-technique holds behave the same in every scope. The canary rollback is the only step that rewrites another technique's decision.</figcaption>
+</figure>
+
+<h3 id="techniques-order">One decision per knob, in a fixed order</h3>
+<p>{{cite:src/publisher/optimizer/optimizer.py::Optimizer|Optimizer.optimize}} calls the techniques in the order size, max clusters, min clusters, auto-stop, migration, and each appends exactly one decision. The order matters once: the migration technique reads the auto-stop decision, because a warehouse that runs with no queries needs a human review before any migration experiment. One decision per knob holds by construction, which is the invariant the candidate gate checks.</p>
+<p>Every technique first asks whether the configuration is ready. A decision is "young" when the current {{term:epoch}} has fewer than {{fact:thresholds.readiness_min_billed_days}} settled billed days (<code>readiness_min_billed_days</code>); young evidence holds a change with <code>CURRENT_CONFIG_EPOCH_TOO_NEW</code>. The thresholds themselves come from {{cite:src/publisher/governor/cost_profiles.py::thresholds_for_profile}}, so an aggressive or conservative profile only moves the risk-appetite levels of cuts.</p>
+<p>After the techniques run, {{cite:src/publisher/optimizer/optimizer.py::in_scope}} keeps the knobs in the {{term:run-scope}} and always keeps a canary rollback, since a rollback is a safety action.</p>
+
+<div class="grid c3">
+  <div class="card"><h4>{{status:ACTIONABLE}}</h4><p>Apply with human approval. The evidence is direct enough that no test is needed (a lower auto-stop, a max-cluster change, a rollback).</p></div>
+  <div class="card"><h4>{{status:TEST_REQUIRED}}</h4><p>A {{term:canary}}: the effect is modeled, not observed, so the change is applied as a test and judged on its new epoch (size, a lower floor, a migration, a higher auto-stop).</p></div>
+  <div class="card"><h4>{{status:NO_CHANGE}}</h4><p>The current value stays. Blocker codes say what held a change, or the list is empty when today's value is already right.</p></div>
+  <div class="card"><h4>{{status:INSUFFICIENT_EVIDENCE}}</h4><p>The evidence a rule needs is missing, thin or too young. Nothing is priced.</p></div>
+  <div class="card"><h4>{{status:BLOCKED}}</h4><p>A change is warranted but a hard limit or guard refuses it (largest size, max-cluster limit, failures).</p></div>
+  <div class="card"><h4>{{status:REVIEW}}</h4><p>A person must decide first, for example whether a warehouse that ran with no queries is still needed.</p></div>
+</div>
+
+<h3 id="techniques-size">Warehouse size</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 352" role="img" aria-label="Size decision ladder: an unknown size is blocked, frequent and severe spill proposes one size up as a canary, any downsize blocker keeps the size, otherwise one size down is proposed as a canary.">
+    <rect class="box" x="16" y="8" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="32" text-anchor="start">Size outside the known order?</text>
+    <text class="mono" x="30" y="50" text-anchor="start">warehouse_size not in SIZE_ORDER</text>
+    <path class="edge" d="M468 40.0 H 544"/>
+    <text class="elbl" x="508.0" y="33.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 72 V 88"/>
+    <text class="elbl" x="66" y="86" text-anchor="start">no</text>
+    <rect class="box bad" x="548" y="8" width="396" height="64" rx="8"/>
+    <text class="lbl t-bad" x="562" y="32" text-anchor="start">BLOCKED</text>
+    <text class="sub" x="562" y="50" text-anchor="start">UNKNOWN_WAREHOUSE_SIZE</text>
+    <rect class="box" x="16" y="92" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="116" text-anchor="start">Spill frequent and severe?</text>
+    <text class="mono" x="30" y="134" text-anchor="start">spill % ≥ spill_query_pct_upsize</text>
+    <text class="mono" x="30" y="149" text-anchor="start">spill p95 ≥ spill_p95_bytes_upsize</text>
+    <path class="edge" d="M468 124.0 H 544"/>
+    <text class="elbl" x="508.0" y="117.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 156 V 172"/>
+    <text class="elbl" x="66" y="170" text-anchor="start">no</text>
+    <rect class="box gate" x="548" y="92" width="396" height="64" rx="8"/>
+    <text class="lbl t-warn" x="562" y="116" text-anchor="start">TEST_REQUIRED · one size up</text>
+    <text class="sub" x="562" y="134" text-anchor="start">held: thin sample or young epoch (INSUFFICIENT_EVIDENCE),</text>
+    <text class="sub" x="562" y="149" text-anchor="start">few statements (NO_CHANGE), largest size (BLOCKED)</text>
+    <rect class="box" x="16" y="176" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="200" text-anchor="start">Any downsize blocker?</text>
+    <text class="mono" x="30" y="218" text-anchor="start">spill, queue, failures, p95, p99, sample,</text>
+    <text class="mono" x="30" y="233" text-anchor="start">growth, epoch peak, older epoch, young epoch</text>
+    <path class="edge" d="M468 208.0 H 544"/>
+    <text class="elbl" x="508.0" y="201.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 240 V 256"/>
+    <text class="elbl" x="66" y="254" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="176" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="200" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="218" text-anchor="start">the blocker codes say which signal held it</text>
+    <rect class="box gate" x="16" y="260" width="452" height="64" rx="8"/>
+    <text class="lbl t-warn" x="30" y="284" text-anchor="start">TEST_REQUIRED · one size down</text>
+    <text class="sub" x="30" y="302" text-anchor="start">canary; invalidates max_clusters and min_clusters</text>
+    </svg>
+  <figcaption>Read top to bottom: the first check that answers yes decides. Upsize and downsize both move exactly one size and both are canaries.</figcaption>
+</figure>
+<p>{{cite:src/publisher/optimizer/techniques/size.py::decide|size.decide}} looks for spill first. Spill must be both frequent (at least {{fact:thresholds.spill_query_pct_upsize}}% of queries, <code>spill_query_pct_upsize</code>) and severe (a p95 of spilled bytes among the spilled queries at or above <code>spill_p95_bytes_upsize</code>), backed by at least {{fact:thresholds.severity_min_affected_queries}} spilled queries. Frequency without a reported severity is <code>INSUFFICIENT_EVIDENCE</code>. When {{fact:thresholds.spill_concentration_hold_pct}}% or more of the spilled bytes come from the top {{fact:thresholds.spill_concentration_top_sources}} statement sources, the fix is a rewrite of those statements, so the size stays (<code>SPILL_CONCENTRATED_IN_FEW_STATEMENTS</code>).</p>
+<p>Without an upsize signal the technique tries one size down, and every safety signal can veto it: spill above <code>spill_query_pct_downsize_safe</code>, queueing above <code>queue_query_pct_safe</code>, failures above <code>failure_cancel_pct_downsize_safe</code>, p95 and p99 latency limits, fewer than {{fact:thresholds.strong_query_sample_size}} executed queries, growing query volume, a peak in the current epoch above the recent window, or an older epoch that peaked higher. A batch warehouse (job queries at least {{fact:thresholds.batch_job_query_share_pct}}% of the load) is judged on {{fact:thresholds.batch_min_active_days}} run days instead of the query sample and the latency limits.</p>
+<div class="callout warn"><b>Why a resize is never ACTIONABLE</b><p>The speed-up or slowdown of a resize and its cost are modeled, never observed. A resize also invalidates the max- and min-cluster decisions, which were measured at the old size, so they wait for a re-measurement.</p></div>
+
+<h3 id="techniques-max">Max clusters</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 436" role="img" aria-label="Max-cluster decision ladder: queueing with long waits at a saturated ceiling raises it, a missing resource window keeps it, an unused ceiling with low queueing is cut as a guardrail, an epoch peak holds the cut.">
+    <rect class="box" x="16" y="8" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="32" text-anchor="start">Queueing at a saturated ceiling?</text>
+    <text class="mono" x="30" y="50" text-anchor="start">queue % ≥ queue_query_pct_increase_max</text>
+    <text class="mono" x="30" y="65" text-anchor="start">wait p95 ≥ queue_wait_p95_ms_increase_max, at max ≥ saturated</text>
+    <path class="edge" d="M468 40.0 H 544"/>
+    <text class="elbl" x="508.0" y="33.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 72 V 88"/>
+    <text class="elbl" x="66" y="86" text-anchor="start">no</text>
+    <rect class="box good" x="548" y="8" width="396" height="64" rx="8"/>
+    <text class="lbl t-good" x="562" y="32" text-anchor="start">ACTIONABLE · raise to the demand ceiling</text>
+    <text class="sub" x="562" y="50" text-anchor="start">held: at the limit (BLOCKED), thin evidence</text>
+    <text class="sub" x="562" y="65" text-anchor="start">(INSUFFICIENT_EVIDENCE), demand fits (NO_CHANGE)</text>
+    <rect class="box" x="16" y="92" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="116" text-anchor="start">Recent resource window missing or idle?</text>
+    <text class="mono" x="30" y="134" text-anchor="start">no time-at-max or peak for the window</text>
+    <path class="edge" d="M468 124.0 H 544"/>
+    <text class="elbl" x="508.0" y="117.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 156 V 172"/>
+    <text class="elbl" x="66" y="170" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="92" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="116" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="134" text-anchor="start">resource-window blocker code</text>
+    <rect class="box" x="16" y="176" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="200" text-anchor="start">Unused ceiling, low queueing, no blocker?</text>
+    <text class="mono" x="30" y="218" text-anchor="start">at max ≤ time_at_max_pct_safe_reduce</text>
+    <text class="mono" x="30" y="233" text-anchor="start">queue % ≤ queue_query_pct_safe, mature epoch</text>
+    <path class="edge" d="M468 208.0 H 544"/>
+    <text class="elbl" x="508.0" y="201.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 240 V 256"/>
+    <text class="elbl" x="66" y="254" text-anchor="start">no</text>
+    <rect class="box good" x="548" y="176" width="396" height="64" rx="8"/>
+    <text class="lbl t-good" x="562" y="200" text-anchor="start">ACTIONABLE · COST_GUARDRAIL cut</text>
+    <text class="sub" x="562" y="218" text-anchor="start">to the demand target, never below the recent</text>
+    <text class="sub" x="562" y="233" text-anchor="start">peak; claims no savings</text>
+    <rect class="box" x="16" y="260" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="284" text-anchor="start">Epoch peak above what the window shows?</text>
+    <text class="mono" x="30" y="302" text-anchor="start">required clusters of the whole current epoch</text>
+    <path class="edge" d="M468 292.0 H 544"/>
+    <text class="elbl" x="508.0" y="285.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 324 V 340"/>
+    <text class="elbl" x="66" y="338" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="260" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="284" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="302" text-anchor="start">PEAK_OUTSIDE_RECENT_WINDOW</text>
+    <rect class="box muted" x="16" y="344" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="368" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="30" y="386" text-anchor="start">queueing below the ceiling, a young epoch, or evidence blockers</text>
+    </svg>
+  <figcaption>An increase answers queueing at a saturated ceiling; a decrease is a cost guardrail that claims no savings.</figcaption>
+</figure>
+<p>{{cite:src/publisher/optimizer/techniques/scaling.py::decide_max_clusters}} raises the ceiling only when three signals agree: queued queries at or above {{fact:thresholds.queue_query_pct_increase_max}}%, a capacity-wait p95 at or above <code>queue_wait_p95_ms_increase_max</code>, and time at the ceiling at or above {{fact:thresholds.time_at_max_pct_saturated}}% (<code>time_at_max_pct_saturated</code>). For Pro and Classic the target comes from demand in one move:</p>
+<div class="formula">
+  <header><b>Pro/Classic ceiling target</b>{{cite:src/publisher/optimizer/techniques/scaling.py::decide_max_clusters|scaling.py}}</header>
+  <div class="eq">required  = ceil( P<var>max_cluster_target_percentile</var>(running + queued queries per busy minute) / <var>QUERIES_PER_CLUSTER_PRO_CLASSIC</var> )
+target    = min( <var>MAX_CLUSTERS_SUPPORTED_LIMIT</var>, max( min_clusters, required + <var>max_cluster_target_headroom_clusters</var> ) )</div>
+  <div class="worked">percentile = {{fact:thresholds.max_cluster_target_percentile}}   queries per cluster = {{fact:product_constants.QUERIES_PER_CLUSTER_PRO_CLASSIC}}   limit = {{fact:product_constants.MAX_CLUSTERS_SUPPORTED_LIMIT}}   headroom = {{fact:thresholds.max_cluster_target_headroom_clusters}}</div>
+  <div class="why">Serverless scales differently, so its increase is one cluster at a time, and its confidence is capped by <code>confidence_cap_serverless_ceiling_increase</code> ({{fact:thresholds.confidence_cap_serverless_ceiling_increase}}).</div>
+</div>
+<p>A decrease needs an unused ceiling: time at the ceiling at or below <code>time_at_max_pct_safe_reduce</code>, low queueing, a mature epoch and no evidence blockers. The new ceiling never drops below the recent window's observed peak, and the whole current epoch's peak holds the cut when it is higher than what the recent window shows (<code>PEAK_OUTSIDE_RECENT_WINDOW</code>), so a quarter-end peak is not cut away. The cut is <code>ACTIONABLE</code> with objective <code>COST_GUARDRAIL</code>: a lower ceiling caps runaway cost, but on a warehouse that never reaches it, it saves nothing directly.</p>
+
+<h3 id="techniques-min">Min clusters</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 352" role="img" aria-label="Min-cluster decision ladder: a floor of one is kept, any blocker keeps the floor, a busy-start demand below the floor proposes a lower floor as a canary.">
+    <rect class="box" x="16" y="8" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="32" text-anchor="start">Floor already 1?</text>
+    <text class="mono" x="30" y="50" text-anchor="start">min_clusters ≤ 1</text>
+    <path class="edge" d="M468 40.0 H 544"/>
+    <text class="elbl" x="508.0" y="33.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 72 V 88"/>
+    <text class="elbl" x="66" y="86" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="8" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="32" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="50" text-anchor="start">Minimum is already 1 (the ge12 path)</text>
+    <rect class="box" x="16" y="92" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="116" text-anchor="start">Any blocker?</text>
+    <text class="mono" x="30" y="134" text-anchor="start">young epoch, thin sample, queue or wait above safe,</text>
+    <text class="mono" x="30" y="149" text-anchor="start">scale pressure, rarely at minimum, failures, growth</text>
+    <path class="edge" d="M468 124.0 H 544"/>
+    <text class="elbl" x="508.0" y="117.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 156 V 172"/>
+    <text class="elbl" x="66" y="170" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="92" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="116" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="134" text-anchor="start">blocker codes, e.g. WAREHOUSE_RARELY_AT_MINIMUM</text>
+    <rect class="box" x="16" y="176" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="200" text-anchor="start">Busy-start demand below the floor?</text>
+    <text class="mono" x="30" y="218" text-anchor="start">target = max(1, clusters for the busy-start</text>
+    <text class="mono" x="30" y="233" text-anchor="start">percentile min_cluster_busy_start_percentile)</text>
+    <path class="edge" d="M468 208.0 H 544"/>
+    <text class="elbl" x="508.0" y="201.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 240 V 256"/>
+    <text class="elbl" x="66" y="254" text-anchor="start">no</text>
+    <rect class="box gate" x="548" y="176" width="396" height="64" rx="8"/>
+    <text class="lbl t-warn" x="562" y="200" text-anchor="start">TEST_REQUIRED · lower floor</text>
+    <text class="sub" x="562" y="218" text-anchor="start">SPARE_FLOOR_CAPACITY_UNPROVEN;</text>
+    <text class="sub" x="562" y="233" text-anchor="start">the saving is an upper-bound range</text>
+    <rect class="box muted" x="16" y="260" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="284" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="30" y="302" text-anchor="start">busy starts need the current floor</text>
+    </svg>
+  <figcaption>The floor only ever moves down, in one canary, to the smallest floor that still carries the start of a busy period.</figcaption>
+</figure>
+<p>{{cite:src/publisher/optimizer/techniques/scaling.py::decide_min_clusters}} sizes the floor by what it actually does: it carries the first minutes of a busy period until the autoscaler adds clusters. The target is the smallest floor that covers the busy-start demand at the <code>min_cluster_busy_start_percentile</code> percentile ({{fact:thresholds.min_cluster_busy_start_percentile}}). It needs at least {{fact:thresholds.min_cluster_min_busy_periods}} busy periods, and it is held when the warehouse sits at its ceiling a lot (<code>time_at_max_pct_block_min_reduce</code>) or rarely at its floor (<code>time_at_min_pct_reduce</code>). Every proposal carries <code>SPARE_FLOOR_CAPACITY_UNPROVEN</code> because its saving is an upper bound the canary measures.</p>
+
+<h3 id="techniques-autostop">Auto-stop</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 520" role="img" aria-label="Auto-stop decision ladder: unusable running-idle evidence prices nothing, running without queries goes to review, no saving value within the cold-start budget keeps the value, otherwise the near-best value is chosen; a lower value is actionable unless failures block it, a higher value needs a test.">
+    <rect class="box" x="16" y="8" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="32" text-anchor="start">Running-idle evidence unusable?</text>
+    <text class="mono" x="30" y="50" text-anchor="start">missing, too little running time, idle > runtime,</text>
+    <text class="mono" x="30" y="65" text-anchor="start">or the epoch is not ready yet</text>
+    <path class="edge" d="M468 40.0 H 544"/>
+    <text class="elbl" x="508.0" y="33.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 72 V 88"/>
+    <text class="elbl" x="66" y="86" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="8" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="32" text-anchor="start">INSUFFICIENT_EVIDENCE</text>
+    <text class="sub" x="562" y="50" text-anchor="start">nothing priced; billed every day with no query</text>
+    <text class="sub" x="562" y="65" text-anchor="start">and no events goes to REVIEW instead</text>
+    <rect class="box" x="16" y="92" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="116" text-anchor="start">Ran with no queries?</text>
+    <text class="mono" x="30" y="134" text-anchor="start">running time but zero basis queries</text>
+    <path class="edge" d="M468 124.0 H 544"/>
+    <text class="elbl" x="508.0" y="117.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 156 V 172"/>
+    <text class="elbl" x="66" y="170" text-anchor="start">no</text>
+    <rect class="box gate" x="548" y="92" width="396" height="64" rx="8"/>
+    <text class="lbl t-warn" x="562" y="116" text-anchor="start">REVIEW (lowest value) or NO_CHANGE</text>
+    <text class="sub" x="562" y="134" text-anchor="start">NO_QUERIES_WHILE_RUNNING: a human decides first</text>
+    <rect class="box" x="16" y="176" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="200" text-anchor="start">No value saves within the budget?</text>
+    <text class="mono" x="30" y="218" text-anchor="start">net cluster-minutes > 0 and added cold-start</text>
+    <text class="mono" x="30" y="233" text-anchor="start">share ≤ cold_start_added_share_max_pct</text>
+    <path class="edge" d="M468 208.0 H 544"/>
+    <text class="elbl" x="508.0" y="201.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 240 V 256"/>
+    <text class="elbl" x="66" y="254" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="176" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="200" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="218" text-anchor="start">COLD_START_BUDGET_EXCEEDED or already optimal</text>
+    <rect class="box" x="16" y="260" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="284" text-anchor="start">Pick lower and failures high?</text>
+    <text class="mono" x="30" y="302" text-anchor="start">near-best (auto_stop_near_best_pct), then</text>
+    <text class="mono" x="30" y="317" text-anchor="start">the smallest change from today</text>
+    <path class="edge" d="M468 292.0 H 544"/>
+    <text class="elbl" x="508.0" y="285.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 324 V 340"/>
+    <text class="elbl" x="66" y="338" text-anchor="start">no</text>
+    <rect class="box bad" x="548" y="260" width="396" height="64" rx="8"/>
+    <text class="lbl t-bad" x="562" y="284" text-anchor="start">BLOCKED</text>
+    <text class="sub" x="562" y="302" text-anchor="start">FAILURE_CANCEL_RATE_HIGH or its evidence missing</text>
+    <rect class="box" x="16" y="344" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="368" text-anchor="start">Pick raises auto-stop?</text>
+    <text class="mono" x="30" y="386" text-anchor="start">the saving is restarts avoided</text>
+    <path class="edge" d="M468 376.0 H 544"/>
+    <text class="elbl" x="508.0" y="369.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 408 V 424"/>
+    <text class="elbl" x="66" y="422" text-anchor="start">no</text>
+    <rect class="box gate" x="548" y="344" width="396" height="64" rx="8"/>
+    <text class="lbl t-warn" x="562" y="368" text-anchor="start">TEST_REQUIRED</text>
+    <text class="sub" x="562" y="386" text-anchor="start">RESTART_BILLING_UNVERIFIED</text>
+    <rect class="box good" x="16" y="428" width="452" height="64" rx="8"/>
+    <text class="lbl t-good" x="30" y="452" text-anchor="start">ACTIONABLE · lower auto-stop</text>
+    <text class="sub" x="30" y="470" text-anchor="start">ge12: 45 → 10 minutes</text>
+    </svg>
+  <figcaption>Auto-stop jumps straight to the cost-minimizing value on the warehouse type's grid, rather than stepping one notch at a time.</figcaption>
+</figure>
+<p>The Analyzer scores every value on the type's grid against the warehouse's measured {{term:idle-gap|running idle gaps}} in {{cite:src/publisher/analyzer/findings.py::_auto_stop_options}}; {{cite:src/publisher/optimizer/techniques/autostop.py::decide|autostop.decide}} then chooses.</p>
+<div class="formula">
+  <header><b>Net saving of one auto-stop value</b>{{cite:src/publisher/analyzer/findings.py::_auto_stop_options|findings.py}}</header>
+  <div class="eq">lower value:   net = removable running <var>cluster-minutes</var> − additional starts × restart_cost
+higher value:  net = avoided starts × restart_cost − added idle cluster-minutes
+restart_cost = <var>restart_cost_cluster_minutes_pro_classic</var> (or <var>_serverless</var>) × floor clusters</div>
+  <div class="worked">restart cost per start: Pro/Classic {{fact:thresholds.restart_cost_cluster_minutes_pro_classic}} cluster-minutes, Serverless {{fact:thresholds.restart_cost_cluster_minutes_serverless}}
+cold-start budget: added starts ≤ {{fact:thresholds.cold_start_added_share_max_pct}}% of queries (none for Serverless)
+near-best band: within {{fact:thresholds.auto_stop_near_best_pct}}% of the best net saving, then the smallest change from today</div>
+  <div class="why">A gap counts as removable only inside RUNNING time, so idle that the warehouse never paid for is never "saved". Choosing the smallest change inside the near-best band keeps the move conservative when several values save about the same.</div>
+</div>
+<p>A lower value is {{status:ACTIONABLE}}: its saving rests on observed idle time. A higher value saves only restarts, and whether starting minutes are billed is an assumption, so it is {{status:TEST_REQUIRED}} with <code>RESTART_BILLING_UNVERIFIED</code>. A Serverless warehouse set below the console's lowest value through the API is left alone. Activity that keeps a warehouse running with no query (open sessions, keep-alive) is flagged on every outcome and never priced.</p>
+
+<h3 id="techniques-migration">Warehouse-type migration</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 352" role="img" aria-label="Warehouse-type migration ladder: no DBU baseline is insufficient evidence, running without queries holds it for review, a best case that still costs more is held by the value gate, otherwise a type-change canary is proposed that invalidates every other knob.">
+    <rect class="box" x="16" y="8" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="32" text-anchor="start">No DBU baseline or short cost history?</text>
+    <text class="mono" x="30" y="50" text-anchor="start">cost history < min_economics_cost_history_days</text>
+    <path class="edge" d="M468 40.0 H 544"/>
+    <text class="elbl" x="508.0" y="33.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 72 V 88"/>
+    <text class="elbl" x="66" y="86" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="8" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="32" text-anchor="start">INSUFFICIENT_EVIDENCE</text>
+    <text class="sub" x="562" y="50" text-anchor="start">the DBU-baseline blocker names why</text>
+    <rect class="box" x="16" y="92" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="116" text-anchor="start">Auto-stop saw no queries while running?</text>
+    <text class="mono" x="30" y="134" text-anchor="start">NO_QUERIES_WHILE_RUNNING on the auto-stop decision</text>
+    <path class="edge" d="M468 124.0 H 544"/>
+    <text class="elbl" x="508.0" y="117.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 156 V 172"/>
+    <text class="elbl" x="66" y="170" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="92" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="116" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="134" text-anchor="start">review before any migration experiment</text>
+    <rect class="box" x="16" y="176" width="452" height="64" rx="8"/>
+    <text class="lbl" x="30" y="200" text-anchor="start">Best case still costs more? (value gate)</text>
+    <text class="mono" x="30" y="218" text-anchor="start">total savings high ≤ 0</text>
+    <path class="edge" d="M468 208.0 H 544"/>
+    <text class="elbl" x="508.0" y="201.0" text-anchor="middle">yes</text>
+    <path class="edge" d="M56 240 V 256"/>
+    <text class="elbl" x="66" y="254" text-anchor="start">no</text>
+    <rect class="box muted" x="548" y="176" width="396" height="64" rx="8"/>
+    <text class="lbl" x="562" y="200" text-anchor="start">NO_CHANGE</text>
+    <text class="sub" x="562" y="218" text-anchor="start">MIGRATION_NOT_COST_EFFECTIVE</text>
+    <rect class="box gate" x="16" y="260" width="452" height="64" rx="8"/>
+    <text class="lbl t-warn" x="30" y="284" text-anchor="start">TEST_REQUIRED · Pro/Classic ↔ Serverless canary</text>
+    <text class="sub" x="30" y="302" text-anchor="start">separate scenario; invalidates the other four knobs</text>
+    </svg>
+  <figcaption>A migration is always its own scenario. It is never mixed with tuning the current type.</figcaption>
+</figure>
+<p>{{cite:src/publisher/optimizer/techniques/migration.py::decide|migration.decide}} proposes Serverless to PRO or Pro/Classic to SERVERLESS as a {{status:TEST_REQUIRED}} canary, priced with a pre-canary DBU and AWS counterfactual (see the estimation chapter). It invalidates all four other knobs, because every one of them was measured on the old type. When system tables have not shown the target type in the workspace, the decision carries a capability blocker such as <code>SERVERLESS_WORKSPACE_CAPABILITY_NOT_CONFIRMED_FROM_SYSTEM_TABLES</code>. Unsupported types never get here: the Analyzer {{term:fail-closed|fails closed}} on them.</p>
+
+<h3 id="techniques-rollback">Canary rollback and conflicts</h3>
+<p>After a canary-type change (one size down or a lower minimum), {{cite:src/publisher/analyzer/findings.py::canary_observation}} compares the new epoch with the one just before it, for at most 30 days after the change. A guard trips only when a metric is both above its safe level and more than {{fact:thresholds.canary_p95_regression_pct}}% (<code>canary_p95_regression_pct</code>) worse than before, with a minimum sample: failures, queueing, spill after a downsize, or p95 execution time on statement sources seen in both epochs (at least {{fact:thresholds.canary_p95_min_queries}} queries).</p>
+<p>When a guard trips, {{cite:src/publisher/optimizer/conflicts.py::apply_canary_rollback}} rewrites the decisions in place:</p>
+<ul>
+  <li>The changed knob becomes an {{status:ACTIONABLE}} <code>PERFORMANCE</code> decision that restores the previous epoch's value, with <code>CANARY_GUARDRAIL_BREACHED</code> plus the tripped guard codes. No saving is claimed. This is the only place an older epoch's configuration sets a decision.</li>
+  <li>Cuts that conflict with the restore become {{status:NO_CHANGE}} with <code>CANARY_ROLLBACK_PENDING</code>: after a size rollback, lower cluster values; after a floor rollback, a lower ceiling or a smaller size. An increase for queueing or spill is never held.</li>
+  <li>The planner puts the rollback first in every plan, and every run scope keeps it.</li>
+</ul>
+
+<h3 id="techniques-value-gate">The value gate</h3>
+<p>A decision says what should change; the candidate estimator then prices it, and {{cite:src/publisher/optimizer/estimator/candidate.py::Estimator|Estimator._value_gate}} holds a cost change that does not pay for itself. The held candidate keeps its modeled economics, so the reason stays visible.</p>
+<div class="grid c2">
+  <div class="card"><h4>Cost changes</h4><p>A change made to save money (objective <code>COST</code>) is held when its own base savings are not positive (<code>COST_CHANGE_NOT_COST_EFFECTIVE</code>) or below {{fact:thresholds.cost_change_min_annual_savings}} a year (<code>cost_change_min_annual_savings</code>, <code>COST_SAVINGS_BELOW_MATERIALITY</code>). An ACTIONABLE cost change with no price waits for its price; an unpriced canary is not gated, because the canary will measure it.</p></div>
+  <div class="card"><h4>Migrations</h4><p>A migration is held only when even its best case, the high end of total savings, is not positive (<code>MIGRATION_NOT_COST_EFFECTIVE</code>). Total only: Serverless DBUs include compute that Pro and Classic pay as AWS, so DBU alone is not comparable across types.</p></div>
+</div>
+
+<h3 id="techniques-observed">Observed, never recommended</h3>
+<p>Photon and the warehouse channel appear in <code>current_config</code> but no technique changes them. Photon's state is inferred from current-epoch billing (<code>product_features.is_photon</code>) by {{cite:src/publisher/analyzer/normalizer.py::infer_photon_observation}}; Databricks publishes no Photon on/off price for SQL warehouses, so any saving would be a guess. A channel move has no priced effect. Their technique IDs are reserved and never emitted.</p>
+
+<h3 id="techniques-example">The example warehouse</h3>
+<p>Golden case <code>ge12-full-scope-auto-stop</code> is warehouse <code>{{pkg:warehouse.warehouse_id}}</code> ("{{pkg:warehouse.warehouse_name}}"), a {{pkg:current_config.warehouse_type}} {{pkg:current_config.warehouse_size}} warehouse with min {{pkg:current_config.min_clusters}}, max {{pkg:current_config.max_clusters}} and auto-stop {{pkg:current_config.auto_stop_minutes}} minutes. Its package carries all five decisions:</p>
+{{table:candidates}}
+<ul>
+  <li><b>Size</b> {{pkg:candidates[knob=warehouse_size].status|status}}: "{{pkg:candidates[knob=warehouse_size].rationale}}" It invalidates {{pkg:candidates[knob=warehouse_size].invalidates|list}}.</li>
+  <li><b>Max clusters</b> {{pkg:candidates[knob=max_clusters].status|status}}: "{{pkg:candidates[knob=max_clusters].rationale}}"</li>
+  <li><b>Min clusters</b> {{pkg:candidates[knob=min_clusters].status|status}}: "{{pkg:candidates[knob=min_clusters].rationale}}"</li>
+  <li><b>Auto-stop</b> {{pkg:candidates[knob=auto_stop_minutes].status|status}}: {{pkg:candidates[knob=auto_stop_minutes].current_value}} to {{pkg:candidates[knob=auto_stop_minutes].recommended_value}} minutes. "{{pkg:candidates[knob=auto_stop_minutes].rationale}}"</li>
+  <li><b>Migration</b> {{pkg:candidates[knob=warehouse_type].status|status}}: {{pkg:candidates[knob=warehouse_type].current_value}} to {{pkg:candidates[knob=warehouse_type].recommended_value}}, with blockers {{pkg:candidates[knob=warehouse_type].blockers|list}}. It invalidates {{pkg:candidates[knob=warehouse_type].invalidates|list}}.</li>
+</ul>
+<div class="callout"><b>Zero is not unknown</b><p>The two NO_CHANGE candidates show savings of 0.00 with estimation status <code>{{pkg:candidates[knob=max_clusters].independent_economics.estimation_status}}</code>: keeping a value is modeled as no cost change. A candidate that cannot be priced carries null economics instead, never zero.</p></div>
+
+<h3 id="techniques-catalog">Technique catalog</h3>
+<p>Each decision gets a stable technique ID in {{cite:src/publisher/packager/adapter.py::_technique_id}}, chosen from the knob, the direction and the status (an <code>-ASSESS-</code> ID when nothing changes). The catalog below is read from the reference document at build time.</p>
+{{table:techniques}}
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>A warehouse shows no spill, no queueing and fast queries. Why might the size still be NO_CHANGE?</summary>
+    <div><p>Absence of pressure is necessary, not sufficient. The downsize also needs a strong query sample (or enough batch run days), a ready epoch, no growth, no failure spike, and no peak in the current or an older epoch that the recent window does not show. Missing evidence for any signal is itself a blocker.</p></div></details>
+  <details><summary>Why is lowering auto-stop ACTIONABLE while raising it is TEST_REQUIRED?</summary>
+    <div><p>A lower value saves observed idle time inside RUNNING segments. A higher value only saves restarts, and the restart cost assumes starting minutes are billed, which is not documented, so the billed cost must be measured after the change (<code>RESTART_BILLING_UNVERIFIED</code>).</p></div></details>
+  <details><summary>The run scope is <code>current:auto-stop</code>, yet the package contains a size rollback. Is that a bug?</summary>
+    <div><p>No. Every knob is decided first and the scope filters afterwards, but <code>in_scope()</code> always keeps a decision carrying <code>CANARY_GUARDRAIL_BREACHED</code>: a rollback is a safety action.</p></div></details>
+  <details><summary>A max-cluster cut is ACTIONABLE. How much does it save?</summary>
+    <div><p>Nothing is claimed. A cut is a <code>COST_GUARDRAIL</code>: it never drops below the observed peak, so it removes no running time; it limits what a runaway workload could cost.</p></div></details>
+</div>

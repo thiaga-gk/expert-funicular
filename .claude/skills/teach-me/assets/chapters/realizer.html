@@ -1,0 +1,265 @@
+<p class="lede">The Realizer answers one question for one package: after an owner applied a recommended change, how much did it actually save? It reads one locked RecommendationPackage and an observation of the warehouse after the change, prices what the old configuration would have cost over the same days (the {{term:counterfactual}}), and appends what it learns to an append-only {{term:ledger}}. Like the Publisher it is read-only and deterministic: it never changes a warehouse and never edits the package.</p>
+
+<div class="callout real"><b>One line of math, many gates</b><p>Realized saving = counterfactual old cost − observed new cost. Everything else in this chapter decides whether that number is trustworthy: may it be measured yet, was the change really the recommended one, did performance hold, is the counterfactual defensible, and may the saving be claimed for the recommendation.</p></div>
+
+<h3 id="realizer-pipeline">The pipeline</h3>
+<p>{{cite:src/realizer/realizer.py::realize_request}} calls each capability once, in order, and holds no domain logic, the same shape as the Publisher's <code>publish()</code>. Inputs are checked before anything is written ({{cite:src/realizer/realizer.py::build_context}}), then the run holds the lock of its ledger until the Reporter has written. The first thing recorded is the lineage entry (<code>REALIZATION_CREATED</code>), so even a run that fails later leaves a ledger that says the package exists.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 980 390" role="img" aria-label="Realizer pipeline: the package and an observation pass the input gate, the run takes the ledger lock and records creation, then seven capabilities run in order; the Packager appends to the ledger and the Reporter writes the realization package, snapshot and state index. A failing capability hands its facts to the Packager, which records them and raises.">
+    <text class="cap" x="20" y="24">Inputs</text>
+    <rect class="box pub" x="20" y="36" width="170" height="52" rx="8"/>
+    <text class="lbl" x="105" y="58" text-anchor="middle">RecommendationPackage</text>
+    <text class="sub" x="105" y="76" text-anchor="middle">PKG JSON, unmodified</text>
+    <rect class="box real" x="20" y="104" width="170" height="52" rx="8"/>
+    <text class="lbl" x="105" y="126" text-anchor="middle">Observation</text>
+    <text class="sub" x="105" y="144" text-anchor="middle">demo · live · replay</text>
+
+    <rect class="box gate" x="250" y="70" width="180" height="52" rx="8"/>
+    <text class="lbl" x="340" y="92" text-anchor="middle">build_context</text>
+    <text class="sub" x="340" y="110" text-anchor="middle">validate_package, mint RPKG</text>
+    <path class="edge" d="M190 62 H 220 V 90 H 246"/>
+    <path class="edge real" d="M190 130 H 220 V 102 H 246"/>
+
+    <rect class="box real" x="490" y="70" width="200" height="52" rx="8"/>
+    <text class="lbl" x="590" y="92" text-anchor="middle">ledger lock + begin</text>
+    <text class="sub" x="590" y="110" text-anchor="middle">records REALIZATION_CREATED</text>
+    <path class="edge real" d="M430 96 H 486"/>
+    <text class="elbl" x="458" y="88" text-anchor="middle">RunContext</text>
+
+    <text class="cap" x="20" y="186">Capabilities, called once each</text>
+    <rect class="box real" x="20" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="80" y="222" text-anchor="middle">Analyzer</text>
+    <text class="sub" x="80" y="240" text-anchor="middle">observes</text>
+    <rect class="box real" x="156" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="216" y="222" text-anchor="middle">Governor</text>
+    <text class="sub" x="216" y="240" text-anchor="middle">policy checks</text>
+    <rect class="box real" x="292" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="352" y="222" text-anchor="middle">Reconciler</text>
+    <text class="sub" x="352" y="240" text-anchor="middle">match, lifecycle</text>
+    <rect class="box real" x="428" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="488" y="222" text-anchor="middle">Estimator</text>
+    <text class="sub" x="488" y="240" text-anchor="middle">economics</text>
+    <rect class="box real" x="564" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="624" y="222" text-anchor="middle">Reviewer</text>
+    <text class="sub" x="624" y="240" text-anchor="middle">episode, recognition</text>
+    <rect class="box real" x="700" y="198" width="120" height="56" rx="8"/>
+    <text class="lbl" x="760" y="222" text-anchor="middle">Packager</text>
+    <text class="sub" x="760" y="240" text-anchor="middle">ledger, snapshot</text>
+    <rect class="box real" x="836" y="198" width="124" height="56" rx="8"/>
+    <text class="lbl" x="898" y="222" text-anchor="middle">Reporter</text>
+    <text class="sub" x="898" y="240" text-anchor="middle">writes files</text>
+    <path class="edge real" d="M590 122 V 160 H 80 V 194"/>
+    <path class="edge real" d="M140 226 H 152"/>
+    <path class="edge real" d="M276 226 H 288"/>
+    <path class="edge real" d="M412 226 H 424"/>
+    <path class="edge real" d="M548 226 H 560"/>
+    <path class="edge real" d="M684 226 H 696"/>
+    <path class="edge real" d="M820 226 H 832"/>
+
+    <path class="edge warn dash plain" d="M216 254 V 290"/>
+    <path class="edge warn dash plain" d="M352 254 V 290"/>
+    <path class="edge warn dash plain" d="M488 254 V 290"/>
+    <path class="edge warn dash plain" d="M624 254 V 290"/>
+    <path class="edge warn dash" d="M216 290 H 740 V 258"/>
+    <text class="elbl t-warn" x="420" y="306" text-anchor="middle">halt: the facts decided so far go to the Packager, which records them and raises</text>
+
+    <rect class="box muted" x="600" y="326" width="180" height="48" rx="8"/>
+    <text class="lbl" x="690" y="346" text-anchor="middle">ledger/&lt;RPKG&gt;.jsonl</text>
+    <text class="sub" x="690" y="363" text-anchor="middle">append-only</text>
+    <path class="edge" d="M780 254 V 322"/>
+    <rect class="box muted" x="800" y="326" width="160" height="48" rx="8"/>
+    <text class="lbl" x="880" y="346" text-anchor="middle">RPKG · RSNAP</text>
+    <text class="sub" x="880" y="363" text-anchor="middle">+ state index</text>
+    <path class="edge" d="M898 254 V 322"/>
+  </svg>
+  <figcaption>One realize run. The Governor, Reconciler, Estimator and Reviewer never lose a failure: each keeps it as a <code>halt</code> next to the facts decided before it, and the Packager records those facts and then raises, so a failed run leaves exactly the ledger it always left.</figcaption>
+</figure>
+
+<div class="grid c2">
+  <div class="card"><h4>Analyzer</h4><p>Turns the observation source into one normalized observation: plans the measurement windows (settled whole weeks after the change and the same span before it), runs the counterfactual for the changed knob and gathers guard metrics. The only module that runs Publisher SQL is {{cite:src/realizer/analyzer/collector/bridge.py|bridge.py}}.</p></div>
+  <div class="card"><h4>Governor</h4><p>Pure policy checks held lazily: readiness, the fail-fast guards, counterfactual eligibility and the financial-quality gates, all from {{cite:src/realizer/governor/policy.py::RealizerPolicy}} and the package's own cost-profile thresholds.</p></div>
+  <div class="card"><h4>Reconciler</h4><p>Matches what the warehouse runs to the published plan (exact, modified, independent change), decides lifecycle events (application, drift, rollback, supersession, regeneration) and resolves ownership across the warehouse's lineages. It prices nothing.</p></div>
+  <div class="card"><h4>Estimator, Reviewer, Packager, Reporter</h4><p>The Estimator computes realized economics and attribution ({{cite:src/realizer/estimator/economics.py::calculate_economics}}, {{cite:src/realizer/estimator/attribution.py::attribution_result}}). The Reviewer assembles the validation episode and the recognition status and cannot reject anything. The Packager appends ledger entries and projects the snapshot; the Reporter writes the files.</p></div>
+</div>
+
+<h3 id="realizer-input-gate">What it accepts from the Publisher</h3>
+<p>{{cite:src/realizer/config/loader.py::validate_package}} refuses any package that is not an unmodified Publisher package of the supported contract, before a single file is written. The checks run in this order:</p>
+<ol>
+  <li><code>contract_version</code> equals exactly {{fact:versions.realizer_formats.supported_publisher_contract}} ({{cite:src/realizer/config/loader.py::SUPPORTED_PUBLISHER_CONTRACT}}). There is no range: a new Publisher contract needs a Realizer release.</li>
+  <li>The package passes the Publisher's committed JSON Schema.</li>
+  <li>The <code>PKG-</code> id and <code>provenance.package_hash_full_sha256</code>, recomputed from the hashed fields, match. A hand-edited package fails here.</li>
+  <li>The <code>realization</code> block is the Publisher's empty <code>NOT_APPLIED</code> placeholder. The Realizer's own record is the RPKG, never this block.</li>
+  <li><code>carried_forward_plan</code> is null, the recommended scenario exists, the warehouse type is one of {{fact:supported_warehouse_types|list}}, and no plan step recommends its current value.</li>
+</ol>
+<p>From an accepted package it reads the warehouse identity, <code>current_config</code>, the recommended scenario and its execution plan (step, knob, current and recommended value, execution state, dependencies, invalidations, running savings), each candidate's <code>independent_economics</code>, the evidence, <code>cost_profile.applied_thresholds</code>, <code>run_scope</code>, <code>observed_change</code> and the package currency. For the worked example the RPKG id follows directly: {{ex:realizer.rpkg_id|id}} from {{pkg:recommendation_package_id|id}}.</p>
+
+<h3 id="realizer-modes">Where the observation comes from</h3>
+<p>One observation source per run. Every mode ends in the same normalized observation, so the pipeline above never knows which one it got.</p>
+<div class="grid c3">
+  <div class="card"><h4><code>--demo</code></h4><p>A simulated world for a Publisher demo-fleet warehouse: its first eligible step is applied a week after the package and measured four settled weeks later. <code>--demo-modified</code> applies a size step one size off, to exercise the modified path.</p></div>
+  <div class="card"><h4>Live</h4><p><code>--profile</code> (OAuth only) with <code>--sql-warehouse-id</code> naming a collector warehouse. The run refuses a collector that is the warehouse being measured, because its own queries would pollute the measurement.</p></div>
+  <div class="card"><h4><code>--from-evidence</code></h4><p>Replays the measurement evidence file a live or demo run wrote under <code>realization/measurements/</code>, offline and byte-identical.</p></div>
+  <div class="card"><h4><code>--observation</code></h4><p>A ready-made normalized observation file, for tests and caller-supplied measurements.</p></div>
+  <div class="card"><h4><code>--publisher-run</code></h4><p>A fleet run over every warehouse of a Publisher run folder, one at a time, each failure isolated to its warehouse, then a run manifest and the realization workbook.</p></div>
+  <div class="card"><h4><code>--backtest</code></h4><p>Past auto-stop changes from system tables, with no package and no ledger: it checks the replay method against changes that already happened.</p></div>
+</div>
+<p>The realize flags, read from the parser at build time:</p>
+{{table:cli_realizer}}
+<p>The backtest has its own parser:</p>
+{{table:cli_backtest}}
+
+<h3 id="realizer-counterfactuals">Counterfactuals per knob</h3>
+<p>A counterfactual prices the <em>actual post-change days</em> under the old value, holding every other knob at its observed value. That is why a workload change does not fake a saving: busier days cost more under both values.</p>
+<div class="grid c2">
+  <div class="card"><h4>Auto-stop: replay <span class="chip real">claim-eligible</span></h4><p>The collector measures, for the post-change running time, how many idle cluster-minutes the old value would have added and how many restarts it would have avoided. Raising back to the old value costs <code>added_idle − avoided_starts × restart_cost</code>; replaying a lower value is the negative of <code>removable − additional_starts × restart_cost</code>. The restart cost is the package's assumption per start times <code>max(1, min_clusters)</code>. {{cite:src/realizer/analyzer/projector.py::replay_net_cluster_minutes}}</p></div>
+  <div class="card"><h4>Size: runtime ratio <span class="chip real">claim-eligible</span></h4><p>ρ is the post-change queries' execution time at post-change medians over the same queries at pre-change medians, per statement source seen in both windows. The old size's running minutes have two bounds from the observed <code>R1</code>: elastic <code>R1 × (1 − b + b/ρ)</code> and inelastic <code>R1</code>; the claim takes the smaller saving. The old size's measured price must sit within the published rate band. {{cite:src/realizer/analyzer/size_counterfactual.py::counterfactual_running}}</p></div>
+  <div class="card"><h4>Min clusters: floor levels <span class="chip real">claim-eligible</span></h4><p>From running minutes per cluster count: the counterfactual runs every level at least at the old floor, <code>Σ minutes × max(n, old_floor)</code>, against the observed <code>Σ minutes × n</code>. A floor raise is never measured: minutes at the new, higher floor cannot say what the old floor would have run. {{cite:src/realizer/analyzer/cluster_counterfactual.py::floor_cluster_minutes}}</p></div>
+  <div class="card"><h4>Max clusters <span class="chip hold">no saving</span></h4><p>A capacity add is a cost, priced as the cluster-minutes above the old cap and judged on performance. A cap cut yields only an upper bound of what the old cap could have added. {{cite:src/realizer/analyzer/cluster_counterfactual.py::above_cap_cluster_minutes}}</p></div>
+  <div class="card"><h4>Migration <span class="chip warn">observed only</span></h4><p>There is no reverse model of what the old type would have billed for the new type's days, so the Realizer reports the bill's movement against the pre-change window carried forward (method <code>CORRELATED_ONLY</code>) and claims nothing (<code>NO_REVERSE_MIGRATION_MODEL</code>). {{cite:src/realizer/analyzer/migration_observation.py::migration_delta}}</p></div>
+  <div class="card"><h4>Which methods may support a claim</h4><p>Only {{cite:src/realizer/contracts/observation.py::CLAIM_ELIGIBLE_COUNTERFACTUAL_METHODS}}. The auto-stop replay records itself as <code>CALIBRATED_PRIOR_STATE</code>: the prior state's behaviour replayed on the observed days.</p></div>
+</div>
+
+<h3 id="realizer-worked">The worked example: auto-stop {{pkg:candidates[knob=auto_stop_minutes].current_value}} → {{pkg:candidates[knob=auto_stop_minutes].recommended_value}}</h3>
+<p>The owner of <code>wh-demo-005</code> applied the auto-stop step exactly. The Realizer measured {{ex:realizer.days}} settled days after the change, holding size and clusters as observed. Each card below is recomputed at build time from the ledger's own inputs.</p>
+
+<div class="formula">
+  <header><b>1. Replay: what the old auto-stop would have added</b>{{cite:src/realizer/analyzer/projector.py::replay_economics|projector.py}}</header>
+  <div class="eq">net cluster-minutes = added_idle − avoided_starts × restart_cost        (replayed value {{ex:realizer.replayed_target}} is above the applied one)
+DBU saving         = net × (billed DBU cost / observed running cluster-minutes)
+AWS saving         = net / 60 × modeled cluster-hour price</div>
+  <div class="worked">net        = {{ex:realizer.added_idle}} − {{ex:realizer.avoided_starts}} × {{ex:realizer.restart_cost}} = {{ex:realizer.net_minutes}} cluster-minutes
+DBU saving = {{ex:realizer.net_minutes}} × {{ex:realizer.dbu_per_min}} = {{ex:realizer.dbu_saving}} <span class="ok">✓</span>
+AWS saving = {{ex:realizer.net_minutes}} / 60 × {{ex:realizer.aws_hourly}} = {{ex:realizer.aws_saving}} <span class="ok">✓</span></div>
+  <div class="why">The DBU price per cluster-minute is the post-change window's own billed cost divided by its observed running cluster-minutes, so the saving is priced at what this warehouse actually paid, discounts included.</div>
+</div>
+
+<div class="formula">
+  <header><b>2. Observed new cost and counterfactual old cost</b>{{cite:src/realizer/analyzer/projector.py::replay_economics|projector.py}}</header>
+  <div class="eq">observed new cost      = post-window billed DBU cost + running cluster-minutes / 60 × cluster-hour price
+counterfactual old cost = observed new cost + DBU saving + AWS saving</div>
+  <div class="worked">observed new = {{ex:realizer.post_billed}} + {{ex:realizer.post_minutes}} / 60 × {{ex:realizer.aws_hourly}} = {{ex:realizer.post_billed}} + {{ex:realizer.observed_aws}} = {{ex:realizer.observed_new}} <span class="ok">✓</span>
+counterfactual = {{ex:realizer.observed_new}} + {{ex:realizer.dbu_saving}} + {{ex:realizer.aws_saving}} = {{ex:realizer.cf_old}} <span class="ok">✓</span></div>
+  <div class="why">With a modeled AWS price the cost basis is <code>DBU_AND_MODELED_AWS</code> and the result is compared with the package's <em>total</em> range; without one it is <code>DBU_ONLY</code> and compared with the DBU range.</div>
+</div>
+
+<div class="formula">
+  <header><b>3. Realized, annualized, ratio</b>{{cite:src/realizer/estimator/economics.py::calculate_economics|economics.py}}</header>
+  <div class="eq">realized   = counterfactual old cost − observed new cost
+annualized = realized × 365 / period days          (only when readiness passes)
+ratio      = annualized / expected same-scope annual savings</div>
+  <div class="worked">realized   = {{ex:realizer.cf_old}} − {{ex:realizer.observed_new}} = {{ex:realizer.realized}} <span class="ok">✓</span>
+annualized = {{ex:realizer.realized}} × 365 / {{ex:realizer.days}} = {{ex:realizer.annual}} <span class="ok">✓</span>
+ratio      = {{ex:realizer.annual}} / {{ex:realizer.expected}} = {{ex:realizer.ratio}} <span class="ok">✓</span></div>
+  <div class="why">The expected value is the applied candidate's own isolated savings (<code>{{rpkg:economics.denominator_source}}</code>), because exactly one step was applied exactly. Readiness here: {{rpkg:validation.readiness.checks.minimum_days.observed}} days against a minimum of {{rpkg:validation.readiness.checks.minimum_days.threshold}}, {{rpkg:validation.readiness.checks.minimum_queries.observed|int}} queries against {{rpkg:validation.readiness.checks.minimum_queries.threshold}}.</div>
+</div>
+
+{{range:rpkg|economics.expected_range|Published range (total) and the observed annualized saving|rpkg:economics.annualized_realized_savings}}
+<p>The observed run rate lands above the published high but below the review line of {{fact:realizer.review_above_high}} × high = {{ex:realizer.review_line}} ({{cite:src/realizer/estimator/economics.py::REVIEW_ABOVE_HIGH}}), so it is {{status:REALIZED}} without a review flag. Reading high is expected: the replay measures the full mechanical effect, which is the optimistic track the published high is built on.</p>
+
+<h3 id="realizer-guards">Fail-fast guards and readiness</h3>
+<p>A saving only counts if performance held. {{cite:src/realizer/governor/policy.py::validate_performance}} applies the Publisher's own canary guard with the package's cost-profile limits. Each rule is <code>PASS</code>, <code>FAIL</code> or <code>UNKNOWN</code>; one <code>FAIL</code> fails validation, and an <code>UNKNOWN</code> means "not ready yet", never "failed".</p>
+<div class="formula">
+  <header><b>The two-part rule</b>{{cite:src/realizer/governor/policy.py::_two_part|policy.py}}</header>
+  <div class="eq">FAIL  when  post &gt; safe level   AND   post &gt; pre × (1 + margin%)       with the minimum sample</div>
+  <div class="worked">REAL-FAIL-001  failure/cancel share   safe {{fact:thresholds.failure_cancel_pct_downsize_safe}}%, margin {{fact:thresholds.canary_p95_regression_pct}}%   (every knob)
+REAL-COLD-001  added cold-start share  budget {{fact:thresholds.cold_start_added_share_max_pct}}%                 (auto-stop; Serverless has no budget)
+REAL-QUEUE-001 queued share           safe {{fact:thresholds.queue_query_pct_safe}}%                    (other knobs)
+REAL-SPILL-001 spilled share          safe {{fact:thresholds.spill_query_pct_downsize_safe}}%                    (size)
+REAL-P95-001   p95 on shared sources  rise above {{fact:thresholds.canary_p95_regression_pct}}%           (other knobs)</div>
+  <div class="why">Both parts matter: a metric that was already high before the change is not blamed on it, and a large relative rise from a tiny base is not a failure while it stays under the safe level. The Realizer policy can only tighten the p95 limit, never loosen it. These are the balanced defaults; the package's cost profile supplies the values actually applied.</div>
+</div>
+<p>Readiness ({{cite:src/realizer/governor/policy.py::readiness}}) needs a minimum number of days and queries, a representative regime, sufficient evidence quality and no guard without evidence. A step that was a canary (<code>READY_FOR_CANARY</code>) stays provisional for the Publisher's guard window ({{cite:src/realizer/config/settings.py::CANARY_GUARD_WINDOW_DAYS}}).</p>
+
+<h3 id="realizer-classification">Classifying the result</h3>
+<p>The checks run in a fixed order, and the first that applies decides. The order encodes priorities: a failed guard beats everything, an indefensible counterfactual is blocked before any comparison, and a currency or workload shift is reported but never judged against an expectation priced under other conditions.</p>
+<figure class="diagram">
+  <svg viewBox="0 0 900 520" role="img" aria-label="Classification ladder: guard failed gives VALIDATION_FAILED; migration or informational range gives MONITORING; counterfactual not claim-eligible gives BLOCKED; foreign currency gives MONITORING; volume outside the band gives MONITORING; no ratio gives MONITORING; with a published range, at or above its low is REALIZED, otherwise UNDER_REALIZED; without a range the ratio decides.">
+    <rect class="box gate" x="20" y="16" width="440" height="44" rx="8"/><text class="lbl" x="36" y="43">1  A hard guardrail failed?</text>
+    <path class="edge bad" d="M460 38 H 536"/><text class="elbl" x="498" y="30" text-anchor="middle">yes</text>
+    <rect class="box bad" x="540" y="16" width="340" height="44" rx="8"/><text class="lbl t-bad" x="556" y="43">VALIDATION_FAILED · saving counted as 0</text>
+    <path class="edge" d="M60 60 V 76"/>
+    <rect class="box gate" x="20" y="80" width="440" height="44" rx="8"/><text class="lbl" x="36" y="107">2  Migration, or the range is informational?</text>
+    <path class="edge warn" d="M460 102 H 536"/>
+    <rect class="box muted" x="540" y="80" width="340" height="44" rx="8"/><text class="lbl t-warn" x="556" y="107">MONITORING · reported, never classified</text>
+    <path class="edge" d="M60 124 V 140"/>
+    <rect class="box gate" x="20" y="144" width="440" height="44" rx="8"/><text class="lbl" x="36" y="171">3  Counterfactual method not claim-eligible?</text>
+    <path class="edge bad" d="M460 166 H 536"/>
+    <rect class="box bad" x="540" y="144" width="340" height="44" rx="8"/><text class="lbl t-bad" x="556" y="171">BLOCKED · saving counted as 0</text>
+    <path class="edge" d="M60 188 V 204"/>
+    <rect class="box gate" x="20" y="208" width="440" height="44" rx="8"/><text class="lbl" x="36" y="235">4  Billed in another currency than the package?</text>
+    <path class="edge warn" d="M460 230 H 536"/>
+    <rect class="box muted" x="540" y="208" width="340" height="44" rx="8"/><text class="lbl t-warn" x="556" y="235">MONITORING · CURRENCY_MISMATCH_UNCLASSIFIED</text>
+    <path class="edge" d="M60 252 V 268"/>
+    <rect class="box gate" x="20" y="272" width="440" height="44" rx="8"/><text class="lbl" x="36" y="299">5  Query volume outside the comparable band?</text>
+    <path class="edge warn" d="M460 294 H 536"/>
+    <rect class="box muted" x="540" y="272" width="340" height="44" rx="8"/><text class="lbl t-warn" x="556" y="299">MONITORING · WORKLOAD_SHIFT</text>
+    <path class="edge" d="M60 316 V 332"/>
+    <rect class="box gate" x="20" y="336" width="440" height="44" rx="8"/><text class="lbl" x="36" y="363">6  No ratio (not ready, or no expectation)?</text>
+    <path class="edge warn" d="M460 358 H 536"/>
+    <rect class="box muted" x="540" y="336" width="340" height="44" rx="8"/><text class="lbl t-warn" x="556" y="363">MONITORING · VALIDATED_VALUE_UNCLASSIFIED</text>
+    <path class="edge" d="M60 380 V 396"/>
+    <rect class="box gate" x="20" y="400" width="440" height="44" rx="8"/><text class="lbl" x="36" y="427">7  Published range: annualized ≥ low?</text>
+    <path class="edge real" d="M460 422 H 536"/>
+    <rect class="box real" x="540" y="400" width="340" height="44" rx="8"/><text class="lbl t-real" x="556" y="420">REALIZED</text><text class="sub" x="556" y="436">review flag above {{fact:realizer.review_above_high}} × high</text>
+    <path class="edge" d="M60 444 V 460"/><text class="elbl" x="70" y="456">no → UNDER_REALIZED (re-optimize below {{fact:realizer.reoptimize_below_low}} × low)</text>
+    <rect class="box ghost" x="20" y="464" width="440" height="44" rx="8"/><text class="lbl" x="36" y="491">8  No range: ratio ≥ realized_ratio_min?</text>
+    <path class="edge real dash" d="M460 486 H 536"/>
+    <rect class="box ghost" x="540" y="464" width="340" height="44" rx="8"/><text class="sub" x="556" y="484">REALIZED (review above review_above_realized_ratio),</text><text class="sub" x="556" y="499">else UNDER_REALIZED (re-optimize below under_realized_ratio_min)</text>
+  </svg>
+  <figcaption>{{cite:src/realizer/estimator/economics.py::calculate_economics}}, top to bottom. The example passes steps 1 to 6 and is classified at step 7 against the published total range. A failed or blocked result keeps its observed delta but publishes no run rate and no ratio.</figcaption>
+</figure>
+<p>The comparable volume band is the post-over-pre query ratio {{cite:src/realizer/config/settings.py::VOLUME_RATIO_BAND}} ({{fact:realizer.volume_ratio_band[0]}} to {{fact:realizer.volume_ratio_band[1]}}); the example's ratio is {{ex:realizer.volume_ratio}}. The ratio thresholds of step 8 are policy fields of {{cite:src/realizer/governor/policy.py::RealizerPolicy}}.</p>
+
+<h4>Which expectation is the denominator</h4>
+<p>{{cite:src/realizer/estimator/economics.py::denominator}} picks the expected annual savings to compare with:</p>
+<ul>
+  <li>One step applied exactly: that candidate's <code>independent_economics.savings_365d</code> (<code>PUBLISHER_CANDIDATE</code>). This is the example.</li>
+  <li>Several plan steps applied in order: the last applied step's <code>projected_economics.running_savings_365d</code>, the stateful scenario value (<code>PUBLISHER_SCENARIO</code>).</li>
+  <li>A modified auto-stop (the owner chose a different value): the package's own option grid re-prices the applied value by linear interpolation (<code>REESTIMATED_APPLIED_SCOPE</code>, method <code>PACKAGE_OPTION_GRID</code>).</li>
+  <li>A migration: the scenario's pre-canary range, informational only.</li>
+</ul>
+
+<h3 id="realizer-attribution">Attribution: may the saving be claimed?</h3>
+<p>Measuring a saving and claiming it for the recommendation are separate decisions. {{cite:src/realizer/estimator/attribution.py::attribution_result}} collects hard disqualifiers; with none, a qualified origin and passing financial-quality gates, the claim is {{status:CLAIMABLE}} with {{status:HIGH_CONFIDENCE}}. Otherwise it is <code>OBSERVABLE_ONLY</code> (validated, but partially or only correlated) or <code>NOT_ATTRIBUTABLE</code>.</p>
+<div class="grid c2">
+  <div class="card"><h4>Financial-quality gates</h4><p>Attributable spend at least {{rpkg:attribution.economic_quality_gates.attributable_spend.required_min_pct}}%, price coverage {{rpkg:attribution.economic_quality_gates.price_coverage.required_min_pct}}%, currency consistency {{rpkg:attribution.economic_quality_gates.currency_consistency.required_pct}}% and equal to the package's, a complete correction chain and the material cost components available. A gate whose input is null does not pass. {{cite:src/realizer/governor/policy.py::economic_quality_result}}</p></div>
+  <div class="card"><h4>Hard disqualifiers</h4><p>Applied state unmatched, guardrail failed, no defensible counterfactual (or no reverse migration model), overlap with another scope, an independent change not held constant, canary window still open, billed cross-check disagrees, origin independent or not attributable, a performance or capacity step, or the change is owned by another lineage.</p></div>
+  <div class="card"><h4>Origin</h4><p><code>CONFIRMED</code> when an approvals file names this package, the knob and the observed value; <code>INFERRED</code> when the knob changed after the package was generated; otherwise <code>UNKNOWN</code>, which cannot support the strict claim. The example is {{rpkg:attribution.origin_attribution}}. {{cite:src/realizer/analyzer/projector.py::origin}}</p></div>
+  <div class="card"><h4>One owner per change</h4><p>A warehouse can have several packages over time (lineages). Only one can own a given applied change; the others get <code>CLAIMED_BY_OTHER_LINEAGE</code>. {{cite:src/realizer/reconciler/lineage.py::ownership}}</p></div>
+</div>
+<p>Recognition is a third, separate status ({{cite:src/realizer/reviewer/economics.py::recognition_status}}): <code>REJECTED</code> when a guardrail failed, <code>CONFIRMED</code> when the counterfactual is eligible and not provisional, <code>PROVISIONAL</code> otherwise. The example's attributed realized saving for the period is {{rpkg:attribution.recommendation_attributed_realized_savings|money}}.</p>
+
+<h3 id="realizer-crosscheck">The billed cross-check</h3>
+<p>The replay is a model. The cross-check asks whether the bill agrees: it scales the pre-change billed cost per day by the volume ratio to the post-change days and compares the drop with the replayed DBU saving, against the week-to-week noise of the pre-change bill. It is the only statistical test in the Realizer.</p>
+<div class="formula">
+  <header><b>Billed reduction against noise</b>{{cite:src/realizer/analyzer/crosscheck.py::billed_cross_check|crosscheck.py}}</header>
+  <div class="eq">billed reduction = pre cost / pre days × volume ratio × post days − post cost
+noise            = pstdev(pre weekly costs) × √(post days / 7)
+INCONCLUSIVE when |replay| &lt; {{fact:realizer.noise_multiple}} × noise, another knob changed, volume shifted or billing is incomplete
+AGREES       when the signs match and |billed − replay| ≤ {{fact:realizer.agreement_band_pct}}% of |replay|, else DISAGREES</div>
+  <div class="worked">pre weekly costs = {{ex:realizer.weekly}}
+noise            = {{ex:realizer.noise}}        replay DBU saving {{ex:realizer.replay_dbu}} is far above {{fact:realizer.noise_multiple}} × noise
+billed reduction = {{ex:realizer.billed_reduction}}       difference = {{ex:realizer.diff_pct}}%  →  {{ex:realizer.cross_check}} <span class="ok">✓</span></div>
+  <div class="why">A <code>DISAGREES</code> outcome is a hard disqualifier: a person looks at it before anything is claimed. The {{fact:realizer.noise_multiple}}× noise multiple and the {{fact:realizer.agreement_band_pct}}% agreement band are constants in {{cite:src/realizer/analyzer/crosscheck.py::AGREEMENT_BAND|crosscheck.py}}.</div>
+</div>
+
+<h3 id="realizer-maturity">Maturity, realized to date and corrections</h3>
+<p>Daily runs measure overlapping windows. {{cite:src/realizer/packager/to_date.py::realized_to_date}} gives each instant the value of the latest measurement covering it, pro rata, and sums the covered instants; a re-measured window replaces the earlier value for its days. Maturity follows the evidence ({{cite:src/realizer/packager/snapshot.py::project_snapshot}}):</p>
+<ul>
+  <li>{{status:NOT_APPLIED}} no application observed; <code>COLLECTING</code> applied, nothing measured yet; {{status:PROVISIONAL}} measured but not ready.</li>
+  <li>{{status:REPRESENTATIVE}} measured with readiness passed, as in the example ({{rpkg:economics.realized_to_date.days_covered}} days covered).</li>
+  <li>{{status:MATURE}} once measurements cover {{cite:src/realizer/packager/to_date.py::MATURE_DAYS}} ({{fact:realizer.mature_days}}) days; the trailing-twelve-month figure then fills <code>mature_ttm_realized_savings</code>.</li>
+</ul>
+<p>Billing is restated sometimes. When a later run measures an already-measured window with different billing, the new measurement is recorded with a correction entry that points back at the one it replaces ({{cite:src/realizer/estimator/economics.py::correction_facts}}). Nothing is overwritten. The Realizer also never performs a rollback: "rollback" means it recorded a requested or observed return to the old value, or a later package that undid the change.</p>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>Why does the auto-stop replay run on the post-change days instead of comparing the month before with the month after?</summary>
+    <div><p>A before-and-after bill comparison mixes the change with everything else that moved: more queries, different days. Replaying the old value on the observed post-change days holds the workload fixed, so the difference is the change alone. The before-and-after view survives only as the billed cross-check.</p></div></details>
+  <details><summary>The example's annualized saving is above the published high. Why is it still plain REALIZED?</summary>
+    <div><p>The replay measures the full mechanical effect, which is the optimistic track behind the published high. Only a result above {{fact:realizer.review_above_high}} × high is flagged for review (<code>REVIEW_ABOVE_HIGH</code>). Anything at or above the low counts as realized.</p></div></details>
+  <details><summary>A measurement passes every guard, but the query volume doubled after the change. What happens?</summary>
+    <div><p>The saving is still measured, because the counterfactual prices the actual post-change days. It is classified <code>MONITORING</code> with <code>WORKLOAD_SHIFT</code>, never realized or under-realized, because the package's expectation was priced at the old workload. The cross-check also turns <code>INCONCLUSIVE</code>.</p></div></details>
+  <details><summary>Why can a warehouse migration never be CLAIMABLE?</summary>
+    <div><p>There is no model of what the old type would have billed on the new type's days. The observed delta uses the pre-change window carried forward (<code>CORRELATED_ONLY</code>), so anything else that moved the bill is inside it. The attribution carries <code>NO_REVERSE_MIGRATION_MODEL</code> and the claim stays observable only.</p></div></details>
+</div>

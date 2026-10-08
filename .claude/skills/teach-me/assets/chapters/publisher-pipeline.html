@@ -1,0 +1,124 @@
+<p class="lede">A Publisher run is seven capabilities called once each, in a fixed order, by a facade that holds no domain logic. Each capability answers one question and hands an immutable result to the next: the Analyzer observes, the Governor decides what may be considered, the Optimizer decides and prices isolated changes, the Packager plans and prices scenarios and assembles the package, the Reviewer verifies twice, and the Reporter writes files.</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 960 640" role="img" aria-label="publish() calls build_context, the Analyzer, the Governor, the Optimizer, the Reviewer candidate gate, the Packager, the Reviewer package gate and the Reporter in that order; each hands one typed result to the next.">
+    <text class="cap" x="40" y="20">capability</text>
+    <text class="cap" x="320" y="20">hands on</text>
+    <text class="cap" x="560" y="20">decides</text>
+
+    <rect class="box muted" x="40" y="32" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="59" text-anchor="middle">CLI adapter</text>
+    <text class="mono" x="320" y="59">PublisherRequest</text>
+    <text class="sub" x="560" y="59">parses flags, sets up the run log; no domain logic</text>
+    <path class="edge" d="M160 76 V 98"/>
+
+    <rect class="box pub" x="40" y="102" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="129" text-anchor="middle">build_context</text>
+    <text class="mono" x="320" y="129">RunContext</text>
+    <text class="sub" x="560" y="129">execution mode, cost-profile flags, run scope, Thresholds</text>
+    <path class="edge pub" d="M160 146 V 168"/>
+
+    <rect class="box pub" x="40" y="172" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="199" text-anchor="middle">Analyzer</text>
+    <text class="mono" x="320" y="199">FleetAnalysis</text>
+    <text class="sub" x="560" y="199">what is happening: evidence, epochs, metrics, findings</text>
+    <path class="edge pub" d="M160 216 V 238"/>
+
+    <rect class="box pub" x="40" y="242" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="269" text-anchor="middle">Governor</text>
+    <text class="mono" x="320" y="269">GovernanceResult</text>
+    <text class="sub" x="560" y="269">what may be considered: eligibility, exclusions, scope</text>
+    <path class="edge pub" d="M160 286 V 308"/>
+
+    <rect class="box pub" x="40" y="312" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="339" text-anchor="middle">Optimizer</text>
+    <text class="mono" x="320" y="339">OptimizationResult</text>
+    <text class="sub" x="560" y="339">what should change: one decision per knob, isolated prices</text>
+    <path class="edge pub" d="M160 356 V 378"/>
+
+    <rect class="box gate" x="40" y="382" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="409" text-anchor="middle">Reviewer · candidate gate</text>
+    <text class="mono" x="320" y="409">CandidateReviewResult</text>
+    <text class="sub" x="560" y="409">verifies invariants; raises, never repairs</text>
+    <path class="edge pub" d="M160 426 V 448"/>
+
+    <rect class="box pub" x="40" y="452" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="479" text-anchor="middle">Packager</text>
+    <text class="mono" x="320" y="479">PackagingResult</text>
+    <text class="sub" x="560" y="479">scenarios, stateful prices, selection, the locked package</text>
+    <path class="edge pub" d="M160 496 V 518"/>
+
+    <rect class="box gate" x="40" y="522" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="549" text-anchor="middle">Reviewer · package gate</text>
+    <text class="mono" x="320" y="549">PackageReviewResult</text>
+    <text class="sub" x="560" y="549">scenario invariants, contract consistency, JSON Schema</text>
+    <path class="edge pub" d="M160 566 V 588"/>
+
+    <rect class="box pub" x="40" y="592" width="240" height="44" rx="8"/>
+    <text class="lbl" x="160" y="619" text-anchor="middle">Reporter</text>
+    <text class="mono" x="320" y="619">ReportContract + files</text>
+    <text class="sub" x="560" y="619">nothing: writes packages, evidence, workbook, manifest</text>
+  </svg>
+  <figcaption>The call order inside {{cite:src/publisher/publisher.py::publish}}. Every capability receives the same immutable RunContext plus the results before it; none reaches back to change an earlier result.</figcaption>
+</figure>
+
+<h3 id="publisher-pipeline-facade">The facade and the context</h3>
+<p>{{cite:src/publisher/publisher.py::publish}} only sequences calls. It first calls {{cite:src/publisher/publisher.py::build_context}}, which validates the execution mode, parses the <code>--cost-profile</code> flags and resolves the run scope through the config layer ({{cite:src/publisher/config/loader.py::resolve_scope}}), so a bad flag is refused before any evidence is read. The result is a {{cite:src/publisher/contracts/request.py::RunContext}} holding the request, a fresh {{term:thresholds|Thresholds}} and the scope.</p>
+<p>Two in-memory entry points run the same capabilities on evidence already in hand and write nothing: {{cite:src/publisher/publisher.py::evaluate_warehouses}} stops after the scenario gate, {{cite:src/publisher/publisher.py::build_recommendation_packages}} returns reviewed packages. Tests and the golden harness use them.</p>
+
+<h3 id="publisher-pipeline-layers">What each capability decides, and what it never decides</h3>
+<div class="grid c2">
+  <div class="card"><h4>Analyzer</h4>
+    <p>{{cite:src/publisher/analyzer/analyzer.py::run}} collects evidence (demo, replay or live), then {{cite:src/publisher/analyzer/analyzer.py::analyze}} computes findings per knob for every supported warehouse under its {{term:cost-profile|cost profile}}. Unsupported types keep their evidence but get no findings.</p>
+    <p class="small muted">Never decides eligibility, a recommendation or economics.</p></div>
+  <div class="card"><h4>Governor</h4>
+    <p>{{cite:src/publisher/governor/governor.py::govern}} narrows the fleet to the run scope's warehouses, records a fail-closed exclusion for each unsupported one and passes the scope on. A live run also stops here when the source region has no AWS price, unless the request allows publishing with AWS cost unavailable.</p>
+    <p class="small muted">Never observes and never recommends.</p></div>
+  <div class="card"><h4>Optimizer</h4>
+    <p>{{cite:src/publisher/optimizer/optimizer.py::Optimizer}} runs the five techniques in a fixed order, then the canary rollback; {{cite:src/publisher/optimizer/optimizer.py::in_scope}} drops out-of-scope decisions afterwards (a rollback always stays), and the candidate estimator prices each survivor in isolation.</p>
+    <p class="small muted">Never combines candidates; their savings are {{term:non-additive|non-additive}}.</p></div>
+  <div class="card"><h4>Packager</h4>
+    <p>{{cite:src/publisher/packager/packager.py::plan}} builds the scenarios and prices them with the stateful bundle estimator; {{cite:src/publisher/packager/packager.py::assemble}} turns each warehouse into one frozen {{term:package}}.</p>
+    <p class="small muted">Never changes a candidate's decision.</p></div>
+  <div class="card"><h4>Reviewer</h4>
+    <p>A fail-fast invariant gate ({{cite:src/publisher/reviewer/reviewer.py::Reviewer}}). It raises on the first violated rule and changes no decision, ID or economics. A rejection aborts the run.</p>
+    <p class="small muted">Never repairs.</p></div>
+  <div class="card"><h4>Reporter</h4>
+    <p>{{cite:src/publisher/reporter/reporter.py::run}} writes what it was given and counts it. Nothing is recalculated.</p>
+    <p class="small muted">Never reads its outputs back into a decision.</p></div>
+</div>
+<p>The order inside the Optimizer matters: migration reads the auto-stop decision, and the rollback rewrites decisions already made. Every knob is decided before the scope filter runs, so cross-technique holds are the same in every scope. Chapter <a href="#techniques">Techniques</a> has the rules.</p>
+
+<h3 id="publisher-pipeline-gates">The two Reviewer gates</h3>
+<p>The candidate gate ({{cite:src/publisher/reviewer/reviewer.py::review_candidates}}) checks each warehouse's candidates: one per in-scope knob, identity and epoch consistency, configuration limits, cost and confidence rules. The package gate ({{cite:src/publisher/reviewer/reviewer.py::review_package}}) first re-runs the scenario checks ({{cite:src/publisher/reviewer/reviewer.py::review_plans}}), then {{cite:src/publisher/reviewer/package.py::review_contract}}: the package's semantic <code>validate()</code>, a check that the published cost profile carries exactly the thresholds its name applies, and the committed Draft 2020-12 JSON Schema ({{cite:src/publisher/reviewer/package.py::validate_locked_package_schema}}).</p>
+<div class="callout warn"><b>Gate logging</b><p>A rejection logs the warehouse identity and a short rule label only. Gate messages and schema errors can embed values, so the full text never reaches the log.</p></div>
+
+<h3 id="publisher-pipeline-write-order">Package write order</h3>
+<p>A package's ID is a hash of its content, so the order of operations is fixed and every step depends on the one before.</p>
+<ol class="trace">
+  <li><div class="body"><h4>Assemble</h4><p>{{cite:src/publisher/packager/packager.py::_build_locked_recommendation_package}} builds the frozen package with a placeholder <code>PKG-000…</code> ID.</p></div></li>
+  <li><div class="body"><h4>Set the ID, then the full hash</h4><p>The ID becomes <code>expected_package_id()</code>; then <code>provenance.package_hash_full_sha256</code> gets the full SHA-256 of the same hash payload. Volatile metadata such as <code>generated_at</code> is not in the payload.</p></div></li>
+  <li><div class="body"><h4>Semantic validation</h4><p><code>package.validate()</code> checks cross-field rules the schema cannot express.</p></div></li>
+  <li><div class="body"><h4>Schema validation</h4><p>The package gate validates against the committed schema; the Reporter validates again just before writing.</p></div></li>
+  <li><div class="body"><h4>Serialize and write</h4><p>{{cite:src/publisher/reporter/json_reporter.py::package_locked_contract}} writes <code>packages/&lt;workspace&gt;__&lt;warehouse&gt;.json</code> with sorted keys, then <code>evidence.json</code>, <code>workbook.xlsx</code> (unless disabled) and <code>manifest.json</code>.</p></div></li>
+</ol>
+<p>A failed validation raises before the file is written, so a run never leaves a package on disk that does not match its own hash or the schema.</p>
+
+<h3 id="publisher-pipeline-boundaries">Boundaries enforced by tests</h3>
+<div class="grid c2">
+  <div class="card"><h4>The CLI is an adapter</h4>
+    <p>{{cite:src/publisher/cli/publish.py::run}} parses its own flags, creates the run folder and log, builds the {{cite:src/publisher/contracts/request.py::PublisherRequest}} and calls <code>publish</code>. It never imports a capability package; {{cite:tests/unit/publisher/cli/test_cli.py}} checks this. {{cite:src/publisher/cli/main.py::main}} maps a <code>PublisherError</code> to exit status {{cite:src/publisher/cli/main.py::EXIT_REFUSED|2}} and re-raises anything else as a bug.</p></div>
+  <div class="card"><h4>Shared access is neutral</h4>
+    <p>OAuth, GET-only REST and the UTC-pinned SQL client live in <code>src/workflow_shared/</code>, which imports neither product (<code>tests/unit/workflow_shared/test_boundaries.py</code>). The Publisher passes its identity in {{cite:src/publisher/analyzer/collector/workspace_api.py::PUBLISHER_ACCESS}}.</p></div>
+</div>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>Where would you add a rule that holds a size cut when spill is high?</summary>
+    <div><p>In the size technique inside the Optimizer (<code>optimizer/techniques/size.py</code>), reading a fact the Analyzer computes. The Analyzer observes, the Governor gates eligibility, the Optimizer decides; mixing them breaks the layering.</p></div></details>
+  <details><summary>The candidate gate finds two candidates for the same knob. What happens?</summary>
+    <div><p>It raises, the run aborts and nothing is written for that run. Gates verify and never repair, so a broken invariant is a bug to fix, not a case to patch over.</p></div></details>
+  <details><summary>Why can't the PKG- ID be set before the package is complete?</summary>
+    <div><p>The ID is a hash of the package's identity payload (versions, epoch, configuration, evidence fingerprint, ordered candidate and scenario IDs and more). It can only be computed once those are final; the full hash comes from the same payload.</p></div></details>
+  <details><summary>A run is scoped to auto-stop only. Does the Optimizer still decide size?</summary>
+    <div><p>Yes. Every knob is decided first so cross-technique holds behave the same in every scope; the scope filter then drops the out-of-scope decisions. A canary rollback is kept in every scope.</p></div></details>
+</div>

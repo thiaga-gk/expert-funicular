@@ -252,6 +252,24 @@ class DocsGuardTests(unittest.TestCase):
         schema = json.loads(read(ROOT / "schema" / "recommendation-package.schema.json"))
         self.assertEqual(sorted(drawn), sorted(schema["required"]))
 
+    def test_field_guide_citations_exist(self):
+        # The generated field guide records every code path and symbol it cites in its guide-meta block; a rename or
+        # move breaks the guide's links, so refresh it (/teach-me refresh) in the same change.
+        guide = ROOT / "docs/guide/shared/inframate-guide.html"
+        self.assertTrue(guide.is_file(), "build the guide: python .claude/skills/teach-me/scripts/build_guide.py")
+        block = re.search(r'<script type="application/json" id="guide-meta">(.*?)</script>', read(guide), re.S)
+        meta = json.loads(block.group(1).replace("<\\/", "</"))
+        missing = []
+        for cite in meta["citations"]:
+            path, symbol = ROOT / cite["path"], cite["symbol"]
+            if not path.exists():
+                missing.append(cite["path"])
+            elif symbol and path.is_file():
+                defined = rf"(def|class)\s+{re.escape(symbol)}\b|^\s*{re.escape(symbol)}\s*[:=]|\b{re.escape(symbol)}\s*=\s*"
+                if not re.search(defined, read(path), re.M):
+                    missing.append(f"{cite['path']} :: {symbol}")
+        self.assertEqual(missing, [], "the field guide cites code that moved; run /teach-me refresh")
+
 
 if __name__ == "__main__":
     unittest.main()

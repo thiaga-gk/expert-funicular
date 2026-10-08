@@ -1,0 +1,171 @@
+# Teaching notes for the RecommendationPackage explorer (explorer "pkg"). Keys: explorer paths, array indices as [],
+# evidence-map keys as {id}. Values: short inline HTML. The contract row (type, required, nullable, semantics) is shown
+# by the builder from docs/contracts/shared/reporter-json-contract.md; these notes add why, how and what to look at.
+
+recommendation_package_id: >-
+  Not a random ID: the first 24 hex characters of the SHA-256 in <code>provenance.package_hash_full_sha256</code>.
+  Recompute it from the hash payload and you have proven the package was not edited. The Realizer does exactly that
+  before it accepts a package.
+contract_version: >-
+  The Reporter JSON Contract the document follows. A consumer checks it first; the Realizer accepts exactly one
+  contract version and refuses the rest.
+warehouse.current_epoch: >-
+  The configuration regime this package judges. Every recommendation, target and price comes from this epoch's
+  evidence; <code>age_days</code> tells you how much history it has.
+warehouse.current_epoch.epoch_id: >-
+  Hash of the configuration values and the epoch start. When any knob changes, a new epoch (and a new EPOCH- ID)
+  begins, and the next run judges the new configuration from its own evidence.
+warehouse.owner: >-
+  Who is billed for the warehouse, from billing <code>identity_metadata.owned_by</code>. The person a reviewer should
+  ask before applying a change. Null when billing does not say.
+current_config: >-
+  The knobs as they are, from <code>system.compute.warehouses</code>. Compare it with each candidate's
+  <code>recommended_value</code> to see the proposed change.
+current_config.photon: >-
+  Observed from current-epoch billing (<code>product_features.is_photon</code>), never recommended: Databricks
+  publishes no Photon on/off price, so a saving could only be guessed.
+workload_profile: >-
+  Who uses the warehouse and how: query sources (jobs, dashboards, notebooks...), activity and the latency class. It
+  explains decisions (a batch warehouse is judged on job run days) but is not itself tuning evidence.
+cost_baseline: >-
+  The yardstick for every saving. <code>actual_365d</code> is what was billed; <code>forward_365d</code> is the
+  no-change forecast the savings are subtracted from.
+cost_baseline.forward_365d: >-
+  The forecast cost of keeping the configuration for a year. Savings ranges are measured against this figure, so read
+  its <code>availability</code> first: a missing AWS component means AWS savings are unavailable, not zero.
+assessment.overall_status: >-
+  One word for the whole package (for example optimization available, or no change). Start here, then read
+  <code>evidence_quality</code> to know how far to trust it.
+assessment.evidence_quality: >-
+  Whether the epoch had enough query sample, cost history and source coverage. A package with thin evidence still
+  ships, but its candidates say INSUFFICIENT_EVIDENCE instead of guessing.
+evidence: >-
+  The registry. Each measurement is stored once under its EVID- key and referenced by ID from candidates and
+  scenarios, so two candidates that rely on the same fact point at the same record.
+evidence.{id}: >-
+  One measurement with its unit, source table and field, window, and the threshold and comparator it was judged
+  against. The <code>interpretation</code> prose is for people and is excluded from the ID.
+evidence.{id}.threshold: >-
+  The policy value the measurement was compared with, or null for a measurement that is context rather than a test.
+  Reading value, comparator and threshold together reproduces the decision by hand.
+candidates: >-
+  One decision per in-scope knob, in the fixed order size, max clusters, min clusters, auto-stop, warehouse type.
+  NO_CHANGE candidates are kept: they record why the knob is already right.
+candidates[].status: >-
+  ACTIONABLE means a person can apply it now. TEST_REQUIRED means apply it as a canary and let the next run judge it.
+  NO_CHANGE, INSUFFICIENT_EVIDENCE and BLOCKED change nothing; <code>blockers</code> says why.
+candidates[].blockers: >-
+  Reason codes. They explain holds (pressure, thin evidence, value gate), required validations (canary markers) and
+  unavailable prices. Look each code up in the guide's blocker reference.
+candidates[].evidence_refs: >-
+  The EVID- records behind this decision. Click one to jump to the measurement. They are a candidate hash input
+  (sorted before hashing, so their listed order carries no meaning): new evidence gives a new CAND- ID.
+candidates[].invalidates: >-
+  Knobs whose evidence this change makes stale. A size change invalidates both cluster knobs, so the plan re-measures
+  and regenerates before touching them.
+candidates[].dependencies: >-
+  Other changes this one needs first. Empty for most candidates; the planner orders steps with it.
+candidates[].independent_economics: >-
+  The candidate priced alone against the forward baseline. Useful to compare candidates; never add two of them
+  together, because each assumes the other change did not happen.
+candidates[].independent_economics.is_additive: >-
+  Always false for a candidate. Only the stateful scenario estimate may combine steps.
+candidates[].independent_economics.estimation_status: >-
+  How the range was produced: a modeled range, a provisional one (a canary will confirm it), a pre-canary range for a
+  migration, no delta for a NO_CHANGE, or withheld when a price is missing.
+candidates[].confidence: >-
+  A deterministic score from coverage, sample, stability, epoch maturity and signal, capped by status: a
+  TEST_REQUIRED decision can never reach HIGH, because it has not been tested yet.
+candidates[].technique_id: >-
+  The stable catalog ID of the algorithm that decided. It does not change between runs or warehouses, so you can
+  group decisions by technique across a fleet.
+candidates[].rationale: >-
+  One sentence a reviewer can read aloud. Prose only: it is not part of any hash.
+scenarios: >-
+  Mutually exclusive paths. Plan A optimizes the current type in place; Plan B migrates the type. The owner follows
+  one, so their savings are alternatives, not a sum.
+scenarios[].status: >-
+  RECOMMENDED for the path <code>recommended_plan</code> chose, ALTERNATIVE for the others.
+scenarios[].candidate_refs: >-
+  The candidates this scenario applies, in execution order. Part of the SCN- hash, so reordering steps gives a new
+  scenario ID.
+scenarios[].execution_plan: >-
+  The steps in order. Besides knob changes it holds gates: a compatibility validation before a migration, and a
+  re-measure step after a change that invalidates other knobs.
+scenarios[].execution_plan[].step_type: >-
+  CANDIDATE changes a knob; COMPATIBILITY_VALIDATION and REMEASURE are gates with an <code>action</code> instead of
+  a knob.
+scenarios[].execution_plan[].execution_state: >-
+  READY: apply now. READY_FOR_CANARY: apply as a test. REQUIRED: a gate that must pass. PENDING_REEVALUATION: wait
+  for the next run, its price is contingent. The planner puts READY changes before canaries so a canary's cost reading
+  is not mixed with their savings.
+scenarios[].execution_plan[].invalidates: >-
+  Copied from the candidate. A non-empty list is why a REMEASURE step follows.
+scenarios[].execution_plan[].validation: >-
+  How the step is judged: an A/B canary with its success metrics, a compatibility check, or a re-measure window.
+scenarios[].execution_plan[].projected_economics: >-
+  The step priced on the state the earlier steps left. <code>step_savings_365d</code> is this step's marginal saving;
+  <code>running_savings_365d</code> is the total so far.
+scenarios[].execution_plan[].projected_economics.running_savings_365d: >-
+  Accumulates step by step. The last priced step's running value equals the scenario's
+  <code>portfolio_economics.savings_365d</code>.
+scenarios[].portfolio_economics: >-
+  The stateful estimate of the whole path. This is the number to quote for a scenario; candidate figures are not.
+scenarios[].portfolio_economics.estimation_status: >-
+  PROVISIONAL when any step is a canary, PRE_CANARY for a migration: the range will be re-priced from the new epoch's
+  own evidence after the test.
+scenarios[].compatibility: >-
+  For a migration, the checks that must pass before switching type (for example Serverless availability in the
+  region). Each check names its evidence and whether a person must confirm it.
+recommended_plan: >-
+  The deterministic choice of path and the next action. <code>requires_hitl</code> is always true: the products never
+  apply a change themselves.
+recommended_plan.selection_reason_code: >-
+  Why this scenario won, as a code. For example, the current type is optimized first when its evidence is validated,
+  so a migration stays an alternative.
+recommended_plan.requires_hitl: >-
+  Human in the loop. The packages are read by people who decide and apply; there is no apply API.
+recommended_plan.reevaluation: >-
+  Set when the Publisher wants another run before acting (a configuration too new, too little cost history). Null
+  here: the epoch is mature.
+package_economics: >-
+  The executive figure for the warehouse: an envelope over the scenarios, with DBU and AWS kept apart in the
+  per-bound detail.
+package_economics.scenario_envelope: >-
+  Which scenario supplied each bound: the lowest low, the recommended base, the highest high. Both bounds can come from
+  one scenario, as here.
+package_economics.semantics: >-
+  The document states its own meaning: a scenario envelope, not additive, not a probability interval. Quote the
+  range with these words.
+package_economics.excluded_scenarios: >-
+  Scenarios left out of the envelope because their economics are unavailable, each with a reason. Excluded is never
+  the same as zero.
+realization: >-
+  A placeholder at publication: NOT_APPLIED with zero records and a zero aggregate. The Realizer reads the package
+  later and writes its own ledger and realization package instead of editing this one.
+provenance: >-
+  Every component version that shaped the decisions, the source tables and regions, the evidence fingerprint and the
+  full hash. When two packages disagree, compare versions here first.
+provenance.package_hash_full_sha256: >-
+  The full SHA-256 of the hash payload. The PKG- ID is its first 24 characters.
+provenance.evidence_fingerprint: >-
+  A SHA-256 over every evidence record's ID and measured content, sorted by ID. It lets the package hash cover the
+  evidence without hashing the whole registry twice.
+provenance.generated_at: >-
+  When the package was built. Deliberately outside the hash, so a replay a day later yields the same ID.
+cost_profile: >-
+  The risk appetite this warehouse was judged under and why (CLI flag, nonprod tag or default). Its name and applied
+  thresholds are hash inputs of candidates, scenarios and the package.
+cost_profile.applied_thresholds: >-
+  The effective values of the profiled fields, grouped by technique. The package gate checks they match the profile's
+  name, so they cannot be edited independently.
+cost_profile.source: >-
+  DEFAULT (balanced), TAG_DEFAULT (a nonprod tag chose aggressive), CLI_ALL or CLI_WAREHOUSE.
+observed_change: >-
+  The configuration diff at the start of the current epoch. When it is a canary-type change, the next run judges it
+  with fail-fast guards and may recommend a rollback. Null for a first epoch, as here.
+run_scope: >-
+  Null for a full assessment. When present, the scoped knobs per scenario type plus any safety inclusions (canary
+  rollbacks kept outside the scope). It is part of the package hash.
+carried_forward_plan: >-
+  Reserved for a later stage and always null today.

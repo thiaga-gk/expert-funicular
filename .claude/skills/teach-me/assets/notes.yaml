@@ -1,0 +1,47 @@
+# Explorer vocabulary: how the generator maps the contract's field tables onto package paths, and the one-line text
+# shown for each public ID family.
+#
+# Field types, required/nullable flags and contract semantics are not written here: build_guide.py reads them from the
+# field tables of docs/contracts/shared/reporter-json-contract.md at build time. Teaching notes per field live in
+# assets/notes/<explorer>.yaml (references/authoring.md, section 9).
+
+# Contract headings without a backticked path -> the JSON path their field table describes.
+contract_heading_aliases:
+  "Top-level fields": ""
+  "Query source stat": "workload_profile.query_sources[]"
+  "Client application stat": "workload_profile.client_applications[]"
+  "Activity": "workload_profile.activity"
+  "Forecast": "cost_baseline.forecast"
+  "Summary fields": "assessment.summary"
+  "Evidence quality": "assessment.evidence_quality"
+  "Independent economics": "candidates[].independent_economics"
+  "Compatibility": "scenarios[].compatibility"
+  "Scenario economics": "scenarios[].portfolio_economics"
+  "Execution plan step": "scenarios[].execution_plan[]"
+
+# A backticked contract type or field -> every path it occurs at in a package.
+contract_path_remap:
+  "evidence": ["evidence.{id}"]
+  "reevaluation": ["recommended_plan.reevaluation"]
+  "realization_records[]": ["realization.realization_records[]"]
+  "CostBreakdown": ["cost_baseline.actual_365d", "cost_baseline.forward_365d", "candidates[].independent_economics.baseline_365d", "scenarios[].portfolio_economics.baseline_365d", "package_economics.baseline_365d"]
+
+# One line per public ID family; shown when an ID is selected in an explorer.
+id_families:
+  EPOCH: "A configuration epoch: the span during which the warehouse kept one configuration. Hash of contract version, workspace, warehouse, epoch start, type, size, min and max clusters, auto-stop and channel (Photon is excluded: it is inferred from billing, not configured)."
+  EVID: "One evidence record, defined once in the package's evidence map and referenced by candidates and scenarios. Hash of contract version, identity, epoch, metric, value, unit, source, source field, window, threshold and comparator (the interpretation prose is excluded)."
+  CAND: "One technique decision for one knob in one epoch. Hash of contract version, identity, epoch, technique, knob, current and recommended value, sorted evidence refs, the component versions and the cost profile."
+  SCN: "One ordered, mutually exclusive execution path. Hash of contract version, identity, epoch, scenario type, the ordered candidate IDs, compatibility status, policy, bundle-estimator and decision-graph versions and the cost profile."
+  PKG: "The package: the first 24 hex characters of SHA-256 over the package hash payload (versions, identity, epoch, configuration, evidence fingerprint, ordered candidate and scenario IDs, re-evaluation, cost profile, run scope). The full hash is provenance.package_hash_full_sha256."
+  REAL: "One applied-change validation and measurement episode inside a Publisher package. Packages ship with realization NOT_APPLIED and zero records; the Realizer keeps its own records (RPKG, RLE)."
+  RPKG: "The Realizer's package for one PKG. Hash of the literal REALIZATION_PACKAGE, the realization contract major version and the PKG id, so one PKG always maps to exactly one RPKG."
+  RLE: "One ledger entry. Hash of the ledger contract major version, the RPKG, the event type, the event's business key and its payload. Entries are appended and never rewritten; a correction is a new entry that points back."
+  RSNAP: "A snapshot of the realization package projected from the ledger. Hash of the RPKG, the ledger checkpoint hash (SHA-256 over the ordered entry IDs) and the projector version."
+  APP: "An application episode: the change observed in the warehouse configuration. Hash of the RPKG, scenario, step, the source and observed configuration hashes and the anchoring evidence."
+  VAL: "A validation episode: the guardrail rules judged over one measurement window. Hash of the application episode, the observation and the policy."
+  MEAS: "One economic measurement: counterfactual, observed cost and realized savings for one window. Hash of the application episode, the observation, the counterfactual and the cost basis."
+  CF: "One counterfactual: what the old configuration would have cost over the measured window."
+  REVID: "One evidence file the Realizer stored under state/realization/evidence/."
+  RERUN: "A regeneration request: the Realizer asks for a new Publisher run (for example after drift)."
+  PSNAP: "A policy snapshot: the Realizer policy values a validation used."
+

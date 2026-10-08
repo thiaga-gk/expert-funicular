@@ -1,0 +1,179 @@
+<p class="lede">This chapter is the operator's view: the commands that run each product in each mode, the folders a run writes, the workbook, the first live run on a real account, and the checks that keep a change honest. Both products only read the account; the one change in any workflow is the one an owner makes by hand.</p>
+
+<h3 id="operations-commands">Command recipes</h3>
+<p>Each product has one console script in front of a facade: the CLI parses and validates its own arguments, builds a request and calls the facade once. A refused input (an unknown scope name, a package that fails its hash check, a static token) exits with status {{cite:src/publisher/cli/main.py::EXIT_REFUSED|2}} and a one-line message. A Realizer fleet run returns 1 if any warehouse crashed, else 2 if any was refused, else 0 ({{cite:src/realizer/cli/realize.py::run_fleet}}).</p>
+
+
+<h4><span class="chip pub">Publisher</span> Demo and replay</h4>
+<pre class="code"><code># one simulated warehouse per golden scenario
+publisher --demo --output-dir ./demo_out
+python scripts/run_demo.py ./demo_out          # same run, no install
+
+# replay a run's evidence offline, restricted to one technique and warehouse
+publisher --from-evidence ./out/run_date=.../run_ts=.../evidence.json \
+  --scope current:auto-stop --warehouse wh-demo-001 --output-dir ./out
+
+# scope from a file, cost profile for some warehouses
+publisher --demo --scope-file examples/scopes/current-auto-stop.json --output-dir ./demo_out
+publisher --demo --cost-profile conservative --cost-profile aggressive=wh-demo-001 --output-dir ./demo_out</code></pre>
+<h4><span class="chip pub">Publisher</span> Live, read-only</h4>
+<pre class="code"><code>databricks auth login --host https://&lt;workspace&gt; --profile WHOPT   # OAuth; static tokens are rejected
+publisher \
+  --profile WHOPT \
+  --sql-warehouse-id &lt;collector-warehouse&gt; \
+  --source-region us-east-1 \
+  --output-dir ./out
+# reproduce an earlier collection despite later billing corrections
+publisher ... --billing-ingested-through 2026-10-01</code></pre>
+  <p>The collector warehouse runs the read-only SQL. Pro and Classic AWS cost needs <code>--source-region</code> in the price registry; <code>--allow-missing-aws-price</code> publishes with that cost unavailable.</p>
+<h4><span class="chip real">Realizer</span> One package</h4>
+<pre class="code"><code>realizer --package &lt;PKG.json&gt; --demo --output-dir ./realizer_out
+realizer --package &lt;PKG.json&gt; --profile &lt;oauth-profile&gt; \
+  --sql-warehouse-id &lt;collector-warehouse&gt; --output-dir ./realizer_out   # live
+realizer --package &lt;PKG.json&gt; \
+  --from-evidence ./realizer_out/state/realization/measurements/&lt;file&gt;.json  # replay
+realizer --package &lt;PKG.json&gt; --observation &lt;observation.json&gt;</code></pre>
+  <p>The collector warehouse is never the warehouse being measured; the live access check refuses that pairing.</p>
+<h4><span class="chip real">Realizer</span> Fleet and backtest</h4>
+<pre class="code"><code># every warehouse of the newest Publisher run under ./demo_out
+realizer --publisher-run ./demo_out --demo --output-dir ./realizer_out
+realizer --publisher-run &lt;run folder or root&gt; --profile &lt;oauth-profile&gt; \
+  --sql-warehouse-id &lt;collector-warehouse&gt; [--warehouse &lt;id&gt;]
+# past auto-stop changes from system tables: no package, no ledger
+realizer --backtest --demo
+realizer --backtest --profile &lt;oauth-profile&gt; --sql-warehouse-id &lt;collector-warehouse&gt; --source-region &lt;region&gt;</code></pre>
+
+<p>The flag tables below are read from the argument parsers at build time ({{cite:src/publisher/cli/publish.py::parse_args|publisher parse_args}}, {{cite:src/realizer/cli/realize.py::parse_args|realizer parse_args}}, {{cite:src/realizer/cli/realize.py::parse_backtest_args|parse_backtest_args}}), so they always match the installed command.</p>
+<h4>publisher</h4>
+{{table:cli_publisher}}
+<h4>realizer</h4>
+{{table:cli_realizer}}
+<h4>realizer --backtest</h4>
+{{table:cli_backtest}}
+
+<h3 id="operations-outputs">What a run writes</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 340" role="img" aria-label="Folder layout: a Publisher run folder holds packages, evidence, workbook, manifest and log; a Realizer fleet run reads those packages, writes its projections into its own run folder and keeps the long-lived history in a separate state directory.">
+    <rect class="box pub" x="16" y="16" width="420" height="250" rx="10"/>
+    <text class="cap t-pub" x="32" y="40">Publisher · --output-dir</text>
+    <text class="mono" x="32" y="66">&lt;output-dir&gt;/</text>
+    <text class="mono" x="48" y="88">run_date=YYYY-MM-DD/</text>
+    <text class="mono" x="64" y="110">run_ts=YYYYMMDDTHHMMSSZ/</text>
+    <path class="edge plain" d="M74 116 V 236"/>
+    <text class="mono" x="84" y="136">packages/&lt;workspace&gt;__&lt;warehouse&gt;.json</text>
+    <text class="sub" x="84" y="152">one RecommendationPackage each</text>
+    <text class="mono" x="84" y="176">evidence.json</text>
+    <text class="sub" x="190" y="176">replay input (sensitive)</text>
+    <text class="mono" x="84" y="198">workbook.xlsx</text>
+    <text class="sub" x="190" y="198">projection of the packages</text>
+    <text class="mono" x="84" y="220">manifest.json</text>
+    <text class="sub" x="190" y="220">versions, scope, packages, exclusions</text>
+    <text class="mono" x="84" y="242">publisher.log</text>
+
+    <path class="edge real" d="M436 136 H 520"/>
+    <text class="elbl" x="478" y="128" text-anchor="middle">--publisher-run</text>
+
+    <rect class="box real" x="524" y="16" width="420" height="150" rx="10"/>
+    <text class="cap t-real" x="540" y="40">Realizer run folder · default ./realizer_out</text>
+    <text class="mono" x="540" y="66">run_date=YYYY-MM-DD/run_ts=.../</text>
+    <text class="mono" x="556" y="90">realization/packages/&lt;RPKG&gt;.json</text>
+    <text class="mono" x="556" y="112">realization/snapshots/&lt;RSNAP&gt;.json</text>
+    <text class="mono" x="556" y="134">manifest.json · realization_workbook.xlsx</text>
+    <text class="mono" x="556" y="156">realizer.log</text>
+
+    <rect class="box muted" x="524" y="182" width="420" height="142" rx="10"/>
+    <text class="cap" x="540" y="206">State directory · --state-dir, default &lt;output-dir&gt;/state</text>
+    <text class="mono" x="540" y="230">realization/ledger/&lt;RPKG&gt;.jsonl</text>
+    <text class="sub" x="790" y="230">append-only</text>
+    <text class="mono" x="540" y="252">realization/measurements/  evidence/</text>
+    <text class="mono" x="540" y="274">realization/sources/  policies/  regeneration/</text>
+    <text class="mono" x="540" y="296">realization/state/&lt;workspace&gt;__&lt;warehouse&gt;.json</text>
+    <text class="sub" x="540" y="316">outlives every run; a scheduler keeps one</text>
+    <path class="edge real dash" d="M734 166 V 180"/>
+    <text class="elbl" x="744" y="178">reads and appends</text>
+  </svg>
+  <figcaption>Run folders are named from the run's UTC start and never reused, so identical replays write identical files with the timestamp only in the path. The Realizer keeps its history in a state directory that outlives its run folders; <code>--flat-output</code> writes everything into <code>--output-dir</code> itself.</figcaption>
+</figure>
+<ul>
+  <li>The run folder comes from {{cite:src/publisher/config/output_layout.py::partitioned_run_dir}}; readers such as the validators and the Realizer's fleet run resolve the newest one under a root ({{cite:src/publisher/config/output_layout.py::latest_run_dir}}, {{cite:src/realizer/config/output_layout.py::latest_publisher_run_dir}}).</li>
+  <li>Each package is schema-validated, then written with sorted keys; then the evidence, the workbook and the manifest ({{cite:src/publisher/reporter/json_reporter.py::package_locked_contract}}).</li>
+  <li>The manifest records the Publisher and contract versions, the run scope and warehouse selection, one entry per package, excluded warehouses, the live-only check for billed warehouses with no configuration snapshot, and the names of the workbook and evidence files ({{cite:src/publisher/packager/manifest.py::build_manifest}}).</li>
+  <li>The Realizer's layout, state directory and per-warehouse lock are in {{cite:src/realizer/config/output_layout.py::resolve_layout}}.</li>
+</ul>
+<div class="callout rule"><b>Sensitive output</b><p><code>evidence.json</code> and the Realizer's measurement files hold real identities, owner emails and tags. Keep them out of git and out of shared channels; send packages, manifests and workbooks only as agreed.</p></div>
+
+<h3 id="operations-workbook">The workbook</h3>
+<p>The workbook is a projection of the packages for people who read spreadsheets. It has exactly four visible sheets, {{fact:workbook.sheet_names|list}}, with no formulas, macros or hidden sheets. It never recalculates a recommendation, a confidence, an ID or an economic figure: every cell is copied from a package field. Annual impact is numeric and signed (positive is a saving, negative a cost increase) beside explicit currency and impact-type columns, and unavailable economics stay unavailable rather than zero.</p>
+{{table:workbook}}
+<p>Column order and groups live only in {{cite:src/publisher/contracts/workbook_contract.py::SHEET_NAMES|workbook_contract.py}}; the renderer {{cite:src/publisher/reporter/workbook_reporter.py::write_workbook}} consumes them and keeps no second list. Check a run with <code>python scripts/validate_workbook.py ./demo_out</code>. The Realizer writes its own three-sheet realization workbook in a fleet run.</p>
+
+<h3 id="operations-live-run">The first live run</h3>
+<figure class="diagram">
+  <svg viewBox="0 0 960 236" role="img" aria-label="The live run sequence: prepare, mine the golden scenarios, fix what mining found, run the Publisher flows, run the Realizer flows including one owner-applied change measured weekly for four weeks, then review; checkpoints A to D send results back.">
+    <rect class="box muted" x="16" y="40" width="136" height="64" rx="8"/>
+    <text class="cap" x="28" y="60">Phase 0</text><text class="lbl" x="28" y="82">Prepare</text><text class="sub" x="28" y="98">install, OAuth, preflight</text>
+    <rect class="box pub" x="172" y="40" width="136" height="64" rx="8"/>
+    <text class="cap t-pub" x="184" y="60">Phase 1</text><text class="lbl" x="184" y="82">Mine goldens</text><text class="sub" x="184" y="98">collect, mine patterns</text>
+    <rect class="box gate" x="328" y="40" width="136" height="64" rx="8"/>
+    <text class="cap t-warn" x="340" y="60">Phase 2</text><text class="lbl" x="340" y="82">Fix findings</text><text class="sub" x="340" y="98">one approved fix each</text>
+    <rect class="box pub" x="484" y="40" width="136" height="64" rx="8"/>
+    <text class="cap t-pub" x="496" y="60">Phase 3</text><text class="lbl" x="496" y="82">Publisher flows</text><text class="sub" x="496" y="98">full, auto-stop, profiles</text>
+    <rect class="box real" x="640" y="40" width="136" height="64" rx="8"/>
+    <text class="cap t-real" x="652" y="60">Phase 4</text><text class="lbl" x="652" y="82">Realizer flows</text><text class="sub" x="652" y="98">backtest, baseline, measure</text>
+    <rect class="box muted" x="796" y="40" width="148" height="64" rx="8"/>
+    <text class="cap" x="808" y="60">Phase 5</text><text class="lbl" x="808" y="82">Review</text><text class="sub" x="808" y="98">predicted vs realized</text>
+    <path class="edge" d="M152 72 H 170"/><path class="edge" d="M308 72 H 326"/><path class="edge" d="M464 72 H 482"/>
+    <path class="edge" d="M620 72 H 638"/><path class="edge" d="M776 72 H 794"/>
+    <rect class="box ghost" x="560" y="136" width="384" height="84" rx="8"/>
+    <text class="cap" x="576" y="156">Inside phase 4</text>
+    <text class="mono" x="576" y="178">4.1 backtest · 4.2 baseline fleet · 4.3 replay</text>
+    <text class="mono t-warn" x="576" y="198">4.4 owner changes auto-stop by hand</text>
+    <text class="mono" x="576" y="214">4.5 weekly measurement × 4 · 4.6 replay</text>
+    <path class="edge dash plain" d="M708 104 V 134"/>
+    <text class="lbl t-good" x="240" y="132" text-anchor="middle">◆ A</text>
+    <text class="sub" x="240" y="148" text-anchor="middle">after mining</text>
+    <text class="lbl t-good" x="400" y="180" text-anchor="middle">◆ B before 4.4 · ◆ C week 1 · ◆ D week 4</text>
+    <text class="sub" x="400" y="196" text-anchor="middle">checkpoints: what to send back</text>
+  </svg>
+  <figcaption>Every command is read-only. The only change to the account is the auto-stop value an owner sets on an agreed test warehouse in step 4.4. Auto-stop goes first because its counterfactual is a replay with no guard window.</figcaption>
+</figure>
+<p>The sequence, its commands and its starter prompts live in {{doc:docs/proposals/shared/live-run.md|the live run sequence}}. Phase 1 uses the golden miner skill to compare real warehouses with the golden scenarios; phase 4 measures one applied change weekly for four weeks with the Realizer.</p>
+
+<h3 id="operations-quality">Change loop, goldens and versions</h3>
+<p>A change is small and layer-local, then checked from the bottom up:</p>
+<ol>
+  <li>Compile check, then every test: <code>python -m compileall -q src tests scripts examples</code> and <code>python -m unittest discover -s tests -v</code>.</li>
+  <li>Regenerate the demo and validate the workbook. Packages are validated as they are written, so a failed validation aborts the demo.</li>
+  <li>A decision-affecting change bumps the affected component versions in {{cite:src/publisher/config/versions.py::PUBLISHER_VERSION|versions.py}} and regenerates the goldens and the contract example in the same commit.</li>
+  <li>A new threshold, product constant or blocker code gets its row in the reference documents; <code>tests/test_docs.py</code> fails otherwise.</li>
+  <li>The documents that describe the changed behavior change in the same commit, and this guide is refreshed with <code>/teach-me refresh</code>.</li>
+</ol>
+<pre class="code"><code>python scripts/update_goldens.py --case &lt;name&gt; --approved-change "&lt;why&gt;"     # Publisher goldens
+python scripts/update_realizer_e2e_goldens.py --check                         # Publisher-to-Realizer drift
+python scripts/compare_with_ref.py --ref master                               # output diff against a git ref
+python scripts/compare_realizer_with_ref.py --ref master
+python scripts/validate_contracts.py                                          # the contract example
+python scripts/validate_skill_suite.py</code></pre>
+<p>The {{fact:golden.publisher_count}} Publisher golden cases pin the evidence-to-package behavior; the {{fact:golden.realizer_e2e_count}} end-to-end cases pin a package through a simulated change to its realization. Rewriting stored output needs an approval message, so every behavior change is a reviewed diff.</p>
+{{table:golden_publisher}}
+<p>Every component carries its own version, and a package records them in <code>provenance</code>:</p>
+{{table:versions}}
+
+<h3 id="operations-skills">Skills that work on this repo</h3>
+<div class="grid c3">
+  <div class="card"><h4>Publisher skill suite</h4><p>An orchestrator and specialist skills (discovery, source contract, technique catalog, economics, contract design, builder, validator, release sealer) for building a publisher for another Databricks service, gated by approved artifacts. The member list is <code>.claude/skills/suite.yaml</code>.</p></div>
+  <div class="card"><h4>Golden miner</h4><p>Runs the Publisher read-only against a live workspace, mines warehouse patterns and proposes golden-scenario changes through an approval gate. It drives phase 1 of the live run.</p></div>
+  <div class="card"><h4>teach-me</h4><p>Builds and refreshes this guide. It sits outside the suite because it teaches the repo rather than building a publisher.</p></div>
+</div>
+<p>Details: {{doc:docs/reference/shared/skills.md|skills.md}}.</p>
+
+<div class="quiz"><b>Check yourself</b>
+  <details><summary>Why does the run timestamp appear only in the folder name and never inside a file?</summary>
+    <div><p>So that replaying the same evidence writes byte-identical files. Determinism is checked by comparing outputs, and a timestamp inside a file would make every run differ.</p></div></details>
+  <details><summary>Why must the live collector warehouse never be the warehouse being measured?</summary>
+    <div><p>The collector's own queries would add running time and queries to the measured warehouse and distort the very usage being measured. The Realizer's live access check refuses that pairing.</p></div></details>
+  <details><summary>A teammate asks for a workbook column showing combined savings across all candidates. Where would that logic go?</summary>
+    <div><p>Nowhere in Excel. The workbook only projects package fields. Candidate savings are non-additive, so the figure would be wrong anyway; the combined figure is the recommended scenario's stateful estimate, which the package already carries.</p></div></details>
+  <details><summary>Why does the Realizer keep its ledger in a state directory separate from its run folders?</summary>
+    <div><p>The ledger is the history of each realization and must survive every run; run folders are per-run projections. Keeping one state directory means a weekly scheduler appends to one history instead of forking it.</p></div></details>
+</div>

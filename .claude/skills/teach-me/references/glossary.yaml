@@ -1,0 +1,188 @@
+# Glossary for the guide: key -> term, one-paragraph definition, home document (the document that owns the topic).
+# Fragments use {{term:key}} or {{term:key|display text}}. Definitions are plain text (no HTML) and stay short: they
+# appear as hover tips. The owning document stays authoritative (docs/README.md).
+
+epoch:
+  term: Configuration epoch
+  definition: A span of time during which a warehouse kept one configuration (type, size, min and max clusters, auto-stop, channel). The current epoch drives every recommendation; older epochs feed calibration, backtests and three narrow exceptions.
+  home: docs/architecture/publisher/context.md
+current-epoch:
+  term: Current epoch
+  definition: The configuration in force now. Recommendations, their targets and their economics come only from its evidence; running time, idle time, cluster-minutes and billing never carry over from an older epoch.
+  home: docs/architecture/publisher/context.md
+knob:
+  term: Knob
+  definition: One tunable warehouse setting the product may recommend a change to - size, max clusters, min clusters, auto-stop or warehouse type. Photon and the channel are observed but never recommended.
+  home: docs/reference/publisher/technique-catalog.md
+technique:
+  term: Technique
+  definition: The algorithm that decides one knob, with a stable ID such as WH-AUTOSTOP-REDUCE-001. Each technique emits exactly one candidate per package.
+  home: docs/reference/publisher/technique-catalog.md
+candidate:
+  term: Candidate
+  definition: One decision for one knob (CAND- ID) with its status, blockers, evidence references and isolated economics. Candidate savings are not additive and must never be summed.
+  home: docs/contracts/shared/reporter-json-contract.md
+scenario:
+  term: Scenario
+  definition: An ordered, mutually exclusive execution path (SCN- ID) built from candidates - optimize the current type in place, or migrate the warehouse type. One scenario is RECOMMENDED, the others are ALTERNATIVE.
+  home: docs/contracts/shared/reporter-json-contract.md
+package:
+  term: RecommendationPackage
+  definition: The Publisher's public output for one warehouse and its current epoch (PKG- ID). It is the machine source of truth; the workbook only projects it.
+  home: docs/contracts/shared/reporter-json-contract.md
+blocker:
+  term: Blocker code
+  definition: An upper-case reason code on a candidate or scenario that explains why a change is held, needs a test, is unavailable or was rolled back.
+  home: docs/reference/publisher/blocker-codes.md
+status:
+  term: Recommendation status
+  definition: The decision on a candidate - ACTIONABLE (apply with human approval), TEST_REQUIRED (canary first), NO_CHANGE, INSUFFICIENT_EVIDENCE, BLOCKED or REVIEW.
+  home: docs/contracts/shared/reporter-json-contract.md
+execution-state:
+  term: Execution state
+  definition: Where a plan step stands - READY, READY_FOR_CANARY, REQUIRED (a validation or re-measure step), PENDING_REEVALUATION, BLOCKED or INVALIDATED.
+  home: docs/contracts/shared/reporter-json-contract.md
+hitl:
+  term: Human in the loop (HITL)
+  definition: Every change is approved and applied by a person. The products are read-only and never call a mutation API.
+  home: docs/product/publisher/prd.md
+canary:
+  term: Canary
+  definition: A change applied as a test and judged on its own new-epoch evidence before it is trusted - a size change, a lower minimum or a type migration. A tripped fail-fast guard rolls it back on the next run.
+  home: docs/architecture/publisher/context.md
+canary-rollback:
+  term: Canary rollback
+  definition: When a fail-fast guard trips on the new epoch's evidence after a canary-type change, the Publisher recommends restoring the previous value (ACTIONABLE, no savings claimed) and holds conflicting cuts.
+  home: docs/reference/publisher/blocker-codes.md
+value-gate:
+  term: Value gate
+  definition: A cost change ships only if its own modeled savings are positive and at least the materiality floor (cost_change_min_annual_savings); otherwise it is held with the modeled economics still visible.
+  home: docs/architecture/publisher/lld.md
+cost-profile:
+  term: Cost profile
+  definition: Aggressive, balanced or conservative. It changes only the risk-appetite thresholds of cuts, never evidence floors, product constants, estimator or confidence parameters, or the rules that add capacity.
+  home: docs/reference/publisher/thresholds.md
+run-scope:
+  term: Run scope
+  definition: The --scope, --scope-file or --warehouse restriction of what a run recommends. It never restricts what is observed or decided; the package records it in run_scope.
+  home: docs/architecture/publisher/lld.md
+thresholds:
+  term: Thresholds
+  definition: The frozen dataclass holding every policy, evidence, confidence and estimator default. A change to it is decision-affecting and bumps versions.
+  home: docs/reference/publisher/thresholds.md
+product-constant:
+  term: Product constant
+  definition: A documented Databricks limit or behavior the rules rely on, such as the auto-stop floor or the max-cluster limit. Platform facts, not policy, so no profile changes them.
+  home: docs/reference/publisher/product-constants.md
+baseline:
+  term: Forward baseline
+  definition: The no-change cost of the next 365 days, forecast from the current epoch's settled billing (a blended 28/84-day run rate with a damped trend, or a cadence model for periodic workloads).
+  home: docs/architecture/publisher/lld.md
+low-base-high:
+  term: Low, base, high
+  definition: The three tracks of every modeled range - conservative, base and optimistic realization. They are scenario bounds, not a probability interval. Unknown values are null, never zero.
+  home: docs/contracts/shared/reporter-json-contract.md
+non-additive:
+  term: Non-additive
+  definition: Candidate savings are each priced in isolation against the same baseline, so adding them double-counts. Only the stateful scenario estimate combines steps.
+  home: docs/contracts/shared/reporter-json-contract.md
+stateful-bundle:
+  term: Stateful bundle estimator
+  definition: Prices a scenario step by step, each step acting on the cost and resource state the previous steps left, on three tracks (low, base, high).
+  home: docs/architecture/publisher/lld.md
+envelope:
+  term: Package envelope
+  definition: Package economics - low is the minimum scenario low, base is the recommended scenario's base, high is the maximum scenario high. An envelope over alternatives, not a sum and not a probability interval.
+  home: docs/contracts/shared/reporter-json-contract.md
+confidence:
+  term: Confidence
+  definition: A deterministic 0 to 1 score from evidence coverage, sample, cost stability, epoch maturity and signal, capped by status. HIGH at or above 0.80, MEDIUM at or above 0.60.
+  home: docs/architecture/publisher/lld.md
+dbu:
+  term: DBU
+  definition: Databricks Unit, the billing unit for SQL warehouse compute. DBU cost and AWS infrastructure cost are always kept as separate components.
+  home: docs/reference/publisher/aws-cost-model.md
+aws-cost:
+  term: AWS cost
+  definition: The EC2 cost of a Pro or Classic warehouse, modeled from running cluster time and the on-demand price registry. Serverless has no separate AWS cost.
+  home: docs/reference/publisher/aws-cost-model.md
+cluster-minute:
+  term: Cluster-minute
+  definition: One cluster running for one minute - the unit auto-stop, min-cluster and replay math work in before pricing.
+  home: docs/architecture/publisher/lld.md
+idle-gap:
+  term: Running idle gap
+  definition: A stretch of RUNNING time with no query executing. A lower auto-stop removes the part of each gap beyond the new value, at the price of extra restarts.
+  home: docs/architecture/publisher/lld.md
+evidence-registry:
+  term: Evidence registry
+  definition: The package's evidence map - each EVID- record is defined once and referenced by ID from candidates and scenarios.
+  home: docs/contracts/shared/reporter-json-contract.md
+replay-evidence:
+  term: Replay evidence
+  definition: evidence.json, the versioned envelope a run writes and --from-evidence reads back, reproducing the same packages offline. It holds owner emails and tags, so it is sensitive.
+  home: docs/contracts/publisher/evidence-format.md
+fail-closed:
+  term: Fail closed
+  definition: When support is unknown the product refuses rather than guesses - for example, warehouse types outside CLASSIC, PRO and standard SERVERLESS are never routed into existing algorithms.
+  home: docs/architecture/publisher/context.md
+determinism:
+  term: Determinism
+  definition: Identical normalized evidence, cost profile and versions produce identical decisions, IDs, confidence and economics, byte for byte.
+  home: docs/architecture/publisher/context.md
+realization:
+  term: Realization
+  definition: What an applied change actually saved, measured by the Realizer against a counterfactual of the old configuration over the same window.
+  home: docs/architecture/realizer/context.md
+counterfactual:
+  term: Counterfactual
+  definition: What the old configuration would have cost over the measured window - for auto-stop, a replay of the observed running and idle time under the old value.
+  home: docs/architecture/realizer/context.md
+ledger:
+  term: Realization ledger
+  definition: An append-only JSON Lines file per RPKG. Every fact the Realizer learns is an event; the realization package is a projection of it.
+  home: docs/contracts/realizer/ledger-contract.md
+rpkg:
+  term: Realization package (RPKG)
+  definition: The Realizer's current view of one PKG - application, validation, economics, attribution, maturity - projected from the ledger.
+  home: docs/contracts/realizer/ledger-contract.md
+attribution:
+  term: Attribution
+  definition: Whether a realized saving can be claimed for the recommendation. CLAIMABLE needs every financial-quality gate to pass and no hard disqualifier.
+  home: docs/contracts/realizer/ledger-contract.md
+maturity:
+  term: Maturity
+  definition: How much post-change history backs a realization - NOT_APPLIED, COLLECTING, PROVISIONAL, REPRESENTATIVE, then MATURE at 365 covered days.
+  home: docs/contracts/realizer/ledger-contract.md
+cross-check:
+  term: Billed cross-check
+  definition: The Realizer compares the replayed saving with the drop in billed DBU cost, scaled for volume, and calls it AGREES, DISAGREES or INCONCLUSIVE against the week-to-week noise.
+  home: docs/contracts/realizer/source-evidence-contract.md
+guardrail:
+  term: Fail-fast guard
+  definition: A rule that fails a change when a metric is both above its safe level and worse than before by more than a margin - failures, cold starts, queueing, spill or p95 latency.
+  home: docs/contracts/realizer/policy-contract.md
+lineage:
+  term: Lineage
+  definition: The chain of packages for one warehouse over time. Only one lineage can own a given applied change; any other gets CLAIMED_BY_OTHER_LINEAGE.
+  home: docs/contracts/realizer/ledger-contract.md
+golden-case:
+  term: Golden case
+  definition: A committed scenario with its input evidence and the exact expected output. Any behavior change shows up as a golden diff that must be approved.
+  home: docs/proposals/publisher/golden-scenarios.md
+materiality-floor:
+  term: Materiality floor
+  definition: The smallest annual saving worth a change (cost_change_min_annual_savings, set by the cost profile). A cost change below it is held by the value gate, and a plan step whose marginal saving falls below it is held too.
+  home: docs/reference/publisher/thresholds.md
+safety-inclusion:
+  term: Safety inclusion
+  definition: A candidate kept in a package outside its run scope because it is a safety action - a canary rollback after a tripped fail-fast guard. The package lists it in run_scope.safety_inclusions.
+  home: docs/contracts/shared/reporter-json-contract.md
+conformance:
+  term: Implementation conformance
+  definition: How the applied change matches the recommendation - EXACT (the recommended value), MODIFIED (a different value in the same direction), NOT_APPLIED, CONTRARY or UNRELATED.
+  home: docs/contracts/realizer/ledger-contract.md
+recognition:
+  term: Recognition status
+  definition: Whether a measured saving is booked - CONFIRMED when the counterfactual is claim-eligible and the measurement is not provisional, PROVISIONAL otherwise, REJECTED when a guardrail failed.
+  home: docs/contracts/realizer/ledger-contract.md
