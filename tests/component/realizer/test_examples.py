@@ -28,7 +28,7 @@ EXPECTED = {
     "exact": {
         "ids": {
             "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-01752AB27669B07E544B2B5D",
+            "RSNAP": "RSNAP-0F7722F077E9D69939895911",
             "REVID": "REVID-37F7F275591908182339F44B",
             "RERUN": "RERUN-B1F60D50B9002716EC15E4DE",
         },
@@ -43,7 +43,7 @@ EXPECTED = {
     "modified": {
         "ids": {
             "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-B8A90CA3DC90055A4E7D4A8E",
+            "RSNAP": "RSNAP-26155EAC3B743F62BCBFD9C7",
             "REVID": "REVID-0054A9DB9BEB251DB6B705DA",
             "RERUN": "RERUN-4A94ACD1AFCA25E7D3EA709A",
         },
@@ -94,6 +94,21 @@ class RealizerExampleTests(unittest.TestCase):
                 shipped = json.loads((EXAMPLES / variant / "observation.json").read_text(encoding="utf-8"))
                 self.assertEqual(shipped, demo_observation(package, modified=modified))
 
+    def test_the_example_approvals_file_is_valid_and_confirms_the_demo_change(self):
+        """``approvals.json`` loads against the approvals schema and names the package's size step: a replay of the demo's
+        measurement evidence with it has origin CONFIRMED and leaves no approval unmatched."""
+        from realizer.analyzer.collector import demo_world
+        from realizer.analyzer.projector import project_observation
+        from realizer.config.loader import load_approvals
+        from realizer.contracts.approvals import warn_unmatched
+        package = json.loads(PACKAGE.read_text(encoding="utf-8"))
+        approvals = load_approvals(EXAMPLES / "approvals.json")
+        self.assertEqual([a["recommendation_package_id"] for a in approvals["approvals"]], [package["recommendation_package_id"]])
+        observation = project_observation(package, demo_world.simulated_evidence(package), approvals)
+        self.assertEqual((observation["origin_attribution"], observation["intent_state"], observation["intent_reference"]), ("CONFIRMED", "ACCEPTED", "CHG-1042"))
+        with self.assertNoLogs("realizer", level="WARNING"):
+            warn_unmatched(approvals)
+
     def test_the_readme_documents_the_expected_identities_and_outcomes(self):
         text = README.read_text(encoding="utf-8")
         for variant, expected in EXPECTED.items():
@@ -106,6 +121,7 @@ class RealizerExampleTests(unittest.TestCase):
         for command in ("--observation examples/realizer/exact/observation.json", "--observation examples/realizer/modified/observation.json", "--demo-modified"):
             self.assertIn(command, text)
         self.assertTrue(PACKAGE.relative_to(ROOT).as_posix() in text)
+        self.assertIn("--approvals examples/realizer/approvals.json", text)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@
       "recommended_value": "MEDIUM",
       "regeneration_status": "REQUESTED",
       "replacement_package_id": null,
-      "snapshot_id": "RSNAP-B1267206B2584D117DE0DE97",
+      "snapshot_id": "RSNAP-D2654F3510F9A545E8C3EF9A",
       "source_package_disposition": "ACTIVE",
       "validation_json": "{\"hard_guardrails_pass\":true,\"policy_snapshot_id\":\"PSNAP-097ED33EBEB7E9FCEE56AEBB\",\"readiness\":{\"checks\":{\"evidence_quality\":{\"observed\":\"SUFFICIENT\",\"pass\":true,\"required\":\"SUFFICIENT\"},\"guardrail_evidence\":{\"pass\":true,\"unknown_rules\":[]},\"minimum_days\":{\"observed\":8,\"pass\":true,\"threshold\":7},\"minimum_queries\":{\"observed\":250,\"pass\":true,\"threshold\":100},\"representative_regime\":{\"observed\":true,\"pass\":true,\"required\":true}},\"ready\":true},\"rules\":[{\"metric\":\"normalized_p95_runtime_regression_pct\",\"observed\":\"2\",\"operator\":\"LTE\",\"policy_snapshot_id\":\"PSNAP-097ED33EBEB7E9FCEE56AEBB\",\"result\":\"PASS\",\"rule_id\":\"REAL-PERF-P95-001\",\"threshold\":\"25\"},{\"metric\":\"reliability_pass\",\"observed\":true,\"operator\":\"EQ\",\"policy_snapshot_id\":\"PSNAP-097ED33EBEB7E9FCEE56AEBB\",\"result\":\"PASS\",\"rule_id\":\"REAL-REL-001\",\"threshold\":true},{\"metric\":\"correctness_pass\",\"observed\":true,\"operator\":\"NE\",\"policy_snapshot_id\":\"PSNAP-097ED33EBEB7E9FCEE56AEBB\",\"result\":\"PASS\",\"rule_id\":\"REAL-CORRECT-001\",\"threshold\":false}],\"state\":\"PASSED\",\"validation_episode_id\":\"VAL-B21B481C438C5E9B53BBB4F0\",\"window_end_utc\":\"2026-10-09T12:00:00Z\",\"window_start_utc\":\"2026-10-02T12:00:00Z\"}",
       "validation_state": "PASSED",

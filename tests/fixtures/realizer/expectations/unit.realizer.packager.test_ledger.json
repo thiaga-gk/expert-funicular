@@ -41,7 +41,7 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 64514,
-  "sha256": "178194d7062db47b3801c4eccd3303050734166546d22ea0055ed59fdf93fecc",
+  "sha256": "dc0854cf544eb679f7b75b4ccfe2c19a96ccc5867a31828b1316f68027a456a6",
   "spot": {
    "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -50,7 +50,7 @@
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
   "length": 544947,
-  "sha256": "99948d2f7cfdaf982563e98c67cbded82a3c028365b491342aa02d87e718e80e",
+  "sha256": "bcc79e77dfa0884a672bd270d0828ac36ca28e0d6a46a9320d1fc32ff3d60995",
   "spot": {
    "entries": 367,
    "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
@@ -133,7 +133,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "0328894db8773dfe",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "421861ef92f3a9d1",
      "realization/regeneration/RERUN-1A877BA4619C444A658CA666.json": "508e6a30b43f053d"
     }
    }
@@ -158,7 +158,7 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "406a18129835a540",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4cbc4dfecee95dcb",
      "realization/regeneration/RERUN-9DA01D35B27A2A89E696B778.json": "7291f71200ab0c25"
     }
    }
