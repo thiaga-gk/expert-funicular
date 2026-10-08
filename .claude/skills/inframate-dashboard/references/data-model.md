@@ -23,7 +23,7 @@ its reason.
 |---|---|
 | `meta` | generator version, demo flag, ECharts version, raw mode, detail-run count, roots (local builds only), whether Realizer output was found |
 | `runs[]` | every run, oldest first: `key` (= `generated_at`), label, versions, `kpis.by_currency`, `insights`, `detail` flag |
-| `details[key]` | for the last `--detail-runs` runs: `warehouses[]` (identity, config, costs, plan, scenarios, steps, candidates, evidence rows, realization lineages with timeline, IDs, versions) and `recommendations[]` (one row per CANDIDATE step with status and aging) |
+| `details[key]` | for the last `--detail-runs` runs: `warehouses[]` (identity, config, costs, plan, scenarios with their execution steps, the recommended steps, candidates, evidence rows, realization lineages with timeline, IDs, versions) and `recommendations[]` (one row per CANDIDATE step with status and aging) |
 | `strings`, `evidence_fields` | the string table and field order of the compact evidence rows (`[id, metric, value, unit, ...]`, text fields as indexes) |
 | `daily` | newest run only: per warehouse, daily DBU list cost and the configuration epochs |
 | `raw` | newest run only: the package JSON per warehouse (`lean` drops the evidence map) |

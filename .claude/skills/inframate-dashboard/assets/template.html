@@ -104,8 +104,9 @@ main{max-width:1480px;margin:0 auto;padding:22px 24px 64px}
 .grid{display:grid;gap:16px}
 .grid>*{min-width:0}
 .g5{grid-template-columns:repeat(5,minmax(0,1fr))} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.g75{grid-template-columns:minmax(0,7fr) minmax(0,5fr)} .g84{grid-template-columns:minmax(0,8fr) minmax(0,4fr)}
-@media (max-width:1200px){.g75,.g84{grid-template-columns:1fr}}
+.g75{grid-template-columns:minmax(0,7fr) minmax(0,5fr)} .g211{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)} .g84{grid-template-columns:minmax(0,8fr) minmax(0,4fr)}
+@media (max-width:1200px){.g75,.g84{grid-template-columns:1fr} .g211{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .g211>:first-child{grid-column:1/-1}}
+@media (max-width:760px){.g211{grid-template-columns:1fr}}
 @media (max-width:760px){.g2,.g3{grid-template-columns:1fr} main,.top-in,.tabs{padding-left:16px;padding-right:16px}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px 18px;min-width:0}
 .card h3{margin:0;font-size:14.5px;font-weight:600;letter-spacing:-.005em;text-wrap:balance}
@@ -171,6 +172,50 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .rng .base{position:absolute;top:1px;width:3px;height:14px;border-radius:1px;background:var(--good)} .rng .base.neg{background:var(--bad)}
 .rng .zero{position:absolute;top:0;width:1px;height:16px;background:var(--border-strong)}
 
+/* ---------- plan tree ---------- */
+.tree,.tree ul{list-style:none;margin:0;padding:0}
+.tree ul{margin-left:13px;padding-left:22px;border-left:1px solid var(--border-strong)}
+.tree li{position:relative;padding:5px 0}
+.tree ul>li::before{content:"";position:absolute;left:-22px;top:24px;width:18px;border-top:1px solid var(--border-strong)}
+.tree ul>li:last-child::after{content:"";position:absolute;left:-23px;top:25px;bottom:-1px;width:3px;background:var(--surface)}
+.node{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:8px 10px;border:1px solid transparent;border-radius:var(--radius-s)}
+.node .body{min-width:0}
+.node .body b{font-weight:600}
+.node .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+.node .small{font-size:12.5px}
+.node.root{background:var(--surface-2);border-color:var(--border)}
+.node.root .ic{width:26px;height:26px;border-radius:4px;display:grid;place-items:center;background:var(--mast);color:var(--brass);font-family:var(--mono);font-size:12px}
+.node.link{cursor:pointer}
+.node.link:hover,.node.link:focus-visible{border-color:var(--border-strong);background:var(--surface-2)}
+.node .n{width:26px;height:26px;border-radius:4px;display:grid;place-items:center;font-family:var(--mono);font-weight:500;font-size:12.5px;background:var(--sunken);color:var(--ink-2);border:1px solid var(--border)}
+.node .n.gate{background:var(--warn-soft);color:var(--warn);border-color:transparent;transform:rotate(45deg);width:20px;height:20px;margin:3px}
+.node .n.gate>span{transform:rotate(-45deg)}
+.node .n.done{background:var(--good-soft);color:var(--good);border-color:transparent}
+.gate-txt{font-size:12px;color:var(--warn);margin-top:3px;overflow-wrap:anywhere}
+details.scn>summary{list-style:none;cursor:pointer}
+details.scn>summary::-webkit-details-marker{display:none}
+details.scn>summary .caret{width:26px;height:26px;display:grid;place-items:center;border-radius:4px;border:1px solid var(--border-strong);font-family:var(--mono);font-size:12px;color:var(--muted)}
+details.scn>summary .caret::before{content:"+"}
+details.scn[open]>summary .caret::before{content:"–"}
+details.scn.rec>summary{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+details.scn.rec>summary .caret{border-color:var(--accent);color:var(--accent-ink)}
+details.scn>summary:hover{border-color:var(--border-strong)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.mini-rng{width:160px}
+.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
+.group-h{display:flex;align-items:baseline;gap:10px;margin:18px 0 10px;font-size:13.5px}
+.group-h b{font-weight:600}
+.group-h .muted{font-size:12.5px}
+.cands{display:grid;gap:12px}
+details.group>summary{list-style:none;cursor:pointer}
+details.group>summary::-webkit-details-marker{display:none}
+details.group>summary::before{content:"+";font-family:var(--mono);width:18px;height:18px;display:inline-grid;place-items:center;border:1px solid var(--border-strong);border-radius:3px;font-size:12px;align-self:center}
+details.group[open]>summary::before{content:"–"}
+.steptag{font-family:var(--mono);font-size:11px;line-height:20px;padding:0 7px;border-radius:3px;background:var(--mast);color:var(--brass);white-space:nowrap}
+.cand-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;align-items:start}
+@media (max-width:1100px){.cand-grid{grid-template-columns:1fr}}
+
 /* ---------- warehouse ---------- */
 .hero{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
 .hero h2{margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;text-wrap:balance;overflow-wrap:anywhere}
@@ -185,12 +230,6 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .kv .glyph,.glyph{display:inline-flex;gap:2px;margin-left:8px;vertical-align:0}
 .glyph i{display:block;width:7px;height:10px;border-radius:1px;border:1px solid var(--accent)}
 .glyph i.on{background:var(--accent)}
-.steps{list-style:none;margin:0;padding:0;display:grid}
-.steps li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:14px;padding:13px 0;border-top:1px solid var(--border);align-items:start}
-.steps li:first-child{border-top:0}
-.steps .n{width:26px;height:26px;border-radius:4px;display:grid;place-items:center;font-family:var(--mono);font-weight:500;font-size:12.5px;background:var(--sunken);color:var(--ink-2);border:1px solid var(--border)}
-.steps .n.gate{background:var(--warn-soft);color:var(--warn);border-color:transparent} .steps .n.done{background:var(--good-soft);color:var(--good);border-color:transparent}
-.steps .meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
 .cand{border:1px solid var(--border);border-radius:var(--radius);padding:16px;background:var(--surface);display:grid;gap:12px;min-width:0}
 .cand-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .cand-h b{font-size:15px;font-weight:600}
@@ -263,6 +302,7 @@ footer p{max-width:110ch;margin:0}
     <button class="tab" role="tab" data-tab="executive">Executive summary</button>
     <button class="tab" role="tab" data-tab="portfolio">Portfolio</button>
     <button class="tab" role="tab" data-tab="recommendations">Recommendations</button>
+    <button class="tab" role="tab" data-tab="realization">Realization</button>
     <button class="tab" role="tab" data-tab="warehouse">Warehouse<span class="crumb" id="wh-crumb"></span></button>
     <button class="tab" role="tab" data-tab="audit">Audit</button>
   </nav>
@@ -319,19 +359,33 @@ footer p{max-width:110ch;margin:0}
 
   <section data-view="warehouse" class="hide">
     <div class="card"><div class="hero" id="wh-hero"></div></div>
-    <div class="grid g75" style="margin-top:16px">
+    <div class="grid g211" style="margin-top:16px">
       <div class="card"><h3>Daily DBU cost and configuration periods</h3><p class="sub" id="daily-sub">Billed DBU list cost per day; shaded bands are configuration epochs</p><div class="chart" id="ch-daily"></div></div>
       <div class="card"><h3>Annual cost</h3><p class="sub">Trailing actual vs. no-change forward, DBU and AWS kept separate</p><div class="chart" id="ch-wh-cost"></div></div>
+      <div class="card"><h3>Workload</h3><p class="sub" id="workload-sub"></p><div class="comp" id="ch-workload"></div><div class="kv" id="workload-kv" style="margin-top:16px;grid-template-columns:repeat(2,minmax(0,1fr))"></div></div>
+    
     </div>
-    <div class="grid g75" style="margin-top:16px">
-      <div class="card"><h3>Scenarios</h3><p class="sub">Annual savings range (low–high, base marked); negative = cost increase</p><div class="chart short" id="ch-scenarios"></div><div id="decision" style="margin-top:8px"></div></div>
-      <div class="card"><h3>Workload</h3><p class="sub" id="workload-sub"></p><div class="comp" id="ch-workload"></div><div class="kv" id="workload-kv" style="margin-top:16px;grid-template-columns:repeat(3,minmax(0,1fr))"></div></div>
-    </div>
-    <div class="card" style="margin-top:16px"><h3>Implementation plan</h3><p class="sub">The recommended scenario's steps, in execution order</p><ol class="steps" id="wh-steps"></ol></div>
+    <div style="margin-top:16px">
+      <div class="card"><div class="card-h"><div><h3>Scenarios and implementation plan</h3><p class="sub">Every scenario the optimizer evaluated, recommended first. Steps run top to bottom; a gate (◇) holds the next step until it passes. Select a change to open its evidence.</p></div></div><ul class="tree" id="wh-tree"></ul><div id="decision" style="margin-top:12px"></div></div>
+</div>
     <div class="section-title">Recommendations and evidence</div>
-    <div class="grid g2" id="wh-cands" style="align-items:start"></div>
+    <div id="wh-cands"></div>
     <div class="section-title">Realization</div>
     <div id="wh-real"></div>
+  </section>
+
+  <section data-view="realization" class="hide">
+    <div class="strip" id="rz-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div>
+    <div class="grid g75" style="margin-top:16px">
+      <div class="card"><h3>Realized vs. expected</h3><p class="sub">Annual run-rate measured after each claimable change, against the range the Publisher expected for it (band = low–high, tick = base)</p><div class="chart tall" id="ch-rz-bullet" role="img" aria-label="Realized versus expected per change"></div><div class="legend" id="rz-bullet-legend"></div></div>
+      <div class="card"><h3>Where applied changes stand</h3><p class="sub">Realization state of each distinct applied change</p><div class="comp" id="rz-state"></div>
+        <h3 style="margin-top:24px">Claim status</h3><p class="sub">Only claimable changes count toward realized savings</p><div class="comp" id="rz-claim"></div>
+        <h3 style="margin-top:24px">Against the expected range</h3><p class="sub">Claimable changes with a measured run-rate</p><div class="comp" id="rz-band"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Realization across runs</h3><p class="sub">Claimable annual run-rate and savings realized to date at each run date, beside the identified base</p><div class="chart" id="ch-rz-trend" role="img" aria-label="Realization trend"></div></div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><div><h3>Applied changes</h3><p class="sub">Realization lineages as of this run; select a row for the warehouse</p></div>
+      <div class="seg" id="rz-scope"><button data-scope="claimable">Claimable</button><button data-scope="all">All lineages</button></div></div>
+      <div class="tbl-wrap" style="max-height:620px"><table class="t" id="rz-table"></table></div></div>
   </section>
 
   <section data-view="audit" class="hide">
@@ -368,7 +422,7 @@ footer p{max-width:110ch;margin:0}
     UNDER_REALIZED: ["Under-realized", "warn"], FAILED: ["Guard failed", "bad"], MONITORING: ["Monitoring", "info"]
   };
   var FILTERS = [["workspace", "Workspace"], ["owner", "Owner"], ["type", "Type"], ["profile", "Cost profile"], ["status", "Status"], ["confidence", "Confidence"]];
-  var S = { view: "executive", lens: "executive", run: null, wh: null, cur: null, f: {}, top: "spend", pf: "spend", sort: null };
+  var S = { view: "executive", lens: "executive", run: null, wh: null, cur: null, f: {}, top: "spend", pf: "spend", rz: "claimable", sort: null };
   var charts = {}, hashTheme = null;
 
   // ---------- formatting ----------
@@ -415,7 +469,7 @@ footer p{max-width:110ch;margin:0}
     });
   }
   function writeHash() {
-    var parts = ["view", "lens", "run", "wh", "cur", "top", "pf"].filter(function (k) { return S[k]; }).map(function (k) { return k + "=" + encodeURIComponent(S[k]); });
+    var parts = ["view", "lens", "run", "wh", "cur", "top", "pf", "rz"].filter(function (k) { return S[k]; }).map(function (k) { return k + "=" + encodeURIComponent(S[k]); });
     Object.keys(S.f).sort().forEach(function (k) { if (S.f[k] && S.f[k].length) parts.push("f." + k + "=" + encodeURIComponent(S.f[k].join("|"))); });
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
   }
@@ -827,26 +881,10 @@ footer p{max-width:110ch;margin:0}
     }
     // annual cost bars
     chart("ch-wh-cost", { tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: tipMoney }, legend: { top: 0, left: 0 }, grid: { top: 36, left: 8, right: 16, bottom: 8, containLabel: true },
-      xAxis: { type: "category", data: ["Trailing actual", "Forward (no change)"] }, yAxis: moneyAxis(),
+      xAxis: { type: "category", data: ["Trailing 365d", "Forward 365d"], axisLabel: { interval: 0 } }, yAxis: moneyAxis(),
       series: [{ name: "DBU", type: "bar", stack: "c", barWidth: 38, itemStyle: { color: css("--s1"), borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.dbu, w.forward.dbu] },
                { name: "AWS (modeled)", type: "bar", stack: "c", itemStyle: { color: css("--s2"), borderRadius: [4, 4, 0, 0], borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.aws, w.forward.aws] }] });
-    // scenarios
-    var sc = w.scenarios.filter(function (s) { return s.savings; });
-    if (!sc.length) emptyChart("ch-scenarios", "No priced scenario");
-    else {
-      var names = sc.map(function (s) { return (s.recommended ? "★ " : "") + s.name; });
-      document.getElementById("ch-scenarios").style.height = (70 + 52 * sc.length) + "px";
-      chart("ch-scenarios", { tooltip: { formatter: function (p) { var s = sc[p.dataIndex]; return "<b>" + esc(s.name) + "</b> · " + esc(title(s.status)) + "<br>Low " + fullMoney(s.savings.low) + "<br>Base " + fullMoney(s.savings.base) + "<br>High " + fullMoney(s.savings.high) + (s.compatibility ? "<br>Compatibility " + esc(title(s.compatibility)) : ""); } },
-        grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true }, xAxis: moneyAxis(), yAxis: { type: "category", data: names, inverse: true },
-        series: [{ type: "custom", data: sc.map(function (s, i) { return [i, s.savings.low, s.savings.base, s.savings.high, s.recommended ? 1 : 0]; }), encode: { x: [1, 3], y: 0 },
-          renderItem: function (params, api) {
-            var y = api.value(0), lo = api.coord([api.value(1), y]), b = api.coord([api.value(2), y]), hi = api.coord([api.value(3), y]), rec = api.value(4);
-            var colr = api.value(2) < 0 ? css("--bad") : css("--good");
-            return { type: "group", children: [
-              { type: "rect", shape: { x: Math.min(lo[0], hi[0]), y: lo[1] - 6, width: Math.max(Math.abs(hi[0] - lo[0]), 2), height: 12, r: 6 }, style: { fill: colr, opacity: rec ? 0.32 : 0.16 } },
-              { type: "rect", shape: { x: b[0] - 2, y: b[1] - 9, width: 4, height: 18, r: 2 }, style: { fill: colr } }] };
-          } }] });
-    }
+    renderTree(w);
     $("#decision").innerHTML = w.reevaluation ? '<div class="banner">Re-evaluation: ' + esc(title(w.reevaluation.status)) + (w.reevaluation.earliest_reevaluation_time ? " · earliest " + date(w.reevaluation.earliest_reevaluation_time) : "") + ((w.reevaluation.blocking_codes || []).length ? " · " + w.reevaluation.blocking_codes.map(function (b) { return '<span class="mono" title="' + esc(D.blockers[b] || "") + '">' + esc(b) + "</span>"; }).join(", ") : "") + "</div>" : "";
     // workload
     var wl = w.workload || {}, srcs = wl.query_sources || {}, act = wl.activity || {}, ch = wl.workload_characteristics || {};
@@ -856,30 +894,7 @@ footer p{max-width:110ch;margin:0}
     $("#workload-sub").textContent = "Query sources over the last 30 days" + (wl.primary_query_source ? "; mostly " + title(wl.primary_query_source) : "");
     var srcNames = Object.keys(srcs).sort(function (a, b) { return srcs[b].query_count - srcs[a].query_count; });
     comp("ch-workload", srcNames.map(function (n, i) { return [title(n), srcs[n].query_count, css("--s" + ((i % 8) + 1))]; }), false, "queries");
-    // steps
-    $("#wh-steps").innerHTML = w.steps.length ? w.steps.map(function (st) {
-      var gate = st.type !== "CANDIDATE", done = st.applied === "REALIZED" || st.state === "COMPLETED";
-      var v = st.validation || {};
-      return '<li><div class="n ' + (done ? "done" : gate ? "gate" : "") + '">' + st.step + "</div><div><b>" + esc(st.type === "CANDIDATE" ? knob(st.knob) + " " : title(st.type) + " ") + "</b>" + (st.knob ? '<span class="arrow">' + esc(val(st.current)) + " → " + esc(val(st.target)) + "</span>" : "") +
-        '<div class="muted" style="font-size:12.5px;margin-top:3px">' + esc(st.action || "") + (v.validation_type && v.validation_type !== "NONE" ? " · gate: " + esc(title(v.validation_type)) + (v.remeasure_days ? " (" + v.remeasure_days + " days)" : "") + ((v.success_metrics || []).length ? " on " + esc(v.success_metrics.join(", ")) : "") : "") + "</div></div>" +
-        '<div class="meta">' + badge(title(st.state), st.state === "BLOCKED" ? "bad" : st.state === "READY" || st.state === "READY_FOR_CANARY" ? "accent" : "") + (st.applied ? "<div>" + statusBadge({ REALIZED: "REALIZED", UNDER_REALIZED: "UNDER_REALIZED", VALIDATION_FAILED: "FAILED", MONITORING: "MONITORING" }[st.applied] || "VALIDATING") + "</div>" : "") +
-        (st.savings_base != null ? '<div class="num" style="font-weight:600">' + fmtMoney(st.savings_base) + '<span class="muted" style="font-weight:400"> /yr</span></div>' : "") + "</div></li>";
-    }).join("") : '<li><div></div><div class="muted">No change recommended for this warehouse.</div><div></div></li>';
-    // candidates
-    var stOrder = { ACTIONABLE: 0, TEST_REQUIRED: 1, REVIEW: 2, BLOCKED: 3, INSUFFICIENT_EVIDENCE: 4, NO_CHANGE: 5, NOT_APPLICABLE: 6 };
-    $("#wh-cands").innerHTML = w.candidates.slice().sort(function (a, b) { return (stOrder[a.status] || 9) - (stOrder[b.status] || 9) || a.knob.localeCompare(b.knob); }).map(function (cd) {
-      var stc = { ACTIONABLE: "good", TEST_REQUIRED: "info", REVIEW: "warn", BLOCKED: "bad" }[cd.status] || "";
-      var ev = cd.evidence.map(function (ref) { var e = evidence(w, ref); if (!e) return "";
-        var shown = e.value && e.value._summary ? e.value._summary : val(e.value), unit = e.unit && e.unit !== "value" && e.unit !== "state" ? " " + e.unit : "";
-        return '<div class="gauge"><div class="m">' + esc(e.metric) + '</div><div class="v"><b>' + esc(shown) + "</b>" + esc(unit) +
-          (e.threshold != null ? '<span class="faint">' + esc(e.comparator || "vs") + " " + esc(val(e.threshold)) + "</span>" : "") + '</div><div class="d">' + esc(e.interpretation || "") +
-          ' <span class="faint">· ' + esc(e.source || "") + (e.observation_window ? ", " + esc(title(e.observation_window)) : "") + "</span></div></div>"; }).join("");
-      return '<div class="cand"><div class="cand-h"><b>' + esc(knob(cd.knob)) + "</b>" + (cd.target != null && cd.status !== "NO_CHANGE" ? '<span class="arrow">' + esc(val(cd.current)) + " → " + esc(val(cd.target)) + "</span>" : '<span class="arrow">' + esc(val(cd.current)) + "</span>") + badge(title(cd.status), stc) + confBadge(cd.confidence) + '<span class="spacer"></span><span class="money num" title="Annual savings range if applied alone">' + (cd.savings ? plainMoney(cd.savings.low) + " – " + plainMoney(cd.savings.high) : '<span class="faint">' + esc(title(cd.estimation_status || "not priced")) + "</span>") + "</span></div>" +
-        '<div class="why">' + esc(cd.rationale || "") + "</div>" +
-        (cd.blockers.length ? '<div style="display:grid;gap:6px">' + cd.blockers.map(function (b) { return '<div class="blk">' + badge(title(b), "bad") + '<span class="muted">' + esc(D.blockers[b] || "") + "</span></div>"; }).join("") + "</div>" : "") +
-        (ev ? '<details class="ev"' + (cd.status === "ACTIONABLE" || cd.status === "TEST_REQUIRED" ? " open" : "") + "><summary>Evidence (" + cd.evidence.length + ")</summary>" + ev + "</details>" : "") +
-        '<div class="ids">' + esc(cd.technique) + " · " + esc(cd.id) + "</div></div>";
-    }).join("");
+    renderCandidates(w);
     // realization
     var lin = w.realization;
     $("#wh-real").innerHTML = !D.meta.realizer_found ? '<div class="empty">No Realizer output was found. Run the Realizer on this run’s packages to see application, validation and realized savings here.</div>' :
@@ -903,6 +918,152 @@ footer p{max-width:110ch;margin:0}
                  { type: "bar", barWidth: 8, name: "Realized run-rate", itemStyle: { color: css("--s3"), borderRadius: 4 }, data: [l.annualized], barGap: "-100%",
                    markLine: { symbol: "none", label: { show: false }, lineStyle: { color: css("--ink"), width: 2, type: "solid" }, data: [{ xAxis: ex.base }] } }] });
     });
+  }
+
+  // ---------- plan tree and ordered recommendations ----------
+  function scenarioRank(s) { return s.recommended ? 0 : s.type === "NO_CHANGE_BASELINE" ? 3 : (s.status === "BLOCKED" || s.status === "INSUFFICIENT_EVIDENCE") ? 2 : 1; }
+  function orderedScenarios(w) { return w.scenarios.slice().sort(function (a, b) { return scenarioRank(a) - scenarioRank(b) || a.name.localeCompare(b.name); }); }
+  function stepNode(st) {
+    var gate = st.type !== "CANDIDATE", v = st.validation || {}, applied = st.applied;
+    var head = gate ? "<b>" + esc(title(st.type)) + "</b>" : "<b>" + esc(knob(st.knob)) + '</b> <span class="arrow">' + esc(val(st.current)) + " → " + esc(val(st.target)) + "</span>";
+    var gateTxt = v.validation_type && v.validation_type !== "NONE" ? "◇ " + title(v.validation_type) + (v.remeasure_days ? " · " + v.remeasure_days + " days" : "") + ((v.success_metrics || []).length ? " on " + v.success_metrics.join(", ") : "") : "";
+    var meta = badge(title(st.state), st.state === "BLOCKED" ? "bad" : st.state === "READY" || st.state === "READY_FOR_CANARY" ? "accent" : "") +
+      (applied ? statusBadge({ REALIZED: "REALIZED", UNDER_REALIZED: "UNDER_REALIZED", VALIDATION_FAILED: "FAILED", MONITORING: "MONITORING" }[applied] || "VALIDATING") : "") +
+      (st.savings_base != null ? '<span class="num small"><b>' + fmtMoney(st.savings_base) + '</b><span class="muted"> /yr</span></span>' : "");
+    return '<li><div class="node step' + (st.candidate ? ' link" role="button" tabindex="0" data-cand="' + esc(st.candidate) + '"' : '"') + ">" +
+      '<span class="n ' + (applied === "REALIZED" ? "done" : gate ? "gate" : "") + '"><span>' + st.step + "</span></span>" +
+      '<div class="body">' + head + (gate && st.action ? '<div class="muted small">' + esc(title(st.action)) + "</div>" : "") + (gateTxt ? '<div class="gate-txt">' + esc(gateTxt) + "</div>" : "") + "</div>" +
+      '<div class="meta">' + meta + "</div></div></li>";
+  }
+  function renderTree(w) {
+    var sc = orderedScenarios(w), c = w.config, lo = 0, hi = 1;
+    sc.forEach(function (s) { if (s.savings) { lo = Math.min(lo, s.savings.low); hi = Math.max(hi, s.savings.high); } });
+    var stc = { RECOMMENDED: "accent", ALTERNATIVE: "", BLOCKED: "bad", INSUFFICIENT_EVIDENCE: "warn" };
+    var html = '<li><div class="node root"><span class="ic">' + esc(String(c.warehouse_size || "?").replace("X_", "X").replace("_", "").slice(0, 3)) + '</span><div class="body"><b>' + esc(w.name) + '</b><div class="muted small mono">' +
+      esc(c.warehouse_type + " · " + c.warehouse_size + " · " + c.min_clusters + "–" + c.max_clusters + " clusters · auto-stop " + c.auto_stop_minutes + " min") + '</div></div><div class="meta"><span class="muted small">Today</span><b class="num">' + plainMoney(w.forward.total) + '<span class="muted" style="font-weight:400"> /yr forward</span></b></div></div><ul>';
+    html += sc.map(function (s, i) {
+      var steps = (s.steps || []).slice().sort(function (a, b) { return a.step - b.step; });
+      var open = s.recommended ? " open" : "";
+      return '<li><details class="scn' + (s.recommended ? " rec" : "") + '"' + open + '><summary class="node"><span class="caret"></span><div class="body"><b>' + (s.recommended ? "★ " : "") + esc(s.name) + "</b>" +
+        '<div class="chips">' + badge(s.recommended ? "Recommended" : title(s.status), stc[s.status] || "") + (s.confidence ? confBadge(s.confidence) : "") + (s.compatibility && s.compatibility !== "NOT_APPLICABLE" ? badge("Compatibility: " + title(s.compatibility), s.compatibility === "COMPATIBLE" ? "good" : s.compatibility === "INCOMPATIBLE" ? "bad" : "warn") : "") +
+        '<span class="muted small">' + steps.length + " step" + (steps.length === 1 ? "" : "s") + "</span></div></div>" +
+        '<div class="meta"><span class="num small"><b>' + (s.savings ? plainMoney(s.savings.low) + " – " + plainMoney(s.savings.high) : '<span class="faint">Not priced</span>') + '</b></span>' +
+        (s.savings ? '<div class="mini-rng">' + rangeBar(s.savings.low, s.savings.base, s.savings.high, lo, hi) + "</div>" : "") + "</div></summary>" +
+        (steps.length ? "<ul>" + steps.map(stepNode).join("") + "</ul>" : '<ul><li><div class="node"><span></span><div class="body muted small">No change: keep the current configuration.</div><div></div></div></li></ul>') + "</details></li>";
+    }).join("");
+    $("#wh-tree").innerHTML = html + "</ul></li>";
+    $$("#wh-tree .node.link").forEach(function (n) {
+      var go = function () { openCandidate(n.dataset.cand); };
+      n.onclick = go; n.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    });
+  }
+  function openCandidate(id) {
+    var el = document.getElementById("cand-" + id); if (!el) return;
+    var group = el.closest("details.group"); if (group) group.open = true;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
+  function candidateCard(w, cd, tag) {
+    var stc = { ACTIONABLE: "good", TEST_REQUIRED: "info", REVIEW: "warn", BLOCKED: "bad" }[cd.status] || "";
+    var ev = cd.evidence.map(function (ref) { var e = evidence(w, ref); if (!e) return "";
+      var shown = e.value && e.value._summary ? e.value._summary : val(e.value), unit = e.unit && e.unit !== "value" && e.unit !== "state" ? " " + e.unit : "";
+      return '<div class="gauge"><div class="m">' + esc(e.metric) + '</div><div class="v"><b>' + esc(shown) + "</b>" + esc(unit) +
+        (e.threshold != null ? '<span class="faint">' + esc(e.comparator || "vs") + " " + esc(val(e.threshold)) + "</span>" : "") + '</div><div class="d">' + esc(e.interpretation || "") +
+        ' <span class="faint">· ' + esc(e.source || "") + (e.observation_window ? ", " + esc(title(e.observation_window)) : "") + "</span></div></div>"; }).join("");
+    var change = cd.target != null && cd.status !== "NO_CHANGE" ? '<span class="arrow">' + esc(val(cd.current)) + " → " + esc(val(cd.target)) + "</span>" : '<span class="arrow">' + esc(val(cd.current)) + "</span>";
+    return '<div class="cand" id="cand-' + esc(cd.id) + '"><div class="cand-h">' + (tag ? '<span class="steptag">' + esc(tag) + "</span>" : "") + "<b>" + esc(knob(cd.knob)) + "</b>" + change + badge(title(cd.status), stc) + confBadge(cd.confidence) +
+      '<span class="spacer"></span><span class="money num" title="Annual savings range if applied alone">' + (cd.savings ? plainMoney(cd.savings.low) + " – " + plainMoney(cd.savings.high) + '<span class="muted" style="font-weight:400"> /yr</span>' : '<span class="faint">' + esc(title(cd.estimation_status || "not priced")) + "</span>") + "</span></div>" +
+      '<div class="cand-grid"><div style="display:grid;gap:10px;min-width:0"><div class="why">' + esc(cd.rationale || "") + "</div>" +
+      (cd.blockers.length ? '<div style="display:grid;gap:6px">' + cd.blockers.map(function (b) { return '<div class="blk">' + badge(title(b), "bad") + '<span class="muted">' + esc(D.blockers[b] || "") + "</span></div>"; }).join("") + "</div>" : "") +
+      '<div class="ids">' + esc(cd.technique) + " · " + esc(cd.id) + "</div></div>" +
+      '<div style="min-width:0">' + (ev ? '<details class="ev"><summary>Evidence (' + cd.evidence.length + ")</summary>" + ev + "</details>" : '<span class="faint small">No evidence records</span>') + "</div></div></div>";
+  }
+  function renderCandidates(w) {
+    var byId = {}; w.candidates.forEach(function (c) { byId[c.id] = c; });
+    var seen = {}, html = "";
+    orderedScenarios(w).forEach(function (s) {
+      var items = (s.steps || []).slice().sort(function (a, b) { return a.step - b.step; }).filter(function (st) { return st.candidate && byId[st.candidate] && !seen[st.candidate]; });
+      if (!items.length) return;
+      html += '<div class="group-h"><b>' + (s.recommended ? "★ " : "") + esc(s.name) + '</b><span class="muted">' + (s.recommended ? "recommended · in execution order" : esc(title(s.status)) + " · in execution order") + "</span></div><div class=\"cands\">" +
+        items.map(function (st) { seen[st.candidate] = 1; return candidateCard(w, byId[st.candidate], "Step " + st.step); }).join("") + "</div>";
+    });
+    var rest = w.candidates.filter(function (c) { return !seen[c.id]; }).sort(function (a, b) { return a.knob.localeCompare(b.knob); });
+    if (rest.length) html += '<details class="group"><summary class="group-h"><b>Assessed, no change recommended</b><span class="muted">' + rest.length + " knob" + (rest.length === 1 ? "" : "s") + ' · select to expand</span></summary><div class="cands">' + rest.map(function (c) { return candidateCard(w, c, ""); }).join("") + "</div></details>";
+    $("#wh-cands").innerHTML = html || '<div class="empty">No candidates in this package.</div>';
+  }
+
+  // ---------- realization (fleet) ----------
+  function renderRealization() {
+    var ws = visibleWarehouses(), rows = [];
+    ws.forEach(function (w) { w.realization.forEach(function (l) { if (l.currency == null || l.currency === cur()) rows.push({ w: w, l: l }); }); });
+    var allApplied = rows.filter(function (r) { return r.l.application_state === "APPLIED" || (r.l.state !== "NOT_APPLIED"); });
+    // A change observed by several lineages (a later package supersedes an earlier one) is one change: the same warehouse,
+    // knob and applied value. Keep its claimable or active lineage, else the newest.
+    var rank = function (r) { return (r.l.claim === "CLAIMABLE" ? 0 : 2) + (r.l.disposition === "ACTIVE" ? 0 : 1); };
+    var byChange = {};
+    allApplied.forEach(function (r) { var k = r.w.key + "|" + r.l.knob + "|" + JSON.stringify(r.l.observed_value);
+      var prior = byChange[k]; if (!prior || rank(r) < rank(prior) || (rank(r) === rank(prior) && String(r.l.generated_at) > String(prior.l.generated_at))) byChange[k] = r; });
+    var applied = Object.keys(byChange).sort().map(function (k) { return byChange[k]; });
+    var claim = rows.filter(function (r) { return r.l.claim === "CLAIMABLE"; });
+    var measured = claim.filter(function (r) { return r.l.annualized != null && r.l.expected; });
+    var realized = sumKnown(claim.map(function (r) { return r.l.annualized; })), toDate = sumKnown(claim.map(function (r) { return r.l.to_date; }));
+    var expected = sumKnown(measured.map(function (r) { return r.l.expected.base; })), realizedM = sumKnown(measured.map(function (r) { return r.l.annualized; }));
+    var validating = applied.filter(function (r) { return r.l.state === "APPLIED" || r.l.state === "VALIDATING"; }).length;
+    var failed = applied.filter(function (r) { return r.l.state === "VALIDATION_FAILED" || r.l.state === "UNDER_REALIZED"; }).length;
+    var run = runEntry(), prev = prevRun(run), pk = prev && !filterActive() ? (prev.kpis.by_currency || {})[cur()] : null;
+    if (!D.meta.realizer_found) { $("#rz-kpis").innerHTML = '<div class="kpi" style="grid-column:1/-1"><div class="empty">No Realizer output was found. Run the Realizer on the Publisher runs to see realization here.</div></div>'; }
+    else $("#rz-kpis").innerHTML =
+      '<div class="kpi" style="--kpi:var(--s3)"><div class="label">Realized run-rate · annual</div><div class="value num">' + fmtMoney(realized) + '</div><div class="line"><span>' + claim.filter(function (r) { return r.l.annualized != null; }).length + " claimable changes</span>" + deltaChip(realized, pk && pk.realized, false) + "</div></div>" +
+      '<div class="kpi" style="--kpi:var(--s1)"><div class="label">Realized to date</div><div class="value num">' + fmtMoney(toDate) + '</div><div class="line"><span class="muted">Measured since each change was applied</span>' + deltaChip(toDate, pk && pk.realized_to_date, false) + "</div></div>" +
+      '<div class="kpi" style="--kpi:var(--good)"><div class="label">Realization rate</div><div class="value num">' + (expected ? pct(realizedM / expected) : "–") + '</div><div class="line"><span class="muted">Run-rate vs. expected base</span><b class="num">' + plainMoney(realizedM) + " / " + plainMoney(expected) + "</b></div></div>" +
+      '<div class="kpi" style="--kpi:var(--s4)"><div class="label">Applied changes</div><div class="value num">' + applied.length + ' <small>changes</small></div><div class="line"><span class="muted">Realization lineages</span><b>' + allApplied.length + '</b></div><div class="line"><span class="muted">Validating</span><b>' + validating + '</b></div><div class="line"><span class="muted">Under-realized or guard failed</span><b>' + failed + "</b></div></div>";
+    // realized vs expected per change
+    var top = measured.slice().sort(function (a, b) { return b.l.annualized - a.l.annualized; }).slice(0, 14);
+    if (!top.length) emptyChart("ch-rz-bullet", "No claimable change has a measured run-rate yet");
+    else {
+      var cats = top.map(function (r) { return r.w.name + " · " + knob(r.l.knob); });
+      document.getElementById("ch-rz-bullet").style.height = Math.max(240, 60 + 34 * top.length) + "px";
+      chart("ch-rz-bullet", { tooltip: { formatter: function (p) { var r = top[p.dataIndex]; return "<b>" + esc(r.w.name) + "</b> · " + esc(knob(r.l.knob)) + " " + esc(val(r.l.source_value)) + " → " + esc(val(r.l.observed_value)) + "<br>Realized run-rate " + fullMoney(r.l.annualized) + "<br>Expected " + fullMoney(r.l.expected.low) + " – " + fullMoney(r.l.expected.high) + " (base " + fullMoney(r.l.expected.base) + ")<br>" + esc(title(r.l.classification || r.l.state)); } },
+        grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true }, xAxis: moneyAxis(), yAxis: { type: "category", data: cats, inverse: true, axisLabel: { width: 220, overflow: "truncate" } },
+        series: [{ type: "custom", encode: { x: [1, 2, 3, 4], y: 0 }, data: top.map(function (r, i) { return [i, r.l.expected.low, r.l.expected.base, r.l.expected.high, r.l.annualized]; }),
+          renderItem: function (params, api) {
+            var y = api.value(0), lo = api.coord([api.value(1), y]), b = api.coord([api.value(2), y]), hi = api.coord([api.value(3), y]), rv = api.coord([api.value(4), y]), z = api.coord([0, y]);
+            var below = api.value(4) < api.value(1), h2 = api.size([0, 1])[1];
+            return { type: "group", children: [
+              { type: "rect", shape: { x: Math.min(lo[0], hi[0]), y: lo[1] - h2 * 0.3, width: Math.max(Math.abs(hi[0] - lo[0]), 2), height: h2 * 0.6 }, style: { fill: color_alpha(css("--good"), .16) } },
+              { type: "rect", shape: { x: Math.min(z[0], rv[0]), y: rv[1] - 4, width: Math.max(Math.abs(rv[0] - z[0]), 2), height: 8, r: 1 }, style: { fill: below ? css("--warn") : css("--s3") } },
+              { type: "rect", shape: { x: b[0] - 1, y: b[1] - h2 * 0.32, width: 2, height: h2 * 0.64 }, style: { fill: css("--ink") } }] };
+          } }] });
+    }
+    $("#rz-bullet-legend").innerHTML = '<span><i style="background:' + color_alpha(css("--good"), .3) + '"></i>Expected range</span><span><i style="background:' + css("--ink") + '"></i>Expected base</span><span><i style="background:' + css("--s3") + '"></i>Realized run-rate</span><span><i style="background:' + css("--warn") + '"></i>Below the expected low</span>';
+    var stateCount = {}; applied.forEach(function (r) { stateCount[r.l.state] = (stateCount[r.l.state] || 0) + 1; });
+    var stateColor = { REALIZED: css("--good"), MONITORING: css("--s4"), APPLIED: css("--info"), VALIDATING: css("--info"), UNDER_REALIZED: css("--warn"), VALIDATION_FAILED: css("--bad"), PERFORMANCE_VALIDATED: css("--s7"), CAPACITY_VALIDATED: css("--s7"), ROLLED_BACK: css("--s8"), DRIFTED: css("--s5"), INVALIDATED: css("--faint") };
+    comp("rz-state", Object.keys(stateCount).sort(function (a, b) { return stateCount[b] - stateCount[a]; }).map(function (s) { return [title(s), stateCount[s], stateColor[s] || css("--border-strong")]; }));
+    var cc = {}; applied.forEach(function (r) { cc[r.l.claim] = (cc[r.l.claim] || 0) + 1; });
+    comp("rz-claim", [["Claimable", cc.CLAIMABLE || 0, css("--good")], ["Observed, not claimable", cc.OBSERVABLE_ONLY || 0, css("--info")], ["Not attributable", cc.NOT_ATTRIBUTABLE || 0, css("--border-strong")]]);
+    var band = { below: 0, within: 0, above: 0 };
+    measured.forEach(function (r) { var v = r.l.annualized, e = r.l.expected; if (v < e.low) band.below++; else if (v > e.high) band.above++; else band.within++; });
+    comp("rz-band", [["Within the expected range", band.within, css("--good")], ["Above the high", band.above, css("--s3")], ["Below the low", band.below, css("--warn")]]);
+    // trend
+    var pts = D.runs.map(function (r) { return { r: r, k: (r.kpis.by_currency || {})[cur()] }; }).filter(function (p) { return p.k; });
+    chart("ch-rz-trend", { tooltip: { trigger: "axis", valueFormatter: tipMoney }, legend: { top: 0, left: 0 }, grid: { top: 36, left: 8, right: 40, bottom: 8, containLabel: true },
+      xAxis: { type: "category", boundaryGap: false, data: pts.map(function (p) { return p.r.label; }) }, yAxis: moneyAxis(),
+      series: [{ name: "Realized run-rate (claimable)", type: "line", symbolSize: 8, lineStyle: { width: 2 }, itemStyle: { color: css("--s3") }, areaStyle: { color: css("--s3"), opacity: .08 }, data: pts.map(function (p) { return p.k.realized; }) },
+               { name: "Realized to date", type: "line", symbolSize: 8, lineStyle: { width: 2 }, itemStyle: { color: css("--s1") }, data: pts.map(function (p) { return p.k.realized_to_date; }) },
+               { name: "Identified (base)", type: "line", symbolSize: 7, lineStyle: { width: 2, type: "dashed" }, itemStyle: { color: css("--faint") }, data: pts.map(function (p) { return p.k.identified.base; }) }] });
+    // table
+    var list = (S.rz === "all" ? allApplied : claim).slice().sort(function (a, b) { return (b.l.annualized == null ? -Infinity : b.l.annualized) - (a.l.annualized == null ? -Infinity : a.l.annualized) || a.w.name.localeCompare(b.w.name); });
+    $("#rz-table").innerHTML = "<thead><tr><th>Warehouse</th><th>Change</th><th>Applied</th><th class='r'>Days</th><th>State</th><th>Maturity</th><th>Claim</th>" + (S.rz === "all" ? "<th>Package</th>" : "") + "<th class='r'>Expected (base)</th><th class='r'>Run-rate</th><th class='r'>To date</th><th class='r'>Ratio</th><th>Next action</th></tr></thead><tbody>" +
+      (list.length ? list.map(function (r) {
+        var l = r.l, days = l.effective_from && l.as_of ? Math.max(0, Math.round((Date.parse(l.as_of) - Date.parse(l.effective_from)) / 864e5)) : null;
+        var stc = { REALIZED: "good", UNDER_REALIZED: "warn", VALIDATION_FAILED: "bad", MONITORING: "info", APPLIED: "info", VALIDATING: "info" }[l.state] || "";
+        return '<tr class="click" data-wh="' + esc(r.w.key) + '"><td><div class="wh-name">' + esc(r.w.name) + '</div><div class="wh-sub">' + esc(r.w.id) + "</div></td><td class='nowrap'>" + esc(knob(l.knob) || "Plan") + (l.knob ? ' <span class="arrow">' + esc(val(l.source_value)) + " → " + esc(val(l.observed_value)) + "</span>" : "") +
+          "</td><td class='nowrap mono'>" + date(l.effective_from) + "</td><td class='r num'>" + (days == null ? "–" : days) + "</td><td>" + badge(title(l.state), stc) + "</td><td>" + esc(title(l.maturity)) + "</td><td>" + badge(title(l.claim), l.claim === "CLAIMABLE" ? "good" : "") + "</td>" +
+          (S.rz === "all" ? "<td>" + badge(title(l.disposition), l.disposition === "ACTIVE" ? "accent" : "") + "</td>" : "") +
+          "<td class='r num'>" + (l.expected ? fmtMoney(l.expected.base) : "–") + "</td><td class='r num'><b>" + fmtMoney(l.annualized) + "</b></td><td class='r num'>" + fmtMoney(l.to_date) + "</td><td class='r num'>" + (l.ratio != null ? pct(l.ratio) : "–") + "</td><td class='nowrap'>" + esc(l.next_action || "") + "</td></tr>";
+      }).join("") : '<tr><td colspan="13" class="muted">No ' + (S.rz === "all" ? "applied" : "claimable") + " changes as of this run.</td></tr>") + "</tbody>";
+    bindRows("#rz-table");
+    $$("#rz-scope button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.scope === S.rz)); });
   }
   function evidence(w, index) {
     var row = w.evidence[index]; if (!row) return null;
@@ -968,7 +1129,7 @@ footer p{max-width:110ch;margin:0}
     $$(".tab").forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === S.view)); });
     $$("#lens button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lens === S.lens)); });
     $("#print-meta").textContent = "Run " + runEntry().label + " · " + cur() + " · generated by the inframate dashboard skill";
-    var r = { executive: renderExecutive, portfolio: renderPortfolio, recommendations: renderRecommendations, warehouse: renderWarehouse, audit: renderAudit }[S.view];
+    var r = { executive: renderExecutive, portfolio: renderPortfolio, recommendations: renderRecommendations, realization: renderRealization, warehouse: renderWarehouse, audit: renderAudit }[S.view];
     if (S.view !== "warehouse") { var w = currentWh(); $("#wh-crumb").textContent = w ? "· " + w.name : ""; }
     r(); writeHash();
     setTimeout(function () { Object.keys(charts).forEach(function (k) { if (charts[k].getDom().offsetParent !== null) charts[k].resize(); }); }, 0);
@@ -989,6 +1150,7 @@ footer p{max-width:110ch;margin:0}
   $("#cur").onchange = function () { S.cur = this.value; renderAll(); };
   $$("#top-order button").forEach(function (b) { b.onclick = function () { S.top = b.dataset.order; renderAll(); }; });
   $$("#pf-order button").forEach(function (b) { b.onclick = function () { S.pf = b.dataset.order; renderAll(); }; });
+  $$("#rz-scope button").forEach(function (b) { b.onclick = function () { S.rz = b.dataset.scope; renderAll(); }; });
   if (window.self !== window.top) $("#print").classList.add("hide");  // embedded viewers block the print dialog
   $("#print").onclick = function () { S.view = "executive"; renderAll(); setTimeout(function () { window.print(); }, 300); };
   var modes = [null, "light", "dark"];

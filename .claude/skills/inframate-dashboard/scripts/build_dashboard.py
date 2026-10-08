@@ -356,6 +356,24 @@ def project_warehouse(p: Mapping[str, Any], lineages: Sequence[Mapping[str, Any]
     def srange(r):
         return None if r is None else {k: money(dec(r[k])) for k in ("low", "base", "high")}
 
+    def project_steps(plan):
+        out = []
+        for st in plan or []:
+            cand = candidates.get(st.get("candidate_id") or "")
+            proj = st.get("projected_economics") or {}
+            step_sav = ((proj.get("step_savings_365d") or {}).get("total") or {}) if proj.get("step_savings_365d") else {}
+            applied = next((l for l in lineages if st.get("knob") and lineage_applies(l, st["knob"], st.get("recommended_value"))), None)
+            out.append({
+                "step": st["step"], "type": st["step_type"], "knob": st.get("knob"), "action": st.get("action"),
+                "technique": st.get("technique_id"), "candidate": st.get("candidate_id"),
+                "current": st.get("current_value"), "target": st.get("recommended_value"),
+                "state": st.get("execution_state"), "candidate_status": cand["status"] if cand else None,
+                "validation": {k: (st.get("validation") or {}).get(k) for k in ("validation_type", "success_metrics", "remeasure_days", "action_after")},
+                "savings_base": money(dec(step_sav.get("base"))) if step_sav else None,
+                "applied": applied["current_state"]["realization_state"] if applied else None,
+            })
+        return out
+
     scenarios = []
     for s in p["scenarios"]:
         sv = s["portfolio_economics"]["savings_365d"]
@@ -367,23 +385,9 @@ def project_warehouse(p: Mapping[str, Any], lineages: Sequence[Mapping[str, Any]
             "dbu": srange(sv["dbu"]) if sv and sv.get("dbu") else None, "aws": srange(sv["aws"]) if sv and sv.get("aws") else None,
             "compatibility": (s.get("compatibility") or {}).get("status"),
             "method": s["portfolio_economics"].get("method"),
-            "steps": len(s.get("execution_plan") or []),
+            "steps": project_steps(s.get("execution_plan")),
         })
-    steps = []
-    for st in (rec or {}).get("execution_plan") or []:
-        cand = candidates.get(st.get("candidate_id") or "")
-        proj = st.get("projected_economics") or {}
-        step_sav = ((proj.get("step_savings_365d") or {}).get("total") or {}) if proj.get("step_savings_365d") else {}
-        applied = next((l for l in lineages if st.get("knob") and lineage_applies(l, st["knob"], st.get("recommended_value"))), None)
-        steps.append({
-            "step": st["step"], "type": st["step_type"], "knob": st.get("knob"), "action": st.get("action"),
-            "technique": st.get("technique_id"), "candidate": st.get("candidate_id"),
-            "current": st.get("current_value"), "target": st.get("recommended_value"),
-            "state": st.get("execution_state"), "candidate_status": cand["status"] if cand else None,
-            "validation": {k: (st.get("validation") or {}).get(k) for k in ("validation_type", "success_metrics", "remeasure_days", "action_after")},
-            "savings_base": money(dec(step_sav.get("base"))) if step_sav else None,
-            "applied": applied["current_state"]["realization_state"] if applied else None,
-        })
+    steps = project_steps((rec or {}).get("execution_plan"))
     return {
         "key": wh_key(w["workspace_id"], w["warehouse_id"]), "id": w["warehouse_id"], "workspace": w["workspace_id"],
         "name": w["warehouse_name"], "owner": w.get("owner"), "region": w.get("region"),
@@ -736,9 +740,10 @@ def verify(html: str, dataset: Mapping[str, Any], publisher_root: Optional[Path]
         problems.append(f"the demo page is {size / 1048576:.1f} MB, above the {SIZE_FAIL // 1048576} MB limit for a committed file")
     elif size > SIZE_WARN:
         print(f"warning: page is {size / 1048576:.1f} MB (above {SIZE_WARN // 1048576} MB)")
-    for need in ("data-view=\"executive\"", "data-view=\"portfolio\"", "data-view=\"recommendations\"", "data-view=\"warehouse\"", "data-view=\"audit\""):
+    for need in ("data-view=\"executive\"", "data-view=\"portfolio\"", "data-view=\"recommendations\"", "data-view=\"realization\"", "data-view=\"warehouse\"", "data-view=\"audit\""):
         if need not in page_no_data:
             problems.append(f"view missing: {need}")
+    problems += script_syntax(page_no_data)
     if not dataset["runs"]:
         problems.append("no complete Publisher run found")
     for run in dataset["runs"]:
@@ -747,6 +752,25 @@ def verify(html: str, dataset: Mapping[str, Any], publisher_root: Optional[Path]
                 problems.append(f"{run['key']} {currency}: an actual total with unknown warehouses")
     if publisher_root is not None:
         problems += reconcile_workbooks(dataset, publisher_root)
+    return problems
+
+
+def script_syntax(page: str) -> List[str]:
+    """The page's own scripts parse (checked with `node --check` when Node is installed; skipped otherwise)."""
+    node = shutil.which("node")
+    if node is None:
+        print("verify: node not found; script syntax not checked")
+        return []
+    problems = []
+    for i, body in enumerate(re.findall(r"<script>(.*?)</script>", page, re.S)):
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(body)
+        try:
+            done = subprocess.run([node, "--check", f.name], capture_output=True, text=True)
+            if done.returncode != 0:
+                problems.append(f"page script {i} does not parse: " + (done.stderr.strip().splitlines() or ["?"])[-1])
+        finally:
+            os.unlink(f.name)
     return problems
 
 

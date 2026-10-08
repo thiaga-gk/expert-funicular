@@ -8,11 +8,11 @@ never disagree between personas.
 | Lens | Who | Lands on | Reads first |
 |---|---|---|---|
 | Executive | sponsor, finance | Executive summary | five KPI tiles, lifecycle flow, trend, call-outs, top warehouses; print one-pager |
-| FinOps | cost analyst | Portfolio | treemap (area = spend, colour = savings share), spend-vs-opportunity scatter, warehouse table |
-| Engineer | warehouse owner, platform | Recommendations | aging heatmap, implementation roadmap, status board, then the warehouse view: config, daily cost with epochs, scenarios, plan stepper, candidate cards with evidence and blockers, realization |
+| FinOps | cost analyst | Portfolio | treemap (area = spend, colour = savings share), spend-vs-opportunity scatter, warehouse table; then Realization: realized run-rate, realization rate, realized vs. expected per change, claim status, trend, applied-change table |
+| Engineer | warehouse owner, platform | Recommendations | aging heatmap, implementation roadmap, status board, then the warehouse view: config, daily cost with epochs, the scenario tree (warehouse → scenarios, recommended first → steps in execution order, gates marked), recommendation cards in the same order with evidence collapsed, realization |
 | Audit | governance, reviewer | Audit | run provenance, skipped inputs, IDs and hashes, applied thresholds, raw package JSON |
 
-Depth: L0 executive → L1 portfolio and recommendations → L2 warehouse → L3 audit. Every row, tile and chart mark
+Depth: L0 executive → L1 portfolio, recommendations and realization → L2 warehouse → L3 audit. Every row, tile and chart mark
 that names a warehouse opens the warehouse view.
 
 ## Visual system

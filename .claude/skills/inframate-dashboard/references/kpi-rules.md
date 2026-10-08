@@ -22,6 +22,15 @@ savings, the measured run-rate for realized savings. The workbook rules are thos
 | Aging | open/blocked rows across runs | Key = (warehouse, technique, target value). Age = days from the first run of the unbroken streak to this run; the streak breaks when a run lacks it or it is applied. Buckets 0-30, 31-60, 61-90, 90+. |
 | Warehouses analysed | packages in the run; `manifest.excluded_warehouses` | Count, workspaces, excluded (unsupported type), priced plans. |
 
+## Realization view
+
+| Figure | Source | Rule |
+|---|---|---|
+| Realized run-rate, realized to date | as above | Claimable lineages of the visible warehouses. |
+| Realization rate | `economics.annualized_realized_savings` / `economics.expected_range.base` | Over claimable lineages that have both; a ratio of sums, not an average of ratios. |
+| Applied changes | lineages with an applied state | One per distinct change (warehouse, knob, applied value): when a later package supersedes an earlier one, both lineages observe the same change, so the claimable (else active, else newest) lineage stands for it. The lineage count is shown beside it. |
+| Against the expected range | claimable lineages with a run-rate | Below `expected_range.low`, within, or above `expected_range.high`. |
+
 ## As-of join
 
 For Publisher run *i*, the Realizer data shown is, per realization lineage, the latest RPKG snapshot whose

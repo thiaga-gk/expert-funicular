@@ -1,6 +1,6 @@
 ---
 name: inframate-dashboard
-description: Build, refresh or explain the inframate dashboard - one self-contained, premium HTML page over the Publisher's RecommendationPackages and the Realizer's RealizationPackages, with an executive summary (annual actual spend total/DBU/AWS, identified savings range, realized savings, open recommendations, warehouses analysed), a fleet portfolio, a recommendations board with aging and an implementation roadmap, a per-warehouse drill-down with evidence, plan and realization, and an audit view, navigable by run date and by persona lens (Executive, FinOps, Engineer, Audit). Use this skill whenever someone wants to see, present, share, refresh or update optimizer results as a dashboard, report or overview page - "show me the dashboard", "refresh the dashboard with the latest run", "what did the last run find", "build an exec view of the savings", "how much have we realized", "which recommendations are aging", "rebuild the demo dashboard" - even if they do not say "dashboard", and whenever docs/dashboard/shared/inframate-dashboard.html must be regenerated after a Publisher or Realizer change.
+description: Build, refresh or explain the inframate dashboard - one self-contained, premium HTML page over the Publisher's RecommendationPackages and the Realizer's RealizationPackages, with an executive summary (annual actual spend total/DBU/AWS, identified savings range, realized savings, open recommendations, warehouses analysed), a fleet portfolio, a recommendations board with aging and an implementation roadmap, a realization view (realized vs. expected savings per applied change), a per-warehouse drill-down with a scenario and plan tree, evidence and realization, and an audit view, navigable by run date and by persona lens (Executive, FinOps, Engineer, Audit). Use this skill whenever someone wants to see, present, share, refresh or update optimizer results as a dashboard, report or overview page - "show me the dashboard", "refresh the dashboard with the latest run", "what did the last run find", "build an exec view of the savings", "how much have we realized", "which recommendations are aging", "rebuild the demo dashboard" - even if they do not say "dashboard", and whenever docs/dashboard/shared/inframate-dashboard.html must be regenerated after a Publisher or Realizer change.
 ---
 
 # inframate dashboard
@@ -47,7 +47,7 @@ python .claude/skills/inframate-dashboard/scripts/build_dashboard.py --check    
 --demo --as-of` before the next one, into a temporary folder (`--demo-workdir DIR` keeps and reuses it, which makes
 `--check` fast). The demo is deterministic, so `--check` byte-compares.
 
-**Verify** (`--verify`) fails on: an external resource, an unresolved placeholder, duplicate element ids, a missing
+**Verify** (`--verify`) fails on: a page script that does not parse (checked with Node when installed), an external resource, an unresolved placeholder, duplicate element ids, a missing
 view, a committed demo above 6 MB, or a run whose single-currency KPIs differ from the cells of that run's own
 `workbook.xlsx` Executive Summary. That last check keeps the dashboard and the workbook telling the same story.
 
@@ -55,7 +55,7 @@ view, a committed demo above 6 MB, or a run whose single-currency KPIs differ fr
 
 When someone asks what a run found, build (or refresh) the page and report the executive figures from the build
 output, then point to the view that answers the question: Portfolio for where the money is, Recommendations for
-what is open and how old it is, Warehouse for why a change is recommended and what happened after it was applied,
+what is open and how old it is, Realization for what applied changes are saving against what was expected, Warehouse for why a change is recommended and what happened after it was applied,
 Audit for IDs, hashes, versions and skipped inputs. Quote figures as the page shows them (annual, per currency).
 
 ## Ground rules

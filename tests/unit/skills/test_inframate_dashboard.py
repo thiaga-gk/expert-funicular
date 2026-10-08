@@ -142,6 +142,14 @@ class DashboardFixtureTests(unittest.TestCase):
         refs = {i for c in w["candidates"] for i in c["evidence"]}
         self.assertTrue(refs <= set(range(len(w["evidence"]))))
 
+    def test_every_scenario_carries_its_steps_in_execution_order(self):
+        for w in self.data["details"][RUN_TIMES[-1]]["warehouses"]:
+            for s in w["scenarios"]:
+                self.assertEqual([st["step"] for st in s["steps"]], sorted(st["step"] for st in s["steps"]))
+            recommended = [s for s in w["scenarios"] if s["recommended"]]
+            self.assertEqual(len(recommended), 1)
+            self.assertEqual(recommended[0]["steps"], w["steps"])
+
     def test_an_unsupported_contract_run_is_skipped_and_listed(self):
         with tempfile.TemporaryDirectory() as tmp:
             run = write_run(Path(tmp), "20261001T000000Z", RUN_TIMES[0])
