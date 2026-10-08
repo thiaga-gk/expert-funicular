@@ -5,6 +5,7 @@ which would reach .worktrees/ and docs/archive/. Rules are added as the document
 """
 import ast
 import dataclasses
+import importlib.util
 import json
 import re
 import sys
@@ -269,6 +270,16 @@ class DocsGuardTests(unittest.TestCase):
                 if not re.search(defined, read(path), re.M):
                     missing.append(f"{cite['path']} :: {symbol}")
         self.assertEqual(missing, [], "the field guide cites code that moved; run /teach-me refresh")
+
+    def test_field_guide_chapter_map_covers_every_source_file(self):
+        # Every file under src/ and schema/ belongs to a guide chapter (so a change to it marks the chapter stale) or is
+        # ignored with a reason in .claude/skills/teach-me/references/chapter-map.yaml.
+        spec = importlib.util.spec_from_file_location("teach_me_build_guide", ROOT / ".claude/skills/teach-me/scripts/build_guide.py")
+        build_guide = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(build_guide)
+        uncovered, problems = build_guide.coverage(build_guide.load_map())
+        self.assertEqual(problems, [], "fix the ignore entries in the teach-me chapter map")
+        self.assertEqual(uncovered, [], "add each file to a chapter's sources in the teach-me chapter map, or to its ignore list with a reason")
 
 
 if __name__ == "__main__":
