@@ -19,7 +19,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
-from realizer.analyzer.measurement import MeasurementPlan, daily_in, window_days
+from realizer.analyzer.measurement import MeasurementPlan, window_days
 from realizer.common.utils import money
 from realizer.contracts.observation import MIGRATION_METHOD, NO_REVERSE_MIGRATION_MODEL, is_migration_observed
 
@@ -49,7 +49,7 @@ def migration_delta(plan: MeasurementPlan, evidence: Mapping[str, Any], ratio: O
     """The observed delta of a warehouse-type step: the observation's ``economics`` block and the cost basis, or ``None``
     when the step is not a type change or the evidence cannot state it (without both windows' running time, a volume ratio,
     or billing priced in one currency)."""
-    from realizer.analyzer.projector import billed  # the projector calls this module: imported late
+    from realizer.analyzer.projector import window_bill  # the projector calls this module: imported late
 
     if plan.step is None or str(plan.step.get("knob")) != MIGRATION_KNOB or plan.post is None or plan.pre is None or ratio is None:
         return None
@@ -57,7 +57,7 @@ def migration_delta(plan: MeasurementPlan, evidence: Mapping[str, Any], ratio: O
     pre, post = windows.get("pre"), windows.get("post")
     if not pre or not post or pre.get("running") is None or post.get("running") is None:
         return None
-    pre_bill, post_bill = billed(daily_in(evidence["daily_cost"], plan.pre)), billed(daily_in(evidence["daily_cost"], plan.post))
+    pre_bill, post_bill = window_bill(evidence["daily_cost"], plan.pre, pre), window_bill(evidence["daily_cost"], plan.post, post)
     currencies = sorted(set(pre_bill["currencies"]) | set(post_bill["currencies"]))
     if pre_bill["cost"] is None or post_bill["cost"] is None or len(currencies) > 1:
         return None

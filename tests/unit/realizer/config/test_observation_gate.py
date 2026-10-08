@@ -74,7 +74,7 @@ class ObservationGateTests(unittest.TestCase):
                 loader.validate_observation(observation, self.pkg)
 
     def test_format_version(self):
-        self.assertEqual(OBSERVATION_FORMAT_VERSION, "3.1.0")
+        self.assertEqual(OBSERVATION_FORMAT_VERSION, "3.2.0")
         for version in ("1.0.0", "2.0.1", "2.1.0", "2.2.0", "3.0.0", None, 2):
             with self.subTest(version=version):
                 self.refused({**self.base, "observation_format_version": version}, "unsupported observation format")

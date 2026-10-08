@@ -1,4 +1,4 @@
-"""Projector: measurement evidence -> one normalized observation (format 3.1.0).
+"""Projector: measurement evidence -> one normalized observation (format 3.2.0).
 
 Pure and Realizer-owned. It plans the measurement again from the evidence (``realizer.analyzer.measurement``), so the
 windows it reads are exactly the ones the bridge collected, and states what they show:
@@ -54,7 +54,8 @@ from realizer.analyzer.size_counterfactual import METHOD as SIZE_METHOD, size_co
 from realizer.common.errors import InputError
 from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.config.settings import volume_shifted
-from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
+from realizer.contracts.approvals import Approvals
+from realizer.contracts.observation import BILLING_INCOMPLETE, OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import package_currency
 
 REPLAY_METHOD = "AUTO_STOP_REPLAY"
@@ -76,19 +77,35 @@ def _check_windows(plan: MeasurementPlan, evidence: Mapping[str, Any]) -> None:
             raise InputError(f"measurement evidence does not hold the planned {label} window")
 
 
-def billed(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    """Billed totals of daily rows: DBU, priced cost (null when any DBU is unpriced), unpriced DBU and currencies."""
+def billed(rows: Sequence[Mapping[str, Any]], running: Optional[Decimal] = None) -> Dict[str, Any]:
+    """Billed totals of daily rows: DBU, priced cost, unpriced DBU and currencies. The cost is ``None`` (unknown, never
+    zero) when any DBU is unpriced and when the window has no billed day although the warehouse ran in it (*running*, its
+    running cluster-minutes, above zero: billing that has not arrived); ``missing`` marks the second case. A window in
+    which the warehouse did not run bills nothing legitimately, and without *running* nothing says it ran."""
+    missing = not rows and running is not None and running > 0
     dbu = sum((Decimal(str(r["dbu_quantity"])) for r in rows), Decimal("0"))
     unpriced = sum((Decimal(str(r["unpriced_dbu_quantity"])) for r in rows), Decimal("0"))
     currencies = sorted({str(r["currency_code"]) for r in rows if r.get("currency_code") is not None})
-    cost = None if unpriced > 0 else sum((Decimal(str(r["list_cost"] or 0)) for r in rows), Decimal("0"))
+    cost = None if unpriced > 0 or missing else sum((Decimal(str(r["list_cost"] or 0)) for r in rows), Decimal("0"))
     priced_dbu = dbu - unpriced
     by_currency: Dict[str, Decimal] = {}
     for r in rows:
         if r.get("currency_code") is not None:
             by_currency[str(r["currency_code"])] = by_currency.get(str(r["currency_code"]), Decimal("0")) + Decimal(str(r["dbu_quantity"]))
     return {"dbu": dbu, "cost": cost, "unpriced_dbu": unpriced, "currencies": currencies, "priced_dbu": priced_dbu,
-            "majority_currency_dbu": max(by_currency.values(), default=Decimal("0"))}
+            "majority_currency_dbu": max(by_currency.values(), default=Decimal("0")), "missing": missing}
+
+
+def window_running(window: Optional[Mapping[str, Any]]) -> Optional[Decimal]:
+    """A collected window's observed running cluster-minutes (``None`` without running-time evidence)."""
+    if not window or window.get("running") is None:
+        return None
+    return Decimal(str(window["running"]["observed_running_cluster_minutes"]))
+
+
+def window_bill(daily: Sequence[Mapping[str, Any]], plan_window: Optional[Mapping[str, Any]], window: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    """``billed`` of the daily rows inside a planned window, knowing the running time the evidence holds for it."""
+    return billed(daily_in(daily, plan_window), running=window_running(window))
 
 
 def _replay_row(window: Mapping[str, Any], target: int) -> Dict[str, Decimal]:
@@ -129,7 +146,7 @@ def replay_economics(plan: MeasurementPlan, evidence: Mapping[str, Any]) -> Opti
     restart = restart_cost_cluster_minutes(config, evidence["assumptions"])
     applied = int(config["auto_stop_minutes"])
     net = replay_net_cluster_minutes(row, plan.replayed_value, applied, restart)
-    bill = billed(daily_in(evidence["daily_cost"], plan.post))
+    bill = window_bill(evidence["daily_cost"], plan.post, post)
     if bill["cost"] is None or len(bill["currencies"]) > 1:
         return None
     dbu_rate = bill["cost"] / running if running > 0 else None
@@ -190,7 +207,7 @@ def billed_change(plan: MeasurementPlan, evidence: Mapping[str, Any], ratio: Opt
     pre, post = windows.get("pre"), windows.get("post")
     if not pre or not post or pre.get("running") is None or post.get("running") is None:
         return None
-    pre_bill, post_bill = billed(daily_in(evidence["daily_cost"], plan.pre)), billed(daily_in(evidence["daily_cost"], plan.post))
+    pre_bill, post_bill = window_bill(evidence["daily_cost"], plan.pre, pre), window_bill(evidence["daily_cost"], plan.post, post)
     currencies = sorted(set(pre_bill["currencies"]) | set(post_bill["currencies"]))
     if pre_bill["cost"] is None or post_bill["cost"] is None or len(currencies) > 1:
         return None
@@ -208,12 +225,12 @@ def window_summary(window: Optional[Mapping[str, Any]], daily: Sequence[Mapping[
     """What one collected window shows: days, queries, running cluster-minutes, restarts and its billed cost."""
     if not window or window.get("running") is None:
         return None
-    bill = billed(daily_in(daily, window))
+    bill = billed(daily_in(daily, window), running=window_running(window))
     running = window["running"]
     return {
         "first_day": window["first_day"], "last_day": window["last_day"], "days": window_days(window),
         "queries": int(running["queries"]), "running_cluster_minutes": _fmt(running["observed_running_cluster_minutes"]),
-        "restarts": int(running["restarts_for_queries"]), "billed_dbu": _fmt(bill["dbu"]), "billed_cost": money(bill["cost"]),
+        "restarts": int(running["restarts_for_queries"]), "billed_dbu": None if bill["missing"] else _fmt(bill["dbu"]), "billed_cost": money(bill["cost"]),
     }
 
 
@@ -248,7 +265,10 @@ def financial_quality(plan: MeasurementPlan, evidence: Mapping[str, Any], replay
     if plan.post is None:
         return {"attributable_spend_pct": None, "price_coverage_pct": None, "currency_consistency_pct": None,
                 "correction_chain_complete": None, "material_cost_component_available": None}
-    bill = billed(daily_in(evidence["daily_cost"], plan.post))
+    bill = window_bill(evidence["daily_cost"], plan.post, (evidence.get("windows") or {}).get("post"))
+    if bill["missing"]:  # the warehouse ran and no billed day arrived: nothing is established about its billing
+        return {"attributable_spend_pct": None, "price_coverage_pct": None, "currency_consistency_pct": None,
+                "correction_chain_complete": None, "material_cost_component_available": None}
     priced = Decimal("100") if bill["dbu"] <= 0 else (bill["priced_dbu"] * 100 / bill["dbu"])
     consistent = Decimal("100") if bill["priced_dbu"] <= 0 else (bill["majority_currency_dbu"] * 100 / bill["priced_dbu"])
     return {
@@ -277,14 +297,21 @@ def origin(package: Mapping[str, Any], plan: MeasurementPlan, approvals: Optiona
     an approval names this package, the step's knob and the observed value; INFERRED when the change was applied after
     the package was generated (the package's step is the knob that changed); UNKNOWN otherwise (nothing changed, or the
     change came before the package and so cannot be its application)."""
+    if isinstance(approvals, Approvals):
+        approvals.consulted.add(str(package["recommendation_package_id"]))
     if plan.step is None or plan.change_epoch is None:
         return "UNKNOWN", "UNKNOWN", None
     knob = str(plan.step["knob"])
     observed = normalize_value(knob, plan.observed_epoch.get(knob))
-    for approval in (approvals or {}).get("approvals") or []:
+    confirmed: Optional[Mapping[str, Any]] = None
+    for index, approval in enumerate((approvals or {}).get("approvals") or []):
         if (approval["recommendation_package_id"] == package["recommendation_package_id"] and approval["knob"] == knob
                 and normalize_value(knob, approval["value"]) == observed):
-            return "CONFIRMED", "ACCEPTED", str(approval["reference"])
+            confirmed = confirmed or approval
+            if isinstance(approvals, Approvals):
+                approvals.matched.add(index)  # every approval that names the change is matched, not only the first
+    if confirmed is not None:
+        return "CONFIRMED", "ACCEPTED", str(confirmed["reference"])
     generated = (package.get("provenance") or {}).get("generated_at")
     if generated and parse_utc(plan.change_epoch["epoch_start"]) > parse_utc(generated):
         return "INFERRED", "UNKNOWN", None
@@ -309,7 +336,7 @@ def _changed_since_package(package: Mapping[str, Any], plan: MeasurementPlan, ep
 
 
 def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any], approvals: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """The observation (format 3.1.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
+    """The observation (format 3.2.0) of *package*'s warehouse that *evidence* states; *approvals* (the approvals
     format) can confirm the change's origin."""
     warehouse = package["warehouse"]
     if (evidence["workspace_id"], evidence["warehouse_id"]) != (warehouse["workspace_id"], warehouse["warehouse_id"]):
@@ -324,7 +351,8 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
     pre = window_summary(windows.get("pre") if plan.pre else None, evidence["daily_cost"])
     replay = replay_economics(plan, evidence)
     size = size_counterfactual(package, plan, evidence)
-    levels = cluster_levels(plan, evidence, billed(daily_in(evidence["daily_cost"], plan.post)))
+    post_bill = window_bill(evidence["daily_cost"], plan.post, windows.get("post"))
+    levels = cluster_levels(plan, evidence, post_bill)
     # The auto-stop replay, the size counterfactual or a floor cut's levels (one shape): what the economics, cross-check
     # and cost basis state.
     counterfactual = replay or (size.economics if size else None) or levels.counterfactual
@@ -346,13 +374,16 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "aws_economic_realized": money(counterfactual["aws_realized"]), "aws_cash_realized": None, "aws_commitment_freed": None,
             "aws_evidence_type": "MODELED" if counterfactual["aws_realized"] is not None else None,
         }
+    # An auto-stop change whose post-change window has running time and no billed day: its cost is unknown, so no replay.
+    billing_reason = BILLING_INCOMPLETE if (counterfactual is None and plan.step is not None and plan.replayed_value is not None
+                                            and plan.post is not None and post_bill["missing"]) else None
     cross_check = None
     if counterfactual is not None:
         pre_rows = daily_in(evidence["daily_cost"], plan.pre)
         cross_check = billed_cross_check(
             replay_dbu_saving=counterfactual["dbu_realized"],
-            pre=None if pre is None else {"days": pre["days"], "billed_cost": billed(pre_rows)["cost"]},
-            post={"days": post["days"], "billed_cost": billed(daily_in(evidence["daily_cost"], plan.post))["cost"]} if post else None,
+            pre=None if pre is None else {"days": pre["days"], "billed_cost": window_bill(evidence["daily_cost"], plan.pre, windows.get("pre"))["cost"]},
+            post={"days": post["days"], "billed_cost": post_bill["cost"]} if post else None,
             pre_weekly=None if plan.pre is None else weekly_costs(pre_rows, plan.pre["first_day"], window_days(plan.pre)),
             volume_ratio=ratio, other_knob_changes=plan.other_knob_changes)
     measurement = None
@@ -365,7 +396,7 @@ def project_observation(package: Mapping[str, Any], evidence: Mapping[str, Any],
             "change_epoch_start": utc_iso(plan.change_epoch["epoch_start"]) if plan.change_epoch else None,
             "observed_epoch_start": utc_iso(plan.observed_epoch["epoch_start"]),
             "previous_epoch_start": utc_iso(plan.previous_epoch["epoch_start"]) if plan.previous_epoch else None,
-            "not_measured_reason": None if migration is not None else plan.reason or (size.reason if size else None) or levels.reason,
+            "not_measured_reason": None if migration is not None else plan.reason or (size.reason if size else None) or levels.reason or billing_reason,
             "post_window": post, "pre_window": pre, "volume_ratio": _fmt(ratio, "0.0001"),
             "other_knob_changes": list(plan.other_knob_changes), "holds_other_knobs": counterfactual is not None,
             "cost_basis": None if counterfactual is None and migration is None else (counterfactual or migration)["cost_basis"], "replay": detail,

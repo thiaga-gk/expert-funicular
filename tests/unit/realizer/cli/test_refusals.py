@@ -118,7 +118,7 @@ class RefusalTests(LoggerRestoringCase):
         self.refuse(["--package", str(self.base / "binary.json")], r"package file is not UTF-8 text: .*binary\.json")
 
     def test_a_2x_package_is_refused_with_the_supported_contract(self):
-        self.refuse(["--package", str(self.base / "v2.json")], r"unsupported Publisher contract: 2\.0\.0 \(this Realizer reads 3\.1\.0\)")
+        self.refuse(["--package", str(self.base / "v2.json")], r"unsupported Publisher contract: 2\.0\.0 \(this Realizer reads 3\.2\.0\)")
 
     def test_package_that_is_not_an_object(self):
         path = self.base / "list.json"
@@ -127,7 +127,7 @@ class RefusalTests(LoggerRestoringCase):
 
     def test_malformed_observation_is_refused_before_anything_is_written(self):
         self.refuse(["--package", str(PACKAGE), "--observation", str(self.base / "bad-observation.json")],
-                    r"unsupported observation format: 1\.0\.0 \(this Realizer reads 3\.1\.0\)")
+                    r"unsupported observation format: 1\.0\.0 \(this Realizer reads 3\.2\.0\)")
 
     def test_observation_of_another_warehouse_is_refused(self):
         self.refuse(["--package", str(PACKAGE), "--observation", str(self.base / "wrong-warehouse.json")],

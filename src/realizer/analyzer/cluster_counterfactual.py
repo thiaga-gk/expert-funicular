@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from realizer.analyzer.measurement import LEVEL_KNOBS, MeasurementPlan, window_days
 from realizer.common.utils import money, ratio_string
-from realizer.contracts.observation import LEVELS_BASES
+from realizer.contracts.observation import BILLING_INCOMPLETE, LEVELS_BASES
 
 FLOOR_METHOD = "FLOOR_LEVELS"
 # What the priced cluster-minutes are: removed by a floor cut, above the old cap of a capacity add, the upper bound of
@@ -150,7 +150,8 @@ def cluster_levels(plan: MeasurementPlan, evidence: Mapping[str, Any], bill: Map
         realized = dbu + (aws if with_aws else Decimal("0"))  # type: ignore[operator]
         counterfactual = {"currency": currency, "observed_new_cost": observed_cost, "counterfactual_old_cost": observed_cost + realized,
                           "dbu_realized": dbu, "aws_realized": aws, "cost_basis": "DBU_AND_MODELED_AWS" if with_aws else "DBU_ONLY"}
-    return ClusterLevels(block, counterfactual, None)
+    # A floor cut whose post window has running time and no billed day cannot be priced: its cost is unknown, not zero.
+    return ClusterLevels(block, counterfactual, BILLING_INCOMPLETE if basis == FLOOR_CUT_REMOVED and bill.get("missing") else None)
 
 
 def _format_levels(levels: Optional[Sequence[Tuple[int, Decimal]]]) -> Optional[List[Dict[str, Any]]]:

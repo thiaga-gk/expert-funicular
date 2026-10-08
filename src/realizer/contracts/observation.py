@@ -1,4 +1,4 @@
-"""Realizer observation format 3.1.0: the normalized post-change observation one realize run consumes.
+"""Realizer observation format 3.2.0: the normalized post-change observation one realize run consumes.
 
 An observation is a complete statement about one warehouse at one time: its identity, the full observed configuration,
 the measurement window, the readiness and performance evidence, the financial-quality evidence and, when measured, the
@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 from realizer.contracts.analysis import EvidenceQuality, IntentState, OriginAttribution
 
-OBSERVATION_FORMAT_VERSION = "3.1.0"
+OBSERVATION_FORMAT_VERSION = "3.2.0"
 
 # Counterfactual methods (Realizer Policy Contract, counterfactual section): the four that can support a claim, and
 # the two that are recorded for diagnosis only.
@@ -31,8 +31,10 @@ MEASUREMENT_METHODS = ("AUTO_STOP_REPLAY", "SIZE_RUNTIME", "FLOOR_LEVELS", MIGRA
 # The hard disqualifier of a warehouse-type migration: its observed delta has no reverse (new to old) model, so it is never claimed.
 NO_REVERSE_MIGRATION_MODEL = "NO_REVERSE_MIGRATION_MODEL"
 COST_BASES = ("DBU_AND_MODELED_AWS", "DBU_ONLY")
+# A window the warehouse ran in has no billed day (billing that has not arrived): its billed cost is unknown, never zero.
+BILLING_INCOMPLETE = "BILLING_INCOMPLETE"
 NOT_MEASURED_REASONS = ("NOT_APPLIED", "NOT_SETTLED", "KNOB_NOT_REPLAYED", "SIZE_RUNTIME_UNMEASURED", "SOURCE_RATE_UNAVAILABLE",
-                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE", "FLOOR_RAISED")
+                        "BUSY_SHARE_UNKNOWN", "LEVELS_UNAVAILABLE", "FLOOR_RAISED", BILLING_INCOMPLETE)
 BILLED_CHANGE_BASES = ("BILLED_PRE_POST_AT_PRE_MIX",)
 SIZE_BOUNDS = ("ELASTIC", "INELASTIC")
 SIZE_DIRECTIONS = ("DOWNSIZE", "UPSIZE")
@@ -118,7 +120,7 @@ def levels_schema() -> Dict[str, Any]:
 
 
 def observation_schema() -> Dict[str, Any]:
-    """The Draft 2020-12 JSON Schema of observation format 3.1.0."""
+    """The Draft 2020-12 JSON Schema of observation format 3.2.0."""
     config = _obj({
         "warehouse_type": {"type": "string", "minLength": 1},
         "warehouse_size": {"type": "string", "minLength": 1},
@@ -171,7 +173,7 @@ def observation_schema() -> Dict[str, Any]:
     window = _obj({
         "first_day": DAY, "last_day": DAY, "days": {"type": "integer", "minimum": 1}, "queries": {"type": "integer", "minimum": 0},
         "running_cluster_minutes": _decimal(nullable=False), "restarts": {"type": "integer", "minimum": 0},
-        "billed_dbu": _decimal(nullable=False), "billed_cost": _decimal(),
+        "billed_dbu": _decimal(), "billed_cost": _decimal(),
     }, nullable=True)
     knob_value = {"type": ["integer", "string", "null"]}
     measurement = _obj({

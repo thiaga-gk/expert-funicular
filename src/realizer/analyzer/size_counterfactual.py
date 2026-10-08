@@ -14,7 +14,8 @@ block to the observation's ``measurement.size``. It holds every other knob at it
   both windows' billing in one and the same currency, and the measured rate ratio (the new size's billed DBU cost per
   running cluster-minute over the old size's) within ``SIZE_RATE_PUBLISHED_BAND`` of the Publisher's published
   DBU-per-cluster-hour ratio of the two sizes (``published_rate_ratio``; the Publisher's own check before it prices a
-  Pro/Classic size change); otherwise, or without a published ratio for either size, ``SOURCE_RATE_UNAVAILABLE``.
+  Pro/Classic size change); otherwise, or without a published ratio for either size, ``SOURCE_RATE_UNAVAILABLE``. A
+  window the warehouse ran in with no billed day has an unknown cost, not a zero one: ``BILLING_INCOMPLETE``.
 * The busy share ``b`` of the post-change running cluster-minutes (the Publisher's ``size_busy_share``); unknown is
   ``BUSY_SHARE_UNKNOWN``.
 * Two bounds of the old size's running cluster-minutes, from the post-change running cluster-minutes ``R1``: elastic,
@@ -42,7 +43,7 @@ from realizer.config.settings import (
     SQL_DBU_PER_CLUSTER_HOUR,
     size_busy_share,
 )
-from realizer.contracts.observation import SIZE_BOUNDS
+from realizer.contracts.observation import BILLING_INCOMPLETE, SIZE_BOUNDS
 
 METHOD = "SIZE_RUNTIME"
 # The candidate's own busy-runtime multiplier range, when its package states one (the Publisher estimator's name).
@@ -76,11 +77,13 @@ def bound_used(rho: Decimal) -> str:
     return "ELASTIC" if rho >= 1 else "INELASTIC"
 
 
-def _billed(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    """Priced billed cost of daily rows (``None`` when any DBU is unpriced) and their currencies."""
+def _billed(rows: Sequence[Mapping[str, Any]], running: Optional[Decimal] = None) -> Dict[str, Any]:
+    """Priced billed cost of daily rows (``None`` when any DBU is unpriced, or when no day is billed although the
+    warehouse ran: *running*, its running cluster-minutes, above zero; ``missing`` marks that) and their currencies."""
     unpriced = sum((Decimal(str(r["unpriced_dbu_quantity"])) for r in rows), Decimal("0"))
-    cost = None if unpriced > 0 else sum((Decimal(str(r["list_cost"] or 0)) for r in rows), Decimal("0"))
-    return {"cost": cost, "currencies": sorted({str(r["currency_code"]) for r in rows if r.get("currency_code") is not None})}
+    missing = not rows and running is not None and running > 0
+    cost = None if unpriced > 0 or missing else sum((Decimal(str(r["list_cost"] or 0)) for r in rows), Decimal("0"))
+    return {"cost": cost, "missing": missing, "currencies": sorted({str(r["currency_code"]) for r in rows if r.get("currency_code") is not None})}
 
 
 def runtime_ratio(size_runtime: Mapping[str, Any], min_queries: Any) -> Optional[Decimal]:
@@ -132,7 +135,7 @@ def _old_rate(plan: MeasurementPlan, evidence: Mapping[str, Any], source: str, o
             or normalize_value("warehouse_type", previous.get("warehouse_type")) != observed_type):
         return None
     running = Decimal(str(pre["running"]["observed_running_cluster_minutes"]))
-    bill = _billed(daily_in(evidence["daily_cost"], plan.pre))
+    bill = _billed(daily_in(evidence["daily_cost"], plan.pre), running)
     if running <= 0 or bill["cost"] is None or post_bill["cost"] is None or len(set(bill["currencies"]) | set(post_bill["currencies"])) > 1:
         return None
     return bill["cost"] / running
@@ -151,7 +154,7 @@ def size_counterfactual(package: Mapping[str, Any], plan: MeasurementPlan, evide
     applied = normalize_value("warehouse_size", observed.get("warehouse_size"))
     observed_type = normalize_value("warehouse_type", observed.get("warehouse_type"))
     r1 = Decimal(str(post["running"]["observed_running_cluster_minutes"]))
-    post_bill = _billed(daily_in(evidence["daily_cost"], plan.post))
+    post_bill = _billed(daily_in(evidence["daily_cost"], plan.post), r1)
     rho = runtime_ratio(runtime, (evidence.get("assumptions") or {}).get("canary_p95_min_queries"))
     old_rate = _old_rate(plan, evidence, source, observed_type, post_bill)
     new_rate = post_bill["cost"] / r1 if post_bill["cost"] is not None and r1 > 0 else None
@@ -180,8 +183,11 @@ def size_counterfactual(package: Mapping[str, Any], plan: MeasurementPlan, evide
         "old_aws_cluster_hourly_price": _fmt(old_hourly), "new_aws_cluster_hourly_price": _fmt(new_hourly),
         "elastic": None, "inelastic": None, "bound_used": None,
     }
-    reason = ("SIZE_RUNTIME_UNMEASURED" if rho is None else "SOURCE_RATE_UNAVAILABLE" if old_rate is None or not in_band
-              else "BUSY_SHARE_UNKNOWN" if busy is None else None)
+    pre_window = (evidence.get("windows") or {}).get("pre")
+    pre_running = Decimal(str(pre_window["running"]["observed_running_cluster_minutes"])) if pre_window and pre_window.get("running") is not None else None
+    billing_missing = post_bill["missing"] or (plan.pre is not None and _billed(daily_in(evidence["daily_cost"], plan.pre), pre_running)["missing"])
+    reason = ("SIZE_RUNTIME_UNMEASURED" if rho is None else BILLING_INCOMPLETE if billing_missing
+              else "SOURCE_RATE_UNAVAILABLE" if old_rate is None or not in_band else "BUSY_SHARE_UNKNOWN" if busy is None else None)
     if reason is not None:
         return SizeCounterfactual(block=block, economics=None, reason=reason)
     assert rho is not None and old_rate is not None and busy is not None and post_bill["cost"] is not None

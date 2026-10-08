@@ -103,5 +103,64 @@ class ApprovalsFileTests(unittest.TestCase):
             self.assertEqual(json.loads(out.getvalue())["attribution"]["origin_attribution"], "CONFIRMED")
 
 
+class UnmatchedApprovalsTests(unittest.TestCase):
+    """An approval that names no package, knob and value of the run is reported, never silently ignored."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.evidence = world.measure(PRO, CHANGED, 13)
+
+    def load(self, tmp, *items):
+        path = Path(tmp) / "approvals.json"
+        path.write_text(json.dumps(approvals(*items)), encoding="utf-8")
+        return load_approvals(path)
+
+    def test_each_unmatched_approval_is_one_warning_without_values_or_references(self):
+        other_package = "PKG-" + "0" * 24
+        with tempfile.TemporaryDirectory() as tmp:
+            loaded = self.load(tmp, {}, {"value": 15, "reference": "CHG-SECRET-1"}, {"recommendation_package_id": other_package, "reference": "CHG-SECRET-2"})
+            project_observation(PRO, self.evidence, loaded)
+            with self.assertLogs("realizer", level="WARNING") as logs:
+                approvals_module.warn_unmatched(loaded)
+        lines = sorted(record.getMessage() for record in logs.records)
+        self.assertEqual(lines, [
+            f"approvals.unmatched index=1 package={PRO['recommendation_package_id']} knob=auto_stop_minutes reason=NO_MATCHING_CHANGE",
+            f"approvals.unmatched index=2 package={other_package} knob=auto_stop_minutes reason=PACKAGE_NOT_IN_RUN"])
+        self.assertNotIn("CHG-SECRET", "\n".join(lines))
+
+    def test_matched_approvals_log_nothing_and_a_duplicate_counts_as_matched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            loaded = self.load(tmp, {}, {"reference": "CHG-1043"})
+            project_observation(PRO, self.evidence, loaded)
+            with self.assertNoLogs("realizer", level="WARNING"):
+                approvals_module.warn_unmatched(loaded)
+
+    def test_an_approval_nobody_consulted_is_reported_as_not_in_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            loaded = self.load(tmp, {})
+            with self.assertLogs("realizer", level="WARNING") as logs:
+                approvals_module.warn_unmatched(loaded)
+        self.assertIn("reason=PACKAGE_NOT_IN_RUN", logs.records[0].getMessage())
+
+    def test_plain_mappings_and_none_are_accepted(self):
+        approvals_module.warn_unmatched(None)
+        approvals_module.warn_unmatched(approvals({}))
+
+    def test_the_cli_warns_after_the_measurement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.json"
+            path.write_text(json.dumps(approvals({}, {"value": 15})), encoding="utf-8")
+            evidence = Path(tmp) / "e.json"
+            evidence.write_text(json.dumps(self.evidence), encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = main(["--package", str(world.PACKAGES / "autostop-scoped-pro.json"), "--from-evidence", str(evidence), "--approvals", str(path),
+                             "--output-dir", str(Path(tmp) / "o"), "--print-json"])
+            self.assertEqual(code, 0)
+            self.assertEqual(err.getvalue().count("approvals.unmatched"), 1)
+            self.assertIn("index=1", err.getvalue())
+            self.assertIn("reason=NO_MATCHING_CHANGE", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
