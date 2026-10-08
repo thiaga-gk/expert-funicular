@@ -12,7 +12,7 @@ Placeholders: `<P>` the OAuth CLI profile, `<C>` the collector SQL warehouse (it
 |---|---|---|
 | 0.1 | Check out master, then `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .` | `publisher --version` and `realizer --version` print the release under test; the full test suite passes |
 | 0.2 | Install the Databricks CLI and log in: `databricks auth login --host https://<workspace> --profile <P>` (OAuth U2M; static tokens are rejected) | `databricks --profile <P> current-user me` answers |
-| 0.3 | Choose `<C>` and `<R>`. `<R>` must be a region in `pricing/aws_ec2_on_demand.json` (today `us-east-1`): with Pro or Classic warehouses in any other region the Publisher stops after collection and writes nothing, unless every Publisher command adds `--allow-missing-aws-price` (their AWS cost is then unavailable). The Realizer falls back to DBU only | `<R>` is in the pricing registry |
+| 0.3 | Choose `<C>` and `<R>`. `<R>` must be a region in `pricing/aws_ec2_on_demand.json` (today `us-east-1`): with Pro or Classic warehouses in any other region the Publisher stops after collection with only `evidence.json` and `publisher.log` written (replay with `--from-evidence`), unless every Publisher command adds `--allow-missing-aws-price` (their AWS cost is then unavailable). The Realizer falls back to DBU only | `<R>` is in the pricing registry |
 | 0.4 | Preflight: `python .claude/skills/databricks-golden-miner/scripts/preflight.py --profile <P> --warehouse-id <C>` (it starts `<C>` if stopped) | It passes; on a failure it prints the fix and nothing else runs |
 | 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, `PUBLISHER_LIVE_SOURCE_REGION=<R>`, then `python -m unittest discover -s tests/integration -t .`) | OK or skipped with a reason |
 
@@ -42,8 +42,8 @@ With no approved fix, phase 3 reuses step 1.1's run instead of collecting again.
 | Step | Do | Check |
 |---|---|---|
 | 3.1 | Publisher, full scope, on master after the fixes (a new date `<D>`): step 1.1's command into `mining_out/<D>/pub_full` | Mine it (step 1.3): the fixed mismatches stay fixed and no new one appears |
-| 3.2 | Publisher, auto-stop scope: `publisher --profile <P> --sql-warehouse-id <C> --source-region <R> --warehouse all --scope current:auto-stop --flat-output --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a one-step package |
-| 3.3 | Cost-profile replays of 3.1's evidence: `publisher --from-evidence mining_out/<D>/pub_full/evidence.json --cost-profile <profile> --flat-output --output-dir mining_out/<D>/pub_<profile>` for `conservative`, `balanced`, `aggressive` | Per warehouse, which cuts each profile ships or holds, and on which limit |
+| 3.2 | Publisher, auto-stop scope: `publisher --profile <P> --sql-warehouse-id <C> --source-region <R> --warehouse all --scope current:auto-stop --flat-output --output-dir mining_out/<D>/pub_autostop` | Every warehouse with an auto-stop change has a package whose plan holds the auto-stop step (plus a canary rollback when one is kept) |
+| 3.3 | Cost-profile replays of 3.1's evidence: `publisher --from-evidence mining_out/<D>/pub_full/evidence.json --cost-profile <profile> --flat-output --output-dir mining_out/<D>/pub_<profile>` for `conservative`, `balanced`, `aggressive` | Per warehouse, which cuts each profile ships or holds, and on which limit. Package IDs differ between profiles even where the decisions match (the profile source is part of the package), so compare decisions, not IDs |
 | 3.4 | Choose `<T>`: a Pro or Classic warehouse with steady weekday use, an auto-stop package from 3.2 and an owner who agrees to one auto-stop change for four weeks | Agreed with the owner of `<T>`; note the package's recommended value |
 
 ## Phase 4 · Realizer flows

@@ -1,0 +1,13 @@
+name: classic-warehouse
+description: A Classic warehouse is optimized like its Pro twin (the c06-oversized-warehouse evidence with the warehouse type and the billed
+  SQL SKU set to Classic), keeps AWS cost modeled, and is offered Serverless as the type-migration experiment.
+notes: No demo-fleet warehouse is Classic, so this evidence-level case is the only Classic coverage. Classic and Pro share the
+  size, cluster, auto-stop and migration rules; only the type and the billed SKU class differ from the c06 evidence.
+expect:
+  aws_baseline_available: true
+  candidate_status:
+    warehouse_size: TEST_REQUIRED
+    warehouse_type: TEST_REQUIRED
+  current_warehouse_type: CLASSIC
+  warehouse: wh-demo-001
+  warehouse_type_target: SERVERLESS

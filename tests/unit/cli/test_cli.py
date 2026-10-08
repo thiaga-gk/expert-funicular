@@ -128,6 +128,49 @@ class BehaviourTests(unittest.TestCase):
         self.assertIn(" ERROR publisher.crashed error_type=RuntimeError", log)
         self.assertNotIn("owner@example.com", log)
 
+    def test_flat_output_refuses_a_folder_that_holds_a_previous_run(self):
+        for leftover in ("packages/old.json", "manifest.json"):
+            with self.subTest(leftover=leftover), tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / leftover
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("{}")
+                code, out, err = self.run_cli(["--demo", "--demo-count", "1", "--no-workbook", "--flat-output", "--output-dir", tmp])
+                self.assertEqual(code, 2)
+                self.assertEqual(len(err.strip().splitlines()), 1)
+                self.assertIn("--flat-output", err)
+                self.assertIn("choose a new folder", err)
+                self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), sorted({Path(leftover).parts[0]}))  # nothing written: no log, no evidence
+
+    def test_flat_output_accepts_an_empty_folder_and_one_with_unrelated_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "notes.txt").write_text("keep")
+            (Path(tmp) / "packages").mkdir()  # empty packages/ is not a previous run
+            code, _, _ = self.run_cli(["--demo", "--demo-count", "1", "--no-workbook", "--log-level", "ERROR", "--flat-output", "--output-dir", tmp])
+            self.assertEqual(code, 0)
+
+    def test_the_default_layout_never_refuses_a_populated_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "manifest.json").write_text("{}")
+            code, _, _ = self.run_cli(["--demo", "--demo-count", "1", "--no-workbook", "--log-level", "ERROR", "--output-dir", tmp])
+            self.assertEqual(code, 0)
+
+    def test_unreadable_evidence_paths_are_refusals_not_tracebacks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, path in (("missing", f"{tmp}/nonexistent.json"), ("directory", tmp)):
+                with self.subTest(name):
+                    code, _, err = self.run_cli(["--from-evidence", path, "--no-workbook", "--log-level", "ERROR", "--output-dir", f"{tmp}/out-{name}"])
+                    self.assertEqual(code, 2)
+                    self.assertNotIn("Traceback", err)
+                    message = err.strip().splitlines()[-1]  # the log lines come first; the refusal message is the last line
+                    self.assertTrue(message.startswith(f"{path}: cannot read evidence file"), message)
+
+    def test_demo_and_from_evidence_are_mutually_exclusive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli(["--demo", "--from-evidence", f"{tmp}/e.json", "--output-dir", f"{tmp}/out"])
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse((Path(tmp) / "out").exists())
+
     def test_unknown_execution_mode_is_rejected(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):

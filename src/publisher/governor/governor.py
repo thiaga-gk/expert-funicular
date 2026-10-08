@@ -4,6 +4,7 @@ The Governor decides what the Optimizer may consider; it neither observes (Analy
 """
 from __future__ import annotations
 
+from publisher.analyzer.collector.pricing import load_aws_price_registry
 from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.contracts.analysis import FleetAnalysis
@@ -54,3 +55,22 @@ def run(context: RunContext, analysis: FleetAnalysis) -> GovernanceResult:
         if request.allow_missing_aws_price and request.source_region not in (registry.get("regions") or {}):
             LOGGER.warning("aws.region_not_in_registry region=%s: Pro/Classic AWS cost is unavailable (--allow-missing-aws-price)", request.source_region)
     return govern(analysis, context.scope)
+
+
+def preflight(context: RunContext) -> None:
+    """Before any SQL runs: announce an AWS price-registry gap a live run would only refuse after collecting.
+
+    The refusal needs the fleet (Serverless-only fleets do not need AWS prices), so it stays in ``run``; this only
+    logs a WARNING when ``--source-region`` is not in the registry, naming what will happen. Demo and replay runs skip it.
+    """
+    request = context.request
+    if request.mode != MODE_LIVE:
+        return
+    registry = load_aws_price_registry(request.aws_price_registry)
+    if request.source_region in (registry.get("regions") or {}):
+        return
+    if request.allow_missing_aws_price:
+        LOGGER.warning("aws.region_not_in_registry_early region=%s: Pro/Classic AWS cost will be unavailable (--allow-missing-aws-price)", request.source_region)
+    else:
+        LOGGER.warning("aws.region_not_in_registry_early region=%s: the run stops after collection if the fleet has Pro/Classic warehouses "
+                       "unless --allow-missing-aws-price is passed; fix --source-region now to avoid a wasted collection", request.source_region)

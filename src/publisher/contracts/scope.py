@@ -64,11 +64,6 @@ SCOPE_FORMAT_VERSION = "1.0.0"
 WAREHOUSE_REF_PATTERN = r"^(?:[A-Za-z0-9_-]+/)?[A-Za-z0-9_-]+$"
 
 
-def technique_knobs() -> Dict[str, Dict[str, str]]:
-    """Scenario -> {technique name -> knob}, from SCOPE_SCENARIOS."""
-    return {scenario: dict(techniques) for scenario, (_, techniques) in SCOPE_SCENARIOS.items()}
-
-
 def build_scope_schema() -> Dict[str, Any]:
     """JSON Schema (Draft 2020-12) of a ``--scope-file``, generated from SCOPE_SCENARIOS.
 

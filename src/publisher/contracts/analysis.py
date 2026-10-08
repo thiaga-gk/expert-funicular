@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from publisher.contracts.source import WarehouseEvidence
@@ -63,3 +64,5 @@ class FleetAnalysis:
     warehouses: List[WarehouseAnalysis]
     unseen_billed_warehouses: Optional[List[Dict[str, Any]]] = None
     aws_price_registry: Optional[Dict[str, Any]] = None
+    # Where a live run saved the collected evidence right after extraction (None for demo and replay runs).
+    evidence_path: Optional[Path] = None

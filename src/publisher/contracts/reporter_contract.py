@@ -432,10 +432,6 @@ def expected_earliest_reevaluation_time(start_time: str, blocking_codes: Sequenc
     return _iso_utc(max(times))
 
 
-def _enum_value(value: Any) -> Any:
-    return value.value if isinstance(value, Enum) else value
-
-
 def to_primitive(value: Any) -> Any:
     """Convert nested contract objects to JSON-compatible primitives.
 
@@ -2472,56 +2468,3 @@ def package_hash_payload_from_document(document: Mapping[str, Any]) -> Dict[str,
         "cost_profile": {"name": profile["name"], "applied_thresholds": profile["applied_thresholds"]},
         "run_scope": document["run_scope"],
     }
-
-
-def make_recommendation_package_id_from_parts(
-    *,
-    contract_version: str,
-    workspace_id: str,
-    warehouse_id: str,
-    current_epoch_id: str,
-    current_config: Mapping[str, Any],
-    evidence_fingerprint: str,
-    policy_version: str,
-    analyzer_version: str,
-    optimizer_version: str,
-    modeler_version: str,
-    estimator_version: str,
-    bundle_estimator_version: str,
-    reviewer_version: str,
-    decision_graph_version: str,
-    technique_catalog_version: str,
-    ordered_candidate_ids: Sequence[str],
-    ordered_scenario_ids: Sequence[str],
-    reevaluation: Optional[Mapping[str, Any]] = None,
-    observed_change_fingerprint: Optional[str] = None,
-    carried_forward_fingerprint: Optional[str] = None,
-    cost_profile: Mapping[str, Any],
-    run_scope: Optional[RunScope] = None,
-) -> str:
-    """PKG- id from the same fields as RecommendationPackage.package_hash_payload, for callers that have not built the package yet."""
-    payload = {
-        "contract_version": contract_version,
-        "workspace_id": workspace_id,
-        "warehouse_id": warehouse_id,
-        "current_epoch_id": current_epoch_id,
-        "current_config": dict(current_config),
-        "evidence_fingerprint": evidence_fingerprint,
-        "policy_version": policy_version,
-        "analyzer_version": analyzer_version,
-        "optimizer_version": optimizer_version,
-        "modeler_version": modeler_version,
-        "estimator_version": estimator_version,
-        "bundle_estimator_version": bundle_estimator_version,
-        "reviewer_version": reviewer_version,
-        "decision_graph_version": decision_graph_version,
-        "technique_catalog_version": technique_catalog_version,
-        "ordered_candidate_ids": list(ordered_candidate_ids),
-        "ordered_scenario_ids": list(ordered_scenario_ids),
-        "reevaluation": None if reevaluation is None else dict(reevaluation),
-        "observed_change_fingerprint": observed_change_fingerprint,
-        "carried_forward_fingerprint": carried_forward_fingerprint,
-        "cost_profile": dict(cost_profile),
-        "run_scope": run_scope,
-    }
-    return content_id("PKG", payload)

@@ -431,9 +431,6 @@ ORDER BY workspace_id, warehouse_id, window_label, target_min
 """
 
 
-CLUSTER_LEVEL_FIELDS = ("cluster_count", "running_minutes")
-
-
 def build_cluster_levels_sql(t: Thresholds, windows: Sequence[Mapping[str, Any]], *, as_of: Any = None) -> str:
     """Running minutes by cluster count, one row per warehouse, window and cluster count with running time: the RUNNING
     segments of the running-idle collector (``_running_idle_ctes``) inside each window. Every window names its

@@ -53,7 +53,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 | Module | Responsibility | May make optimization decisions? |
 |---|---|---:|
 | `src/publisher/analyzer/analyzer.py` | analyzer facade: `collect` (demo, replay or live source), `analyze` and `run`; fails closed on unsupported warehouse types before calibration and findings, while the Governor records the exclusions | No |
-| `src/publisher/governor/governor.py`, `eligibility.py`, `constraints.py`, `compatibility.py` | Governor: `run` returns the eligible warehouses and the fail-closed exclusions; a live run stops when its region has no AWS instance prices for Pro/Classic warehouses (unless `--allow-missing-aws-price`); the migration compatibility gate the scenario planner applies to Plan B | No (gates only) |
+| `src/publisher/governor/governor.py`, `eligibility.py`, `constraints.py`, `compatibility.py` | Governor: `run` returns the eligible warehouses and the fail-closed exclusions; `preflight` warns before any SQL when the region has no AWS instance prices; a live run stops when its region has none for Pro/Classic warehouses (unless `--allow-missing-aws-price`); the migration compatibility gate the scenario planner applies to Plan B | No (gates only) |
 | `src/publisher/analyzer/collector/queries/` (`config_epochs.py`, `query_history.py`, `events.py`, `billing.py`) | collector SQL, one module per system-table family: configuration epochs, query history, warehouse events, billing | No |
 | `src/publisher/analyzer/collector/` (`sql_executor.py`, `workspace_api.py`, `billing.py`, `pricing.py`, `collector.py`, `replay.py`, `demo.py`) | the publisher binding of the shared access layer (`PUBLISHER_ACCESS`: the `publisher` logger, the `sql-warehouse-optimizer/<version>` user agent and `PublisherError`) for read-only SQL execution (`SqlClient`), OAuth and REST GET; execution-target validation and workspace compatibility evidence; billing helpers (settle buffer, watermark, unseen billed warehouses), price sources and the AWS baseline cost model, evidence assembly (`extract_evidence`), replay evidence files, the synthetic demo fleet (`DEMO_FLEET`, `synthetic_demo_evidence`) | No |
 | `src/workflow_shared/databricks/` (`access.py`, `vocabulary.py`) | neutral read-only Databricks access shared by both products and importing neither: OAuth from a CLI profile (a PAT profile is rejected), REST GET, the UTC-pinned SQL client (`AuthContext`, `SqlClient`); the caller injects its logger, user agent and error type (`AccessConfig`); the Databricks vocabulary (`SIZE_ORDER`) | No |
@@ -179,13 +179,13 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | Argument | Semantics |
 |---|---|
 | `--output-dir` | output root; default `./warehouse_optimizer_out`. Each run writes to a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under it (UTC start time; 28) |
-| `--flat-output` | write directly into `--output-dir` instead of a run folder |
+| `--flat-output` | write directly into `--output-dir` instead of a run folder; refused with exit 2, before the log is opened or anything is collected, when that folder already holds a non-empty `packages/` or a `manifest.json` (a left-over `evidence.json` or `publisher.log` alone is accepted) |
 | `--scope` | repeatable; `scenario` or `scenario:technique[,technique...]` with scenarios `current` (`size`, `max-clusters`, `min-clusters`, `auto-stop`) and `migration` (`warehouse-type`); restricts what the run recommends (5.4); default: every scenario and technique |
 | `--scope-file` | JSON run-scope file validated against `schema/run-scope.schema.json` (scenario and technique toggles, warehouses); not combined with `--scope` or `--warehouse` |
 | `--warehouse` | repeatable; `all` (default), `<warehouse_id>` or `<workspace_id>/<warehouse_id>`; reports only these warehouses. A selector that matches no warehouse in the evidence, or a bare ID found in several workspaces, stops the run (exit status 2) |
-| `--demo` | synthetic collector mode; takes precedence over `--from-evidence` and live collection |
+| `--demo` | synthetic collector mode; takes precedence over live collection; combined with `--from-evidence` it is an argument error (exit 2) |
 | `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
-| `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3) |
+| `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3); a file that is missing, a directory or unreadable is a refusal (exit 2, one line), like an invalid one |
 | `--profile` | Databricks CLI profile; default `DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`. OAuth profiles only: a profile that holds a static PAT is rejected |
 | `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE`. A live collection mints the token again, and reopens the SQL connection, before any statement that would start within five minutes of the token's expiry |
 | `--serverless-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SERVERLESS_WAREHOUSE_ID`) |
@@ -195,7 +195,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--workspace-id` | required for the cluster HTTP path when it cannot be discovered; default `DATABRICKS_WORKSPACE_ID` |
 | `--source-region` | AWS region of the workspace, used for source collection and the AWS model; default `DATABRICKS_REGION`, else `unknown` |
 | `--mode` | where the run executes; only `local` today (default from `PUBLISHER_EXECUTION_MODE`, else `local`); the config layer resolves it |
-| `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops after collection, before any package, evidence or workbook is written (the log is already open). With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
+| `--allow-missing-aws-price` | live mode only; by default, when any supported Pro/Classic warehouse exists and `--source-region` is not a region in the AWS price registry, the run stops after collection, before any package or workbook is written; `evidence.json` was already saved right after collection and the refusal names it and `--from-evidence` (the log is open too). A WARNING before any SQL announces the gap (the refusal needs the fleet, so it stays after collection). With this flag it publishes and Pro/Classic AWS cost is unavailable (null), with a logged warning. Serverless-only fleets and `--from-evidence` replays are not affected |
 | `--aws-price-registry` | versioned EC2 registry path; default `AWS_PRICE_REGISTRY`, else the shipped `pricing/aws_ec2_on_demand.json` |
 | `--batch-size` | downstream Python batch size (31.2); collector remains set-based; default `WAREHOUSE_BATCH_SIZE`, else 100 |
 | `--billing-ingested-through` | `YYYY-MM-DD`; pins every billing query to records ingested on or before that date, so a re-collection reproduces an earlier run despite later billing corrections |
@@ -1613,7 +1613,7 @@ The manifest records `publisher_version`, `reporter_contract_version`, `workbook
 
 ### 28.3 Replay evidence
 
-`evidence.json` serializes normalized evidence for deterministic replay as a versioned envelope (`evidence_format_version` 1.0.0) validated against `schema/evidence.schema.json` on write and on load; any other version, or a bare list, is rejected (`docs/contracts/publisher/evidence-format.md`). Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity.
+`evidence.json` serializes normalized evidence for deterministic replay as a versioned envelope (`evidence_format_version` 1.0.0) validated against `schema/evidence.schema.json` on write and on load; any other version, or a bare list, is rejected (`docs/contracts/publisher/evidence-format.md`). Multi-file replay rejects conflicting modeled evidence, epochs, daily cost records, or billing features for the same workspace/warehouse identity. A live run saves it right after the collector extracts the evidence (`save_collected_evidence` in `src/publisher/analyzer/analyzer.py`, before the remaining collector queries and before any decision) and the Reporter rewrites the same bytes at the end of a successful run; a later refusal (AWS price region, unknown `--warehouse` or `--cost-profile` warehouse, schema failure) or crash therefore leaves a replayable file, and the refusal names its path and `--from-evidence`. Demo and replay runs write it only at the end.
 
 ---
 
@@ -1660,7 +1660,7 @@ The product follows fail-closed semantics for decisions and publication.
 | conflicting replay evidence | terminate replay |
 | invalid candidate invariant | no scenario/public package |
 | invalid scenario invariant | no public package |
-| missing AWS price region | live run with a supported Pro/Classic warehouse: stops after collection, before writing packages, unless `--allow-missing-aws-price`; then (and in replay) DBU may remain assessable and AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
+| missing AWS price region | live run with a supported Pro/Classic warehouse: stops after collection, before writing packages (the saved `evidence.json` replays it), unless `--allow-missing-aws-price`; then (and in replay) DBU may remain assessable and AWS/total become unavailable (`AWS_PRICE_REGION_NOT_IN_REGISTRY`, no default-region fallback) |
 | missing migration cost source | migration economics unavailable; no fabricated value |
 | optional compatibility API unavailable | explicit HITL fallback |
 | unsupported future warehouse type | fail closed per warehouse before optimization; recorded in manifest exclusions |
