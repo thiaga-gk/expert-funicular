@@ -662,6 +662,23 @@ class AnalyzerCases(PublisherCase):
                 self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/1234-567890-demo123")
                 self.assertEqual(auth.execution_kind, "cluster")
 
+    def test_a_jobs_compute_cluster_is_rejected_by_the_cluster_check_itself(self):
+        # FR-RUN-001: the real check runs (only the REST read is replaced); an all-purpose source passes, JOB does not.
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / ".databrickscfg"
+            cfg.write_text("[WHOPT]\nhost = https://dbc.example.cloud.databricks.com\n")
+            class R:
+                stdout = '{"access_token":"short-lived","expiry":"2026-10-01T20:00:00Z"}'
+            api = "publisher.analyzer.collector.workspace_api._api_get"
+            with patch("publisher.analyzer.collector.workspace_api.subprocess.run", return_value=R()):
+                with patch(api, return_value={"cluster_source": "job", "state": "RUNNING"}):
+                    with self.assertRaises(PublisherError) as raised:
+                        resolve_cli_oauth("WHOPT", "cluster", "0101-000000-job1234", str(cfg), "123456789")
+                self.assertIn("does not support jobs compute", str(raised.exception))
+                with patch(api, return_value={"cluster_source": "UI", "state": "RUNNING"}):
+                    auth = resolve_cli_oauth("WHOPT", "cluster", "0101-000000-ui12345", str(cfg), "123456789")
+                self.assertEqual(auth.http_path, "sql/protocolv1/o/123456789/0101-000000-ui12345")
+
     def test_the_legacy_positional_form_is_refused(self):
         # (profile, warehouse_id, config_file) was a pre-1.0 form: the second argument is now always the execution kind.
         with self.assertRaises(PublisherError) as raised:
