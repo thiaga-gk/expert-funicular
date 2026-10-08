@@ -33,6 +33,7 @@ from realizer.config.loader import (SUPPORTED_PUBLISHER_CONTRACT, load_approvals
                                     select_warehouses)
 from realizer.config.output_layout import DEFAULT_OUTPUT_DIR, RunLayout, resolve_layout, resolve_state_dir
 from realizer.config.settings import PRODUCT_VERSION, REALIZER_VERSION
+from realizer.contracts.approvals import warn_unmatched
 from realizer.contracts.fleet import SOURCE_DEMO, SOURCE_EVIDENCE, SOURCE_LIVE, FleetRequest, LiveSource
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
@@ -195,6 +196,7 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
                                    config_file=args.databricks_config_file, source_region=args.source_region,
                                    aws_price_registry=args.aws_price_registry, as_of=args.as_of, ingestion_cutoff=args.billing_ingested_through,
                                    approvals=approvals)
+    warn_unmatched(approvals)
     layout = run_layout(args)
     snapshot = realize_package(dataclasses.replace(request, observation=observation, output_dir=layout.run_dir, state_dir=layout.state_dir)).realization
     LOGGER.info("realizer.done rpkg=%s rsnap=%s state=%s", snapshot.realization_package_id, snapshot.snapshot_id,

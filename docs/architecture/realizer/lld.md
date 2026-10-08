@@ -125,12 +125,12 @@ realizer --backtest [source] [options]                             # past auto-s
 | `--package <file>` | The immutable `RecommendationPackage` JSON (Reporter JSON Contract 3.1.0); checked against the schema and its id and full hash recomputed. |
 | `--publisher-run <dir>` | Fleet run over a Publisher run folder, or over the newest `run_date=*/run_ts=*` folder under a root (never a folder the Realizer wrote). |
 | `--warehouse <id>` | Fleet run only, repeatable: only this warehouse (`<warehouse_id>` or `<workspace_id>/<warehouse_id>`); default every warehouse of the manifest. |
-| `--observation <file>` | A normalized post-change observation (format 3.1.0). One observation source per run. |
+| `--observation <file>` | A normalized post-change observation (format 3.2.0). One observation source per run. |
 | `--demo` / `--demo-modified` | Measure a Publisher demo-fleet package in its simulated world; `--demo-modified` applies a size step to MEDIUM as SMALL (package run only). |
-| `--profile <p>` with `--sql-warehouse-id <id>` | Live measurement from system tables (OAuth profile, read-only). The SQL warehouse runs the collector statements and is never the measured one. |
+| `--profile <p>` with `--sql-warehouse-id <id>` | Live measurement from system tables (OAuth profile, read-only). The SQL warehouse runs the collector statements and is never the measured one: a package run on it is refused, a fleet run skips it (`SKIPPED`). |
 | `--from-evidence <path>` | Replay measurement evidence: a file for a package run, a folder (each package's newest file) for a fleet run. |
 | `--databricks-config-file`, `--source-region`, `--aws-price-registry`, `--as-of`, `--billing-ingested-through` | Live (and demo for `--as-of`): the CLI config file, the AWS region and EC2 price registry of the modeled AWS cost, the measurement time (default now; demo: 28 settled days after the change), and a billing ingestion cutoff. |
-| `--approvals <file>` | Approvals (format 1.0.0) naming approved changes; their origin is then `CONFIRMED`. Needs a live or replayed measurement for a package run; any source for a fleet run. |
+| `--approvals <file>` | Approvals (format 1.0.0) naming approved changes; their origin is then `CONFIRMED`; one that matches nothing of the run is logged as a warning. Needs a live or replayed measurement for a package run; any source for a fleet run. |
 | `--policy <file>` | Realization policy override. |
 | `--replay-through <UTC time>` | Project only ledger entries recorded through that time (package run). |
 | `--print-json` | Print the snapshot instead of the written package path (package run). |
@@ -151,9 +151,9 @@ Without an observation source a package run only records the lineage. `--observa
 | Run | 0 | 1 | 2 |
 |---|---|---|---|
 | Package run, backtest | success | an unexpected exception (a defect: logged by type only, then the traceback) | a refused input or run (a `RealizerError`: an input the Realizer does not accept, an unreadable file or ledger) or bad arguments |
-| Fleet run | every warehouse `OK` | any warehouse `CRASHED` | no crash and any warehouse `REFUSED`; also a refusal before any warehouse starts (an option, the Publisher run, the approvals or policy file), which writes nothing |
+| Fleet run | every warehouse `OK` or `SKIPPED` | any warehouse `CRASHED` | no crash and any warehouse `REFUSED`; also a refusal before any warehouse starts (an option, the Publisher run, the approvals or policy file), which writes nothing |
 
-A fleet run's per-warehouse lines (`<workspace>/<warehouse>: <status>`), the manifest path and the workbook path go to stdout.
+A fleet run's per-warehouse lines (`<workspace>/<warehouse>: <status>`), the manifest path and the workbook path go to stdout. Statuses: `OK`, `REFUSED`, `CRASHED` and `SKIPPED` (the collector warehouse of a live run, which cannot measure itself). A live fleet run fixes one measurement time, keeps one connection and reads the account-wide collector statements once ([`source-evidence-contract.md`](../../contracts/realizer/source-evidence-contract.md) section 18).
 
 ## 15. Phase-2 boundary
 

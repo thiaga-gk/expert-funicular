@@ -893,7 +893,8 @@
             "SOURCE_RATE_UNAVAILABLE",
             "BUSY_SHARE_UNKNOWN",
             "LEVELS_UNAVAILABLE",
-            "FLOOR_RAISED"
+            "FLOOR_RAISED",
+            "BILLING_INCOMPLETE"
           ]
         },
         "observed_epoch_start": {
@@ -939,6 +940,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "null"
                 }
               ]
             },
@@ -1014,6 +1018,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "null"
                 }
               ]
             },
@@ -1644,7 +1651,7 @@
       ]
     },
     "observation_format_version": {
-      "const": "3.1.0"
+      "const": "3.2.0"
     },
     "observed_at_utc": {
       "format": "date-time",

@@ -21,7 +21,7 @@ import json
 from realizer.common.errors import InputError
 from realizer.common.utils import load_json, parse_utc, utc_iso
 from realizer.config.output_layout import PUBLISHER_MANIFEST_NAME, is_realizer_run_dir, latest_publisher_run_dir
-from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, approvals_schema
+from realizer.contracts.approvals import APPROVALS_FORMAT_VERSION, Approvals, approvals_schema
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, measurement_evidence_schema
 from realizer.contracts.fleet import PublisherRun, PublisherRunEntry
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
@@ -243,8 +243,8 @@ def validate_measurement_evidence(evidence: Any) -> None:
 
 
 def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
-    """The approvals file at *path* (format ``APPROVALS_FORMAT_VERSION``), checked against its schema; ``None`` when no
-    file is given. A file in another format is refused (``InputError``), naming the location, never a value."""
+    """The approvals file at *path* (format ``APPROVALS_FORMAT_VERSION``), checked against its schema, as an ``Approvals``
+    mapping that records which approvals the run's measurements matched; ``None`` when no file is given. A file in another format is refused (``InputError``), naming the location, never a value."""
     if not path:
         return None
     import jsonschema
@@ -257,7 +257,7 @@ def load_approvals(path: Optional[str | Path]) -> Optional[Any]:
     if error is not None:
         location = "/".join(str(p) for p in error.absolute_path) or "<root>"
         raise InputError(f"approvals file fails format {APPROVALS_FORMAT_VERSION} at {location} ({error.validator})")
-    return approvals
+    return Approvals(approvals)
 
 
 def load_publisher_run(path: str | Path) -> PublisherRun:

@@ -303,6 +303,14 @@ class WarehouseRowTests(unittest.TestCase):
             ("wh-demo-021", "CRASHED", "KeyError", None, None, None, None, 0, "Fix the run: CRASHED"),
         ])
 
+    def test_a_skipped_warehouse_gets_a_row_that_asks_for_nothing(self):
+        skipped = WarehouseRun(workspace_id="1234567890123456", warehouse_id="wh-demo-022", status=report.RUN_STATUS_SKIPPED,
+                               reason="the collector warehouse cannot measure itself")
+        (row,) = report.project_realization_workbook([skipped]).warehouses
+        self.assertEqual((row["run_status"], row["run_reason"], row["realization_state"], row["next_action"]),
+                         ("SKIPPED", "the collector warehouse cannot measure itself", None, "None: collector warehouse, not measured"))
+        self.assertIn(report.RUN_STATUS_SKIPPED, report.RUN_STATUSES)
+
     def test_a_failed_run_keeps_its_lineage_but_asks_to_fix_the_run(self):
         run = dataclasses.replace(Fixture.rolled_back, status=report.RUN_STATUS_REFUSED, reason="the ledger is locked")
         (row,) = report.project_realization_workbook([run]).warehouses

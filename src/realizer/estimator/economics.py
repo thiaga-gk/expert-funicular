@@ -98,11 +98,6 @@ def published_range(block: Optional[Mapping[str, Any]]) -> Optional[Tuple[Decima
     return None if any(v is None for v in values) else values  # type: ignore[return-value]
 
 
-def step_range(package: Mapping[str, Any], step: Mapping[str, Any], component: Optional[str]) -> Optional[Tuple[Decimal, Decimal, Decimal]]:
-    c = candidate_by_id(package, step.get("candidate_id"))
-    return None if not c else published_range(_savings_block((c.get("independent_economics") or {}).get("savings_365d") or {}, component))
-
-
 def _components(savings: Mapping[str, Any]) -> Dict[str, Optional[str]]:
     """The expected annual savings per component (the base of each range; ``None`` when not priced), kept separate."""
     out: Dict[str, Optional[str]] = {}

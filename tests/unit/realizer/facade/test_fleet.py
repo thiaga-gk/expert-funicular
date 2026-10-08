@@ -29,6 +29,7 @@ from realizer import realizer as facade
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
 from realizer.config.loader import load_publisher_run
+from realizer.contracts.approvals import Approvals
 from realizer.contracts.fleet import SOURCE_DEMO, SOURCE_EVIDENCE, SOURCE_LIVE, FleetRequest, LiveSource
 from realizer.contracts.realization import make_rpkg_id
 from realizer.packager import ledger, packager
@@ -68,7 +69,7 @@ class FleetDemoTests(unittest.TestCase):
             self.assertEqual(manifest["publisher_run"], {"run_dir": str(self.publisher.run_dir), "manifest_package_count": 3, "selected_package_count": 3})
             self.assertEqual(manifest["state_dir"], str(state))
             self.assertEqual(manifest["workbook_file"], "realization_workbook.xlsx")
-            self.assertEqual(manifest["status_counts"], {"OK": 3, "REFUSED": 0, "CRASHED": 0})
+            self.assertEqual(manifest["status_counts"], {"OK": 3, "REFUSED": 0, "CRASHED": 0, "SKIPPED": 0})
             for row, entry in zip(manifest["warehouses"], self.publisher.entries):
                 self.assertEqual((row["workspace_id"], row["warehouse_id"], row["recommendation_package_id"]),
                                  (entry.workspace_id, entry.warehouse_id, entry.recommendation_package_id))
@@ -158,7 +159,7 @@ class FailureIsolationTests(unittest.TestCase):
         self.assertEqual([(r.warehouse_id, r.status, r.reason) for r in report.warehouse_runs], [
             ("wh-demo-006", "REFUSED", "warehouse refused for a reason"), ("wh-demo-013", "CRASHED", "RuntimeError"), ("wh-demo-039", "OK", None)])
         self.assertEqual(report.exit_status, 1)
-        self.assertEqual(manifest["status_counts"], {"OK": 1, "REFUSED": 1, "CRASHED": 1})
+        self.assertEqual(manifest["status_counts"], {"OK": 1, "REFUSED": 1, "CRASHED": 1, "SKIPPED": 0})
         self.assertEqual([(w["status"], w["realization_package_ids"] != [], w["files"] != []) for w in manifest["warehouses"]],
                          [("REFUSED", False, False), ("CRASHED", False, False), ("OK", True, True)])
         self.assertTrue(workbook)
@@ -182,6 +183,96 @@ class FailureIsolationTests(unittest.TestCase):
             report = realize_fleet(request(copy_dir, Path(tmp, "run"), Path(tmp, "state")))
             statuses = {r.warehouse_id: r.status for r in report.warehouse_runs}
             self.assertEqual(sorted(statuses.values()), ["OK", "REFUSED", "REFUSED"])
+
+
+class CollectorWarehouseTests(unittest.TestCase):
+    """The warehouse the collector statements run on is in the Publisher run (the Publisher assesses every warehouse). In a
+    live fleet run it is not measured: it is SKIPPED with a reason, and the run still exits 0."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = fleet_support.publisher_demo_root()
+
+    def run_live(self, collector_id):
+        observed = []
+
+        def observe(req, package):
+            observed.append(package["warehouse"]["warehouse_id"])
+            return measure_demo(package, req.state_dir)
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        LOGGER.addHandler(handler)
+        level = LOGGER.level
+        LOGGER.setLevel(logging.INFO)
+        try:
+            with tempfile.TemporaryDirectory() as tmp, mock.patch.object(fleet, "observe", observe):
+                report = realize_fleet(request(self.root, Path(tmp, "run"), Path(tmp, "state"), SOURCE_LIVE,
+                                               live=LiveSource(profile="p", sql_warehouse_id=collector_id)))
+                manifest = json.loads(report.manifest_path.read_text(encoding="utf-8"))
+        finally:
+            LOGGER.removeHandler(handler)
+            LOGGER.setLevel(level)
+        return report, manifest, observed, stream.getvalue()
+
+    def test_the_collector_warehouse_is_skipped_and_the_run_exits_0(self):
+        report, manifest, observed, log = self.run_live("wh-demo-013")
+        self.assertEqual([(r.warehouse_id, r.status) for r in report.warehouse_runs],
+                         [("wh-demo-006", "OK"), ("wh-demo-013", "SKIPPED"), ("wh-demo-039", "OK")])
+        skipped = report.warehouse_runs[1]
+        self.assertEqual(skipped.reason, "the collector warehouse cannot measure itself")
+        self.assertEqual((report.exit_status, observed), (0, ["wh-demo-006", "wh-demo-039"]))
+        self.assertEqual(manifest["status_counts"], {"OK": 2, "REFUSED": 0, "CRASHED": 0, "SKIPPED": 1})
+        self.assertEqual(manifest["run_manifest_version"], "1.1.0")
+        row = manifest["warehouses"][1]
+        self.assertEqual((row["status"], row["realization_package_ids"], row["files"]), ("SKIPPED", [], []))
+        self.assertIn("fleet.warehouse_skipped workspace=2234567890123456 warehouse=wh-demo-013", log)
+        self.assertNotIn("ERROR", log)
+
+    def test_the_comparison_ignores_case_and_surrounding_whitespace(self):
+        report, _, _, _ = self.run_live("  WH-Demo-013 ")
+        self.assertEqual([r.status for r in report.warehouse_runs], ["OK", "SKIPPED", "OK"])
+
+    def test_a_live_run_fixes_one_as_of_time_for_the_whole_run_and_records_it(self):
+        seen = []
+
+        def measure(package, state_dir, **kw):
+            seen.append(kw["as_of"])
+            return measure_demo(package, state_dir)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(fleet, "measure_live", measure):
+            report = realize_fleet(request(self.root, Path(tmp, "run"), Path(tmp, "state"), SOURCE_LIVE, live=LiveSource(profile="p", sql_warehouse_id="w")))
+            manifest = json.loads(report.manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(len(seen), 3)
+        self.assertEqual(len(set(seen)), 1)
+        self.assertEqual(manifest["as_of_utc"], seen[0])
+        self.assertRegex(seen[0], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        given = []
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(fleet, "measure_live", lambda package, state_dir, **kw: given.append(kw["as_of"]) or measure_demo(package, state_dir)):
+            report = realize_fleet(request(self.root, Path(tmp, "run"), Path(tmp, "state"), SOURCE_LIVE, live=LiveSource(profile="p", sql_warehouse_id="w"),
+                                           as_of="2026-11-07T12:00:00Z"))
+        self.assertEqual(set(given), {"2026-11-07T12:00:00Z"})
+
+    def test_a_refusal_still_decides_the_exit_status(self):
+        def observe(req, package):
+            if package["warehouse"]["warehouse_id"] == "wh-demo-039":
+                raise InputError("refused")
+            return measure_demo(package, req.state_dir)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(fleet, "observe", observe):
+            report = realize_fleet(request(self.root, Path(tmp, "run"), Path(tmp, "state"), SOURCE_LIVE,
+                                           live=LiveSource(profile="p", sql_warehouse_id="wh-demo-013")))
+        self.assertEqual([r.status for r in report.warehouse_runs], ["OK", "SKIPPED", "REFUSED"])
+        self.assertEqual(report.exit_status, 2)
+
+
+class UnmatchedApprovalsTests(unittest.TestCase):
+    def test_an_approval_that_names_nothing_of_the_run_is_warned_about_once(self):
+        root = fleet_support.publisher_demo_root()
+        approvals = Approvals({"approvals_format_version": "1.0.0", "approvals": [
+            {"recommendation_package_id": "PKG-" + "A" * 24, "knob": "warehouse_size", "value": "SMALL", "reference": "CHG-9"}]})
+        with tempfile.TemporaryDirectory() as tmp, self.assertLogs("realizer", level="WARNING") as logs:
+            report = realize_fleet(request(root, Path(tmp, "run"), Path(tmp, "state"), approvals=approvals))
+        self.assertEqual(report.exit_status, 0)
+        lines = [r.getMessage() for r in logs.records if r.getMessage().startswith("approvals.unmatched")]
+        self.assertEqual(lines, ["approvals.unmatched index=0 package=PKG-" + "A" * 24 + " knob=warehouse_size reason=PACKAGE_NOT_IN_RUN"])
 
 
 class OpenLineageTests(unittest.TestCase):

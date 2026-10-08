@@ -31,21 +31,21 @@
     ],
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "605d692c2daa4725",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6c81c351a1a008b7",
      "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "aad035176f30eb03",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "08a479fe6ef19230",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6956005d06e6e903",
      "realization/policies/PSNAP-097ED33EBEB7E9FCEE56AEBB.json": "bd4377ec2d7bd546",
      "realization/regeneration/RERUN-B1F60D50B9002716EC15E4DE.json": "44804f19c3482d4a",
-     "realization/snapshots/RSNAP-74A08E82A1E3FA17DC236A3E.json": "08a479fe6ef19230",
+     "realization/snapshots/RSNAP-59E36140ED749CF670C03C80.json": "6956005d06e6e903",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "e2145368abbde041"
+     "realization/state/1234567890123456__wh-demo-006.json": "9304c2f829241d2e"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 14752,
-  "sha256": "f1787a144a365116adfd5e597e9f3e841ba706450748d3bb192d9be18ab9f8f8"
+  "sha256": "0df98f949144acd6394b5d483bd87a15c60a3236225abb8fa21579fdd6b27f5d"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
@@ -67,11 +67,11 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "2439053f6ee65944",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "dfd43c17d78ca040",
-     "realization/snapshots/RSNAP-3459CAB7227EA56EC15FE563.json": "dfd43c17d78ca040",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "74e8a085f3cd5cb2",
+     "realization/snapshots/RSNAP-AA149BAAE7EE6974A9860DC1.json": "74e8a085f3cd5cb2",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "57d55835667fc0ed"
+     "realization/state/1234567890123456__wh-demo-006.json": "23d1521a164ed5ab"
     }
    }
   ]
@@ -108,13 +108,13 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "5a65efb5dcc00da2",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "459c18eb3cda6646",
+     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c90da9c5c1384ae0",
+     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "bcb478fa51f3b09a",
      "realization/policies/PSNAP-68A493221CA08A19A577615C.json": "e09eadd7593be244",
      "realization/regeneration/RERUN-4CD10E94279E8107CFC58E19.json": "14bee3788b74f4e6",
-     "realization/snapshots/RSNAP-AB3FEE01A689A419B4C99801.json": "459c18eb3cda6646",
+     "realization/snapshots/RSNAP-DC6922E8FE2C46CE02C7940F.json": "bcb478fa51f3b09a",
      "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "00fbb42b15262224"
+     "realization/state/1234567890123456__wh-demo-006.json": "eb586e06044ee2d5"
     }
    }
   ]
@@ -130,11 +130,11 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 6890,
-  "sha256": "de8c664ebc7e90794e14e0a289425648b00bd7bbe39a7d1d764803b2c94b7d97"
+  "sha256": "3212f64c54544999b5efbbeb1e6979649935a7f6fa095d857813aa0b2d0e7423"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4387,
-  "sha256": "4490071703dfe738a18e2008f53e761088b9b473ec1c54c5993d9763a41128e4"
+  "sha256": "d3be06691cf9d70afeeb75264583b14717d1659d00000d5145ce1ef79297efeb"
  },
  "OptionParityTests.test_help_text_and_errors/argv 1": {
   "value": [

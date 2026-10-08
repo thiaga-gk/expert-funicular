@@ -8,7 +8,7 @@ run wrote: one ``WarehouseRun`` per warehouse (``realizer.contracts.report``), t
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple
 
@@ -51,6 +51,8 @@ class LiveSource:
     source_region: Optional[str] = None
     aws_price_registry: Optional[str] = None
     ingestion_cutoff: Optional[str] = None
+    # The run's shared connection (``realizer.analyzer.collector.collector.LiveSession``), set by the fleet run itself.
+    session: Optional[Any] = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)

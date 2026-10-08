@@ -8,9 +8,36 @@ The file is checked against ``schema/realization-approvals.schema.json`` (built 
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Mapping, Optional, Set
+
+from realizer.common.logging import LOGGER
 
 APPROVALS_FORMAT_VERSION = "1.0.0"
+
+
+class Approvals(dict):
+    """A loaded approvals file. It is the mapping the file holds and also keeps, as the origin of each measured change
+    consults it, which packages were consulted and which approvals matched (``warn_unmatched`` reports the rest)."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.consulted: Set[str] = set()
+        self.matched: Set[int] = set()
+
+
+def warn_unmatched(approvals: Optional[Mapping[str, Any]]) -> None:
+    """Log one warning for each approval that confirmed no change of the run (a run is every package whose origin was
+    determined): ``PACKAGE_NOT_IN_RUN`` when its package was not part of the run, ``NO_MATCHING_CHANGE`` when it was and no
+    change of the approval's knob to its value was observed. The line names the approval's position in the file, its package
+    and its knob, never its value or reference. Nothing is logged for approvals that were not tracked (a plain mapping)."""
+    if not isinstance(approvals, Approvals):
+        return
+    for index, approval in enumerate(approvals.get("approvals") or []):
+        if index in approvals.matched:
+            continue
+        package = str(approval["recommendation_package_id"])
+        reason = "NO_MATCHING_CHANGE" if package in approvals.consulted else "PACKAGE_NOT_IN_RUN"
+        LOGGER.warning("approvals.unmatched index=%d package=%s knob=%s reason=%s", index, package, approval["knob"], reason)
 
 
 def approvals_schema() -> Dict[str, Any]:

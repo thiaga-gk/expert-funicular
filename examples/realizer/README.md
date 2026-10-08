@@ -7,6 +7,7 @@ A deterministic, synthetic example of the Realizer: one Publisher package and tw
 | `tests/fixtures/realizer/packages/inplace-size-canary.json` | The source RecommendationPackage (Reporter JSON Contract 3.1.0, the only version the Realizer accepts, built from a real Publisher run by `scripts/build_realizer_fixtures.py`). |
 | `exact/observation.json` | The recommended step applied as recommended. |
 | `modified/observation.json` | A different size applied (SMALL instead of the recommended step 1, LARGE to MEDIUM). |
+| `approvals.json` | An approvals file (format 1.0.0, `schema/realization-approvals.schema.json`): one approval naming this package, the size step's knob and its recommended value (MEDIUM) with a change-ticket reference. With `--approvals` on a measured change it makes the change's origin `CONFIRMED`; an approval that matches no package, knob and value of the run is logged as a warning (`approvals.unmatched`), never ignored. |
 
 The two observations are fixed synthetic fixtures (their economics are sized to the step's published savings), not measurements, and must not be read as production value claims.
 
@@ -36,6 +37,10 @@ More forms, commands only (the outputs are not pinned here):
 realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json \
   --from-evidence ./realizer_demo/state/realization/measurements/<file>.json --output-dir ./realizer_replay
 
+# The same replay with the approvals file: the change's origin is CONFIRMED (intent ACCEPTED, reference CHG-1042):
+realizer --package tests/fixtures/realizer/packages/inplace-size-canary.json \
+  --from-evidence ./realizer_demo/state/realization/measurements/<file>.json --approvals examples/realizer/approvals.json --output-dir ./realizer_confirmed
+
 # A fleet run over every warehouse of a Publisher run (a demo-fleet run, here), with run manifest and realization workbook:
 publisher --demo --output-dir ./demo_out
 realizer --publisher-run ./demo_out --demo --output-dir ./realizer_fleet
@@ -54,7 +59,7 @@ Both variants realize the same package, so the realization package ID is the sam
 
 ```text
 RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-01752AB27669B07E544B2B5D
+RSNAP RSNAP-0F7722F077E9D69939895911
 REVID REVID-37F7F275591908182339F44B
 RERUN RERUN-B1F60D50B9002716EC15E4DE
 ```
@@ -71,7 +76,7 @@ denominator_source          = PUBLISHER_CANDIDATE
 
 ```text
 RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-B8A90CA3DC90055A4E7D4A8E
+RSNAP RSNAP-26155EAC3B743F62BCBFD9C7
 REVID REVID-0054A9DB9BEB251DB6B705DA
 RERUN RERUN-4A94ACD1AFCA25E7D3EA709A
 ```

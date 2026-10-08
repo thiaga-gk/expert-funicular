@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Type
 
@@ -44,7 +44,7 @@ class AuthContext:
     profile: str
     host: str
     http_path: str
-    access_token: str
+    access_token: str = field(repr=False)
     token_expiry: Optional[str]
     execution_kind: str
     execution_id: str
@@ -61,7 +61,11 @@ def load_profile_values(config: AccessConfig, profile: str, config_file: Optiona
     if not path.exists():
         raise config.error_type(f"Databricks CLI config not found: {path}")
     parser = configparser.ConfigParser()
-    parser.read(path)
+    try:
+        parser.read(path)
+    except (configparser.Error, UnicodeDecodeError) as exc:
+        # The parser's message quotes a line of the file, which may hold a secret: only the file and the error class.
+        raise config.error_type(f"Databricks CLI config could not be parsed: {path} ({type(exc).__name__})") from None
     if profile == "DEFAULT":
         section: Mapping[str, str] = parser.defaults()
     elif parser.has_section(profile):
@@ -103,7 +107,13 @@ def resolve_cli_token(config: AccessConfig, profile: str, config_file: Optional[
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
         raise config.error_type(f"Unable to resolve OAuth token for profile {profile}: {detail}") from exc
-    payload = json.loads(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+    except ValueError:
+        payload = None
+    if not isinstance(payload, dict):
+        # The CLI's output may carry a token: nothing of it is quoted.
+        raise config.error_type(f"Databricks CLI returned output that is not a JSON object for profile {profile}")
     token = str(payload.get("access_token") or "")
     if not token:
         raise config.error_type(f"Databricks CLI returned no access token for profile {profile}")

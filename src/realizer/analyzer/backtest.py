@@ -30,7 +30,7 @@ from typing import Any, Collection, Dict, List, Mapping, Optional, Sequence, Tup
 
 from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.measurement import MAX_WINDOW_WEEKS, WEEK_DAYS, daily_in, epoch_config, first_full_day, replay_target, window_days
-from realizer.analyzer.projector import billed, replay_net_cluster_minutes, restart_cost_cluster_minutes, volume_ratio, window_summary
+from realizer.analyzer.projector import replay_net_cluster_minutes, restart_cost_cluster_minutes, volume_ratio, window_bill, window_summary
 from realizer.common.errors import InputError
 from realizer.common.utils import money, parse_utc, ratio_string, utc_iso
 from realizer.contracts.backtest import BACKTEST_REPORT_FORMAT_VERSION
@@ -168,7 +168,7 @@ def _priced(window: Optional[Mapping[str, Any]], plan_window: Optional[Mapping[s
     and the modeled AWS price; None without running time or billing priced in one currency."""
     if window is None or plan_window is None or window.get("running") is None or net is None:
         return None
-    bill = billed(daily_in(daily, plan_window))
+    bill = window_bill(daily, plan_window, window)
     if bill["cost"] is None or len(bill["currencies"]) > 1:
         return None
     running = Decimal(str(window["running"]["observed_running_cluster_minutes"]))
@@ -229,8 +229,8 @@ def _measured(change: PastChange, held: Mapping[str, Any], daily: Sequence[Mappi
         pre_rows = daily_in(daily, change.pre)
         check = billed_cross_check(
             replay_dbu_saving=realized["dbu"],
-            pre=None if pre is None else {"days": pre["days"], "billed_cost": billed(pre_rows)["cost"]},
-            post=None if post is None else {"days": post["days"], "billed_cost": billed(daily_in(daily, change.post))["cost"]},
+            pre=None if pre is None else {"days": pre["days"], "billed_cost": window_bill(daily, change.pre, pre_window)["cost"]},
+            post=None if post is None else {"days": post["days"], "billed_cost": window_bill(daily, change.post, post_window)["cost"]},
             pre_weekly=None if change.pre is None else weekly_costs(pre_rows, change.pre["first_day"], window_days(change.pre)),
             volume_ratio=ratio, other_knob_changes=())
     to_predicted = None
