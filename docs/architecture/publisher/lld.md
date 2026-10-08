@@ -179,7 +179,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | Argument | Semantics |
 |---|---|
 | `--output-dir` | output root; default `./warehouse_optimizer_out`. Each run writes to a new `run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/` folder under it (UTC start time; 28) |
-| `--flat-output` | write directly into `--output-dir` instead of a run folder |
+| `--flat-output` | write directly into `--output-dir` instead of a run folder; refused with exit 2, before the log is opened or anything is collected, when that folder already holds a non-empty `packages/` or a `manifest.json` (a left-over `evidence.json` or `publisher.log` alone is accepted) |
 | `--scope` | repeatable; `scenario` or `scenario:technique[,technique...]` with scenarios `current` (`size`, `max-clusters`, `min-clusters`, `auto-stop`) and `migration` (`warehouse-type`); restricts what the run recommends (5.4); default: every scenario and technique |
 | `--scope-file` | JSON run-scope file validated against `schema/run-scope.schema.json` (scenario and technique toggles, warehouses); not combined with `--scope` or `--warehouse` |
 | `--warehouse` | repeatable; `all` (default), `<warehouse_id>` or `<workspace_id>/<warehouse_id>`; reports only these warehouses. A selector that matches no warehouse in the evidence, or a bare ID found in several workspaces, stops the run (exit status 2) |

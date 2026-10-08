@@ -41,9 +41,13 @@ def _resolve_execution_args(args: argparse.Namespace) -> Tuple[str,str]:
 
 def run_output_dir(args: argparse.Namespace, now: Optional[dt.datetime] = None) -> Path:
     """Where this run writes: a new ``run_date=/run_ts=`` folder under --output-dir (UTC start time), or --output-dir
-    itself with --flat-output."""
+    itself with --flat-output, which is refused (PublisherError, before anything is created or collected) when that
+    folder already holds a previous run: a non-empty ``packages/`` or a ``manifest.json`` would mix two runs' files."""
     root = Path(args.output_dir)
     if args.flat_output:
+        packages = root / "packages"
+        if (root / "manifest.json").exists() or (packages.is_dir() and any(packages.iterdir())):
+            raise PublisherError(f"--flat-output: {root} already holds a previous run (packages/ or manifest.json); choose a new folder.")
         return root
     return partitioned_run_dir(root, now or dt.datetime.now(dt.timezone.utc))
 

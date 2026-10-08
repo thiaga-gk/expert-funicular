@@ -76,7 +76,7 @@ Each run writes to its own folder under `--output-dir`, named from the run's UTC
         └── publisher.log
 ```
 
-The timestamp is only in the folder name, never inside a file, so identical replays write identical files. A second run in the same second gets a `-01` suffix; nothing is overwritten. `--flat-output` writes directly into `--output-dir` instead. The scripts that read a run (`scripts/validate_workbook.py`, `scripts/compare_with_ref.py`) accept a run folder or the root, where they read the newest run.
+The timestamp is only in the folder name, never inside a file, so identical replays write identical files. A second run in the same second gets a `-01` suffix; nothing is overwritten. `--flat-output` writes directly into `--output-dir` instead, and refuses (exit 2, before anything is collected) a folder that already holds a previous run, meaning a non-empty `packages/` or a `manifest.json`, so two runs never mix files: choose a new folder. The scripts that read a run (`scripts/validate_workbook.py`, `scripts/compare_with_ref.py`) accept a run folder or the root, where they read the newest run.
 
 Each package validates against Python semantic/hash invariants and the committed Draft 2020-12 JSON Schema before publication. `evidence.json` is validated the same way (`schema/evidence.schema.json`); see [`docs/contracts/publisher/evidence-format.md`](docs/contracts/publisher/evidence-format.md).
 
