@@ -94,6 +94,18 @@ class DashboardFixtureTests(unittest.TestCase):
         self.assertAlmostEqual(k["net"], round(sum(bases), 2), places=2)
         self.assertAlmostEqual(k["gross_savings"] - k["cost_increase"], k["net"], places=2)
 
+    def test_an_unknown_plan_component_makes_the_fleet_component_unknown(self):
+        packages = sorted((json.loads(f.read_text()) for f in (DEMO_PACKAGES / "packages").glob("*.json")),
+                          key=lambda p: (p["warehouse"]["workspace_id"], p["warehouse"]["warehouse_id"]))
+        warehouses = copy.deepcopy(self.data["details"][RUN_TIMES[-1]]["warehouses"])
+        manifest = json.loads((DEMO_PACKAGES / "manifest.json").read_text())
+        known = B.run_kpis(warehouses, packages, manifest, [])["by_currency"]["USD"]
+        self.assertIsNotNone(known["identified_aws"])
+        next(w for w in warehouses if w["plan"] and w["plan"]["aws"])["plan"]["aws"] = None
+        k = B.run_kpis(warehouses, packages, manifest, [])["by_currency"]["USD"]
+        self.assertIsNone(k["identified_aws"])  # unavailable, never the sum of the known warehouses
+        self.assertEqual(k["identified_dbu"], known["identified_dbu"])
+
     def test_aging_counts_days_from_the_first_run_of_the_streak(self):
         ages = [sorted({r["age_days"] for r in self.data["details"][t]["recommendations"] if r["status"] == "OPEN"}) for t in RUN_TIMES]
         self.assertEqual(ages[0], [0])

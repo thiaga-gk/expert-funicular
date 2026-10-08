@@ -495,8 +495,9 @@ def run_kpis(warehouses: Sequence[Mapping[str, Any]], packages: Sequence[Mapping
         forward = sum_all([dec(w["forward"]["total"]) for w in ws])
         plans = [w["plan"] for w in ws if w["plan"] is not None]
         plan = {b: sum((dec(x["total"][b]) for x in plans), Decimal(0)) for b in ("low", "base", "high")}
-        plan_dbu = sum((dec(x["dbu"]["base"]) or Decimal(0) for x in plans if x.get("dbu")), Decimal(0))
-        plan_aws = sum((dec(x["aws"]["base"]) or Decimal(0) for x in plans if x.get("aws")), Decimal(0))
+        # A plan whose DBU or AWS component is unknown makes that fleet component unknown (never a smaller number).
+        plan_dbu = sum_all([dec(x["dbu"]["base"]) if x.get("dbu") else None for x in plans])
+        plan_aws = sum_all([dec(x["aws"]["base"]) if x.get("aws") else None for x in plans])
         bases = [dec(p["package_economics"]["estimated_savings_365d"]["base"]) for _, p in pairs if p["package_economics"].get("estimated_savings_365d")]
         gross = sum((max(b, Decimal(0)) for b in bases), Decimal(0))
         increase = sum((max(-b, Decimal(0)) for b in bases), Decimal(0))
