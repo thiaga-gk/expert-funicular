@@ -48,7 +48,7 @@ A missing value is `None`. A numeric comparison against `None` is false, so a ro
   row with no signature can't be detected from evidence (cross-warehouse, REST-only or flag-driven), so it is listed as
   manual.
 - `expect`: the row's expected behaviour, written as assertions on the package. The syntax is the golden DSL (see the
-  `tests/golden/test_golden_publisher.py` docstring), plus `in` / `not_in` (applied to each value) and `any: [...]`. Each candidate also
+  `tests/golden/publisher/test_golden_publisher.py` docstring), plus `in` / `not_in` (applied to each value) and `any: [...]`. Each candidate also
   carries a `direction`: `up`, `down`, `same` or (for type) `change`. Write invariants that must hold for *any* warehouse
   with the signature, such as "an under-sized warehouse is never downsized". Don't pin exact targets; those belong in a case.
 - `drift`: the features compared against the demo-fleet warehouse that instantiates the row.

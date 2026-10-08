@@ -20,7 +20,7 @@ from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evid
 from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.config import versions as versions_mod  # noqa: E402
-from tests.golden import case_names, load_case  # noqa: E402
+from tests.golden.publisher import case_names, load_case  # noqa: E402
 
 CORE = {
     "prd": ROOT / "docs/product/publisher/prd.md",

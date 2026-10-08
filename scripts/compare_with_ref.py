@@ -32,8 +32,8 @@ for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from tests.golden import case_names, load_case  # noqa: E402
-from tests.regression import canonical  # noqa: E402
+from tests.golden.publisher import case_names, load_case  # noqa: E402
+from tests.regression.publisher import canonical  # noqa: E402
 
 EVIDENCE_FORMAT_VERSION = "1.0.0"
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z ")

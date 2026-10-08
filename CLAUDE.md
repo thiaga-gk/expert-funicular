@@ -6,7 +6,7 @@ Deterministic, read-only Databricks SQL Warehouse optimizer: publisher v2.14.0, 
 Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pip install -e .`.
 - Compile check: `python -m compileall -q src tests scripts examples`
 - All tests: `python -m unittest discover -s tests -v`
-- One test: `python -m unittest tests.unit.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.reporter.test_workbook_contract`)
+- One test: `python -m unittest tests.unit.publisher.<capability>.<module>.<Class>.<test_name> -v` (or a module: `tests.unit.publisher.reporter.test_workbook_contract`)
 - Demo (one warehouse per golden scenario): `publisher --demo --output-dir ./demo_out` (same as `publisher publish ...` or `python -m publisher ...`), or without an install `python scripts/run_demo.py [output_dir]`
 - Workbook validator: `python scripts/validate_workbook.py ./demo_out`
 - Contract example: `python scripts/validate_contracts.py`
@@ -39,7 +39,7 @@ These summarize `docs/product/publisher/prd.md` (scope and requirements) and `do
 
 ## Pipeline boundaries
 Analyzer (collector → normalizer → epochs → derived metrics → findings; fails closed on unsupported warehouse types) → Governor (eligibility, `Thresholds`, run constraints, migration compatibility) → Optimizer (one technique per active knob, cross-technique conflicts, candidate estimator) → Reviewer candidate gate → Packager (scenario planner, sequencing, stateful bundle estimator, package estimate, evidence registry, contract assembly) → Reviewer package gate → Reporter (packages, evidence, workbook, manifest). `publish()` in `src/publisher/publisher.py` calls each capability once, in that order, and holds no domain logic. The analyzer observes, the governor decides what may be considered, the optimizer decides, the candidate estimator prices isolated changes, the bundle estimator prices stateful scenarios. Do not merge these responsibilities (`docs/architecture/publisher/hld.md`).
-The CLI (`src/publisher/cli/`) is an adapter in front of the facade: it parses and validates its own arguments, builds the `PublisherRequest` (including `--mode`, today only `local`), configures logging, calls `publisher.publish` and maps a `PublisherError` to exit status 2. It never imports a capability package (`tests/unit/cli/test_cli.py` checks this); the config layer resolves the execution mode.
+The CLI (`src/publisher/cli/`) is an adapter in front of the facade: it parses and validates its own arguments, builds the `PublisherRequest` (including `--mode`, today only `local`), configures logging, calls `publisher.publish` and maps a `PublisherError` to exit status 2. It never imports a capability package (`tests/unit/publisher/cli/test_cli.py` checks this); the config layer resolves the execution mode.
 Neutral read-only Databricks access (OAuth, REST GET, the UTC-pinned SQL client) and the Databricks vocabulary live in `src/workflow_shared/`, which imports neither product (`tests/unit/workflow_shared/test_boundaries.py`); a product injects its logger, user agent and error type.
 
 ## Economics
@@ -48,18 +48,18 @@ Neutral read-only Databricks access (OAuth, REST GET, the UTC-pinned SQL client)
 - Workbook annual impact is numeric and signed (positive = savings, negative = cost increase) with explicit currency and impact type. No strings like `Save USD ...` in economic cells.
 
 ## Identity and package write order
-- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `src/publisher/contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `src/publisher/common/ids.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/unit/packager/test_locked_reporter_integration.py` pins that packages ignore them).
+- IMPORTANT: public IDs (`EPOCH-`, `EVID-`, `CAND-`, `SCN-`, `REAL-`, `PKG-`) come from `src/publisher/contracts/reporter_contract.py` (`make_*`, `RecommendationPackage.expected_package_id()`, 24 hex). `src/publisher/common/ids.py` still has legacy 16-hex `epoch_id`/`finding_id`/`recommendation_id`/`scenario_id`: do not use them for public IDs (`tests/unit/publisher/packager/test_locked_reporter_integration.py` pins that packages ignore them).
 - Volatile presentation metadata must not enter the hash payload. Hashed lists keep order, so pre-sort set-like data.
 - Write order (`_build_locked_recommendation_package` in `src/publisher/packager/packager.py`, `package_locked_contract` in `src/publisher/reporter/json_reporter.py`): assemble the frozen package → set package ID and full hash → semantic `validate()` → schema validation (committed Draft 2020-12 schema in `schema/`) → `json.dumps(sort_keys=True)` → write `packages/<workspace>__<warehouse>.json`.
 
 ## Replay evidence
-`<output-dir>/evidence.json` is a versioned envelope (`evidence_format_version` 1.0.0) checked against `schema/evidence.schema.json` on write and on `--from-evidence` load; other versions and bare lists are rejected, with no legacy shims. It holds owner emails and tags, so treat it as sensitive. A format change updates the dataclass, schema, version, `docs/contracts/publisher/evidence-format.md` and the `tests/golden/` fixtures together.
+`<output-dir>/evidence.json` is a versioned envelope (`evidence_format_version` 1.0.0) checked against `schema/evidence.schema.json` on write and on `--from-evidence` load; other versions and bare lists are rejected, with no legacy shims. It holds owner emails and tags, so treat it as sensitive. A format change updates the dataclass, schema, version, `docs/contracts/publisher/evidence-format.md` and the `tests/golden/publisher/` fixtures together.
 
 ## Workbook
 Column order and groups live only in `src/publisher/contracts/workbook_contract.py`; the renderer in `src/publisher/reporter/workbook_reporter.py` consumes them and keeps no second list. Exactly four visible sheets (Executive Summary, Warehouse Portfolio, Scenario Plans, Recommendation Registry), no formulas/macros/hidden sheets, IDs as text, audit JSON at the far right.
 
 ## Tests
-Unittest only, no pytest. Golden cases live in `tests/golden/cases/<name>/` (`case.yaml` with the `expect` block, `source/` evidence or collector snapshots, `expected/` canonical output generated by `scripts/update_goldens.py`); the assertion DSL is documented in the `tests/golden/test_golden_publisher.py` docstring. Adding a case needs a folder with `case.yaml` and `source/`, then `expected/` from `python scripts/update_goldens.py --case <name> --approved-change "<why>"`.
+Unittest only, no pytest. Tests mirror `src/`: every layer (`tests/unit`, `component`, `integration`, `regression`, `golden`) has a `publisher/` and a `realizer/` folder (`fixtures` too), `tests/unit/` also `workflow_shared/` and `skills/`; a new test goes in its product's folder. Golden cases live in `tests/golden/publisher/cases/<name>/` (`case.yaml` with the `expect` block, `source/` evidence or collector snapshots, `expected/` canonical output generated by `scripts/update_goldens.py`); the assertion DSL is documented in the `tests/golden/publisher/test_golden_publisher.py` docstring. Adding a case needs a folder with `case.yaml` and `source/`, then `expected/` from `python scripts/update_goldens.py --case <name> --approved-change "<why>"`.
 `tests/test_docs.py` guards the docs (links, contract versions, cited headings). Which document owns which topic, the precedence rule and the writing rules are in `docs/README.md`.
 
 ## Reusable publisher skills

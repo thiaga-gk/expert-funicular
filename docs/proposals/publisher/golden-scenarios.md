@@ -7,7 +7,7 @@ Status: **Living table.** Rows are updated with each fix; pass/fail reflects the
 - **Status:** pass = the code behaves as expected (by code reading or a constructed run on mutated demo evidence); fail = it does not.
 - **Tracker:** finding IDs that change the behaviour (`L<NN>` for golden-miner findings); — when nothing needs to change.
 
-The `--demo` fleet has one simulated warehouse per scenario listed in `DEMO_FLEET` in `src/publisher/analyzer/collector/demo.py` (config tag `golden_scenario`); `tests/golden/test_demo_fleet.py` asserts the passing rows it contains. Each scenario with a hand-built case has its folder under `tests/golden/cases/` (for example `tests/golden/cases/c06-oversized-warehouse/`), run by `tests/golden/test_golden_publisher.py`. A case built from a live warehouse by the `databricks-golden-miner` skill has `origin: live` in its `case.yaml`.
+The `--demo` fleet has one simulated warehouse per scenario listed in `DEMO_FLEET` in `src/publisher/analyzer/collector/demo.py` (config tag `golden_scenario`); `tests/golden/publisher/test_demo_fleet.py` asserts the passing rows it contains. Each scenario with a hand-built case has its folder under `tests/golden/publisher/cases/` (for example `tests/golden/publisher/cases/c06-oversized-warehouse/`), run by `tests/golden/publisher/test_golden_publisher.py`. A case built from a live warehouse by the `databricks-golden-miner` skill has `origin: live` in its `case.yaml`.
 
 | ID | Scenario | Signature | Expected behavior | In scope | Code coverage | Status | Tracker |
 |---|---|---|---|---|---|---|---|

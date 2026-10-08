@@ -917,6 +917,6 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 3. **Schema builder:** `src/publisher/contracts/reporter_schema.py`
 4. **Generated JSON Schema:** `schema/recommendation-package.schema.json`
 5. **Canonical example:** `examples/recommendation-package.example.json`
-6. **Contract tests:** `tests/unit/contracts/test_reporter_contract.py`
+6. **Contract tests:** `tests/unit/publisher/contracts/test_reporter_contract.py`
 
 The workbook is not part of Reporter Contract v3.1.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

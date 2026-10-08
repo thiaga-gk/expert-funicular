@@ -1,6 +1,6 @@
 """Backfill running-idle evidence into fixtures that predate it (fixtures only).
 
-Usage: python scripts/backfill_running_idle.py tests/golden/cases/*   (case folders, or case names)
+Usage: python scripts/backfill_running_idle.py tests/golden/publisher/cases/*   (case folders, or case names)
 
 Reads and rewrites each case's source/evidence.json (a JSON list of evidence items); cases without one are skipped.
 
@@ -29,7 +29,7 @@ from publisher.analyzer.collector.demo import scale_running_idle_windows  # noqa
 from publisher.analyzer.forecast import Modeler  # noqa: E402
 from publisher.analyzer.metrics import auto_stop_targets, running_idle_basis  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
-from tests.golden import evidence_source_path  # noqa: E402
+from tests.golden.publisher import evidence_source_path  # noqa: E402
 
 LEGACY = "saved_idle_minutes_if_"
 

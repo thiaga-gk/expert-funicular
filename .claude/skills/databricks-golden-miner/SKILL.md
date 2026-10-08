@@ -120,7 +120,7 @@ treat silence as approval.
    python .claude/skills/databricks-golden-miner/scripts/make_case.py --run-dir mining_out/<date> \
      --warehouse <ws>/<wh> --row <C59> --slug <kebab-name> --description "<pattern; expected behaviour>"
    ```
-   This writes `tests/golden/cases/<row>-<slug>/` with the raw evidence and a draft `expect` block that pins today's decision
+   This writes `tests/golden/publisher/cases/<row>-<slug>/` with the raw evidence and a draft `expect` block that pins today's decision
    per knob. It refuses to overwrite an existing folder. Cut the draft down to the assertions that state the row's expected
    behaviour, and keep the ones the user approved. Only cases that pass today go on the mining branch. A case for a bug or
    premise item would fail, so it is not added here: it becomes the red test of that item's fix branch (step 5).

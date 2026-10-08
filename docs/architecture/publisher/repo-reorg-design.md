@@ -878,13 +878,13 @@ Test individual deterministic responsibilities.
 Examples:
 
 ```text
-tests/unit/analyzer/
-tests/unit/governor/
-tests/unit/optimizer/
-tests/unit/reviewer/
-tests/unit/packager/
-tests/unit/reporter/
-tests/unit/contracts/
+tests/unit/publisher/analyzer/
+tests/unit/publisher/governor/
+tests/unit/publisher/optimizer/
+tests/unit/publisher/reviewer/
+tests/unit/publisher/packager/
+tests/unit/publisher/reporter/
+tests/unit/publisher/contracts/
 ```
 
 Unit tests should generally avoid external systems.
@@ -915,7 +915,7 @@ Golden tests protect deterministic end-to-end behavior.
 Recommended fixture shape:
 
 ```text
-tests/golden/cases/CASE-001/
+tests/golden/publisher/cases/CASE-001/
 ├── source/
 ├── pricing/
 ├── policy/
@@ -1522,7 +1522,7 @@ These decisions bind the phases above where the generic plan meets the existing 
 - The package gate (`reviewer.review_package`) is the scenario gate plus report-contract consistency (`package.validate()` and the committed schema) for each frozen package. It adds no new rule: the same checks already run when the package is built and immediately before it is written, which stays the write-order guarantee.
 - The Reporter has `reporter.py` (`run`), `json_reporter.py` (the existing writer of packages, `evidence.json`, the workbook and the manifest, which keeps the write-order guarantee in one function) and `workbook_reporter.py`. The manifest is assembled by `packager/manifest.py` and written by the Reporter.
 - `publisher.py` holds `build_context`, `publish` (the section 10 orchestration), `demo_fleet_size`, and two evidence-in-hand entry points (`evaluate_warehouses`, `build_recommendation_packages`) that tests and replay tooling call on the same capability functions. Argument parsing and the CLI summary live in the CLI adapter (section 21.6). Tests import names from the capability modules; the facade re-exports nothing.
-- Test layout: `tests/unit/<capability>/`, `tests/component/`, `tests/integration/` (live checks, skipped without a Databricks profile), `tests/golden/` (case folders, the legacy expectation cases and the demo-fleet signatures), `tests/regression/` and `tests/fixtures/expected/`. The `fixtures/source`, `policies`, `pricing`, `candidates` and `scenarios` folders are not created: each golden case folder carries its own source, and no fixture overrides prices or policy. `tests/test_docs.py` stays at the top level as the repository-wide doc guard, with shared fixtures in `tests/publisher_case.py` and `tests/evidence_helpers.py`.
+- Test layout: `tests/unit/publisher/<capability>/`, `tests/component/publisher/`, `tests/integration/publisher/` (live checks, skipped without a Databricks profile), `tests/golden/publisher/` (case folders, the legacy expectation cases and the demo-fleet signatures), `tests/regression/publisher/` and `tests/fixtures/publisher/expected/`. The `fixtures/source`, `policies`, `pricing`, `candidates` and `scenarios` folders are not created: each golden case folder carries its own source, and no fixture overrides prices or policy. `tests/test_docs.py` stays at the top level as the repository-wide doc guard, with shared fixtures in `tests/publisher_case.py` and `tests/evidence_helpers.py`.
 - The internal analysis boundary is `FleetAnalysis` (with one `WarehouseAnalysis` per supported warehouse), because the name `AnalysisResult` already denotes the per-knob result.
 - Markdown and CSV reporters and `databricks.yml` are not created: they are new features, which section 17 excludes from a structural refactor.
 - The Analyzer fails closed on unsupported warehouse types: `analyzer.run()` never calibrates or analyzes them, using the same `SUPPORTED_WAREHOUSE_TYPES` check, so findings never reach an unknown type even though the Analyzer runs before the Governor (approved 2026-10-05). Governor records those exclusions and owns threshold and policy resolution, the AWS region price guard and migration compatibility evaluation.
@@ -1533,7 +1533,7 @@ These decisions bind the phases above where the generic plan meets the existing 
 ### 21.3 Oracle and tests
 
 - The single-file oracle is the git tag `reorg-oracle-2.10.0` on the last single-file commit, plus stored normalized canonical outputs. `scripts/compare_single_file.py` re-runs the tag in a temporary worktree when a diff needs diagnosis. No in-tree copy of the old `publisher.py` is kept.
-- The test suite takes the section 3 layout in full: golden fixtures become `tests/golden/cases/<CASE>/` folders (`source/`, `pricing/`, `policy/`, `expected/recommendation.json`, `case.yaml` holding the assertion block), and tests live under `unit/`, `component/`, `integration/`, `golden/`, `regression/` and `fixtures/`. Each extraction phase relocates the existing tests that target its capability; Phase 10 relocates the rest.
+- The test suite takes the section 3 layout in full: golden fixtures become `tests/golden/publisher/cases/<CASE>/` folders (`source/`, `pricing/`, `policy/`, `expected/recommendation.json`, `case.yaml` holding the assertion block), and tests live under `unit/`, `component/`, `integration/`, `golden/`, `regression/` and `fixtures/`. Each extraction phase relocates the existing tests that target its capability; Phase 10 relocates the rest.
 - Integration tests against a live SQL warehouse skip unless a Databricks profile is configured.
 - Phase 11 retires the single-file oracle once fixture-based parity is proven 1:1 (zero canonical-output diffs over the demo fleet and every golden case, and every single-file function accounted for in a new module). The real source-system run in `docs/proposals/publisher/real-data-run.md` then runs on the reorganized code; this replaces the section 14 Phase 11 and section 15 condition that real runs precede retirement.
 

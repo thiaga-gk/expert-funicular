@@ -11,7 +11,7 @@ from publisher.config.versions import ANALYZER_VERSION, CONTRACT_VERSION, DECISI
 # Internal join keys. They tie findings, decisions and plan steps together while a run is in memory, and `epoch_id` also
 # keys epochs in evidence.json. They are not public identities: packages carry only the contract IDs from
 # publisher/contracts/reporter_contract.py (make_epoch_id, make_evidence_id, make_candidate_id, make_scenario_id), which never read
-# these. tests/unit/packager/test_locked_reporter_integration.py pins that.
+# these. tests/unit/publisher/packager/test_locked_reporter_integration.py pins that.
 def epoch_id(workspace_id: str, warehouse_id: str, start: str) -> str:
     """Internal epoch key: 16 hex over workspace, warehouse and start time. Not the public EPOCH- identity."""
     raw = f"{workspace_id}|{warehouse_id}|{start}"

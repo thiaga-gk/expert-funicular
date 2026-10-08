@@ -14,7 +14,7 @@ Placeholders: `<P>` the OAuth CLI profile, `<C>` the collector SQL warehouse (it
 | 0.2 | Install the Databricks CLI and log in: `databricks auth login --profile <P>` (OAuth U2M; static tokens are rejected) | `databricks --profile <P> current-user me` answers |
 | 0.3 | Choose `<C>` and `<R>` (without `--source-region` the AWS cost of Pro and Classic is not modeled and every cost basis is DBU only) | |
 | 0.4 | Preflight: `python .claude/skills/databricks-golden-miner/scripts/preflight.py --profile <P> --warehouse-id <C>` (it starts `<C>` if stopped) | It passes; on a failure it prints the fix and nothing else runs |
-| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, then `python -m unittest discover -s tests/integration -t .`) | OK or skipped with a reason |
+| 0.5 | Optional: the live integration tests (`PUBLISHER_LIVE_PROFILE`, `PUBLISHER_LIVE_SQL_WAREHOUSE_ID`, then `python -m unittest discover -s tests/integration/publisher -t .`) | OK or skipped with a reason |
 
 ## Phase 1 · Mine the golden scenarios
 

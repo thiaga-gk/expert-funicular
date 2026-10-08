@@ -1,4 +1,4 @@
-"""Shared fixture and helpers for the capability case modules under tests/unit/ and tests/component/."""
+"""Shared fixture and helpers for the capability case modules under tests/unit/ and tests/component/publisher/."""
 import copy
 import unittest
 from pathlib import Path
@@ -19,7 +19,7 @@ from publisher.contracts.source import WarehouseConfig  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
 from publisher.packager.estimator.package import _package_economics  # noqa: E402
 from tests.evidence_helpers import move_current_epoch_start  # noqa: E402
-from tests.golden import load_case  # noqa: E402
+from tests.golden.publisher import load_case  # noqa: E402
 
 
 class PublisherCase(unittest.TestCase):
