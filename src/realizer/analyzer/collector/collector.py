@@ -27,7 +27,7 @@ from realizer.estimator.economics import expected_annual_for_exact_step
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import authority_eligible, package_currency
-from workflow_shared.databricks.access import token_expires_within
+from workflow_shared.databricks.access import TOKEN_REFRESH_MARGIN, token_expires_within
 
 
 def package_region(package: Mapping[str, Any]) -> Optional[str]:
@@ -117,7 +117,6 @@ def newest_measurement(folder: str | Path, package: Mapping[str, Any]) -> Path:
     return files[-1]
 
 
-TOKEN_REFRESH_MARGIN = dt.timedelta(minutes=5)
 
 
 class LiveSession:
@@ -187,8 +186,8 @@ def measure_live(
         try:
             evidence = collect_measurement(session.client(), package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
                                            aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
-        except InputError:
-            session.invalidate()  # a dropped connection must not refuse the rest of the fleet run
+        except Exception:
+            session.invalidate()  # a dropped or broken connection must not fail the rest of the fleet run
             raise
     else:
         auth = bridge.resolve_live_access(profile, sql_warehouse_id, [str(warehouse["warehouse_id"])], config_file)

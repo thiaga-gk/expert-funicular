@@ -43,12 +43,14 @@ from realizer.analyzer.crosscheck import billed_cross_check, weekly_costs
 from realizer.analyzer.migration_observation import MIGRATION_METHOD, migration_delta, window_aws_hourly
 from realizer.analyzer.measurement import (
     MeasurementPlan,
+    billed,
     daily_in,
     epoch_config,
     plan_measurement,
     replay_target,
     window_bounds,
     window_days,
+    window_running,
 )
 from realizer.analyzer.size_counterfactual import METHOD as SIZE_METHOD, size_counterfactual
 from realizer.common.errors import InputError
@@ -75,32 +77,6 @@ def _check_windows(plan: MeasurementPlan, evidence: Mapping[str, Any]) -> None:
             continue
         if held is None or (held["epoch_start"], held["first_day"], held["last_day"]) != (asked["epoch_start"], asked["first_day"], asked["last_day"]):
             raise InputError(f"measurement evidence does not hold the planned {label} window")
-
-
-def billed(rows: Sequence[Mapping[str, Any]], running: Optional[Decimal] = None) -> Dict[str, Any]:
-    """Billed totals of daily rows: DBU, priced cost, unpriced DBU and currencies. The cost is ``None`` (unknown, never
-    zero) when any DBU is unpriced and when the window has no billed day although the warehouse ran in it (*running*, its
-    running cluster-minutes, above zero: billing that has not arrived); ``missing`` marks the second case. A window in
-    which the warehouse did not run bills nothing legitimately, and without *running* nothing says it ran."""
-    missing = not rows and running is not None and running > 0
-    dbu = sum((Decimal(str(r["dbu_quantity"])) for r in rows), Decimal("0"))
-    unpriced = sum((Decimal(str(r["unpriced_dbu_quantity"])) for r in rows), Decimal("0"))
-    currencies = sorted({str(r["currency_code"]) for r in rows if r.get("currency_code") is not None})
-    cost = None if unpriced > 0 or missing else sum((Decimal(str(r["list_cost"] or 0)) for r in rows), Decimal("0"))
-    priced_dbu = dbu - unpriced
-    by_currency: Dict[str, Decimal] = {}
-    for r in rows:
-        if r.get("currency_code") is not None:
-            by_currency[str(r["currency_code"])] = by_currency.get(str(r["currency_code"]), Decimal("0")) + Decimal(str(r["dbu_quantity"]))
-    return {"dbu": dbu, "cost": cost, "unpriced_dbu": unpriced, "currencies": currencies, "priced_dbu": priced_dbu,
-            "majority_currency_dbu": max(by_currency.values(), default=Decimal("0")), "missing": missing}
-
-
-def window_running(window: Optional[Mapping[str, Any]]) -> Optional[Decimal]:
-    """A collected window's observed running cluster-minutes (``None`` without running-time evidence)."""
-    if not window or window.get("running") is None:
-        return None
-    return Decimal(str(window["running"]["observed_running_cluster_minutes"]))
 
 
 def window_bill(daily: Sequence[Mapping[str, Any]], plan_window: Optional[Mapping[str, Any]], window: Optional[Mapping[str, Any]]) -> Dict[str, Any]:

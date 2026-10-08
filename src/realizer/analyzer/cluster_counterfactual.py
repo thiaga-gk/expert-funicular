@@ -100,7 +100,7 @@ def _rates(evidence: Mapping[str, Any], bill: Mapping[str, Any]) -> Tuple[Option
 
 def cluster_levels(plan: MeasurementPlan, evidence: Mapping[str, Any], bill: Mapping[str, Any]) -> ClusterLevels:
     """What the post window's levels show for a min- or max-cluster step (module docstring). *bill* is the post window's
-    billed totals (``projector.billed``: ``cost``, ``currencies``). Nothing for another knob or before a post window."""
+    billed totals (``measurement.billed``: ``cost``, ``currencies``). Nothing for another knob or before a post window."""
     if plan.step is None or plan.step.get("knob") not in LEVEL_KNOBS or plan.post is None:
         return ClusterLevels(None, None, None)
     knob = str(plan.step["knob"])
