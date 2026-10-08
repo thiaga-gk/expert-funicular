@@ -216,6 +216,12 @@ details.group[open]>summary::before{content:"–"}
 .cand-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;align-items:start}
 @media (max-width:1100px){.cand-grid{grid-template-columns:1fr}}
 
+.chg{display:flex;flex-wrap:wrap;gap:6px}
+.chg .arrow b{font-weight:600;color:var(--ink)}
+.dl{font-family:var(--mono);font-size:11px;margin-left:4px;white-space:nowrap}
+.dl.good{color:var(--good)} .dl.bad{color:var(--bad)} .dl.flat{color:var(--faint)}
+tr.current td{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+
 /* ---------- warehouse ---------- */
 .hero{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
 .hero h2{margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;text-wrap:balance;overflow-wrap:anywhere}
@@ -365,6 +371,8 @@ footer p{max-width:110ch;margin:0}
       <div class="card"><h3>Workload</h3><p class="sub" id="workload-sub"></p><div class="comp" id="ch-workload"></div><div class="kv" id="workload-kv" style="margin-top:16px;grid-template-columns:repeat(2,minmax(0,1fr))"></div></div>
     
     </div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><div><h3>Configuration history</h3><p class="sub" id="hist-sub"></p></div></div>
+      <div class="tbl-wrap"><table class="t" id="hist-table"></table></div></div>
     <div style="margin-top:16px">
       <div class="card"><div class="card-h"><div><h3>Scenarios and implementation plan</h3><p class="sub">Every scenario the optimizer evaluated, recommended first. Steps run top to bottom; a gate (◇) holds the next step until it passes. Select a change to open its evidence.</p></div></div><ul class="tree" id="wh-tree"></ul><div id="decision" style="margin-top:12px"></div></div>
 </div>
@@ -383,6 +391,8 @@ footer p{max-width:110ch;margin:0}
         <h3 style="margin-top:24px">Against the expected range</h3><p class="sub">Claimable changes with a measured run-rate</p><div class="comp" id="rz-band"></div></div>
     </div>
     <div class="card" style="margin-top:16px"><h3>Realization across runs</h3><p class="sub">Claimable annual run-rate and savings realized to date at each run date, beside the identified base</p><div class="chart" id="ch-rz-trend" role="img" aria-label="Realization trend"></div></div>
+    <div class="card" style="margin-top:16px"><h3>Configuration changes</h3><p class="sub" id="rz-changes-sub">Every configuration change in the trailing year across the visible warehouses, newest first, and whether a recommendation accounts for it</p>
+      <div class="tbl-wrap" style="max-height:520px"><table class="t" id="rz-changes"></table></div></div>
     <div class="card" style="margin-top:16px"><div class="card-h"><div><h3>Applied changes</h3><p class="sub">Realization lineages as of this run; select a row for the warehouse</p></div>
       <div class="seg" id="rz-scope"><button data-scope="claimable">Claimable</button><button data-scope="all">All lineages</button></div></div>
       <div class="tbl-wrap" style="max-height:620px"><table class="t" id="rz-table"></table></div></div>
@@ -877,13 +887,16 @@ footer p{max-width:110ch;margin:0}
       var bands = daily.epochs.map(function (e, i) { return [{ xAxis: e.start, name: e.label, itemStyle: { color: i % 2 ? "rgba(79,70,229,.05)" : "rgba(14,159,110,.06)" } }, { xAxis: e.end || daily.days[daily.days.length - 1] }]; });
       chart("ch-daily", { tooltip: { trigger: "axis", valueFormatter: tipMoney }, grid: { left: 8, right: 16, top: 24, bottom: 8, containLabel: true }, xAxis: { type: "time" }, yAxis: moneyAxis(),
         series: [{ type: "line", name: "DBU list cost", showSymbol: false, lineStyle: { width: 1.6, color: css("--s1") }, areaStyle: { color: css("--s1"), opacity: 0.08 }, data: daily.days.map(function (d, i) { return [d, daily.cost[i]]; }),
-          markArea: { silent: false, label: { show: true, position: "insideTopLeft", color: css("--muted"), fontSize: 10.5 }, data: bands } }] });
+          markArea: { silent: false, label: { show: true, position: "insideTopLeft", color: css("--muted"), fontSize: 10.5 }, data: bands },
+          markLine: { symbol: "none", silent: true, label: { show: false }, lineStyle: { color: css("--accent"), width: 1.5, type: "solid" },
+            data: daily.epochs.slice(1).map(function (e) { return { xAxis: e.start }; }) } }] });
     }
     // annual cost bars
     chart("ch-wh-cost", { tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: tipMoney }, legend: { top: 0, left: 0 }, grid: { top: 36, left: 8, right: 16, bottom: 8, containLabel: true },
       xAxis: { type: "category", data: ["Trailing 365d", "Forward 365d"], axisLabel: { interval: 0 } }, yAxis: moneyAxis(),
       series: [{ name: "DBU", type: "bar", stack: "c", barWidth: 38, itemStyle: { color: css("--s1"), borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.dbu, w.forward.dbu] },
                { name: "AWS (modeled)", type: "bar", stack: "c", itemStyle: { color: css("--s2"), borderRadius: [4, 4, 0, 0], borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.aws, w.forward.aws] }] });
+    renderHistory(w);
     renderTree(w);
     $("#decision").innerHTML = w.reevaluation ? '<div class="banner">Re-evaluation: ' + esc(title(w.reevaluation.status)) + (w.reevaluation.earliest_reevaluation_time ? " · earliest " + date(w.reevaluation.earliest_reevaluation_time) : "") + ((w.reevaluation.blocking_codes || []).length ? " · " + w.reevaluation.blocking_codes.map(function (b) { return '<span class="mono" title="' + esc(D.blockers[b] || "") + '">' + esc(b) + "</span>"; }).join(", ") : "") + "</div>" : "";
     // workload
@@ -992,6 +1005,74 @@ footer p{max-width:110ch;margin:0}
     $("#wh-cands").innerHTML = html || '<div class="empty">No candidates in this package.</div>';
   }
 
+
+  // ---------- configuration history ----------
+  function fmtMs(v) { return v == null ? "–" : v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + " s" : Math.round(v) + " ms"; }
+  function fmtP(v) { return v == null ? "–" : (Math.round(v * 10) / 10) + "%"; }
+  function perDay(p) { return p.list_cost != null && p.billed_days ? p.list_cost / p.billed_days : null; }
+  function dl(now, before, lowerIsBetter) {
+    if (now == null || before == null) return "";
+    if (before === 0 && now === 0) return '<span class="dl flat">±0</span>';
+    var d = before === 0 ? 1 : (now - before) / Math.abs(before);
+    if (Math.abs(d) < 0.02) return '<span class="dl flat">≈</span>';
+    var good = lowerIsBetter ? d < 0 : d > 0;
+    return '<span class="dl ' + (good ? "good" : "bad") + '">' + (d > 0 ? "▲" : "▼") + Math.min(999, Math.round(Math.abs(d) * 100)) + "%</span>";
+  }
+  function changeChips(changes) {
+    return '<div class="chg">' + changes.map(function (c) { return '<span class="arrow">' + esc(knob(c.knob)) + " " + esc(val(c.from)) + " → <b>" + esc(val(c.to)) + "</b></span>"; }).join("") + "</div>";
+  }
+  function linkBadge(p) {
+    if (!p.changes || !p.changes.length) return '<span class="faint">–</span>';
+    if (!p.link) return badge("Not linked to a recommendation", "");
+    return badge("Recommended · " + title(p.link.state), p.link.state === "REALIZED" ? "good" : "info") + (p.link.claim === "CLAIMABLE" && p.link.annualized != null ? '<div class="small num" style="margin-top:3px">' + fmtMoney(p.link.annualized) + '<span class="muted"> /yr realized</span></div>' : "");
+  }
+  function renderHistory(w) {
+    var hist = w.history || { periods: [] }, ps = hist.periods || [];
+    var host = $("#hist-table");
+    if (hist.source === "none" || !ps.length) {
+      $("#hist-sub").textContent = "No replay evidence (evidence.json) in this run and no change in the package, so no history to show.";
+      host.innerHTML = ""; return;
+    }
+    if (hist.source === "package") {
+      $("#hist-sub").textContent = "Only the most recent change is known: this run has no replay evidence (evidence.json) with the full history.";
+      host.innerHTML = "<thead><tr><th>Changed</th><th>What changed</th><th>Recommendation</th></tr></thead><tbody>" + ps.map(function (p) {
+        return "<tr><td class='mono nowrap'>" + date(p.start) + "</td><td>" + changeChips(p.changes) + "</td><td>" + linkBadge(p) + "</td></tr>"; }).join("") + "</tbody>";
+      return;
+    }
+    var changes = ps.filter(function (p) { return p.changes.length; }).length;
+    $("#hist-sub").textContent = changes ? changes + " configuration change" + (changes === 1 ? "" : "s") + " in the trailing year. Figures are what was observed in each period; workload also differs between periods, so a difference is not a measured saving (the Realization section measures that)."
+      : "No configuration change in the trailing year: the current configuration has been in force since " + date(ps[0].start) + ".";
+    var rows = ps.slice().reverse();
+    host.innerHTML = "<thead><tr><th>Period</th><th class='r'>Days</th><th>Configuration</th><th class='r'>DBU cost / billed day</th><th class='r'>Billed days</th><th class='r'>Queries</th><th class='r'>p95</th><th class='r'>Queued</th><th class='r'>Spill</th><th class='r'>Peak clusters</th><th>Recommendation</th></tr></thead><tbody>" +
+      rows.map(function (p) {
+        var i = ps.indexOf(p), prev = i > 0 ? ps[i - 1] : null, c = p.config || {};
+        var cfg = p.changes.length ? changeChips(p.changes) : '<span class="mono small">' + esc(c.warehouse_type + " · " + c.warehouse_size + " · " + c.min_clusters + "–" + c.max_clusters + " · auto-stop " + c.auto_stop_minutes) + "</span>";
+        return '<tr class="' + (p.current ? "current" : "") + '"><td class="mono nowrap">' + date(p.start) + " → " + (p.current ? "now" : date(p.end)) + (p.current ? ' <span class="badge accent">Current</span>' : "") + "</td><td class='r num'>" + val(p.days) + "</td><td>" + cfg + "</td>" +
+          "<td class='r num nowrap'>" + (perDay(p) == null ? '<span class="faint">–</span>' : fmtMoney(perDay(p))) + (prev ? dl(perDay(p), perDay(prev), true) : "") + "</td><td class='r num'>" + val(p.billed_days) + "</td>" +
+          "<td class='r num nowrap'>" + (p.queries == null ? "–" : Number(p.queries).toLocaleString("en-US")) + "</td><td class='r num nowrap'>" + fmtMs(p.p95_ms) + (prev ? dl(p.p95_ms, prev.p95_ms, true) : "") + "</td>" +
+          "<td class='r num nowrap'>" + fmtP(p.queued_pct) + (prev ? dl(p.queued_pct, prev.queued_pct, true) : "") + "</td><td class='r num nowrap'>" + fmtP(p.spill_pct) + (prev ? dl(p.spill_pct, prev.spill_pct, true) : "") + "</td>" +
+          "<td class='r num'>" + val(p.peak_clusters) + "</td><td>" + linkBadge(p) + "</td></tr>";
+      }).join("") + "</tbody>";
+  }
+  function renderChangeLog() {
+    var rows = [];
+    visibleWarehouses().forEach(function (w) {
+      var ps = (w.history || {}).periods || [];
+      ps.forEach(function (p, i) { if (p.changes && p.changes.length) rows.push({ w: w, p: p, prev: i > 0 ? ps[i - 1] : null }); });
+    });
+    rows.sort(function (a, b) { return String(b.p.start).localeCompare(String(a.p.start)) || a.w.name.localeCompare(b.w.name); });
+    var linked = rows.filter(function (r) { return r.p.link; }).length;
+    $("#rz-changes-sub").textContent = rows.length ? rows.length + " configuration change" + (rows.length === 1 ? "" : "s") + " in the trailing year across the visible warehouses; " + linked + " linked to a recommendation. Before and after are observed figures, not measured savings."
+      : "No configuration change in the trailing year across the visible warehouses.";
+    $("#rz-changes").innerHTML = rows.length ? "<thead><tr><th>Changed</th><th>Warehouse</th><th>Owner</th><th>What changed</th><th class='r'>DBU cost / billed day</th><th class='r'>p95</th><th class='r'>Queued</th><th>Recommendation</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var p = r.p, q = r.prev || {};
+        return '<tr class="click" data-wh="' + esc(r.w.key) + '"><td class="mono nowrap">' + date(p.start) + '</td><td><div class="wh-name">' + esc(r.w.name) + '</div><div class="wh-sub">' + esc(r.w.id) + "</div></td><td class='owner' title='" + esc(r.w.owner || "") + "'>" + esc(r.w.owner || "–") + "</td><td>" + changeChips(p.changes) + "</td>" +
+          "<td class='r num nowrap'>" + (perDay(q) == null ? "–" : fmtMoney(perDay(q))) + " → <b>" + (perDay(p) == null ? "–" : fmtMoney(perDay(p))) + "</b>" + dl(perDay(p), perDay(q), true) + "</td>" +
+          "<td class='r num nowrap'>" + fmtMs(q.p95_ms) + " → <b>" + fmtMs(p.p95_ms) + "</b>" + dl(p.p95_ms, q.p95_ms, true) + "</td><td class='r num nowrap'>" + fmtP(q.queued_pct) + " → <b>" + fmtP(p.queued_pct) + "</b></td><td>" + linkBadge(p) + "</td></tr>";
+      }).join("") + "</tbody>" : "";
+    bindRows("#rz-changes");
+  }
   // ---------- realization (fleet) ----------
   function renderRealization() {
     var ws = visibleWarehouses(), rows = [];
@@ -1051,6 +1132,7 @@ footer p{max-width:110ch;margin:0}
       series: [{ name: "Realized run-rate (claimable)", type: "line", symbolSize: 8, lineStyle: { width: 2 }, itemStyle: { color: css("--s3") }, areaStyle: { color: css("--s3"), opacity: .08 }, data: pts.map(function (p) { return p.k.realized; }) },
                { name: "Realized to date", type: "line", symbolSize: 8, lineStyle: { width: 2 }, itemStyle: { color: css("--s1") }, data: pts.map(function (p) { return p.k.realized_to_date; }) },
                { name: "Identified (base)", type: "line", symbolSize: 7, lineStyle: { width: 2, type: "dashed" }, itemStyle: { color: css("--faint") }, data: pts.map(function (p) { return p.k.identified.base; }) }] });
+    renderChangeLog();
     // table
     var list = (S.rz === "all" ? allApplied : claim).slice().sort(function (a, b) { return (b.l.annualized == null ? -Infinity : b.l.annualized) - (a.l.annualized == null ? -Infinity : a.l.annualized) || a.w.name.localeCompare(b.w.name); });
     $("#rz-table").innerHTML = "<thead><tr><th>Warehouse</th><th>Change</th><th>Applied</th><th class='r'>Days</th><th>State</th><th>Maturity</th><th>Claim</th>" + (S.rz === "all" ? "<th>Package</th>" : "") + "<th class='r'>Expected (base)</th><th class='r'>Run-rate</th><th class='r'>To date</th><th class='r'>Ratio</th><th>Next action</th></tr></thead><tbody>" +

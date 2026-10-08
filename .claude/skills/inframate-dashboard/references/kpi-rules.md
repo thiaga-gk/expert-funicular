@@ -31,6 +31,16 @@ savings, the measured run-rate for realized savings. The workbook rules are thos
 | Applied changes | lineages with an applied state | One per distinct change (warehouse, knob, applied value): when a later package supersedes an earlier one, both lineages observe the same change, so the claimable (else active, else newest) lineage stands for it. The lineage count is shown beside it. |
 | Against the expected range | claimable lineages with a run-rate | Below `expected_range.low`, within, or above `expected_range.high`. |
 
+## Configuration history
+
+From the run's replay evidence (`evidence.json` `warehouses[].epochs[]`): one period per configuration epoch in the
+trailing year, with the knobs that changed at its start (config diff against the previous epoch), its days in force,
+billed DBU list cost and billed days (`cost`), query count, p95, queued and spill shares (`query.epoch_*`) and peak
+clusters observed (`events.max_observed_clusters`). DBU cost per billed day is list cost divided by billed days; it is
+unknown when the period has unpriced DBU. A change is linked to a recommendation when a Realizer lineage observed that
+knob applied at that value. Without replay evidence, the history is the package's `observed_change`. Before/after
+figures are observed, not measured savings: the workload differs between periods, and the Realizer measures savings.
+
 ## As-of join
 
 For Publisher run *i*, the Realizer data shown is, per realization lineage, the latest RPKG snapshot whose

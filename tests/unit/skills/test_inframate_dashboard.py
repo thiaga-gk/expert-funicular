@@ -150,6 +150,32 @@ class DashboardFixtureTests(unittest.TestCase):
             self.assertEqual(len(recommended), 1)
             self.assertEqual(recommended[0]["steps"], w["steps"])
 
+    def test_config_history_falls_back_to_the_package_change_without_evidence(self):
+        # the fixture runs carry no evidence.json: history is the package's observed_change, or nothing
+        for w in self.data["details"][RUN_TIMES[-1]]["warehouses"]:
+            self.assertIn(w["history"]["source"], ("package", "none"))
+            for period in w["history"]["periods"]:
+                self.assertTrue(period["changes"])
+
+    def test_config_history_from_evidence_lists_each_change(self):
+        package = json.loads(next((DEMO_PACKAGES / "packages").glob("*wh-demo-040.json")).read_text())
+        config = {"warehouse_type": "PRO", "warehouse_size": "LARGE", "min_clusters": 1, "max_clusters": 2, "auto_stop_minutes": 15, "warehouse_channel": "CURRENT"}
+        epochs = [
+            {"epoch_start": "2025-10-01T00:00:00+00:00", "epoch_end": "2026-09-27T00:00:00+00:00", "is_current": False, "config": config,
+             "cost": {"cost_days": 300, "list_cost": 48000.0, "dbu_quantity": 1.0, "unpriced_dbu_quantity": 0.0}, "query": {"epoch_p95_execution_ms": 2500}, "events": {}},
+            {"epoch_start": "2026-09-27T00:00:00+00:00", "epoch_end": None, "is_current": True, "config": {**config, "warehouse_size": "MEDIUM"},
+             "cost": {"cost_days": 4, "list_cost": 380.0, "dbu_quantity": 1.0, "unpriced_dbu_quantity": 5.0}, "query": {}, "events": {}},
+        ]
+        hist = B.config_history({"epochs": epochs, "analysis_time": "2026-10-01T12:00:00+00:00"}, package, [])
+        self.assertEqual(hist["source"], "evidence")
+        first, current = hist["periods"]
+        self.assertEqual(first["changes"], [])
+        self.assertEqual(current["changes"], [{"knob": "warehouse_size", "from": "LARGE", "to": "MEDIUM"}])
+        self.assertEqual((first["days"], current["days"]), (361, 4))
+        self.assertEqual(first["list_cost"], 48000.0)
+        self.assertIsNone(current["list_cost"])  # unpriced DBU in the period: its cost is unknown, never a smaller number
+        self.assertIsNone(current["link"])
+
     def test_an_unsupported_contract_run_is_skipped_and_listed(self):
         with tempfile.TemporaryDirectory() as tmp:
             run = write_run(Path(tmp), "20261001T000000Z", RUN_TIMES[0])
@@ -182,9 +208,11 @@ class DashboardPipelineTests(unittest.TestCase):
             html = out.read_text()
             data = json.loads(html.split('id="dashboard-data">', 1)[1].split("</script>", 1)[0].replace("<\\/", "</"))
             problems = B.reconcile_workbooks(data, pub)
+            self.assertEqual(B.main(["--refresh", "--publisher-root", str(pub), "--realizer-root", str(real), "--out", str(out)]), 0)
             logging.disable(logging.NOTSET)
         self.assertEqual(problems, [])
         self.assertIn("reconciled 1 run(s)", out_text.getvalue())  # the build's own --verify compared the workbook cells
+        self.assertIn("refresh: newest run 2026-10-01; 0 run(s) new since the last build", out_text.getvalue())
         k = data["runs"][0]["kpis"]["by_currency"]["USD"]
         self.assertEqual(k["warehouses"], 4)
         self.assertTrue(data["meta"]["realizer_found"])

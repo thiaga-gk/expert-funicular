@@ -26,11 +26,12 @@ sha256-pinned ECharts. Opening the file is the whole user experience.
 
 Run from the repository root with the project interpreter (`.venv/bin/python`, `PYTHONPATH=src`).
 
-**Build or refresh from real output.** Refreshing is rebuilding: every build rescans the roots, so a new run
-appears and becomes the default selection.
+**Build or refresh from real output.** Every build rescans the roots, so a new Publisher or Realizer run
+appears and the newest run becomes the default selection. `--refresh` is the everyday form: it rebuilds, verifies,
+and reports the newest run and how many runs are new since the page was last built.
 ```
-python .claude/skills/inframate-dashboard/scripts/build_dashboard.py \
-  --publisher-root ./warehouse_optimizer_out --realizer-root ./realizer_out --verify
+python .claude/skills/inframate-dashboard/scripts/build_dashboard.py --refresh \
+  --publisher-root ./warehouse_optimizer_out --realizer-root ./realizer_out
 ```
 It writes `<publisher-root>/dashboard/inframate-dashboard.html`. That page holds owner emails and real cost, so
 keep it local: never commit it, and never publish it as an artifact or anywhere else unless the user asks for that

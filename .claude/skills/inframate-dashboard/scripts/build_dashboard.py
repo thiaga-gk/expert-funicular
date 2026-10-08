@@ -249,6 +249,54 @@ def lineage_applies(lineage: Mapping[str, Any], knob: str, value: Any) -> bool:
     return app.get("state") == "APPLIED" and app.get("knob") == knob and canonical(app.get("observed_applied_value")) == canonical(value)
 
 
+CONFIG_KNOBS = ("warehouse_type", "warehouse_size", "min_clusters", "max_clusters", "auto_stop_minutes", "warehouse_channel")
+
+
+def config_history(evidence_wh: Optional[Mapping[str, Any]], package: Mapping[str, Any], lineages: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """The warehouse's configuration periods in the trailing year, oldest first, each with what changed at its start and
+    what was observed during it (billed cost, workload, cluster behaviour), as the evidence states it.
+
+    A change is linked to a recommendation when a Realizer lineage observed that knob applied at that value. Without
+    replay evidence the history is the package's single ``observed_change`` (no period figures)."""
+    def linked(changes):
+        for c in changes:
+            for l in lineages:
+                app = l.get("application") or {}
+                if app.get("knob") == c["knob"] and canonical(app.get("observed_applied_value")) == canonical(c["to"]):
+                    return {"rpkg": l["realization_package_id"], "state": l["current_state"]["realization_state"],
+                            "claim": (l.get("attribution") or {}).get("attribution_claim_status"),
+                            "annualized": money(dec((l.get("economics") or {}).get("annualized_realized_savings")))}
+        return None
+
+    if not evidence_wh or not evidence_wh.get("epochs"):
+        oc = package.get("observed_change")
+        if not oc:
+            return {"source": "none", "periods": []}
+        changes = [{"knob": c["knob"], "from": c.get("previous_value"), "to": c.get("current_value")} for c in oc.get("changes") or []]
+        return {"source": "package", "periods": [{"start": oc.get("changed_at"), "end": None, "current": True, "changes": changes, "link": linked(changes)}]}
+    analysis = str(evidence_wh.get("analysis_time"))
+    epochs = sorted(evidence_wh["epochs"], key=lambda e: str(e.get("epoch_start")))
+    periods, previous = [], None
+    for e in epochs:
+        cfg = {k: (e.get("config") or {}).get(k) for k in CONFIG_KNOBS}
+        changes = [] if previous is None else [{"knob": k, "from": previous[k], "to": cfg[k]} for k in CONFIG_KNOBS if canonical(previous[k]) != canonical(cfg[k])]
+        cost, q, ev = e.get("cost") or {}, e.get("query") or {}, e.get("events") or {}
+        end = e.get("epoch_end")
+        periods.append({
+            "start": e.get("epoch_start"), "end": end, "current": bool(e.get("is_current")), "config": cfg, "changes": changes,
+            "days": days_between(str(e.get("epoch_start")), str(end or analysis)),
+            "billed_days": cost.get("cost_days"), "active_days": cost.get("active_cost_days"),
+            "list_cost": None if dec(cost.get("unpriced_dbu_quantity")) else money(dec(cost.get("list_cost"))),
+            "dbu": None if cost.get("dbu_quantity") is None else round(float(cost["dbu_quantity"]), 1),
+            "queries": q.get("epoch_queries"), "p95_ms": q.get("epoch_p95_execution_ms"),
+            "queued_pct": q.get("epoch_queued_query_pct"), "spill_pct": q.get("epoch_spill_query_pct"),
+            "peak_clusters": ev.get("max_observed_clusters"), "uptime_minutes": ev.get("uptime_minutes"),
+            "link": linked(changes) if changes else None,
+        })
+        previous = cfg
+    return {"source": "evidence", "periods": periods}
+
+
 def trailing_days(evidence_wh: Optional[Mapping[str, Any]]) -> Optional[int]:
     """Billed calendar days of the trailing year in replay evidence (None without evidence)."""
     if not evidence_wh:
@@ -399,6 +447,7 @@ def project_warehouse(p: Mapping[str, Any], lineages: Sequence[Mapping[str, Any]
         "applied_thresholds": (p.get("cost_profile") or {}).get("applied_thresholds"),
         "currency": cb["currency"], "actual": cost(cb["actual_365d"]), "forward": cost(cb["forward_365d"]),
         "trailing_days": trailing_days(evidence_wh),
+        "history": config_history(evidence_wh, p, lineages),
         "forecast": {"model": (cb.get("forecast") or {}).get("model"), "confidence": ((cb.get("forecast") or {}).get("confidence") or {}).get("level")},
         "plan": None if plan is None else {"total": srange(plan["total"]), "dbu": srange(plan.get("dbu")) if plan.get("dbu") else None,
                                            "aws": srange(plan.get("aws")) if plan.get("aws") else None},
@@ -803,6 +852,16 @@ def reconcile_workbooks(dataset: Mapping[str, Any], publisher_root: Path) -> Lis
 
 # --------------------------------------------------------------------------- demo pipeline
 
+def embedded_run_keys(path: Path) -> List[str]:
+    """Run keys of a previously built page (empty when there is none or it cannot be read)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        blob = text.split('id="dashboard-data">', 1)[1].split("</script>", 1)[0]
+        return [r["key"] for r in json.loads(blob.replace("<\\/", "</").replace("<\\!--", "<!--"))["runs"]]
+    except (OSError, IndexError, ValueError, KeyError):
+        return []
+
+
 def run_demo_pipeline(workdir: Path) -> Tuple[Path, Path]:
     """Three monthly Publisher demo runs, each followed by a Realizer fleet demo run into one shared state."""
     pub, real = workdir / "publisher", workdir / "realizer"
@@ -838,6 +897,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--demo", action="store_true", help="Build the committed demo from a scratch Publisher + Realizer demo pipeline")
     mode.add_argument("--check", action="store_true", help="Rebuild the demo in memory and compare it with the committed file")
+    mode.add_argument("--refresh", action="store_true", help="Rebuild the real-data page from the roots with the latest runs, verify it, and report what is new")
     ap.add_argument("--demo-workdir", help="Keep (or reuse) the demo pipeline output here instead of a temporary folder")
     ap.add_argument("--verify", action="store_true", help="After building, verify the page and reconcile KPIs with each run's workbook")
     args = ap.parse_args(argv)
@@ -845,6 +905,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ap.error("--detail-runs must be at least 1")
 
     demo = args.demo or args.check
+    if args.refresh:
+        args.verify = True
     tmp = None
     if demo:
         workdir = Path(args.demo_workdir) if args.demo_workdir else Path(tmp := tempfile.mkdtemp(prefix="inframate-dashboard-demo-"))
@@ -867,8 +929,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 return 1
             print(f"check: {rel(out, ROOT)} is current")
         else:
+            before = embedded_run_keys(out) if args.refresh else []
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(html, encoding="utf-8")
+            if args.refresh:
+                keys = [r["key"] for r in dataset["runs"]]
+                message = f"refresh: newest run {keys[-1][:10] if keys else 'none'}"
+                if not before:
+                    message += f"; first build, {len(keys)} run(s)"
+                else:
+                    if keys and before[-1] != keys[-1]:
+                        message += f" (the page showed {before[-1][:10]} before)"
+                    message += f"; {sum(1 for k in keys if k not in before)} run(s) new since the last build"
+                print(message)
             runs = dataset["runs"]
             print(f"wrote {out} ({len(html.encode('utf-8')) / 1048576:.1f} MB, {len(runs)} run(s), "
                   f"{sum(1 for r in runs if r['detail'])} with detail, {dataset['meta']['rpkg_snapshots']} realization snapshot(s), "
