@@ -14,6 +14,8 @@ from typing import List, Optional, Sequence, Tuple
 
 from publisher.analyzer import analyzer
 from publisher.analyzer.collector.demo import DEMO_FLEET
+from publisher.analyzer.collector.replay import evidence_saved_note
+from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.config.cost_profiles import parse_cost_profile_flags
 from publisher.config.loader import resolve_execution_mode, resolve_scope
@@ -65,19 +67,29 @@ def _log_pipeline_start(analysis: FleetAnalysis, governance: GovernanceResult, b
 def publish(request: PublisherRequest) -> ReportContract:
     """One deterministic publisher run: every capability once, in order, returning what the Reporter wrote.
 
-    Side effects are the Reporter's: packages/, evidence.json, manifest.json and (unless disabled) workbook.xlsx under
+    Side effects are the Reporter's: packages/, evidence.json (a live run's Analyzer saves it first, right after collection), manifest.json and (unless disabled) workbook.xlsx under
     ``request.output_dir``. Raises PublisherError for a refused run (bad input, unusable source, policy refusal); the CLI
     maps that to exit status 2. This function sequences the capabilities and holds no domain logic.
     """
     context = build_context(request)
+    governor.preflight(context)
     analysis = analyzer.run(context)
-    governance = governor.run(context, analysis)
-    _log_pipeline_start(analysis, governance, request.batch_size)
-    optimization = optimizer.run(context, analysis, governance)
-    reviewed_candidates = reviewer.review_candidates(context, analysis, governance, optimization)
-    package = packager.run(context, analysis, governance, reviewed_candidates)
-    reviewed_package = reviewer.review_package(context, analysis, governance, package)
-    return reporter.run(context, analysis, governance, reviewed_package)
+    try:
+        governance = governor.run(context, analysis)
+        _log_pipeline_start(analysis, governance, request.batch_size)
+        optimization = optimizer.run(context, analysis, governance)
+        reviewed_candidates = reviewer.review_candidates(context, analysis, governance, optimization)
+        package = packager.run(context, analysis, governance, reviewed_candidates)
+        reviewed_package = reviewer.review_package(context, analysis, governance, package)
+        return reporter.run(context, analysis, governance, reviewed_package)
+    except PublisherError as exc:
+        if analysis.evidence_path is not None:
+            raise PublisherError(f"{exc} {evidence_saved_note(analysis.evidence_path)}") from exc
+        raise
+    except Exception:
+        if analysis.evidence_path is not None:
+            LOGGER.error("%s", evidence_saved_note(analysis.evidence_path))
+        raise
 
 
 def _reviewed_candidates(

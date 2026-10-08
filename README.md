@@ -71,7 +71,7 @@ Each run writes to its own folder under `--output-dir`, named from the run's UTC
         ├── packages/
         │   └── <workspace_id>__<warehouse_id>.json
         ├── workbook.xlsx
-        ├── evidence.json          # versioned replay input for --from-evidence
+        ├── evidence.json          # versioned replay input for --from-evidence (a live run writes it right after collection, so a later refusal or crash keeps it)
         ├── manifest.json
         └── publisher.log
 ```
@@ -122,7 +122,7 @@ publisher \
 
 Every flag, its default and its meaning: [`docs/architecture/publisher/lld.md`](docs/architecture/publisher/lld.md) section 5.2. `--sql-warehouse-id` is also supported. A validated all-purpose cluster may be used with `--all-purpose-cluster-id`; jobs compute is rejected. REST interactions are read-only and limited to execution-target resolution/validation and optional compatibility evidence. Authoritative optimizer configuration and metrics remain system-table driven.
 
-`--source-region` must be an AWS region in `pricing/aws_ec2_on_demand.json` when the fleet has Pro/Classic warehouses: otherwise a live run stops after collection, before writing packages, evidence or the workbook. Add `--allow-missing-aws-price` to publish anyway, with Pro/Classic AWS cost unavailable. Serverless-only fleets and `--from-evidence` replays are not affected.
+`--source-region` must be an AWS region in `pricing/aws_ec2_on_demand.json` when the fleet has Pro/Classic warehouses: otherwise a live run stops after collection, before writing packages or the workbook; `evidence.json` and `publisher.log` are already in the run folder, and the message names the file and `--from-evidence` to replay it. A WARNING at the start of the run announces the gap before any SQL runs. Add `--allow-missing-aws-price` to publish anyway, with Pro/Classic AWS cost unavailable. Serverless-only fleets and `--from-evidence` replays are not affected.
 
 To reproduce an earlier collection despite later billing corrections, add `--billing-ingested-through YYYY-MM-DD`: every billing query then reads only records ingested on or before that date. A UTC day enters the cost basis only after the `billing_settle_hours` buffer following its end and once its workspace's billing watermark has passed it.
 

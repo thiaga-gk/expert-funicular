@@ -5,14 +5,15 @@ closed (never analyzed); the Governor records their exclusion.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from publisher.analyzer.calibration import _prepare_workspace_calibration
 from publisher.analyzer.collector.billing import collect_unseen_billed_warehouses
 from publisher.analyzer.collector.collector import extract_evidence
 from publisher.analyzer.collector.demo import DEMO_FLEET, synthetic_demo_evidence
 from publisher.analyzer.collector.pricing import load_aws_price_registry
-from publisher.analyzer.collector.replay import load_evidence_files
+from publisher.analyzer.collector.replay import evidence_saved_note, load_evidence_files, save_evidence
 from publisher.analyzer.collector.sql_executor import SqlClient
 from publisher.analyzer.collector.workspace_api import collect_workspace_compatibility_evidence, resolve_cli_oauth
 from publisher.analyzer.findings import Analyzer
@@ -58,11 +59,14 @@ def analyze(evidence: Sequence[WarehouseEvidence], thresholds: Thresholds,
     return results
 
 
-def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[WarehouseEvidence], Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
+def collect(request: PublisherRequest, thresholds: Thresholds,
+            on_evidence: Optional[Callable[[List[WarehouseEvidence]], None]] = None) -> Tuple[List[WarehouseEvidence], Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
     """Evidence for the requested source: the demo simulation, replay files, or the live system tables.
 
     Returns the evidence, the unseen billed warehouses (live only) and the AWS price registry (live only). Raises
     PublisherError for an out-of-range --demo-count. Live runs use OAuth profiles only and read system tables read-only.
+    ``on_evidence`` is called with the extracted evidence as soon as a live collection has it, before the remaining
+    collector queries, so the caller can persist the expensive part.
     """
     if request.mode == MODE_DEMO:
         if not (1 <= request.demo_count <= len(DEMO_FLEET)):
@@ -82,18 +86,49 @@ def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[War
     registry = load_aws_price_registry(request.aws_price_registry)
     with SqlClient(auth) as client:
         evidence = extract_evidence(client, thresholds, request.source_region, registry, compat, ingestion_cutoff=request.billing_ingested_through)
+        if on_evidence is not None:
+            on_evidence(evidence)
         unseen = collect_unseen_billed_warehouses(client, ingestion_cutoff=request.billing_ingested_through)
     LOGGER.info("analyzer.collect_done mode=live warehouses=%d unseen_billed=%d", len(evidence), len(unseen or []))
     return evidence, unseen, registry
+
+
+def save_collected_evidence(request: PublisherRequest, evidence: Sequence[WarehouseEvidence]) -> Path:
+    """Write the freshly collected evidence to ``<output dir>/evidence.json`` (the versioned, schema-validated replay envelope).
+
+    A live collection covers 365 days of system tables; saving it before any decision keeps it replayable
+    (``--from-evidence``) when a later stage refuses or crashes. The Reporter rewrites the same bytes at the end of a
+    successful run.
+    """
+    request.output_dir.mkdir(parents=True, exist_ok=True)
+    path = request.output_dir / "evidence.json"
+    save_evidence(path, evidence)
+    LOGGER.info("evidence.saved_early path=%s warehouses=%d", path, len(evidence))
+    return path
 
 
 def run(context: RunContext) -> FleetAnalysis:
     """What is happening: collect and normalize evidence, then analyze every supported warehouse.
 
     The returned FleetAnalysis keeps all collected evidence (including unsupported types) beside findings for the
-    supported warehouses only.
+    supported warehouses only. A live run saves the evidence as soon as it is extracted (``FleetAnalysis.evidence_path``);
+    a refusal after that point names the saved file and ``--from-evidence``.
     """
-    evidence, unseen, registry = collect(context.request, context.thresholds)
-    selection = parse_cost_profile_flags(context.request.cost_profiles)
-    return FleetAnalysis(evidence=list(evidence), warehouses=analyze(evidence, context.thresholds, selection),
-                         unseen_billed_warehouses=unseen, aws_price_registry=registry)
+    saved: List[Path] = []
+
+    def on_evidence(evidence: List[WarehouseEvidence]) -> None:
+        saved.append(save_collected_evidence(context.request, evidence))
+
+    try:
+        evidence, unseen, registry = collect(context.request, context.thresholds, on_evidence)
+        selection = parse_cost_profile_flags(context.request.cost_profiles)
+        return FleetAnalysis(evidence=list(evidence), warehouses=analyze(evidence, context.thresholds, selection),
+                             unseen_billed_warehouses=unseen, aws_price_registry=registry, evidence_path=saved[0] if saved else None)
+    except PublisherError as exc:
+        if saved:
+            raise PublisherError(f"{exc} {evidence_saved_note(saved[0])}") from exc
+        raise
+    except Exception:
+        if saved:
+            LOGGER.error("%s", evidence_saved_note(saved[0]))
+        raise

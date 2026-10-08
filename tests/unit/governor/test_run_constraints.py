@@ -86,3 +86,28 @@ class ServerlessRegionCheckTests(unittest.TestCase):
 
     def test_existing_serverless_warehouse_in_the_workspace_proves_the_region(self):
         self.assertEqual(self._check(True)["status"], "PASS")
+
+
+class EarlyRegionWarningTests(unittest.TestCase):
+    """The AWS price-registry gap is announced before any SQL runs; the refusal itself still waits for the fleet."""
+
+    def _log(self, region, extra=()):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                patch("publisher.analyzer.analyzer.resolve_cli_oauth", side_effect=RuntimeError("stop before any SQL")):
+            with self.assertRaises(RuntimeError):
+                cli_main(["--output-dir", tmp, "--flat-output", "--sql-warehouse-id", "abc", "--source-region", region, *extra])
+            return (Path(tmp) / "publisher.log").read_text()
+
+    def test_an_unregistered_region_warns_before_collection(self):
+        text = self._log("unknown")
+        self.assertIn("WARNING aws.region_not_in_registry_early", text)
+        self.assertIn("--allow-missing-aws-price", text)
+
+    def test_the_opt_in_names_the_unavailable_cost(self):
+        text = self._log("unknown", ("--allow-missing-aws-price",))
+        self.assertIn("WARNING aws.region_not_in_registry_early", text)
+        self.assertIn("unavailable", text)
+
+    def test_a_registered_region_does_not_warn(self):
+        self.assertNotIn("region_not_in_registry", self._log("us-east-1"))

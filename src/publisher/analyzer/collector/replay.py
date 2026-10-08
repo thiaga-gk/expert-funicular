@@ -60,6 +60,11 @@ def save_evidence(path:Path,evidence:Sequence[WarehouseEvidence])->None:
     LOGGER.info("replay.save warehouses=%d evidence_format_version=%s", len(evidence), EVIDENCE_FORMAT_VERSION)
 
 
+def evidence_saved_note(path: Path) -> str:
+    """The sentence appended to a refusal or logged for a crash once the collection is on disk: where it is and how to replay it."""
+    return f"The collected evidence is saved at {path}; replay it without collecting again with --from-evidence {path}."
+
+
 def _epoch_from_dict(x:Mapping[str,Any])->EpochEvidence:
     """Rebuild an EpochEvidence from its serialized dict; ``resource_daily`` None (not collected) stays distinct from []."""
     return EpochEvidence(epoch_id=str(x["epoch_id"]),warehouse_id=str(x["warehouse_id"]),workspace_id=str(x.get("workspace_id") or ""),account_id=str(x.get("account_id") or ""),warehouse_name=str(x.get("warehouse_name") or x["warehouse_id"]),
