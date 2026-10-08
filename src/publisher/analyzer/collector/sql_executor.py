@@ -7,7 +7,7 @@ read-only client (``workflow_shared.databricks.access``) bound to the publisher'
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
+from typing import Callable, Optional
 
 from publisher.analyzer.collector.workspace_api import PUBLISHER_ACCESS, AuthContext
 from publisher.common.errors import PublisherError
@@ -20,8 +20,8 @@ class SqlClient(access.SqlClient):
     Use as a context manager: entering opens the connection with the session pinned to UTC and verifies it (a
     PublisherError otherwise); leaving closes it. ``query`` returns rows as dicts and logs the label, never the statement.
     """
-    def __init__(self, auth: AuthContext):
-        super().__init__(auth, PUBLISHER_ACCESS)
+    def __init__(self, auth: AuthContext, refresh: Optional[Callable[[], AuthContext]] = None):
+        super().__init__(auth, PUBLISHER_ACCESS, refresh)
 
 
 def with_ingestion_cutoff(statement: str, cutoff: Optional[str]) -> str:

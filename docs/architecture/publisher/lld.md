@@ -187,7 +187,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
 | `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3) |
 | `--profile` | Databricks CLI profile; default `DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`. OAuth profiles only: a profile that holds a static PAT is rejected |
-| `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE` |
+| `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE`. A live collection mints the token again, and reopens the SQL connection, before any statement that would start within five minutes of the token's expiry |
 | `--serverless-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SERVERLESS_WAREHOUSE_ID`) |
 | `--sql-warehouse-id` | SQL execution target convenience flag (default `DATABRICKS_SQL_WAREHOUSE_ID`) |
 | `--all-purpose-cluster-id` | all-purpose SQL Connector target (default `DATABRICKS_ALL_PURPOSE_CLUSTER_ID`) |

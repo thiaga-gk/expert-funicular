@@ -195,6 +195,54 @@ class SqlClientTests(unittest.TestCase):
         self.assertTrue(calls["closed"])
 
 
+class TokenRefreshTests(unittest.TestCase):
+    NOW = access.dt.datetime(2026, 10, 8, 12, 0, tzinfo=access.dt.timezone.utc)
+
+    def test_expiry_within_the_margin_reads_cli_nanoseconds_and_offsets(self):
+        self.assertTrue(access.token_expires_within("2026-10-08T05:03:00.123456789-07:00", now=self.NOW))
+        self.assertFalse(access.token_expires_within("2026-10-08T12:30:00Z", now=self.NOW))
+        self.assertTrue(access.token_expires_within("2026-10-08T11:00:00", now=self.NOW))
+
+    def test_a_missing_or_unreadable_expiry_never_triggers_a_refresh(self):
+        for value in (None, "", "tomorrow"):
+            self.assertFalse(access.token_expires_within(value, now=self.NOW))
+
+    def test_an_expiring_token_is_minted_again_and_the_connection_reopened(self):
+        calls, modules = fake_connector("UTC")
+        connects = []
+        connect = modules["databricks.sql"].connect
+        modules["databricks.sql"].connect = lambda **kw: (connects.append(kw["access_token"]), connect(**kw))[1]
+        first = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "old", "2026-10-08T12:03:00Z", "warehouse", "x")
+        fresh = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "new", "2026-10-08T13:00:00Z", "warehouse", "x")
+        # Valid when the connection opens, within the margin when the first statement starts (a long collection).
+        clock = iter([False, False, True, False, False, False])
+        with patch.dict(sys.modules, modules), patch.object(access, "token_expires_within", lambda *a, **k: next(clock)), \
+                self.assertLogs("workflow_shared.test", "INFO") as logs:
+            with access.SqlClient(first, CONFIG, refresh=lambda: fresh) as client:
+                client.query("SELECT 1 AS tz", label="first")
+                client.query("SELECT 1 AS tz", label="second")
+        self.assertEqual(connects, ["old", "new"])
+        self.assertIn("sql.token_refresh label=first", "\n".join(logs.output))
+        self.assertNotIn("new", "\n".join(logs.output).replace("sql.token_refresh", ""))
+
+    def test_a_token_already_expiring_at_connect_is_minted_before_connecting(self):
+        calls, modules = fake_connector("UTC")
+        expired = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "old", "2000-01-01T00:00:00Z", "warehouse", "x")
+        fresh = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "new", "2999-01-01T00:00:00Z", "warehouse", "x")
+        with patch.dict(sys.modules, modules):
+            with access.SqlClient(expired, CONFIG, refresh=lambda: fresh) as client:
+                client.query("SELECT 1 AS tz", label="only")
+        self.assertEqual(calls["connect"]["access_token"], "new")
+
+    def test_without_refresh_the_token_is_used_as_given(self):
+        calls, modules = fake_connector("UTC")
+        expiring = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "old", "2000-01-01T00:00:00Z", "warehouse", "x")
+        with patch.dict(sys.modules, modules):
+            with access.SqlClient(expiring, CONFIG) as client:
+                client.query("SELECT 1 AS tz", label="only")
+        self.assertEqual(calls["connect"]["access_token"], "old")
+
+
 class VocabularyTests(unittest.TestCase):
     def test_size_order_is_the_ten_sizes_smallest_first(self):
         self.assertEqual(SIZE_ORDER, ["2X_SMALL", "X_SMALL", "SMALL", "MEDIUM", "LARGE", "X_LARGE",

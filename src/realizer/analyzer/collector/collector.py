@@ -20,13 +20,14 @@ from realizer.analyzer.collector import bridge
 from realizer.analyzer.measurement import epoch_config, plan_measurement
 from realizer.analyzer.projector import project_observation
 from realizer.common.errors import InputError
-from realizer.common.utils import money, parse_utc, same_warehouse_id, utc_iso, write_json
+from realizer.common.utils import money, same_warehouse_id, utc_iso, write_json
 from realizer.config.loader import read_json_input, validate_measurement_evidence, validate_package
 from realizer.config.settings import DEFAULT_AWS_PRICE_REGISTRY
 from realizer.estimator.economics import expected_annual_for_exact_step
 from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.governor.policy import authority_eligible, package_currency
+from workflow_shared.databricks.access import token_expires_within
 
 
 def package_region(package: Mapping[str, Any]) -> Optional[str]:
@@ -144,12 +145,7 @@ class LiveSession:
 
     def _expiring(self) -> bool:
         """Whether the token expires within the refresh margin (an expiry the CLI did not give, or in a form not read, never)."""
-        if self._auth is None or not self._auth.token_expiry:
-            return False
-        try:
-            return parse_utc(self._auth.token_expiry) - dt.datetime.now(dt.timezone.utc) < TOKEN_REFRESH_MARGIN
-        except ValueError:
-            return False
+        return self._auth is not None and token_expires_within(self._auth.token_expiry, TOKEN_REFRESH_MARGIN)
 
     def invalidate(self) -> None:
         """Drop the connection after a failure: the next ``client()`` opens a fresh one (the rows read so far are kept)."""

@@ -80,7 +80,10 @@ def collect(request: PublisherRequest, thresholds: Thresholds) -> Tuple[List[War
     compat = collect_workspace_compatibility_evidence(auth, request.compatibility_api_mode)
     LOGGER.info("compatibility.mode=%s status=%s workspace_id=%s", compat.get("mode"), compat.get("status"), compat.get("workspace_id"))
     registry = load_aws_price_registry(request.aws_price_registry)
-    with SqlClient(auth) as client:
+    def refresh():
+        return resolve_cli_oauth(request.profile, request.execution_kind, request.execution_id, request.config_file, request.workspace_id)
+
+    with SqlClient(auth, refresh=refresh) as client:
         evidence = extract_evidence(client, thresholds, request.source_region, registry, compat, ingestion_cutoff=request.billing_ingested_through)
         unseen = collect_unseen_billed_warehouses(client, ingestion_cutoff=request.billing_ingested_through)
     LOGGER.info("analyzer.collect_done mode=live warehouses=%d unseen_billed=%d", len(evidence), len(unseen or []))

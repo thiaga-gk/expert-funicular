@@ -9,7 +9,9 @@ to, the user agent sent to Databricks and the exception type every refusal raise
 from __future__ import annotations
 
 import configparser
+import datetime as dt
 import json
+import re
 import logging
 import os
 import subprocess
@@ -19,10 +21,27 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type
 
 
 UTC_TIMEZONE_NAMES = frozenset({"UTC", "Etc/UTC", "Etc/UCT", "UCT", "Z", "+00:00", "GMT", "Etc/GMT"})
+# A token is minted again when it would expire within this margin, before the next statement runs.
+TOKEN_REFRESH_MARGIN = dt.timedelta(minutes=5)
+
+
+def token_expires_within(expiry: Optional[str], margin: dt.timedelta = TOKEN_REFRESH_MARGIN, *, now: Optional[dt.datetime] = None) -> bool:
+    """Whether a CLI token ``expiry`` (RFC 3339, possibly with nanoseconds as the CLI writes it) falls within *margin* of
+    *now*. An expiry the CLI did not give, or in a form not read, is never treated as expiring."""
+    if not expiry:
+        return False
+    text = re.sub(r"(\.\d{6})\d+", r"\1", str(expiry).strip()).replace("Z", "+00:00")
+    try:
+        when = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return False
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return when - (now or dt.datetime.now(dt.timezone.utc)) < margin
 
 
 @dataclass(frozen=True)
@@ -165,10 +184,15 @@ class SqlClient:
 
     Use as a context manager: entering opens the connection with the session pinned to UTC and verifies it; leaving
     closes it. ``query`` returns rows as plain dicts keyed by column name and logs the label, never the statement.
+
+    With ``refresh`` (a callable returning a freshly minted ``AuthContext``), a statement that would start within
+    ``TOKEN_REFRESH_MARGIN`` of the token's expiry first mints a new token and reopens the connection, so a long
+    collection outlives one token. Without it the token is used as given.
     """
-    def __init__(self, auth: AuthContext, config: AccessConfig):
+    def __init__(self, auth: AuthContext, config: AccessConfig, refresh: Optional[Callable[[], AuthContext]] = None):
         self.auth = auth
         self.config = config
+        self.refresh = refresh
         self._connection = None
 
     def __enter__(self) -> "SqlClient":
@@ -181,6 +205,8 @@ class SqlClient:
             from databricks import sql  # type: ignore
         except ImportError as exc:
             raise self.config.error_type('Install dependency: python -m pip install "databricks-sql-connector>=4.2.6"') from exc
+        if self.refresh is not None and token_expires_within(self.auth.token_expiry):
+            self.auth = self.refresh()
         # Billing usage_date and every analysis window are UTC; DATE()/CURRENT_DATE() follow the session time zone,
         # so the session is pinned to UTC and verified before any other query runs.
         self._connection = sql.connect(
@@ -211,6 +237,12 @@ class SqlClient:
         queries.
         """
         assert self._connection is not None
+        if self.refresh is not None and token_expires_within(self.auth.token_expiry):
+            self.config.logger.info("sql.token_refresh label=%s", label)
+            self.__exit__(None, None, None)
+            self._connection = None
+            self.auth = self.refresh()
+            self.__enter__()
         started=time.monotonic()
         self.config.logger.info("sql.start label=%s", label)
         with self._connection.cursor() as cursor:
