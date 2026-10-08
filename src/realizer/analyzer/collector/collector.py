@@ -20,7 +20,7 @@ from realizer.analyzer.collector import bridge
 from realizer.analyzer.measurement import epoch_config, plan_measurement
 from realizer.analyzer.projector import project_observation
 from realizer.common.errors import InputError
-from realizer.common.utils import money, utc_iso, write_json
+from realizer.common.utils import money, parse_utc, same_warehouse_id, utc_iso, write_json
 from realizer.config.loader import read_json_input, validate_measurement_evidence, validate_package
 from realizer.config.settings import DEFAULT_AWS_PRICE_REGISTRY
 from realizer.estimator.economics import expected_annual_for_exact_step
@@ -88,37 +88,117 @@ def measurement_path(state_dir: Path, evidence: Mapping[str, Any], package_id: s
     return Path(state_dir).joinpath(*MEASUREMENTS_DIR, name)
 
 
+def _file_time(path: Path, prefix: str) -> dt.datetime:
+    """The measurement time in an evidence file name (``<prefix><YYYYMMDDTHHMMSS[.ffffff]Z>.json``); a name that holds no
+    time reads as the earliest."""
+    stamp = path.name[len(prefix):-len(".json")]
+    for form in ("%Y%m%dT%H%M%SZ", "%Y%m%dT%H%M%S.%fZ"):
+        try:
+            return dt.datetime.strptime(stamp, form).replace(tzinfo=dt.timezone.utc)
+        except ValueError:
+            continue
+    return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+
+
 def newest_measurement(folder: str | Path, package: Mapping[str, Any]) -> Path:
     """The newest measurement evidence file of *package* in *folder* (a ``realization/measurements/`` folder, or any
-    folder holding such files): the latest measurement time in the file names of that package. None raises
+    folder holding such files): the latest measurement time in the file names of that package, ordered by the parsed UTC
+    time, never by the name's text (a time with microseconds sorts before the same second without, as text). None raises
     ``InputError`` naming the package."""
     warehouse = package["warehouse"]
     prefix = _evidence_prefix(warehouse["workspace_id"], warehouse["warehouse_id"], package["recommendation_package_id"])
     folder = Path(folder)
     if not folder.is_dir():
         raise InputError(f"measurement evidence folder not found: {folder}")
-    files = sorted(p for p in folder.glob(f"{prefix}*.json") if p.is_file())
+    files = sorted((p for p in folder.glob(f"{prefix}*.json") if p.is_file()), key=lambda p: (_file_time(p, prefix), p.name))
     if not files:
         raise InputError(f"no measurement evidence of package {package['recommendation_package_id']} in {folder}")
     return files[-1]
 
 
+TOKEN_REFRESH_MARGIN = dt.timedelta(minutes=5)
+
+
+class LiveSession:
+    """One authenticated read-only SQL connection for a whole fleet run, opened on first use and closed on exit. Its
+    client (``client()``) reads each account-wide statement once for the run (``bridge.MemoizedClient``). The OAuth token
+    is minted again, and the connection reopened, when it would expire within ``TOKEN_REFRESH_MARGIN``. The collector
+    warehouse is not one of the measured ones: the fleet run skips it, and ``measure_live`` refuses it."""
+
+    def __init__(self, *, profile: str, sql_warehouse_id: str, config_file: Optional[str] = None):
+        self.profile, self.sql_warehouse_id, self.config_file = profile, sql_warehouse_id, config_file
+        self._connection: Any = None
+        self._auth: Optional[bridge.AuthContext] = None
+        self._memo: Optional[bridge.MemoizedClient] = None
+
+    def __enter__(self) -> "LiveSession":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._close()
+
+    def _close(self) -> None:
+        if self._connection is not None:
+            connection, self._connection = self._connection, None
+            connection.__exit__(None, None, None)
+
+    def _expiring(self) -> bool:
+        """Whether the token expires within the refresh margin (an expiry the CLI did not give, or in a form not read, never)."""
+        if self._auth is None or not self._auth.token_expiry:
+            return False
+        try:
+            return parse_utc(self._auth.token_expiry) - dt.datetime.now(dt.timezone.utc) < TOKEN_REFRESH_MARGIN
+        except ValueError:
+            return False
+
+    def invalidate(self) -> None:
+        """Drop the connection after a failure: the next ``client()`` opens a fresh one (the rows read so far are kept)."""
+        self._close()
+
+    def client(self) -> bridge.MemoizedClient:
+        """The session's client, connecting (or reconnecting after the token's refresh margin) first."""
+        if self._connection is None or self._expiring():
+            self._close()
+            self._auth = bridge.resolve_live_access(self.profile, self.sql_warehouse_id, [], self.config_file)
+            connection = bridge.LiveSqlClient(self._auth)
+            inner = connection.__enter__()
+            self._connection = connection
+            if self._memo is None:
+                self._memo = bridge.MemoizedClient(inner)
+            else:
+                self._memo.swap(inner)
+        assert self._memo is not None
+        return self._memo
+
+
 def measure_live(
     package: Mapping[str, Any], state_dir: Path, *, profile: str, sql_warehouse_id: str, config_file: Optional[str] = None,
     source_region: Optional[str] = None, aws_price_registry: Optional[str] = None, as_of: Optional[str] = None,
-    ingestion_cutoff: Optional[str] = None, approvals: Optional[Mapping[str, Any]] = None,
+    ingestion_cutoff: Optional[str] = None, approvals: Optional[Mapping[str, Any]] = None, session: Optional[LiveSession] = None,
 ) -> Dict[str, Any]:
     """Measure *package*'s warehouse from system tables (read-only OAuth, on another SQL warehouse) and return its
     observation; the measurement evidence is written first, under the state directory *state_dir* (``measurement_path``),
-    so the run can be replayed with ``observe_from_evidence``."""
+    so the run can be replayed with ``observe_from_evidence``. With a *session* (a fleet run's) the connection and the
+    account-wide reads are the session's; without one, this measurement connects on its own."""
     validate_package(package)
     warehouse = package["warehouse"]
     registry = bridge.load_registry(aws_price_registry or str(DEFAULT_AWS_PRICE_REGISTRY))
-    auth = bridge.resolve_live_access(profile, sql_warehouse_id, [str(warehouse["warehouse_id"])], config_file)
     as_of = utc_iso(as_of or dt.datetime.now(dt.timezone.utc))
-    with bridge.LiveSqlClient(auth) as client:
-        evidence = collect_measurement(client, package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
-                                       aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
+    if session is not None:
+        if same_warehouse_id(session.sql_warehouse_id, warehouse["warehouse_id"]):
+            raise InputError(f"the collector cannot run on the warehouse it measures ({session.sql_warehouse_id}): its own statements would "
+                             "keep it running; use another SQL warehouse for --sql-warehouse-id")
+        try:
+            evidence = collect_measurement(session.client(), package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
+                                           aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
+        except InputError:
+            session.invalidate()  # a dropped connection must not refuse the rest of the fleet run
+            raise
+    else:
+        auth = bridge.resolve_live_access(profile, sql_warehouse_id, [str(warehouse["warehouse_id"])], config_file)
+        with bridge.LiveSqlClient(auth) as client:
+            evidence = collect_measurement(client, package, as_of=as_of, source="LIVE_SYSTEM_TABLES", source_region=source_region,
+                                           aws_registry=registry, ingestion_cutoff=ingestion_cutoff)
     write_json(measurement_path(state_dir, evidence, package["recommendation_package_id"]), evidence)
     return project_observation(package, evidence, approvals)
 

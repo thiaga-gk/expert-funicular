@@ -34,6 +34,12 @@ def parse_utc(value: Any) -> dt.datetime:
     return d.astimezone(dt.timezone.utc)
 
 
+def same_warehouse_id(warehouse_id: Any, *others: Any) -> bool:
+    """Whether *warehouse_id* is one of *others*: compared without surrounding whitespace and case-insensitively."""
+    norm = lambda value: str(value).strip().casefold()
+    return norm(warehouse_id) in {norm(x) for x in others}
+
+
 def utc_iso(value: Any) -> str:
     return parse_utc(value).isoformat().replace("+00:00", "Z")
 

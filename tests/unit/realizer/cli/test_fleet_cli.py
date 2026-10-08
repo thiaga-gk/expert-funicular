@@ -58,7 +58,7 @@ class FleetCliTests(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in run_dir.iterdir()), ["manifest.json", "realization", "realization_workbook.xlsx", "realizer.log"])
             log = (run_dir / "realizer.log").read_text(encoding="utf-8")
             self.assertIn("realizer.start", log.splitlines()[0])
-            self.assertIn("fleet.done ok=3 refused=0 crashed=0", log)
+            self.assertIn("fleet.done ok=3 refused=0 crashed=0 skipped=0", log)
             manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual((manifest["state_dir"], manifest["publisher_run"]["run_dir"]), (str(out / "state"), str(self.run_dir)))
             self.assertEqual(len(list((out / "state" / "realization" / "ledger").glob("*.jsonl"))), 3)

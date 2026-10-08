@@ -1,8 +1,9 @@
 """The run manifest of a fleet run (``<run folder>/manifest.json``): what the run read and what it wrote, per warehouse.
 
 A presentation of what the fleet run already decided; nothing is computed here. Deterministic: sorted keys, warehouses
-in run order, paths of written files relative to the run folder, and no wall-clock time (the run folder's name carries
-the start time; ``as_of_utc`` is the measurement time the caller gave, else null).
+in run order, paths of written files relative to the run folder, and no wall-clock time but the measurement time
+(``as_of_utc``: the one the caller gave; a live run without one fixes it when it starts; null for a demo or replay run
+without one; the run folder's name carries the start time).
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION
 from realizer.contracts.realization import CONTRACT_VERSION, LEDGER_CONTRACT_VERSION
 from realizer.contracts.report import RUN_STATUSES, WarehouseRun
 
-RUN_MANIFEST_VERSION = "1.0.0"
+RUN_MANIFEST_VERSION = "1.1.0"
 
 
 def build_run_manifest(request: FleetRequest, runs: Sequence[WarehouseRun], files: Mapping[tuple, Sequence[str]],

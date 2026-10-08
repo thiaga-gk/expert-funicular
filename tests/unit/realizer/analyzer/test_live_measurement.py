@@ -310,6 +310,34 @@ class BridgeTests(unittest.TestCase):
         with self.assertRaises(InputError):
             bridge.resolve_live_access("prod", "", ["wh-demo-013"])
 
+    def test_the_refusal_compares_ids_without_case_or_surrounding_whitespace(self):
+        with mock.patch.object(bridge.access, "resolve_cli_token") as token:
+            for collector in (" WH-Demo-013\n", "wh-demo-013 "):
+                with self.subTest(collector=collector), self.assertRaises(InputError):
+                    bridge.resolve_live_access("prod", collector, [" Wh-Demo-013"])
+            with self.assertRaises(InputError):
+                bridge.resolve_live_access("prod", "   ", ["wh-demo-013"])
+        token.assert_not_called()
+
+    def test_a_warehouse_without_a_snapshot_may_have_been_deleted(self):
+        class Empty:
+            def query(self, statement, *, label="collector_sql"):
+                return []
+        with self.assertRaises(InputError) as raised:
+            bridge.collect_history(Empty(), "1", "wh-gone", as_of="2026-11-07T12:00:00+00:00", settle_hours=12)
+        self.assertIn("1/wh-gone has no configuration snapshot in system.compute.warehouses", str(raised.exception))
+        self.assertIn("deleted", str(raised.exception))
+
+    def test_newest_measurement_orders_by_time_not_by_file_name_text(self):
+        # "...120000.500000Z" is later than "...120000Z", but "." sorts before "Z" as text.
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = f"{PRO['warehouse']['workspace_id']}__{PRO['warehouse']['warehouse_id']}__{PRO['recommendation_package_id']}__"
+            names = [prefix + "20261107T120000Z.json", prefix + "20261107T120000.500000Z.json", prefix + "20261106T235959Z.json"]
+            for name in names:
+                (Path(tmp) / name).write_text("{}", encoding="utf-8")
+            (Path(tmp) / ("other__" + names[0])).write_text("{}", encoding="utf-8")
+            self.assertEqual(collector.newest_measurement(tmp, PRO).name, names[1])
+
     def test_assumptions_take_the_package_profile_values(self):
         values = bridge.assumptions(PRO["cost_profile"]["applied_thresholds"])
         self.assertEqual(values["restart_cost_cluster_minutes_pro_classic"], 4.0)

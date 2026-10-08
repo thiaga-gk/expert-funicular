@@ -48,6 +48,7 @@ from publisher.common.utils import optional_float, safe_float, safe_int
 from publisher.governor.thresholds import Thresholds
 from realizer.common.errors import InputError
 from realizer.common.logging import LOGGER
+from realizer.common.utils import same_warehouse_id
 from realizer.config.settings import REALIZER_VERSION, SIZE_RUNTIME_MIN_SOURCE_QUERIES
 from realizer.contracts.measurement import ASSUMPTION_FIELDS, GUARD_FIELDS, REPLAY_FIELDS, SIZE_RUNTIME_FIELDS, WINDOW_FIELDS
 from workflow_shared.databricks import access
@@ -63,11 +64,63 @@ HISTORY_DAYS = 365
 PROFILED_ASSUMPTIONS = ("queue_query_pct_safe", "canary_p95_regression_pct", "cold_start_added_share_max_pct")
 
 
+MESSAGE_LIMIT = 200
+
+
+def describe_exception(exc: BaseException) -> str:
+    """``ClassName: first line of the message``, cut to ``MESSAGE_LIMIT`` characters. Never the rest of the message (a
+    server error can quote the statement) and never a token: the connector puts none in its messages."""
+    lines = str(exc).strip().splitlines()
+    first = lines[0].strip() if lines else ""
+    first = first if len(first) <= MESSAGE_LIMIT else first[:MESSAGE_LIMIT - 3] + "..."
+    return f"{type(exc).__name__}: {first}" if first else type(exc).__name__
+
+
 class LiveSqlClient(access.SqlClient):
-    """The shared read-only SQL client with the Realizer's logger, user agent and ``InputError``; a context manager."""
+    """The shared read-only SQL client with the Realizer's logger, user agent and ``InputError``; a context manager. A
+    connection that cannot open (a warehouse that does not start, a refused login) is an ``InputError`` naming the
+    exception class and the first line of its message."""
 
     def __init__(self, auth: AuthContext):
         super().__init__(auth, REALIZER_ACCESS)
+
+    def __enter__(self) -> "LiveSqlClient":
+        try:
+            super().__enter__()
+        except InputError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - the connector's own exception types are not importable without it
+            raise InputError(f"SQL connection failed: {describe_exception(exc)}") from None
+        return self
+
+
+# The statements that read the whole account and are filtered to a warehouse in Python: a fleet run reads each once.
+ACCOUNT_WIDE_LABELS = ("config_epochs", "billing_watermark", "billing_daily_cost")
+
+
+class MemoizedClient:
+    """Wraps a SQL client for the length of one fleet run: an account-wide statement (``ACCOUNT_WIDE_LABELS``) is run
+    once and its rows are served to every later warehouse; every other statement goes through. The statement text is the
+    key, so a different ingestion cutoff (which changes the text) is a different statement. The statements hold no as-of
+    time: each warehouse applies its own in Python. The client underneath can be replaced (``swap``) when its connection
+    is reopened; the rows read so far stay."""
+
+    def __init__(self, client: Any):
+        self.client = client
+        self._rows: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+
+    def swap(self, client: Any) -> None:
+        self.client = client
+
+    def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
+        if label not in ACCOUNT_WIDE_LABELS:
+            return self.client.query(statement, label=label)
+        key = (label, statement)
+        if key in self._rows:
+            LOGGER.info("bridge.shared_read label=%s", label)
+        else:
+            self._rows[key] = [dict(r) for r in self.client.query(statement, label=label)]
+        return self._rows[key]
 
 
 def resolve_live_access(profile: str, sql_warehouse_id: str, measured_warehouse_ids: Sequence[str], config_file: Optional[str] = None) -> AuthContext:
@@ -76,15 +129,16 @@ def resolve_live_access(profile: str, sql_warehouse_id: str, measured_warehouse_
     Refused (``InputError``) when the execution warehouse is one of the warehouses being measured: the collector's own
     statements would keep it running and change the idle time and cost it measures. A static PAT is refused by the
     shared access layer."""
-    if not sql_warehouse_id:
+    if not str(sql_warehouse_id or "").strip():
         raise InputError("a live measurement needs --sql-warehouse-id, the warehouse the collector statements run on")
-    if str(sql_warehouse_id) in {str(x) for x in measured_warehouse_ids}:
+    if same_warehouse_id(sql_warehouse_id, *measured_warehouse_ids):
         raise InputError(f"the collector cannot run on the warehouse it measures ({sql_warehouse_id}): its own statements would "
                          "keep it running; use another SQL warehouse for --sql-warehouse-id")
     host, token, expiry = access.resolve_cli_token(REALIZER_ACCESS, profile, config_file)
-    LOGGER.info("bridge.access profile=%s execution_warehouse_id=%s", profile, sql_warehouse_id)
-    return AuthContext(profile=profile, host=host, http_path=f"/sql/1.0/warehouses/{sql_warehouse_id}", access_token=token,
-                       token_expiry=expiry, execution_kind="warehouse", execution_id=str(sql_warehouse_id))
+    warehouse_id = str(sql_warehouse_id).strip()
+    LOGGER.info("bridge.access profile=%s execution_warehouse_id=%s", profile, warehouse_id)
+    return AuthContext(profile=profile, host=host, http_path=f"/sql/1.0/warehouses/{warehouse_id}", access_token=token,
+                       token_expiry=expiry, execution_kind="warehouse", execution_id=warehouse_id)
 
 
 def assumptions(applied_thresholds: Optional[Mapping[str, Any]] = None) -> Dict[str, float]:
@@ -100,7 +154,16 @@ def assumptions(applied_thresholds: Optional[Mapping[str, Any]] = None) -> Dict[
 
 
 def _query(client: Any, statement: str, label: str) -> List[Dict[str, Any]]:
-    return [dict(r) for r in client.query(statement, label=label)]
+    """The rows of one collector statement. A failure of the client (a missing SELECT grant on a system table, a warehouse
+    start timeout) is an ``InputError`` naming the statement label, the exception class and the first line of its message;
+    the statement text is never part of it."""
+    try:
+        return [dict(r) for r in client.query(statement, label=label)]
+    except (PublisherError, InputError):
+        raise
+    except Exception as exc:  # noqa: BLE001 - the connector's own exception types are not importable without it
+        LOGGER.warning("bridge.statement_failed label=%s error_type=%s", label, type(exc).__name__)
+        raise InputError(f"collector statement {label} failed: {describe_exception(exc)}") from None
 
 
 def _of_warehouse(rows: Sequence[Mapping[str, Any]], workspace_id: str, warehouse_id: str) -> List[Mapping[str, Any]]:
@@ -133,7 +196,8 @@ def collect_history(client: Any, workspace_id: str, warehouse_id: str, *, as_of:
     except PublisherError as exc:
         raise InputError(str(exc)) from None
     if not epoch_rows:
-        raise InputError(f"warehouse {workspace_id}/{warehouse_id} has no configuration snapshot in system.compute.warehouses")
+        raise InputError(f"warehouse {workspace_id}/{warehouse_id} has no configuration snapshot in system.compute.warehouses "
+                         "(the warehouse may have been deleted, or the profile cannot read it)")
     epochs = _observed_epochs(epoch_rows, as_of)
     day, source, mark = _settled(watermarks, workspace_id, as_of, ingestion_cutoff, settle_hours)
     daily = _daily_cost(cost_rows)

@@ -49,7 +49,8 @@ class RealizationReport:
 RUN_STATUS_OK = "OK"
 RUN_STATUS_REFUSED = "REFUSED"  # a RealizerError: an input the Realizer does not accept, an unreadable file, a locked ledger
 RUN_STATUS_CRASHED = "CRASHED"  # any other exception: a defect, recorded by its type only
-RUN_STATUSES = (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED)
+RUN_STATUS_SKIPPED = "SKIPPED"  # not measured by design: the collector warehouse of a live fleet run cannot measure itself
+RUN_STATUSES = (RUN_STATUS_OK, RUN_STATUS_REFUSED, RUN_STATUS_CRASHED, RUN_STATUS_SKIPPED)
 
 
 @dataclass(frozen=True)
@@ -340,7 +341,7 @@ LINEAGE_BASIS_CLAIMS_LATEST_CHANGE = "CLAIMS_LATEST_CHANGE"
 LINEAGE_BASIS_NEWEST_ACTIVE_PACKAGE = "NEWEST_ACTIVE_PACKAGE"
 
 # The next action: one fixed label per (state, condition). The state is a lineage's realization state, a run status
-# (REFUSED, CRASHED: the run itself failed) or NO_LINEAGE (a run that projected no lineage to show). The condition refines
+# (REFUSED, CRASHED: the run itself failed; SKIPPED: not measured by design) or NO_LINEAGE (a run that projected no lineage to show). The condition refines
 # a state where the regeneration status or the plan progress changes what a person does; None is the state's label
 # otherwise.
 NO_LINEAGE = "NO_LINEAGE"
@@ -358,6 +359,7 @@ _REPLACED = "None: replacement package linked"
 NEXT_ACTIONS: Mapping[Tuple[str, Optional[str]], str] = {
     (RUN_STATUS_REFUSED, None): "Fix the run: REFUSED",
     (RUN_STATUS_CRASHED, None): "Fix the run: CRASHED",
+    (RUN_STATUS_SKIPPED, None): "None: collector warehouse, not measured",
     (NO_LINEAGE, None): "None: no realization to show",
     ("NOT_APPLIED", None): "Apply the recommended change",
     ("NOT_APPLIED", WHEN_NOTHING_TO_APPLY): "None: no step to apply",
