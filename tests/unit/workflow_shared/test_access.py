@@ -97,6 +97,35 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["DATABRICKS_CONFIG_FILE"], cfg)
         self.assertEqual(logs.output, ["INFO:workflow_shared.test:auth.resolve profile=P host=h.example"])
 
+    def test_malformed_cli_output_raises_the_injected_error_in_one_line(self):
+        for stdout in ("not json at all\nwith a second line", "[]", '"a string"', ""):
+            class R:
+                pass
+            R.stdout = stdout
+            with self.subTest(stdout=stdout[:12]), tempfile.TemporaryDirectory() as td:
+                cfg = self.config_file(td, "[P]\nhost = https://h\n")
+                with patch("subprocess.run", return_value=R()), self.assertRaises(ToolError) as ctx:
+                    access.resolve_cli_token(CONFIG, "P", cfg)
+                self.assertNotIn("\n", str(ctx.exception))
+                self.assertIn("profile P", str(ctx.exception))
+                self.assertNotIn("second line", str(ctx.exception))
+
+    def test_a_config_file_that_does_not_parse_raises_the_injected_error_in_one_line(self):
+        for text in ("host = no section header\n", "[P]\nhost = a\nhost = b\n", "[P\nhost = x\n"):
+            with self.subTest(text=text[:12]), tempfile.TemporaryDirectory() as td:
+                cfg = self.config_file(td, text)
+                with patch("subprocess.run") as run, self.assertRaises(ToolError) as ctx:
+                    access.resolve_cli_token(CONFIG, "P", cfg)
+                self.assertNotIn("\n", str(ctx.exception))
+                self.assertIn("could not be parsed", str(ctx.exception))
+                self.assertNotIn("no section header", str(ctx.exception))
+                run.assert_not_called()
+
+    def test_the_token_is_not_in_the_repr_of_the_auth_context(self):
+        auth = access.AuthContext("P", "h", "/sql/1.0/warehouses/x", "very-secret-token", None, "warehouse", "x")
+        self.assertNotIn("very-secret-token", repr(auth))
+        self.assertEqual(auth.access_token, "very-secret-token")
+
     def test_missing_cli_raises_the_injected_error(self):
         with tempfile.TemporaryDirectory() as td:
             cfg = self.config_file(td, "[P]\nhost = https://h\n")
