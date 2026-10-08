@@ -23,6 +23,8 @@ class PublisherRequest:
     mode: str
     output_dir: Path
     demo_count: int = 0
+    # --demo-as-of (UTC ISO-8601); None = the demo's fixed analysis time. Resolved by the analyzer.
+    demo_analysis_time: Optional[str] = None
     evidence_files: Tuple[str, ...] = ()
     profile: str = "DEFAULT"
     execution_kind: Optional[str] = None

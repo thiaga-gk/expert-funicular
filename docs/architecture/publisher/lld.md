@@ -2,7 +2,7 @@
 
 **Document:** `docs/architecture/publisher/lld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.1.0  
+**Reporter JSON Contract:** v3.2.0  
 **Workbook Contract:** v1.6.0  
 
 Role: implementation design of the current publisher.
@@ -29,7 +29,7 @@ The following contracts are versioned independently of the publisher:
 
 | Contract | Version | Source of truth |
 |---|---:|---|
-| Reporter JSON Contract | 3.1.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/shared/reporter-json-contract.md` |
+| Reporter JSON Contract | 3.2.0 | `src/publisher/contracts/reporter_contract.py`, `schema/recommendation-package.schema.json`, `docs/contracts/shared/reporter-json-contract.md` |
 | Workbook Contract | 1.6.0 | `src/publisher/contracts/workbook_contract.py`, `docs/contracts/publisher/workbook-contract.md` |
 
 ### 2.2 Implementation conformance
@@ -115,7 +115,7 @@ The importable package is `src/publisher/` (install with `pip install -e .`; the
 flowchart LR
     SRC[Databricks sources] --> ANA[src/publisher/analyzer/ collector and analyzer]
     ANA --> PUB[src/publisher/optimizer/ and packager/ decision engine]
-    PUB --> RC[Reporter Contract v3.1.0]
+    PUB --> RC[Reporter Contract v3.2.0]
     RC --> JSON[packages/*.json]
     RC --> WC[Workbook projection contract]
     WC --> XR[Workbook renderer]
@@ -185,6 +185,7 @@ This table is the CLI reference. Defaults read from the environment are noted; e
 | `--warehouse` | repeatable; `all` (default), `<warehouse_id>` or `<workspace_id>/<warehouse_id>`; reports only these warehouses. A selector that matches no warehouse in the evidence, or a bare ID found in several workspaces, stops the run (exit status 2) |
 | `--demo` | synthetic collector mode; takes precedence over live collection; combined with `--from-evidence` it is an argument error (exit 2) |
 | `--demo-count` | number of simulated warehouses for `--demo`: from 1 to the size of the simulated fleet (one warehouse per golden scenario); the first N are run; default is the whole fleet; a value outside the range exits with an error |
+| `--demo-as-of` | `--demo` only: the demo's analysis time (UTC ISO-8601), default 2026-10-01T12:00:00Z. The fleet's configuration history is fixed, so a later time adds days to the current epochs and moves the billing watermark and the packages' `generated_at`; an earlier time, an unparseable one or the flag without `--demo` exits with status 2 |
 | `--from-evidence` | repeatable; replay one or more `evidence.json` files, merged on `(workspace_id, warehouse_id)` (28.3, 31.3); a file that is missing, a directory or unreadable is a refusal (exit 2, one line), like an invalid one |
 | `--profile` | Databricks CLI profile; default `DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`. OAuth profiles only: a profile that holds a static PAT is rejected |
 | `--config-file` | path of the Databricks CLI config file that holds the profile; default `DATABRICKS_CONFIG_FILE`, else `~/.databrickscfg`. It is read to resolve the profile host and to reject a PAT profile, and is passed to `databricks auth token` as `DATABRICKS_CONFIG_FILE`. A live collection mints the token again, and reopens the SQL connection, before any statement that would start within five minutes of the token's expiry |
@@ -1390,7 +1391,7 @@ A package is final only after the Reviewer package gate has passed its scenarios
 
 ---
 
-## 22. Public Reporter JSON Contract v3.1.0
+## 22. Public Reporter JSON Contract v3.2.0
 
 The public JSON package is the canonical output. One file equals one warehouse/current-epoch assessment.
 
@@ -1482,7 +1483,7 @@ An `EvidenceRecord` includes:
 
 Interpretation prose is excluded from the evidence fingerprint; decision-relevant values and source semantics are included.
 
-Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package and referenced by every candidate. The package also carries `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`): retracted DBU per originally billed DBU. It is package evidence only: no candidate references it, so it does not enter candidate IDs, and no decision, confidence or economics reads it. When the current channel is `PREVIEW` the package also carries a `warehouse_channel` record (unit `state`, source `system.compute.warehouses`, window `current_epoch`) whose interpretation is the informational Preview note; it is package evidence only, like the billing-correction share.
+Shared cost evidence (`actual_dbu_cost_365d`, `forward_dbu_cost_365d`, `forward_aws_cost_365d`, `cost_history_days`) is declared once per package and referenced by every candidate. The package also carries `billing_correction_dbu_share_365d` (unit `ratio`, source `system.billing.usage`, source field `record_type`, window `trailing_365d`): retracted DBU per originally billed DBU. It is package evidence only: no candidate references it, so it does not enter candidate IDs, and no decision, confidence or economics reads it. Likewise package evidence only, `actual_aws_cost_365d` (unit the currency, source `derived`, window `trailing_365d`) is the modeled trailing AWS actual that `cost_baseline.actual_365d.aws_cost` publishes ([AWS cost model](../../reference/publisher/aws-cost-model.md#trailing-actual)). When the current channel is `PREVIEW` the package also carries a `warehouse_channel` record (unit `state`, source `system.compute.warehouses`, window `current_epoch`) whose interpretation is the informational Preview note; it is package evidence only, like the billing-correction share.
 
 Candidate findings become evidence records, including evidence-only findings that no decision reads: on the size candidate `decision_queries_30` (the sample the size gates use), `p95_compilation_ms_30` and `p95_result_fetch_ms_30`; on the warehouse-type candidate `billed_sql_tiers`.
 
@@ -1776,7 +1777,7 @@ The LLD is satisfied by an implementation when all of the following hold:
 6. Plan A order (value key, then invalidation precedence) is deterministic.
 7. Plan B remains an isolated migration experiment under Phase-1 policy.
 8. Candidate, scenario, evidence, epoch, realization, and package IDs are reproducible from documented hash inputs.
-9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v3.1.0.
+9. Every emitted JSON package passes dataclass semantic validation and JSON Schema v3.2.0.
 10. Package economics are traceable to included scenario bounds.
 11. Unknown costs are null/unavailable, never silently converted to zero.
 12. Workbook generation is a pure projection of validated packages.

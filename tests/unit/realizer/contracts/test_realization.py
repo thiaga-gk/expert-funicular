@@ -216,7 +216,7 @@ class IdBuilderTests(unittest.TestCase):
 
     def test_rpkg_id_and_stored_output(self):
         pkg_id = self.pkg["recommendation_package_id"]
-        self.assertEqual(rc.make_rpkg_id(pkg_id), "RPKG-976E6C1C6E88CE76321758ED")
+        self.assertEqual(rc.make_rpkg_id(pkg_id), "RPKG-69DDE3286B752C8E1F1FC6BE")
 
     def test_evidence_id_and_stored_output(self):
         ids = []

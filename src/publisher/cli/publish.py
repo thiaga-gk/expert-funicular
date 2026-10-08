@@ -66,7 +66,7 @@ def request_from_args(args: argparse.Namespace, output_dir: Optional[Path] = Non
                   execution_mode=args.mode, cost_profiles=tuple(args.cost_profile), scope_specs=tuple(args.scope),
                   scope_file=args.scope_file, warehouses=tuple(args.warehouse))
     if args.demo:
-        return PublisherRequest(mode=MODE_DEMO, demo_count=args.demo_count, **common)
+        return PublisherRequest(mode=MODE_DEMO, demo_count=args.demo_count, demo_analysis_time=args.demo_as_of, **common)
     if args.from_evidence:
         return PublisherRequest(mode=MODE_REPLAY, evidence_files=tuple(args.from_evidence), **common)
     kind, eid = _resolve_execution_args(args)
@@ -115,9 +115,12 @@ def parse_args(argv:Optional[Sequence[str]]=None)->argparse.Namespace:
     p.add_argument("--scope",action="append",default=[],metavar="SCENARIO[:TECHNIQUE,...]",help="Recommend only these scenarios/techniques (repeatable): current[:size,max-clusters,min-clusters,auto-stop], migration[:warehouse-type]. Default: everything")
     p.add_argument("--scope-file",default=None,help="JSON run-scope file (schema/run-scope.schema.json) with scenario/technique toggles and warehouses; not combined with --scope/--warehouse")
     p.add_argument("--warehouse",action="append",default=[],metavar="all|WAREHOUSE_ID|WORKSPACE_ID/WAREHOUSE_ID",help="Report only these warehouses (repeatable). Default: all")
+    p.add_argument("--demo-as-of",default=None,metavar="UTC_ISO_TIME",help="--demo only: the demo's analysis time (default 2026-10-01T12:00:00Z; never earlier, the fleet's history is fixed)")
     args=p.parse_args(argv)
     if args.demo and args.from_evidence:
         p.error("--demo and --from-evidence cannot be combined: a run is either simulated or replayed")
+    if args.demo_as_of is not None and not args.demo:
+        p.error("--demo-as-of applies only to --demo")
     return args
 
 
@@ -156,7 +159,7 @@ def _log_settings(args: argparse.Namespace, request: PublisherRequest) -> None:
     elif request.mode == MODE_REPLAY:
         LOGGER.info("cli.settings.replay evidence_files=%d", len(request.evidence_files))
     else:
-        LOGGER.info("cli.settings.demo demo_count=%d", request.demo_count)
+        LOGGER.info("cli.settings.demo demo_count=%d demo_as_of=%s", request.demo_count, request.demo_analysis_time or "default")
 
 
 def run(argv: Optional[Sequence[str]] = None) -> int:

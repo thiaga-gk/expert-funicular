@@ -19,8 +19,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -34,7 +34,7 @@
     ],
     [
      "ok",
-     "RSNAP-0F7722F077E9D69939895911"
+     "RSNAP-40A8D117D142B32D086CC059"
     ]
    ],
    {
@@ -63,13 +63,13 @@
     ],
     "files": {
      "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4f2e36503157e7a3",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a7f69451981d35b1",
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "fa7080ad926c57e6",
+     "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "63a1bfd032d1e310",
      "realization/policies/PSNAP-097ED33EBEB7E9FCEE56AEBB.json": "bd4377ec2d7bd546",
-     "realization/regeneration/RERUN-B1F60D50B9002716EC15E4DE.json": "71b5dea8e41ae3f1",
-     "realization/snapshots/RSNAP-0F7722F077E9D69939895911.json": "a7f69451981d35b1",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "d26580769232da68"
+     "realization/regeneration/RERUN-42B47BD394035774313246E5.json": "3f82c1e611f45f1a",
+     "realization/snapshots/RSNAP-40A8D117D142B32D086CC059.json": "63a1bfd032d1e310",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+     "realization/state/1234567890123456__wh-demo-006.json": "1dfd7c691f933404"
     }
    }
   ]
@@ -79,7 +79,7 @@
    [
     [
      "InputError",
-     "package fails the Reporter JSON Contract 3.1.0 schema at current_config"
+     "package fails the Reporter JSON Contract 3.2.0 schema at current_config"
     ]
    ],
    {
@@ -94,7 +94,7 @@
    [
     [
      "InputError",
-     "package fails the Reporter JSON Contract 3.1.0 schema at current_config/photon"
+     "package fails the Reporter JSON Contract 3.2.0 schema at current_config/photon"
     ]
    ],
    {
@@ -109,7 +109,7 @@
    [
     [
      "InputError",
-     "package fails the Reporter JSON Contract 3.1.0 schema at warehouse"
+     "package fails the Reporter JSON Contract 3.2.0 schema at warehouse"
     ]
    ],
    {
@@ -124,7 +124,7 @@
    [
     [
      "InputError",
-     "package fails the Reporter JSON Contract 3.1.0 schema at warehouse"
+     "package fails the Reporter JSON Contract 3.2.0 schema at warehouse"
     ]
    ],
    {
@@ -153,8 +153,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -178,8 +178,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -203,8 +203,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -228,8 +228,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -253,8 +253,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -278,8 +278,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -303,8 +303,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]
@@ -328,8 +328,8 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b"
     }
    }
   ]

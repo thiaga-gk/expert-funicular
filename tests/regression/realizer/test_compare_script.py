@@ -3,7 +3,7 @@ ref or invalid arguments. The comparison itself is exercised with real git refs 
 and with doctored per-side outputs for the difference and crash cases.
 
 There is no comparison against the single-file oracle tag (``realizer-reorg-oracle-1.0.0``): that Realizer reads only
-Reporter JSON Contract 1.0.0 packages, which the Realizer no longer accepts (the fixtures are 3.1.0 packages), so the two
+Reporter JSON Contract 1.0.0 packages, which the Realizer no longer accepts (the fixtures are 3.2.0 packages), so the two
 engines cannot run the same inputs. Their equivalence on the stored scenarios was proved once, before the input contract
 changed, by the decision-equivalence check recorded in docs/proposals/realizer/repo-reorg-parity.md."""
 import contextlib

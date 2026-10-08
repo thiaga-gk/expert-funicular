@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from publisher.analyzer.collector.pricing import model_aws_actual_cost
 from publisher.analyzer.epochs import carried_query_view, ready_billed_days
 from publisher.analyzer.metrics import cost_stability
 from publisher.common.hashing import canonical_json
@@ -109,20 +110,29 @@ def _forward_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
 
 
 def _actual_cost_breakdown(e: WarehouseEvidence) -> rc.CostBreakdown:
-    """Historical actual is authoritative for Databricks billing; AWS stays null without CUR/effective AWS billing."""
+    """Trailing-365-day actual: DBU from Databricks billing (observed list cost) and customer AWS modeled from the billed
+    DBU of every epoch in the window (``model_aws_actual_cost``), kept separate; the total exists only when both are known.
+    """
     dbu = round(e.current_cost_365, 2) if e.current_cost_365 is not None else None
-    if e.current_epoch.config.warehouse_type == "SERVERLESS" and dbu is not None:
-        return rc.CostBreakdown(
-            dbu_cost=dbu, aws_cost=0.0, total_cost=dbu,
-            availability=rc.CostAvailability.COMPLETE,
-            dbu_basis=rc.CostBasis.OBSERVED_DATABRICKS_BILLING,
-            aws_basis=rc.CostBasis.MODELED_CURRENT_EPOCH,
-        )
+    aws, model = model_aws_actual_cost(e)
+    total = round(dbu + aws, 2) if dbu is not None and aws is not None else None
+    if dbu is not None and aws is not None:
+        availability = rc.CostAvailability.COMPLETE
+    elif dbu is not None or aws is not None:
+        availability = rc.CostAvailability.PARTIAL
+    else:
+        availability = rc.CostAvailability.UNAVAILABLE
+    if aws is None:
+        aws_basis = rc.CostBasis.UNAVAILABLE
+    elif model.get("status") == "MODELED" or e.current_epoch.config.warehouse_type != "SERVERLESS":
+        aws_basis = rc.CostBasis.MODELED_AWS_LIST_PRICE
+    else:
+        aws_basis = rc.CostBasis.MODELED_CURRENT_EPOCH  # Serverless throughout the window: no customer EC2
     return rc.CostBreakdown(
-        dbu_cost=dbu, aws_cost=None, total_cost=None,
-        availability=rc.CostAvailability.PARTIAL if dbu is not None else rc.CostAvailability.UNAVAILABLE,
+        dbu_cost=dbu, aws_cost=aws, total_cost=total,
+        availability=availability,
         dbu_basis=rc.CostBasis.OBSERVED_DATABRICKS_BILLING if dbu is not None else rc.CostBasis.UNAVAILABLE,
-        aws_basis=rc.CostBasis.UNAVAILABLE,
+        aws_basis=aws_basis,
     )
 
 

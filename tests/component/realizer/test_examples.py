@@ -1,6 +1,6 @@
 """The Publisher to Realizer examples under examples/realizer/ keep the identities and outcomes their README documents.
 
-Each example is the Publisher package fixture (Reporter JSON Contract 3.1.0) plus one normalized observation, a fixed
+Each example is the Publisher package fixture (Reporter JSON Contract 3.2.0) plus one normalized observation, a fixed
 synthetic fixture (``demo_observation``; ``realizer --demo`` measures a simulated world instead). The test realizes it
 into a temporary directory and compares the written files and the snapshot with the README, so the README and the
 example cannot drift.
@@ -27,10 +27,10 @@ README = EXAMPLES / "README.md"
 EXPECTED = {
     "exact": {
         "ids": {
-            "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-0F7722F077E9D69939895911",
+            "RPKG": "RPKG-69DDE3286B752C8E1F1FC6BE",
+            "RSNAP": "RSNAP-40A8D117D142B32D086CC059",
             "REVID": "REVID-37F7F275591908182339F44B",
-            "RERUN": "RERUN-B1F60D50B9002716EC15E4DE",
+            "RERUN": "RERUN-42B47BD394035774313246E5",
         },
         "outcome": {
             "implementation_conformance": "EXACT",
@@ -42,10 +42,10 @@ EXPECTED = {
     },
     "modified": {
         "ids": {
-            "RPKG": "RPKG-976E6C1C6E88CE76321758ED",
-            "RSNAP": "RSNAP-26155EAC3B743F62BCBFD9C7",
+            "RPKG": "RPKG-69DDE3286B752C8E1F1FC6BE",
+            "RSNAP": "RSNAP-C34B4923918BFDD8CBDE55E9",
             "REVID": "REVID-0054A9DB9BEB251DB6B705DA",
-            "RERUN": "RERUN-4A94ACD1AFCA25E7D3EA709A",
+            "RERUN": "RERUN-F3F81701C87ADC1868C6887A",
         },
         "outcome": {
             "implementation_conformance": "MODIFIED",

@@ -35,7 +35,7 @@
       "blockers": [
         "A_B_PERFORMANCE_VALIDATION_REQUIRED"
       ],
-      "candidate_id": "CAND-B6024B0E58AF0CD7E88D6815",
+      "candidate_id": "CAND-D60EB741EA7B99AD48270C72",
       "confidence": {
         "components": {
           "coverage": 1.0,
@@ -51,29 +51,29 @@
       "current_value": "MEDIUM",
       "dependencies": [],
       "evidence_refs": [
-        "EVID-B3545EA4FA6D024B73AFBA41",
-        "EVID-5AB17C1F1AD124DDCFF4E1B3",
-        "EVID-4BD2BB843835797FF7B2D0B8",
-        "EVID-63302097D6D8257746824963",
-        "EVID-7BE57DC571185AAD8DDC5501",
-        "EVID-5B802EB98B864C9EE82012C1",
-        "EVID-3A10213466FCC439823F1CF5",
-        "EVID-B38A80A2A9CDBDCCCDCD6C14",
-        "EVID-ECA7EA0BCF970DE9B3C449A8",
-        "EVID-8AE2C6B256AF99604B93BA9E",
-        "EVID-656746F0ECEC44434D2E7DF4",
-        "EVID-CD78169BD8A5D47190007C70",
-        "EVID-1210F0DC7A011BCC14759C98",
-        "EVID-7D8E3824D7BAED956CCECBE6",
-        "EVID-16C19506171C4BD28A9A79B6",
-        "EVID-642D1FA015D3345363CCA9F5",
-        "EVID-E29ACC411C39999E5D65B50C",
-        "EVID-164F7D2CE4876C97DE192BA9",
-        "EVID-36D80DCE13137D1B517ACEC3",
-        "EVID-C45EBF9E63759024A18D5B10",
-        "EVID-76D5706A54CF4395E4883B7A",
-        "EVID-10CABA2663BEC6CFF89F8D7E",
-        "EVID-F30D0AF265C1D250C8535D18"
+        "EVID-BE90752EF192EE20A3D18C43",
+        "EVID-7C3B35FD8829112C72C3A6FF",
+        "EVID-BAAE7CA6463D4940C1EA51CB",
+        "EVID-EFD8BC44D54AD2BF258BAE0D",
+        "EVID-621711DE2D4BDA8933C851E8",
+        "EVID-CCE1578FA74D8715DA4876FE",
+        "EVID-40BFBD092A8DB0ED2AEFF5F9",
+        "EVID-5229F1B6D12B7CE407921D7C",
+        "EVID-E3E1A3271965EEE443F26FBF",
+        "EVID-38B8E504F8E85D45CCC00685",
+        "EVID-C1D3069D37F53AAAF62A91A9",
+        "EVID-080EA1EB83C739C4B4FC3A07",
+        "EVID-60F017EBFA6D846121370885",
+        "EVID-942736591103F9B0784219EA",
+        "EVID-9E667716EFDFC70F98178E67",
+        "EVID-51A843F65018FE1E158DEDF4",
+        "EVID-918419A7B4F7CF661DFB1093",
+        "EVID-45821B013A201DC7F285A29D",
+        "EVID-07ABFE7979AF002235B48C5D",
+        "EVID-ACDF57C09B1573D3AF0E5F85",
+        "EVID-E47538232ECBEF4ABF15ED92",
+        "EVID-37CE6A7FD7A77D85D48E3ACD",
+        "EVID-FC244F3977E09CCE55AE4BBC"
       ],
       "independent_economics": {
         "baseline_365d": {
@@ -136,15 +136,15 @@
     }
   ],
   "carried_forward_plan": null,
-  "contract_version": "3.1.0",
+  "contract_version": "3.2.0",
   "cost_baseline": {
     "actual_365d": {
-      "availability": "PARTIAL",
-      "aws_basis": "UNAVAILABLE",
-      "aws_cost": null,
+      "availability": "COMPLETE",
+      "aws_basis": "MODELED_AWS_LIST_PRICE",
+      "aws_cost": 26597.13,
       "dbu_basis": "OBSERVED_DATABRICKS_BILLING",
       "dbu_cost": 46885.97,
-      "total_cost": null
+      "total_cost": 73483.1
     },
     "currency": "USD",
     "forecast": {
@@ -232,75 +232,10 @@
     "warehouse_type": "PRO"
   },
   "evidence": {
-    "EVID-10CABA2663BEC6CFF89F8D7E": {
+    "EVID-07ABFE7979AF002235B48C5D": {
       "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-10CABA2663BEC6CFF89F8D7E",
-      "interpretation": "Calendar-day coverage available to the forward cost model.",
-      "metric": "cost_history_days",
-      "observation_window": "current_epoch",
-      "source": "system.billing.usage",
-      "source_field": "usage_date",
-      "threshold": null,
-      "unit": "days",
-      "value": 364
-    },
-    "EVID-1210F0DC7A011BCC14759C98": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-1210F0DC7A011BCC14759C98",
-      "interpretation": "Query task time per running cluster-minute (evidence only; not used in decisions until calibrated on real data).",
-      "metric": "task_minutes_per_cluster_minute",
-      "observation_window": "current epoch",
-      "source": "system.query.history",
-      "source_field": "total_task_duration_ms",
-      "threshold": null,
-      "unit": "ratio",
-      "value": 0.102968
-    },
-    "EVID-164F7D2CE4876C97DE192BA9": {
-      "comparator": ">= batch profile",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-164F7D2CE4876C97DE192BA9",
-      "interpretation": "Share of queries from jobs; a batch warehouse's downsize canary is judged on run days and job run time, not interactive latency.",
-      "metric": "job_query_share_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "query_source.job_info.job_id",
-      "threshold": 80.0,
-      "unit": "%",
-      "value": 100.0
-    },
-    "EVID-16C19506171C4BD28A9A79B6": {
-      "comparator": "more clusters than the recent peak -> capacity cuts held",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-16C19506171C4BD28A9A79B6",
-      "interpretation": "Peak running + queued queries of an earlier configuration of this warehouse (level reached in the peak-demand minutes); when it needs more clusters than the recent window's peak, capacity cuts wait. Older epochs never choose a change, its target or its economics.",
-      "metric": "older_epoch_peak_concurrency",
-      "observation_window": "older epochs within the last 365 days",
-      "source": "system.query.history",
-      "source_field": "start_time/end_time",
-      "threshold": null,
-      "unit": "queries",
-      "value": null
-    },
-    "EVID-1B767CA85A566ED701F097DE": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-1B767CA85A566ED701F097DE",
-      "interpretation": "Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
-      "metric": "billing_correction_dbu_share_365d",
-      "observation_window": "trailing_365d",
-      "source": "system.billing.usage",
-      "source_field": "record_type",
-      "threshold": null,
-      "unit": "ratio",
-      "value": 0.0
-    },
-    "EVID-36D80DCE13137D1B517ACEC3": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-36D80DCE13137D1B517ACEC3",
+      "evidence_id": "EVID-07ABFE7979AF002235B48C5D",
       "interpretation": "Observed trailing-365-day Databricks SQL list cost attributed to the warehouse.",
       "metric": "actual_dbu_cost_365d",
       "observation_window": "trailing_365d",
@@ -310,192 +245,10 @@
       "unit": "USD",
       "value": 46885.97
     },
-    "EVID-3A10213466FCC439823F1CF5": {
-      "comparator": "<= downsize-safe",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-3A10213466FCC439823F1CF5",
-      "interpretation": "Tail execution latency guardrail.",
-      "metric": "p95_execution_ms_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "execution_duration_ms",
-      "threshold": 5000,
-      "unit": "ms",
-      "value": 2500
-    },
-    "EVID-4BD2BB843835797FF7B2D0B8": {
-      "comparator": ">= evidence minimum for upsize",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-4BD2BB843835797FF7B2D0B8",
-      "interpretation": "Queries that spilled; the spill severity percentile is computed over these queries only.",
-      "metric": "spill_queries_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "spilled_local_bytes",
-      "threshold": 20,
-      "unit": "queries",
-      "value": 0
-    },
-    "EVID-5AB17C1F1AD124DDCFF4E1B3": {
-      "comparator": ">= upsize signal",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-5AB17C1F1AD124DDCFF4E1B3",
-      "interpretation": "Frequency of queries spilling to local storage.",
-      "metric": "spill_query_pct_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "spilled_local_bytes",
-      "threshold": 2.0,
-      "unit": "%",
-      "value": 0.0
-    },
-    "EVID-5B802EB98B864C9EE82012C1": {
-      "comparator": "<= downsize-safe",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-5B802EB98B864C9EE82012C1",
-      "interpretation": "Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on.",
-      "metric": "failure_cancel_pct_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "execution_status",
-      "threshold": 5.0,
-      "unit": "%",
-      "value": 0.3
-    },
-    "EVID-63302097D6D8257746824963": {
-      "comparator": ">= upsize signal",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-63302097D6D8257746824963",
-      "interpretation": "Severity of spill at p95 among queries that spilled.",
-      "metric": "p95_spill_bytes_when_spilled_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "spilled_local_bytes",
-      "threshold": 1073741824,
-      "unit": "bytes",
-      "value": 0
-    },
-    "EVID-642D1FA015D3345363CCA9F5": {
+    "EVID-080EA1EB83C739C4B4FC3A07": {
       "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-642D1FA015D3345363CCA9F5",
-      "interpretation": "Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy).",
-      "metric": "busy_cluster_time_share",
-      "observation_window": "current epoch",
-      "source": "system.query.history + system.compute.warehouse_events",
-      "source_field": "start_time/end_time, cluster_count",
-      "threshold": null,
-      "unit": "ratio",
-      "value": 0.025686
-    },
-    "EVID-656746F0ECEC44434D2E7DF4": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-656746F0ECEC44434D2E7DF4",
-      "interpretation": "Metadata loading and optimization time; a size change does not shorten it (evidence only).",
-      "metric": "p95_compilation_ms_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "compilation_duration_ms",
-      "threshold": null,
-      "unit": "ms",
-      "value": 400
-    },
-    "EVID-76D5706A54CF4395E4883B7A": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-76D5706A54CF4395E4883B7A",
-      "interpretation": "Forward customer AWS infrastructure cost model for the current configuration epoch; null when unavailable.",
-      "metric": "forward_aws_cost_365d",
-      "observation_window": "forward_365d",
-      "source": "derived",
-      "source_field": "aws_current_epoch_cost_model",
-      "threshold": null,
-      "unit": "USD",
-      "value": 26643.25
-    },
-    "EVID-7BE57DC571185AAD8DDC5501": {
-      "comparator": "<= downsize-safe",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-7BE57DC571185AAD8DDC5501",
-      "interpretation": "Concurrency pressure during the decision window.",
-      "metric": "queued_query_pct_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "waiting_at_capacity_duration_ms",
-      "threshold": 0.5,
-      "unit": "%",
-      "value": 0.0
-    },
-    "EVID-7D8E3824D7BAED956CCECBE6": {
-      "comparator": ">= capacity-cut hold",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-7D8E3824D7BAED956CCECBE6",
-      "interpretation": "Smallest of the last 4 weekly query counts over the median of the 4 weeks before; at or above the threshold, capacity cuts wait (unknown when the epoch has fewer than 8 complete weeks).",
-      "metric": "query_volume_growth_ratio",
-      "observation_window": "last 8 complete weeks within current epoch",
-      "source": "system.query.history",
-      "source_field": "start_time",
-      "threshold": 1.1,
-      "unit": "ratio",
-      "value": 1.0
-    },
-    "EVID-8AE2C6B256AF99604B93BA9E": {
-      "comparator": ">= downsize sample",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-8AE2C6B256AF99604B93BA9E",
-      "interpretation": "Queries not served from the result cache: the population latency and spill are measured on.",
-      "metric": "decision_queries_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "from_result_cache",
-      "threshold": 500,
-      "unit": "queries",
-      "value": 139
-    },
-    "EVID-B3545EA4FA6D024B73AFBA41": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-B3545EA4FA6D024B73AFBA41",
-      "interpretation": "Current warehouse size.",
-      "metric": "warehouse_size",
-      "observation_window": "current epoch",
-      "source": "system.compute.warehouses",
-      "source_field": "warehouse_size",
-      "threshold": null,
-      "unit": "value",
-      "value": "MEDIUM"
-    },
-    "EVID-B38A80A2A9CDBDCCCDCD6C14": {
-      "comparator": "<= downsize-safe",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-B38A80A2A9CDBDCCCDCD6C14",
-      "interpretation": "Extreme tail execution latency guardrail.",
-      "metric": "p99_execution_ms_30",
-      "observation_window": "last 30 days within current epoch",
-      "source": "system.query.history",
-      "source_field": "execution_duration_ms",
-      "threshold": 30000,
-      "unit": "ms",
-      "value": 9000
-    },
-    "EVID-C45EBF9E63759024A18D5B10": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-C45EBF9E63759024A18D5B10",
-      "interpretation": "No-change forward DBU cost forecast anchored to the current configuration epoch.",
-      "metric": "forward_dbu_cost_365d",
-      "observation_window": "forward_365d",
-      "source": "derived",
-      "source_field": "epoch-runrate-v2.10.0",
-      "threshold": null,
-      "unit": "USD",
-      "value": 47358.03
-    },
-    "EVID-CD78169BD8A5D47190007C70": {
-      "comparator": "",
-      "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-CD78169BD8A5D47190007C70",
+      "evidence_id": "EVID-080EA1EB83C739C4B4FC3A07",
       "interpretation": "Time clients spend fetching results after execution; a size change does not shorten it (evidence only).",
       "metric": "p95_result_fetch_ms_30",
       "observation_window": "last 30 days within current epoch",
@@ -505,10 +258,140 @@
       "unit": "ms",
       "value": 800
     },
-    "EVID-E29ACC411C39999E5D65B50C": {
+    "EVID-1146EF0048A8C0BC33D6D50C": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-1146EF0048A8C0BC33D6D50C",
+      "interpretation": "Modeled trailing-365-day customer AWS (EC2) cost: each Pro/Classic billing day's DBU over its size's published DBU rate, priced at that size's on-demand cluster-hour; Serverless days add 0. Null when any day cannot be priced.",
+      "metric": "actual_aws_cost_365d",
+      "observation_window": "trailing_365d",
+      "source": "derived",
+      "source_field": "billed DBU / published DBU per cluster-hour \u00d7 modeled cluster $/hour",
+      "threshold": null,
+      "unit": "USD",
+      "value": 26597.13
+    },
+    "EVID-37CE6A7FD7A77D85D48E3ACD": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-37CE6A7FD7A77D85D48E3ACD",
+      "interpretation": "Calendar-day coverage available to the forward cost model.",
+      "metric": "cost_history_days",
+      "observation_window": "current_epoch",
+      "source": "system.billing.usage",
+      "source_field": "usage_date",
+      "threshold": null,
+      "unit": "days",
+      "value": 364
+    },
+    "EVID-38B8E504F8E85D45CCC00685": {
+      "comparator": ">= downsize sample",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-38B8E504F8E85D45CCC00685",
+      "interpretation": "Queries not served from the result cache: the population latency and spill are measured on.",
+      "metric": "decision_queries_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "from_result_cache",
+      "threshold": 500,
+      "unit": "queries",
+      "value": 139
+    },
+    "EVID-40BFBD092A8DB0ED2AEFF5F9": {
+      "comparator": "<= downsize-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-40BFBD092A8DB0ED2AEFF5F9",
+      "interpretation": "Tail execution latency guardrail.",
+      "metric": "p95_execution_ms_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "execution_duration_ms",
+      "threshold": 5000,
+      "unit": "ms",
+      "value": 2500
+    },
+    "EVID-45821B013A201DC7F285A29D": {
+      "comparator": ">= batch profile",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-45821B013A201DC7F285A29D",
+      "interpretation": "Share of queries from jobs; a batch warehouse's downsize canary is judged on run days and job run time, not interactive latency.",
+      "metric": "job_query_share_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "query_source.job_info.job_id",
+      "threshold": 80.0,
+      "unit": "%",
+      "value": 100.0
+    },
+    "EVID-51A843F65018FE1E158DEDF4": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-51A843F65018FE1E158DEDF4",
+      "interpretation": "Share of running cluster-minutes with queries executing; the size runtime multiplier applies to this share only (unknown: all running time is treated as busy).",
+      "metric": "busy_cluster_time_share",
+      "observation_window": "current epoch",
+      "source": "system.query.history + system.compute.warehouse_events",
+      "source_field": "start_time/end_time, cluster_count",
+      "threshold": null,
+      "unit": "ratio",
+      "value": 0.025686
+    },
+    "EVID-5229F1B6D12B7CE407921D7C": {
+      "comparator": "<= downsize-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-5229F1B6D12B7CE407921D7C",
+      "interpretation": "Extreme tail execution latency guardrail.",
+      "metric": "p99_execution_ms_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "execution_duration_ms",
+      "threshold": 30000,
+      "unit": "ms",
+      "value": 9000
+    },
+    "EVID-60F017EBFA6D846121370885": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-60F017EBFA6D846121370885",
+      "interpretation": "Query task time per running cluster-minute (evidence only; not used in decisions until calibrated on real data).",
+      "metric": "task_minutes_per_cluster_minute",
+      "observation_window": "current epoch",
+      "source": "system.query.history",
+      "source_field": "total_task_duration_ms",
+      "threshold": null,
+      "unit": "ratio",
+      "value": 0.102968
+    },
+    "EVID-621711DE2D4BDA8933C851E8": {
+      "comparator": "<= downsize-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-621711DE2D4BDA8933C851E8",
+      "interpretation": "Concurrency pressure during the decision window.",
+      "metric": "queued_query_pct_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "waiting_at_capacity_duration_ms",
+      "threshold": 0.5,
+      "unit": "%",
+      "value": 0.0
+    },
+    "EVID-7C3B35FD8829112C72C3A6FF": {
+      "comparator": ">= upsize signal",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-7C3B35FD8829112C72C3A6FF",
+      "interpretation": "Frequency of queries spilling to local storage.",
+      "metric": "spill_query_pct_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "spilled_local_bytes",
+      "threshold": 2.0,
+      "unit": "%",
+      "value": 0.0
+    },
+    "EVID-918419A7B4F7CF661DFB1093": {
       "comparator": ">= rewrite, not upsize",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-E29ACC411C39999E5D65B50C",
+      "evidence_id": "EVID-918419A7B4F7CF661DFB1093",
       "interpretation": "Share of spilled bytes from the top 3 statement sources (saved query, dashboard, job, notebook or statement hash); the statement text is not exported.",
       "metric": "top_spill_source_share_pct_30",
       "observation_window": "last 30 days within current epoch",
@@ -518,10 +401,114 @@
       "unit": "%",
       "value": null
     },
-    "EVID-ECA7EA0BCF970DE9B3C449A8": {
+    "EVID-942736591103F9B0784219EA": {
+      "comparator": ">= capacity-cut hold",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-942736591103F9B0784219EA",
+      "interpretation": "Smallest of the last 4 weekly query counts over the median of the 4 weeks before; at or above the threshold, capacity cuts wait (unknown when the epoch has fewer than 8 complete weeks).",
+      "metric": "query_volume_growth_ratio",
+      "observation_window": "last 8 complete weeks within current epoch",
+      "source": "system.query.history",
+      "source_field": "start_time",
+      "threshold": 1.1,
+      "unit": "ratio",
+      "value": 1.0
+    },
+    "EVID-9E667716EFDFC70F98178E67": {
+      "comparator": "more clusters than the recent peak -> capacity cuts held",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-9E667716EFDFC70F98178E67",
+      "interpretation": "Peak running + queued queries of an earlier configuration of this warehouse (level reached in the peak-demand minutes); when it needs more clusters than the recent window's peak, capacity cuts wait. Older epochs never choose a change, its target or its economics.",
+      "metric": "older_epoch_peak_concurrency",
+      "observation_window": "older epochs within the last 365 days",
+      "source": "system.query.history",
+      "source_field": "start_time/end_time",
+      "threshold": null,
+      "unit": "queries",
+      "value": null
+    },
+    "EVID-ACDF57C09B1573D3AF0E5F85": {
       "comparator": "",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-ECA7EA0BCF970DE9B3C449A8",
+      "evidence_id": "EVID-ACDF57C09B1573D3AF0E5F85",
+      "interpretation": "No-change forward DBU cost forecast anchored to the current configuration epoch.",
+      "metric": "forward_dbu_cost_365d",
+      "observation_window": "forward_365d",
+      "source": "derived",
+      "source_field": "epoch-runrate-v2.10.0",
+      "threshold": null,
+      "unit": "USD",
+      "value": 47358.03
+    },
+    "EVID-BAAE7CA6463D4940C1EA51CB": {
+      "comparator": ">= evidence minimum for upsize",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-BAAE7CA6463D4940C1EA51CB",
+      "interpretation": "Queries that spilled; the spill severity percentile is computed over these queries only.",
+      "metric": "spill_queries_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "spilled_local_bytes",
+      "threshold": 20,
+      "unit": "queries",
+      "value": 0
+    },
+    "EVID-BC1C68671EB093765E535B39": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-BC1C68671EB093765E535B39",
+      "interpretation": "Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
+      "metric": "billing_correction_dbu_share_365d",
+      "observation_window": "trailing_365d",
+      "source": "system.billing.usage",
+      "source_field": "record_type",
+      "threshold": null,
+      "unit": "ratio",
+      "value": 0.0
+    },
+    "EVID-BE90752EF192EE20A3D18C43": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-BE90752EF192EE20A3D18C43",
+      "interpretation": "Current warehouse size.",
+      "metric": "warehouse_size",
+      "observation_window": "current epoch",
+      "source": "system.compute.warehouses",
+      "source_field": "warehouse_size",
+      "threshold": null,
+      "unit": "value",
+      "value": "MEDIUM"
+    },
+    "EVID-C1D3069D37F53AAAF62A91A9": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-C1D3069D37F53AAAF62A91A9",
+      "interpretation": "Metadata loading and optimization time; a size change does not shorten it (evidence only).",
+      "metric": "p95_compilation_ms_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "compilation_duration_ms",
+      "threshold": null,
+      "unit": "ms",
+      "value": 400
+    },
+    "EVID-CCE1578FA74D8715DA4876FE": {
+      "comparator": "<= downsize-safe",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-CCE1578FA74D8715DA4876FE",
+      "interpretation": "Failed or cancelled query share; a high rate undermines the no-pressure evidence a downsize relies on.",
+      "metric": "failure_cancel_pct_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "execution_status",
+      "threshold": 5.0,
+      "unit": "%",
+      "value": 0.3
+    },
+    "EVID-E3E1A3271965EEE443F26FBF": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-E3E1A3271965EEE443F26FBF",
       "interpretation": "Share of bytes read served from the I/O cache (weighted by bytes read); HITL context only, not a size decision threshold.",
       "metric": "avg_read_io_cache_percent_30",
       "observation_window": "last 30 days within current epoch",
@@ -531,10 +518,36 @@
       "unit": "%",
       "value": 35.0
     },
-    "EVID-F30D0AF265C1D250C8535D18": {
+    "EVID-E47538232ECBEF4ABF15ED92": {
+      "comparator": "",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-E47538232ECBEF4ABF15ED92",
+      "interpretation": "Forward customer AWS infrastructure cost model for the current configuration epoch; null when unavailable.",
+      "metric": "forward_aws_cost_365d",
+      "observation_window": "forward_365d",
+      "source": "derived",
+      "source_field": "aws_current_epoch_cost_model",
+      "threshold": null,
+      "unit": "USD",
+      "value": 26643.25
+    },
+    "EVID-EFD8BC44D54AD2BF258BAE0D": {
+      "comparator": ">= upsize signal",
+      "epoch_scope": "CURRENT",
+      "evidence_id": "EVID-EFD8BC44D54AD2BF258BAE0D",
+      "interpretation": "Severity of spill at p95 among queries that spilled.",
+      "metric": "p95_spill_bytes_when_spilled_30",
+      "observation_window": "last 30 days within current epoch",
+      "source": "system.query.history",
+      "source_field": "spilled_local_bytes",
+      "threshold": 1073741824,
+      "unit": "bytes",
+      "value": 0
+    },
+    "EVID-FC244F3977E09CCE55AE4BBC": {
       "comparator": ">= readiness",
       "epoch_scope": "CURRENT",
-      "evidence_id": "EVID-F30D0AF265C1D250C8535D18",
+      "evidence_id": "EVID-FC244F3977E09CCE55AE4BBC",
       "interpretation": "Settled days of the current epoch with billed usage: the current configuration is ready once it reaches the readiness count.",
       "metric": "billed_cost_days",
       "observation_window": "current_epoch",
@@ -568,7 +581,7 @@
     },
     "excluded_scenarios": [],
     "included_scenario_ids": [
-      "SCN-50C9417A58E090197FCA78FE"
+      "SCN-22D2E613CB1D8EF1C1936690"
     ],
     "scenario_envelope": {
       "maximum_savings": {
@@ -583,7 +596,7 @@
           "dbu": 23668.34,
           "total": 36955.74
         },
-        "scenario_id": "SCN-50C9417A58E090197FCA78FE"
+        "scenario_id": "SCN-22D2E613CB1D8EF1C1936690"
       },
       "minimum_savings": {
         "bound": "LOW",
@@ -597,7 +610,7 @@
           "dbu": 23122.11,
           "total": 36101.56
         },
-        "scenario_id": "SCN-50C9417A58E090197FCA78FE"
+        "scenario_id": "SCN-22D2E613CB1D8EF1C1936690"
       },
       "recommended_base": {
         "bound": "BASE",
@@ -611,7 +624,7 @@
           "dbu": 23546.96,
           "total": 36765.93
         },
-        "scenario_id": "SCN-50C9417A58E090197FCA78FE"
+        "scenario_id": "SCN-22D2E613CB1D8EF1C1936690"
       }
     },
     "semantics": {
@@ -623,14 +636,14 @@
   "provenance": {
     "analyzer_version": "sql-warehouse-analyzer-v2.14.0",
     "bundle_estimator_version": "stateful-resource-bundle-v2.14.0",
-    "contract_version": "3.1.0",
+    "contract_version": "3.2.0",
     "decision_graph_version": "warehouse-decision-graph-v2.14.0",
     "estimator_version": "counterfactual-v2.14.0",
-    "evidence_fingerprint": "SHA256:DC82F41A2073C5E7496412142FC972840FF814113187BECFCC2C1E79B81DDC34",
+    "evidence_fingerprint": "SHA256:E7FF54EEB92526F26FE9D98DDF6A527C8863D557E0B32C357AD78D019B671D5F",
     "generated_at": "2026-10-01T12:00:00Z",
     "modeler_version": "epoch-runrate-v2.10.0",
     "optimizer_version": "sql-warehouse-optimizer-v2.14.0",
-    "package_hash_full_sha256": "EA0E27A34390ACC0F1BBB8376F464AC76245453EB17762B6968B6538BAB4C6B5",
+    "package_hash_full_sha256": "3AC80D128C1D99B61F55B82F9B39AF525CCFEE1CB43C0B80957BB35F7C0AE242",
     "policy_version": "sql-warehouse-policy-v2.14.0",
     "reviewer_version": "recommendation-reviewer-v2.14.0",
     "source_regions": [
@@ -657,13 +670,13 @@
     "realization_records": [],
     "status": "NOT_APPLIED"
   },
-  "recommendation_package_id": "PKG-EA0E27A34390ACC0F1BBB837",
+  "recommendation_package_id": "PKG-3AC80D128C1D99B61F55B82F",
   "recommended_plan": {
     "decision_summary": "Plan A \u2014 Optimize current warehouse type is the deterministic execution path; apply validation gates and regenerate after invalidating changes.",
     "next_action": "RUN_WAREHOUSE_SIZE_CANARY",
     "reevaluation": null,
     "requires_hitl": true,
-    "scenario_id": "SCN-50C9417A58E090197FCA78FE",
+    "scenario_id": "SCN-22D2E613CB1D8EF1C1936690",
     "selection_reason_code": "CURRENT_TYPE_OPTIMIZATION_HAS_VALIDATED_EVIDENCE"
   },
   "run_scope": {
@@ -680,7 +693,7 @@
   "scenarios": [
     {
       "candidate_refs": [
-        "CAND-B6024B0E58AF0CD7E88D6815"
+        "CAND-D60EB741EA7B99AD48270C72"
       ],
       "compatibility": {
         "checks": [],
@@ -694,34 +707,34 @@
         "score": 0.772
       },
       "evidence_refs": [
-        "EVID-B3545EA4FA6D024B73AFBA41",
-        "EVID-5AB17C1F1AD124DDCFF4E1B3",
-        "EVID-4BD2BB843835797FF7B2D0B8",
-        "EVID-63302097D6D8257746824963",
-        "EVID-7BE57DC571185AAD8DDC5501",
-        "EVID-5B802EB98B864C9EE82012C1",
-        "EVID-3A10213466FCC439823F1CF5",
-        "EVID-B38A80A2A9CDBDCCCDCD6C14",
-        "EVID-ECA7EA0BCF970DE9B3C449A8",
-        "EVID-8AE2C6B256AF99604B93BA9E",
-        "EVID-656746F0ECEC44434D2E7DF4",
-        "EVID-CD78169BD8A5D47190007C70",
-        "EVID-1210F0DC7A011BCC14759C98",
-        "EVID-7D8E3824D7BAED956CCECBE6",
-        "EVID-16C19506171C4BD28A9A79B6",
-        "EVID-642D1FA015D3345363CCA9F5",
-        "EVID-E29ACC411C39999E5D65B50C",
-        "EVID-164F7D2CE4876C97DE192BA9",
-        "EVID-36D80DCE13137D1B517ACEC3",
-        "EVID-C45EBF9E63759024A18D5B10",
-        "EVID-76D5706A54CF4395E4883B7A",
-        "EVID-10CABA2663BEC6CFF89F8D7E",
-        "EVID-F30D0AF265C1D250C8535D18"
+        "EVID-BE90752EF192EE20A3D18C43",
+        "EVID-7C3B35FD8829112C72C3A6FF",
+        "EVID-BAAE7CA6463D4940C1EA51CB",
+        "EVID-EFD8BC44D54AD2BF258BAE0D",
+        "EVID-621711DE2D4BDA8933C851E8",
+        "EVID-CCE1578FA74D8715DA4876FE",
+        "EVID-40BFBD092A8DB0ED2AEFF5F9",
+        "EVID-5229F1B6D12B7CE407921D7C",
+        "EVID-E3E1A3271965EEE443F26FBF",
+        "EVID-38B8E504F8E85D45CCC00685",
+        "EVID-C1D3069D37F53AAAF62A91A9",
+        "EVID-080EA1EB83C739C4B4FC3A07",
+        "EVID-60F017EBFA6D846121370885",
+        "EVID-942736591103F9B0784219EA",
+        "EVID-9E667716EFDFC70F98178E67",
+        "EVID-51A843F65018FE1E158DEDF4",
+        "EVID-918419A7B4F7CF661DFB1093",
+        "EVID-45821B013A201DC7F285A29D",
+        "EVID-07ABFE7979AF002235B48C5D",
+        "EVID-ACDF57C09B1573D3AF0E5F85",
+        "EVID-E47538232ECBEF4ABF15ED92",
+        "EVID-37CE6A7FD7A77D85D48E3ACD",
+        "EVID-FC244F3977E09CCE55AE4BBC"
       ],
       "execution_plan": [
         {
           "action": null,
-          "candidate_id": "CAND-B6024B0E58AF0CD7E88D6815",
+          "candidate_id": "CAND-D60EB741EA7B99AD48270C72",
           "confidence": {
             "components": {
               "coverage": 1.0,
@@ -875,7 +888,7 @@
           }
         }
       },
-      "scenario_id": "SCN-50C9417A58E090197FCA78FE",
+      "scenario_id": "SCN-22D2E613CB1D8EF1C1936690",
       "scenario_name": "Plan A \u2014 Optimize current warehouse type",
       "scenario_type": "IN_PLACE_OPTIMIZATION",
       "status": "RECOMMENDED"
@@ -884,7 +897,7 @@
   "warehouse": {
     "current_epoch": {
       "age_days": 457,
-      "epoch_id": "EPOCH-5BB26F1DC3EFC5443052E5BB",
+      "epoch_id": "EPOCH-30B62161F507E7FE0ACE0E8D",
       "is_current": true,
       "start_time": "2025-07-01T00:00:00Z"
     },

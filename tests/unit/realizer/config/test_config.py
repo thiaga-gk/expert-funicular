@@ -1,7 +1,7 @@
 """Realizer configuration (src/realizer/config): version identifiers, knobs, size order, input loading and policy.
 
 Every value is the single-file release's (stored in ``tests/fixtures/realizer/expectations/``), ``validate_package`` accepts
-only unmodified Reporter JSON Contract 3.1.0 packages, and the CLI loads its inputs and prints its results the same way.
+only unmodified Reporter JSON Contract 3.2.0 packages, and the CLI loads its inputs and prints its results the same way.
 ``RealizerPolicy`` itself lives in ``realizer.governor.policy``; its defaults and ``from_mapping`` are also pinned here
 because the policy file is loaded by the config layer.
 """
@@ -70,7 +70,7 @@ class LoaderTests(unittest.TestCase):
                 self.assertIsNone(loader.validate_package(package))
 
     def test_supported_contract_is_the_publishers(self):
-        self.assertEqual(loader.SUPPORTED_PUBLISHER_CONTRACT, "3.1.0")
+        self.assertEqual(loader.SUPPORTED_PUBLISHER_CONTRACT, "3.2.0")
         self.assertEqual(self.pkg["contract_version"], loader.SUPPORTED_PUBLISHER_CONTRACT)
 
     def test_package_must_be_a_mapping(self):
@@ -80,7 +80,7 @@ class LoaderTests(unittest.TestCase):
                     loader.validate_package(value)
 
     def test_wrong_or_missing_contract_version(self):
-        self.rejected(lambda p: p.update(contract_version="1.0.0"), r"unsupported Publisher contract: 1\.0\.0 \(this Realizer reads 3\.1\.0\)")
+        self.rejected(lambda p: p.update(contract_version="1.0.0"), r"unsupported Publisher contract: 1\.0\.0 \(this Realizer reads 3\.2\.0\)")
         self.rejected(lambda p: p.update(contract_version="3.0.0"), r"unsupported Publisher contract: 3\.0\.0")
         self.rejected(lambda p: p.update(contract_version=None), r"unsupported Publisher contract: None")
         self.rejected(lambda p: p.pop("contract_version"), r"unsupported Publisher contract: None")
@@ -88,11 +88,11 @@ class LoaderTests(unittest.TestCase):
     def test_schema_violations_name_the_location_and_not_the_values(self):
         for key in ("recommendation_package_id", "warehouse", "provenance", "scenarios", "recommended_plan", "realization"):
             with self.subTest(removed=key):
-                self.rejected(lambda p: p.pop(key), r"fails the Reporter JSON Contract 3\.1\.0 schema")
+                self.rejected(lambda p: p.pop(key), r"fails the Reporter JSON Contract 3\.2\.0 schema")
         package = self.rejected(lambda p: p.update(recommendation_package_id=7), r"schema at recommendation_package_id")
         self.assertEqual(package["recommendation_package_id"], 7)
         self.rejected(lambda p: p["provenance"].update(package_hash_full_sha256="not a hash"), r"schema at provenance/package_hash_full_sha256")
-        self.rejected(lambda p: p.update(unexpected_field=1), r"fails the Reporter JSON Contract 3\.1\.0 schema")
+        self.rejected(lambda p: p.update(unexpected_field=1), r"fails the Reporter JSON Contract 3\.2\.0 schema")
 
     def test_an_edited_hashed_field_breaks_the_package_id(self):
         self.rejected(lambda p: p["current_config"].update(warehouse_size="SMALL"), f"package id {self.pkg['recommendation_package_id']} does not match the package content")
@@ -104,7 +104,7 @@ class LoaderTests(unittest.TestCase):
 
     def test_the_realization_block_must_be_the_empty_placeholder(self):
         self.rejected(lambda p: p["realization"].update(status="REALIZED"), "empty NOT_APPLIED placeholder")
-        self.rejected(lambda p: p["realization"].update(realization_records=[{"x": 1}]), "fails the Reporter JSON Contract 3\\.1\\.0 schema|empty NOT_APPLIED placeholder")
+        self.rejected(lambda p: p["realization"].update(realization_records=[{"x": 1}]), "fails the Reporter JSON Contract 3\\.2\\.0 schema|empty NOT_APPLIED placeholder")
 
     def test_a_carried_forward_plan_is_refused(self):
         self.rejected(lambda p: p.update(carried_forward_plan={"plan": 1}), "carried_forward_plan|carried-forward")
@@ -120,7 +120,7 @@ class LoaderTests(unittest.TestCase):
     def test_realize_uses_the_loader_gate(self):
         cases = {"contract": ({**self.pkg, "contract_version": "1.0.0"}, "unsupported Publisher contract: 1.0.0"),
                  "id": ({**self.pkg, "current_config": {**self.pkg["current_config"], "warehouse_size": "SMALL"}}, "does not match the package content"),
-                 "schema": ({k: v for k, v in self.pkg.items() if k != "scenarios"}, "fails the Reporter JSON Contract 3.1.0 schema")}
+                 "schema": ({k: v for k, v in self.pkg.items() if k != "scenarios"}, "fails the Reporter JSON Contract 3.2.0 schema")}
         for label, (package, message) in cases.items():
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
                 with self.assertRaisesRegex(ValueError, message):

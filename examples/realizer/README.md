@@ -4,7 +4,7 @@ A deterministic, synthetic example of the Realizer: one Publisher package and tw
 
 | File | What it is |
 |---|---|
-| `tests/fixtures/realizer/packages/inplace-size-canary.json` | The source RecommendationPackage (Reporter JSON Contract 3.1.0, the only version the Realizer accepts, built from a real Publisher run by `scripts/build_realizer_fixtures.py`). |
+| `tests/fixtures/realizer/packages/inplace-size-canary.json` | The source RecommendationPackage (Reporter JSON Contract 3.2.0, the only version the Realizer accepts, built from a real Publisher run by `scripts/build_realizer_fixtures.py`). |
 | `exact/observation.json` | The recommended step applied as recommended. |
 | `modified/observation.json` | A different size applied (SMALL instead of the recommended step 1, LARGE to MEDIUM). |
 | `approvals.json` | An approvals file (format 1.0.0, `schema/realization-approvals.schema.json`): one approval naming this package, the size step's knob and its recommended value (MEDIUM) with a change-ticket reference. With `--approvals` on a measured change it makes the change's origin `CONFIRMED`; an approval that matches no package, knob and value of the run is logged as a warning (`approvals.unmatched`), never ignored. |
@@ -49,7 +49,7 @@ realizer --publisher-run ./demo_out --demo --output-dir ./realizer_fleet
 realizer --backtest --demo --output-dir ./realizer_backtest
 ```
 
-Each run prints the path of the written realization package in its run folder, `<output-dir>/run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json` (with `--flat-output`, `<output-dir>/realization/packages/...`); `--print-json` prints the snapshot instead. The snapshot and the run log `realizer.log` are in the same run folder; the history goes under `<output-dir>/state/realization/` (`ledger/`, `evidence/`, `regeneration/`, `measurements/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share a state. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
+Each run prints the path of the written realization package in its run folder, `<output-dir>/run_date=YYYY-MM-DD/run_ts=YYYYMMDDTHHMMSSZ/realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json` (with `--flat-output`, `<output-dir>/realization/packages/...`); `--print-json` prints the snapshot instead. The snapshot and the run log `realizer.log` are in the same run folder; the history goes under `<output-dir>/state/realization/` (`ledger/`, `evidence/`, `regeneration/`, `measurements/`, `policies/`, `sources/`, `state/`). Use a separate output directory per variant: both runs append to the same ledger (`RPKG-...jsonl`) when they share a state. The generated files are not committed; `tests/fixtures/realizer/expected/example-exact/` and `example-modified/` hold the pinned outputs.
 
 ## Expected result
 
@@ -58,10 +58,10 @@ Both variants realize the same package, so the realization package ID is the sam
 ### exact
 
 ```text
-RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-0F7722F077E9D69939895911
+RPKG  RPKG-69DDE3286B752C8E1F1FC6BE
+RSNAP RSNAP-40A8D117D142B32D086CC059
 REVID REVID-37F7F275591908182339F44B
-RERUN RERUN-B1F60D50B9002716EC15E4DE
+RERUN RERUN-42B47BD394035774313246E5
 ```
 
 ```text
@@ -75,10 +75,10 @@ denominator_source          = PUBLISHER_CANDIDATE
 ### modified
 
 ```text
-RPKG  RPKG-976E6C1C6E88CE76321758ED
-RSNAP RSNAP-26155EAC3B743F62BCBFD9C7
+RPKG  RPKG-69DDE3286B752C8E1F1FC6BE
+RSNAP RSNAP-C34B4923918BFDD8CBDE55E9
 REVID REVID-0054A9DB9BEB251DB6B705DA
-RERUN RERUN-4A94ACD1AFCA25E7D3EA709A
+RERUN RERUN-F3F81701C87ADC1868C6887A
 ```
 
 ```text

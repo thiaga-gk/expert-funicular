@@ -3,7 +3,7 @@
 > The Realizer specification, kept in line with the code. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED FOR PHASE-1 IMPLEMENTATION  
-**Canonical inputs:** Reporter JSON Contract 3.1.0 (`PKG-*`) + Realizer Contract v1.2.0 (`RPKG-*`)  
+**Canonical inputs:** Reporter JSON Contract 3.2.0 (`PKG-*`) + Realizer Contract v1.2.0 (`RPKG-*`)  
 **Existing Workbook Contract:** Publisher Workbook Contract 1.6.0 remains immutable  
 **Realization workbook:** Realization Workbook Contract v2.0.0 (sections 10 to 16; `REALIZATION_WORKBOOK_CONTRACT_VERSION` in `src/realizer/contracts/report.py`)
 

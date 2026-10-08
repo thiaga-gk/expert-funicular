@@ -4,7 +4,7 @@ from __future__ import annotations
 from publisher.contracts import reporter_contract as rc
 
 
-PUBLISHER_VERSION = "2.14.0"
+PUBLISHER_VERSION = "2.15.0"
 
 
 CONTRACT_VERSION = rc.CONTRACT_VERSION

@@ -1,4 +1,4 @@
-"""Reporter contract v3.1.0 for Databricks SQL Warehouse Optimization.
+"""Reporter contract v3.2.0 for Databricks SQL Warehouse Optimization.
 
 This module is intentionally independent from the publisher pipeline.  It defines the stable,
 serialization-facing contract that every warehouse recommendation package must satisfy.
@@ -34,7 +34,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
-CONTRACT_VERSION = "3.1.0"
+CONTRACT_VERSION = "3.2.0"
 # Re-evaluation gates (contract 2.0.0: readiness replaces the 1.2.0 epoch-age gate). The validator embeds them, so
 # changing the matching publisher policy thresholds (readiness_min_billed_days, min_economics_cost_history_days)
 # requires a contract version bump.

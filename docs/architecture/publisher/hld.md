@@ -2,7 +2,7 @@
 
 **Document:** `docs/architecture/publisher/hld.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.1.0 (locked)  
+**Reporter JSON Contract:** v3.2.0 (locked)  
 **Workbook Contract:** v1.6.0 (locked)
 
 Role: component architecture, runtime flows and trade-offs.
@@ -363,7 +363,7 @@ It verifies, at minimum:
 
 ### 6.11 Packager: public contract assembly
 
-**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.1.0.
+**Responsibility:** Convert reviewed internal domain state into the locked Reporter JSON Contract v3.2.0.
 
 The public top-level hierarchy and field semantics: `docs/contracts/shared/reporter-json-contract.md`.
 
@@ -640,7 +640,7 @@ Volatile data such as `generated_at`, filenames, log paths, or workbook formatti
 
 ### 12.1 Public recommendation contract
 
-The only authoritative recommendation serialization is Reporter JSON Contract v3.1.0:
+The only authoritative recommendation serialization is Reporter JSON Contract v3.2.0:
 
 - Python dataclasses: `src/publisher/contracts/reporter_contract.py`
 - JSON Schema: `schema/recommendation-package.schema.json`
@@ -743,7 +743,7 @@ Examples that stop affected publication/run processing include:
 
 Evidence that is legitimately unavailable should not crash the pipeline when the contract can represent it safely. Examples:
 
-- no authoritative historical AWS actual cost,
+- no authoritative historical AWS actual cost (the trailing AWS actual is modeled from billed DBU),
 - missing regional AWS forward price,
 - insufficient Photon evidence,
 - compatibility status unknown.

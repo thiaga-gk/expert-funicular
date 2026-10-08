@@ -23,7 +23,7 @@ from realizer.realizer import build_context  # noqa: E402
 from realizer.contracts.request import RealizationRequest  # noqa: E402
 
 WHOLE = "2026-10-09T12:00:00Z"
-VALUES = ("1002", "1003")  # the later of the two has the lower entry id
+VALUES = ("1001", "1002")  # the later of the two has the lower entry id (with and without an episode)
 LATER = "2026-10-09T12:00:00.500000Z"  # half a second later, but '.' < 'Z' as text
 
 

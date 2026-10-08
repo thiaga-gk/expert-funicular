@@ -1,6 +1,6 @@
 # Databricks SQL Warehouse Optimizer
 
-Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v3.1.0** as the machine source of truth and **Workbook Reporter Contract v1.6.0** as the professional human projection. The companion [Realizer](#realizer) reads those packages after a change is applied and measures what was realized.
+Deterministic, read-only optimizer for Databricks SQL warehouses. The publisher uses **Reporter JSON Contract v3.2.0** as the machine source of truth and **Workbook Reporter Contract v1.6.0** as the professional human projection. The companion [Realizer](#realizer) reads those packages after a change is applied and measures what was realized.
 
 ## Install
 
@@ -26,7 +26,7 @@ flowchart LR
     R1 --> P[Packager<br/>scenarios, bundle estimator, contract assembly]
     P --> R2[Reviewer<br/>package gate]
     R2 --> RP[Reporter]
-    RP --> J[packages/*.json<br/>RecommendationPackage v3.1.0]
+    RP --> J[packages/*.json<br/>RecommendationPackage v3.2.0]
     RP --> W[workbook.xlsx<br/>Workbook Contract v1.6.0]
 ```
 
@@ -101,7 +101,7 @@ python scripts/run_demo.py ./demo_out      # same run, no install
 python scripts/validate_workbook.py ./demo_out   # checks the newest run under ./demo_out
 ```
 
-The demo fleet has one simulated warehouse per golden scenario (each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..41) runs the first N warehouses.
+The demo fleet has one simulated warehouse per golden scenario (each tagged `golden_scenario=<row id>` in its config tags). Each warehouse's evidence is simulated from a workload description: query windows by day rule (weekdays, all days, month-end, half-year-end) with concurrent or periodic queries, auto-stop deciding running time and restarts, and clusters following concurrency within min/max. Billed DBU is cluster-hours times the published DBU/hour per size (with small daily noise) and cost is DBU times the SKU list price. The simulated rows are turned into collector query results and normalized by the real evidence extraction, so the run enters the same downstream pipeline as live evidence. `--demo-count N` (1..41) runs the first N warehouses. `--demo-as-of <UTC time>` analyzes the same fleet at a later time (never before the default 2026-10-01T12:00:00Z), which is how a series of dated demo runs is made.
 
 Expected output: one immutable package per simulated warehouse, one `workbook.xlsx`, replay evidence, manifest and log. The output directory is not tracked; regenerate it with the command above.
 
@@ -143,7 +143,7 @@ Weekly is enough: readiness needs only a few settled billed days (`readiness_min
 
 ## Realizer
 
-The Realizer is the companion to the publisher: it answers what happened after a RecommendationPackage was published. It reads the package (Reporter JSON Contract 3.1.0 only), observes the package's warehouse after the owner applied a change, appends immutable ledger facts and projects a realization package and snapshot, with the realized saving where it can be measured. It is read-only: it never changes a recommendation package or a warehouse. The observation comes from one of four sources: a live measurement from system tables (OAuth profile, read-only), a replay of the evidence such a measurement wrote, a simulated demo world (`--demo`) or a normalized observation file.
+The Realizer is the companion to the publisher: it answers what happened after a RecommendationPackage was published. It reads the package (Reporter JSON Contract 3.2.0 only), observes the package's warehouse after the owner applied a change, appends immutable ledger facts and projects a realization package and snapshot, with the realized saving where it can be measured. It is read-only: it never changes a recommendation package or a warehouse. The observation comes from one of four sources: a live measurement from system tables (OAuth profile, read-only), a replay of the evidence such a measurement wrote, a simulated demo world (`--demo`) or a normalized observation file.
 
 ```bash
 realizer --package <PKG.json> --observation <observation.json> --output-dir ./realizer_out

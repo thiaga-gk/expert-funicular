@@ -3,7 +3,7 @@
 > The Realizer specification, kept in line with the code. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED  
-**Input:** the Reporter JSON Contract 3.1.0 `RecommendationPackage` the current Publisher writes
+**Input:** the Reporter JSON Contract 3.2.0 `RecommendationPackage` the current Publisher writes
 
 ## 1. Phase-1 structure
 
@@ -123,7 +123,7 @@ realizer --backtest [source] [options]                             # past auto-s
 
 | Option | Meaning |
 |---|---|
-| `--package <file>` | The immutable `RecommendationPackage` JSON (Reporter JSON Contract 3.1.0); checked against the schema and its id and full hash recomputed. |
+| `--package <file>` | The immutable `RecommendationPackage` JSON (Reporter JSON Contract 3.2.0); checked against the schema and its id and full hash recomputed. |
 | `--publisher-run <dir>` | Fleet run over a Publisher run folder, or over the newest `run_date=*/run_ts=*` folder under a root (never a folder the Realizer wrote). |
 | `--warehouse <id>` | Fleet run only, repeatable: only this warehouse (`<warehouse_id>` or `<workspace_id>/<warehouse_id>`); default every warehouse of the manifest. |
 | `--observation <file>` | A normalized post-change observation (format 3.2.0). One observation source per run. |

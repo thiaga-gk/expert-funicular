@@ -2,19 +2,19 @@
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/not json": {
   "value": [
    "LedgerError",
-   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
+   "ledger RPKG-69DDE3286B752C8E1F1FC6BE.jsonl line 1 is not a valid ledger entry (JSONDecodeError)"
   ]
  },
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/{\"event_type\": \"NOPE\"}": {
   "value": [
    "LedgerError",
-   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (ValueError)"
+   "ledger RPKG-69DDE3286B752C8E1F1FC6BE.jsonl line 1 is not a valid ledger entry (ValueError)"
   ]
  },
  "RunTests.test_corrupt_ledger_raises_the_stored_exception/{\"event_type\": \"REALIZATION_CREATED\"}": {
   "value": [
    "LedgerError",
-   "ledger RPKG-976E6C1C6E88CE76321758ED.jsonl line 1 is not a valid ledger entry (TypeError)"
+   "ledger RPKG-69DDE3286B752C8E1F1FC6BE.jsonl line 1 is not a valid ledger entry (TypeError)"
   ]
  }
 }

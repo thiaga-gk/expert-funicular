@@ -2,7 +2,7 @@
 
 **Document:** `docs/architecture/publisher/context.md`  
 **Product:** Databricks SQL Warehouse Optimizer  
-**Reporter JSON Contract:** v3.1.0  
+**Reporter JSON Contract:** v3.2.0  
 **Workbook Contract:** v1.6.0
 
 Role: domain language, semantics and invariants.
@@ -553,7 +553,7 @@ flowchart TD
 
 ### 18.1 Historical actual
 
-Observed trailing-period cost from billing/financial evidence.
+Trailing-period cost: DBU observed from billing, customer AWS modeled from the billed DBU of each day at that day's size ([AWS cost model](../../reference/publisher/aws-cost-model.md#trailing-actual)).
 
 It may span multiple configuration epochs and is therefore **not** the direct decision baseline for current recommendations.
 

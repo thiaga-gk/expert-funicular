@@ -1,6 +1,8 @@
-# Reporter JSON Contract v3.1.0 — Locked
+# Reporter JSON Contract v3.2.0 — Locked
 
-**Version history:** 3.1.0 (MINOR, §19 amendment 1.2.0) adds the required, nullable top-level `run_scope` (section 14.4): null for a full assessment, otherwise the scenarios and knobs a restricted run was asked to recommend plus any canary rollback kept outside them. A restricted package holds one candidate per in-scope knob and only in-scope scenarios; when current-type tuning is outside the scope, the recommended scenario is the step-less `NO_CHANGE_BASELINE` (first produced in 3.1.0) with selection reason `CURRENT_TYPE_OUT_OF_RUN_SCOPE`. The package hash payload gains `run_scope`. A step-less migration branch (held or not evaluated) is now typed `WAREHOUSE_TYPE_MIGRATION` instead of `IN_PLACE_OPTIMIZATION`, so a migration-only package never shows it as current-type tuning; no other field or value changes for a full assessment; `contract_version` is in every hash, so all IDs differ from 3.0.0 packages.
+**Version history:** 3.2.0 (MINOR, §19: a field's content changes, no field, value or hash input is added) models customer AWS in the trailing actual: `cost_baseline.actual_365d.aws_cost` is no longer null for Pro/Classic. Each billing day of the trailing window is priced at the size of the epoch it was billed under (billed DBU over the published DBU rate per cluster-hour, times the modeled cluster $/hour); Serverless days add 0. `aws_basis` is `MODELED_AWS_LIST_PRICE` when any Pro/Classic day contributed, so `actual_365d` is `COMPLETE` whenever DBU is priced and the AWS model is available ([AWS cost model](../../reference/publisher/aws-cost-model.md#trailing-actual)). A package evidence record `actual_aws_cost_365d` carries the figure; no decision, confidence or economics reads it.
+
+3.1.0 (MINOR, §19 amendment 1.2.0) adds the required, nullable top-level `run_scope` (section 14.4): null for a full assessment, otherwise the scenarios and knobs a restricted run was asked to recommend plus any canary rollback kept outside them. A restricted package holds one candidate per in-scope knob and only in-scope scenarios; when current-type tuning is outside the scope, the recommended scenario is the step-less `NO_CHANGE_BASELINE` (first produced in 3.1.0) with selection reason `CURRENT_TYPE_OUT_OF_RUN_SCOPE`. The package hash payload gains `run_scope`. A step-less migration branch (held or not evaluated) is now typed `WAREHOUSE_TYPE_MIGRATION` instead of `IN_PLACE_OPTIMIZATION`, so a migration-only package never shows it as current-type tuning; no other field or value changes for a full assessment; `contract_version` is in every hash, so all IDs differ from 3.0.0 packages.
 
 3.0.0 (MAJOR, §19: a required field and a hash input are added) adds the required top-level `cost_profile` (section 17.1): the cost profile the warehouse was evaluated under (aggressive, balanced or conservative), why it got it, and the effective value of every threshold the profile sets, grouped by technique. Its `name` and `applied_thresholds` enter every candidate, scenario and package hash; `source` and `source_detail` do not, so the same effective profile gives the same ids however it was chosen. No existing field or value changes.
 
@@ -278,7 +280,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics / constraints |
 |---|---|---:|---:|---|
 | `recommendation_package_id` | string | Yes | No | Deterministic package hash; immutable |
-| `contract_version` | string | Yes | No | Constant `3.1.0` |
+| `contract_version` | string | Yes | No | Constant `3.2.0` |
 | `warehouse` | `WarehouseIdentity` | Yes | No | Warehouse/owner/region/current epoch |
 | `current_config` | `CurrentConfig` | Yes | No | Current authoritative config + billing-observed Photon |
 | `workload_profile` | `WorkloadProfile` | Yes | No | Usage/source profile, not tuning evidence dump |
@@ -386,7 +388,7 @@ Confidence measures evidence quality / decision support, **not probability of ac
 | Field | Type | Req. | Nullable | Semantics |
 |---|---|---:|---:|---|
 | `currency` | string | Yes | No | Uppercase 3-letter currency; package-wide |
-| `actual_365d` | `CostBreakdown` | Yes | No | Historical 365-day assessed cost; basis declares observed vs modeled components |
+| `actual_365d` | `CostBreakdown` | Yes | No | Trailing 365-day cost: DBU observed from billing (`OBSERVED_DATABRICKS_BILLING`), customer AWS modeled from billed DBU per epoch (`MODELED_AWS_LIST_PRICE`; Serverless throughout: 0 with `MODELED_CURRENT_EPOCH`); a trailing sum, so a warehouse younger than a year shows less than a year |
 | `forward_365d` | `CostBreakdown` | Yes | No | No-change forward 365-day baseline |
 | `forecast` | `ForecastInfo` | Yes | No | Forecast method/confidence/assumptions |
 
@@ -813,7 +815,7 @@ All fields are required; `package_hash_full_sha256` is required as a key but nul
 
 | Field | Semantics |
 |---|---|
-| `contract_version` | Must equal the contract version of this document (`3.1.0`) |
+| `contract_version` | Must equal the contract version of this document (`3.2.0`) |
 | `policy_version` | Threshold/policy bundle version |
 | `analyzer_version` | Analyzer implementation version |
 | `optimizer_version` | Optimizer version |
@@ -919,4 +921,4 @@ Any change to deterministic hash inputs is a **major contract change** unless a 
 5. **Canonical example:** `examples/recommendation-package.example.json`
 6. **Contract tests:** `tests/unit/publisher/contracts/test_reporter_contract.py`
 
-The workbook is not part of Reporter Contract v3.1.0. It is specified separately in `workbook-contract.md` as a projection of these packages.
+The workbook is not part of Reporter Contract v3.2.0. It is specified separately in `workbook-contract.md` as a projection of these packages.

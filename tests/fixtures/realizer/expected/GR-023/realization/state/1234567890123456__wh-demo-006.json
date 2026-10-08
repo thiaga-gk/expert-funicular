@@ -1,6 +1,6 @@
 {
   "active_package_ids": [
-    "PKG-EDCCB34F2D2EE33248087825"
+    "PKG-2DD03E7F5D600F1F199CE328"
   ],
   "applied_knob_owners": [],
   "as_of_utc": "2026-10-10T12:00:00Z",
@@ -13,16 +13,16 @@
       "cost_profile": "balanced",
       "disposition": "ACTIVE",
       "effective_from_utc": "2026-10-01T12:00:00Z",
-      "epoch_id": "EPOCH-51DFC7EACA195C1313D2939A",
+      "epoch_id": "EPOCH-4EC50256B74891FA393F7F1B",
       "generated_at_utc": "2026-10-01T12:00:00Z",
       "knob": "warehouse_size",
       "observed_applied_value": "MEDIUM",
       "previous_epoch_id": null,
-      "realization_package_id": "RPKG-976E6C1C6E88CE76321758ED",
+      "realization_package_id": "RPKG-69DDE3286B752C8E1F1FC6BE",
       "realization_state": "DRIFTED",
       "recommendation_attributed_realized_savings": "0.00",
-      "recommendation_package_id": "PKG-EDCCB34F2D2EE33248087825",
-      "snapshot_id": "RSNAP-FE660F0A2668816268213023",
+      "recommendation_package_id": "PKG-2DD03E7F5D600F1F199CE328",
+      "snapshot_id": "RSNAP-74F5D61763E1006B25267E65",
       "successor_package_id": null,
       "superseded_by_package_id": null
     }

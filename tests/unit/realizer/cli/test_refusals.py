@@ -118,7 +118,7 @@ class RefusalTests(LoggerRestoringCase):
         self.refuse(["--package", str(self.base / "binary.json")], r"package file is not UTF-8 text: .*binary\.json")
 
     def test_a_2x_package_is_refused_with_the_supported_contract(self):
-        self.refuse(["--package", str(self.base / "v2.json")], r"unsupported Publisher contract: 2\.0\.0 \(this Realizer reads 3\.1\.0\)")
+        self.refuse(["--package", str(self.base / "v2.json")], r"unsupported Publisher contract: 2\.0\.0 \(this Realizer reads 3\.2\.0\)")
 
     def test_package_that_is_not_an_object(self):
         path = self.base / "list.json"
@@ -328,7 +328,7 @@ class VersionTests(LoggerRestoringCase):
         self.assertIn(f"realizer {settings.REALIZER_VERSION}", text)
         self.assertIn(f"release {settings.PRODUCT_VERSION}", text)
         self.assertIn(PUBLISHER_VERSION, text)
-        self.assertIn("Reporter JSON Contract 3.1.0", text)
+        self.assertIn("Reporter JSON Contract 3.2.0", text)
 
     def test_version_needs_no_other_argument(self):
         with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:

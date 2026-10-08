@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from publisher.analyzer.calibration import _prepare_workspace_calibration
 from publisher.analyzer.collector.billing import collect_unseen_billed_warehouses
 from publisher.analyzer.collector.collector import extract_evidence
-from publisher.analyzer.collector.demo import DEMO_FLEET, synthetic_demo_evidence
+from publisher.analyzer.collector.demo import DEMO_FLEET, resolve_demo_analysis_time, synthetic_demo_evidence
 from publisher.analyzer.collector.pricing import load_aws_price_registry
 from publisher.analyzer.collector.replay import evidence_saved_note, load_evidence_files, save_evidence
 from publisher.analyzer.collector.sql_executor import SqlClient
@@ -72,7 +72,7 @@ def collect(request: PublisherRequest, thresholds: Thresholds,
         if not (1 <= request.demo_count <= len(DEMO_FLEET)):
             raise PublisherError(f"--demo-count must be between 1 and {len(DEMO_FLEET)}")
         LOGGER.info("mode.demo synthetic_collector_warehouses=%d", request.demo_count)
-        demo = synthetic_demo_evidence(request.demo_count)
+        demo = synthetic_demo_evidence(request.demo_count, resolve_demo_analysis_time(request.demo_analysis_time))
         LOGGER.info("analyzer.collect_done mode=demo warehouses=%d", len(demo))
         return demo, None, None
     if request.mode == MODE_REPLAY:

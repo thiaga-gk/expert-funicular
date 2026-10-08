@@ -3,7 +3,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
+    "<out>/realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json\n"
    ],
    {
     "directories": [
@@ -31,27 +31,27 @@
     ],
     "files": {
      "realization/evidence/REVID-544FC95CAF79921A25E91281.json": "c5daa8c12a46264d",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "6c81c351a1a008b7",
-     "realization/measurements/1234567890123456__wh-demo-006__PKG-EDCCB34F2D2EE33248087825__20261107T120000Z.json": "aad035176f30eb03",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "6956005d06e6e903",
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "f54218a72607693e",
+     "realization/measurements/1234567890123456__wh-demo-006__PKG-2DD03E7F5D600F1F199CE328__20261107T120000Z.json": "aad035176f30eb03",
+     "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "4191913372c482ce",
      "realization/policies/PSNAP-097ED33EBEB7E9FCEE56AEBB.json": "bd4377ec2d7bd546",
-     "realization/regeneration/RERUN-B1F60D50B9002716EC15E4DE.json": "44804f19c3482d4a",
-     "realization/snapshots/RSNAP-59E36140ED749CF670C03C80.json": "6956005d06e6e903",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "9304c2f829241d2e"
+     "realization/regeneration/RERUN-42B47BD394035774313246E5.json": "0fe3150c7033d4f7",
+     "realization/snapshots/RSNAP-A3111A48613A8120B880EA99.json": "4191913372c482ce",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+     "realization/state/1234567890123456__wh-demo-006.json": "73c187ab102c4458"
     }
    }
   ]
  },
  "BehaviourTests.test_demo_modified_and_print_json/demo modified": {
   "length": 14752,
-  "sha256": "0df98f949144acd6394b5d483bd87a15c60a3236225abb8fa21579fdd6b27f5d"
+  "sha256": "5382f9bf6c8229922a1ed2aae93b756767648188245ad7b7109c1d76049d7c56"
  },
  "BehaviourTests.test_lineage_only_run_without_an_observation/lineage only": {
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
+    "<out>/realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json\n"
    ],
    {
     "directories": [
@@ -67,11 +67,11 @@
      "REALIZATION_CREATED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "74e8a085f3cd5cb2",
-     "realization/snapshots/RSNAP-AA149BAAE7EE6974A9860DC1.json": "74e8a085f3cd5cb2",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "23d1521a164ed5ab"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+     "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "4989f0fc0a752c6a",
+     "realization/snapshots/RSNAP-1F790B4153093E232035E6C0.json": "4989f0fc0a752c6a",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+     "realization/state/1234567890123456__wh-demo-006.json": "f26ae5f050fb2c28"
     }
    }
   ]
@@ -80,7 +80,7 @@
   "value": [
    [
     0,
-    "<out>/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
+    "<out>/realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json\n"
    ],
    {
     "directories": [
@@ -108,19 +108,19 @@
     ],
     "files": {
      "realization/evidence/REVID-0054A9DB9BEB251DB6B705DA.json": "49a49e2032d1aa3b",
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "c90da9c5c1384ae0",
-     "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "bcb478fa51f3b09a",
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "0379082eca82afd9",
+     "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "b43141d925314e96",
      "realization/policies/PSNAP-68A493221CA08A19A577615C.json": "e09eadd7593be244",
-     "realization/regeneration/RERUN-4CD10E94279E8107CFC58E19.json": "14bee3788b74f4e6",
-     "realization/snapshots/RSNAP-DC6922E8FE2C46CE02C7940F.json": "bcb478fa51f3b09a",
-     "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-     "realization/state/1234567890123456__wh-demo-006.json": "eb586e06044ee2d5"
+     "realization/regeneration/RERUN-DA4F803B21EF102DE135D89C.json": "7f933f2d234246d4",
+     "realization/snapshots/RSNAP-60AC760083E07829A146811E.json": "b43141d925314e96",
+     "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+     "realization/state/1234567890123456__wh-demo-006.json": "107c9c66e5ec8aae"
     }
    }
   ]
  },
  "BehaviourTests.test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback/case 0": {
-  "value": "realizer: unsupported Publisher contract: None (this Realizer reads 3.1.0)"
+  "value": "realizer: unsupported Publisher contract: None (this Realizer reads 3.2.0)"
  },
  "BehaviourTests.test_refused_inputs_exit_with_status_2_and_a_message_not_a_traceback/case 1": {
   "value": "realizer: package file not found: <tmp>/missing.json"
@@ -130,7 +130,7 @@
  },
  "BehaviourTests.test_replay_modes/sequence": {
   "length": 6890,
-  "sha256": "3212f64c54544999b5efbbeb1e6979649935a7f6fa095d857813aa0b2d0e7423"
+  "sha256": "827e6e34470aa05449d7a71ec4c6a0b33e9f197655a735f44112daed28ccf8fe"
  },
  "OptionParityTests.test_help_text_and_errors/argv 0": {
   "length": 4416,

@@ -5,7 +5,7 @@ import math
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from publisher.analyzer.blockers import DBU_BASELINE_WITHHELD, dbu_baseline_blocker
-from publisher.analyzer.collector.pricing import classify_sql_sku
+from publisher.analyzer.collector.pricing import AWS_WORKER_INSTANCE, classify_sql_sku, cluster_hourly
 from publisher.analyzer.metrics import annualized_resource_rates
 from publisher.common.utils import as_serializable, clamp, safe_float, safe_int
 from publisher.config.defaults import AWS_SQL_WAREHOUSE_TOPOLOGY, QUERIES_PER_CLUSTER_PRO_CLASSIC, SIZE_ORDER, SQL_DBU_PER_CLUSTER_HOUR
@@ -26,10 +26,10 @@ def aws_cluster_hourly_from_evidence(e: WarehouseEvidence, size: str) -> Tuple[O
     prices = e.aws_cost_model.get("region_instance_prices") if isinstance(e.aws_cost_model, Mapping) else None
     if not topology or not isinstance(prices, Mapping):
         return None, {"status": "UNAVAILABLE", "blocker": "AWS_PRICE_EVIDENCE_NOT_AVAILABLE", "warehouse_size": size, "region": e.source_region}
-    driver = str(topology["driver"]); worker_type = "i3.2xlarge"; workers = int(topology["workers"])
-    if driver not in prices or worker_type not in prices:
+    driver = str(topology["driver"]); worker_type = AWS_WORKER_INSTANCE; workers = int(topology["workers"])
+    hourly = cluster_hourly(size, prices)
+    if hourly is None:
         return None, {"status": "UNAVAILABLE", "blocker": "AWS_INSTANCE_PRICE_MISSING", "driver": driver, "worker": worker_type, "region": e.source_region}
-    hourly = safe_float(prices[driver]) + workers * safe_float(prices[worker_type])
     return round(hourly, 6), {"status": "MODELED", "region": e.source_region, "warehouse_size": size, "driver": driver, "workers": workers, "worker_type": worker_type, "cluster_hourly_price": round(hourly, 6)}
 
 

@@ -97,7 +97,7 @@ def stage_policy(mapping: Optional[Mapping[str, Any]]) -> Any:
 
 
 def fixture_package(name: str = "inplace-size-canary") -> Dict[str, Any]:
-    """A Reporter JSON Contract 3.1.0 fixture package (``tests/fixtures/realizer/packages/<name>.json``), parsed."""
+    """A Reporter JSON Contract 3.2.0 fixture package (``tests/fixtures/realizer/packages/<name>.json``), parsed."""
     return json.loads((canonical.PACKAGES / f"{name}.json").read_text(encoding="utf-8"))
 
 

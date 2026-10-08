@@ -4,7 +4,7 @@
 
 **Status:** LOCKED  
 **Product:** Databricks SQL Warehouse Optimizer — Realizer  
-**Input:** Reporter JSON Contract 3.1.0 (`PKG-*`)
+**Input:** Reporter JSON Contract 3.2.0 (`PKG-*`)
 
 ## 1. Purpose
 

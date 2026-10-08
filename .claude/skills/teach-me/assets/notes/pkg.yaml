@@ -28,8 +28,8 @@ workload_profile: >-
   Who uses the warehouse and how: query sources (jobs, dashboards, notebooks...), activity and the latency class. It
   explains decisions (a batch warehouse is judged on job run days) but is not itself tuning evidence.
 cost_baseline: >-
-  The yardstick for every saving. <code>actual_365d</code> is what was billed; <code>forward_365d</code> is the
-  no-change forecast the savings are subtracted from.
+  The yardstick for every saving. <code>actual_365d</code> is the trailing year: DBU as billed, Pro/Classic AWS
+  modeled from the billed DBU; <code>forward_365d</code> is the no-change forecast the savings are subtracted from.
 cost_baseline.forward_365d: >-
   The forecast cost of keeping the configuration for a year. Savings ranges are measured against this figure, so read
   its <code>availability</code> first: a missing AWS component means AWS savings are unavailable, not zero.

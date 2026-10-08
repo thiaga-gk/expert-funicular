@@ -1,7 +1,7 @@
 {
  "CliLoadingTests.test_cli_output_and_logging_setup/demo modified": {
   "length": 13494,
-  "sha256": "79b5db23b823cde7fc7a1a15342a1e5b778e0187e9788ba7f198c05af58ae7d6",
+  "sha256": "d50eec73df87366e43d845e8021380fe48754026a1f9921121ff14bea495a4fb",
   "spot": {
    "logging": [
     [
@@ -15,11 +15,11 @@
   }
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/demo prints the package path": {
-  "value": "<tmp>/p/realization/packages/RPKG-976E6C1C6E88CE76321758ED.json\n"
+  "value": "<tmp>/p/realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json\n"
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/lineage only": {
   "length": 4297,
-  "sha256": "0b164a3a60c7e1bcf46f4ec0a9be4715dc84e3a281da56eea909a187f6d5f345",
+  "sha256": "6d1c1a71e114fa2f2b0dc7ccf04a3b81b0b2f88bead9ac1bac73b84ec73044b4",
   "spot": {
    "logging": [
     [
@@ -34,7 +34,7 @@
  },
  "CliLoadingTests.test_cli_output_and_logging_setup/observation and policy": {
   "length": 9781,
-  "sha256": "2fbdaa39c3b0ef02e9758d3bc70267a698017c312cfcdb9f34ff641643ca0e9b",
+  "sha256": "051450d4d2071bb056a9bbe3380906c14a93c2723da13489ae0c7ec092cbeee8",
   "spot": {
    "logging": [
     [
@@ -230,7 +230,7 @@
    "EXCLUSIVITY_VERSION": "realizer-exclusivity-v1.1.0",
    "MODELER_GATEWAY_VERSION": "m08-realization-adapter-v1.3.0",
    "POLICY_VERSION": "realizer-policy-v1.5.0",
-   "PRODUCT_VERSION": "2.14.0",
+   "PRODUCT_VERSION": "2.15.0",
    "PROJECTOR_VERSION": "realizer-projector-v1.4.0",
    "REALIZER_VERSION": "1.8.0"
   }

@@ -37,7 +37,7 @@ SCOPE = (
     + sorted(path for kind in ("contracts", "reference") for product in ("publisher", "shared") for path in (ROOT / "docs" / kind / product).glob("*.md"))
 )
 # The Realizer documents (docs/<type>/realizer/) are checked for links, and the specification set also for repo paths.
-# They are not in SCOPE: they cite the Reporter JSON Contract 3.1.0 the Realizer accepts, and the frozen v1.0.0 release
+# They are not in SCOPE: they cite the Reporter JSON Contract 3.2.0 the Realizer accepts, and the frozen v1.0.0 release
 # records under docs/proposals/realizer/ name the paths of the single-file release.
 REALIZER_DOCS = sorted(ROOT.glob("docs/*/realizer/*.md"))
 REALIZER_SPEC = sorted(path for path in REALIZER_DOCS if path.parent.parent.name in ("product", "contracts") or path.name in ("context.md", "hld.md", "lld.md"))

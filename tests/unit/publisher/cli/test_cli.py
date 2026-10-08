@@ -57,10 +57,10 @@ class OptionParityTests(unittest.TestCase):
         after = [o for o in table if o["flags"] != ["--version"]]  # argparse's version action: not one of the single-file options
         self.assertEqual(after[:len(before)], before)
         added = after[len(before):]
-        self.assertEqual([o["flags"] for o in added], [["--mode"], ["--cost-profile"], ["--flat-output"], ["--scope"], ["--scope-file"], ["--warehouse"]])
+        self.assertEqual([o["flags"] for o in added], [["--mode"], ["--cost-profile"], ["--flat-output"], ["--scope"], ["--scope-file"], ["--warehouse"], ["--demo-as-of"]])
         self.assertEqual((added[0]["choices"], added[0]["default"]), (["local"], "local"))
         self.assertEqual((added[1]["action"], added[1]["default"]), ("_AppendAction", []))
-        self.assertEqual([(o["dest"], o["default"]) for o in added[2:]], [("flat_output", False), ("scope", []), ("scope_file", None), ("warehouse", [])])
+        self.assertEqual([(o["dest"], o["default"]) for o in added[2:]], [("flat_output", False), ("scope", []), ("scope_file", None), ("warehouse", []), ("demo_as_of", None)])
 
 
 class DependencyDirectionTests(unittest.TestCase):
@@ -170,6 +170,21 @@ class BehaviourTests(unittest.TestCase):
                 self.run_cli(["--demo", "--from-evidence", f"{tmp}/e.json", "--output-dir", f"{tmp}/out"])
             self.assertEqual(raised.exception.code, 2)
             self.assertFalse((Path(tmp) / "out").exists())
+
+    def test_demo_as_of_reaches_the_request_and_only_with_demo(self):
+        args = cli_publish.parse_args(["--demo", "--demo-as-of", "2026-11-01T12:00:00Z"])
+        self.assertEqual(cli_publish.request_from_args(args).demo_analysis_time, "2026-11-01T12:00:00Z")
+        self.assertIsNone(cli_publish.request_from_args(cli_publish.parse_args(["--demo"])).demo_analysis_time)
+        with self.assertRaises(SystemExit) as raised, contextlib.redirect_stderr(io.StringIO()):
+            cli_publish.parse_args(["--from-evidence", "e.json", "--demo-as-of", "2026-11-01T12:00:00Z"])
+        self.assertEqual(raised.exception.code, 2)
+
+    def test_demo_as_of_before_the_fleet_history_or_unparseable_is_refused(self):
+        for value in ("2026-09-30T12:00:00Z", "next tuesday"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(["--demo", "--demo-count", "1", "--demo-as-of", value, "--log-level", "ERROR", "--output-dir", tmp])
+                self.assertEqual(code, 2)
+                self.assertIn("--demo-as-of", err)
 
     def test_unknown_execution_mode_is_rejected(self):
         with self.assertRaises(SystemExit):

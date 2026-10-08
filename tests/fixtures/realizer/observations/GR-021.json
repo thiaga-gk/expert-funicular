@@ -1,12 +1,12 @@
 {
-  "derivation": "demo_observation; applied_scenario_id=migration scenario, config=package_config(pkg) with warehouse_type=SERVERLESS; re-pointed from the 1.0.0 fixture to the 3.1.0 fixture (RD01); observation format 2.0.0",
+  "derivation": "demo_observation; applied_scenario_id=migration scenario, config=package_config(pkg) with warehouse_type=SERVERLESS; re-pointed from the 1.0.0 fixture to the current-contract fixture (RD01); observation format 2.0.0",
   "package": "inplace-size-canary.json",
   "runs": [
     {
       "observation": {
         "actor": "demo-user",
         "applied_at_utc": "2026-10-01T12:00:00Z",
-        "applied_scenario_id": "SCN-CE064B6547075F0DC6A2809C",
+        "applied_scenario_id": "SCN-22461D3F4791154A8D1C723C",
         "config": {
           "auto_stop_minutes": 15,
           "enable_photon": false,

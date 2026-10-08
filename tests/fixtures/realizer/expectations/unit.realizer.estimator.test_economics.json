@@ -265,11 +265,11 @@
  },
  "CounterfactualIdTests.test_cf_id_for_every_application_observation_and_policy/ids": {
   "length": 8581,
-  "sha256": "933abe64148930824f475d404299f1a25aacff2828a99844412cc364869a2283",
+  "sha256": "7ce73c7cdaf6b39686850623ac94e5201343954b8a65731e41961bd9eb6faf8e",
   "spot": {
    "count": 286,
    "distinct": 144,
-   "first": "CF-D210750F7DAB63B151B0373B"
+   "first": "CF-3AE781166C16BF2D47D57EF5"
   }
  },
  "ExpectedAnnualTests.test_candidate_economics_shapes/dbu fallback": {
@@ -346,6 +346,6 @@
  },
  "ExpectedAnnualTests.test_every_plan_step_of_every_fixture_package/steps": {
   "length": 3426,
-  "sha256": "d525c02f77cf03aa2eaabb058dbb8763ef98f9c4f8e61dfdc2eb53c580f668bc"
+  "sha256": "8cd153a1a62105d5ce10e34c4c3f5855cf8451f35dcbcd58a820f4f66ef252b5"
  }
 }

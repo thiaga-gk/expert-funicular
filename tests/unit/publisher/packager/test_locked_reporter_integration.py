@@ -50,7 +50,7 @@ class LockedReporterIntegrationTests(unittest.TestCase):
                 "cost_profile", "observed_change", "carried_forward_plan", "run_scope",
             },
         )
-        self.assertEqual(payload["contract_version"], "3.1.0")
+        self.assertEqual(payload["contract_version"], "3.2.0")
 
     def test_package_base_is_authoritative_and_contingent_upside_is_separate(self):
         """Audit H1: steps awaiting re-evaluation never feed the package base; their upside is published apart."""
@@ -148,7 +148,7 @@ class LockedReporterIntegrationTests(unittest.TestCase):
             self.assertNotIn("report.json", {p.name for p in out.iterdir()})
             self.assertIn("workbook.xlsx", {p.name for p in out.iterdir()})
             manifest = json.loads((out / "manifest.json").read_text())
-            self.assertEqual(manifest["reporter_contract_version"], "3.1.0")
+            self.assertEqual(manifest["reporter_contract_version"], "3.2.0")
             self.assertEqual(manifest["workbook_contract_version"], "1.6.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertIn("workbook", paths)

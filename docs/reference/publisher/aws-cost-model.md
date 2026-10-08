@@ -16,6 +16,19 @@ Driver type and worker count come from Databricks SQL warehouse sizing documenta
 
 Billed node types (`usage_metadata.node_type`; driver and worker are not distinguished) must belong to that topology for the size. A node type outside it makes the AWS baseline null (`AWS_NODE_TYPE_MISMATCH`), because the modeled cluster would not describe the real one; `aws_cost_model.node_type_check` is `VERIFIED` when billed node types matched and `UNVERIFIED` when none were billed.
 
+## Trailing actual
+The package's trailing-365-day actual (`cost_baseline.actual_365d.aws_cost`) models customer AWS over every epoch in the trailing window, not only the current one, because the warehouse's size may have changed inside it. Billing records DBU, not hours, so each billing day's cluster-hours are recovered from its DBU:
+
+`trailing AWS EC2 = Σ over billing days (billed DBU / published DBU per cluster-hour of the day's size × cluster $/hour of that size)`
+
+- The window is the trailing DBU actual's: from the analysis date minus 365 days through the last settled billing day (`billing_complete_through`).
+- The day's size is the size of the config epoch its billing row belongs to; the DBU rate is the published SQL warehouse rate per size (`SQL_DBU_PER_CLUSTER_HOUR`), the same for Pro, Classic and Serverless.
+- A running cluster accrues its DBU, so a multi-cluster warehouse's DBU is already cluster-hours times the rate; unpriced DBU counts too (the cluster ran even when its DBU price is unknown).
+- Serverless days add 0, so a Serverless warehouse that was Pro or Classic earlier in the window still carries the modeled AWS of those days.
+- The figure is null (unknown, never zero) when any contributing day cannot be priced: a billing row without a quantity or outside every known epoch, a size without a published rate or topology, a missing regional price, billed node types outside the topology (`AWS_NODE_TYPE_MISMATCH`), a price registry currency that differs from the billing currency, or a negative net.
+
+The rate assumption (billed DBU per cluster-hour equals the published size rate) is the same one the size estimator validates against billed rates; a warehouse billed at another rate would model proportionally more or fewer hours. The figure is a model, not an AWS bill: reconcile it with CUR like the forward baseline.
+
 ## Serverless
 Serverless runs on Databricks-managed infrastructure, so the separate customer AWS EC2 line is `0`. Its infrastructure economics are reflected in the Serverless SKU/DBU price rather than a customer EC2 bill line.
 

@@ -94,8 +94,8 @@ class StoredBaselineTests(unittest.TestCase):
     def test_example_scenarios_keep_the_documented_identities(self):
         """The two committed examples (exact and modified), frozen as scenarios."""
         identities = {
-            "example-exact": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-0F7722F077E9D69939895911", "REVID-37F7F275591908182339F44B", "RERUN-B1F60D50B9002716EC15E4DE"),
-            "example-modified": ("RPKG-976E6C1C6E88CE76321758ED", "RSNAP-26155EAC3B743F62BCBFD9C7", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-4A94ACD1AFCA25E7D3EA709A"),
+            "example-exact": ("RPKG-69DDE3286B752C8E1F1FC6BE", "RSNAP-40A8D117D142B32D086CC059", "REVID-37F7F275591908182339F44B", "RERUN-42B47BD394035774313246E5"),
+            "example-modified": ("RPKG-69DDE3286B752C8E1F1FC6BE", "RSNAP-C34B4923918BFDD8CBDE55E9", "REVID-0054A9DB9BEB251DB6B705DA", "RERUN-F3F81701C87ADC1868C6887A"),
         }
         folders = {"RPKG": "packages", "RSNAP": "snapshots", "REVID": "evidence", "RERUN": "regeneration"}
         for name, ids in identities.items():
@@ -124,7 +124,7 @@ class StoredBaselineTests(unittest.TestCase):
         for path in sorted(canonical.PACKAGES.glob("*.json")):
             with self.subTest(package=path.name):
                 pkg = json.loads(path.read_text(encoding="utf-8"))
-                self.assertEqual(pkg["contract_version"], "3.1.0", "the Realizer accepts only Reporter JSON Contract 3.1.0 packages")
+                self.assertEqual(pkg["contract_version"], "3.2.0", "the Realizer accepts only Reporter JSON Contract 3.2.0 packages")
                 self.assertTrue(pkg["recommendation_package_id"].startswith("PKG-"))
                 self.assertIsNone(loader.validate_package(pkg))
 

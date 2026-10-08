@@ -2,25 +2,25 @@
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/bad id": {
   "value": [
    "InputError",
-   "package fails the Reporter JSON Contract 3.1.0 schema at recommendation_package_id"
+   "package fails the Reporter JSON Contract 3.2.0 schema at recommendation_package_id"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/contract 9.9.9": {
   "value": [
    "InputError",
-   "unsupported Publisher contract: 9.9.9 (this Realizer reads 3.1.0)"
+   "unsupported Publisher contract: 9.9.9 (this Realizer reads 3.2.0)"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/empty": {
   "value": [
    "InputError",
-   "unsupported Publisher contract: None (this Realizer reads 3.1.0)"
+   "unsupported Publisher contract: None (this Realizer reads 3.2.0)"
   ]
  },
  "RunContextTests.test_malformed_packages_raise_what_realize_raises_first/no candidates": {
   "value": [
    "InputError",
-   "package fails the Reporter JSON Contract 3.1.0 schema at <root>"
+   "package fails the Reporter JSON Contract 3.2.0 schema at <root>"
   ]
  }
 }

@@ -1,7 +1,7 @@
 {
  "EveryScenarioRunTests.test_log_lines_for_every_scenario/ledger lines": {
   "length": 34027,
-  "sha256": "5f5c9d98cfdc42334b36455882ecf3a7bfca4b491c431de3a1cfca76bd02ef37",
+  "sha256": "3bbf4fcbb8415eeb10fe9e0857764a8a45b1f2244be24eb5f8ff5216521eeee7",
   "spot": {
    "kinds": {
     "DEBUG ledger.append event=APPLICATION_OBSERVED": 34,
@@ -54,26 +54,26 @@
    ],
    "files": {
     "realization/evidence/REVID-37F7F275591908182339F44B.json": "034a85515ed1b1cb",
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4f2e36503157e7a3",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "a7f69451981d35b1",
+    "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "fa7080ad926c57e6",
+    "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "63a1bfd032d1e310",
     "realization/policies/PSNAP-097ED33EBEB7E9FCEE56AEBB.json": "bd4377ec2d7bd546",
-    "realization/regeneration/RERUN-B1F60D50B9002716EC15E4DE.json": "71b5dea8e41ae3f1",
-    "realization/snapshots/RSNAP-0F7722F077E9D69939895911.json": "a7f69451981d35b1",
-    "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-    "realization/state/1234567890123456__wh-demo-006.json": "d26580769232da68"
+    "realization/regeneration/RERUN-42B47BD394035774313246E5.json": "3f82c1e611f45f1a",
+    "realization/snapshots/RSNAP-40A8D117D142B32D086CC059.json": "63a1bfd032d1e310",
+    "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+    "realization/state/1234567890123456__wh-demo-006.json": "1dfd7c691f933404"
    }
   }
  },
  "IdempotencyTests.test_the_same_observation_twice_records_nothing_the_second_time/second run logs": {
   "value": [
-   "INFO ledger.duplicate_suppressed rle=RLE-58544587BB6A8E6B91232979",
-   "INFO ledger.duplicate_suppressed rle=RLE-3CC26A1E379407F9DA8F7684",
-   "INFO ledger.duplicate_suppressed rle=RLE-81CF3FF217680453634F5117",
-   "INFO ledger.duplicate_suppressed rle=RLE-15CA2FA840E6CC7BCB4AFF50",
-   "INFO ledger.duplicate_suppressed rle=RLE-BF1597CB4C8CD34DE5894FD7",
-   "INFO ledger.duplicate_suppressed rle=RLE-A4AE79A962AC368346AE040D",
-   "INFO ledger.duplicate_suppressed rle=RLE-2FADA5CD20324E2B155767E0",
-   "INFO ledger.duplicate_suppressed rle=RLE-847262F41D062C98F1E6915E"
+   "INFO ledger.duplicate_suppressed rle=RLE-D38AB7F3728DA90C521F6845",
+   "INFO ledger.duplicate_suppressed rle=RLE-28AEF0A6BDBE1FC29D3730BA",
+   "INFO ledger.duplicate_suppressed rle=RLE-88D3FA583C91A1FCA2C9C055",
+   "INFO ledger.duplicate_suppressed rle=RLE-52B8B3BF494B307CB8651E7D",
+   "INFO ledger.duplicate_suppressed rle=RLE-D27CEA01DE80CF620301603B",
+   "INFO ledger.duplicate_suppressed rle=RLE-2F0D82DA3FBAD3A4A4C4EC93",
+   "INFO ledger.duplicate_suppressed rle=RLE-62AD460A36407D60E974BEF2",
+   "INFO ledger.duplicate_suppressed rle=RLE-8AF48A775D2667C73D91595F"
   ]
  },
  "LineageTests.test_lineage_only_run_records_nothing_more/tree": {
@@ -91,30 +91,30 @@
     "REALIZATION_CREATED"
    ],
    "files": {
-    "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "e0540398a911b6fb",
-    "realization/packages/RPKG-976E6C1C6E88CE76321758ED.json": "74e8a085f3cd5cb2",
-    "realization/snapshots/RSNAP-AA149BAAE7EE6974A9860DC1.json": "74e8a085f3cd5cb2",
-    "realization/sources/1234567890123456__wh-demo-006/PKG-EDCCB34F2D2EE33248087825.json": "6bc40f12e809ebf8",
-    "realization/state/1234567890123456__wh-demo-006.json": "23d1521a164ed5ab"
+    "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "28119de49b9ea025",
+    "realization/packages/RPKG-69DDE3286B752C8E1F1FC6BE.json": "4989f0fc0a752c6a",
+    "realization/snapshots/RSNAP-1F790B4153093E232035E6C0.json": "4989f0fc0a752c6a",
+    "realization/sources/1234567890123456__wh-demo-006/PKG-2DD03E7F5D600F1F199CE328.json": "8fe01e2ccb28f71b",
+    "realization/state/1234567890123456__wh-demo-006.json": "f26ae5f050fb2c28"
    }
   }
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/replays": {
   "length": 18858,
-  "sha256": "00914d928e459a3645238b0d168bae8a69af6ea011e0689d7450eecc740513b9",
+  "sha256": "3cd97d611617a9213079d0ce19987c9aa7ebde94bbddd9561fcf00e7648d2760",
   "spot": {
    "count": 172,
    "first": [
     "GR-001",
     "2026-10-01T12:00:00Z",
     "ok",
-    "296a66bbf75292064a34c86580cb9a57c58547999b0046127095e33325af7f31"
+    "8722f775d4842cfa1e0dbfff39d8d785e3e473ab8e0e361b3f2b5218ac64c14d"
    ],
    "last": [
     "restatement-reprocessed",
     "2999-01-01T00:00:00Z",
     "ok",
-    "66598dfb8c8a15ac8c67fd85eb486a2ed619db53d250f4c142c24e95c40ad514"
+    "b149b5903c31580e9a2f577ecec16eefd3e8dc197866cd073e006924c9962e00"
    ],
    "outcomes": {
     "InputError": 41,
@@ -124,7 +124,7 @@
  },
  "ReplayTests.test_an_entry_prefix_through_replay_reproduces_the_snapshot_and_files/trees": {
   "length": 50880,
-  "sha256": "7822ce7b140ef14ab6f20f1f60c4e8763de5e608d8d8dfcb72ff2a9f44bd297d",
+  "sha256": "3b010f01c65a161d8ee11044b9474ef579e0cc30066539b52a19ebf56dfbdbe8",
   "spot": {
    "files": 376,
    "scenarios": 41

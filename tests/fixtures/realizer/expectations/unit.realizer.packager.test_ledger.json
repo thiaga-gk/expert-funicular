@@ -41,19 +41,19 @@
  },
  "AppendTests.test_every_stored_ledger_appends_and_suppresses_duplicates/appended": {
   "length": 64881,
-  "sha256": "6fc8efc1fa55d705fc74d07480deecce8d92de5f5ffbc8d86eeae84baf344189",
+  "sha256": "ecd65688b1fc5b4467def544acf8b7230101a7639c17e2d7c2fc7be37aefb186",
   "spot": {
    "entries": 367,
-   "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
+   "first": "GR-001/RPKG-69DDE3286B752C8E1F1FC6BE",
    "ledgers": 41
   }
  },
  "LedgerReadTests.test_every_stored_ledger_loads_and_answers_the_latest_event_lookups/ledgers": {
   "length": 544947,
-  "sha256": "bcc79e77dfa0884a672bd270d0828ac36ca28e0d6a46a9320d1fc32ff3d60995",
+  "sha256": "66c012e9f7fbd0a8793e6fc8c99015653454e69a744f38d2efb32f2b7e293abc",
   "spot": {
    "entries": 367,
-   "first": "GR-001/RPKG-976E6C1C6E88CE76321758ED",
+   "first": "GR-001/RPKG-69DDE3286B752C8E1F1FC6BE",
    "latest_of_first": [
     null,
     null,
@@ -121,7 +121,7 @@
     null
    ],
    [
-    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-7C27BDF6A0A979CB93E32E1C"
+    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-25059328732F1885FB127D94"
    ],
    {
     "directories": [
@@ -133,8 +133,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "421861ef92f3a9d1",
-     "realization/regeneration/RERUN-1A877BA4619C444A658CA666.json": "508e6a30b43f053d"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "1ec8d8bbb7be3fbd",
+     "realization/regeneration/RERUN-BE6B07A56AD67BCA85F5799F.json": "ba8ecd84b89589dd"
     }
    }
   ]
@@ -146,7 +146,7 @@
     null
    ],
    [
-    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-3F8919AC7AC02D9A084ECB9B"
+    "DEBUG ledger.append event=REGENERATION_REQUESTED rle=RLE-15C585BDEED56D3395D1F365"
    ],
    {
     "directories": [
@@ -158,8 +158,8 @@
      "REGENERATION_REQUESTED"
     ],
     "files": {
-     "realization/ledger/RPKG-976E6C1C6E88CE76321758ED.jsonl": "4cbc4dfecee95dcb",
-     "realization/regeneration/RERUN-9DA01D35B27A2A89E696B778.json": "7291f71200ab0c25"
+     "realization/ledger/RPKG-69DDE3286B752C8E1F1FC6BE.jsonl": "7ac1f024b98c8eb1",
+     "realization/regeneration/RERUN-6E17BF1A77E985B5413A6F18.json": "be140721921dd6e1"
     }
    }
   ]
@@ -184,15 +184,15 @@
  },
  "WriteSideTests.test_business_key_for_every_stored_entry/keys": {
   "length": 54366,
-  "sha256": "fc3240824bdcb94821b9067172932944782a03bde42e8f69707f3157de07f10f",
+  "sha256": "8d9171c51616745f9cd2372ee6196f737a6fe8c629477076406ce3caa7147684",
   "spot": {
    "count": 367,
    "first": {},
    "last": {
-    "application_episode_id": "APP-22D91994058D828E0C0A3DA0",
+    "application_episode_id": "APP-634F5EB63D3D3E1FB9354377",
     "correction_key": "oct",
-    "measurement_id": "MEAS-70AE0D1F75DDCD33838BBCC8",
-    "validation_episode_id": "VAL-F9DCBC415E68622D6B3A5438"
+    "measurement_id": "MEAS-F51760CA69B6E186772CC1F2",
+    "validation_episode_id": "VAL-E106A650793B15D32474B393"
    }
   }
  },
@@ -216,12 +216,12 @@
  },
  "WriteSideTests.test_checkpoint_for_every_ledger_prefix_and_order/checkpoints": {
   "length": 293625,
-  "sha256": "c1557aad886e41d02781c6930a2a0894cb92779dc3365f952f32a476198bb62f",
+  "sha256": "727a8d9e5cee499243937ec24e10a6e1ee01f04b349d84ecd9033fab9f78b913",
   "spot": {
    "count": 816,
    "first": [
     "GR-001",
-    "RPKG-976E6C1C6E88CE76321758ED",
+    "RPKG-69DDE3286B752C8E1F1FC6BE",
     0,
     "forward",
     {
@@ -235,16 +235,16 @@
    ],
    "last": [
     "restatement-reprocessed",
-    "RPKG-976E6C1C6E88CE76321758ED",
+    "RPKG-69DDE3286B752C8E1F1FC6BE",
     15,
     "reversed",
     {
      "entry_count": 15,
-     "first_entry_id": "RLE-58544587BB6A8E6B91232979",
+     "first_entry_id": "RLE-D38AB7F3728DA90C521F6845",
      "latest_effective_at_utc": "2026-10-10T12:00:00Z",
-     "latest_entry_id": "RLE-ED26E3BE9D45EFCE010DFA48",
+     "latest_entry_id": "RLE-BD7459F00F1875899E39EB05",
      "latest_recorded_at_utc": "2026-10-10T12:00:00Z",
-     "ledger_checkpoint_hash": "SHA256:BFFAF110211F97AD555590872458B88A71EE6081C8CCAD02993F9DE9BFF5DA9C"
+     "ledger_checkpoint_hash": "SHA256:13E4F26A73D570816F902C0868C42F697680B42353C923E59FAFE3765B3E5962"
     }
    ]
   }

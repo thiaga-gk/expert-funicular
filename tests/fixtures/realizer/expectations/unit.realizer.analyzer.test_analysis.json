@@ -1782,9 +1782,9 @@
    null
   ]
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-84279AAA047951CCF02D5900')": {
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-476007BBB9DC59F88639F1E0')": {
   "length": 2043,
-  "sha256": "58a04a4a3156614278356e4111f95d4d0438e69306448e8007edfdf2061d525b"
+  "sha256": "1eabb279f4a1b328a3261b67e908f422ecb2862c0c063c5b611fd53ab457ae2c"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_by_id(fixture package, 'CAND-MISSING')": {
   "value": [
@@ -1888,15 +1888,15 @@
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package)": {
   "length": 3220,
-  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
+  "sha256": "f2cd46b5093c9a12c703a0d476fe90aece73544875b2e5835feee2c40b135e57"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, '')": {
   "length": 3220,
-  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
+  "sha256": "f2cd46b5093c9a12c703a0d476fe90aece73544875b2e5835feee2c40b135e57"
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-2939C3996D4BBAC63D4F9484')": {
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-0305EDC518B019E667B664D7')": {
   "length": 3220,
-  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
+  "sha256": "f2cd46b5093c9a12c703a0d476fe90aece73544875b2e5835feee2c40b135e57"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, 'SCN-MISSING')": {
   "value": [
@@ -1912,7 +1912,7 @@
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps(fixture package, None)": {
   "length": 3220,
-  "sha256": "b33a783e32e8cbc01b1241fde77cb057303954be9521c34c17b7b414a8d14664"
+  "sha256": "f2cd46b5093c9a12c703a0d476fe90aece73544875b2e5835feee2c40b135e57"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/candidate_steps({'candidates': None})": {
   "value": [
@@ -2004,7 +2004,7 @@
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario(fixture package)": {
   "length": 7288,
-  "sha256": "37a78d08e4e69d9c274a6225f66fcdc6171cc6613b4164fb25d6d80285ac09c7"
+  "sha256": "4e20d723e56c98e16d8841ad9b97b480dca4f24f02060905c6f761040a6b539a"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/recommended_scenario({'candidates': None})": {
   "value": [
@@ -2214,9 +2214,9 @@
    null
   ]
  },
- "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-2939C3996D4BBAC63D4F9484')": {
+ "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-0305EDC518B019E667B664D7')": {
   "length": 7288,
-  "sha256": "37a78d08e4e69d9c274a6225f66fcdc6171cc6613b4164fb25d6d80285ac09c7"
+  "sha256": "4e20d723e56c98e16d8841ad9b97b480dca4f24f02060905c6f761040a6b539a"
  },
  "FunctionTests.test_plan_lookups_on_the_fixture_and_on_malformed_packages/scenario_by_id(fixture package, 'SCN-MISSING')": {
   "value": [

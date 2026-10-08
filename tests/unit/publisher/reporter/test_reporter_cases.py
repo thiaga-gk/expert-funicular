@@ -42,7 +42,7 @@ class ReporterCases(PublisherCase):
             files = package_locked_contract(Path(td), packages, self.evidence)
             manifest = json.loads(Path(files["manifest"]).read_text())
             self.assertEqual(manifest["publisher_version"], PUBLISHER_VERSION)
-            self.assertEqual(manifest["reporter_contract_version"], "3.1.0")
+            self.assertEqual(manifest["reporter_contract_version"], "3.2.0")
             self.assertEqual(manifest["workbook_contract_version"], "1.6.0")
             self.assertEqual(manifest["workbook_status"], "GENERATED")
             self.assertEqual(manifest["package_count"], 1)

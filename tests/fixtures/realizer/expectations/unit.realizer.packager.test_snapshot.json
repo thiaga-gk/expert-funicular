@@ -1,36 +1,36 @@
 {
  "ProjectionTests.test_entry_order_and_duplicates/doubled ledgers": {
   "length": 4417,
-  "sha256": "ba39708f541d25f82862450e76a19e0c6a2d02cfe4907c5c714c9e3e818209c2",
+  "sha256": "16f13228daa3be77b4770aafe3d879cdd035602b9d80b11837523ff6c1fb8047",
   "spot": {
    "count": 41,
    "first": [
-    "GR-001/RPKG-976E6C1C6E88CE76321758ED",
-    "022e07a98c0310e73564104716ba6dac9e6e824f69bf487ed357c9cd873aab1f"
+    "GR-001/RPKG-69DDE3286B752C8E1F1FC6BE",
+    "8f678ac6aec8133ddace104f5ef5d2b703c7be7f4491c3e3e7e4ae07d6e17da6"
    ]
   }
  },
  "ProjectionTests.test_every_ledger_prefix_projects_and_every_stored_snapshot_is_reproduced/projections": {
   "length": 75936,
-  "sha256": "5951bf0388441936ce9d2835118acdf7717153008ca0e712fd777dd3ee4db0ec",
+  "sha256": "46bf7634d107e883674bcf33f7ced05f98972b58d741c6b4e4f76584c41c18e1",
   "spot": {
    "count": 457,
    "distinct snapshots": 152,
    "first": [
     "GR-001",
-    "RPKG-976E6C1C6E88CE76321758ED",
+    "RPKG-69DDE3286B752C8E1F1FC6BE",
     "file prefix",
     1,
-    "RSNAP-AA149BAAE7EE6974A9860DC1",
-    "ef3c609f1b5a0b638678930ee12f5a9936647f8786cca3e3d63d47292ffb2d2f"
+    "RSNAP-1F790B4153093E232035E6C0",
+    "6baa22d1f08929a6ca8769c77ed63c0a05a2b38c6a277564f4ca86c92fc2be2e"
    ],
    "last": [
     "restatement-reprocessed",
-    "RPKG-976E6C1C6E88CE76321758ED",
+    "RPKG-69DDE3286B752C8E1F1FC6BE",
     "recorded through",
     "2026-10-10T12:00:00Z",
-    "RSNAP-E377FC41041111F43911A4F2",
-    "7b5657ee413dd4cb94c1a69927ac56fe0b42efd0aa2a372a1f7204622466a813"
+    "RSNAP-8557E9304814780FEA48840E",
+    "270461da6240433618ccc98064c560896766f9ac5564eef4970fe10f09c5eb0f"
    ]
   }
  },
@@ -84,7 +84,7 @@
  },
  "ProjectionTests.test_malformed_input_raises/package without scenarios": {
   "length": 3206,
-  "sha256": "296a66bbf75292064a34c86580cb9a57c58547999b0046127095e33325af7f31"
+  "sha256": "8722f775d4842cfa1e0dbfff39d8d785e3e473ab8e0e361b3f2b5218ac64c14d"
  },
  "ProjectionTests.test_malformed_input_raises/package without warehouse": {
   "value": [

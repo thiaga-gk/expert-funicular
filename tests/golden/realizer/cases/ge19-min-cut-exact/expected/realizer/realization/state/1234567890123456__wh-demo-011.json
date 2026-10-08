@@ -1,14 +1,14 @@
 {
   "active_package_ids": [
-    "PKG-F257F74042A9FE676DC16886"
+    "PKG-4502F3DFC5521881CBDA1D5A"
   ],
   "applied_knob_owners": [
     {
       "effective_from_utc": "2026-10-08T14:32:00Z",
       "knob": "min_clusters",
       "observed_value": 1,
-      "realization_package_id": "RPKG-3EA8EB4EDBD6CC52479DB122",
-      "recommendation_package_id": "PKG-F257F74042A9FE676DC16886"
+      "realization_package_id": "RPKG-A074E615A3E3847CF088D67F",
+      "recommendation_package_id": "PKG-4502F3DFC5521881CBDA1D5A"
     }
   ],
   "as_of_utc": "2026-11-14T12:00:00Z",
@@ -21,16 +21,16 @@
       "cost_profile": "balanced",
       "disposition": "ACTIVE",
       "effective_from_utc": "2026-10-08T14:32:00Z",
-      "epoch_id": "EPOCH-2B9F66DE568C5BFF03B44273",
+      "epoch_id": "EPOCH-3E8E1CD9E642194D27A996AB",
       "generated_at_utc": "2026-10-01T12:00:00Z",
       "knob": "min_clusters",
       "observed_applied_value": 1,
       "previous_epoch_id": null,
-      "realization_package_id": "RPKG-3EA8EB4EDBD6CC52479DB122",
+      "realization_package_id": "RPKG-A074E615A3E3847CF088D67F",
       "realization_state": "REALIZED",
       "recommendation_attributed_realized_savings": "10884.61",
-      "recommendation_package_id": "PKG-F257F74042A9FE676DC16886",
-      "snapshot_id": "RSNAP-7070D63AC3E4A512234963D1",
+      "recommendation_package_id": "PKG-4502F3DFC5521881CBDA1D5A",
+      "snapshot_id": "RSNAP-6A09999BB0F47BEBE7890846",
       "successor_package_id": null,
       "superseded_by_package_id": null
     }

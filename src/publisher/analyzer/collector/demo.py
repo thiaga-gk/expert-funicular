@@ -26,6 +26,7 @@ from publisher.analyzer.forecast import Modeler
 from publisher.analyzer.metrics import RUNNING_IDLE_WINDOW_FIELDS, auto_stop_targets, concurrency_histograms, running_idle_basis, running_idle_metrics
 from publisher.analyzer.normalizer import derive_query_source_profile
 from publisher.common.ids import epoch_id
+from publisher.common.errors import PublisherError
 from publisher.common.logging import LOGGER
 from publisher.common.time import parse_datetime
 from publisher.common.utils import safe_float, safe_int
@@ -241,6 +242,24 @@ def demo_evidence() -> List[WarehouseEvidence]:
 
 
 DEMO_ANALYSIS_TIME = "2026-10-01T12:00:00+00:00"
+
+
+def resolve_demo_analysis_time(value: Optional[str]) -> str:
+    """The demo's analysis time: ``DEMO_ANALYSIS_TIME`` when ``value`` is None, else ``value`` (UTC ISO-8601) normalized
+    to the same ``YYYY-MM-DDTHH:MM:SS+00:00`` form, so the default spelled out gives byte-identical evidence.
+
+    Raises PublisherError for an unparseable time or one before ``DEMO_ANALYSIS_TIME``: the fleet's configuration
+    history is fixed (some epochs start days before the default), so the demo can only move forward from it.
+    """
+    if value is None:
+        return DEMO_ANALYSIS_TIME
+    parsed = parse_datetime(value)
+    if parsed is None:
+        raise PublisherError(f"--demo-as-of must be a UTC ISO-8601 time, got {value!r}")
+    text = parsed.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat()
+    if parse_datetime(text) < parse_datetime(DEMO_ANALYSIS_TIME):
+        raise PublisherError(f"--demo-as-of must not be before {DEMO_ANALYSIS_TIME} (the demo fleet's history is fixed)")
+    return text
 
 
 DEMO_ACCOUNT_ID = "acct-demo"
@@ -1139,8 +1158,9 @@ def _demo_fleet_rows(count: int, analysis_time: str) -> Dict[str, List[Dict[str,
     return merged
 
 
-def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvidence]:
-    """Deterministic demo fleet at the collector boundary: one simulated warehouse per golden scenario.
+def synthetic_demo_evidence(count: int = len(DEMO_FLEET), analysis_time: str = DEMO_ANALYSIS_TIME) -> List[WarehouseEvidence]:
+    """Deterministic demo fleet at the collector boundary: one simulated warehouse per golden scenario, analyzed at
+    ``analysis_time`` (see ``resolve_demo_analysis_time``; the fleet's configuration history does not move).
 
     Collector rows are simulated from each warehouse's workload (see DEMO_FLEET) and normalized by the real
     extract_evidence, so every downstream layer (epochs, analyzers, candidates, scenarios, package contract, workbook
@@ -1148,18 +1168,18 @@ def synthetic_demo_evidence(count: int = len(DEMO_FLEET)) -> List[WarehouseEvide
     """
     if not (1 <= count <= len(DEMO_FLEET)):
         raise ValueError(f"demo count must be between 1 and {len(DEMO_FLEET)}")
-    LOGGER.info("demo.start warehouses=%d", count)
-    rows = _demo_fleet_rows(count, DEMO_ANALYSIS_TIME)
+    LOGGER.info("demo.start warehouses=%d analysis_time=%s", count, analysis_time)
+    rows = _demo_fleet_rows(count, analysis_time)
 
     class _DemoClient:
         """Replays the simulated rows by query label; unknown labels return no rows. Statements are ignored except the
         running-idle windows they carry, for which the rows are computed from the simulation."""
         def query(self, statement: str, *, label: str = "collector_sql") -> List[Dict[str, Any]]:
             # The fleet's rows are deterministic per size and analysis time, so its running idle is computed once per process.
-            return replay_demo_rows(rows, statement, label, _DEMO_RUNNING_IDLE_CACHE.setdefault((count, DEMO_ANALYSIS_TIME), {}))
+            return replay_demo_rows(rows, statement, label, _DEMO_RUNNING_IDLE_CACHE.setdefault((count, analysis_time), {}))
 
     registry = load_aws_price_registry(str(REPO_ROOT / "pricing" / "aws_ec2_on_demand.json"))
-    evidence = extract_evidence(_DemoClient(), _DEMO_THRESHOLDS, "us-east-1", registry, analysis_time=DEMO_ANALYSIS_TIME)  # type: ignore[arg-type]
+    evidence = extract_evidence(_DemoClient(), _DEMO_THRESHOLDS, "us-east-1", registry, analysis_time=analysis_time)  # type: ignore[arg-type]
     for e in evidence:
         e.compatibility_evidence = {"mode": "B_READ_ONLY_API", "status": "AVAILABLE", "workspace_id": e.workspace_id, "enable_serverless_compute": True,
                                     "external_legacy_hive_metastore_detected": False, "external_legacy_hive_metastore_config_keys": [],

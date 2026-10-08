@@ -1601,7 +1601,7 @@
           "type": "string"
         },
         "contract_version": {
-          "const": "3.1.0"
+          "const": "3.2.0"
         },
         "decision_graph_version": {
           "minLength": 1,
@@ -2678,7 +2678,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:3.1.0",
+  "$id": "urn:databricks-sql-warehouse-optimizer:recommendation-package:3.2.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Locked per-warehouse reporter contract. Candidate economics are isolated/non-additive; scenario economics are stateful; package economics is a scenario opportunity envelope.",
@@ -2703,7 +2703,7 @@
       ]
     },
     "contract_version": {
-      "const": "3.1.0"
+      "const": "3.2.0"
     },
     "cost_baseline": {
       "$ref": "#/$defs/CostBaseline"

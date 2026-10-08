@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, Tuple
 
+from publisher.analyzer.collector.pricing import model_aws_actual_cost
 from publisher.analyzer.epochs import ready_billed_days
 from publisher.common.utils import round_or_none
 from publisher.config.versions import MODEL_VERSION
@@ -140,6 +141,16 @@ def _build_evidence_registry(
         source="system.billing.usage", source_field="record_type",
         observation_window="trailing_365d", threshold=None, comparator="",
         interpretation="Retracted DBU (RETRACTION records) per originally billed DBU in the settled trailing window; can exceed 1 when a day is corrected more than once. A cost-basis quality signal, not used in decisions; null when not collected.",
+    )
+
+    # Modeled trailing AWS actual: package evidence only (no decision, confidence or economics reads it), like the
+    # billing-correction share.
+    _add_evidence(
+        registry, e=e, contract_epoch_id=contract_epoch_id,
+        metric="actual_aws_cost_365d", value=model_aws_actual_cost(e)[0], unit=e.currency,
+        source="derived", source_field="billed DBU / published DBU per cluster-hour × modeled cluster $/hour",
+        observation_window="trailing_365d", threshold=None, comparator="",
+        interpretation="Modeled trailing-365-day customer AWS (EC2) cost: each Pro/Classic billing day's DBU over its size's published DBU rate, priced at that size's on-demand cluster-hour; Serverless days add 0. Null when any day cannot be priced.",
     )
 
     # The channel is observed, never recommended: a Preview warehouse gets an informational record only (package

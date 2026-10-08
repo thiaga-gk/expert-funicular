@@ -3,7 +3,7 @@
 > The Realizer specification, kept in line with the code. The implementation is the `src/realizer/` package (Analyzer, Governor, Reconciler, Estimator, Reviewer, Packager, Reporter) behind the `realizer` command; its layout and the reorganization record are in [`repo-reorg-design.md`](../../architecture/realizer/repo-reorg-design.md) and [`repo-reorg-parity.md`](../../proposals/realizer/repo-reorg-parity.md).
 
 **Status:** LOCKED  
-**Input:** the `RecommendationPackage` of the Reporter JSON Contract 3.1.0 (the only version accepted), as the current Publisher writes it
+**Input:** the `RecommendationPackage` of the Reporter JSON Contract 3.2.0 (the only version accepted), as the current Publisher writes it
 
 ## 1. Product statement
 

@@ -26,7 +26,7 @@ from realizer.contracts.measurement import MEASUREMENT_EVIDENCE_FORMAT_VERSION, 
 from realizer.contracts.fleet import PublisherRun, PublisherRunEntry
 from realizer.contracts.observation import OBSERVATION_FORMAT_VERSION, observation_schema
 
-SUPPORTED_PUBLISHER_CONTRACT = "3.1.0"
+SUPPORTED_PUBLISHER_CONTRACT = "3.2.0"
 
 
 def read_json_input(path: str | Path, label: str) -> Any:
