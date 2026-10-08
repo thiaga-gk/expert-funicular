@@ -9,6 +9,7 @@ import json
 import re
 import sys
 import unittest
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,7 @@ from publisher import publisher  # noqa: E402
 from publisher.analyzer.collector.demo import demo_evidence, synthetic_demo_evidence  # noqa: E402
 from publisher.analyzer.collector.replay import evidence_from_dict  # noqa: E402
 from publisher.governor.thresholds import Thresholds  # noqa: E402
+from realizer.governor.policy import RealizerPolicy  # noqa: E402
 from publisher.config import versions as versions_mod  # noqa: E402
 from tests.golden.publisher import case_names, load_case  # noqa: E402
 
@@ -152,6 +154,19 @@ class DocsGuardTests(unittest.TestCase):
         self.assertEqual(sorted(set(fields) - set(documented)), [], "parameters missing from thresholds.md")
         self.assertEqual(sorted(set(documented) - set(fields)), [], "thresholds.md lists parameters the code no longer has")
         self.assertEqual({k: v for k, v in documented.items() if v != fields[k]}, {}, "documented default differs from the code")
+
+    def test_realizer_policy_contract_lists_every_setting_with_its_default(self):
+        text = read(ROOT / "docs/contracts/realizer/policy-contract.md")
+        rows = re.findall(r"^\| `(\w+)` \| `([^`]+)` \|", text, re.M)
+        documented = {}
+        for name, default in rows:
+            self.assertNotIn(name, documented, f"{name} is listed twice")
+            documented[name] = ast.literal_eval(default)
+        fields = {f.name: f.default for f in dataclasses.fields(RealizerPolicy) if f.name != "policy_version"}
+        self.assertEqual(sorted(set(fields) - set(documented)), [], "settings missing from policy-contract.md")
+        self.assertEqual(sorted(set(documented) - set(fields)), [], "policy-contract.md lists settings the code no longer has")
+        differing = {k: v for k, v in documented.items() if (Decimal(str(v)) if isinstance(fields[k], Decimal) else v) != fields[k]}
+        self.assertEqual(differing, {}, "documented default differs from the code")
 
     def test_thresholds_reference_lists_every_derived_value(self):
         text = read(ROOT / "docs/reference/publisher/thresholds.md")

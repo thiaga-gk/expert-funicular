@@ -20,7 +20,7 @@ Python >= 3.10. Setup: `python -m venv .venv && source .venv/bin/activate && pip
 3. Regenerate the demo and run the workbook validator. Packages are semantic- and schema-validated as they are written, so a failed validation aborts the demo.
 4. `git grep` for stale version, legacy and deferred references before release packaging (exclude `.worktrees/`).
 5. A decision-affecting change bumps the affected component versions in `src/publisher/config/versions.py` and regenerates goldens (`scripts/update_goldens.py`) and the contract example in the same commit (`docs/proposals/publisher/remediation-runbook.md`).
-6. A new `Thresholds` field needs a row in `docs/reference/publisher/thresholds.md`, a new Databricks product constant (`PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py`) a row in `docs/reference/publisher/product-constants.md`, and a new blocker code a row in `docs/reference/publisher/blocker-codes.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
+6. A new `Thresholds` field needs a row in `docs/reference/publisher/thresholds.md`, a new Databricks product constant (`PRODUCT_CONSTANTS` in `src/publisher/config/defaults.py`) a row in `docs/reference/publisher/product-constants.md`, a new blocker code a row in `docs/reference/publisher/blocker-codes.md`, and a new `RealizerPolicy` setting a row in the settings table of `docs/contracts/realizer/policy-contract.md`; `tests/test_docs.py` fails otherwise. Put the numbers and codes there and name them in prose elsewhere (`docs/README.md`).
 7. Update the docs that describe the changed behavior in the same change. Each topic has one home (`docs/README.md`); `tests/test_docs.py` must pass.
 
 ## Invariants
