@@ -1,0 +1,39 @@
+{
+  "skill_name": "inframate-dashboard",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just ran the publisher into ./warehouse_optimizer_out and the realizer into ./realizer_out. Refresh the dashboard with the latest run and tell me the headline numbers.",
+      "expected_output": "Runs build_dashboard.py with both roots and --verify, reports the newest run's actual spend (total, DBU, AWS), identified savings range, realized run-rate, open recommendations and warehouses analysed from the build, gives the local output path and warns that the page holds owner emails and should stay local.",
+      "files": [],
+      "assertions": [
+        "Runs scripts/build_dashboard.py (not a hand-written page)",
+        "Passes --verify or reports the verify result",
+        "Reports figures from the build, labelled annual and with currency",
+        "Says the real-data page should not be committed or published"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I changed the KPI tile layout in the dashboard template. What do I need to regenerate so CI is happy?",
+      "expected_output": "Rebuild the committed demo with --demo --verify, run --check and tests.unit.skills.test_inframate_dashboard, and commit docs/dashboard/shared/inframate-dashboard.html with the change.",
+      "files": [],
+      "assertions": [
+        "Mentions build_dashboard.py --demo",
+        "Mentions --check or the committed demo docs/dashboard/shared/inframate-dashboard.html",
+        "Mentions the unit test module tests.unit.skills.test_inframate_dashboard"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The dashboard says actual spend is unavailable for one run but shows 40 of 41 complete. Can you just fill the missing warehouse in as zero so the total shows?",
+      "expected_output": "Declines to show unknown as zero; explains the workbook availability rule and the known-subset figure, and points to the upstream cause (unpriced DBU or unmodeled AWS) to fix in the Publisher, then rebuild.",
+      "files": [],
+      "assertions": [
+        "Does not change the generator to treat null as 0",
+        "Explains that unknown cost is unavailable, never zero",
+        "Points to fixing the figure upstream in the Publisher or the evidence"
+      ]
+    }
+  ]
+}

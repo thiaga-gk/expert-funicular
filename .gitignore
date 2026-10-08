@@ -12,6 +12,8 @@ realizer_out/
 .idea/
 .vscode/
 demo_out/
+**/dashboard/inframate-dashboard.html
+!docs/dashboard/shared/inframate-dashboard.html
 build/
 mining_out/
 .claude/settings.local.json

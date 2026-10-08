@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title><!--@TITLE@--></title>
+<!--@FONTS@-->
+<style>
+/* Instrument panel for compute cost: a navy masthead, flat ruled surfaces, one brass accent; figures set in an engineering face. */
+:root{
+  --canvas:#F3F4F7; --surface:#FFFFFF; --surface-2:#F8F9FB; --sunken:#ECEEF2; --border:#E1E4EA; --border-strong:#CBD1DB;
+  --ink:#0E1726; --ink-2:#343F51; --muted:#5F6B7E; --faint:#97A1B2;
+  --accent:#9A6B2F; --accent-soft:#F6EEE2; --accent-ink:#76501F;
+  --mast:#0D1B2E; --mast-2:#152841; --mast-line:#22385A; --mast-ink:#EEF2F8; --mast-muted:#8E9DB4; --brass:#CFA466;
+  --good:#05795A; --good-soft:#E5F4EE; --bad:#B42335; --bad-soft:#FBECEE; --warn:#A35A06; --warn-soft:#FCF1E2; --info:#1D5F9E; --info-soft:#E8F1FA;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --div-neg:#d03b3b; --div-mid:#E3E6EC; --div-pos:#0e9f6e;
+  --shadow:0 1px 0 rgba(14,23,38,.03); --pop:0 12px 32px rgba(14,23,38,.14); --radius:8px; --radius-s:6px;
+  --font:"IBM Plex Sans","Helvetica Neue",Arial,system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --canvas:#09111E; --surface:#0F1A2B; --surface-2:#0C1726; --sunken:#08101C; --border:#1C2A40; --border-strong:#2A3B56;
+    --ink:#E7ECF3; --ink-2:#C2CBD8; --muted:#8A98AE; --faint:#5C6B83;
+    --accent:#D5AB6D; --accent-soft:#2A2315; --accent-ink:#EBCB95;
+    --mast:#060E1A; --mast-2:#0E1B2D; --mast-line:#1B2C46; --mast-ink:#EEF2F8; --mast-muted:#8193AD; --brass:#D5AB6D;
+    --good:#3DD3A0; --good-soft:#0E2A24; --bad:#F2788A; --bad-soft:#2D1520; --warn:#F2B451; --warn-soft:#2A2213; --info:#6BB3F2; --info-soft:#0F2338;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --div-neg:#e66767; --div-mid:#24344E; --div-pos:#3DD3A0; --shadow:none; --pop:0 16px 40px rgba(0,0,0,.45);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#09111E; --surface:#0F1A2B; --surface-2:#0C1726; --sunken:#08101C; --border:#1C2A40; --border-strong:#2A3B56;
+  --ink:#E7ECF3; --ink-2:#C2CBD8; --muted:#8A98AE; --faint:#5C6B83;
+  --accent:#D5AB6D; --accent-soft:#2A2315; --accent-ink:#EBCB95;
+  --mast:#060E1A; --mast-2:#0E1B2D; --mast-line:#1B2C46; --mast-ink:#EEF2F8; --mast-muted:#8193AD; --brass:#D5AB6D;
+  --good:#3DD3A0; --good-soft:#0E2A24; --bad:#F2788A; --bad-soft:#2D1520; --warn:#F2B451; --warn-soft:#2A2213; --info:#6BB3F2; --info-soft:#0F2338;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --div-neg:#e66767; --div-mid:#24344E; --div-pos:#3DD3A0; --shadow:none; --pop:0 16px 40px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--canvas);color:var(--ink);font:14px/1.5 var(--font);font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none} a:hover{text-decoration:underline}
+button,select,input{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- masthead (navy in both themes) ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--mast);color:var(--mast-ink);border-bottom:1px solid var(--mast-line)}
+.top-in{max-width:1480px;margin:0 auto;padding:12px 24px 10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;margin-right:10px}
+.logo{width:26px;height:26px;display:flex;align-items:flex-end;gap:3px;padding:3px 2px}
+.logo i{display:block;width:5px;border-radius:1px;background:var(--brass)}
+.logo i:nth-child(1){height:40%;opacity:.55} .logo i:nth-child(2){height:70%;opacity:.8} .logo i:nth-child(3){height:100%}
+.brand b{display:block;font-family:var(--mono);font-weight:500;font-size:15px;letter-spacing:.02em;color:var(--mast-ink)}
+.brand span{display:block;font-size:11px;color:var(--mast-muted);letter-spacing:.02em}
+.spacer{flex:1}
+.ctrl{display:flex;align-items:center;gap:6px}
+.ctrl label{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--mast-muted)}
+.top .sel,.top .btn{height:32px;border:1px solid var(--mast-line);background:var(--mast-2);color:var(--mast-ink);border-radius:var(--radius-s);padding:0 10px;cursor:pointer}
+.top .sel{font-family:var(--mono);font-size:13px}
+.top .btn:hover,.top .sel:hover{border-color:var(--brass)}
+.top .btn:disabled{opacity:.4;cursor:default}
+.btn.icon{width:32px;padding:0;display:grid;place-items:center}
+.top .seg{display:inline-flex;background:var(--mast-2);border:1px solid var(--mast-line);border-radius:var(--radius-s);padding:2px}
+.top .seg button{border:0;background:transparent;padding:4px 12px;border-radius:4px;cursor:pointer;color:var(--mast-muted);font-size:13px}
+.top .seg button[aria-pressed="true"]{background:var(--mast-ink);color:var(--mast);font-weight:600}
+.tabs{max-width:1480px;margin:0 auto;padding:0 24px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tab{flex:none;border:0;background:none;padding:10px 12px 11px;cursor:pointer;color:var(--mast-muted);font-weight:500;font-size:13.5px;border-bottom:2px solid transparent}
+.tab:hover{color:var(--mast-ink)}
+.tab[aria-selected="true"]{color:var(--mast-ink);border-bottom-color:var(--brass)}
+.tab .crumb{font-weight:400;color:var(--mast-muted);margin-left:6px;font-size:12.5px}
+
+/* ---------- page ---------- */
+main{max-width:1480px;margin:0 auto;padding:22px 24px 64px}
+.sel,.btn{height:30px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-s);padding:0 10px;cursor:pointer}
+.btn:hover,.sel:hover{border-color:var(--border-strong)}
+.seg{display:inline-flex;background:var(--sunken);border:1px solid var(--border);border-radius:var(--radius-s);padding:2px}
+.seg button{border:0;background:transparent;padding:3px 11px;border-radius:4px;cursor:pointer;color:var(--muted);font-size:12.5px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px}
+.filters::before{content:"Filter";font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+.chip{position:relative}
+.chip>button{height:28px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-s);padding:0 10px;cursor:pointer;color:var(--ink-2);font-size:12.5px}
+.chip>button:hover{border-color:var(--border-strong)}
+.chip.on>button{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.menu{position:absolute;top:32px;left:0;z-index:30;min-width:220px;max-height:320px;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--pop);padding:6px;display:none}
+.chip.open .menu{display:block}
+.menu label{display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:4px;cursor:pointer;font-size:13px;white-space:nowrap}
+.menu label:hover{background:var(--sunken)}
+.menu input{accent-color:var(--accent)}
+.clear{font-size:12.5px;color:var(--accent-ink);background:none;border:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;margin-bottom:14px;font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-s)}
+.banner .badge{flex:none}
+
+/* ---------- layout ---------- */
+.grid{display:grid;gap:16px}
+.grid>*{min-width:0}
+.g5{grid-template-columns:repeat(5,minmax(0,1fr))} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g75{grid-template-columns:minmax(0,7fr) minmax(0,5fr)} .g84{grid-template-columns:minmax(0,8fr) minmax(0,4fr)}
+@media (max-width:1200px){.g75,.g84{grid-template-columns:1fr}}
+@media (max-width:760px){.g2,.g3{grid-template-columns:1fr} main,.top-in,.tabs{padding-left:16px;padding-right:16px}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px 18px;min-width:0}
+.card h3{margin:0;font-size:14.5px;font-weight:600;letter-spacing:-.005em;text-wrap:balance}
+.card .sub{margin:3px 0 14px;color:var(--muted);font-size:12.5px;max-width:72ch}
+.card-h{display:flex;align-items:flex-start;gap:12px;justify-content:space-between;flex-wrap:wrap}
+.section-title{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:500;margin:30px 0 12px}
+.section-title::after{content:"";flex:1;height:1px;background:var(--border)}
+.comp{display:grid;gap:12px;padding-top:4px}
+.comp .segs{display:flex;height:10px;gap:2px;border-radius:2px;overflow:hidden;background:var(--sunken)}
+.comp .segs i{display:block;height:100%}
+.comp ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.comp li{display:grid;grid-template-columns:10px minmax(0,1fr) auto auto;gap:10px;align-items:baseline;font-size:13px}
+.comp li i{width:9px;height:9px;border-radius:1px;align-self:center}
+.comp li b{font-weight:600;font-variant-numeric:tabular-nums}
+.comp li span.p{font-family:var(--mono);font-size:11.5px;color:var(--muted);min-width:4.5ch;text-align:right}
+.chart{width:100%;height:300px} .chart.tall{height:380px} .chart.short{height:230px} .chart.xs{height:170px}
+
+/* ---------- KPI ledger strip ---------- */
+.strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.strip>.kpi{border:0;border-radius:0;box-shadow:none;background:none;border-left:1px solid var(--border);padding:18px 20px 16px}
+.strip>.kpi:first-child{border-left:0}
+@media (max-width:1200px){.strip{grid-template-columns:repeat(3,minmax(0,1fr))} .strip>.kpi:nth-child(4){border-left:0} .strip>.kpi:nth-child(n+4){border-top:1px solid var(--border)}}
+@media (max-width:760px){.strip{grid-template-columns:1fr} .strip>.kpi{border-left:0;border-top:1px solid var(--border)} .strip>.kpi:first-child{border-top:0}}
+.kpi .label{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:500}
+.kpi .label::before{content:"";flex:none;width:7px;height:7px;border-radius:1px;background:var(--kpi,var(--accent))}
+.kpi .value{font-size:clamp(26px,2.4vw,34px);font-weight:600;letter-spacing:-.025em;margin:10px 0 4px;line-height:1.05;white-space:nowrap}
+.kpi .value small{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:0;white-space:nowrap}
+.kpi .line{font-size:12.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:5px;min-width:0}
+.kpi .line>span{min-width:0}
+.kpi .line b{font-weight:600;color:var(--ink);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:1px;background:var(--sunken);display:flex;overflow:hidden;gap:2px;margin:12px 0 6px}
+.bar i{display:block;height:100%}
+.delta{flex:none;align-self:center;font-family:var(--mono);font-size:11px;line-height:18px;font-weight:500;padding:0 6px;border-radius:3px;background:var(--sunken);color:var(--muted);white-space:nowrap}
+.delta.up{background:var(--good-soft);color:var(--good)} .delta.down{background:var(--bad-soft);color:var(--bad)}
+.delta.up.cost{background:var(--bad-soft);color:var(--bad)} .delta.down.cost{background:var(--good-soft);color:var(--good)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;line-height:18px;padding:0 7px;border-radius:3px;background:var(--sunken);color:var(--ink-2);white-space:nowrap;border:1px solid transparent}
+.badge.good{background:var(--good-soft);color:var(--good)} .badge.bad{background:var(--bad-soft);color:var(--bad)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.info{background:var(--info-soft);color:var(--info)} .badge.accent{background:var(--accent-soft);color:var(--accent-ink)}
+.unavail{color:var(--muted);font-weight:500}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-2);margin-top:8px}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:6px;vertical-align:0}
+.insights{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.insights li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--border);font-size:13.5px;line-height:1.45}
+.insights li:first-child{border-top:0;padding-top:2px}
+.insights .dot{width:24px;height:24px;border-radius:4px;display:grid;place-items:center;font-size:12px;padding:0;justify-content:center}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-s)}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{position:sticky;top:0;z-index:1;background:var(--surface-2);text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.t td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.t tr:last-child td{border-bottom:0}
+.t tbody tr.click{cursor:pointer} .t tbody tr.click:hover td{background:var(--surface-2)}
+.t td.r,.t th.r{text-align:right}
+.t td.owner{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.t td.nowrap{white-space:nowrap}
+.wh-name{font-weight:600;white-space:nowrap}
+.wh-sub{font-size:11.5px;color:var(--muted);white-space:nowrap;font-family:var(--mono)}
+.rng{position:relative;height:16px;min-width:120px}
+.rng .track{position:absolute;top:7px;left:0;right:0;height:2px;background:var(--sunken)}
+.rng .span{position:absolute;top:4px;height:8px;border-radius:1px;background:color-mix(in srgb,var(--good) 32%,transparent)}
+.rng .span.neg{background:color-mix(in srgb,var(--bad) 32%,transparent)}
+.rng .base{position:absolute;top:1px;width:3px;height:14px;border-radius:1px;background:var(--good)} .rng .base.neg{background:var(--bad)}
+.rng .zero{position:absolute;top:0;width:1px;height:16px;background:var(--border-strong)}
+
+/* ---------- warehouse ---------- */
+.hero{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.hero h2{margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;text-wrap:balance;overflow-wrap:anywhere}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0;border:1px solid var(--border);border-radius:var(--radius-s);overflow:hidden;background:var(--border)}
+.kv>div{background:var(--surface);padding:10px 12px;margin:0 1px 1px 0;min-width:0}
+.kv span{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.kv b{display:block;margin-top:3px;font-size:14.5px;font-weight:600;overflow-wrap:anywhere}
+.kv.facts{grid-template-columns:repeat(5,minmax(0,1fr))}
+.kv.facts b{font-family:var(--mono);font-weight:500;font-size:14px}
+@media (max-width:900px){.kv.facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kv .glyph,.glyph{display:inline-flex;gap:2px;margin-left:8px;vertical-align:0}
+.glyph i{display:block;width:7px;height:10px;border-radius:1px;border:1px solid var(--accent)}
+.glyph i.on{background:var(--accent)}
+.steps{list-style:none;margin:0;padding:0;display:grid}
+.steps li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:14px;padding:13px 0;border-top:1px solid var(--border);align-items:start}
+.steps li:first-child{border-top:0}
+.steps .n{width:26px;height:26px;border-radius:4px;display:grid;place-items:center;font-family:var(--mono);font-weight:500;font-size:12.5px;background:var(--sunken);color:var(--ink-2);border:1px solid var(--border)}
+.steps .n.gate{background:var(--warn-soft);color:var(--warn);border-color:transparent} .steps .n.done{background:var(--good-soft);color:var(--good);border-color:transparent}
+.steps .meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.cand{border:1px solid var(--border);border-radius:var(--radius);padding:16px;background:var(--surface);display:grid;gap:12px;min-width:0}
+.cand-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cand-h b{font-size:15px;font-weight:600}
+.cand-h .spacer{flex:1}
+.cand-h .money{white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.arrow{font-family:var(--mono);font-size:12.5px;background:var(--sunken);border:1px solid var(--border);padding:0 7px;line-height:20px;border-radius:3px;white-space:nowrap}
+.why{font-size:13.5px;line-height:1.55;color:var(--ink-2);overflow-wrap:anywhere;max-width:80ch}
+.blk{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;font-size:12.5px}
+.blk .badge{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+.cand .ids{font-family:var(--mono);font-size:11px;color:var(--faint);overflow-wrap:anywhere}
+details.ev summary{cursor:pointer;color:var(--accent-ink);font-size:12.5px;font-weight:600;list-style:none;display:flex;align-items:center;gap:6px}
+details.ev summary::-webkit-details-marker{display:none}
+details.ev summary::before{content:"+";font-family:var(--mono);width:16px;height:16px;display:grid;place-items:center;border:1px solid var(--border-strong);border-radius:3px;font-size:12px;line-height:1}
+details.ev[open] summary::before{content:"–"}
+details.ev[open] summary{margin-bottom:6px}
+.gauge{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px;row-gap:3px;padding:9px 0;border-top:1px solid var(--border);font-size:12.5px;min-width:0}
+.gauge .m{font-family:var(--mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere;min-width:0}
+.gauge .v{text-align:right;font-variant-numeric:tabular-nums;max-width:24ch;overflow-wrap:anywhere}
+.gauge .v .faint{display:block;font-size:11px;font-family:var(--mono)}
+.gauge .d{grid-column:1/-1;color:var(--muted);overflow-wrap:anywhere;max-width:90ch}
+.gauge .d .faint{font-size:11.5px}
+.timeline{list-style:none;margin:0;padding:0 0 0 14px;border-left:1px solid var(--border-strong)}
+.timeline li{position:relative;padding:3px 0 9px 12px;font-size:12.5px}
+.timeline li::before{content:"";position:absolute;left:-19px;top:8px;width:9px;height:9px;border-radius:2px;background:var(--surface);border:2px solid var(--accent)}
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:start}
+@media (max-width:1100px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.board{grid-template-columns:1fr}}
+.col{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-width:0}
+.col h4{margin:2px 4px 10px;font-family:var(--mono);font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:flex;justify-content:space-between}
+.tile{min-width:0;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-s);padding:10px 11px;margin-bottom:8px;cursor:pointer;font-size:12.5px;transition:border-color .12s}
+.tile:hover{border-color:var(--accent)}
+.json{overflow-wrap:anywhere;font-family:var(--mono);font-size:12px;line-height:1.6;max-height:560px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-s);padding:10px 12px}
+.json details{margin-left:14px} .json summary{cursor:pointer;color:var(--ink-2)} .json .k{color:var(--accent-ink)} .json .s{color:var(--good)} .json .n{color:var(--info)} .json .z{color:var(--muted)}
+.empty{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--border-strong);border-radius:var(--radius)}
+.hide{display:none!important}
+footer{max-width:1480px;margin:0 auto;padding:0 24px 40px;color:var(--faint);font-size:12px;line-height:1.6}
+footer p{max-width:110ch;margin:0}
+.print-only{display:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  body{background:#fff;color:#0E1726;font-size:11px}
+  .top,.tabs,.filters,footer,.no-print,section[data-view]:not([data-view="executive"]){display:none!important}
+  section[data-view="executive"]{display:block!important} main{padding:0;max-width:none}
+  .card,.strip{box-shadow:none;break-inside:avoid} .card{padding:10px} .chart{height:210px} .chart.tall{height:230px} .kpi .value{font-size:22px}
+  .print-only{display:block} .grid{gap:8px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><div class="logo" aria-hidden="true"><i></i><i></i><i></i></div><div><b>inframate</b><span>SQL warehouse cost &amp; realization</span></div></div>
+    <div class="ctrl"><label for="run">Run</label>
+      <button class="btn icon" id="run-prev" aria-label="Previous run" title="Previous run">‹</button>
+      <select class="sel" id="run" aria-label="Run date"></select>
+      <button class="btn icon" id="run-next" aria-label="Next run" title="Next run">›</button>
+    </div>
+    <div class="ctrl hide" id="cur-wrap"><label for="cur">Currency</label><select class="sel" id="cur"></select></div>
+    <div class="spacer"></div>
+    <div class="ctrl"><label>Lens</label>
+      <div class="seg" id="lens" role="group" aria-label="Persona lens">
+        <button data-lens="executive">Executive</button><button data-lens="finops">FinOps</button><button data-lens="engineer">Engineer</button><button data-lens="audit">Audit</button>
+      </div>
+    </div>
+    <button class="btn" id="print" title="Print the executive one-pager">Print</button>
+    <button class="btn icon" id="theme" aria-label="Toggle theme" title="Theme: system / light / dark">◐</button>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-tab="executive">Executive summary</button>
+    <button class="tab" role="tab" data-tab="portfolio">Portfolio</button>
+    <button class="tab" role="tab" data-tab="recommendations">Recommendations</button>
+    <button class="tab" role="tab" data-tab="warehouse">Warehouse<span class="crumb" id="wh-crumb"></span></button>
+    <button class="tab" role="tab" data-tab="audit">Audit</button>
+  </nav>
+</header>
+<main>
+  <div class="print-only"><h2 style="margin:0 0 6px">Inframate · Executive summary</h2><p class="muted" id="print-meta" style="margin:0 0 10px"></p></div>
+  <div class="filters no-print" id="filters" aria-label="Filters"></div>
+  <div id="banner"></div>
+
+  <section data-view="executive">
+    <div class="strip" id="kpis"></div>
+    <div class="grid g75" style="margin-top:16px">
+      <div class="card"><div class="card-h"><div><h3>Recommendation lifecycle</h3><p class="sub">From identified to realized, counted per recommended change in this run</p></div></div><div class="chart" id="ch-funnel" role="img" aria-label="Lifecycle flow"></div></div>
+      <div class="card"><h3>What stands out</h3><p class="sub">Rule-based call-outs computed from this run's figures</p><ul class="insights" id="insights"></ul></div>
+    </div>
+    <div class="grid g75" style="margin-top:16px">
+      <div class="card"><div class="card-h"><div><h3>Trend across runs</h3><p class="sub">Annual figures per run date; actual is the trailing 365 days, the rest are 365-day forward figures</p></div></div><div class="chart" id="ch-trend" role="img" aria-label="Trend across runs"></div></div>
+      <div class="card"><h3>Where the savings are</h3><p class="sub">Open recommended steps by technique, base annual savings</p><div class="chart" id="ch-technique" role="img" aria-label="Savings by technique"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div><h3>Top warehouses</h3><p class="sub" id="top-sub">Ordered by annual spend</p></div>
+        <div class="seg no-print" id="top-order"><button data-order="spend">Top spenders</button><button data-order="savings">Top savers</button></div></div>
+      <div class="tbl-wrap"><table class="t" id="top-table"></table></div>
+    </div>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="card"><h3>Plan confidence</h3><p class="sub">Recommended scenario confidence per warehouse</p><div class="comp" id="ch-confidence"></div></div>
+      <div class="card"><h3>Cost profiles</h3><p class="sub">Risk appetite each warehouse was evaluated under</p><div class="comp" id="ch-profiles"></div></div>
+      <div class="card"><h3>Spend composition</h3><p class="sub">Trailing 365 days, warehouses with a complete actual</p><div class="comp" id="ch-composition"></div></div>
+    </div>
+  </section>
+
+  <section data-view="portfolio" class="hide">
+    <div class="grid g84">
+      <div class="card"><h3>Fleet map</h3><p class="sub">Area = annual spend (trailing actual, or forward when the actual is unavailable) · colour = identified savings as a share of forward spend</p><div class="chart tall" id="ch-treemap" role="img" aria-label="Fleet treemap"></div>
+        <div class="legend" id="treemap-legend"></div></div>
+      <div class="card"><h3>Spend vs. opportunity</h3><p class="sub">Each dot is a warehouse; hover for detail</p><div class="chart tall" id="ch-scatter" role="img" aria-label="Spend vs savings"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div><h3>Warehouses</h3><p class="sub">Click a row for the warehouse view; order by spend or by identified savings</p></div>
+        <div class="seg" id="pf-order"><button data-order="spend">Top spenders</button><button data-order="savings">Top savers</button></div></div>
+      <div class="tbl-wrap" style="max-height:640px"><table class="t" id="pf-table"></table></div>
+    </div>
+  </section>
+
+  <section data-view="recommendations" class="hide">
+    <div class="grid g2">
+      <div class="card"><h3>Aging of open recommendations</h3><p class="sub">Days since the recommendation (same warehouse, technique and target) first appeared, unbroken across runs</p><div class="chart" id="ch-aging"></div></div>
+      <div class="card"><h3>Implementation roadmap</h3><p class="sub">Recommended plan steps in order, in days from approval; gates hold the next step until validated (top 12 by savings)</p><div class="chart" id="ch-roadmap"></div><div class="legend" id="roadmap-legend"></div></div>
+    </div>
+    <div class="section-title">Status board</div>
+    <div class="board" id="board"></div>
+    <div class="card" style="margin-top:16px"><h3>All recommendations</h3><p class="sub">One row per recommended change</p><div class="tbl-wrap" style="max-height:560px"><table class="t" id="rec-table"></table></div></div>
+  </section>
+
+  <section data-view="warehouse" class="hide">
+    <div class="card"><div class="hero" id="wh-hero"></div></div>
+    <div class="grid g75" style="margin-top:16px">
+      <div class="card"><h3>Daily DBU cost and configuration periods</h3><p class="sub" id="daily-sub">Billed DBU list cost per day; shaded bands are configuration epochs</p><div class="chart" id="ch-daily"></div></div>
+      <div class="card"><h3>Annual cost</h3><p class="sub">Trailing actual vs. no-change forward, DBU and AWS kept separate</p><div class="chart" id="ch-wh-cost"></div></div>
+    </div>
+    <div class="grid g75" style="margin-top:16px">
+      <div class="card"><h3>Scenarios</h3><p class="sub">Annual savings range (low–high, base marked); negative = cost increase</p><div class="chart short" id="ch-scenarios"></div><div id="decision" style="margin-top:8px"></div></div>
+      <div class="card"><h3>Workload</h3><p class="sub" id="workload-sub"></p><div class="comp" id="ch-workload"></div><div class="kv" id="workload-kv" style="margin-top:16px;grid-template-columns:repeat(3,minmax(0,1fr))"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Implementation plan</h3><p class="sub">The recommended scenario's steps, in execution order</p><ol class="steps" id="wh-steps"></ol></div>
+    <div class="section-title">Recommendations and evidence</div>
+    <div class="grid g2" id="wh-cands" style="align-items:start"></div>
+    <div class="section-title">Realization</div>
+    <div id="wh-real"></div>
+  </section>
+
+  <section data-view="audit" class="hide">
+    <div class="grid g2">
+      <div class="card"><h3>Run provenance</h3><p class="sub">Versions and contracts of the selected run</p><div id="audit-run"></div></div>
+      <div class="card"><h3>Inputs not shown</h3><p class="sub">Runs or files the dashboard skipped, and why (never counted silently)</p><div id="audit-skipped"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Package identities</h3><p class="sub">Public IDs and full hashes of the selected run's packages</p><div class="tbl-wrap" style="max-height:420px"><table class="t" id="audit-ids"></table></div></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Applied thresholds</h3><p class="sub" id="thr-sub"></p><div class="json" id="audit-thr"></div></div>
+      <div class="card"><h3>Raw package</h3><p class="sub" id="raw-sub"></p><div class="json" id="audit-raw"></div></div>
+    </div>
+  </section>
+</main>
+<footer id="foot"></footer>
+<!--@DATA@-->
+<!--@VENDOR@-->
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("dashboard-data").textContent);
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+  var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+  var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+  var LENSES = {
+    executive: { view: "executive", label: "Executive" }, finops: { view: "portfolio", label: "FinOps" },
+    engineer: { view: "recommendations", label: "Engineer" }, audit: { view: "audit", label: "Audit" }
+  };
+  var STATUS = {
+    OPEN: ["Open", "accent"], BLOCKED: ["Blocked", "bad"], VALIDATING: ["Applied · validating", "info"], REALIZED: ["Realized", "good"],
+    UNDER_REALIZED: ["Under-realized", "warn"], FAILED: ["Guard failed", "bad"], MONITORING: ["Monitoring", "info"]
+  };
+  var FILTERS = [["workspace", "Workspace"], ["owner", "Owner"], ["type", "Type"], ["profile", "Cost profile"], ["status", "Status"], ["confidence", "Confidence"]];
+  var S = { view: "executive", lens: "executive", run: null, wh: null, cur: null, f: {}, top: "spend", pf: "spend", sort: null };
+  var charts = {}, hashTheme = null;
+
+  // ---------- formatting ----------
+  function cur() { return S.cur || "USD"; }
+  function fmtMoney(v, opts) {
+    if (v == null || isNaN(v)) return '<span class="unavail">Unavailable</span>';
+    opts = opts || {};
+    var abs = Math.abs(v), sign = v < 0 ? "−" : (opts.plus && v > 0 ? "+" : "");
+    var sym = { USD: "$", EUR: "€", GBP: "£", JPY: "¥" }[cur()] || (cur() + " ");
+    var s = abs >= 1e9 ? (abs / 1e9).toFixed(2) + "B" : abs >= 1e6 ? (abs / 1e6).toFixed(2) + "M" : abs >= 1e4 ? (abs / 1e3).toFixed(1) + "k" : abs >= 1000 ? (abs / 1e3).toFixed(2) + "k" : abs.toFixed(0);
+    return sign + sym + s;
+  }
+  function plainMoney(v) { return v == null ? "Unavailable" : fmtMoney(v).replace(/<[^>]+>/g, ""); }
+  function fullMoney(v) { return v == null ? "Unavailable" : (v < 0 ? "−" : "") + cur() + " " + Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
+  function glyph(min, max) {
+    if (max == null || max > 12) return "";
+    var out = '<span class="glyph" title="' + esc(min + " always on, up to " + max) + '">';
+    for (var i = 1; i <= max; i++) out += '<i class="' + (i <= min ? "on" : "") + '"></i>';
+    return out + "</span>";
+  }
+  function fmtNum(v) { if (v == null) return "–"; var n = Number(v); if (isNaN(n)) return String(v); return Math.abs(n) >= 100 ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : String(Math.round(n * 100) / 100); }
+  function pct(v, d) { return v == null || isNaN(v) ? "–" : (v * 100).toFixed(d == null ? 0 : d).replace("-", "−") + "%"; }
+  function val(v) { return v == null ? "–" : (typeof v === "object" ? JSON.stringify(v) : String(v)); }
+  var ACRONYMS = { "a b": "A/B", dbu: "DBU", aws: "AWS", hitl: "HITL", sla: "SLA", sql: "SQL", p95: "p95", p99: "p99", ttm: "TTM", ec2: "EC2", pkg: "PKG", api: "API" };
+  function title(s) {
+    var t = String(s || "").toLowerCase().replace(/_/g, " ");
+    t = t.replace(/\b(a b|dbu|aws|hitl|sla|sql|p95|p99|ttm|ec2|pkg|api)\b/g, function (m) { return ACRONYMS[m]; });
+    return t.replace(/^[a-z]/, function (c) { return c.toUpperCase(); });
+  }
+  function knob(k) { return { warehouse_size: "Size", max_clusters: "Max clusters", min_clusters: "Min clusters", auto_stop_minutes: "Auto-stop", warehouse_type: "Type" }[k] || title(k); }
+  function badge(text, kind) { return '<span class="badge ' + (kind || "") + '">' + esc(text) + "</span>"; }
+  function statusBadge(st) { var s = STATUS[st] || [title(st), ""]; return badge(s[0], s[1]); }
+  function confBadge(c) { return c ? badge(title(c), c === "HIGH" ? "good" : c === "MEDIUM" ? "info" : "warn") : '<span class="faint">–</span>'; }
+  function date(t) { return t ? String(t).slice(0, 10) : "–"; }
+
+  // ---------- state & routing ----------
+  function readHash() {
+    var h = location.hash.replace(/^#/, ""); if (!h) return;
+    h.split("&").forEach(function (part) {
+      var kv = part.split("="), k = decodeURIComponent(kv[0]), v = decodeURIComponent(kv[1] || "");
+      if (k === "theme" && (v === "light" || v === "dark")) { hashTheme = v; store.set("dash-theme", v); }
+      else if (k.indexOf("f.") === 0) { if (v) S.f[k.slice(2)] = v.split("|"); }
+      else if (k in S && k !== "f") S[k] = v || null;
+    });
+  }
+  function writeHash() {
+    var parts = ["view", "lens", "run", "wh", "cur", "top", "pf"].filter(function (k) { return S[k]; }).map(function (k) { return k + "=" + encodeURIComponent(S[k]); });
+    Object.keys(S.f).sort().forEach(function (k) { if (S.f[k] && S.f[k].length) parts.push("f." + k + "=" + encodeURIComponent(S.f[k].join("|"))); });
+    try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
+  }
+  function runEntry() { return D.runs.find(function (r) { return r.key === S.run; }) || D.runs[D.runs.length - 1]; }
+  function detailRun() {
+    var r = runEntry(); if (D.details[r.key]) return { run: r, d: D.details[r.key], fallback: false };
+    var last = D.runs.filter(function (x) { return x.detail; }).pop();
+    return last ? { run: last, d: D.details[last.key], fallback: true } : null;
+  }
+  function prevRun(r) { var i = D.runs.indexOf(r); return i > 0 ? D.runs[i - 1] : null; }
+
+  // ---------- filters ----------
+  function whFacet(w, key) {
+    return { workspace: w.workspace, owner: w.owner || "(no owner)", type: w.config.warehouse_type, profile: w.cost_profile.name || "–",
+             confidence: (w.recommended || {}).confidence || "NONE" }[key];
+  }
+  function filterActive() { return Object.keys(S.f).some(function (k) { return S.f[k] && S.f[k].length; }); }
+  function passWh(w) {
+    return FILTERS.every(function (f) { var k = f[0], sel = S.f[k]; if (!sel || !sel.length || k === "status") return true; return sel.indexOf(whFacet(w, k)) >= 0; });
+  }
+  function passRec(r, whByKey) {
+    var w = whByKey[r.warehouse]; if (w && !passWh(w)) return false;
+    var sel = S.f.status; return !sel || !sel.length || sel.indexOf(r.status) >= 0;
+  }
+  function renderFilters() {
+    var dr = detailRun(), host = $("#filters"); if (!dr) { host.innerHTML = ""; return; }
+    var ws = dr.d.warehouses, recs = dr.d.recommendations, html = "";
+    FILTERS.forEach(function (f) {
+      var k = f[0], opts = {};
+      if (k === "status") recs.forEach(function (r) { opts[r.status] = 1; }); else ws.forEach(function (w) { opts[whFacet(w, k)] = 1; });
+      var sel = S.f[k] || [], keys = Object.keys(opts).sort();
+      html += '<div class="chip' + (sel.length ? " on" : "") + '" data-f="' + k + '"><button aria-haspopup="true">' + esc(f[1]) + (sel.length ? ": " + esc(sel.length === 1 ? (k === "status" ? (STATUS[sel[0]] || [sel[0]])[0] : sel[0]) : sel.length + " selected") : "") + ' ▾</button><div class="menu">' +
+        keys.map(function (o) { return '<label><input type="checkbox" value="' + esc(o) + '"' + (sel.indexOf(o) >= 0 ? " checked" : "") + "> " + esc(k === "status" ? (STATUS[o] || [o])[0] : k === "confidence" ? title(o) : o) + "</label>"; }).join("") + "</div></div>";
+    });
+    if (filterActive()) html += '<button class="clear" id="clear-f">Clear filters</button>';
+    host.innerHTML = html;
+    $$(".chip", host).forEach(function (chip) {
+      $("button", chip).onclick = function (e) { e.stopPropagation(); var open = chip.classList.contains("open"); $$(".chip.open").forEach(function (c) { c.classList.remove("open"); }); if (!open) chip.classList.add("open"); };
+      $$("input", chip).forEach(function (cb) { cb.onchange = function () { var k = chip.dataset.f; S.f[k] = $$("input:checked", chip).map(function (x) { return x.value; }); renderAll(true); }; });
+      $(".menu", chip).onclick = function (e) { e.stopPropagation(); };
+    });
+    var c = $("#clear-f"); if (c) c.onclick = function () { S.f = {}; renderAll(); };
+  }
+  document.addEventListener("click", function () { $$(".chip.open").forEach(function (c) { c.classList.remove("open"); }); });
+
+  // ---------- KPIs (unfiltered: the generator's figures; filtered: the same sums over the visible warehouses) ----------
+  function sumAll(xs) { if (!xs.length) return 0; if (xs.some(function (x) { return x == null; })) return null; return xs.reduce(function (a, b) { return a + b; }, 0); }
+  function sumKnown(xs) { return xs.filter(function (x) { return x != null; }).reduce(function (a, b) { return a + b; }, 0); }
+  function filteredKpi(ws, recs) {
+    ws = ws.filter(function (w) { return w.currency === cur(); });
+    recs = recs.filter(function (r) { return r.currency === cur(); });
+    var plans = ws.filter(function (w) { return w.plan; }), lin = [].concat.apply([], ws.map(function (w) { return w.realization; }));
+    var claim = lin.filter(function (l) { return l.claim === "CLAIMABLE"; });
+    var bases = ws.filter(function (w) { return w.envelope; }).map(function (w) { return w.envelope.base; });
+    var aging = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+    recs.forEach(function (r) { if (r.status === "OPEN" && r.age_bucket) aging[r.age_bucket]++; });
+    return {
+      warehouses: ws.length, workspaces: Object.keys(ws.reduce(function (a, w) { a[w.workspace] = 1; return a; }, {})).length,
+      actual: { total: sumAll(ws.map(function (w) { return w.actual.total; })), dbu: sumAll(ws.map(function (w) { return w.actual.dbu; })), aws: sumAll(ws.map(function (w) { return w.actual.aws; })) },
+      actual_known: { total: sumKnown(ws.map(function (w) { return w.actual.total; })), count: ws.filter(function (w) { return w.actual.total != null; }).length,
+                      dbu: sumKnown(ws.map(function (w) { return w.actual.dbu; })), aws: sumKnown(ws.map(function (w) { return w.actual.aws; })) },
+      short_history: ws.filter(function (w) { return w.trailing_days != null && w.trailing_days < 365; }).length,
+      history_unknown: ws.filter(function (w) { return w.trailing_days == null; }).length,
+      forward: sumAll(ws.map(function (w) { return w.forward.total; })),
+      forward_known: { total: sumKnown(ws.map(function (w) { return w.forward.total; })), count: ws.filter(function (w) { return w.forward.total != null; }).length },
+      identified: ["low", "base", "high"].reduce(function (a, b) { a[b] = sumKnown(plans.map(function (w) { return w.plan.total[b]; })); return a; }, {}),
+      identified_dbu: sumKnown(plans.map(function (w) { return w.plan.dbu ? w.plan.dbu.base : null; })),
+      identified_aws: sumKnown(plans.map(function (w) { return w.plan.aws ? w.plan.aws.base : null; })), identified_priced: plans.length,
+      gross_savings: sumKnown(bases.map(function (b) { return Math.max(b, 0); })), cost_increase: sumKnown(bases.map(function (b) { return Math.max(-b, 0); })),
+      net: sumKnown(bases), envelope: { low: null, high: null }, migration_upside: sumKnown(ws.map(function (w) { return w.migration_high != null ? Math.max(w.migration_high, 0) : null; })),
+      realized: sumKnown(claim.map(function (l) { return l.annualized; })), realized_to_date: sumKnown(claim.map(function (l) { return l.to_date; })),
+      observable_only: sumKnown(lin.filter(function (l) { return l.claim === "OBSERVABLE_ONLY"; }).map(function (l) { return l.observed_only; })),
+      realized_lineages: claim.filter(function (l) { return l.annualized != null; }).length,
+      validating: lin.filter(function (l) { return l.state === "APPLIED" || l.state === "VALIDATING"; }).length,
+      open: recs.filter(function (r) { return r.status === "OPEN"; }).length, blocked: recs.filter(function (r) { return r.status === "BLOCKED"; }).length,
+      open_value: sumKnown(recs.filter(function (r) { return r.status === "OPEN"; }).map(function (r) { return r.savings_base; })), aging: aging,
+      confidence: ["HIGH", "MEDIUM", "LOW"].reduce(function (a, l) { a[l] = ws.filter(function (w) { return (w.recommended || {}).confidence === l; }).length; return a; }, {}),
+      profiles: ws.reduce(function (a, w) { var n = w.cost_profile.name; if (n) a[n] = (a[n] || 0) + 1; return a; }, {})
+    };
+  }
+  function kpiFor(run) {
+    var base = (run.kpis.by_currency || {})[cur()];
+    if (!filterActive()) return base;
+    var d = D.details[run.key]; if (!d) return base;
+    var whs = d.warehouses.filter(passWh), keys = {}; whs.forEach(function (w) { keys[w.key] = w; });
+    return filteredKpi(whs, d.recommendations.filter(function (r) { return passRec(r, keys); }));
+  }
+  function deltaChip(now, before, cost) {
+    if (now == null || before == null || before === 0) return "";
+    var d = (now - before) / Math.abs(before); if (Math.abs(d) < 0.0005) return '<span class="delta">± 0%</span>';
+    return '<span class="delta ' + (d > 0 ? "up" : "down") + (cost ? " cost" : "") + '" title="vs. previous run">' + (d > 0 ? "▲ " : "▼ ") + pct(Math.abs(d), 1) + "</span>";
+  }
+  function renderKpis() {
+    var run = runEntry(), k = kpiFor(run), prev = prevRun(run), pk = prev && !filterActive() ? (prev.kpis.by_currency || {})[cur()] : null;
+    var host = $("#kpis");
+    if (!k) { host.innerHTML = '<div class="empty" style="grid-column:1/-1">No warehouses in ' + esc(cur()) + " for this run.</div>"; return; }
+    var actualTotal = k.actual.total, dbu = k.actual.dbu, aws = k.actual.aws;
+    var kd = dbu != null ? dbu : k.actual_known.dbu, ka = aws != null ? aws : k.actual_known.aws;
+    var compDbu = kd != null && ka != null && (kd + ka) > 0 ? kd / (kd + ka) : null;
+    var t1 = '<div class="card kpi" style="--kpi:var(--s1)"><div class="label">Actual spend · 365 days</div>' +
+      '<div class="value num">' + (actualTotal != null ? fmtMoney(actualTotal) : fmtMoney(k.actual_known.total) + ' <small>known</small>') + "</div>" +
+      '<div class="line"><span>' + (actualTotal != null ? "All " + k.warehouses + " warehouses" : '<span class="badge warn">' + k.actual_known.count + " of " + k.warehouses + " complete</span>") + "</span>" + deltaChip(actualTotal, pk && pk.actual.total, true) + "</div>" +
+      (compDbu != null ? '<div class="bar" title="DBU vs AWS"><i style="width:' + (compDbu * 100) + '%;background:var(--s1)"></i><i style="width:' + ((1 - compDbu) * 100) + '%;background:var(--s2)"></i></div>' : '<div class="bar"></div>') +
+      '<div class="line"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s1)"></i> DBU <b class="num">' + fmtMoney(kd) + (dbu == null ? " known" : "") + '</b></span><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s2)"></i> AWS <b class="num">' + fmtMoney(ka) + (aws == null ? " known" : "") + "</b></span></div>" +
+      '<div class="line"><span class="muted">Forward run-rate</span><b class="num">' + (k.forward != null ? fmtMoney(k.forward) : fmtMoney(k.forward_known.total) + " known") + "</b></div>" +
+      (k.short_history ? '<div class="line"><span class="badge info">' + k.short_history + " with &lt; 1 year of billing</span></div>" : "") + "</div>";
+    var idf = k.identified, span = Math.max(Math.abs(idf.low), Math.abs(idf.high), 1);
+    var t2 = '<div class="card kpi" style="--kpi:var(--good)"><div class="label">Identified savings · annual</div>' +
+      '<div class="value num">' + fmtMoney(idf.base) + ' <small>base</small></div>' +
+      '<div class="line"><span>Low – high <b class="num">' + plainMoney(idf.low) + " – " + plainMoney(idf.high) + "</b></span>" + deltaChip(idf.base, pk && pk.identified.base, false) + "</div>" +
+      rangeBar(idf.low, idf.base, idf.high, Math.min(0, idf.low), Math.max(span, idf.high)) +
+      '<div class="line"><span class="muted">Gross savings</span><b class="num">' + fmtMoney(k.gross_savings) + '</b></div><div class="line"><span class="muted">Cost increase (capacity)</span><b class="num">' + fmtMoney(k.cost_increase ? -k.cost_increase : 0) + "</b></div>" +
+      '<div class="line"><span class="muted">DBU · AWS (base)</span><b class="num">' + plainMoney(k.identified_dbu) + " · " + plainMoney(k.identified_aws) + "</b></div>" +
+      (k.migration_upside ? '<div class="line"><span class="muted" title="Highest priced warehouse-type migration alternative; an experiment, not part of the plan">Migration upside</span><b class="num">' + fmtMoney(k.migration_upside) + "</b></div>" : "") + "</div>";
+    var realizedShare = idf.base > 0 && k.realized ? Math.min(k.realized / idf.base, 1) : 0;
+    var t3 = '<div class="card kpi" style="--kpi:var(--s3)"><div class="label">Realized savings · run-rate</div>' +
+      '<div class="value num">' + (D.meta.realizer_found ? fmtMoney(k.realized) : '<span class="unavail" style="font-size:18px">No Realizer output</span>') + "</div>" +
+      '<div class="line"><span>' + k.realized_lineages + " claimable change" + (k.realized_lineages === 1 ? "" : "s") + "</span>" + deltaChip(k.realized, pk && pk.realized, false) + "</div>" +
+      '<div class="bar" title="Realized run-rate vs identified base"><i style="width:' + (realizedShare * 100) + '%;background:var(--s3)"></i></div>' +
+      '<div class="line"><span class="muted">Realized to date</span><b class="num">' + fmtMoney(k.realized_to_date) + '</b></div><div class="line"><span class="muted" title="Measured but not claimable (e.g. origin unconfirmed or superseded)">Observed, not claimable</span><b class="num">' + fmtMoney(k.observable_only) + "</b></div>" +
+      '<div class="line"><span class="muted">Applied, validating</span><b class="num">' + k.validating + "</b></div></div>";
+    var ag = k.aging, agTot = Math.max(1, ag["0-30"] + ag["31-60"] + ag["61-90"] + ag["90+"]);
+    var t4 = '<div class="card kpi" style="--kpi:var(--s4)"><div class="label">Open recommendations</div>' +
+      '<div class="value num">' + k.open + ' <small title="Net base savings of the open steps (capacity adds count negative)">' + fmtMoney(k.open_value) + "/yr net</small></div>" +
+      '<div class="line"><span>' + (k.blocked ? '<span class="badge bad">' + k.blocked + " blocked</span>" : "None blocked") + "</span>" + deltaChip(k.open, pk && pk.open, true) + "</div>" +
+      '<div class="bar" title="Aging">' + [["0-30", "var(--s3)"], ["31-60", "var(--s4)"], ["61-90", "var(--s2)"], ["90+", "var(--s8)"]].map(function (b) { return '<i style="width:' + (ag[b[0]] / agTot * 100) + "%;background:" + b[1] + '" title="' + b[0] + " days: " + ag[b[0]] + '"></i>'; }).join("") + "</div>" +
+      '<div class="legend">' + [["0-30", "var(--s3)"], ["31-60", "var(--s4)"], ["61-90", "var(--s2)"], ["90+", "var(--s8)"]].map(function (b) { return '<span><i style="background:' + b[1] + '"></i>' + b[0] + "d · " + ag[b[0]] + "</span>"; }).join("") + "</div></div>";
+    var conf = k.confidence;
+    var t5 = '<div class="card kpi" style="--kpi:var(--s7)"><div class="label">Warehouses analysed</div>' +
+      '<div class="value num">' + k.warehouses + ' <small>in ' + k.workspaces + " workspace" + (k.workspaces === 1 ? "" : "s") + "</small></div>" +
+      '<div class="line"><span>' + (run.kpis.excluded ? '<span class="badge warn">' + run.kpis.excluded + " excluded (unsupported type)</span>" : "None excluded") + "</span>" + deltaChip(k.warehouses, pk && pk.warehouses, false) + "</div>" +
+      '<div class="line"><span class="muted">Priced plans</span><b class="num">' + k.identified_priced + " of " + k.warehouses + "</b></div>" +
+      '<div class="line"><span class="muted">Confidence H · M · L</span><b class="num">' + (conf.HIGH || 0) + " · " + (conf.MEDIUM || 0) + " · " + (conf.LOW || 0) + "</b></div>" +
+      '<div class="line"><span class="muted">Run scope</span><b>' + (run.kpis.run_scope ? esc(run.kpis.run_scope.label || "Restricted") : "Full") + "</b></div></div>";
+    host.innerHTML = t1 + t2 + t3 + t4 + t5;
+  }
+  function rangeBar(lo, base, hi, min, max) {
+    if (lo == null || hi == null) return '<div class="bar"></div>';
+    var w = (max - min) || 1, x = function (v) { return ((v - min) / w * 100).toFixed(2) + "%"; };
+    var neg = base < 0 ? " neg" : "";
+    return '<div class="rng" style="margin:10px 0 2px" title="' + esc(plainMoney(lo) + " – " + plainMoney(hi)) + '"><div class="track"></div>' + (min < 0 ? '<div class="zero" style="left:' + x(0) + '"></div>' : "") +
+      '<div class="span' + neg + '" style="left:' + x(Math.min(lo, hi)) + ";width:calc(" + x(Math.max(lo, hi)) + " - " + x(Math.min(lo, hi)) + ')"></div><div class="base' + neg + '" style="left:calc(' + x(base) + ' - 1px)"></div></div>';
+  }
+
+  // ---------- charts ----------
+  function theme() {
+    var ink = css("--ink"), muted = css("--muted"), grid = css("--border");
+    return {
+      color: ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"].map(css), backgroundColor: "transparent",
+      textStyle: { fontFamily: css("--font"), color: ink },
+      tooltip: { backgroundColor: css("--surface"), borderColor: css("--border"), textStyle: { color: ink, fontSize: 12 }, extraCssText: "box-shadow:" + css("--pop") + ";border-radius:6px;padding:8px 10px" },
+      grid: { left: 8, right: 16, top: 28, bottom: 8, containLabel: true },
+      categoryAxis: { axisLine: { lineStyle: { color: css("--border-strong") } }, axisTick: { show: false }, axisLabel: { color: css("--ink-2"), fontSize: 11.5 }, splitLine: { show: false } },
+      valueAxis: { axisLine: { show: false }, axisLabel: { color: muted, fontFamily: css("--mono"), fontSize: 11 }, splitLine: { lineStyle: { color: grid } } },
+      timeAxis: { axisLine: { lineStyle: { color: grid } }, axisLabel: { color: muted }, splitLine: { show: false } },
+      legend: { textStyle: { color: css("--ink-2"), fontSize: 12 }, icon: "rect", itemWidth: 9, itemHeight: 9, itemGap: 14 }
+    };
+  }
+  function chart(id, option) {
+    var el = document.getElementById(id); if (!el || !window.echarts) return null;
+    if (charts[id] && charts[id].getDom() !== el) { charts[id].dispose(); delete charts[id]; }
+    if (!charts[id]) { charts[id] = echarts.init(el, "inframate", { renderer: window.matchMedia("print").matches ? "svg" : "canvas" }); }
+    charts[id].setOption(option, true); return charts[id];
+  }
+  function registerTheme() { if (window.echarts) echarts.registerTheme("inframate", theme()); }
+  function moneyAxis() { return { type: "value", axisLabel: { formatter: function (v) { return plainMoney(v); } } }; }
+  function tipMoney(v) { return fullMoney(v); }
+  function emptyChart(id, text) { var el = document.getElementById(id); if (charts[id]) { charts[id].dispose(); delete charts[id]; } if (el) el.innerHTML = '<div class="empty" style="height:100%;display:grid;place-items:center">' + esc(text) + "</div>"; }
+
+  function renderExecutive() {
+    var run = runEntry(), k = kpiFor(run), dr = detailRun();
+    renderKpis();
+    // lifecycle sankey
+    if (dr && k) {
+      var whKeys = {}; dr.d.warehouses.filter(passWh).forEach(function (w) { whKeys[w.key] = w; });
+      var recs = dr.d.recommendations.filter(function (r) { return r.currency === cur() && passRec(r, whKeys); });
+      var c = function (s) { return recs.filter(function (r) { return s.indexOf(r.status) >= 0; }).length; };
+      var applied = c(["VALIDATING", "REALIZED", "UNDER_REALIZED", "FAILED", "MONITORING"]);
+      var links = [["Identified", "Open", c(["OPEN"])], ["Identified", "Blocked", c(["BLOCKED"])], ["Identified", "Applied", applied],
+                   ["Applied", "Validating", c(["VALIDATING"])], ["Applied", "Realized", c(["REALIZED"])], ["Applied", "Monitoring", c(["MONITORING"])],
+                   ["Applied", "Under-realized / failed", c(["UNDER_REALIZED", "FAILED"])]].filter(function (l) { return l[2] > 0; });
+      if (!links.length) emptyChart("ch-funnel", "No recommended changes in this selection");
+      else {
+        var colors = { Identified: css("--s1"), Open: css("--accent"), Blocked: css("--bad"), Applied: css("--s7"), Validating: css("--info"), Realized: css("--good"), Monitoring: css("--s4"), "Under-realized / failed": css("--warn") };
+        var names = {}; links.forEach(function (l) { names[l[0]] = 1; names[l[1]] = 1; });
+        chart("ch-funnel", { tooltip: { trigger: "item", formatter: function (p) { return p.dataType === "edge" ? esc(p.data.source) + " → " + esc(p.data.target) + ": <b>" + p.data.value + "</b>" : esc(p.name) + ": <b>" + p.value + "</b>"; } },
+          series: [{ type: "sankey", left: 8, right: 130, top: 10, bottom: 10, nodeGap: 14, nodeWidth: 12, draggable: false, emphasis: { focus: "adjacency" },
+            data: Object.keys(names).map(function (n) { return { name: n, itemStyle: { color: colors[n], borderWidth: 0 } }; }),
+            links: links.map(function (l) { return { source: l[0], target: l[1], value: l[2] }; }),
+            lineStyle: { color: "gradient", opacity: 0.28, curveness: 0.5 },
+            label: { color: css("--ink"), fontSize: 12, formatter: function (p) { return p.name + "  {b|" + p.value + "}"; }, rich: { b: { fontWeight: 700 } } } }] });
+      }
+    } else emptyChart("ch-funnel", "Detail is kept for the most recent runs only");
+    // insights
+    var ins = ((run.insights || {})[cur()] || []);
+    var icon = { concentration: ["◆", "accent"], top: ["★", "good"], aging: ["⏱", "warn"], realized: ["✓", "good"], coverage: ["ⓘ", "info"], capacity: ["▲", "bad"] };
+    $("#insights").innerHTML = filterActive() ? '<li><span class="dot badge info">ⓘ</span><span>Call-outs describe the whole fleet; clear the filters to read them against these figures.</span></li>' + ins.map(insightLi).join("") :
+      (ins.length ? ins.map(insightLi).join("") : '<li><span class="dot badge">–</span><span>Nothing stands out in this run.</span></li>');
+    function insightLi(x) { var ic = icon[x.kind] || ["•", ""]; return '<li><span class="dot badge ' + ic[1] + '">' + ic[0] + "</span><span>" + esc(x.text) + "</span></li>"; }
+    // trend
+    var pts = D.runs.map(function (r) { return { r: r, k: (r.kpis.by_currency || {})[cur()] }; }).filter(function (p) { return p.k; });
+    var serie = function (name, f, color, dash) { return { name: name, type: "line", symbolSize: 8, showSymbol: true, lineStyle: { width: 2, type: dash ? "dashed" : "solid" }, itemStyle: { color: color }, data: pts.map(function (p) { return f(p.k); }) }; };
+    chart("ch-trend", { tooltip: { trigger: "axis", valueFormatter: tipMoney }, legend: { top: 0, left: 0 }, grid: { top: 36, left: 8, right: 40, bottom: 8, containLabel: true },
+      xAxis: { type: "category", boundaryGap: false, data: pts.map(function (p) { return p.r.label; }) }, yAxis: moneyAxis(),
+      series: [serie("Actual (known)", function (k) { return k.actual.total != null ? k.actual.total : k.actual_known.total; }, css("--s1")),
+               serie("Forward run-rate", function (k) { return k.forward != null ? k.forward : k.forward_known.total; }, css("--s7"), true),
+               serie("Identified (base)", function (k) { return k.identified.base; }, css("--good")),
+               serie("Realized run-rate", function (k) { return k.realized; }, css("--s3"))] });
+    // savings by technique
+    if (dr) {
+      var by = {}, keys2 = {}; dr.d.warehouses.filter(passWh).forEach(function (w) { keys2[w.key] = 1; });
+      dr.d.recommendations.forEach(function (r) { if (r.status === "OPEN" && r.currency === cur() && keys2[r.warehouse] && r.savings_base != null) by[knob(r.knob)] = (by[knob(r.knob)] || 0) + r.savings_base; });
+      var cats = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+      if (!cats.length) emptyChart("ch-technique", "No priced open recommendations");
+      else chart("ch-technique", { tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: tipMoney }, grid: { left: 8, right: 56, top: 8, bottom: 8, containLabel: true },
+        xAxis: moneyAxis(), yAxis: { type: "category", data: cats.slice().reverse() },
+        series: [{ type: "bar", barWidth: 14, data: cats.slice().reverse().map(function (c) { return { value: by[c], itemStyle: { color: by[c] < 0 ? css("--bad") : css("--good"), borderRadius: by[c] < 0 ? [4, 0, 0, 4] : [0, 4, 4, 0] } }; }),
+          label: { show: true, position: "right", color: css("--ink-2"), formatter: function (p) { return plainMoney(p.value); } } }] });
+    }
+    renderTop("#top-table", S.top, 10);
+    $("#top-sub").textContent = S.top === "savings" ? "Ordered by identified savings (base)" : "Ordered by annual spend";
+    $$("#top-order button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.order === S.top)); });
+    // mini charts
+    if (k) {
+      var conf = k.confidence;
+      comp("ch-confidence", [["High", conf.HIGH || 0, css("--good")], ["Medium", conf.MEDIUM || 0, css("--info")], ["Low", conf.LOW || 0, css("--warn")], ["Not rated", Math.max(0, k.warehouses - (conf.HIGH || 0) - (conf.MEDIUM || 0) - (conf.LOW || 0)), css("--border-strong")]]);
+      var pr = Object.keys(k.profiles || {}).sort(); var pc = { aggressive: css("--s2"), balanced: css("--s1"), conservative: css("--s7") };
+      comp("ch-profiles", pr.map(function (n) { return [title(n), k.profiles[n], pc[n] || css("--s5")]; }));
+      if (dr) {
+        var ws = dr.d.warehouses.filter(function (w) { return passWh(w) && w.currency === cur() && w.actual.total != null; });
+        comp("ch-composition", [["DBU (billed, list price)", sumKnown(ws.map(function (w) { return w.actual.dbu; })), css("--s1")], ["AWS EC2 (modeled, on-demand)", sumKnown(ws.map(function (w) { return w.actual.aws; })), css("--s2")]], true);
+      }
+    }
+  }
+  function comp(id, items, money, unit) {
+    var el = document.getElementById(id); if (!el) return;
+    if (charts[id]) { charts[id].dispose(); delete charts[id]; }
+    var total = items.reduce(function (a, i) { return a + (i[1] || 0); }, 0);
+    if (!total) { el.innerHTML = '<div class="empty">Nothing to show</div>'; return; }
+    var shown = items.filter(function (i) { return i[1] > 0; });
+    el.innerHTML = '<div class="segs" role="img" aria-label="' + esc(shown.map(function (i) { return i[0] + " " + Math.round(i[1] / total * 100) + "%"; }).join(", ")) + '">' +
+      shown.map(function (i) { return '<i style="width:' + (i[1] / total * 100) + "%;background:" + i[2] + '" title="' + esc(i[0]) + '"></i>'; }).join("") + "</div><ul>" +
+      shown.map(function (i) { return '<li><i style="background:' + i[2] + '"></i><span>' + esc(i[0]) + "</span><b>" + (money ? fmtMoney(i[1]) : i[1].toLocaleString("en-US") + (unit ? ' <span class="muted" style="font-weight:400">' + esc(unit) + "</span>" : "")) + '</b><span class="p">' + (i[1] / total * 100).toFixed(0) + "%</span></li>"; }).join("") + "</ul>";
+  }
+  function spendOf(w) { return w.actual.total != null ? w.actual.total : w.forward.total; }
+  function savingOf(w) { return w.plan ? w.plan.total.base : null; }
+  function visibleWarehouses() { var dr = detailRun(); return dr ? dr.d.warehouses.filter(function (w) { return passWh(w) && w.currency === cur(); }) : []; }
+  function orderWarehouses(ws, order) {
+    return ws.slice().sort(function (a, b) {
+      var x = order === "savings" ? savingOf(a) : spendOf(a), y = order === "savings" ? savingOf(b) : spendOf(b);
+      return (y == null ? -Infinity : y) - (x == null ? -Infinity : x) || a.name.localeCompare(b.name);
+    });
+  }
+  function renderTop(sel, order, limit) {
+    var ws = orderWarehouses(visibleWarehouses(), order).slice(0, limit), max = 1;
+    ws.forEach(function (w) { if (w.plan) max = Math.max(max, Math.abs(w.plan.total.low), Math.abs(w.plan.total.high)); });
+    var min = Math.min(0, Math.min.apply(null, ws.map(function (w) { return w.plan ? w.plan.total.low : 0; })));
+    $(sel).innerHTML = "<thead><tr><th>Warehouse</th><th>Owner</th><th class='r'>Annual spend</th><th class='r'>Identified (base)</th><th>Range</th><th class='r'>Share of forward</th><th>Confidence</th><th>Next action</th></tr></thead><tbody>" +
+      ws.map(function (w) {
+        var s = savingOf(w), f = w.forward.total;
+        return '<tr class="click" data-wh="' + esc(w.key) + '"><td><div class="wh-name">' + esc(w.name) + '</div><div class="wh-sub">' + esc(w.config.warehouse_type + " · " + w.config.warehouse_size + " · " + w.id) + "</div></td><td class='owner' title='" + esc(w.owner || "") + "'>" + esc(w.owner || "–") +
+          "</td><td class='r num'>" + fmtMoney(spendOf(w)) + (w.actual.total == null ? ' <span class="badge warn" title="Trailing actual unavailable; forward shown">fwd</span>' : "") +
+          "</td><td class='r num'>" + (s == null ? '<span class="unavail">Not priced</span>' : fmtMoney(s, { plus: false })) + "</td><td>" + (w.plan ? rangeBar(w.plan.total.low, w.plan.total.base, w.plan.total.high, min, max) : "") +
+          "</td><td class='r num'>" + (s != null && f ? pct(s / f, 1) : "–") + "</td><td>" + confBadge((w.recommended || {}).confidence) + "</td><td class='nowrap'>" + esc(title(w.decision.next_action)) + "</td></tr>";
+      }).join("") + "</tbody>";
+    bindRows(sel);
+  }
+  function bindRows(sel) { $$(sel + " tr[data-wh]").forEach(function (tr) { tr.onclick = function () { S.wh = tr.dataset.wh; S.view = "warehouse"; renderAll(); window.scrollTo(0, 0); }; }); }
+
+  // ---------- portfolio ----------
+  function renderPortfolio() {
+    var ws = visibleWarehouses();
+    if (!ws.length) { emptyChart("ch-treemap", "No warehouses match"); emptyChart("ch-scatter", "No warehouses match"); $("#pf-table").innerHTML = ""; return; }
+    var byWs = {}; ws.forEach(function (w) { (byWs[w.workspace] = byWs[w.workspace] || []).push(w); });
+    var share = function (w) { return w.plan && w.forward.total ? w.plan.total.base / w.forward.total : null; };
+    var col = function (v) {
+      if (v == null) return css("--sunken");
+      var t = Math.max(-1, Math.min(1, v / 0.4)), mid = css("--div-mid");
+      return t >= 0 ? mix(mid, css("--div-pos"), t) : mix(mid, css("--div-neg"), -t);
+    };
+    chart("ch-treemap", { tooltip: { formatter: function (p) { var w = p.data.w; if (!w) return esc(p.name) + ": <b>" + fullMoney(p.value) + "</b>"; return "<b>" + esc(w.name) + "</b><br>Spend " + fullMoney(spendOf(w)) + "<br>Identified " + fullMoney(savingOf(w)) + " (" + pct(share(w), 1) + " of forward)<br>" + esc(w.config.warehouse_type + " " + w.config.warehouse_size); } },
+      series: [{ type: "treemap", roam: false, nodeClick: false, breadcrumb: { show: false }, left: 0, right: 0, top: 0, bottom: 0,
+        upperLabel: { show: true, height: 22, color: css("--ink"), fontWeight: 600, backgroundColor: "transparent" },
+        levels: [{ itemStyle: { borderColor: css("--surface"), borderWidth: 3, gapWidth: 3 } }, { itemStyle: { borderColor: css("--surface"), borderWidth: 1, gapWidth: 2, borderRadius: 4 } }],
+        label: { color: css("--ink"), fontSize: 11.5, formatter: function (p) { return p.data.w ? p.name + "\n" + plainMoney(p.value) : p.name; } },
+        data: Object.keys(byWs).sort().map(function (k) {
+          return { name: "Workspace " + k, value: sumKnown(byWs[k].map(spendOf)), itemStyle: { color: css("--sunken") },
+            children: byWs[k].filter(function (w) { return spendOf(w) > 0; }).map(function (w) { return { name: w.name, value: spendOf(w), w: w, itemStyle: { color: col(share(w)) } }; }) };
+        }) }] });
+    charts["ch-treemap"].off("click"); charts["ch-treemap"].on("click", function (p) { if (p.data && p.data.w) { S.wh = p.data.w.key; S.view = "warehouse"; renderAll(); window.scrollTo(0, 0); } });
+    $("#treemap-legend").innerHTML = '<span><i style="background:' + css("--div-neg") + '"></i>cost increase</span><span><i style="background:' + css("--div-mid") + '"></i>no change</span><span><i style="background:' + css("--div-pos") + '"></i>40%+ savings</span><span><i style="background:' + css("--sunken") + ';border:1px solid ' + css("--border") + '"></i>not priced</span>';
+    var types = {}; ws.forEach(function (w) { types[w.config.warehouse_type] = 1; });
+    var tcol = { PRO: css("--s1"), SERVERLESS: css("--s3"), CLASSIC: css("--s2") };
+    chart("ch-scatter", { tooltip: { formatter: function (p) { var w = p.data.w; return "<b>" + esc(w.name) + "</b><br>Spend " + fullMoney(spendOf(w)) + "<br>Identified " + fullMoney(savingOf(w)); } },
+      legend: { top: 0, right: 0 }, grid: { top: 44, left: 8, right: 20, bottom: 24, containLabel: true },
+      xAxis: { type: "value", name: "Annual spend", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: css("--muted") }, axisLabel: { formatter: plainMoney }, splitLine: { lineStyle: { color: css("--border"), type: [3, 3] } } },
+      yAxis: { type: "value", name: "Identified (base)", nameTextStyle: { color: css("--muted"), align: "left" }, axisLabel: { formatter: plainMoney } },
+      series: Object.keys(types).sort().map(function (t) { return { name: title(t), type: "scatter", symbolSize: 11, itemStyle: { color: tcol[t] || css("--s5"), borderColor: css("--surface"), borderWidth: 2, opacity: .9 },
+        data: ws.filter(function (w) { return w.config.warehouse_type === t && spendOf(w) != null && savingOf(w) != null; }).map(function (w) { return { value: [spendOf(w), savingOf(w)], w: w }; }) }; }) });
+    charts["ch-scatter"].off("click"); charts["ch-scatter"].on("click", function (p) { if (p.data && p.data.w) { S.wh = p.data.w.key; S.view = "warehouse"; renderAll(); window.scrollTo(0, 0); } });
+    var rows = orderWarehouses(ws, S.pf), max = 1;
+    rows.forEach(function (w) { if (w.plan) max = Math.max(max, Math.abs(w.plan.total.low), Math.abs(w.plan.total.high)); });
+    var min = Math.min(0, Math.min.apply(null, rows.map(function (w) { return w.plan ? w.plan.total.low : 0; })));
+    $("#pf-table").innerHTML = "<thead><tr><th>Warehouse</th><th>Owner</th><th>Config</th><th class='r'>Actual DBU</th><th class='r'>Actual AWS</th><th class='r'>Actual total</th><th class='r'>Forward</th><th class='r'>Identified</th><th>Range</th><th>Confidence</th><th>Profile</th><th>Assessment</th></tr></thead><tbody>" +
+      rows.map(function (w) {
+        var c = w.config;
+        return '<tr class="click" data-wh="' + esc(w.key) + '"><td><div class="wh-name">' + esc(w.name) + '</div><div class="wh-sub mono">' + esc(w.id) + " · ws " + esc(w.workspace.slice(0, 4)) + "…</div></td><td class='owner' title='" + esc(w.owner || "") + "'>" + esc(w.owner || "–") +
+          "</td><td style='white-space:nowrap'>" + esc(c.warehouse_type + " · " + c.warehouse_size) + '<div class="wh-sub">' + esc(c.min_clusters + "–" + c.max_clusters + " clusters · auto-stop " + c.auto_stop_minutes + "m") + "</div></td><td class='r num'>" + fmtMoney(w.actual.dbu) + "</td><td class='r num'>" + fmtMoney(w.actual.aws) +
+          "</td><td class='r num'><b>" + fmtMoney(w.actual.total) + "</b></td><td class='r num'>" + fmtMoney(w.forward.total) + "</td><td class='r num'>" + (w.plan ? fmtMoney(w.plan.total.base) : '<span class="unavail">Not priced</span>') + "</td><td>" + (w.plan ? rangeBar(w.plan.total.low, w.plan.total.base, w.plan.total.high, min, max) : "") +
+          "</td><td>" + confBadge((w.recommended || {}).confidence) + "</td><td>" + badge(title(w.cost_profile.name), "") + "</td><td>" + esc(title(w.assessment)) + "</td></tr>";
+      }).join("") + "</tbody>";
+    bindRows("#pf-table");
+    $$("#pf-order button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.order === S.pf)); });
+  }
+  function mix(a, b, t) {
+    var p = function (h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join(""); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }); };
+    var x = p(a), y = p(b); return "rgb(" + x.map(function (v, i) { return Math.round(v + (y[i] - v) * t); }).join(",") + ")";
+  }
+
+  // ---------- recommendations ----------
+  function visibleRecs() {
+    var dr = detailRun(); if (!dr) return [];
+    var keys = {}; dr.d.warehouses.forEach(function (w) { keys[w.key] = w; });
+    return dr.d.recommendations.filter(function (r) { return r.currency === cur() && passRec(r, keys); });
+  }
+  function renderRecommendations() {
+    var recs = visibleRecs(), dr = detailRun();
+    var buckets = ["0-30", "31-60", "61-90", "90+"], knobs = {};
+    recs.forEach(function (r) { if (r.status === "OPEN") knobs[knob(r.knob)] = 1; });
+    var ks = Object.keys(knobs).sort(), cells = [], maxc = 1;
+    ks.forEach(function (kn, y) { buckets.forEach(function (b, x) { var n = recs.filter(function (r) { return r.status === "OPEN" && knob(r.knob) === kn && r.age_bucket === b; }).length; maxc = Math.max(maxc, n); cells.push([x, y, n]); }); });
+    if (!ks.length) emptyChart("ch-aging", "No open recommendations");
+    else chart("ch-aging", { tooltip: { formatter: function (p) { return esc(ks[p.value[1]]) + " · " + buckets[p.value[0]] + " days: <b>" + p.value[2] + "</b>"; } }, grid: { left: 8, right: 16, top: 10, bottom: 40, containLabel: true },
+      xAxis: { type: "category", data: buckets.map(function (b) { return b + " days"; }), splitArea: { show: false } }, yAxis: { type: "category", data: ks },
+      visualMap: { min: 0, max: maxc, calculable: false, orient: "horizontal", left: "center", bottom: 0, itemHeight: 120, itemWidth: 10, textStyle: { color: css("--muted") }, inRange: { color: [css("--sunken"), mix(css("--sunken").length === 7 ? css("--sunken") : "#EEF1F6", css("--s4"), .55), css("--s2")] } },
+      series: [{ type: "heatmap", data: cells, label: { show: true, color: css("--ink"), formatter: function (p) { return p.value[2] || ""; } }, itemStyle: { borderColor: css("--surface"), borderWidth: 3, borderRadius: 3 } }] });
+    // roadmap gantt (relative days)
+    var ws = dr ? dr.d.warehouses.filter(function (w) { return passWh(w) && w.currency === cur() && w.steps.length; }) : [];
+    ws = orderWarehouses(ws, "savings").slice(0, 12);
+    var bars = [], cats = ws.map(function (w) { return w.name; });
+    ws.forEach(function (w, yi) {
+      var t = 0;
+      w.steps.forEach(function (st) {
+        var d = st.validation && st.validation.remeasure_days ? st.validation.remeasure_days : (st.type === "CANDIDATE" ? 1 : 7);
+        if (st.type === "CANARY") d = Math.max(d, 7);
+        bars.push({ value: [yi, t, t + d, st.step], st: st, w: w }); t += d;
+      });
+    });
+    var typeColor = { CANDIDATE: css("--s1"), REMEASURE: css("--s4"), CANARY: css("--s2"), COMPATIBILITY_VALIDATION: css("--s7"), COMPARE: css("--s5"), ROLLBACK_GATE: css("--s8") };
+    var used = {}; bars.forEach(function (b) { used[b.st.type] = 1; });
+    $("#roadmap-legend").innerHTML = Object.keys(typeColor).filter(function (t) { return used[t]; }).map(function (t) { return '<span><i style="background:' + typeColor[t] + '"></i>' + esc(title(t)) + "</span>"; }).join("");
+    if (!bars.length) emptyChart("ch-roadmap", "No plan steps");
+    else chart("ch-roadmap", { tooltip: { formatter: function (p) { var st = p.data.st; return "<b>" + esc(p.data.w.name) + "</b> · step " + st.step + "<br>" + esc(title(st.type)) + (st.knob ? " · " + esc(knob(st.knob)) + " " + esc(val(st.current)) + " → " + esc(val(st.target)) : "") + "<br>Day " + p.value[1] + "–" + p.value[2] + " · " + esc(title(st.state)); } },
+      grid: { left: 8, right: 16, top: 8, bottom: 8, containLabel: true }, xAxis: { type: "value", name: "days", nameTextStyle: { color: css("--muted") }, min: 0 }, yAxis: { type: "category", data: cats, inverse: true },
+      series: [{ type: "custom", encode: { x: [1, 2], y: 0 }, data: bars, renderItem: function (params, api) {
+        var y = api.value(0), a = api.coord([api.value(1), y]), b = api.coord([api.value(2), y]), h = api.size([0, 1])[1] * 0.5;
+        var st = bars[params.dataIndex].st;
+        return { type: "rect", shape: { x: a[0], y: a[1] - h / 2, width: Math.max(b[0] - a[0] - 2, 3), height: h, r: 4 }, style: { fill: typeColor[st.type] || css("--s6"), opacity: st.state === "BLOCKED" ? 0.35 : 0.9 } };
+      } }] });
+    // board
+    var cols = [["OPEN", "Open"], ["BLOCKED", "Blocked"], ["VALIDATING", "Applied · validating"], ["REALIZED", "Realized"], ["OTHER", "Monitoring / review"]];
+    $("#board").innerHTML = cols.map(function (c) {
+      var items = recs.filter(function (r) { return c[0] === "OTHER" ? ["MONITORING", "UNDER_REALIZED", "FAILED"].indexOf(r.status) >= 0 : r.status === c[0]; });
+      items.sort(function (a, b) { return (b.savings_base || 0) - (a.savings_base || 0); });
+      return '<div class="col"><h4><span>' + c[1] + "</span><span>" + items.length + "</span></h4>" + items.slice(0, 8).map(function (r) {
+        return '<div class="tile" data-wh="' + esc(r.warehouse) + '"><b>' + esc(r.name) + '</b><div class="muted">' + esc(knob(r.knob)) + ' <span class="mono">' + esc(val(r.current)) + " → " + esc(val(r.target)) + "</span></div>" +
+          '<div style="display:flex;justify-content:space-between;margin-top:4px"><span class="num">' + (r.savings_base != null ? fmtMoney(r.savings_base) + "/yr" : '<span class="faint">unpriced</span>') + "</span>" + (r.age_days != null ? '<span class="badge ' + (r.age_days > 60 ? "warn" : "") + '">' + r.age_days + "d</span>" : "") + "</div></div>";
+      }).join("") + (!items.length ? '<div class="faint" style="font-size:12.5px;padding:2px 4px 6px">None in this run</div>' : "") + (items.length > 8 ? '<div class="muted" style="font-size:12px;padding:0 4px">+ ' + (items.length - 8) + " more in the table</div>" : "") + "</div>";
+    }).join("");
+    $$("#board .tile").forEach(function (t) { t.onclick = function () { S.wh = t.dataset.wh; S.view = "warehouse"; renderAll(); window.scrollTo(0, 0); }; });
+    var sorted = recs.slice().sort(function (a, b) { return (b.savings_base || 0) - (a.savings_base || 0); });
+    $("#rec-table").innerHTML = "<thead><tr><th>Warehouse</th><th>Change</th><th>Technique</th><th>Status</th><th>Plan step</th><th class='r'>Annual savings (base)</th><th class='r'>Age</th><th>First seen</th></tr></thead><tbody>" +
+      sorted.map(function (r) {
+        return '<tr class="click" data-wh="' + esc(r.warehouse) + '"><td><div class="wh-name">' + esc(r.name) + '</div><div class="wh-sub" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">' + esc(r.owner || "") + "</div></td><td class='nowrap'>" + esc(knob(r.knob)) + ' <span class="arrow">' + esc(val(r.current)) + " → " + esc(val(r.target)) + "</span></td><td class='mono'>" + esc(r.technique) +
+          "</td><td>" + statusBadge(r.status) + "</td><td>" + esc(title(r.state)) + "</td><td class='r num'>" + (r.savings_base != null ? fmtMoney(r.savings_base) : '<span class="faint">unpriced</span>') + "</td><td class='r num'>" + (r.age_days != null ? r.age_days + "d" : "–") + "</td><td>" + date(r.first_seen) + "</td></tr>";
+      }).join("") + "</tbody>";
+    bindRows("#rec-table");
+  }
+
+  // ---------- warehouse ----------
+  function currentWh() {
+    var dr = detailRun(); if (!dr) return null;
+    var ws = dr.d.warehouses, w = ws.find(function (x) { return x.key === S.wh; });
+    if (!w) { w = orderWarehouses(ws.filter(function (x) { return x.currency === cur(); }), "savings")[0] || ws[0]; S.wh = w ? w.key : null; }
+    return w;
+  }
+  function renderWarehouse() {
+    var w = currentWh(), dr = detailRun(); if (!w) return;
+    $("#wh-crumb").textContent = "· " + w.name;
+    var c = w.config, options = orderWarehouses(dr.d.warehouses, "spend").map(function (x) { return '<option value="' + esc(x.key) + '"' + (x.key === w.key ? " selected" : "") + ">" + esc(x.name + " — " + x.id) + "</option>"; }).join("");
+    $("#wh-hero").innerHTML = '<div style="flex:1;min-width:280px"><div class="eyebrow">WORKSPACE ' + esc(w.workspace) + " · " + esc(w.region || "") + " · " + esc(w.id) + '</div><h2>' + esc(w.name) + '</h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' +
+      badge(c.warehouse_type, "accent") + badge(title(w.cost_profile.name) + " profile", "") + badge(title(w.assessment), w.assessment === "OPTIMIZATION_AVAILABLE" ? "good" : w.assessment === "NO_CHANGE" ? "" : "warn") + (w.owner ? badge(w.owner, "") : badge("No owner", "warn")) +
+      '</div><p class="muted" style="margin:10px 0 0;max-width:820px">' + esc(w.decision.decision_summary || "") + '</p></div><div style="display:grid;gap:8px;min-width:260px"><select class="sel no-print" id="wh-pick" aria-label="Warehouse">' + options + "</select>" +
+      '<div class="kv"><div><span>Next action</span><b>' + esc(title(w.decision.next_action)) + "</b></div><div><span>Plan confidence</span><b>" + esc(title((w.recommended || {}).confidence || "–")) + "</b></div></div></div>" +
+      '<div class="kv facts" style="width:100%">' + [["Type", c.warehouse_type], ["Size", c.warehouse_size], ["Clusters", c.min_clusters + "–" + c.max_clusters, glyph(c.min_clusters, c.max_clusters)], ["Auto-stop", c.auto_stop_minutes + " min"], ["Channel", c.warehouse_channel],
+        ["Photon", (w.photon.status || "–") + (w.photon.enabled_usage_pct != null ? " · " + Math.round(w.photon.enabled_usage_pct) + "%" : "")], ["Config since", date(w.epoch.start) + " · " + w.epoch.age_days + "d"],
+        ["Trailing actual", plainMoney(w.actual.total)], ["Forward 365d", plainMoney(w.forward.total)], ["Identified", w.plan ? plainMoney(w.plan.total.base) : "Not priced"]].map(function (x) { return "<div><span>" + esc(x[0]) + "</span><b>" + esc(x[1]) + (x[2] || "") + "</b></div>"; }).join("") + "</div>" +
+      (w.observed_change ? '<div class="banner" style="width:100%;margin:0">Configuration changed on ' + date(w.observed_change.changed_at) + ": " + w.observed_change.changes.map(function (x) { return esc(knob(x.knob) + " " + val(x.previous_value) + " → " + val(x.current_value)); }).join(", ") + " (" + esc(title(w.observed_change.measurement_status)) + ")</div>" : "");
+    $("#wh-pick").onchange = function () { S.wh = this.value; renderAll(); };
+    // daily
+    var daily = D.daily[w.key];
+    if (!daily || !daily.days.length) { emptyChart("ch-daily", D.daily_run ? "No replay evidence (evidence.json) for this warehouse in the newest run" : "No evidence"); $("#daily-sub").textContent = "Billed DBU list cost per day"; }
+    else {
+      $("#daily-sub").textContent = "Billed DBU list cost per day, newest run (" + date(D.daily_run) + "); shaded bands are configuration epochs";
+      var bands = daily.epochs.map(function (e, i) { return [{ xAxis: e.start, name: e.label, itemStyle: { color: i % 2 ? "rgba(79,70,229,.05)" : "rgba(14,159,110,.06)" } }, { xAxis: e.end || daily.days[daily.days.length - 1] }]; });
+      chart("ch-daily", { tooltip: { trigger: "axis", valueFormatter: tipMoney }, grid: { left: 8, right: 16, top: 24, bottom: 8, containLabel: true }, xAxis: { type: "time" }, yAxis: moneyAxis(),
+        series: [{ type: "line", name: "DBU list cost", showSymbol: false, lineStyle: { width: 1.6, color: css("--s1") }, areaStyle: { color: css("--s1"), opacity: 0.08 }, data: daily.days.map(function (d, i) { return [d, daily.cost[i]]; }),
+          markArea: { silent: false, label: { show: true, position: "insideTopLeft", color: css("--muted"), fontSize: 10.5 }, data: bands } }] });
+    }
+    // annual cost bars
+    chart("ch-wh-cost", { tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: tipMoney }, legend: { top: 0, left: 0 }, grid: { top: 36, left: 8, right: 16, bottom: 8, containLabel: true },
+      xAxis: { type: "category", data: ["Trailing actual", "Forward (no change)"] }, yAxis: moneyAxis(),
+      series: [{ name: "DBU", type: "bar", stack: "c", barWidth: 38, itemStyle: { color: css("--s1"), borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.dbu, w.forward.dbu] },
+               { name: "AWS (modeled)", type: "bar", stack: "c", itemStyle: { color: css("--s2"), borderRadius: [4, 4, 0, 0], borderColor: css("--surface"), borderWidth: 2 }, data: [w.actual.aws, w.forward.aws] }] });
+    // scenarios
+    var sc = w.scenarios.filter(function (s) { return s.savings; });
+    if (!sc.length) emptyChart("ch-scenarios", "No priced scenario");
+    else {
+      var names = sc.map(function (s) { return (s.recommended ? "★ " : "") + s.name; });
+      document.getElementById("ch-scenarios").style.height = (70 + 52 * sc.length) + "px";
+      chart("ch-scenarios", { tooltip: { formatter: function (p) { var s = sc[p.dataIndex]; return "<b>" + esc(s.name) + "</b> · " + esc(title(s.status)) + "<br>Low " + fullMoney(s.savings.low) + "<br>Base " + fullMoney(s.savings.base) + "<br>High " + fullMoney(s.savings.high) + (s.compatibility ? "<br>Compatibility " + esc(title(s.compatibility)) : ""); } },
+        grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true }, xAxis: moneyAxis(), yAxis: { type: "category", data: names, inverse: true },
+        series: [{ type: "custom", data: sc.map(function (s, i) { return [i, s.savings.low, s.savings.base, s.savings.high, s.recommended ? 1 : 0]; }), encode: { x: [1, 3], y: 0 },
+          renderItem: function (params, api) {
+            var y = api.value(0), lo = api.coord([api.value(1), y]), b = api.coord([api.value(2), y]), hi = api.coord([api.value(3), y]), rec = api.value(4);
+            var colr = api.value(2) < 0 ? css("--bad") : css("--good");
+            return { type: "group", children: [
+              { type: "rect", shape: { x: Math.min(lo[0], hi[0]), y: lo[1] - 6, width: Math.max(Math.abs(hi[0] - lo[0]), 2), height: 12, r: 6 }, style: { fill: colr, opacity: rec ? 0.32 : 0.16 } },
+              { type: "rect", shape: { x: b[0] - 2, y: b[1] - 9, width: 4, height: 18, r: 2 }, style: { fill: colr } }] };
+          } }] });
+    }
+    $("#decision").innerHTML = w.reevaluation ? '<div class="banner">Re-evaluation: ' + esc(title(w.reevaluation.status)) + (w.reevaluation.earliest_reevaluation_time ? " · earliest " + date(w.reevaluation.earliest_reevaluation_time) : "") + ((w.reevaluation.blocking_codes || []).length ? " · " + w.reevaluation.blocking_codes.map(function (b) { return '<span class="mono" title="' + esc(D.blockers[b] || "") + '">' + esc(b) + "</span>"; }).join(", ") : "") + "</div>" : "";
+    // workload
+    var wl = w.workload || {}, srcs = wl.query_sources || {}, act = wl.activity || {}, ch = wl.workload_characteristics || {};
+    $("#workload-kv").innerHTML = [["Queries · 30 days", act.queries_30d != null ? act.queries_30d.toLocaleString("en-US") : "–"], ["Active days", act.active_days_30d != null ? act.active_days_30d + " of 30" : "–"],
+      ["Per active day", act.queries_per_active_day != null ? Math.round(act.queries_per_active_day).toLocaleString("en-US") : "–"], ["Latency class", title(ch.latency_class || "–")],
+      ["Concurrency", title(ch.concurrency_pattern || "–")], ["Activity", title(ch.activity_pattern || "–")]].map(function (x) { return "<div><span>" + esc(x[0]) + "</span><b>" + esc(x[1]) + "</b></div>"; }).join("");
+    $("#workload-sub").textContent = "Query sources over the last 30 days" + (wl.primary_query_source ? "; mostly " + title(wl.primary_query_source) : "");
+    var srcNames = Object.keys(srcs).sort(function (a, b) { return srcs[b].query_count - srcs[a].query_count; });
+    comp("ch-workload", srcNames.map(function (n, i) { return [title(n), srcs[n].query_count, css("--s" + ((i % 8) + 1))]; }), false, "queries");
+    // steps
+    $("#wh-steps").innerHTML = w.steps.length ? w.steps.map(function (st) {
+      var gate = st.type !== "CANDIDATE", done = st.applied === "REALIZED" || st.state === "COMPLETED";
+      var v = st.validation || {};
+      return '<li><div class="n ' + (done ? "done" : gate ? "gate" : "") + '">' + st.step + "</div><div><b>" + esc(st.type === "CANDIDATE" ? knob(st.knob) + " " : title(st.type) + " ") + "</b>" + (st.knob ? '<span class="arrow">' + esc(val(st.current)) + " → " + esc(val(st.target)) + "</span>" : "") +
+        '<div class="muted" style="font-size:12.5px;margin-top:3px">' + esc(st.action || "") + (v.validation_type && v.validation_type !== "NONE" ? " · gate: " + esc(title(v.validation_type)) + (v.remeasure_days ? " (" + v.remeasure_days + " days)" : "") + ((v.success_metrics || []).length ? " on " + esc(v.success_metrics.join(", ")) : "") : "") + "</div></div>" +
+        '<div class="meta">' + badge(title(st.state), st.state === "BLOCKED" ? "bad" : st.state === "READY" || st.state === "READY_FOR_CANARY" ? "accent" : "") + (st.applied ? "<div>" + statusBadge({ REALIZED: "REALIZED", UNDER_REALIZED: "UNDER_REALIZED", VALIDATION_FAILED: "FAILED", MONITORING: "MONITORING" }[st.applied] || "VALIDATING") + "</div>" : "") +
+        (st.savings_base != null ? '<div class="num" style="font-weight:600">' + fmtMoney(st.savings_base) + '<span class="muted" style="font-weight:400"> /yr</span></div>' : "") + "</div></li>";
+    }).join("") : '<li><div></div><div class="muted">No change recommended for this warehouse.</div><div></div></li>';
+    // candidates
+    var stOrder = { ACTIONABLE: 0, TEST_REQUIRED: 1, REVIEW: 2, BLOCKED: 3, INSUFFICIENT_EVIDENCE: 4, NO_CHANGE: 5, NOT_APPLICABLE: 6 };
+    $("#wh-cands").innerHTML = w.candidates.slice().sort(function (a, b) { return (stOrder[a.status] || 9) - (stOrder[b.status] || 9) || a.knob.localeCompare(b.knob); }).map(function (cd) {
+      var stc = { ACTIONABLE: "good", TEST_REQUIRED: "info", REVIEW: "warn", BLOCKED: "bad" }[cd.status] || "";
+      var ev = cd.evidence.map(function (ref) { var e = evidence(w, ref); if (!e) return "";
+        var shown = e.value && e.value._summary ? e.value._summary : val(e.value), unit = e.unit && e.unit !== "value" && e.unit !== "state" ? " " + e.unit : "";
+        return '<div class="gauge"><div class="m">' + esc(e.metric) + '</div><div class="v"><b>' + esc(shown) + "</b>" + esc(unit) +
+          (e.threshold != null ? '<span class="faint">' + esc(e.comparator || "vs") + " " + esc(val(e.threshold)) + "</span>" : "") + '</div><div class="d">' + esc(e.interpretation || "") +
+          ' <span class="faint">· ' + esc(e.source || "") + (e.observation_window ? ", " + esc(title(e.observation_window)) : "") + "</span></div></div>"; }).join("");
+      return '<div class="cand"><div class="cand-h"><b>' + esc(knob(cd.knob)) + "</b>" + (cd.target != null && cd.status !== "NO_CHANGE" ? '<span class="arrow">' + esc(val(cd.current)) + " → " + esc(val(cd.target)) + "</span>" : '<span class="arrow">' + esc(val(cd.current)) + "</span>") + badge(title(cd.status), stc) + confBadge(cd.confidence) + '<span class="spacer"></span><span class="money num" title="Annual savings range if applied alone">' + (cd.savings ? plainMoney(cd.savings.low) + " – " + plainMoney(cd.savings.high) : '<span class="faint">' + esc(title(cd.estimation_status || "not priced")) + "</span>") + "</span></div>" +
+        '<div class="why">' + esc(cd.rationale || "") + "</div>" +
+        (cd.blockers.length ? '<div style="display:grid;gap:6px">' + cd.blockers.map(function (b) { return '<div class="blk">' + badge(title(b), "bad") + '<span class="muted">' + esc(D.blockers[b] || "") + "</span></div>"; }).join("") + "</div>" : "") +
+        (ev ? '<details class="ev"' + (cd.status === "ACTIONABLE" || cd.status === "TEST_REQUIRED" ? " open" : "") + "><summary>Evidence (" + cd.evidence.length + ")</summary>" + ev + "</details>" : "") +
+        '<div class="ids">' + esc(cd.technique) + " · " + esc(cd.id) + "</div></div>";
+    }).join("");
+    // realization
+    var lin = w.realization;
+    $("#wh-real").innerHTML = !D.meta.realizer_found ? '<div class="empty">No Realizer output was found. Run the Realizer on this run’s packages to see application, validation and realized savings here.</div>' :
+      !lin.length ? '<div class="empty">No realization lineage for this warehouse yet (as of this run).</div>' :
+      '<div class="grid g2">' + lin.slice().reverse().map(function (l, i) {
+        var ex = l.expected, stc = { REALIZED: "good", UNDER_REALIZED: "warn", VALIDATION_FAILED: "bad", NOT_APPLIED: "", APPLIED: "info", VALIDATING: "info", MONITORING: "info" }[l.state] || "";
+        return '<div class="card"><div class="cand-h"><b>' + esc(knob(l.knob) || "Plan") + "</b>" + (l.knob ? '<span class="arrow">' + esc(val(l.source_value)) + " → " + esc(val(l.observed_value != null ? l.observed_value : l.recommended_value)) + "</span>" : "") + badge(title(l.state), stc) + badge(title(l.claim), l.claim === "CLAIMABLE" ? "good" : "") + badge(title(l.disposition), l.disposition === "ACTIVE" ? "accent" : "") + "</div>" +
+          '<div class="kv" style="margin-top:10px"><div><span>Annualized run-rate</span><b class="num">' + plainMoney(l.annualized) + "</b></div><div><span>Realized to date</span><b class='num'>" + plainMoney(l.to_date) + "</b></div><div><span>Expected (base)</span><b class='num'>" + plainMoney(ex && ex.base) + "</b></div><div><span>Ratio</span><b class='num'>" + (l.ratio != null ? pct(l.ratio) : "–") + "</b></div><div><span>Applied</span><b>" + date(l.effective_from) + "</b></div><div><span>Validation</span><b>" + esc(title(l.validation_state)) + "</b></div></div>" +
+          (ex && l.annualized != null ? '<div class="chart xs" id="bullet-' + i + '"></div>' : "") +
+          (l.measurement && l.measurement.pre_window ? '<div class="muted" style="font-size:12px">Measured ' + esc(title(l.measurement.method)) + ": before " + date(l.measurement.pre_window.first_day) + "–" + date(l.measurement.pre_window.last_day) + " vs after " + date((l.measurement.post_window || {}).first_day) + "–" + date((l.measurement.post_window || {}).last_day) + (l.measurement.cross_check && l.measurement.cross_check.outcome ? " · billed cross-check " + esc(title(l.measurement.cross_check.outcome)) : "") + "</div>" : "") +
+          (l.rules.length ? '<details class="ev" style="margin-top:8px"><summary>Guard rules (' + l.rules.length + ")</summary>" + l.rules.map(function (r) { return '<div class="gauge"><div class="m">' + esc(r.rule_id) + " · " + esc(r.metric) + '</div><div class="v">' + badge(r.result, r.result === "PASS" ? "good" : r.result === "FAIL" ? "bad" : "warn") + '</div><div class="d">Observed <b class="num">' + esc(fmtNum(r.observed)) + "</b>" + (r.threshold != null ? " · limit " + esc(fmtNum(r.threshold)) : "") + (r.previous != null ? " · before " + esc(fmtNum(r.previous)) : "") + ' <span class="faint">· ' + esc(r.operator || "") + "</span></div></div>"; }).join("") + "</details>" : "") +
+          (l.disqualifiers.length ? '<div style="margin-top:8px">' + l.disqualifiers.map(function (d) { return badge(title(d), "warn"); }).join(" ") + "</div>" : "") +
+          (l.timeline && l.timeline.length ? '<details class="ev" style="margin-top:8px"><summary>Ledger timeline (' + l.timeline.length + ")</summary><ul class='timeline'>" + l.timeline.map(function (t) { return "<li><b>" + esc(title(t.event)) + '</b> <span class="faint">' + date(t.effective) + "</span></li>"; }).join("") + "</ul></details>" : "") +
+          '<div class="muted" style="font-size:12px;margin-top:8px">' + esc(l.next_action || "") + ' · <span class="mono">' + esc(l.rpkg) + "</span></div></div>";
+      }).join("") + "</div>";
+    lin.slice().reverse().forEach(function (l, i) {
+      var ex = l.expected; if (!ex || l.annualized == null) return;
+      chart("bullet-" + i, { grid: { left: 8, right: 16, top: 10, bottom: 18, containLabel: true }, tooltip: { trigger: "item", valueFormatter: tipMoney }, xAxis: moneyAxis(), yAxis: { type: "category", data: [""], show: false },
+        series: [{ type: "bar", barWidth: 22, silent: true, itemStyle: { color: css("--sunken") }, data: [Math.max(ex.high, l.annualized) * 1.05], barGap: "-100%" },
+                 { type: "bar", barWidth: 22, name: "Expected range", itemStyle: { color: color_alpha(css("--good"), .25) }, data: [ex.high], barGap: "-100%", tooltip: { formatter: function () { return "Expected " + fullMoney(ex.low) + " – " + fullMoney(ex.high); } } },
+                 { type: "bar", barWidth: 8, name: "Realized run-rate", itemStyle: { color: css("--s3"), borderRadius: 4 }, data: [l.annualized], barGap: "-100%",
+                   markLine: { symbol: "none", label: { show: false }, lineStyle: { color: css("--ink"), width: 2, type: "solid" }, data: [{ xAxis: ex.base }] } }] });
+    });
+  }
+  function evidence(w, index) {
+    var row = w.evidence[index]; if (!row) return null;
+    var out = { id: row[0] }; D.evidence_fields.forEach(function (f, i) { var v = row[i + 1]; out[f] = typeof v === "number" && ["metric", "unit", "source", "source_field", "observation_window", "epoch_scope", "comparator", "interpretation"].indexOf(f) >= 0 ? D.strings[v] : v; });
+    return out;
+  }
+  function color_alpha(hex, a) { var h = hex.replace("#", ""); if (h.length !== 6) return hex; return "rgba(" + [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }).join(",") + "," + a + ")"; }
+
+  // ---------- audit ----------
+  function jsonTree(v, depth) {
+    if (v === null) return '<span class="z">null</span>';
+    if (typeof v === "string") return '<span class="s">"' + esc(v) + '"</span>';
+    if (typeof v === "number" || typeof v === "boolean") return '<span class="n">' + esc(v) + "</span>";
+    var arr = Array.isArray(v), keys = arr ? v.map(function (_, i) { return i; }) : Object.keys(v);
+    if (!keys.length) return arr ? "[]" : "{}";
+    return "<details" + (depth < 1 ? " open" : "") + "><summary>" + (arr ? "[" + keys.length + "]" : "{" + keys.length + "}") + "</summary>" +
+      keys.map(function (k) { return '<div><span class="k">' + esc(k) + "</span>: " + jsonTree(v[k], depth + 1) + "</div>"; }).join("") + "</details>";
+  }
+  function renderAudit() {
+    var run = runEntry(), dr = detailRun(), w = currentWh();
+    $("#audit-run").innerHTML = '<div class="kv">' + [["Run (analysis time)", run.generated_at], ["Publisher", run.publisher_version], ["Reporter contract", run.contract], ["Workbook", run.workbook], ["Runs loaded", D.runs.length], ["Runs with detail", D.runs.filter(function (r) { return r.detail; }).length],
+      ["Realization snapshots", D.meta.rpkg_snapshots], ["Dashboard generator", D.meta.generator], ["Charts", "ECharts " + D.meta.echarts]].map(function (x) { return "<div><span>" + esc(x[0]) + "</span><b style='font-size:13px'>" + esc(val(x[1])) + "</b></div>"; }).join("") + "</div>" +
+      (run.kpis.excluded_list.length ? '<p class="muted" style="margin:12px 0 0">Excluded: ' + run.kpis.excluded_list.map(function (x) { return esc((x.warehouse_name || x.warehouse_id) + " (" + (x.warehouse_type || x.reason || "") + ")"); }).join(", ") + "</p>" : "");
+    $("#audit-skipped").innerHTML = D.skipped.length ? '<div class="tbl-wrap"><table class="t"><thead><tr><th>Input</th><th>Reason</th></tr></thead><tbody>' + D.skipped.map(function (s) { return "<tr><td class='mono'>" + esc(s.run) + "</td><td>" + esc(s.reason) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">Every run and realization snapshot found was read.</div>';
+    $("#audit-ids").innerHTML = dr ? "<thead><tr><th>Warehouse</th><th>Package</th><th>Epoch</th><th>Contract</th><th>Full hash (sha256)</th><th>Evidence fingerprint</th></tr></thead><tbody>" + dr.d.warehouses.filter(passWh).map(function (x) {
+      return '<tr class="click" data-wh="' + esc(x.key) + '"><td>' + esc(x.name) + "</td><td class='mono'>" + esc(x.ids.package) + "</td><td class='mono'>" + esc(x.epoch.id) + "</td><td>" + esc(x.ids.contract) + "</td><td class='mono' style='font-size:10.5px'>" + esc(x.ids.hash) + "</td><td class='mono' style='font-size:10.5px'>" + esc(x.ids.fingerprint) + "</td></tr>"; }).join("") + "</tbody>" : "";
+    $$("#audit-ids tr[data-wh]").forEach(function (tr) { tr.onclick = function () { S.wh = tr.dataset.wh; renderAll(); }; });
+    if (w) {
+      $("#thr-sub").textContent = w.name + " · " + title(w.cost_profile.name) + " profile (" + title(w.cost_profile.source) + (w.cost_profile.source_detail ? ": " + w.cost_profile.source_detail : "") + ")";
+      $("#audit-thr").innerHTML = jsonTree(w.applied_thresholds || {}, 0);
+      var raw = D.raw[w.key];
+      $("#raw-sub").textContent = raw ? w.name + " · newest run" + (D.meta.raw === "lean" ? " (without the evidence map; referenced evidence is on the warehouse view)" : "") : "Raw packages are embedded for the newest run only" + (D.meta.raw === "none" ? " (disabled for this build)" : "");
+      $("#audit-raw").innerHTML = raw ? jsonTree(raw, 0) : '<div class="faint">–</div>';
+    }
+  }
+
+  // ---------- shell ----------
+  function renderRunSelect() {
+    var sel = $("#run");
+    sel.innerHTML = D.runs.slice().reverse().map(function (r) { return '<option value="' + esc(r.key) + '"' + (r.key === S.run ? " selected" : "") + ">" + esc(r.label) + (r.detail ? "" : " · trend only") + "</option>"; }).join("");
+    var i = D.runs.indexOf(runEntry());
+    $("#run-prev").disabled = i <= 0; $("#run-next").disabled = i >= D.runs.length - 1;
+    var currencies = Object.keys(runEntry().kpis.by_currency).sort();
+    if (!S.cur || currencies.indexOf(S.cur) < 0) S.cur = currencies[0] || "USD";
+    $("#cur-wrap").classList.toggle("hide", currencies.length < 2);
+    $("#cur").innerHTML = currencies.map(function (c) { return '<option' + (c === S.cur ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("");
+  }
+  function renderBanner() {
+    var dr = detailRun(), msgs = [];
+    if (D.meta.demo) msgs.push("Demo data: three monthly runs of the simulated Publisher fleet, each followed by a simulated Realizer run. The simulated warehouses do not adopt applied changes, so a realized change can be recommended again in a later run.");
+    if (dr && dr.fallback && S.view !== "executive") msgs.push("This run keeps trend figures only; detail views show the most recent detailed run (" + dr.run.label + ").");
+    if (filterActive()) { var n = visibleWarehouses().length, all = dr ? dr.d.warehouses.length : 0; msgs.push("Filtered: " + n + " of " + all + " warehouses. Totals are summed over the visible warehouses."); }
+    $("#banner").innerHTML = msgs.map(function (m) { return '<div class="banner"><span class="badge info">ⓘ</span><span>' + esc(m) + "</span></div>"; }).join("");
+  }
+  var rendered = {};
+  function renderAll(keepFilters) {
+    if (!D.runs.length) { $("main").innerHTML = '<div class="empty">No complete Publisher run was found. Run the publisher, then rebuild this dashboard.</div>'; return; }
+    if (!S.run || !D.runs.some(function (r) { return r.key === S.run; })) S.run = D.runs[D.runs.length - 1].key;
+    renderRunSelect();
+    if (!keepFilters || !$("#filters").children.length) renderFilters(); else renderFilters();
+    renderBanner();
+    $$("section[data-view]").forEach(function (s) { s.classList.toggle("hide", s.dataset.view !== S.view); });
+    $$(".tab").forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === S.view)); });
+    $$("#lens button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lens === S.lens)); });
+    $("#print-meta").textContent = "Run " + runEntry().label + " · " + cur() + " · generated by the inframate dashboard skill";
+    var r = { executive: renderExecutive, portfolio: renderPortfolio, recommendations: renderRecommendations, warehouse: renderWarehouse, audit: renderAudit }[S.view];
+    if (S.view !== "warehouse") { var w = currentWh(); $("#wh-crumb").textContent = w ? "· " + w.name : ""; }
+    r(); writeHash();
+    setTimeout(function () { Object.keys(charts).forEach(function (k) { if (charts[k].getDom().offsetParent !== null) charts[k].resize(); }); }, 0);
+  }
+  function applyTheme(mode) {
+    if (mode === "light" || mode === "dark") document.documentElement.setAttribute("data-theme", mode); else document.documentElement.removeAttribute("data-theme");
+    $("#theme").textContent = mode === "dark" ? "☾" : mode === "light" ? "☀" : "◐"; $("#theme").title = "Theme: " + (mode || "system");
+    registerTheme(); Object.keys(charts).forEach(function (k) { charts[k].dispose(); delete charts[k]; }); if (D.runs.length) renderAll();
+  }
+
+  readHash();
+  if (!S.view || !LENSES[S.lens]) S.lens = "executive";
+  $$(".tab").forEach(function (t) { t.onclick = function () { S.view = t.dataset.tab; renderAll(); }; });
+  $$("#lens button").forEach(function (b) { b.onclick = function () { S.lens = b.dataset.lens; S.view = LENSES[S.lens].view; store.set("dash-lens", S.lens); renderAll(); }; });
+  $("#run").onchange = function () { S.run = this.value; renderAll(); };
+  $("#run-prev").onclick = function () { var i = D.runs.indexOf(runEntry()); if (i > 0) { S.run = D.runs[i - 1].key; renderAll(); } };
+  $("#run-next").onclick = function () { var i = D.runs.indexOf(runEntry()); if (i < D.runs.length - 1) { S.run = D.runs[i + 1].key; renderAll(); } };
+  $("#cur").onchange = function () { S.cur = this.value; renderAll(); };
+  $$("#top-order button").forEach(function (b) { b.onclick = function () { S.top = b.dataset.order; renderAll(); }; });
+  $$("#pf-order button").forEach(function (b) { b.onclick = function () { S.pf = b.dataset.order; renderAll(); }; });
+  if (window.self !== window.top) $("#print").classList.add("hide");  // embedded viewers block the print dialog
+  $("#print").onclick = function () { S.view = "executive"; renderAll(); setTimeout(function () { window.print(); }, 300); };
+  var modes = [null, "light", "dark"];
+  $("#theme").onclick = function () { var cur0 = store.get("dash-theme") || null, next = modes[(modes.indexOf(cur0) + 1) % 3]; store.set("dash-theme", next || ""); applyTheme(next); };
+  if (!location.hash) { var savedLens = store.get("dash-lens"); if (savedLens && LENSES[savedLens]) { S.lens = savedLens; S.view = LENSES[savedLens].view; } }
+  window.addEventListener("resize", function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (!store.get("dash-theme")) applyTheme(null); });
+  $("#foot").innerHTML = "<p>" + "Every figure is read from the Publisher's RecommendationPackages and the Realizer's RealizationPackages; nothing is estimated here. Annual figures: trailing 365 days for actual spend, 365-day forward for savings, run-rate for realized savings. DBU at list price, AWS at on-demand EC2 rates (modeled). Unknown values show as unavailable, never zero." + "</p>";
+  applyTheme(hashTheme || store.get("dash-theme") || null);
+})();
+</script>
+</body>
+</html>
